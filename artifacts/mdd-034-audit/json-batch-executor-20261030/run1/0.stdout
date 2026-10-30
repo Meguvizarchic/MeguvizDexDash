@@ -1,0 +1,8 @@
+
+running 3 tests
+test executor::runtime_tests::json_batches_invalid_source_row_reports_truncation ... ok
+test executor::runtime_tests::json_batches_zero_partial_and_limits_never_fake_complete ... ok
+test executor::runtime_tests::json_batches_execute_multiple_rows_and_bind_delivery ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 111 filtered out; finished in 0.01s
+

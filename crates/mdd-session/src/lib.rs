@@ -87,6 +87,49 @@ impl BatchHandle {
         Ok(())
     }
 
+    /// Record explicit consumption of an already-delivered partial batch after
+    /// this query has failed. The caller must supply the exact recorded first
+    /// error. This cannot turn the failed query into a successful delivery.
+    pub fn acknowledge_partial(&self, expected_error: &MddError) -> MddResult<()> {
+        let query = QueryHandle(self.0.query.clone());
+        let mut state = self.0.lifecycle.lock_query_read(&query)?;
+        let query_entry = state.query(&query)?;
+        let actual = query_entry
+            .status
+            .error
+            .as_ref()
+            .ok_or_else(|| invalid("partial acknowledgement requires query failure"))?;
+        if state.batch_fault.is_some() {
+            return Err(actual.clone());
+        }
+        if !matches!(
+            query_entry.status.phase,
+            QueryPhase::Failed | QueryPhase::Cancelled
+        ) || query_entry.status.delivery_complete
+            || actual.code != expected_error.code
+            || actual.stage != expected_error.stage
+            || actual.message != expected_error.message
+            || actual.retryable != expected_error.retryable
+            || actual.details != expected_error.details
+        {
+            return Err(invalid("partial acknowledgement error binding mismatch"));
+        }
+        let entry = state
+            .batches
+            .get(&self.0.token.id)
+            .ok_or_else(|| invalid("stale batch handle"))?;
+        state.check(&self.0.token, &entry.token)?;
+        if entry.query_id != query.id() {
+            return Err(invalid("batch query binding mismatch"));
+        }
+        let entry = state.batches.get_mut(&self.0.token.id).unwrap();
+        if entry.acknowledged {
+            return Err(invalid("batch already acknowledged"));
+        }
+        entry.acknowledged = true;
+        Ok(())
+    }
+
     /// Release this reference. The final reference reports a registry failure;
     /// dropping instead records such a failure on the lifecycle for later calls.
     pub fn release(self) -> MddResult<()> {
@@ -1937,6 +1980,32 @@ mod tests {
             ErrorCode::InvalidCursor
         );
         assert!(!runtime.query_status(&query).unwrap().delivery_complete);
+    }
+
+    #[test]
+    fn owned_batch_partial_ack_requires_exact_existing_failure() {
+        for worker_loss in [false, true] {
+            let (runtime, _, session) = runtime(ResourceLimits::default());
+            let query = prepare(&runtime, &session);
+            runtime.start_query(&session, &query, 1).unwrap();
+            let batch = runtime.own_batch(&query, Box::new([1, 2])).unwrap();
+            let proposed = MddError::new(ErrorCode::Cancelled, "test", "wrong");
+            assert!(batch.acknowledge_partial(&proposed).is_err());
+            if worker_loss {
+                runtime.worker_lost("test loss").unwrap();
+            } else {
+                runtime.cancel_query(&query).unwrap();
+            }
+            let first = runtime.query_status(&query).unwrap().error.unwrap();
+            assert_eq!(batch.acknowledge().unwrap_err().code, first.code);
+            assert!(batch.acknowledge_partial(&proposed).is_err());
+            batch.acknowledge_partial(&first).unwrap();
+            assert!(batch.acknowledge_partial(&first).is_err());
+            let status = runtime.query_status(&query).unwrap();
+            assert_eq!(status.error.unwrap().code, first.code);
+            assert!(!status.delivery_complete);
+            batch.release().unwrap();
+        }
     }
 
     #[test]

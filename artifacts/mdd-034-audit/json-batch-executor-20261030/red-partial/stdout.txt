@@ -1,0 +1,11 @@
+
+running 1 test
+test executor::runtime_tests::json_batches_partial_failure_preserves_consumed_rows_and_error ... FAILED
+
+failures:
+
+failures:
+    executor::runtime_tests::json_batches_partial_failure_preserves_consumed_rows_and_error
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 114 filtered out; finished in 0.00s
+

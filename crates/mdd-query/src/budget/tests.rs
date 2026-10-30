@@ -97,6 +97,73 @@ fn owned_batch_queue_preserves_consumption_and_retained_budget() {
 }
 
 #[test]
+fn owned_batch_producer_rejects_duplicate_reservation_identity() {
+    let (life, _, _, query, runtime) = owned_queue_test_runtime(BudgetLimits::default());
+    let (sender, mut receiver) = bounded_owned_batch_channel(&runtime, 1).unwrap();
+    let mut producer = sender.claim_producer().unwrap();
+    producer.arm();
+    let reservation = sender.reserve_payload(2).unwrap();
+    let error = sender
+        .send_produced(
+            &runtime,
+            Box::new([1, 2, 3, 4]),
+            vec![reservation.clone(), reservation],
+            &producer,
+        )
+        .unwrap_err();
+    assert_eq!(error.code, ErrorCode::InvalidArgument);
+    assert!(!life.query_status(&query).unwrap().delivery_complete);
+    assert!(matches!(
+        receiver.receive().unwrap(),
+        OwnedBatchEvent::End(Err(_))
+    ));
+}
+
+#[test]
+fn owned_batch_receipt_tracker_fault_records_query_first_error() {
+    for prior_cancel in [false, true] {
+        let (life, _, _, query, runtime) = owned_queue_test_runtime(BudgetLimits::default());
+        let (sender, mut receiver) = bounded_owned_batch_channel(&runtime, 1).unwrap();
+        sender.send(&runtime, Box::new([1])).unwrap();
+        let OwnedBatchEvent::Data(packet) = receiver.receive().unwrap() else {
+            panic!("missing batch")
+        };
+        packet.acknowledge().unwrap();
+        runtime.cancellation().mark_computed().unwrap();
+        sender.finish(Ok(())).unwrap();
+        assert!(matches!(
+            receiver.receive().unwrap(),
+            OwnedBatchEvent::End(Ok(()))
+        ));
+        let mut receipt = receiver.into_delivery_receipt().unwrap();
+        if prior_cancel {
+            runtime.cancellation().cancel().unwrap();
+        }
+        let tracker = Arc::clone(&receipt.0.tracker);
+        assert!(
+            thread::spawn(move || {
+                let _guard = tracker.state.lock().unwrap();
+                panic!("injected tracker failure");
+            })
+            .join()
+            .is_err()
+        );
+        let expected = if prior_cancel {
+            ErrorCode::Cancelled
+        } else {
+            ErrorCode::InternalFault
+        };
+        assert_eq!(
+            receipt.confirm(&sender, &runtime, 1).unwrap_err().code,
+            expected
+        );
+        let status = life.query_status(&query).unwrap();
+        assert_eq!(status.error.unwrap().code, expected);
+        assert!(!status.delivery_complete);
+    }
+}
+
+#[test]
 fn owned_batch_queue_rejects_unconsumed_and_foreign_runtime() {
     let (life, _, _, query, runtime) = owned_queue_test_runtime(BudgetLimits::default());
     let (_, _, _, _, foreign) = owned_queue_test_runtime(BudgetLimits::default());

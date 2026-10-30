@@ -1,5 +1,8 @@
 //! Immutable-provider execution with typed prepare, explicit work checkpoints and bag semantics.
-use crate::budget::{BoundedSender, QueueDeliveryReceipt, Resource, RuntimeBudget};
+use crate::budget::{
+    BoundedSender, OwnedBatchReceipt, OwnedBatchSender, QueueDeliveryReceipt, Reservation,
+    Resource, RuntimeBudget,
+};
 use crate::ir::*;
 use crate::operators::{self, Truth};
 use mdd_types::{DecimalU64, ErrorCode, MddError, MddResult};
@@ -1682,6 +1685,393 @@ impl QueueDeliveryReceipt {
 /// ```compile_fail
 /// use mdd_query::executor::execute_trusted_into;
 /// ```
+/// Limits for the structured JSON byte-batch producer. Each emitted batch is
+/// one JSON array of complete typed rows; an empty result emits no data batch.
+#[derive(Clone, Copy, Debug)]
+pub struct JsonBatchLimits {
+    pub max_rows: u64,
+    pub max_bytes: u64,
+}
+
+struct JsonBatchAssembly {
+    bytes: Vec<u8>,
+    reservations: Vec<Reservation>,
+    rows: u64,
+}
+
+struct JsonBatchWriter<'a, 'control> {
+    bytes: &'a mut Vec<u8>,
+    control: &'a mut Control<'control>,
+    end: usize,
+    failure: Option<MddError>,
+}
+impl Write for JsonBatchWriter<'_, '_> {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        let result = (|| {
+            self.control.step("json_batch_write", 1)?;
+            let end = self
+                .bytes
+                .len()
+                .checked_add(bytes.len())
+                .ok_or_else(|| quota("JSON_BATCH_SIZE_OVERFLOW"))?;
+            if end > self.end {
+                return Err(invalid("JSON_BATCH_COUNT_MISMATCH"));
+            }
+            self.bytes.extend_from_slice(bytes);
+            Ok::<(), MddError>(())
+        })();
+        if let Err(error) = result {
+            self.failure = Some(error);
+            return Err(io::Error::other("bounded JSON batch write stopped"));
+        }
+        Ok(bytes.len())
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+/// Producer state remains provisional until the matching receiver explicitly
+/// acknowledges each batch and End and exchanges its receipt for an envelope.
+pub struct PendingJsonBatchDelivery {
+    terminal: Option<mdd_types::result::TerminalBuilder>,
+    runtime: RuntimeBudget,
+    sender: OwnedBatchSender,
+    produced_rows: u64,
+    produced_batches: u64,
+    error: Option<MddError>,
+    dropped: bool,
+    completed: bool,
+}
+impl Drop for PendingJsonBatchDelivery {
+    fn drop(&mut self) {
+        if !self.completed {
+            let _ = self.runtime.stop(MddError::new(
+                ErrorCode::WorkerLost,
+                "query.delivery",
+                "producer dropped pending JSON batch delivery before confirmation",
+            ));
+        }
+    }
+}
+impl OwnedBatchReceipt {
+    /// Finalize only the exact queue/query after all batches and End were consumed.
+    pub fn finish_json_batches(
+        &mut self,
+        pending: &mut PendingJsonBatchDelivery,
+    ) -> MddResult<mdd_types::ResultEnvelope> {
+        if !self.matches_pending(
+            &pending.sender,
+            &pending.runtime,
+            pending.produced_batches,
+            pending.error.as_ref(),
+        )? {
+            return Err(invalid("DELIVERY_RECEIPT_QUEUE_OR_QUERY_MISMATCH"));
+        }
+        let deadline = if pending.error.is_none() {
+            Some(pending.runtime.pool().delivery_deadline())
+        } else {
+            None
+        };
+        let mut terminal = pending
+            .terminal
+            .take()
+            .ok_or_else(|| invalid("DELIVERY_ALREADY_FINALIZED"))?;
+        if pending.produced_rows != 0
+            && let Err(error) = terminal.record_batch(0, pending.produced_rows)
+        {
+            let first = pending
+                .runtime
+                .stop(error.detail("actual_consumed_rows", pending.produced_rows.to_string()));
+            let first = QueueDeliveryReceipt::with_consumed_count(first, pending.produced_rows);
+            return match self.finish_failed() {
+                Ok(()) => Err(first),
+                Err(cleanup) => Err(QueueDeliveryReceipt::with_cleanup_error(first, &cleanup)),
+            };
+        }
+        if let Some(error) = pending.error.take() {
+            if let Err(cleanup) = self.finish_failed() {
+                return Err(QueueDeliveryReceipt::with_cleanup_error(error, &cleanup));
+            }
+            let envelope = terminal.fail(error, pending.dropped, None)?;
+            pending.completed = true;
+            return Ok(envelope);
+        }
+        let complete = (|| {
+            let deadline = deadline.unwrap()?;
+            terminal.validate_success()?;
+            self.finish_cursor_with_budget(&deadline)?;
+            terminal.succeed(None)
+        })();
+        match complete {
+            Ok(envelope) => {
+                pending.completed = true;
+                Ok(envelope)
+            }
+            Err(error) => {
+                let first = pending.runtime.stop(error);
+                if let Err(cleanup) = self.finish_failed() {
+                    return Err(QueueDeliveryReceipt::with_cleanup_error(first, &cleanup));
+                }
+                let envelope = terminal.fail(first, pending.dropped, None)?;
+                pending.completed = true;
+                Ok(envelope)
+            }
+        }
+    }
+}
+
+/// Execute a typed query into bounded structured JSON row batches. Limits bound
+/// encoded bytes and rows per batch; allocator overhead and RSS are not bounded.
+/// The producer/consumer must run concurrently if the queue can fill.
+pub fn execute_json_batches_into(
+    prepared: &PreparedQuery,
+    source: &dyn FactSource,
+    mode: ExecutionMode,
+    control: &mut Control<'_>,
+    mut terminal: mdd_types::result::TerminalBuilder,
+    sender: &OwnedBatchSender,
+    limits: JsonBatchLimits,
+) -> MddResult<PendingJsonBatchDelivery> {
+    if limits.max_rows == 0 || limits.max_bytes < 2 {
+        return Err(invalid("INVALID_JSON_BATCH_LIMITS"));
+    }
+    let runtime = control
+        .runtime
+        .clone()
+        .ok_or_else(|| invalid("DELIVERY_REQUIRES_QUERY_RUNTIME"))?;
+    if !sender.matches_runtime(&runtime) {
+        return Err(invalid("DELIVERY_QUEUE_RUNTIME_MISMATCH"));
+    }
+    if !terminal.is_pristine() {
+        return Err(invalid("TERMINAL_NOT_FRESH"));
+    }
+    let binding = prepared.runtime_binding()?;
+    let identity = terminal.identity();
+    let mut expected: Vec<String> = prepared
+        .required_layers
+        .iter()
+        .map(|layer| {
+            serde_json::to_value(layer)
+                .expect("enum serializes")
+                .as_str()
+                .unwrap()
+                .to_owned()
+        })
+        .collect();
+    expected.sort();
+    let mut actual = terminal.coverage().required_layers.clone();
+    actual.sort();
+    if identity.snapshot_id.as_deref() != Some(prepared.snapshot_id())
+        || identity.catalog_epoch != Some(prepared.catalog_epoch())
+        || identity.schema_id.as_deref() != Some(binding.schema_id.as_str())
+        || identity.query_id.as_deref() != Some(runtime.cancellation().query_handle().id())
+        || identity.session_id.as_deref() != Some(runtime.cancellation().session_id()?.as_str())
+        || actual != expected
+    {
+        return Err(invalid("TERMINAL_PLAN_OR_QUERY_BINDING"));
+    }
+    if prepared.source_identity != source.identity() {
+        return Err(invalid("PREPARED_SOURCE_OR_GENERATION_CHANGED"));
+    }
+    let sender = sender.try_clone()?;
+    let mut producer = sender.claim_producer()?;
+    if let Err(error) = runtime_begin(prepared, control) {
+        if let Ok(status) = runtime.cancellation().status()
+            && let Some(original) = status.error
+        {
+            let _ = sender.finish_produced(&mut producer, Err(original.clone()));
+            return Err(original);
+        }
+        return Err(error);
+    }
+    producer.arm();
+    let mut emitted_rows = 0u64;
+    let mut batches = 0u64;
+    let mut seen_rows = 0u64;
+    let mut batch: Option<JsonBatchAssembly> = None;
+    let mut dropped = false;
+    let result = (|| {
+        source.require_layers(&prepared.required_layers)?;
+        control.step("execute_start", 1)?;
+        let mut input = match mode {
+            ExecutionMode::Streaming => cursor(&prepared.query.root, source, control)?,
+            ExecutionMode::MaterializedReference => {
+                Cursor::Rows(reference(&prepared.query.root, source, control)?.into_iter())
+            }
+        };
+        if let Cursor::Rows(rows) = &input {
+            terminal.computation_complete(rows.len() as u64)?;
+            runtime.cancellation().mark_computed()?;
+        }
+        loop {
+            // Once an operator is asked for another row, a failure may have
+            // withheld output. EOF explicitly clears this provisional flag.
+            dropped = true;
+            let Some(row) = input.next(source, control)? else {
+                dropped = false;
+                break;
+            };
+            validate_row(&row, &prepared.output_schema, source.snapshot_id())?;
+            if seen_rows >= control.limits.max_output_rows {
+                dropped = true;
+                return Err(quota("MAX_OUTPUT_ROWS")
+                    .detail("budget", "output_rows")
+                    .detail("limit", control.limits.max_output_rows.to_string()));
+            }
+            let row_memory = sender.reserve_payload(queued_row_resident_bytes(&row)?)?;
+            let row_bytes = count_wire_row(&row, control, &runtime)?;
+            if row_bytes
+                .checked_add(2)
+                .is_none_or(|v| v > limits.max_bytes)
+            {
+                dropped = true;
+                return Err(quota("JSON_BATCH_SINGLE_ROW_TOO_LARGE"));
+            }
+            let should_flush = batch.as_ref().is_some_and(|b| {
+                b.rows >= limits.max_rows
+                    || u64::try_from(b.bytes.len())
+                        .ok()
+                        .and_then(|n| n.checked_add(1))
+                        .and_then(|n| n.checked_add(row_bytes))
+                        .and_then(|n| n.checked_add(1))
+                        .is_none_or(|n| n > limits.max_bytes)
+            });
+            if should_flush {
+                let mut value = batch.take().unwrap();
+                value.bytes.push(b']');
+                let n = value.rows;
+                if let Err(error) = sender.send_produced(
+                    &runtime,
+                    value.bytes.into_boxed_slice(),
+                    value.reservations,
+                    &producer,
+                ) {
+                    dropped = true;
+                    return Err(error);
+                }
+                emitted_rows = emitted_rows
+                    .checked_add(n)
+                    .ok_or_else(|| quota("OUTPUT_ROW_OVERFLOW"))?;
+                batches = batches
+                    .checked_add(1)
+                    .ok_or_else(|| quota("OUTPUT_BATCH_OVERFLOW"))?;
+            }
+            let first = batch.is_none();
+            let extra = row_bytes
+                .checked_add(if first { 2 } else { 1 })
+                .ok_or_else(|| quota("JSON_BATCH_SIZE_OVERFLOW"))?;
+            let reservation = sender.reserve_payload(extra)?;
+            runtime.charge(Resource::OutputBytes, extra)?;
+            let value = batch.get_or_insert_with(|| JsonBatchAssembly {
+                bytes: Vec::new(),
+                reservations: Vec::new(),
+                rows: 0,
+            });
+            let extra_usize =
+                usize::try_from(extra).map_err(|_| quota("JSON_BATCH_SIZE_OVERFLOW"))?;
+            // The closing bracket is reserved logically from the first row,
+            // but it is not in Vec::len() until flush; retain capacity for it.
+            let capacity_extra = extra_usize
+                .checked_add(usize::from(!first))
+                .ok_or_else(|| quota("JSON_BATCH_SIZE_OVERFLOW"))?;
+            value
+                .bytes
+                .try_reserve_exact(capacity_extra)
+                .map_err(|_| quota("JSON_BATCH_ALLOCATION"))?;
+            value
+                .reservations
+                .try_reserve(1)
+                .map_err(|_| quota("JSON_BATCH_ALLOCATION"))?;
+            value.reservations.push(reservation);
+            value.bytes.push(if first { b'[' } else { b',' });
+            let expected_end = value
+                .bytes
+                .len()
+                .checked_add(
+                    usize::try_from(row_bytes).map_err(|_| quota("JSON_BATCH_SIZE_OVERFLOW"))?,
+                )
+                .ok_or_else(|| quota("JSON_BATCH_SIZE_OVERFLOW"))?;
+            let mut writer = JsonBatchWriter {
+                bytes: &mut value.bytes,
+                control,
+                end: expected_end,
+                failure: None,
+            };
+            let serialized = serde_json::to_writer(&mut writer, &StreamingRow(&row));
+            if let Some(error) = writer.failure.take() {
+                dropped = true;
+                return Err(error);
+            }
+            serialized.map_err(|error| {
+                invalid("ROW_ENCODING").detail("serializer_error", error.to_string())
+            })?;
+            if writer.bytes.len() != expected_end {
+                dropped = true;
+                return Err(invalid("JSON_BATCH_COUNT_MISMATCH"));
+            }
+            value.rows += 1;
+            seen_rows = seen_rows
+                .checked_add(1)
+                .ok_or_else(|| quota("OUTPUT_ROW_OVERFLOW"))?;
+            control.step("output_row", 1)?;
+            dropped = false;
+            drop(row_memory);
+        }
+        if !terminal.execution_complete() {
+            terminal.computation_complete(seen_rows)?;
+            runtime.cancellation().mark_computed()?;
+        }
+        if let Some(mut value) = batch.take() {
+            value.bytes.push(b']');
+            let n = value.rows;
+            if let Err(error) = sender.send_produced(
+                &runtime,
+                value.bytes.into_boxed_slice(),
+                value.reservations,
+                &producer,
+            ) {
+                dropped = true;
+                return Err(error);
+            }
+            emitted_rows = emitted_rows
+                .checked_add(n)
+                .ok_or_else(|| quota("OUTPUT_ROW_OVERFLOW"))?;
+            batches = batches
+                .checked_add(1)
+                .ok_or_else(|| quota("OUTPUT_BATCH_OVERFLOW"))?;
+        }
+        sender.finish_produced(&mut producer, Ok(()))?;
+        Ok::<(), MddError>(())
+    })();
+    let error = match result {
+        Ok(()) => None,
+        Err(error) => {
+            if batch.as_ref().is_some_and(|b| b.rows != 0) {
+                dropped = true;
+            }
+            let error = control.stop(error);
+            if sender
+                .finish_produced(&mut producer, Err(error.clone()))
+                .is_err()
+            {
+                return Err(error);
+            }
+            Some(error)
+        }
+    };
+    Ok(PendingJsonBatchDelivery {
+        terminal: Some(terminal),
+        runtime,
+        sender,
+        produced_rows: emitted_rows,
+        produced_batches: batches,
+        error,
+        dropped,
+        completed: false,
+    })
+}
+
 pub fn execute_into(
     prepared: &PreparedQuery,
     source: &dyn FactSource,

@@ -1691,8 +1691,8 @@ mod tests {
                 assert_eq!(actual, expected, "{dialect:?}: {sql}");
             }
             for sql in [
-                "SELECT id IN ('1.0') FROM facts",
-                "SELECT id IN ('1e0') FROM facts",
+                "SELECT id IN ('1.5') FROM facts",
+                "SELECT id IN ('1e-999') FROM facts",
                 "SELECT id IN ('9223372036854775808') FROM facts",
                 "SELECT id IN ('-9223372036854775809') FROM facts",
                 "SELECT id IN ('0x1') FROM facts",
@@ -1715,6 +1715,102 @@ mod tests {
         assert_eq!(
             native
                 .query("SELECT id IN ('01') FROM facts")
+                .unwrap_err()
+                .code,
+            ErrorCode::UnsupportedQuery
+        );
+    }
+
+    #[test]
+    fn legacy_integer_in_exact_real_syntax_text_matches_sqlite() {
+        let (provider, native) = bridge();
+        let sqlite = rusqlite::Connection::open_in_memory().unwrap();
+        sqlite
+            .execute_batch("CREATE TABLE facts(id INTEGER); INSERT INTO facts VALUES(1),(2),(3);")
+            .unwrap();
+        let cases = [
+            "SELECT id IN ('1.0','+2e0',NULL),id NOT IN ('3.00',NULL) FROM facts ORDER BY id",
+            "SELECT id FROM facts WHERE id IN ('.1e1','20e-1','30.0e-1') ORDER BY id",
+            "SELECT CAST('0' AS INTEGER) IN (' -0.0e999 '), CAST('-12' AS INTEGER) IN ('-1.20e1')",
+            "SELECT CAST('9007199254740991' AS INTEGER) IN ('9007199254740991.0'), CAST('123456789012345' AS INTEGER) IN ('123456789.012345e6')",
+            "SELECT CAST('9007199254740991' AS INTEGER) IN ('90071992547409910.0e-1'), CAST('0' AS INTEGER) IN ('-0.000e-999')",
+            "SELECT f.id FROM facts f WHERE EXISTS (SELECT 1 FROM facts g WHERE f.id IN ('01.0','2e0') AND g.id=f.id) ORDER BY f.id",
+        ];
+        // SQLite rounds this 18-digit fractional decimal to the adjacent
+        // integer and underflows nonzero 1e-999 to zero. Neither is an exact
+        // decimal integer, so the candidate must not silently rewrite them.
+        let rounded: i64 = sqlite
+            .query_row(
+                "SELECT CAST('9007199254740991' AS INTEGER) IN ('90071992547409909.0e-1')",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let underflow: i64 = sqlite
+            .query_row("SELECT CAST('0' AS INTEGER) IN ('1e-999')", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!((rounded, underflow), (1, 1));
+        for dialect in [SqlDialect::DexSql010, SqlDialect::DexSql011] {
+            let bridge = SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+            for sql in cases {
+                let mut stmt = sqlite.prepare(sql).unwrap();
+                let width = stmt.column_count();
+                let expected = stmt
+                    .query_map([], |row| {
+                        (0..width)
+                            .map(|i| row.get::<_, Option<i64>>(i))
+                            .collect::<rusqlite::Result<Vec<_>>>()
+                    })
+                    .unwrap()
+                    .collect::<rusqlite::Result<Vec<_>>>()
+                    .unwrap();
+                let actual = bridge
+                    .query(sql)
+                    .unwrap()
+                    .rows()
+                    .iter()
+                    .map(|row| {
+                        row.iter()
+                            .map(|cell| match cell {
+                                SqlValue::Null => None,
+                                SqlValue::I64(value) => Some(value.0),
+                                SqlValue::U64(value) => Some(i64::try_from(value.0).unwrap()),
+                                value => panic!("unexpected {value:?}"),
+                            })
+                            .collect::<Vec<_>>()
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(actual, expected, "{dialect:?}: {sql}");
+            }
+            for sql in [
+                "SELECT id IN ('1.5') FROM facts",
+                "SELECT id IN ('1e-999') FROM facts",
+                "SELECT id IN ('9007199254740992.0') FROM facts",
+                "SELECT id IN ('9007199254740993.0') FROM facts",
+                "SELECT id IN ('90071992547409909.0e-1') FROM facts",
+                "SELECT id IN ('1.000000000000000001') FROM facts",
+                "SELECT id IN ('1e999') FROM facts",
+                "SELECT id IN ('1e') FROM facts",
+            ] {
+                assert_eq!(
+                    bridge.query(sql).unwrap_err().code,
+                    ErrorCode::UnsupportedQuery,
+                    "{sql}"
+                );
+            }
+            assert_eq!(
+                bridge
+                    .query("SELECT missing IN ('1.0') FROM facts")
+                    .unwrap_err()
+                    .code,
+                ErrorCode::InvalidArgument
+            );
+        }
+        assert_eq!(
+            native
+                .query("SELECT id IN ('1.0') FROM facts")
                 .unwrap_err()
                 .code,
             ErrorCode::UnsupportedQuery

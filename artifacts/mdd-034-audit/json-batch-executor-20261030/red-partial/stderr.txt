@@ -1,0 +1,8 @@
+   Compiling mdd-query v0.1.0-dev (<workspace>\crates\mdd-query)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.47s
+     Running unittests src\lib.rs (target\debug\deps\mdd_query-82579f4092cfd058.exe)
+
+thread 'executor::runtime_tests::json_batches_partial_failure_preserves_consumed_rows_and_error' (37380) panicked at crates\mdd-query\src\executor\runtime_tests.rs:2050:42:
+called `Result::unwrap()` on an `Err` value: MddError { code: QuotaExceeded, stage: "query.execute", message: "MAX_OUTPUT_ROWS", retryable: false, details: {"budget": String("output_rows"), "limit": String("2"), "reason": String("MAX_OUTPUT_ROWS")} }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p mdd-query --lib`

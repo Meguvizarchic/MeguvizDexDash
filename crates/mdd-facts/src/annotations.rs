@@ -101,6 +101,22 @@ impl Default for AnnotationOwnerViewLimits {
     }
 }
 
+/// Logical scan and result bounds for borrowed owner-signature lookup.
+/// These do not bound allocation, elapsed time, cancellation, or process RSS.
+#[derive(Clone, Copy, Debug)]
+pub struct SignatureViewLimits {
+    pub max_scanned_entries: u64,
+    pub max_matches: u64,
+}
+impl Default for SignatureViewLimits {
+    fn default() -> Self {
+        Self {
+            max_scanned_entries: 32_000_000,
+            max_matches: 4_000_000,
+        }
+    }
+}
+
 /// One encoded owner/set/item occurrence within one DEX occurrence. Parameter
 /// ordinals are encoded slots; `owner.parameter_position_in_prototype` retains
 /// whether that slot is proven to correspond to a prototype position.
@@ -1235,6 +1251,93 @@ impl AnnotationFacts {
     }
     pub fn signatures(&self) -> &[SignatureFact] {
         &self.signatures
+    }
+
+    /// Borrow every encoded class, field, or method Signature for an exact
+    /// owner in this DEX occurrence. Method and parameter annotations remain
+    /// separate: parameter slots are intentionally not selected here. Repeated
+    /// signatures retain their encoded order and are not collapsed to one value.
+    ///
+    /// An empty iterator means no matching Signature in the complete annotation
+    /// facts for this occurrence only; it does not assert runtime absence,
+    /// inheritance, or the absence of annotations in another source.
+    /// `max_scanned_entries` bounds logical visits, including both passes and
+    /// definition identity validation, not allocation, CPU time, or RSS.
+    pub fn owner_signatures(
+        &self,
+        owner: &EntityRef,
+        limits: SignatureViewLimits,
+    ) -> MddResult<impl Iterator<Item = &SignatureFact> + '_> {
+        let source = self.source();
+        if owner.snapshot_id != source.snapshot_id
+            || owner.dex_occurrence_id != source.dex_occurrence_id
+        {
+            return Err(MddError::new(
+                ErrorCode::InvalidArgument,
+                "facts.signatures",
+                "owner belongs to another snapshot or DEX occurrence",
+            ));
+        }
+        if self.annotation_coverage != Completeness::Complete
+            || self.definitions.definition_coverage() != Completeness::Complete
+            || self.definitions.metadata().metadata_coverage() != Completeness::Complete
+        {
+            return Err(MddError::new(
+                ErrorCode::IncompleteFacts,
+                "facts.signatures",
+                "complete metadata, definitions and annotations are required",
+            ));
+        }
+        let (kind, definition_scan) = match owner.kind {
+            EntityKind::ClassDefinition => (AnnotationOwnerKind::Class, 0usize),
+            EntityKind::FieldReference => (AnnotationOwnerKind::Field, 0),
+            EntityKind::FieldDefinition => (
+                AnnotationOwnerKind::Field,
+                self.definitions.definitions().field_definitions.len(),
+            ),
+            EntityKind::MethodReference => (AnnotationOwnerKind::Method, 0),
+            EntityKind::MethodDefinition => (
+                AnnotationOwnerKind::Method,
+                self.definitions.definitions().method_definitions.len(),
+            ),
+            _ => {
+                return Err(MddError::new(
+                    ErrorCode::InvalidArgument,
+                    "facts.signatures",
+                    "owner must be a class, field, or method entity",
+                ));
+            }
+        };
+        let quota = || {
+            MddError::new(
+                ErrorCode::QuotaExceeded,
+                "facts.signatures",
+                "signature owner view budget exceeded",
+            )
+        };
+        let visits = u64::try_from(self.signatures.len())
+            .ok()
+            .and_then(|count| count.checked_mul(2))
+            .and_then(|count| u64::try_from(definition_scan).ok()?.checked_add(count))
+            .ok_or_else(quota)?;
+        if visits > limits.max_scanned_entries {
+            return Err(quota());
+        }
+        // Validate the exact requested identity, including definition/reference
+        // distinction, before returning an empty result.
+        self.definitions.entity(owner.kind, owner.local_index)?;
+        let local_index = owner.local_index;
+        let matches = move |fact: &&SignatureFact| {
+            fact.owner.kind == kind
+                && fact.owner.reference.local_index == local_index
+                && fact.owner.parameter_ordinal.is_none()
+        };
+        let count =
+            u64::try_from(self.signatures.iter().filter(matches).count()).map_err(|_| quota())?;
+        if count > limits.max_matches {
+            return Err(quota());
+        }
+        Ok(self.signatures.iter().filter(matches))
     }
     pub fn completed_layers(&self) -> &[String] {
         &self.completed_layers
@@ -2530,6 +2633,180 @@ mod tests {
                 .unbuilt_layers
                 .iter()
                 .any(|layer| layer == "code_layout")
+        );
+    }
+
+    #[test]
+    fn owner_signature_view_preserves_reference_definition_and_occurrence() {
+        let facts = build("tests/fixtures/annotations/generated/annotations-038.dex");
+        let expected: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../tests/fixtures/annotations/expected.json"
+        ))
+        .unwrap();
+        for signature in facts.signatures() {
+            let expected_key = match signature.owner.kind {
+                AnnotationOwnerKind::Class => "class".to_owned(),
+                AnnotationOwnerKind::Field => {
+                    format!("field:{}", signature.owner.reference.local_index)
+                }
+                AnnotationOwnerKind::Method => {
+                    format!("method:{}", signature.owner.reference.local_index)
+                }
+                AnnotationOwnerKind::Parameter => panic!("fixture has no parameter Signature"),
+            };
+            for owner in std::iter::once(&signature.owner.reference)
+                .chain(signature.owner.definition.as_ref())
+            {
+                let got = facts
+                    .owner_signatures(owner, SignatureViewLimits::default())
+                    .unwrap()
+                    .collect::<Vec<_>>();
+                assert_eq!(got.len(), 1);
+                assert_eq!(
+                    got[0].strict_utf8().unwrap(),
+                    expected["signatures"][&expected_key].as_str().unwrap()
+                );
+                assert_eq!(got[0].annotation, signature.annotation);
+                assert_eq!(got[0].parts, signature.parts);
+                assert_eq!(got[0].string_pool_id, signature.string_pool_id);
+            }
+        }
+        let owner = facts.signatures()[0].owner.reference.clone();
+        let limits = SignatureViewLimits {
+            max_scanned_entries: 2 * facts.signatures().len() as u64,
+            max_matches: 1,
+        };
+        assert_eq!(facts.owner_signatures(&owner, limits).unwrap().count(), 1);
+        assert_eq!(
+            facts
+                .owner_signatures(
+                    &owner,
+                    SignatureViewLimits {
+                        max_scanned_entries: limits.max_scanned_entries - 1,
+                        ..limits
+                    },
+                )
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::QuotaExceeded
+        );
+        assert_eq!(
+            facts
+                .owner_signatures(
+                    &owner,
+                    SignatureViewLimits {
+                        max_matches: 0,
+                        ..limits
+                    }
+                )
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::QuotaExceeded
+        );
+        let other = build("tests/fixtures/annotations/generated/annotations-038.dex");
+        let foreign = other.signatures()[0].owner.reference.clone();
+        assert_eq!(
+            facts.owner_signatures(&foreign, limits).err().unwrap().code,
+            ErrorCode::InvalidArgument
+        );
+        let mut invalid_owner = owner.clone();
+        invalid_owner.local_index = u32::MAX;
+        assert_eq!(
+            facts
+                .owner_signatures(&invalid_owner, limits)
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InvalidArgument
+        );
+        invalid_owner.local_index = 0;
+        invalid_owner.kind = EntityKind::String;
+        assert_eq!(
+            facts
+                .owner_signatures(&invalid_owner, limits)
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InvalidArgument
+        );
+        let plain = build("tests/fixtures/definitions/generated/definitions-035.dex");
+        let unannotated = plain
+            .definitions()
+            .entity(EntityKind::MethodReference, 0)
+            .unwrap();
+        assert_eq!(
+            plain
+                .owner_signatures(&unannotated, SignatureViewLimits::default())
+                .unwrap()
+                .count(),
+            0
+        );
+        let mut partial = facts.clone();
+        partial.annotation_coverage = Completeness::Partial;
+        assert_eq!(
+            partial.owner_signatures(&owner, limits).err().unwrap().code,
+            ErrorCode::IncompleteFacts
+        );
+        let mut repeated = facts.clone();
+        repeated.signatures.push(repeated.signatures[0].clone());
+        let repeated_view = repeated
+            .owner_signatures(&owner, SignatureViewLimits::default())
+            .unwrap()
+            .collect::<Vec<_>>();
+        assert_eq!(repeated_view.len(), 2);
+        assert_eq!(repeated_view[0].annotation, repeated_view[1].annotation);
+        assert_eq!(repeated_view[0].parts, repeated_view[1].parts);
+
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/annotations/generated/annotations-038.dex");
+        let input = InputSpec {
+            path,
+            kind: InputKind::RawDex,
+            expected_sha256: None,
+        };
+        let snapshot =
+            Snapshot::capture(&[input.clone(), input], CaptureLimits::default()).unwrap();
+        let mut pair = Vec::new();
+        for source in snapshot.sources() {
+            let inventory = ArchiveInventory::build(
+                source,
+                InventoryPolicy::default(),
+                ArchiveLimits::default(),
+            )
+            .unwrap();
+            let metadata =
+                MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default()).unwrap();
+            let definitions =
+                DefinitionFacts::build(metadata, DefinitionLimits::default()).unwrap();
+            pair.push(AnnotationFacts::build(definitions, AnnotationLimits::default()).unwrap());
+        }
+        let first = &pair[0].signatures()[0].owner.reference;
+        let second = &pair[1].signatures()[0].owner.reference;
+        assert_eq!(first.snapshot_id, second.snapshot_id);
+        assert_ne!(first.dex_occurrence_id, second.dex_occurrence_id);
+        assert_eq!(
+            pair[0]
+                .owner_signatures(first, SignatureViewLimits::default())
+                .unwrap()
+                .count(),
+            1
+        );
+        assert_eq!(
+            pair[1]
+                .owner_signatures(second, SignatureViewLimits::default())
+                .unwrap()
+                .count(),
+            1
+        );
+        assert_eq!(
+            pair[0]
+                .owner_signatures(second, SignatureViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InvalidArgument
         );
     }
 

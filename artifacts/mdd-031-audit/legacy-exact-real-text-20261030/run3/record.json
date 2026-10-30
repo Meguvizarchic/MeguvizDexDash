@@ -1,0 +1,75 @@
+{
+  "scope": "two targeted synthetic SQLite affinity tests on listed combined sources; not all dependencies, A0/A1, HostLab or full qualification",
+  "source_before": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-sql/src/dialects/ast.rs": "3b00aaaac01d608280881bc24ec0733b11e1d1134b9888704044b036817ad2fd",
+    "crates/mdd-sql/src/dialects/functions.rs": "f4aca963abe8d9ef73003d1860111b8a6da14505be7f9f0c1eddec6f9fe3015c",
+    "crates/mdd-sql/src/bridge.rs": "6a7f6821a7bba4f053c41ffe99f0aa1bea7909deca7fcb8131a077aeafa7b35a",
+    "crates/mdd-query/src/budget.rs": "7c457ccd9ce09eddb9243dfa741a5b43309cca1ce55faf1ee8f357bea0dc673e",
+    "crates/mdd-query/src/executor.rs": "edcdad3cd91f97cb6ef8db90dc2c5a70d87badf7947720d7818573f4bd053cf4",
+    "crates/mdd-query/src/executor/facts.rs": "ef6c855a9d46960bce866d77777864fad92d4f6e856ea10552edb8135bdc928d",
+    "crates/mdd-session/src/lib.rs": "41eeb6e698e58db45abc9cb30120b50de3f7768500c2eba2ebccc186fec0eb47",
+    "crates/mdd-session/src/cancellation.rs": "b04d7294ce8a73cd17fdcfd1e6dbe7bcfb35aeef121cc27b1812840b78d0789c"
+  },
+  "source_after": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-sql/src/dialects/ast.rs": "3b00aaaac01d608280881bc24ec0733b11e1d1134b9888704044b036817ad2fd",
+    "crates/mdd-sql/src/dialects/functions.rs": "f4aca963abe8d9ef73003d1860111b8a6da14505be7f9f0c1eddec6f9fe3015c",
+    "crates/mdd-sql/src/bridge.rs": "6a7f6821a7bba4f053c41ffe99f0aa1bea7909deca7fcb8131a077aeafa7b35a",
+    "crates/mdd-query/src/budget.rs": "7c457ccd9ce09eddb9243dfa741a5b43309cca1ce55faf1ee8f357bea0dc673e",
+    "crates/mdd-query/src/executor.rs": "edcdad3cd91f97cb6ef8db90dc2c5a70d87badf7947720d7818573f4bd053cf4",
+    "crates/mdd-query/src/executor/facts.rs": "ef6c855a9d46960bce866d77777864fad92d4f6e856ea10552edb8135bdc928d",
+    "crates/mdd-session/src/lib.rs": "41eeb6e698e58db45abc9cb30120b50de3f7768500c2eba2ebccc186fec0eb47",
+    "crates/mdd-session/src/cancellation.rs": "b04d7294ce8a73cd17fdcfd1e6dbe7bcfb35aeef121cc27b1812840b78d0789c"
+  },
+  "runs": [
+    {
+      "filter": "legacy_integer_in_exact_real_syntax_text_matches_sqlite",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-sql",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "legacy_integer_in_exact_real_syntax_text_matches_sqlite",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-10-30T15:08:43.385891+00:00",
+      "finished_utc": "2026-10-30T15:08:57.102837+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "d6fde39c587ff19394eac9d8e021b62ec18c30c5e07846cb60db4f152a1d069f",
+      "raw_stderr_sha256": "f31ad155243d725524b35abc4b0c1bd8c6def4f615c694b3b17788117c2493d7",
+      "redaction": "workspace path replaced; original retained in ignored local artifacts"
+    },
+    {
+      "filter": "legacy_integer_in_text_affinity_matches_sqlite_for_exact_decimal_forms",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-sql",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "legacy_integer_in_text_affinity_matches_sqlite_for_exact_decimal_forms",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-10-30T15:08:57.103934+00:00",
+      "finished_utc": "2026-10-30T15:08:57.338506+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "e8cb55fc7508357c756306f2e0357704cc544ca9ffc8cf2f6a057764eef22711",
+      "raw_stderr_sha256": "d7ca7cafe5a3d75afe30b1d973453f53745f2e5564d26287e7fb6dea82f13170",
+      "redaction": "workspace path replaced; original retained in ignored local artifacts"
+    }
+  ]
+}

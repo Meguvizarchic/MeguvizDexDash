@@ -1,0 +1,9 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.14s
+     Running unittests src\lib.rs (target\debug\deps\mdd_query-82579f4092cfd058.exe)
+
+thread '<unnamed>' (38940) panicked at crates\mdd-query\src\budget\tests.rs:146:17:
+injected tracker failure
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread '<unnamed>' (49120) panicked at crates\mdd-query\src\budget\tests.rs:146:17:
+injected tracker failure

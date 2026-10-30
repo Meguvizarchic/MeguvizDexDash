@@ -1,0 +1,12 @@
+
+running 7 tests
+test executor::runtime_tests::json_batch_failed_preflight_does_not_claim_generic_queue ... ok
+test executor::runtime_tests::json_batches_invalid_source_row_reports_truncation ... ok
+test executor::runtime_tests::json_batches_partial_failure_preserves_consumed_rows_and_error ... ok
+test executor::runtime_tests::json_batches_byte_limit_splits_rows_without_loss ... ok
+test executor::runtime_tests::json_batches_post_computation_cancel_and_worker_loss_remain_errors ... ok
+test executor::runtime_tests::json_batches_execute_multiple_rows_and_bind_delivery ... ok
+test executor::runtime_tests::json_batches_zero_partial_and_limits_never_fake_complete ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 112 filtered out; finished in 0.01s
+

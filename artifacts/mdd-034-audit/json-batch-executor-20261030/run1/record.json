@@ -1,0 +1,113 @@
+{
+  "scope": "targeted structured JSON batch tests; listed sources only; no full qualification",
+  "source_before": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-query/Cargo.toml": "eb0e0c3d083ae0f3257a44519d9ffd1fa59bab82a332c1e20a16a7efb840d51d",
+    "crates/mdd-query/src/budget.rs": "827033c798e2360c6ba0cf281f869f22070da630726484148903cbe01d0a7b23",
+    "crates/mdd-query/src/budget/tests.rs": "8fdd4903bdd513c9e8efd6e3c3672fa29b55357dd1d4c2bbae7e31aad13a58af",
+    "crates/mdd-query/src/executor.rs": "edcdad3cd91f97cb6ef8db90dc2c5a70d87badf7947720d7818573f4bd053cf4",
+    "crates/mdd-query/src/executor/runtime_tests.rs": "eec0ec26394b42ceb21eba5707a461cc91aa4a91a6d2bc53424b21d820c7bb15",
+    "crates/mdd-session/src/lib.rs": "4b60e7db462e78400a0589ed1574bbaee1b3d44ee55253c3d89164183ef746fe",
+    "crates/mdd-session/src/cancellation.rs": "b04d7294ce8a73cd17fdcfd1e6dbe7bcfb35aeef121cc27b1812840b78d0789c",
+    "crates/mdd-types/src/result.rs": "a59007204e928527da43a1855d3cb08c40385ec674f55a6090063156ab19c184",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  },
+  "runs": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-query",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "json_batches_",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-10-30T14:58:08.853856+00:00",
+      "finished_utc": "2026-10-30T14:58:21.424592+00:00",
+      "exit_code": 0,
+      "stdout_raw_sha256": "1fd3a41b7bf91637591a736eea682712f3b82745f02c48beaf66d6aef560d0ba",
+      "stderr_raw_sha256": "267fdda46e037ce6aa0c985059cd8b021b69fb06c4638c67c31a3e3815f0649e"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-query",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "owned_batch_producer_rejects_duplicate_reservation_identity",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-10-30T14:58:21.424640+00:00",
+      "finished_utc": "2026-10-30T14:58:21.704614+00:00",
+      "exit_code": 0,
+      "stdout_raw_sha256": "2881725d10934e22f961174f1e0a9e94ded3010c8759c52fe72ff93e55724c91",
+      "stderr_raw_sha256": "ba1f28f030931b593ce1742dccfa3156e0898b33bae5b4fc13ea7249a4d6310a"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-query",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "owned_batch_queue_",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-10-30T14:58:21.704661+00:00",
+      "finished_utc": "2026-10-30T14:58:22.000087+00:00",
+      "exit_code": 0,
+      "stdout_raw_sha256": "1164c26f98659111c91572063076d0dcce17f98c76888e9be12825fd7bff2966",
+      "stderr_raw_sha256": "ba1f28f030931b593ce1742dccfa3156e0898b33bae5b4fc13ea7249a4d6310a"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-query",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "execute_into_zero_row_still_requires_end_and_receipt",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-10-30T14:58:22.000151+00:00",
+      "finished_utc": "2026-10-30T14:58:22.263687+00:00",
+      "exit_code": 0,
+      "stdout_raw_sha256": "6b4acf3eab9e9abb9ceef7e14f0cf409f39e0091cfed47d2bcc9edaee0bc13bd",
+      "stderr_raw_sha256": "9b6991bedd71a8dca75639b520f459e55184216da6851dae90985ff5c229bc98"
+    }
+  ],
+  "source_after": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-query/Cargo.toml": "eb0e0c3d083ae0f3257a44519d9ffd1fa59bab82a332c1e20a16a7efb840d51d",
+    "crates/mdd-query/src/budget.rs": "827033c798e2360c6ba0cf281f869f22070da630726484148903cbe01d0a7b23",
+    "crates/mdd-query/src/budget/tests.rs": "8fdd4903bdd513c9e8efd6e3c3672fa29b55357dd1d4c2bbae7e31aad13a58af",
+    "crates/mdd-query/src/executor.rs": "edcdad3cd91f97cb6ef8db90dc2c5a70d87badf7947720d7818573f4bd053cf4",
+    "crates/mdd-query/src/executor/runtime_tests.rs": "eec0ec26394b42ceb21eba5707a461cc91aa4a91a6d2bc53424b21d820c7bb15",
+    "crates/mdd-session/src/lib.rs": "4b60e7db462e78400a0589ed1574bbaee1b3d44ee55253c3d89164183ef746fe",
+    "crates/mdd-session/src/cancellation.rs": "b04d7294ce8a73cd17fdcfd1e6dbe7bcfb35aeef121cc27b1812840b78d0789c",
+    "crates/mdd-types/src/result.rs": "a59007204e928527da43a1855d3cb08c40385ec674f55a6090063156ab19c184",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  }
+}

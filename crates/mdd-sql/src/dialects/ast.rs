@@ -127,10 +127,86 @@ fn exact_i64_text_literal(expr: &Expr) -> Option<i64> {
         .strip_prefix('+')
         .or_else(|| trimmed.strip_prefix('-'))
         .unwrap_or(trimmed);
-    if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
+    if !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit()) {
+        return trimmed.parse::<i64>().ok();
+    }
+    exact_real_syntax_integer(trimmed)
+}
+
+// A limited part of SQLite NUMERIC affinity. SQLite's decimal parser uses a
+// u64 mantissa; with at most 18 digits it does not discard significant digits.
+// An exact mathematical integer below 2^53 is representable in binary64.
+// Fractional, truncated-mantissa, underflow and rounded-overflow cases remain
+// unsupported rather than being approximated as integers here.
+fn exact_real_syntax_integer(text: &str) -> Option<i64> {
+    const EXACT_MAX: u128 = (1u128 << 53) - 1;
+    let (negative, unsigned) = match text.as_bytes().first()? {
+        b'-' => (true, &text[1..]),
+        b'+' => (false, &text[1..]),
+        _ => (false, text),
+    };
+    let mut parts = unsigned.split(['e', 'E']);
+    let mantissa = parts.next()?;
+    let exponent_text = parts.next();
+    if parts.next().is_some() || (exponent_text.is_none() && !mantissa.contains('.')) {
         return None;
     }
-    trimmed.parse::<i64>().ok()
+    let exponent: i32 = if let Some(exp) = exponent_text {
+        let exp_digits = exp
+            .strip_prefix('+')
+            .or_else(|| exp.strip_prefix('-'))
+            .unwrap_or(exp);
+        if exp_digits.is_empty() || !exp_digits.bytes().all(|b| b.is_ascii_digit()) {
+            return None;
+        }
+        exp.parse().ok()?
+    } else {
+        0
+    };
+    let mut coefficient = 0u128;
+    let mut digits = 0u32;
+    let mut fractional = 0i32;
+    let mut dot = false;
+    for byte in mantissa.bytes() {
+        match byte {
+            b'.' if !dot => dot = true,
+            b'0'..=b'9' => {
+                digits += 1;
+                if digits > 18 {
+                    return None;
+                }
+                coefficient = coefficient
+                    .checked_mul(10)?
+                    .checked_add(u128::from(byte - b'0'))?;
+                if dot {
+                    fractional += 1;
+                }
+            }
+            _ => return None,
+        }
+    }
+    if digits == 0 {
+        return None;
+    }
+    // Exact zero is distinct from a nonzero value that underflows to zero.
+    if coefficient == 0 {
+        return Some(0);
+    }
+    let power = exponent.checked_sub(fractional)?;
+    let magnitude = if power >= 0 {
+        coefficient.checked_mul(10u128.checked_pow(u32::try_from(power).ok()?)?)?
+    } else {
+        let divisor = 10u128.checked_pow(power.unsigned_abs())?;
+        if coefficient % divisor != 0 {
+            return None;
+        }
+        coefficient / divisor
+    };
+    if magnitude > EXACT_MAX {
+        return None;
+    }
+    let value = i64::try_from(magnitude).ok()?;
+    Some(if negative { -value } else { value })
 }
 fn canonical_i64_text_literal(expr: &Expr) -> Option<i64> {
     let Expr::Value(value) = expr else {

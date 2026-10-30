@@ -1,6 +1,9 @@
 use super::*;
 use crate::{
-    budget::{BudgetLimits, BudgetPool, BudgetScope, QueueEvent, RuntimeBudget, bounded_channel},
+    budget::{
+        BudgetLimits, BudgetPool, BudgetScope, OwnedBatchEvent, QueueEvent, RuntimeBudget,
+        bounded_channel, bounded_owned_batch_channel,
+    },
     executor::facts::{MemoryCatalog, Table},
 };
 use mdd_input::snapshot::{CaptureLimits, InputKind, InputSpec, Snapshot};
@@ -41,6 +44,9 @@ fn setup_with_schema_and_lifecycle(
     rows: Vec<Row>,
     lifecycle_limits: ResourceLimits,
 ) -> Fixture {
+    let nullable = rows
+        .iter()
+        .any(|row| matches!(row.first(), Some(Value::Null)));
     let snapshot = Arc::new(
         Snapshot::capture(
             &[InputSpec {
@@ -69,7 +75,7 @@ fn setup_with_schema_and_lifecycle(
                     id: "n".into(),
                     display_name: "n".into(),
                     data_type,
-                    nullable: false,
+                    nullable,
                 }],
                 required_layers: vec![FactLayer::Structure],
                 rows,
@@ -1805,6 +1811,388 @@ fn execute_into_zero_row_still_requires_end_and_receipt() {
     ));
     let mut receipt = receiver.into_delivery_receipt().unwrap();
     assert!(receipt.finish(&mut pending).unwrap().is_complete_result());
+    assert!(f.cancel.status().unwrap().delivery_complete);
+}
+
+#[test]
+fn json_batches_execute_multiple_rows_and_bind_delivery() {
+    for mode in [
+        ExecutionMode::Streaming,
+        ExecutionMode::MaterializedReference,
+    ] {
+        let rows = vec![
+            vec![Value::Null],
+            vec![Value::Utf16(vec![0xd800, 0])],
+            vec![Value::Utf16(vec![65])],
+            vec![Value::Utf16(vec![65])],
+            vec![Value::Utf16(vec![66])],
+        ];
+        let f = setup_with_schema(BudgetLimits::default(), DataType::Utf16, rows.clone());
+        let (sender, mut receiver) = bounded_owned_batch_channel(&f.runtime, 4).unwrap();
+        let mut pending = execute_json_batches_into(
+            &f.prepared,
+            &f.source,
+            mode,
+            &mut Control::new(ExecutionLimits::default()).with_runtime(f.runtime.clone()),
+            terminal(&f),
+            &sender,
+            JsonBatchLimits {
+                max_rows: 2,
+                max_bytes: 4096,
+            },
+        )
+        .unwrap();
+        let mut actual = Vec::new();
+        let mut sizes = Vec::new();
+        let mut retained = Vec::new();
+        loop {
+            match receiver.receive().unwrap() {
+                OwnedBatchEvent::Data(packet) => {
+                    let decoded: Vec<Row> = serde_json::from_slice(packet.bytes()).unwrap();
+                    sizes.push(decoded.len());
+                    actual.extend(decoded);
+                    retained.push(packet.acknowledge().unwrap());
+                }
+                OwnedBatchEvent::End(result) => {
+                    result.unwrap();
+                    break;
+                }
+            }
+        }
+        assert_eq!(sizes, vec![2, 2, 1]);
+        assert_eq!(actual, rows);
+        assert!(!f.cancel.status().unwrap().delivery_complete);
+        let mut receipt = receiver.into_delivery_receipt().unwrap();
+        assert_eq!(
+            receipt.confirm(&sender, &f.runtime, 3).unwrap_err().code,
+            ErrorCode::InvalidArgument
+        );
+        assert!(!f.cancel.status().unwrap().delivery_complete);
+        let envelope = receipt.finish_json_batches(&mut pending).unwrap();
+        assert!(envelope.is_complete_result());
+        assert_eq!(envelope.response.emitted_rows, DecimalU64(5));
+        f.lifecycle.release_query(f.cancel.query_handle()).unwrap();
+        f.lifecycle.release_session(&f.session).unwrap();
+        assert_eq!(
+            serde_json::from_slice::<Vec<Row>>(retained[0].bytes()).unwrap(),
+            rows[..2]
+        );
+    }
+}
+
+#[test]
+fn json_batches_zero_partial_and_limits_never_fake_complete() {
+    let f = setup_with_rows(BudgetLimits::default(), 0);
+    let (sender, mut receiver) = bounded_owned_batch_channel(&f.runtime, 2).unwrap();
+    let mut pending = execute_json_batches_into(
+        &f.prepared,
+        &f.source,
+        ExecutionMode::Streaming,
+        &mut Control::new(ExecutionLimits::default()).with_runtime(f.runtime.clone()),
+        terminal(&f),
+        &sender,
+        JsonBatchLimits {
+            max_rows: 2,
+            max_bytes: 256,
+        },
+    )
+    .unwrap();
+    assert!(matches!(
+        receiver.receive().unwrap(),
+        OwnedBatchEvent::End(Ok(()))
+    ));
+    let mut receipt = receiver.into_delivery_receipt().unwrap();
+    assert!(
+        receipt
+            .finish_json_batches(&mut pending)
+            .unwrap()
+            .is_complete_result()
+    );
+
+    for (budget, max_bytes) in [
+        (BudgetLimits::default(), 2),
+        (BudgetLimits::default().with(Resource::OutputBytes, 1), 256),
+        (
+            BudgetLimits::default().with(Resource::QueryWorkspaceBytes, 1),
+            256,
+        ),
+    ] {
+        let f = setup_with_rows(budget, 1);
+        let (sender, mut receiver) = bounded_owned_batch_channel(&f.runtime, 2).unwrap();
+        let mut pending = execute_json_batches_into(
+            &f.prepared,
+            &f.source,
+            ExecutionMode::Streaming,
+            &mut Control::new(ExecutionLimits::default()).with_runtime(f.runtime.clone()),
+            terminal(&f),
+            &sender,
+            JsonBatchLimits {
+                max_rows: 2,
+                max_bytes,
+            },
+        )
+        .unwrap();
+        let OwnedBatchEvent::End(result) = receiver.receive().unwrap() else {
+            panic!("expected failed End")
+        };
+        assert_eq!(result.unwrap_err().code, ErrorCode::QuotaExceeded);
+        let mut receipt = receiver.into_delivery_receipt().unwrap();
+        let envelope = receipt.finish_json_batches(&mut pending).unwrap();
+        assert!(!envelope.is_complete_result());
+        assert!(!f.cancel.status().unwrap().delivery_complete);
+    }
+    let f = setup_with_rows(BudgetLimits::default(), 3);
+    let (sender, mut receiver) = bounded_owned_batch_channel(&f.runtime, 4).unwrap();
+    let pending = execute_json_batches_into(
+        &f.prepared,
+        &f.source,
+        ExecutionMode::Streaming,
+        &mut Control::new(ExecutionLimits::default()).with_runtime(f.runtime.clone()),
+        terminal(&f),
+        &sender,
+        JsonBatchLimits {
+            max_rows: 1,
+            max_bytes: 256,
+        },
+    )
+    .unwrap();
+    let OwnedBatchEvent::Data(packet) = receiver.receive().unwrap() else {
+        panic!("missing batch")
+    };
+    drop(packet);
+    assert!(!f.cancel.status().unwrap().delivery_complete);
+    assert!(receiver.into_delivery_receipt().is_err());
+    drop(pending);
+    assert!(!f.cancel.status().unwrap().delivery_complete);
+}
+
+#[test]
+fn json_batches_invalid_source_row_reports_truncation() {
+    struct InvalidRow<'a>(&'a MemoryCatalog);
+    impl FactSource for InvalidRow<'_> {
+        fn identity(&self) -> &str {
+            self.0.identity()
+        }
+        fn snapshot_id(&self) -> &str {
+            self.0.snapshot_id()
+        }
+        fn catalog_epoch(&self) -> DecimalU64 {
+            self.0.catalog_epoch()
+        }
+        fn relation_schema(&self, name: &str) -> MddResult<RelationSchema> {
+            self.0.relation_schema(name)
+        }
+        fn require_layers(&self, layers: &BTreeSet<FactLayer>) -> MddResult<()> {
+            self.0.require_layers(layers)
+        }
+        fn validate_entity(&self, entity: &mdd_facts::EntityRef) -> MddResult<()> {
+            self.0.validate_entity(entity)
+        }
+        fn scan<'a>(&'a self, _: &str) -> MddResult<Box<dyn Iterator<Item = MddResult<Row>> + 'a>> {
+            Ok(Box::new(std::iter::once(Ok(vec![Value::Bool(true)]))))
+        }
+        fn read_code_bytes(&self, entity: &mdd_facts::EntityRef) -> MddResult<Option<&[u8]>> {
+            self.0.read_code_bytes(entity)
+        }
+    }
+    let f = setup_with_rows(BudgetLimits::default(), 1);
+    let (sender, mut receiver) = bounded_owned_batch_channel(&f.runtime, 2).unwrap();
+    let mut pending = execute_json_batches_into(
+        &f.prepared,
+        &InvalidRow(&f.source),
+        ExecutionMode::Streaming,
+        &mut Control::new(ExecutionLimits::default()).with_runtime(f.runtime.clone()),
+        terminal(&f),
+        &sender,
+        JsonBatchLimits {
+            max_rows: 2,
+            max_bytes: 256,
+        },
+    )
+    .unwrap();
+    assert!(matches!(
+        receiver.receive().unwrap(),
+        OwnedBatchEvent::End(Err(_))
+    ));
+    let mut receipt = receiver.into_delivery_receipt().unwrap();
+    let result = receipt.finish_json_batches(&mut pending).unwrap();
+    assert!(!result.is_complete_result());
+    assert!(result.response.truncated);
+    assert!(!f.cancel.status().unwrap().delivery_complete);
+}
+
+#[test]
+fn json_batches_partial_failure_preserves_consumed_rows_and_error() {
+    let f = setup_with_rows(BudgetLimits::default(), 3);
+    let (sender, mut receiver) = bounded_owned_batch_channel(&f.runtime, 4).unwrap();
+    let mut execution_limits = ExecutionLimits::default();
+    execution_limits.max_output_rows = 2;
+    let mut pending = execute_json_batches_into(
+        &f.prepared,
+        &f.source,
+        ExecutionMode::Streaming,
+        &mut Control::new(execution_limits).with_runtime(f.runtime.clone()),
+        terminal(&f),
+        &sender,
+        JsonBatchLimits {
+            max_rows: 1,
+            max_bytes: 256,
+        },
+    )
+    .unwrap();
+    let original = f.cancel.status().unwrap().error.unwrap();
+    assert_eq!(original.code, ErrorCode::QuotaExceeded);
+    let OwnedBatchEvent::Data(packet) = receiver.receive().unwrap() else {
+        panic!("missing accepted partial batch")
+    };
+    let rows: Vec<Row> = serde_json::from_slice(packet.bytes()).unwrap();
+    assert_eq!(rows.len(), 1);
+    let _retained = packet.acknowledge_partial(&original).unwrap();
+    let OwnedBatchEvent::End(end) = receiver.receive().unwrap() else {
+        panic!("missing failure end")
+    };
+    assert_eq!(end.unwrap_err().code, ErrorCode::QuotaExceeded);
+    let mut receipt = receiver.into_delivery_receipt().unwrap();
+    let envelope = receipt.finish_json_batches(&mut pending).unwrap();
+    assert_eq!(envelope.error.unwrap().code, ErrorCode::QuotaExceeded);
+    assert_eq!(envelope.response.emitted_rows, DecimalU64(1));
+    assert!(envelope.response.truncated);
+    assert!(!envelope.execution.complete);
+    assert!(!f.cancel.status().unwrap().delivery_complete);
+}
+
+#[test]
+fn json_batches_byte_limit_splits_rows_without_loss() {
+    let f = setup_with_rows(BudgetLimits::default(), 5);
+    let (sender, mut receiver) = bounded_owned_batch_channel(&f.runtime, 4).unwrap();
+    let encoded = serde_json::to_vec(&vec![Value::U64(DecimalU64(0))]).unwrap();
+    let max_bytes = u64::try_from(encoded.len() * 2 + 3).unwrap();
+    let mut pending = execute_json_batches_into(
+        &f.prepared,
+        &f.source,
+        ExecutionMode::Streaming,
+        &mut Control::new(ExecutionLimits::default()).with_runtime(f.runtime.clone()),
+        terminal(&f),
+        &sender,
+        JsonBatchLimits {
+            max_rows: 100,
+            max_bytes,
+        },
+    )
+    .unwrap();
+    let mut rows = Vec::new();
+    let mut counts = Vec::new();
+    loop {
+        match receiver.receive().unwrap() {
+            OwnedBatchEvent::Data(packet) => {
+                assert!(packet.bytes().len() as u64 <= max_bytes);
+                let batch: Vec<Row> = serde_json::from_slice(packet.bytes()).unwrap();
+                counts.push(batch.len());
+                rows.extend(batch);
+                packet.acknowledge().unwrap();
+            }
+            OwnedBatchEvent::End(end) => {
+                end.unwrap();
+                break;
+            }
+        }
+    }
+    assert_eq!(counts, vec![2, 2, 1]);
+    assert_eq!(
+        rows,
+        (0..5)
+            .map(|n| vec![Value::U64(DecimalU64(n))])
+            .collect::<Vec<_>>()
+    );
+    let mut receipt = receiver.into_delivery_receipt().unwrap();
+    assert!(
+        receipt
+            .finish_json_batches(&mut pending)
+            .unwrap()
+            .is_complete_result()
+    );
+}
+
+#[test]
+fn json_batches_post_computation_cancel_and_worker_loss_remain_errors() {
+    for worker_loss in [false, true] {
+        let f = setup_with_rows(BudgetLimits::default(), 2);
+        let (sender, mut receiver) = bounded_owned_batch_channel(&f.runtime, 2).unwrap();
+        let mut pending = execute_json_batches_into(
+            &f.prepared,
+            &f.source,
+            ExecutionMode::Streaming,
+            &mut Control::new(ExecutionLimits::default()).with_runtime(f.runtime.clone()),
+            terminal(&f),
+            &sender,
+            JsonBatchLimits {
+                max_rows: 2,
+                max_bytes: 256,
+            },
+        )
+        .unwrap();
+        if worker_loss {
+            f.lifecycle.worker_lost("synthetic worker loss").unwrap();
+        } else {
+            f.cancel.cancel().unwrap();
+        }
+        let first = f.cancel.status().unwrap().error.unwrap();
+        let OwnedBatchEvent::Data(packet) = receiver.receive().unwrap() else {
+            panic!("missing batch")
+        };
+        assert_eq!(
+            serde_json::from_slice::<Vec<Row>>(packet.bytes())
+                .unwrap()
+                .len(),
+            2
+        );
+        packet.acknowledge_partial(&first).unwrap();
+        assert!(matches!(
+            receiver.receive().unwrap(),
+            OwnedBatchEvent::End(Ok(()))
+        ));
+        let mut receipt = receiver.into_delivery_receipt().unwrap();
+        let envelope = receipt.finish_json_batches(&mut pending).unwrap();
+        assert_eq!(envelope.error.unwrap().code, first.code);
+        assert!(envelope.execution.complete);
+        assert_eq!(envelope.response.emitted_rows, DecimalU64(2));
+        assert!(!f.cancel.status().unwrap().delivery_complete);
+    }
+}
+
+#[test]
+fn json_batch_failed_preflight_does_not_claim_generic_queue() {
+    let f = setup_with_rows(BudgetLimits::default(), 0);
+    let (sender, mut receiver) = bounded_owned_batch_channel(&f.runtime, 2).unwrap();
+    f.cancel.claim_execution().unwrap();
+    let error = execute_json_batches_into(
+        &f.prepared,
+        &f.source,
+        ExecutionMode::Streaming,
+        &mut Control::new(ExecutionLimits::default()).with_runtime(f.runtime.clone()),
+        terminal(&f),
+        &sender,
+        JsonBatchLimits {
+            max_rows: 1,
+            max_bytes: 256,
+        },
+    )
+    .err()
+    .unwrap();
+    assert_eq!(error.code, ErrorCode::InvalidArgument);
+    sender.send(&f.runtime, Box::new([7])).unwrap();
+    let OwnedBatchEvent::Data(packet) = receiver.receive().unwrap() else {
+        panic!("missing generic batch")
+    };
+    packet.acknowledge().unwrap();
+    f.cancel.mark_computed().unwrap();
+    sender.finish(Ok(())).unwrap();
+    assert!(matches!(
+        receiver.receive().unwrap(),
+        OwnedBatchEvent::End(Ok(()))
+    ));
+    let mut receipt = receiver.into_delivery_receipt().unwrap();
+    receipt.confirm(&sender, &f.runtime, 1).unwrap();
     assert!(f.cancel.status().unwrap().delivery_complete);
 }
 

@@ -787,7 +787,7 @@ pub struct Budgeted<T> {
 #[derive(Clone)]
 struct QueuedOwnedBatch {
     batch: mdd_session::BatchHandle,
-    _resident: Reservation,
+    _resident: Vec<Reservation>,
     tracker: Arc<DeliveryTracker>,
 }
 /// A consumed batch retained independently of the query and its queue.
@@ -805,7 +805,10 @@ impl RetainedOwnedBatch {
 impl Budgeted<QueuedOwnedBatch> {
     /// Confirm a batch after the caller has consumed it and retain owned bytes.
     /// The packet must originate from the same bound queue that created it.
-    fn acknowledge_owned_batch(self) -> MddResult<RetainedOwnedBatch> {
+    fn acknowledge_owned_batch(
+        self,
+        partial_error: Option<&MddError>,
+    ) -> MddResult<RetainedOwnedBatch> {
         let ack = self
             .acknowledgement
             .as_ref()
@@ -817,7 +820,11 @@ impl Budgeted<QueuedOwnedBatch> {
                 Err(failure) => failure,
             });
         }
-        if let Err(error) = self.payload.batch.acknowledge() {
+        let acknowledged = match partial_error {
+            Some(error) => self.payload.batch.acknowledge_partial(error),
+            None => self.payload.batch.acknowledge(),
+        };
+        if let Err(error) = acknowledged {
             return Err(match ack.tracker.cancel.fail(error.clone()) {
                 Ok(status) => status.error.unwrap_or(error),
                 Err(failure) => failure,
@@ -876,6 +883,7 @@ struct DeliveryState {
     end_seen: bool,
     end_error: Option<MddError>,
     abandoned: bool,
+    requires_envelope: bool,
 }
 pub(crate) struct DeliveryTracker {
     state: Mutex<DeliveryState>,
@@ -951,6 +959,11 @@ pub struct OwnedBatchSender(BoundedSender<QueuedOwnedBatch>);
 pub struct OwnedBatchReceiver(BoundedReceiver<QueuedOwnedBatch>);
 pub struct OwnedBatchPacket(Budgeted<QueuedOwnedBatch>);
 pub struct OwnedBatchReceipt(QueueDeliveryReceipt);
+pub(crate) struct OwnedBatchProducerLease {
+    inner: BoundProducerLease<QueuedOwnedBatch>,
+    tracker: Arc<DeliveryTracker>,
+    armed: bool,
+}
 pub enum OwnedBatchEvent {
     Data(OwnedBatchPacket),
     End(MddResult<()>),
@@ -969,6 +982,117 @@ pub fn bounded_owned_batch_channel(
 }
 
 impl OwnedBatchSender {
+    pub(crate) fn matches_runtime(&self, runtime: &RuntimeBudget) -> bool {
+        self.0.matches_runtime(runtime)
+    }
+    pub(crate) fn claim_producer(&self) -> MddResult<OwnedBatchProducerLease> {
+        let inner = self.0.claim_producer()?;
+        let tracker = self
+            .0
+            .0
+            .delivery
+            .as_ref()
+            .ok_or_else(|| invalid("batch queue must be query-bound"))?
+            .clone();
+        {
+            let mut state = tracker.state.lock().map_err(|_| {
+                self.0
+                    .0
+                    .bound_query_failure(fault("delivery tracking mutex poisoned"))
+            })?;
+            if state.requires_envelope {
+                return Err(invalid("batch producer already claimed"));
+            }
+            state.requires_envelope = true;
+        }
+        Ok(OwnedBatchProducerLease {
+            inner,
+            tracker,
+            armed: false,
+        })
+    }
+    pub(crate) fn reserve_payload(&self, bytes: u64) -> MddResult<Reservation> {
+        self.0.reserve_payload(bytes)
+    }
+    pub(crate) fn send_produced(
+        &self,
+        runtime: &RuntimeBudget,
+        bytes: Box<[u8]>,
+        reservations: Vec<Reservation>,
+        producer: &OwnedBatchProducerLease,
+    ) -> MddResult<()> {
+        if !self.matches_runtime(runtime) {
+            return Err(invalid("batch queue runtime mismatch"));
+        }
+        let size = u64::try_from(bytes.len()).map_err(|_| invalid("batch length overflow"))?;
+        let sender = &self.0;
+        let _send = sender.begin_bound_send(Some(&producer.inner))?;
+        let result = (|| {
+            let mut reserved = 0u64;
+            let mut identities = Vec::new();
+            identities
+                .try_reserve_exact(reservations.len())
+                .map_err(|_| {
+                    MddError::new(
+                        ErrorCode::QuotaExceeded,
+                        "queue",
+                        "batch reservation identity allocation failed",
+                    )
+                })?;
+            for reservation in &reservations {
+                if reservation.0.resource != Resource::QueryWorkspaceBytes
+                    || !Arc::ptr_eq(&reservation.0.pool.state, &sender.0.pool.state)
+                    || reservation.0.pool.owner != sender.0.pool.owner
+                {
+                    return Err(invalid("batch reservation belongs to another budget"));
+                }
+                identities.push(Arc::as_ptr(&reservation.0) as usize);
+                reserved = reserved.checked_add(reservation.amount()).ok_or_else(|| {
+                    MddError::new(
+                        ErrorCode::QuotaExceeded,
+                        "queue",
+                        "batch reservation overflow",
+                    )
+                })?;
+            }
+            identities.sort_unstable();
+            if identities.windows(2).any(|pair| pair[0] == pair[1]) {
+                return Err(invalid("duplicate batch reservation"));
+            }
+            if reserved < size {
+                return Err(invalid("batch reservation is smaller than encoded bytes"));
+            }
+            sender.0.pool.check_individual(Resource::QueueBytes, size)?;
+            let batch = runtime
+                .cancellation()
+                .lifecycle()
+                .own_batch(runtime.cancellation().query_handle(), bytes)?;
+            let tracker = sender
+                .0
+                .delivery
+                .as_ref()
+                .ok_or_else(|| invalid("batch queue must be query-bound"))?
+                .clone();
+            let packet_lease = sender.reserve_payload(0)?;
+            sender.send_reserved_inner(
+                QueuedOwnedBatch {
+                    batch,
+                    _resident: reservations,
+                    tracker,
+                },
+                size,
+                packet_lease,
+            )
+        })();
+        result.map_err(|error| sender.0.bound_send_failure(error))
+    }
+    pub(crate) fn finish_produced(
+        &self,
+        producer: &mut OwnedBatchProducerLease,
+        result: MddResult<()>,
+    ) -> MddResult<()> {
+        self.0.finish_produced(&mut producer.inner, result)
+    }
     /// Send an immutable owned batch on this exact query-bound queue.
     ///
     /// The bytes are already allocated by the caller before this call. The
@@ -1005,7 +1129,7 @@ impl OwnedBatchSender {
             sender.send_reserved_inner(
                 QueuedOwnedBatch {
                     batch,
-                    _resident: resident,
+                    _resident: vec![resident],
                     tracker,
                 },
                 size,
@@ -1021,13 +1145,38 @@ impl OwnedBatchSender {
         Ok(Self(self.0.try_clone()?))
     }
 }
+impl OwnedBatchProducerLease {
+    pub(crate) fn arm(&mut self) {
+        self.inner.arm();
+        self.armed = true;
+    }
+}
+impl Drop for OwnedBatchProducerLease {
+    fn drop(&mut self) {
+        if !self.armed {
+            if let Ok(mut state) = self.tracker.state.lock() {
+                state.requires_envelope = false;
+            } else {
+                let _ = self
+                    .tracker
+                    .cancel
+                    .fail(fault("delivery tracking mutex poisoned"));
+            }
+        }
+    }
+}
 impl OwnedBatchPacket {
     pub fn bytes(&self) -> &[u8] {
         self.0.payload.batch.bytes()
     }
     /// Confirm consumption of this packet and retain its immutable bytes.
     pub fn acknowledge(self) -> MddResult<RetainedOwnedBatch> {
-        self.0.acknowledge_owned_batch()
+        self.0.acknowledge_owned_batch(None)
+    }
+    /// Confirm consumption of an already-delivered partial batch after this
+    /// query has failed, using its exact first error; never grants success.
+    pub fn acknowledge_partial(self, error: &MddError) -> MddResult<RetainedOwnedBatch> {
+        self.0.acknowledge_owned_batch(Some(error))
     }
 }
 impl OwnedBatchReceiver {
@@ -1042,6 +1191,42 @@ impl OwnedBatchReceiver {
     }
 }
 impl OwnedBatchReceipt {
+    fn requires_terminal_envelope(&self) -> MddResult<bool> {
+        Ok(self
+            .0
+            .tracker
+            .state
+            .lock()
+            .map_err(|_| {
+                let error = fault("delivery tracking mutex poisoned");
+                match self.0.tracker.cancel.fail(error.clone()) {
+                    Ok(status) => status.error.unwrap_or(error),
+                    Err(failure) => failure,
+                }
+            })?
+            .requires_envelope)
+    }
+    pub(crate) fn matches_pending(
+        &self,
+        sender: &OwnedBatchSender,
+        runtime: &RuntimeBudget,
+        expected_batches: u64,
+        error: Option<&MddError>,
+    ) -> MddResult<bool> {
+        if !self.requires_terminal_envelope()? {
+            return Ok(false);
+        }
+        self.0.matches(&sender.0, runtime, expected_batches, error)
+    }
+    pub(crate) fn finish_failed(&mut self) -> MddResult<()> {
+        self.0.finish_failed()
+    }
+    pub(crate) fn finish_cursor_with_budget(
+        &mut self,
+        deadline: &DeliveryBudgetDeadline,
+    ) -> MddResult<()> {
+        self.0.finish_cursor_with_budget(deadline)
+    }
     /// Complete lifecycle delivery only after the expected batch count and
     /// successful End match this same queue, runtime and current deadline.
     pub fn confirm(
@@ -1050,6 +1235,9 @@ impl OwnedBatchReceipt {
         runtime: &RuntimeBudget,
         expected_batches: u64,
     ) -> MddResult<()> {
+        if self.requires_terminal_envelope()? {
+            return Err(invalid("batch receipt requires pending terminal envelope"));
+        }
         if !self.0.matches(&sender.0, runtime, expected_batches, None)? {
             return Err(invalid("batch receipt queue, query or count mismatch"));
         }
@@ -1079,6 +1267,7 @@ pub fn bounded_channel<T>(
                 end_seen: false,
                 end_error: None,
                 abandoned: false,
+                requires_envelope: false,
             }),
             cancel: token.clone(),
             cursor,
