@@ -346,6 +346,15 @@ fn schema(relation: &str) -> MddResult<RelationSchema> {
             ],
             FactLayer::Structure,
         ),
+        "class_field_members" => (
+            vec![
+                column("class_definition", Entity, false),
+                column("field_definition", Entity, false),
+                column("kind", Utf16, false),
+                column("ordinal", U64, false),
+            ],
+            FactLayer::Structure,
+        ),
         "code_items" => (
             vec![
                 column("dex_occurrence_id", Utf16, false),
@@ -553,6 +562,14 @@ fn rows<'a>(
             Ok(vec![
                 entity(source, EntityKind::ClassDefinition, v.class_def_idx),
                 entity(source, EntityKind::MethodDefinition, v.method_idx),
+                Value::text(v.kind.as_str()),
+                number(v.ordinal),
+            ])
+        })),
+        "class_field_members" => Box::new(definitions.field_definitions.iter().map(|v| {
+            Ok(vec![
+                entity(source, EntityKind::ClassDefinition, v.class_def_idx),
+                entity(source, EntityKind::FieldDefinition, v.field_idx),
                 Value::text(v.kind.as_str()),
                 number(v.ordinal),
             ])

@@ -18,6 +18,8 @@
 
 持锁对象现在可作为已有 `A1ExclusiveDatasetOpener` 的来源，并将来源与 inventory 复核限定在持锁期；未持锁时拒绝开始打开。持锁对象对外暴露构造时固定的路径和 SHA-256，验证时拒绝底层来源的身份字段变更。固定 A1 在合成副本上走该 opener 后完成七行、四页局部对照，见 `artifacts/mdd-005/a2-pin-source-identity-20261030/`。这只是候选组件的组合，并不把生产者代次和总序的模拟回调提升为真实证明。
 
+候选输入清单在枚举所选 DEX 时打开其 ZIP 成员，以核对局部头与中央目录；不读取或解压成员内容，因此不证明 CRC 或生产者使用相同快照。合成反例与固定 HostLab 清单规则局部对照见 `artifacts/mdd-005/a2-inventory-local-header-20261030/`。
+
 `A1DatasetLifecycle` 在正常关闭前后分别复核来源及共享期限，`close_confirmed` 与 `source_confirmed` 分别表示关闭和来源观察；若来源验证失败会记录失败并要求 owner 中止，已确认关闭仍单独保留。合成失效注入及持锁小样本固定 A1 观察见 `artifacts/mdd-005/a2-lifecycle-source-20261030/`。来源复核是额外同步哈希，可能增加 I/O 且不具备硬中断保证，后续计时需单独归因；它仍不能证明生产者内部快照。
 
 `a2_hostlab_session.py` 新增候选同步桥，可让已绑定真实 MCP dataset 的调用方交给冻结 HostLab 消费者使用 `.rows()`、`.all()`、`.files` 和 `.queries`。桥要求调用方提供固定 inventory 核验、可确认的 dataset 关闭以及可确认的进程树中止；禁止在相同事件循环线程同步等待，失败、超时或未完整消费不能作为完整会话。桥会在返回第一行之前先物化整个查询，因此改变生产者与消费者的重叠及驻留范围，必须在后续 B0/A2 测量中单独归因。

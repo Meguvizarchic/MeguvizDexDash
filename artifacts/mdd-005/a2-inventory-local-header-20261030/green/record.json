@@ -1,0 +1,13 @@
+{
+  "scope": "synthetic ZIP local headers; payload CRC deliberately not verified",
+  "command": "python -B -O artifacts/mdd-005/a2-inventory-local-header-20261030/probe.py",
+  "exit_code": 0,
+  "source_before": {
+    "benchmarks/a2_input_inventory.py": "3BFA7D8DD99172E2957C413AFE11EC68FC7C77EF1E7F26781BD653DCCCD83D94",
+    "artifacts/mdd-005/a2-inventory-local-header-20261030/probe.py": "F94EFE6F5612BC1857D1E587E2FF4CF85773AECE52376B3642990BDFC9B8F490"
+  },
+  "source_after": {
+    "benchmarks/a2_input_inventory.py": "3BFA7D8DD99172E2957C413AFE11EC68FC7C77EF1E7F26781BD653DCCCD83D94",
+    "artifacts/mdd-005/a2-inventory-local-header-20261030/probe.py": "F94EFE6F5612BC1857D1E587E2FF4CF85773AECE52376B3642990BDFC9B8F490"
+  }
+}

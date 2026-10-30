@@ -1,0 +1,13 @@
+   Compiling mdd-query v0.1.0-dev (D:\MeguvisDexDash\crates\mdd-query)
+   Compiling mdd-sql v0.1.0-dev (D:\MeguvisDexDash\crates\mdd-sql)
+error: lifetime may not live long enough
+    --> crates\mdd-sql\src\provider\metadata.rs:3079:21
+     |
+3078 |                 let row_for = |rows: &[Vec<SqlValue>]| {
+     |                                      -               - return type of closure is &'2 Vec<values::SqlValue>
+     |                                      |
+     |                                      let's call the lifetime of this reference `'1`
+3079 |                     rows.iter().find(|row| matches!(&row[0], SqlValue::Text(s) if s.strict_utf8().unwrap() == *id)).unwrap()
+     |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ returning this value requires that `'1` must outlive `'2`
+
+error: could not compile `mdd-sql` (lib test) due to 1 previous error

@@ -92,6 +92,14 @@ class PinnedInputInventory:
                     raise InputInventoryError("DEX archive members are absent or ambiguous")
                 if sum(item.file_size for item in members) > self.max_dex_bytes:
                     raise InputInventoryError("uncompressed DEX budget exceeded")
+                # Opening checks each selected local header against the central
+                # directory without decompressing member data or proving CRC.
+                for item in members:
+                    try:
+                        with archive.open(item, 'r'):
+                            pass
+                    except (OSError, zipfile.BadZipFile, RuntimeError) as error:
+                        raise InputInventoryError('selected DEX local ZIP header invalid') from error
                 return frozenset(names)
         except (OSError, zipfile.BadZipFile) as error:
             raise InputInventoryError("archive inventory failed") from error

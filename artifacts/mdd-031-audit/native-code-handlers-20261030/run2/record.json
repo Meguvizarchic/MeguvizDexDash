@@ -1,0 +1,25 @@
+{
+  "scope": "synthetic raw-byte oracle; no full format or profile qualification",
+  "source_after": {
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "crates/mdd-facts/src/code.rs": "CC2F104EB4AA806CCE2E5B9244BE0A9E3E9F3095ABEF899BE17DAD40AB9C95EC",
+    "crates/mdd-dex/src/instructions/mod.rs": "B2188CE78FB2846A1AA954483C4E71894C97AC3CF010B13CBEB8F01D0CE28456",
+    "tests/fixtures/owned_try/generated/owned-try-even.dex": "2AE4C21DB0F1051E2FFA39D6EF0DF2CAA46AC11A1CB0D86E38D13243A950D8D5",
+    "artifacts/mdd-031-audit/native-code-handlers-20261030/typed-catch.dex": "F0E0CCF16C417B5C1613F8F03B297400DDEFBE42127936A7CEBC3EBF3674AA06",
+    "crates/mdd-sql/src/provider/metadata.rs": "A41539420C6CAC986BEB4584AD55539F0E1898B0EB8CFB4CE57261336C72F818",
+    "tests/fixtures/owned_try/generated/owned-try-odd.dex": "088FD267E9C9E791D437C70A1D727883699FDB30B05685A1AAE3B27F83A340F2",
+    "artifacts/mdd-031-audit/native-code-handlers-20261030/generate_fixture.py": "AA1C2A26F2DECA606F392F9FEB83D05EF29E5184AA17BC88A76BB40B77EBE024"
+  },
+  "exit_code": 0,
+  "command": "cargo test -p mdd-sql --locked --offline --jobs 1 native_code_try_handlers_preserve_physical_offsets_and_catches -- --nocapture",
+  "source_before": {
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "crates/mdd-facts/src/code.rs": "CC2F104EB4AA806CCE2E5B9244BE0A9E3E9F3095ABEF899BE17DAD40AB9C95EC",
+    "crates/mdd-dex/src/instructions/mod.rs": "B2188CE78FB2846A1AA954483C4E71894C97AC3CF010B13CBEB8F01D0CE28456",
+    "tests/fixtures/owned_try/generated/owned-try-even.dex": "2AE4C21DB0F1051E2FFA39D6EF0DF2CAA46AC11A1CB0D86E38D13243A950D8D5",
+    "artifacts/mdd-031-audit/native-code-handlers-20261030/typed-catch.dex": "F0E0CCF16C417B5C1613F8F03B297400DDEFBE42127936A7CEBC3EBF3674AA06",
+    "crates/mdd-sql/src/provider/metadata.rs": "A41539420C6CAC986BEB4584AD55539F0E1898B0EB8CFB4CE57261336C72F818",
+    "tests/fixtures/owned_try/generated/owned-try-odd.dex": "088FD267E9C9E791D437C70A1D727883699FDB30B05685A1AAE3B27F83A340F2",
+    "artifacts/mdd-031-audit/native-code-handlers-20261030/generate_fixture.py": "AA1C2A26F2DECA606F392F9FEB83D05EF29E5184AA17BC88A76BB40B77EBE024"
+  }
+}

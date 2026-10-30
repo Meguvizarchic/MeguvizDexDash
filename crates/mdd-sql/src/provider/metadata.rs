@@ -1108,9 +1108,7 @@ impl SqlFactProvider for CombinedSqlProvider {
                 .as_ref()
                 .ok_or_else(|| invalid("UNKNOWN_ANNOTATION_RELATION"))?
                 .require_relation(relation)
-        } else if relation.eq_ignore_ascii_case("native_code_items")
-            || relation.eq_ignore_ascii_case("native_code_bytes")
-        {
+        } else if CodeRelation::parse(relation).is_ok() {
             self.code
                 .as_ref()
                 .ok_or_else(|| invalid("UNKNOWN_CODE_RELATION"))?
@@ -1138,9 +1136,7 @@ impl SqlFactProvider for CombinedSqlProvider {
                     .ok_or_else(|| invalid("UNKNOWN_ANNOTATION_RELATION"))?,
             )
             .open_cursor(relation, control)
-        } else if relation.eq_ignore_ascii_case("native_code_items")
-            || relation.eq_ignore_ascii_case("native_code_bytes")
-        {
+        } else if CodeRelation::parse(relation).is_ok() {
             Arc::clone(
                 self.code
                     .as_ref()
@@ -1813,8 +1809,35 @@ struct CodeCursor {
     provider: Arc<CodeSqlProvider>,
     occurrence: usize,
     ordinal: usize,
-    bytes: bool,
+    nested: usize,
+    pair: usize,
+    relation: CodeRelation,
     control: SqlControl,
+}
+#[derive(Clone, Copy)]
+enum CodeRelation {
+    Items,
+    Bytes,
+    Tries,
+    Handlers,
+    Catches,
+}
+impl CodeRelation {
+    fn parse(name: &str) -> MddResult<Self> {
+        if name.eq_ignore_ascii_case("native_code_items") {
+            Ok(Self::Items)
+        } else if name.eq_ignore_ascii_case("native_code_bytes") {
+            Ok(Self::Bytes)
+        } else if name.eq_ignore_ascii_case("native_code_tries") {
+            Ok(Self::Tries)
+        } else if name.eq_ignore_ascii_case("native_code_handlers") {
+            Ok(Self::Handlers)
+        } else if name.eq_ignore_ascii_case("native_code_catches") {
+            Ok(Self::Catches)
+        } else {
+            Err(invalid("UNKNOWN_CODE_RELATION"))
+        }
+    }
 }
 // The cell limit and work counter do not reserve the owned Vec, SQLite's
 // copies, allocator overhead, or RSS. Those require separate admission.
@@ -1841,18 +1864,18 @@ impl SqlFactCursor for CodeCursor {
             if let Some(item) = facts.items().get(self.ordinal) {
                 self.control.work(128)?;
                 let code = item.data();
-                let occurrence = scalar_text(&facts.source().dex_occurrence_id, &self.control)?;
-                let row = if self.bytes {
+                let occurrence = || scalar_text(&facts.source().dex_occurrence_id, &self.control);
+                let u = |n| SqlValue::U64(DecimalU64(n));
+                let row = if matches!(self.relation, CodeRelation::Bytes) {
                     vec![
-                        occurrence,
+                        occurrence()?,
                         SqlValue::U64(code.raw_range.byte_offset),
                         code_bytes(facts.raw_insns(self.ordinal)?, &self.control)?,
                         code_bytes(facts.raw_code_item(self.ordinal)?, &self.control)?,
                     ]
-                } else {
-                    let u = |n| SqlValue::U64(DecimalU64(n));
+                } else if matches!(self.relation, CodeRelation::Items) {
                     vec![
-                        occurrence,
+                        occurrence()?,
                         scalar_text(item.code_item_id(), &self.control)?,
                         SqlValue::U64(code.raw_range.byte_offset),
                         SqlValue::U64(code.raw_range.byte_length),
@@ -1866,12 +1889,90 @@ impl SqlFactCursor for CodeCursor {
                         code.debug_info_byte_offset
                             .map_or(SqlValue::Null, SqlValue::U64),
                     ]
+                } else {
+                    match self.relation {
+                        CodeRelation::Tries => {
+                            let Some(entry) = code.tries.get(self.nested) else {
+                                self.ordinal += 1;
+                                self.nested = 0;
+                                continue;
+                            };
+                            let ordinal = u64::try_from(self.nested)
+                                .map_err(|_| quota("CODE_SQL_ROWS_OVERFLOW"))?;
+                            let row = vec![
+                                occurrence()?,
+                                SqlValue::U64(code.raw_range.byte_offset),
+                                u(ordinal),
+                                SqlValue::U64(entry.byte_offset),
+                                u(entry.start_code_unit.into()),
+                                u(entry.code_unit_count.into()),
+                                u(entry.handler_relative_byte_offset.into()),
+                            ];
+                            self.nested += 1;
+                            return Ok(Some(row));
+                        }
+                        CodeRelation::Handlers => {
+                            let Some(handler) = code.handlers.get(self.nested) else {
+                                self.ordinal += 1;
+                                self.nested = 0;
+                                continue;
+                            };
+                            let ordinal = u64::try_from(self.nested)
+                                .map_err(|_| quota("CODE_SQL_ROWS_OVERFLOW"))?;
+                            let count = u64::try_from(handler.typed_catches.len())
+                                .map_err(|_| quota("CODE_SQL_ROWS_OVERFLOW"))?;
+                            let row = vec![
+                                occurrence()?,
+                                SqlValue::U64(code.raw_range.byte_offset),
+                                u(ordinal),
+                                SqlValue::U64(handler.byte_offset),
+                                u(handler.relative_byte_offset.into()),
+                                u(count),
+                                handler
+                                    .catch_all_address_code_units
+                                    .map_or(SqlValue::Null, |n| u(n.into())),
+                                SqlValue::U64(handler.raw_range.byte_length),
+                            ];
+                            self.nested += 1;
+                            return Ok(Some(row));
+                        }
+                        CodeRelation::Catches => {
+                            let Some(handler) = code.handlers.get(self.nested) else {
+                                self.ordinal += 1;
+                                self.nested = 0;
+                                self.pair = 0;
+                                continue;
+                            };
+                            let Some(catch) = handler.typed_catches.get(self.pair) else {
+                                self.nested += 1;
+                                self.pair = 0;
+                                continue;
+                            };
+                            let handler_ordinal = u64::try_from(self.nested)
+                                .map_err(|_| quota("CODE_SQL_ROWS_OVERFLOW"))?;
+                            let catch_ordinal = u64::try_from(self.pair)
+                                .map_err(|_| quota("CODE_SQL_ROWS_OVERFLOW"))?;
+                            let row = vec![
+                                occurrence()?,
+                                SqlValue::U64(code.raw_range.byte_offset),
+                                u(handler_ordinal),
+                                u(catch_ordinal),
+                                u(catch.type_idx.into()),
+                                u(catch.address_code_units.into()),
+                            ];
+                            self.pair += 1;
+                            return Ok(Some(row));
+                        }
+                        _ => unreachable!(),
+                    }
                 };
                 self.ordinal += 1;
                 return Ok(Some(row));
             }
             self.occurrence += 1;
             self.ordinal = 0;
+            self.nested = 0;
+            self.pair = 0;
         }
         Ok(None)
     }
@@ -1908,7 +2009,34 @@ impl SqlFactProvider for CodeSqlProvider {
             ("insns_raw", SqlType::Bytes, false),
             ("code_item_raw", SqlType::Bytes, false),
         ];
-        let relation = |name: &str, cols: &[(&str, SqlType, bool)]| SqlRelation {
+        let tries = [
+            ("dex_occurrence_id", SqlType::Text, false),
+            ("code_byte_offset", SqlType::U64, false),
+            ("try_ordinal", SqlType::U64, false),
+            ("try_byte_offset", SqlType::U64, false),
+            ("start_code_unit", SqlType::U64, false),
+            ("code_unit_count", SqlType::U64, false),
+            ("handler_relative_byte_offset", SqlType::U64, false),
+        ];
+        let handlers = [
+            ("dex_occurrence_id", SqlType::Text, false),
+            ("code_byte_offset", SqlType::U64, false),
+            ("handler_ordinal", SqlType::U64, false),
+            ("handler_byte_offset", SqlType::U64, false),
+            ("relative_byte_offset", SqlType::U64, false),
+            ("typed_catch_count", SqlType::U64, false),
+            ("catch_all_address_code_units", SqlType::U64, true),
+            ("handler_byte_length", SqlType::U64, false),
+        ];
+        let catches = [
+            ("dex_occurrence_id", SqlType::Text, false),
+            ("code_byte_offset", SqlType::U64, false),
+            ("handler_ordinal", SqlType::U64, false),
+            ("catch_ordinal", SqlType::U64, false),
+            ("type_idx", SqlType::U64, false),
+            ("address_code_units", SqlType::U64, false),
+        ];
+        let relation = |name: &str, cols: &[(&str, SqlType, bool)], estimated_rows| SqlRelation {
             name: name.into(),
             columns: cols
                 .iter()
@@ -1920,21 +2048,18 @@ impl SqlFactProvider for CodeSqlProvider {
                 })
                 .collect(),
             required_layers: vec![FactLayer::CodeLayout],
-            estimated_rows: Some(DecimalU64(count)),
+            estimated_rows,
         };
         Ok(vec![
-            relation("native_code_items", &metadata),
-            relation("native_code_bytes", &bytes),
+            relation("native_code_items", &metadata, Some(DecimalU64(count))),
+            relation("native_code_bytes", &bytes, Some(DecimalU64(count))),
+            relation("native_code_tries", &tries, None),
+            relation("native_code_handlers", &handlers, None),
+            relation("native_code_catches", &catches, None),
         ])
     }
     fn require_relation(&self, relation: &str) -> MddResult<()> {
-        if relation.eq_ignore_ascii_case("native_code_items")
-            || relation.eq_ignore_ascii_case("native_code_bytes")
-        {
-            Ok(())
-        } else {
-            Err(invalid("UNKNOWN_CODE_RELATION"))
-        }
+        CodeRelation::parse(relation).map(|_| ())
     }
     fn open_cursor(
         self: Arc<Self>,
@@ -1942,12 +2067,14 @@ impl SqlFactProvider for CodeSqlProvider {
         control: SqlControl,
     ) -> MddResult<Box<dyn SqlFactCursor>> {
         self.require_relation(relation)?;
-        let bytes = relation.eq_ignore_ascii_case("native_code_bytes");
+        let relation = CodeRelation::parse(relation)?;
         Ok(Box::new(CodeCursor {
             provider: self,
             occurrence: 0,
             ordinal: 0,
-            bytes,
+            nested: 0,
+            pair: 0,
+            relation,
             control,
         }))
     }
@@ -2868,6 +2995,165 @@ mod tests {
         assert!(!expected.is_empty());
         assert_eq!(actual, expected);
     }
+    #[test]
+    fn native_code_try_handlers_preserve_physical_offsets_and_catches() {
+        use mdd_dex::{definitions::DefinitionLimits, instructions::CodeLimits};
+        use mdd_facts::code::CodeFacts;
+        fn row_for<'a>(rows: &'a [Vec<SqlValue>], id: &str) -> &'a [SqlValue] {
+            rows.iter()
+                .find(|row| matches!(&row[0], SqlValue::Text(s) if s.strict_utf8().unwrap() == id))
+                .unwrap()
+        }
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        for (path, typed) in [
+            (
+                "tests/fixtures/owned_try/generated/owned-try-even.dex",
+                false,
+            ),
+            (
+                "tests/fixtures/owned_try/generated/owned-try-odd.dex",
+                false,
+            ),
+            (
+                "artifacts/mdd-031-audit/native-code-handlers-20261030/typed-catch.dex",
+                true,
+            ),
+        ] {
+            let path = root.join(path);
+            let raw = std::fs::read(&path).unwrap();
+            let words = u32::from_le_bytes(raw[248..252].try_into().unwrap()) as usize;
+            let tries_offset = 252 + words * 2 + (words % 2) * 2;
+            let start = u32::from_le_bytes(raw[tries_offset..tries_offset + 4].try_into().unwrap());
+            let units =
+                u16::from_le_bytes(raw[tries_offset + 4..tries_offset + 6].try_into().unwrap());
+            let handler_rel =
+                u16::from_le_bytes(raw[tries_offset + 6..tries_offset + 8].try_into().unwrap());
+            let handlers_offset = tries_offset + 8;
+            assert_eq!(raw[handlers_offset], 1); // one handler in the independent fixture
+            assert_eq!(handler_rel, 1);
+            let encoded = if typed {
+                &[1u8, 1, 0, 2][..]
+            } else {
+                &[1u8, 0, 2][..]
+            };
+            assert_eq!(
+                &raw[handlers_offset..handlers_offset + encoded.len()],
+                encoded
+            );
+            let spec = InputSpec {
+                path,
+                kind: InputKind::RawDex,
+                expected_sha256: None,
+            };
+            let snapshot =
+                Snapshot::capture(&[spec.clone(), spec], CaptureLimits::default()).unwrap();
+            let mut codes = Vec::new();
+            let mut metas = Vec::new();
+            let mut defs = Vec::new();
+            for source in snapshot.sources() {
+                let inventory = ArchiveInventory::build(
+                    source,
+                    InventoryPolicy::default(),
+                    ArchiveLimits::default(),
+                )
+                .unwrap();
+                let metadata =
+                    MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default())
+                        .unwrap();
+                defs.push(Arc::new(
+                    DefinitionFacts::build(metadata.clone(), DefinitionLimits::default()).unwrap(),
+                ));
+                metas.push(Arc::new(metadata));
+                codes.push(Arc::new(
+                    CodeFacts::build_all_code_items(
+                        &snapshot,
+                        &inventory,
+                        0,
+                        CodeLimits::default(),
+                    )
+                    .unwrap(),
+                ));
+            }
+            let code_provider =
+                Arc::new(CodeSqlProvider::new(codes.clone(), DecimalU64(1)).unwrap());
+            let bridge = SqlBridge::new(
+                code_provider.clone(),
+                SqlDialect::NativeV1,
+                SqlLimits::default(),
+            )
+            .unwrap();
+            let combined = SqlBridge::new(
+                Arc::new(
+                    CombinedSqlProvider::new(
+                        Arc::new(MetadataSqlProvider::new(metas, DecimalU64(1)).unwrap()),
+                        Arc::new(DefinitionSqlProvider::new(defs, DecimalU64(1)).unwrap()),
+                    )
+                    .unwrap()
+                    .with_code(code_provider)
+                    .unwrap(),
+                ),
+                SqlDialect::NativeV1,
+                SqlLimits::default(),
+            )
+            .unwrap();
+            let tries = bridge.query("SELECT dex_occurrence_id,code_byte_offset,try_ordinal,try_byte_offset,start_code_unit,code_unit_count,handler_relative_byte_offset FROM native_code_tries").unwrap();
+            let handlers = bridge.query("SELECT dex_occurrence_id,code_byte_offset,handler_ordinal,handler_byte_offset,relative_byte_offset,typed_catch_count,catch_all_address_code_units,handler_byte_length FROM native_code_handlers").unwrap();
+            let catches = bridge.query("SELECT dex_occurrence_id,code_byte_offset,handler_ordinal,catch_ordinal,type_idx,address_code_units FROM native_code_catches").unwrap();
+            assert_eq!(tries.rows().len(), 2);
+            assert_eq!(handlers.rows().len(), 2);
+            assert_eq!(catches.rows().len(), if typed { 2 } else { 0 });
+            for table in [
+                "native_code_tries",
+                "native_code_handlers",
+                "native_code_catches",
+            ] {
+                let query = format!("SELECT * FROM {table}");
+                let direct = bridge.query(&query).unwrap();
+                let via_combined = combined.query(&query).unwrap();
+                assert_eq!(direct.rows().len(), via_combined.rows().len());
+                for facts in &codes {
+                    let id = &facts.source().dex_occurrence_id;
+                    if direct.rows().iter().any(|row| matches!(&row[0], SqlValue::Text(s) if s.strict_utf8().unwrap() == *id)) {
+                        assert_eq!(row_for(direct.rows(), id), row_for(via_combined.rows(), id));
+                    }
+                }
+            }
+            let u = |v| SqlValue::U64(DecimalU64(v));
+            for facts in &codes {
+                let id = &facts.source().dex_occurrence_id;
+                assert_eq!(
+                    &row_for(tries.rows(), id)[1..],
+                    &[
+                        u(236),
+                        u(0),
+                        u(tries_offset as u64),
+                        u(start.into()),
+                        u(units.into()),
+                        u(handler_rel.into())
+                    ]
+                );
+                assert_eq!(
+                    &row_for(handlers.rows(), id)[1..],
+                    &[
+                        u(236),
+                        u(0),
+                        u((handlers_offset + 1) as u64),
+                        u(1),
+                        u(u64::from(typed)),
+                        if typed { SqlValue::Null } else { u(2) },
+                        u((encoded.len() - 1) as u64)
+                    ]
+                );
+                if typed {
+                    assert_eq!(
+                        &row_for(catches.rows(), id)[1..],
+                        &[u(236), u(0), u(0), u(0), u(2)]
+                    );
+                }
+            }
+        }
+    }
+
     #[test]
     fn native_code_items_preserve_physical_bytes_and_scope() {
         use mdd_dex::instructions::CodeLimits;

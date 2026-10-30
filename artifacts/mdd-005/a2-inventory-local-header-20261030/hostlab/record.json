@@ -1,0 +1,15 @@
+{
+  "scope": "synthetic inventory versus fixed HostLab helper; no snapshot or A2 qualification",
+  "source_after": {
+    "artifacts/local/hostlab-reference/tools/hostlab/analysis_batch.py": "8F40845D1328CAE8A06DD29830C5E636D962DA3CC72194E16904F6FB23030A64",
+    "benchmarks/a2_input_inventory.py": "3BFA7D8DD99172E2957C413AFE11EC68FC7C77EF1E7F26781BD653DCCCD83D94",
+    "artifacts/mdd-005/a2-inventory-local-header-20261030/legacy_probe.py": "856FC5F98A2BA4C6B03CC7A14590B1AD1B2417682B520D75C08F8E3BF4C5B37C"
+  },
+  "command": "baseline-venv python -B -O artifacts/mdd-005/a2-inventory-local-header-20261030/legacy_probe.py",
+  "source_before": {
+    "artifacts/local/hostlab-reference/tools/hostlab/analysis_batch.py": "8F40845D1328CAE8A06DD29830C5E636D962DA3CC72194E16904F6FB23030A64",
+    "benchmarks/a2_input_inventory.py": "3BFA7D8DD99172E2957C413AFE11EC68FC7C77EF1E7F26781BD653DCCCD83D94",
+    "artifacts/mdd-005/a2-inventory-local-header-20261030/legacy_probe.py": "856FC5F98A2BA4C6B03CC7A14590B1AD1B2417682B520D75C08F8E3BF4C5B37C"
+  },
+  "exit_code": 0
+}

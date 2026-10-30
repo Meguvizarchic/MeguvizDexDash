@@ -376,6 +376,130 @@ fn native_occurrence_and_pool_join_preserves_source_multiplicity() {
     }
 }
 #[test]
+fn native_class_field_members_preserve_occurrence_and_kind_ordinal() {
+    let catalog = native("definitions-038.dex", false);
+    let plan = prepare(
+        query(
+            Node::Scan {
+                relation: "class_field_members".into(),
+            },
+            catalog.snapshot_id(),
+            catalog.catalog_epoch(),
+        ),
+        &catalog,
+    )
+    .unwrap();
+    assert_eq!(
+        plan.required_layers(),
+        &BTreeSet::from([FactLayer::Structure])
+    );
+    let mut expected: Vec<Row> = catalog
+        .occurrences
+        .iter()
+        .flat_map(|occurrence| {
+            let source = occurrence.metadata.source();
+            occurrence
+                .definitions
+                .as_ref()
+                .unwrap()
+                .definitions()
+                .field_definitions
+                .iter()
+                .map(move |field| {
+                    vec![
+                        Value::Entity(EntityRef {
+                            snapshot_id: source.snapshot_id.clone(),
+                            dex_occurrence_id: source.dex_occurrence_id.clone(),
+                            kind: EntityKind::ClassDefinition,
+                            local_index: field.class_def_idx,
+                        }),
+                        Value::Entity(EntityRef {
+                            snapshot_id: source.snapshot_id.clone(),
+                            dex_occurrence_id: source.dex_occurrence_id.clone(),
+                            kind: EntityKind::FieldDefinition,
+                            local_index: field.field_idx,
+                        }),
+                        Value::text(field.kind.as_str()),
+                        Value::U64(DecimalU64(u64::from(field.ordinal))),
+                    ]
+                })
+        })
+        .collect();
+    assert!(!expected.is_empty());
+    let definitions = catalog.occurrences[0]
+        .definitions
+        .as_ref()
+        .unwrap()
+        .definitions();
+    assert!(
+        definitions
+            .field_definitions
+            .iter()
+            .any(|field| field.kind.as_str() == "static")
+    );
+    assert!(
+        definitions
+            .field_definitions
+            .iter()
+            .any(|field| field.kind.as_str() == "instance")
+    );
+    expected.sort();
+    for mode in [
+        ExecutionMode::Streaming,
+        ExecutionMode::MaterializedReference,
+    ] {
+        let mut actual = execute(
+            &plan,
+            &catalog,
+            mode,
+            &mut Control::new(ExecutionLimits::default()),
+        )
+        .unwrap()
+        .rows()
+        .to_vec();
+        actual.sort();
+        assert_eq!(actual, expected);
+        let limits = ExecutionLimits {
+            max_output_rows: 0,
+            ..ExecutionLimits::default()
+        };
+        assert_eq!(
+            execute(&plan, &catalog, mode, &mut Control::new(limits))
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::QuotaExceeded
+        );
+    }
+    let missing = NativeCatalog::new(
+        catalog.snapshot_id().into(),
+        catalog.catalog_epoch(),
+        vec![OccurrenceFacts {
+            metadata: catalog.occurrences[0].metadata.clone(),
+            definitions: None,
+            code: None,
+        }],
+    )
+    .unwrap();
+    assert_eq!(
+        prepare(
+            query(
+                Node::Scan {
+                    relation: "class_field_members".into()
+                },
+                missing.snapshot_id(),
+                missing.catalog_epoch()
+            ),
+            &missing
+        )
+        .err()
+        .unwrap()
+        .code,
+        ErrorCode::IncompleteFacts
+    );
+}
+
+#[test]
 fn native_class_method_members_preserve_occurrence_and_kind_ordinal() {
     let catalog = native("definitions-038.dex", false);
     let plan = prepare(

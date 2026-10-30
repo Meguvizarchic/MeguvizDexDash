@@ -1,0 +1,23 @@
+.FF
+======================================================================
+FAIL: test_invalid_local_signature_is_rejected (__main__.Checks.test_invalid_local_signature_is_rejected)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\MeguvisDexDash\artifacts\mdd-005\a2-inventory-local-header-20261030\probe.py", line 47, in test_invalid_local_signature_is_rejected
+    with self.assertRaises(InputInventoryError): self.source(data)
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+AssertionError: InputInventoryError not raised
+
+======================================================================
+FAIL: test_mismatched_local_name_is_rejected (__main__.Checks.test_mismatched_local_name_is_rejected)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\MeguvisDexDash\artifacts\mdd-005\a2-inventory-local-header-20261030\probe.py", line 42, in test_mismatched_local_name_is_rejected
+    with self.assertRaises(InputInventoryError): self.source(data)
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+AssertionError: InputInventoryError not raised
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.015s
+
+FAILED (failures=2)

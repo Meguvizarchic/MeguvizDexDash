@@ -42,6 +42,190 @@ mod metadata_rows_tests {
     use std::path::PathBuf;
 
     #[test]
+    fn scope_commitment_preimage_binds_snapshot_and_selected_members() {
+        fn frame<'a>(bytes: &'a [u8], cursor: &mut usize) -> &'a [u8] {
+            let end = *cursor + 8;
+            let size = u64::from_le_bytes(bytes[*cursor..end].try_into().unwrap()) as usize;
+            *cursor = end + size;
+            &bytes[end..*cursor]
+        }
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/generated/multidex-stored.apk");
+        let input = InputSpec {
+            path,
+            kind: InputKind::Apk,
+            expected_sha256: None,
+        };
+        let snapshot =
+            Snapshot::capture(&[input.clone(), input.clone()], CaptureLimits::default()).unwrap();
+        let inventories: Vec<_> = snapshot
+            .sources()
+            .iter()
+            .map(|source| {
+                ArchiveInventory::build(
+                    source,
+                    InventoryPolicy::default(),
+                    ArchiveLimits::default(),
+                )
+                .unwrap()
+            })
+            .collect();
+        let facts: Vec<_> = inventories
+            .iter()
+            .flat_map(|inventory| {
+                (0..inventory.selected_dexes().len())
+                    .map(|index| {
+                        MetadataFacts::build(&snapshot, inventory, index, StringLimits::default())
+                            .unwrap()
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+        let refs: Vec<_> = facts.iter().collect();
+        let scope = SelectedScope::from_inventories(&snapshot, &[&inventories[0], &inventories[1]])
+            .unwrap();
+        let bytes = scope
+            .commitment_preimage(
+                &snapshot,
+                &[&inventories[1], &inventories[0]],
+                &refs,
+                4,
+                8192,
+            )
+            .unwrap();
+        let prefix = b"mdd-selected-scope-v1";
+        assert!(bytes.starts_with(prefix));
+        let mut cursor = prefix.len();
+        for (source, inventory) in snapshot.sources().iter().zip(&inventories) {
+            assert_eq!(
+                frame(&bytes, &mut cursor),
+                source.identity().input_ordinal.0.to_le_bytes()
+            );
+            assert_eq!(
+                frame(&bytes, &mut cursor),
+                source.identity().content_id.as_bytes()
+            );
+            assert_eq!(frame(&bytes, &mut cursor), b"top-level-classes-v1");
+            for dex in inventory.selected_dexes() {
+                assert_eq!(frame(&bytes, &mut cursor), dex.blob.content_id.as_bytes());
+                assert_eq!(
+                    frame(&bytes, &mut cursor),
+                    dex.blob
+                        .identity
+                        .archive_member_ordinal
+                        .map_or(u64::MAX, |v| v.0)
+                        .to_le_bytes()
+                );
+                assert_eq!(
+                    frame(&bytes, &mut cursor),
+                    dex.logical_header_byte_offset.0.to_le_bytes()
+                );
+            }
+        }
+        assert_eq!(content_id(&bytes[..cursor]), scope.scope_content_key());
+        assert_eq!(
+            frame(&bytes, &mut cursor),
+            snapshot.manifest().snapshot_id.as_bytes()
+        );
+        assert_eq!(cursor, bytes.len());
+        assert_eq!(content_id(&bytes), scope.scope_id());
+        let mut tampered = bytes.clone();
+        tampered[prefix.len() + 8] ^= 1;
+        assert_ne!(content_id(&tampered), scope.scope_id());
+        assert_eq!(
+            scope
+                .commitment_preimage(
+                    &snapshot,
+                    &[&inventories[0], &inventories[1]],
+                    &refs,
+                    4,
+                    (bytes.len() - 1) as u64
+                )
+                .unwrap_err()
+                .code,
+            ErrorCode::QuotaExceeded
+        );
+        let mut bad = scope.clone();
+        bad.scope_id = "sha256:forged".into();
+        assert_eq!(
+            bad.commitment_preimage(
+                &snapshot,
+                &[&inventories[0], &inventories[1]],
+                &refs,
+                4,
+                8192
+            )
+            .unwrap_err()
+            .code,
+            ErrorCode::InternalFault
+        );
+        let foreign = Snapshot::capture(&[input], CaptureLimits::default()).unwrap();
+        assert_eq!(
+            scope
+                .commitment_preimage(
+                    &foreign,
+                    &[&inventories[0], &inventories[1]],
+                    &refs,
+                    4,
+                    8192
+                )
+                .unwrap_err()
+                .code,
+            ErrorCode::InvalidArgument
+        );
+        let subset = SelectedScope::from_inventories(&snapshot, &[&inventories[1]]).unwrap();
+        let subfacts: Vec<_> = facts
+            .iter()
+            .filter(|f| {
+                f.source().source_occurrence_id == snapshot.sources()[1].identity().occurrence_id
+            })
+            .collect();
+        let sub = subset
+            .commitment_preimage(&snapshot, &[&inventories[1]], &subfacts, 4, 8192)
+            .unwrap();
+        assert!(!subset.covers_all_captured_sources());
+        assert_eq!(content_id(&sub), subset.scope_id());
+        assert_ne!(scope.scope_id(), subset.scope_id());
+
+        // A one-DEX selected subset still has two captured input sources.
+        // The snapshot roster must be bounded before its identity map allocates.
+        let raw = InputSpec {
+            path: PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../tests/fixtures/generated/structured-035.dex"),
+            kind: InputKind::RawDex,
+            expected_sha256: None,
+        };
+        let two = Snapshot::capture(&[raw.clone(), raw], CaptureLimits::default()).unwrap();
+        let first = ArchiveInventory::build(
+            &two.sources()[0],
+            InventoryPolicy::default(),
+            ArchiveLimits::default(),
+        )
+        .unwrap();
+        let metadata = MetadataFacts::build(&two, &first, 0, StringLimits::default()).unwrap();
+        let selected = SelectedScope::from_inventories(&two, &[&first]).unwrap();
+        assert_eq!(
+            selected
+                .inventory_metadata_rows(&[&first], &[&metadata], 1)
+                .unwrap()
+                .len(),
+            1
+        );
+        assert_eq!(
+            selected
+                .commitment_preimage(&two, &[&first], &[&metadata], 1, 8192)
+                .unwrap_err()
+                .code,
+            ErrorCode::QuotaExceeded
+        );
+        assert!(
+            selected
+                .commitment_preimage(&two, &[&first], &[&metadata], 2, 8192)
+                .is_ok()
+        );
+    }
+
+    #[test]
     fn scope_inventory_metadata_binds_captured_member_and_occurrence() {
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../../tests/fixtures/generated/multidex-stored.apk");
@@ -628,6 +812,130 @@ impl SelectedScope {
     }
     pub fn retained_blob_leases(&self) -> usize {
         self.leases.len()
+    }
+
+    /// Reconstruct the existing `mdd-selected-scope-v1` commitment preimage
+    /// from the captured snapshot and selected inventories. Every component is
+    /// length-prefixed with a little-endian u64; the final component is the
+    /// snapshot ID. Hashing all bytes yields `scope_id`; hashing the prefix
+    /// before that final framed component yields `scope_content_key`.
+    ///
+    /// This checks identities and both commitments against this scope, but is
+    /// not a signature, a coverage certificate, or an independent DEX oracle.
+    /// `max_bytes` limits the returned preimage only; `max_entries` limits the
+    /// entire captured source roster, selected inputs, and DEX inventories,
+    /// including when only a subset is selected. Neither is an RSS or CPU bound.
+    /// Frame boundaries between inputs and DEX members require the validated
+    /// inventory roster; these bytes alone do not independently describe it.
+    pub fn commitment_preimage(
+        &self,
+        snapshot: &Snapshot,
+        inventories: &[&ArchiveInventory],
+        facts: &[&MetadataFacts],
+        max_entries: u64,
+        max_bytes: u64,
+    ) -> MddResult<Vec<u8>> {
+        let quota = || {
+            MddError::new(
+                ErrorCode::QuotaExceeded,
+                "facts.scope_commitment",
+                "scope commitment budget exceeded",
+            )
+        };
+        let broken = || {
+            MddError::new(
+                ErrorCode::InternalFault,
+                "facts.scope_commitment",
+                "scope commitment is inconsistent",
+            )
+        };
+        if snapshot.manifest().snapshot_id != self.snapshot_id {
+            return Err(error("scope commitment snapshot mismatch"));
+        }
+        if u64::try_from(snapshot.sources().len()).map_err(|_| quota())? > max_entries {
+            return Err(quota());
+        }
+        let rows = self.inventory_metadata_rows(inventories, facts, max_entries)?;
+        let captured: BTreeMap<_, _> = snapshot
+            .sources()
+            .iter()
+            .map(|s| (s.identity().occurrence_id.as_str(), s.identity()))
+            .collect();
+        if self.inputs.len() > captured.len()
+            || self.covers_all_captured_sources != (self.inputs.len() == captured.len())
+        {
+            return Err(broken());
+        }
+        let prefix = b"mdd-selected-scope-v1";
+        if u64::try_from(prefix.len()).map_err(|_| quota())? > max_bytes {
+            return Err(quota());
+        }
+        let mut canonical = Vec::new();
+        canonical
+            .try_reserve_exact(prefix.len())
+            .map_err(|_| quota())?;
+        canonical.extend_from_slice(prefix);
+        let append = |bytes: &mut Vec<u8>, value: &[u8]| -> MddResult<()> {
+            let n = u64::try_from(value.len()).map_err(|_| quota())?;
+            let end = bytes
+                .len()
+                .checked_add(8)
+                .and_then(|v| v.checked_add(value.len()))
+                .ok_or_else(quota)?;
+            if u64::try_from(end).map_err(|_| quota())? > max_bytes {
+                return Err(quota());
+            }
+            bytes
+                .try_reserve_exact(end - bytes.len())
+                .map_err(|_| quota())?;
+            bytes.extend_from_slice(&n.to_le_bytes());
+            bytes.extend_from_slice(value);
+            Ok(())
+        };
+        let mut rows = rows.into_iter().peekable();
+        let mut last_ordinal = None;
+        for input in &self.inputs {
+            let identity = captured
+                .get(input.source_occurrence_id.as_str())
+                .ok_or_else(broken)?;
+            if identity.content_id != input.content_id
+                || identity.input_ordinal != input.input_ordinal
+                || last_ordinal.is_some_and(|last| last >= input.input_ordinal.0)
+            {
+                return Err(broken());
+            }
+            last_ordinal = Some(input.input_ordinal.0);
+            append(&mut canonical, &input.input_ordinal.0.to_le_bytes())?;
+            append(&mut canonical, input.content_id.as_bytes())?;
+            append(&mut canonical, input.selection_policy.as_bytes())?;
+            while rows
+                .peek()
+                .is_some_and(|row| row.0.source_occurrence_id == input.source_occurrence_id)
+            {
+                let (_, _, dex, _) = rows.next().ok_or_else(broken)?;
+                append(&mut canonical, dex.blob.content_id.as_bytes())?;
+                append(
+                    &mut canonical,
+                    &dex.blob
+                        .identity
+                        .archive_member_ordinal
+                        .map_or(u64::MAX, |v| v.0)
+                        .to_le_bytes(),
+                )?;
+                append(
+                    &mut canonical,
+                    &dex.logical_header_byte_offset.0.to_le_bytes(),
+                )?;
+            }
+        }
+        if rows.next().is_some() || content_id(&canonical) != self.scope_content_key {
+            return Err(broken());
+        }
+        append(&mut canonical, self.snapshot_id.as_bytes())?;
+        if content_id(&canonical) != self.scope_id {
+            return Err(broken());
+        }
+        Ok(canonical)
     }
 
     /// Pair the selected DEX roster with complete validated metadata in scope order.

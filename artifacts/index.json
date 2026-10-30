@@ -3133,6 +3133,51 @@
       "sha256": "154b03a9244c00addf7b4b39884148a5a0b464dd9bc164afd5c489fa1b82cc40"
     },
     {
+      "path": "artifacts/mdd-005/a2-inventory-local-header-20261030/green/output.txt",
+      "bytes": 107,
+      "sha256": "ada2231f6651cb08d76fe665f46b18458ad6072708e751f0bc09a6b4ca4f9c89"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-inventory-local-header-20261030/green/record.json",
+      "bytes": 745,
+      "sha256": "b964959a8419c029ce74ea86be3aa7aadfda0d577db4f76b4882e9010624e359"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-inventory-local-header-20261030/hostlab/output.txt",
+      "bytes": 633,
+      "sha256": "fe05cf45e1be00e5179f931a1b98ec3ae8efbe3cb7b4f063149832ab85fd419b"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-inventory-local-header-20261030/hostlab/record.json",
+      "bytes": 1078,
+      "sha256": "f57636002c84887ad62ef7c3d6e64b4519e469ba45ac1d446159294a9eab5bff"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-inventory-local-header-20261030/legacy_probe.py",
+      "bytes": 4570,
+      "sha256": "856fc5f98a2ba4c6b03cc7a14590b1ad1b2417682b520d75c08f8e3bf4c5b37c"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-inventory-local-header-20261030/probe.py",
+      "bytes": 2257,
+      "sha256": "f94efe6f5612bc1857d1e587e2ff4cf85773aece52376b3642990bdfc9b8f490"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-inventory-local-header-20261030/record.json",
+      "bytes": 690,
+      "sha256": "6dbef3fc2f546cc63bd292ce16a86acea9dc5224d0dd6d97bd5960316d14966c"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-inventory-local-header-20261030/red/output.txt",
+      "bytes": 1313,
+      "sha256": "de74dd6d95253727eac5e72d339562bfd8903ca3a084d19ef3fe9c678b509557"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-inventory-local-header-20261030/red/record.json",
+      "bytes": 433,
+      "sha256": "651e446122ed62d754e37716b60ea33d6e569594de4ed9207c127983b091ad6d"
+    },
+    {
       "path": "artifacts/mdd-005/a2-lifecycle-json-20261030/baseline-final/1-output.txt",
       "bytes": 691,
       "sha256": "f9ccc978d81c8e7d36dc054326c694bc64c80141728d64cd36b5b4ce1021bc1f"
@@ -16393,6 +16438,26 @@
       "sha256": "5a9e54a8e37287a662596d66ab9bff800dbad1c726a9c186439ee2deacde8137"
     },
     {
+      "path": "artifacts/mdd-026/scope-commitment-preimage-20261030/final/output.txt",
+      "bytes": 907,
+      "sha256": "9288e2313a470b19fa3ca8fb18ed920f098601ff87c64db105f1412d79783492"
+    },
+    {
+      "path": "artifacts/mdd-026/scope-commitment-preimage-20261030/final/record.json",
+      "bytes": 1907,
+      "sha256": "dcfd8c18c8bcb5867e6672d40b57a01eea56b00491f523a408d315e43c0c3821"
+    },
+    {
+      "path": "artifacts/mdd-026/scope-commitment-preimage-20261030/run1/output.txt",
+      "bytes": 907,
+      "sha256": "ff0de697fa4b176d23cb6f90cb4303736cc06f3569c3b51a6cb8911062dd4770"
+    },
+    {
+      "path": "artifacts/mdd-026/scope-commitment-preimage-20261030/run1/record.json",
+      "bytes": 1655,
+      "sha256": "52f59a54355226fc854a6ad56b7d9d3555b16b776d26b987a4fa7b098a71ec75"
+    },
+    {
       "path": "artifacts/mdd-026/scope-inventory-metadata-20261030/final/output.txt",
       "bytes": 906,
       "sha256": "8794d8b2c1624609cb975c47d30953da1f4a5891fae6c7789f7cafbf86431be9"
@@ -16841,6 +16906,16 @@
       "path": "artifacts/mdd-030/README.md",
       "bytes": 3952,
       "sha256": "a4a8b3f7b2b52e98c35dad2f34a4abd07f910afbeb1154f3e1cb2a3894ca8ecc"
+    },
+    {
+      "path": "artifacts/mdd-030/class-field-members-ir-20261030/run1/output.txt",
+      "bytes": 517,
+      "sha256": "ccb945632aedd5909b951f0766de30c48b671fb0958bf76d22943a756b87c5fc"
+    },
+    {
+      "path": "artifacts/mdd-030/class-field-members-ir-20261030/run1/record.json",
+      "bytes": 1901,
+      "sha256": "990c4df8335d14c772ad23b1f61af2923db3d6c666983171f0af8b2cdd7ad698"
     },
     {
       "path": "artifacts/mdd-030/class-method-members-ir-20261030/run1/output.txt",
@@ -22541,6 +22616,56 @@
       "path": "artifacts/mdd-031-audit/native-classes-20261030/run1/record.json",
       "bytes": 2565,
       "sha256": "832865d36582723b9af43b87790295799f9971c794e0cadb5e06682428541cdf"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/native-code-handlers-20261030/final/combined_code_items_require_same_scope_and_keep_shared_owners.txt",
+      "bytes": 379,
+      "sha256": "2f7c70157ab34046feacb1adf62b67a7c33f083002a91225e20d35b0cdae777e"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/native-code-handlers-20261030/final/native_code_items_preserve_physical_bytes_and_scope.txt",
+      "bytes": 369,
+      "sha256": "04813fffa6992f931fea03caba834a27611a191484012a5d6589b5af2e32cec4"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/native-code-handlers-20261030/final/native_code_try_handlers_preserve_physical_offsets_and_catches.txt",
+      "bytes": 448,
+      "sha256": "a10d22919a44a20b417c1ca8505be3109331ee010c6081c5e7fa759c0ef272ea"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/native-code-handlers-20261030/final/record.json",
+      "bytes": 2667,
+      "sha256": "b7ad64856187d4d0221ae6da54c3b5a8b9a69d001b9b17d30be288ea8e0b56e4"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/native-code-handlers-20261030/generate_fixture.py",
+      "bytes": 1021,
+      "sha256": "aa1c2a26f2deca606f392f9feb83d05ef29e5184aa17bc88a76bb40b77ebe024"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/native-code-handlers-20261030/run1/output.txt",
+      "bytes": 963,
+      "sha256": "9a98718d1e497569971b0de91c697683489af3f845a98170b86d858a25061549"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/native-code-handlers-20261030/run1/record.json",
+      "bytes": 2262,
+      "sha256": "450aba2c089850ba7edd1ed07764648f1409a0f808573861c21217c12aba75cb"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/native-code-handlers-20261030/run2/output.txt",
+      "bytes": 448,
+      "sha256": "673adac85270b8ee03a08b97251d35e169476882d0a4e742c1657411df7916b8"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/native-code-handlers-20261030/run2/record.json",
+      "bytes": 2260,
+      "sha256": "fcc47412bebf383f4546ad9b4cbb80240bff8c5fbd380cd44f46b4a50360b7b9"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/native-code-handlers-20261030/typed-catch.dex",
+      "bytes": 404,
+      "sha256": "f0e0ccf16c417b5c1613f8f03b297400ddefbe42127936a7cebc3ebf3674aa06"
     },
     {
       "path": "artifacts/mdd-031-audit/native-code-items-20261030/run1/output.txt",
