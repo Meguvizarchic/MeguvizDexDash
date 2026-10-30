@@ -108,6 +108,30 @@ fn text_cast_nonnegative_i64_literal(expr: &Expr) -> bool {
         _ => false,
     }
 }
+// SQLite NUMERIC affinity accepts ASCII whitespace, a leading sign and
+// leading zeroes for integer text. Limit this rewrite to exact i64 integers;
+// decimal/exponent text and out-of-range values need separate semantics.
+fn exact_i64_text_literal(expr: &Expr) -> Option<i64> {
+    let Expr::Value(value) = expr else {
+        return None;
+    };
+    let Value::SingleQuotedString(text) = &value.value else {
+        return None;
+    };
+    if !text.is_ascii() {
+        return None;
+    }
+    let trimmed =
+        text.trim_matches(|c| matches!(c, ' ' | '\t' | '\n' | '\r' | '\u{000b}' | '\u{000c}'));
+    let digits = trimmed
+        .strip_prefix('+')
+        .or_else(|| trimmed.strip_prefix('-'))
+        .unwrap_or(trimmed);
+    if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    trimmed.parse::<i64>().ok()
+}
 fn canonical_i64_text_literal(expr: &Expr) -> Option<i64> {
     let Expr::Value(value) = expr else {
         return None;
@@ -115,10 +139,7 @@ fn canonical_i64_text_literal(expr: &Expr) -> Option<i64> {
     let Value::SingleQuotedString(text) = &value.value else {
         return None;
     };
-    if text.is_empty() || text.len() > 20 || !text.is_ascii() {
-        return None;
-    }
-    let value = text.parse::<i64>().ok()?;
+    let value = exact_i64_text_literal(expr)?;
     (value.to_string() == *text).then_some(value)
 }
 fn replace_with_i64_literal(expr: &mut Expr, value: i64) {
@@ -704,7 +725,7 @@ impl Rewrite<'_> {
         let values: Option<Vec<Option<i64>>> = list
             .iter()
             .map(|item| {
-                if let Some(value) = canonical_i64_text_literal(item) {
+                if let Some(value) = exact_i64_text_literal(item) {
                     Some(Some(value))
                 } else if matches!(
                     literal_in_class(item),

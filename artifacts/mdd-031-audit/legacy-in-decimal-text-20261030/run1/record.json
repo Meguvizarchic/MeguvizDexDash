@@ -1,0 +1,82 @@
+{
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-sql/src/dialects/ast.rs": "e847915ad6ac27c413caa0b378f488629695a0981e835221468109577d82e3db",
+    "crates/mdd-sql/src/bridge.rs": "747f1fa464e8c508f5dfcc9cb7fdc10612a7d0a3410537c90dae9a921baf4d58",
+    "crates/mdd-sql/src/dialects/functions.rs": "f4aca963abe8d9ef73003d1860111b8a6da14505be7f9f0c1eddec6f9fe3015c",
+    "crates/mdd-sql/src/values.rs": "ad87d663986bdec1b4f98710d170e911fd1be67695a9d1b53abc62c54e50c9f8"
+  },
+  "runs": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-sql",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "legacy_integer_in_text_affinity_matches_sqlite_for_exact_decimal_forms",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-10-30T14:23:15.194664+00:00",
+      "finished_utc": "2026-10-30T14:23:25.408512+00:00",
+      "exit_code": 101,
+      "raw_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "raw_stderr_sha256": "2cee0aec56994e176c0f9c455468489efaf35d38f2359185fdad1d13505af1e6"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-sql",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "legacy_integer_column_in_accepts_exact_decimal_text",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-10-30T14:23:25.408587+00:00",
+      "finished_utc": "2026-10-30T14:23:27.959928+00:00",
+      "exit_code": 101,
+      "raw_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "raw_stderr_sha256": "a6793b7dadfe637feaebc771a5fc907b32ec08aa368ea735298954d544ae3a2d"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-sql",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "legacy_integer_cast_literal_in_uses_numeric_affinity",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-10-30T14:23:27.959970+00:00",
+      "finished_utc": "2026-10-30T14:23:30.353424+00:00",
+      "exit_code": 101,
+      "raw_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "raw_stderr_sha256": "a6793b7dadfe637feaebc771a5fc907b32ec08aa368ea735298954d544ae3a2d"
+    }
+  ],
+  "scope": "three targeted SQL tests; SQLite signed integer comparison, no full HostLab or DexSQL qualification",
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-sql/src/dialects/ast.rs": "e847915ad6ac27c413caa0b378f488629695a0981e835221468109577d82e3db",
+    "crates/mdd-sql/src/bridge.rs": "747f1fa464e8c508f5dfcc9cb7fdc10612a7d0a3410537c90dae9a921baf4d58",
+    "crates/mdd-sql/src/dialects/functions.rs": "f4aca963abe8d9ef73003d1860111b8a6da14505be7f9f0c1eddec6f9fe3015c",
+    "crates/mdd-sql/src/values.rs": "ad87d663986bdec1b4f98710d170e911fd1be67695a9d1b53abc62c54e50c9f8"
+  },
+  "path_redaction": "Workspace path replaced in public logs; originals retained under ignored local directory."
+}

@@ -17493,6 +17493,66 @@
       "sha256": "b7fa5e564c9663db6d9fc7bc937a7405e36c51ffc3af645f6b3e88746c36f531"
     },
     {
+      "path": "artifacts/mdd-030/typed-method-call-query-20261030/run1/record.json",
+      "bytes": 3839,
+      "sha256": "314bd15de840f4d25af71f9bf2c00be94d098c0ccd154026b187f1954a693ede"
+    },
+    {
+      "path": "artifacts/mdd-030/typed-method-call-query-20261030/run1/stderr.txt",
+      "bytes": 293,
+      "sha256": "56a117fb295c4385eb5d3bac4269f09d234ebbbfb2e227842f84397af6fd08ed"
+    },
+    {
+      "path": "artifacts/mdd-030/typed-method-call-query-20261030/run1/stdout.txt",
+      "bytes": 206,
+      "sha256": "1fc9aefa432a02eb010b270dd6e3b3d3d563cd3163ed9392d06e207131c95533"
+    },
+    {
+      "path": "artifacts/mdd-030/typed-method-call-query-20261030/run2/record.json",
+      "bytes": 3875,
+      "sha256": "53afdab5312dc82418004974e3cd595214ad9d5c89737dc79e16ce44aaec82ab"
+    },
+    {
+      "path": "artifacts/mdd-030/typed-method-call-query-20261030/run2/stderr.txt",
+      "bytes": 292,
+      "sha256": "9bfcdc5017acd16fe21b41ffd04baf464478990c02d4e0e759291e1a9618c6bd"
+    },
+    {
+      "path": "artifacts/mdd-030/typed-method-call-query-20261030/run2/stdout.txt",
+      "bytes": 206,
+      "sha256": "1fc9aefa432a02eb010b270dd6e3b3d3d563cd3163ed9392d06e207131c95533"
+    },
+    {
+      "path": "artifacts/mdd-030/typed-method-call-query-20261030/run3/record.json",
+      "bytes": 3875,
+      "sha256": "ab2c169aa2cec253d04a7b2292f996955085e2ce8fa97c31bd1afed395011a8e"
+    },
+    {
+      "path": "artifacts/mdd-030/typed-method-call-query-20261030/run3/stderr.txt",
+      "bytes": 292,
+      "sha256": "ccba1c73aa6e6cc1ae95a7d2479f11733cfc957e0b1f8189ded68ad7c39393f6"
+    },
+    {
+      "path": "artifacts/mdd-030/typed-method-call-query-20261030/run3/stdout.txt",
+      "bytes": 206,
+      "sha256": "1fc9aefa432a02eb010b270dd6e3b3d3d563cd3163ed9392d06e207131c95533"
+    },
+    {
+      "path": "artifacts/mdd-030/typed-method-call-query-20261030/run4/record.json",
+      "bytes": 4092,
+      "sha256": "b258b0ef9875f8ed81a7d6013a6f572c98c3969eac40f037afb81173a6d21371"
+    },
+    {
+      "path": "artifacts/mdd-030/typed-method-call-query-20261030/run4/stderr.txt",
+      "bytes": 292,
+      "sha256": "84475e70f63800e56b4c751190b159c3d952c09070ebcf7ab2342d55dc0074c0"
+    },
+    {
+      "path": "artifacts/mdd-030/typed-method-call-query-20261030/run4/stdout.txt",
+      "bytes": 206,
+      "sha256": "1fc9aefa432a02eb010b270dd6e3b3d3d563cd3163ed9392d06e207131c95533"
+    },
+    {
       "path": "artifacts/mdd-030/typed-query-conformance.json",
       "bytes": 4966,
       "sha256": "9e0bd6b4e051c9049f8694b2f77da213e6adf2450dbe33a52b0d24aee55d240f"
@@ -21761,6 +21821,76 @@
       "path": "artifacts/mdd-031-audit/legacy-escape-concat-20261030/runs/20261030T020336062047Z/report.json",
       "bytes": 25672,
       "sha256": "15c5b41d5b65085e845f1531bb3ca7fbb7cad2765ffe18722f4bc2542787935a"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-in-decimal-text-20261030/run1/0.stderr",
+      "bytes": 1795,
+      "sha256": "6ceb7caa32ef1fde3700b69175c86a8c4f7d18ea3dfe30e2cef5632f72d3d2b3"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-in-decimal-text-20261030/run1/0.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-in-decimal-text-20261030/run1/1.stderr",
+      "bytes": 1661,
+      "sha256": "7d3055e10ee33c5a6ba4eaa880a22c99ad81e56eae81c07730f89b5a61b11ba5"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-in-decimal-text-20261030/run1/1.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-in-decimal-text-20261030/run1/2.stderr",
+      "bytes": 1661,
+      "sha256": "7d3055e10ee33c5a6ba4eaa880a22c99ad81e56eae81c07730f89b5a61b11ba5"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-in-decimal-text-20261030/run1/2.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-in-decimal-text-20261030/run1/record.json",
+      "bytes": 3363,
+      "sha256": "170b40dca0389b931d0bf52cfc6a558eb111a919a6fe1d40d77c5626b1d7375e"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-in-decimal-text-20261030/run2/0.stderr",
+      "bytes": 352,
+      "sha256": "9de3a039dcad3ecd4799321e60be2cad120c790cd637ff7fbf81e44ead4171db"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-in-decimal-text-20261030/run2/0.stdout",
+      "bytes": 212,
+      "sha256": "c6d113e27a51ce33f8ce31b87b4b86ea0cdcd3cb2ea4c3202e74f912dc2c5c71"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-in-decimal-text-20261030/run2/1.stderr",
+      "bytes": 156,
+      "sha256": "24dde67a1f85cc6a7945b1f8ffb231d89fc4f4b1ad6b51e9128871a62504ef68"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-in-decimal-text-20261030/run2/1.stdout",
+      "bytes": 193,
+      "sha256": "7185a6944a4dceacee4cfbb25fa21f570e65155f55468757822b1098dcba4869"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-in-decimal-text-20261030/run2/2.stderr",
+      "bytes": 156,
+      "sha256": "24dde67a1f85cc6a7945b1f8ffb231d89fc4f4b1ad6b51e9128871a62504ef68"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-in-decimal-text-20261030/run2/2.stdout",
+      "bytes": 194,
+      "sha256": "6d8c3d0441276cc58516cf14a7cddf4999d75dd12a1e5f57a4bbcde5a32875e9"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-in-decimal-text-20261030/run2/record.json",
+      "bytes": 3357,
+      "sha256": "307aba62d93cc0cac2d2392677e16f14076cac74ea47a8ce50060056f24dabdd"
     },
     {
       "path": "artifacts/mdd-031-audit/legacy-integer-text-candidate-20261030/bridge/record.json",
@@ -32391,6 +32521,361 @@
       "path": "artifacts/mdd-034-audit/nonpristine-terminal-20261030/run_target.py",
       "bytes": 2310,
       "sha256": "8117af3c81cbeaf32229c2e8a20ddb6551c5dab2aa351d4c954b02a56e293342"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green/0.stderr",
+      "bytes": 229,
+      "sha256": "70928c01ec94861d622b5957eb104a2f85b72a8d624b258d8ec6b616dc81e7d4"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green/0.stdout",
+      "bytes": 425,
+      "sha256": "da6df32937f63482f1e8cd63c978604b6ffbc5fa250fb537702f400d32922acd"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green/1.stderr",
+      "bytes": 160,
+      "sha256": "54c47fdddc8b544a6a7cb8478aba7d2d6f97479803b889c4553d2d40b0614c26"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green/1.stdout",
+      "bytes": 187,
+      "sha256": "12a448f4697ff29dcc739b80e38b5e694e2ee8f1fe4e531a5e13da35b6230c39"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green/2.stderr",
+      "bytes": 160,
+      "sha256": "b73f79a8e820d8e7e9713602a4cfe1323c4c99b617c8c626848e5ba2f36148a7"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green/2.stdout",
+      "bytes": 191,
+      "sha256": "a31c0f51af6764032c07016f3db5ac49e8dab794af24d56c07ca428268f86784"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green/3.stderr",
+      "bytes": 160,
+      "sha256": "b73f79a8e820d8e7e9713602a4cfe1323c4c99b617c8c626848e5ba2f36148a7"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green/3.stdout",
+      "bytes": 192,
+      "sha256": "f8aeb681dac1417191bf187fb5b1d7a24e1eb77948263e794ce440dcbfe20619"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green/4.stderr",
+      "bytes": 160,
+      "sha256": "ce702e99d1316b8833ed6821a6d72460231aab3e19903edfa23cfdaabd74f4a9"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green/4.stdout",
+      "bytes": 208,
+      "sha256": "cf2792f7834d55bc7a7cabc729d908117aaecf25985adb16958e79c2c9592052"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green/record.json",
+      "bytes": 4244,
+      "sha256": "c488699214d4af63c44cc54f37f9dfad7adbdae150a457c2cb50fa58bb576823"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green2/0.stderr",
+      "bytes": 229,
+      "sha256": "52178d0e504040cf8c2e70dee095a021ccae629ba2a5ff378867ab8861f2587e"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green2/0.stdout",
+      "bytes": 425,
+      "sha256": "da6df32937f63482f1e8cd63c978604b6ffbc5fa250fb537702f400d32922acd"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green2/1.stderr",
+      "bytes": 160,
+      "sha256": "253ef72f33eade9e6b03c7c90b2cd7960d2f49b0c2765d5125c47bfe9adcc726"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green2/1.stdout",
+      "bytes": 187,
+      "sha256": "12a448f4697ff29dcc739b80e38b5e694e2ee8f1fe4e531a5e13da35b6230c39"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green2/2.stderr",
+      "bytes": 160,
+      "sha256": "cdf9ebbcd7e6068a9a5169b5fbe98fa8b5c09378d82c37d15866f874f2789083"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green2/2.stdout",
+      "bytes": 191,
+      "sha256": "a31c0f51af6764032c07016f3db5ac49e8dab794af24d56c07ca428268f86784"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green2/3.stderr",
+      "bytes": 160,
+      "sha256": "cdf9ebbcd7e6068a9a5169b5fbe98fa8b5c09378d82c37d15866f874f2789083"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green2/3.stdout",
+      "bytes": 192,
+      "sha256": "f8aeb681dac1417191bf187fb5b1d7a24e1eb77948263e794ce440dcbfe20619"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green2/4.stderr",
+      "bytes": 160,
+      "sha256": "7cf443cbc2979e776e846e8d30d61a3e945819960e7df05697e56ab83141e270"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green2/4.stdout",
+      "bytes": 208,
+      "sha256": "cf2792f7834d55bc7a7cabc729d908117aaecf25985adb16958e79c2c9592052"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green2/5.stderr",
+      "bytes": 160,
+      "sha256": "cdf9ebbcd7e6068a9a5169b5fbe98fa8b5c09378d82c37d15866f874f2789083"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green2/5.stdout",
+      "bytes": 195,
+      "sha256": "d5f9aeb18e8967e24d1cab735d6748d8d502aa276bb32befa4fd8c4f7ed0ed28"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green2/record.json",
+      "bytes": 4875,
+      "sha256": "83f8fff08d29c9b06541ebee096bf4d5d4cd217016ae43bd0b15c3fd8fef4384"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green3/0.stderr",
+      "bytes": 807,
+      "sha256": "4465d877345fe7a0d5f8d6847c53d2832910cc70d7d269be6730f777bcd5f1f1"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green3/0.stdout",
+      "bytes": 526,
+      "sha256": "a637a198f51c0b5c8fa85d501a25ad059752b23c377b64bae8537da5bc3ede1b"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green3/record.json",
+      "bytes": 1794,
+      "sha256": "8fc98a1b0ee14f78e7b62a4af7ef567c12ba46626ec69d0e825d7ef3f6ff6d4b"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green4/0.stderr",
+      "bytes": 229,
+      "sha256": "3bfbac0c96fd5dbd8ed073b9c7e244e5fd589ae5628e679993650340d2c29b62"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green4/0.stdout",
+      "bytes": 425,
+      "sha256": "871a700782653be24f663c3eb3113858a6032c3df087ffb71c3c2533dc2176c8"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green4/1.stderr",
+      "bytes": 160,
+      "sha256": "08bf893c4e795a19d4b8c343a45520146fb17c867678b0aaa38cafca75820f12"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green4/1.stdout",
+      "bytes": 187,
+      "sha256": "3f1c1e011e38389ab215b4672f8e736c7a8468f770978410d48116458d704fec"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green4/2.stderr",
+      "bytes": 160,
+      "sha256": "cdf9ebbcd7e6068a9a5169b5fbe98fa8b5c09378d82c37d15866f874f2789083"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green4/2.stdout",
+      "bytes": 190,
+      "sha256": "7bf86624648bd535766357ad859b85c395ce00d3d2d5d7d51b60016f1c97b9fd"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green4/3.stderr",
+      "bytes": 160,
+      "sha256": "7cf443cbc2979e776e846e8d30d61a3e945819960e7df05697e56ab83141e270"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green4/3.stdout",
+      "bytes": 191,
+      "sha256": "bf19091d73b91eb5880ea7c1372ec58e1b145c2c4dab71507a1a2f5adb724d78"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green4/4.stderr",
+      "bytes": 160,
+      "sha256": "253ef72f33eade9e6b03c7c90b2cd7960d2f49b0c2765d5125c47bfe9adcc726"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green4/4.stdout",
+      "bytes": 192,
+      "sha256": "ce499852e8dbdc17e2d29f4214896919f127d2ca3ee73cab45251ea9bee8cabc"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green4/5.stderr",
+      "bytes": 160,
+      "sha256": "2aa63410ec76d6b5849d87f5c3b6ffa885156e2131285113f1409261ea48911f"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green4/5.stdout",
+      "bytes": 208,
+      "sha256": "5f1522a946bc000e3c38ce29a544810c730265ac585e9d383500323072a3a4f9"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green4/6.stderr",
+      "bytes": 160,
+      "sha256": "253ef72f33eade9e6b03c7c90b2cd7960d2f49b0c2765d5125c47bfe9adcc726"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green4/6.stdout",
+      "bytes": 195,
+      "sha256": "d84ae3b632dd64ba74ebbeaa8f621c9c0d7021579d8a2f95a2d58326bd07a471"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green4/record.json",
+      "bytes": 5471,
+      "sha256": "177a06559e8667b2a2818388e626cbcd115d56b951f4bc7947b576185287d6c8"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green5/0.stderr",
+      "bytes": 229,
+      "sha256": "7d50276bebcdf80b610d8c0c656cec71557c4d0cbfa7732aee0e81049c34751d"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green5/0.stdout",
+      "bytes": 425,
+      "sha256": "aa3e1b089204b35ef4e28a9bee99f413f2b17ea6b2d0554f140f14bdec7c3c85"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green5/1.stderr",
+      "bytes": 160,
+      "sha256": "88e3ead3f843eebf313f5b44989100b8d94fd6d41f9cf700c356dd0524c39a40"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green5/1.stdout",
+      "bytes": 187,
+      "sha256": "e4d850618fc40c443233e113eb1367509f57dc5ac06b4c2161057a22792a5d5c"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green5/2.stderr",
+      "bytes": 160,
+      "sha256": "88e3ead3f843eebf313f5b44989100b8d94fd6d41f9cf700c356dd0524c39a40"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green5/2.stdout",
+      "bytes": 190,
+      "sha256": "4d54d39c04b671b86b872cb569e3e5b3706dea8de877778359461564f673eb90"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green5/3.stderr",
+      "bytes": 160,
+      "sha256": "88e3ead3f843eebf313f5b44989100b8d94fd6d41f9cf700c356dd0524c39a40"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green5/3.stdout",
+      "bytes": 183,
+      "sha256": "384f0b0357fb68e3703b33cf4dbeb071c9d94436562188c6e0f5c1782b0e9d20"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green5/4.stderr",
+      "bytes": 160,
+      "sha256": "88e3ead3f843eebf313f5b44989100b8d94fd6d41f9cf700c356dd0524c39a40"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green5/4.stdout",
+      "bytes": 191,
+      "sha256": "2ad901607cc766f981b08067a9119d41df1fae374dbb12c12097490776897510"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green5/5.stderr",
+      "bytes": 160,
+      "sha256": "88e3ead3f843eebf313f5b44989100b8d94fd6d41f9cf700c356dd0524c39a40"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green5/5.stdout",
+      "bytes": 192,
+      "sha256": "a7d3a5c7719e6219e4a5c972d4dc9d41c23a3171616fba40eda2fef04cb96904"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green5/6.stderr",
+      "bytes": 160,
+      "sha256": "88e3ead3f843eebf313f5b44989100b8d94fd6d41f9cf700c356dd0524c39a40"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green5/6.stdout",
+      "bytes": 208,
+      "sha256": "abd56da723c43bfe70b7a1fe93bd86a0216c8e5b474128de5ae6375856ad4c16"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green5/7.stderr",
+      "bytes": 160,
+      "sha256": "ecb2af74b76b9f16d6818811701faf42b593f4b79941d8fc8bf20dd432b58554"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green5/7.stdout",
+      "bytes": 195,
+      "sha256": "391568be9fd1950b633e893b2a98d52b119e778499d0e75087e209123be597d3"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/green5/record.json",
+      "bytes": 6078,
+      "sha256": "425ea9d0802d4d18a6334c2dd89a2f934d8c845e54c76a2ec5bf72fb90544c64"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/red-completed/record.json",
+      "bytes": 1691,
+      "sha256": "1f64ffc13bed071baafc3f2b2e56c6365aabc1e7060109f15c66b63be6b65257"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/red-completed/stderr.txt",
+      "bytes": 668,
+      "sha256": "8e69646066babdb3372dbe7b7a35f81215dedea0b5d0312435b0b30976536a16"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/red-completed/stdout.txt",
+      "bytes": 275,
+      "sha256": "5af8260f060bd9295dd78d76999dc1aad82d284b1aa0e7be3ea01904b2f4906a"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/red-computed/record.json",
+      "bytes": 1706,
+      "sha256": "b78e6957e704b20ad89d94ca0952310acb5f471c4fbb24d9d6b10e4f01d28425"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/red-computed/stderr.txt",
+      "bytes": 644,
+      "sha256": "0f0f6d2c4b81423f0066754ddac3a3e57e58bdc77618e223339c47abe7e66078"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/red-computed/stdout.txt",
+      "bytes": 283,
+      "sha256": "b044cdaf5b5abe7f0cd5ae21e4d57b6fc1b752e4721b76d01127e5bfd0a166c8"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/red-first-fault/record.json",
+      "bytes": 1711,
+      "sha256": "7dfb5b8217f8db1887a2bb34dd5168b139a5e7e45dbf334804886285e5619bd9"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/red-first-fault/stderr.txt",
+      "bytes": 675,
+      "sha256": "0c436b73899e85ea3232ac11093b1b35f891df08b0663c3bc2183acfafe2fdd3"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/red-first-fault/stdout.txt",
+      "bytes": 289,
+      "sha256": "eee6f9cec018f02a3f616f02aef4a60ea3be9162b92e7ee76a692adab3cc7bdb"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/red/record.json",
+      "bytes": 1719,
+      "sha256": "30b1c306001bab48d5e7bca48c6ae1250c4be30ad2ed1eb65f32f3d414302439"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/red/stderr.txt",
+      "bytes": 672,
+      "sha256": "d51e6816a5d5ff995c916f7141e2ab76ecfeccb4d0bdb3e0de770cfbe60da47f"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/owned-batch-20261030/red/stdout.txt",
+      "bytes": 283,
+      "sha256": "b044cdaf5b5abe7f0cd5ae21e4d57b6fc1b752e4721b76d01127e5bfd0a166c8"
     },
     {
       "path": "artifacts/mdd-034-audit/prequeue-resident-20261030/probe.rs",

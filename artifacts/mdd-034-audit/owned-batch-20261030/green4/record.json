@@ -1,0 +1,159 @@
+{
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-session/src/lib.rs": "cf8c543df21ec66c98bd99735857e45e41d50274fcda3ac7edd93773ca1c59dc",
+    "crates/mdd-session/src/cancellation.rs": "81209b2d2031f80f5c814567ccc134ea58d9b5e64805d5b4eb6df29ab1bfcc64",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  },
+  "scope": "targeted synthetic owned batches and injected fault ordering; not production worker/IPC or full qualification",
+  "runs": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-session",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "owned_batch",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-10-30T14:29:28.572130+00:00",
+      "finished_utc": "2026-10-30T14:29:29.992351+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "871a700782653be24f663c3eb3113858a6032c3df087ffb71c3c2533dc2176c8",
+      "raw_stderr_sha256": "9fec92c98d34347e606981002655e9525b036419b4126e258eedab887e88d8a1"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-session",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "batch_release_fault_does_not_hide_prior_worker_failure",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-10-30T14:29:29.994200+00:00",
+      "finished_utc": "2026-10-30T14:29:30.419292+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "3f1c1e011e38389ab215b4672f8e736c7a8468f770978410d48116458d704fec",
+      "raw_stderr_sha256": "08bf893c4e795a19d4b8c343a45520146fb17c867678b0aaa38cafca75820f12"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-session",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "batch_fault_records_first_error_and_preserves_computation",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-10-30T14:29:30.421839+00:00",
+      "finished_utc": "2026-10-30T14:29:30.910862+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "7bf86624648bd535766357ad859b85c395ce00d3d2d5d7d51b60016f1c97b9fd",
+      "raw_stderr_sha256": "cdf9ebbcd7e6068a9a5169b5fbe98fa8b5c09378d82c37d15866f874f2789083"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-session",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "terminal_queries_keep_live_buffer_accounting_until_release",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-10-30T14:29:30.912021+00:00",
+      "finished_utc": "2026-10-30T14:29:31.468965+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "bf19091d73b91eb5880ea7c1372ec58e1b145c2c4dab71507a1a2f5adb724d78",
+      "raw_stderr_sha256": "7cf443cbc2979e776e846e8d30d61a3e945819960e7df05697e56ab83141e270"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-session",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "buffered_output_must_be_released_before_delivery_completion",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-10-30T14:29:31.470850+00:00",
+      "finished_utc": "2026-10-30T14:29:31.901046+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "ce499852e8dbdc17e2d29f4214896919f127d2ca3ee73cab45251ea9bee8cabc",
+      "raw_stderr_sha256": "253ef72f33eade9e6b03c7c90b2cd7960d2f49b0c2765d5125c47bfe9adcc726"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-session",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "checkpoint_retains_first_terminal_and_rejects_completed_query",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-10-30T14:29:31.902456+00:00",
+      "finished_utc": "2026-10-30T14:29:32.375754+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "5f1522a946bc000e3c38ce29a544810c730265ac585e9d383500323072a3a4f9",
+      "raw_stderr_sha256": "2aa63410ec76d6b5849d87f5c3b6ffa885156e2131285113f1409261ea48911f"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-session",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "never_started_terminal_cannot_be_marked_computed",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-10-30T14:29:32.377687+00:00",
+      "finished_utc": "2026-10-30T14:29:32.699170+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "d84ae3b632dd64ba74ebbeaa8f621c9c0d7021579d8a2f95a2d58326bd07a471",
+      "raw_stderr_sha256": "253ef72f33eade9e6b03c7c90b2cd7960d2f49b0c2765d5125c47bfe9adcc726"
+    }
+  ],
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-session/src/lib.rs": "cf8c543df21ec66c98bd99735857e45e41d50274fcda3ac7edd93773ca1c59dc",
+    "crates/mdd-session/src/cancellation.rs": "81209b2d2031f80f5c814567ccc134ea58d9b5e64805d5b4eb6df29ab1bfcc64",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  }
+}

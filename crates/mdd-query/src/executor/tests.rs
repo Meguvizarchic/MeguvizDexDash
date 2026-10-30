@@ -171,6 +171,113 @@ fn typed_string_reference_query_preserves_raw_text_sources_and_sites() {
 }
 
 #[test]
+fn typed_method_call_query_preserves_oracle_sites_and_occurrences() {
+    let (native, references) = native_references();
+    let catalog = ReferenceCatalog::new(native, references).unwrap();
+    let descriptor = "Lfixture/External;->external()V";
+    let units = descriptor.encode_utf16().collect::<Vec<_>>();
+    let plan = prepare(catalog.method_call_query(&units).unwrap(), &catalog).unwrap();
+    assert!(plan.required_layers().contains(&FactLayer::References));
+    for mode in [
+        ExecutionMode::Streaming,
+        ExecutionMode::MaterializedReference,
+    ] {
+        let result = execute(
+            &plan,
+            &catalog,
+            mode,
+            &mut Control::new(ExecutionLimits::default()),
+        )
+        .unwrap();
+        assert_eq!(result.rows().len(), 6);
+        let mut by_source = BTreeMap::<String, Vec<u64>>::new();
+        for row in result.rows() {
+            let (
+                Value::Entity(caller),
+                Value::Entity(callee),
+                Value::Entity(owner),
+                Value::Entity(proto),
+            ) = (&row[2], &row[8], &row[9], &row[11])
+            else {
+                panic!("expected source-bound method identities");
+            };
+            assert_eq!(caller.kind, EntityKind::MethodDefinition);
+            assert_eq!(callee.kind, EntityKind::MethodReference);
+            assert_eq!(callee.local_index, 4);
+            assert_eq!(owner.kind, EntityKind::Type);
+            assert_eq!(proto.kind, EntityKind::Prototype);
+            for entity in [callee, owner, proto] {
+                assert_eq!(caller.snapshot_id, entity.snapshot_id);
+                assert_eq!(caller.dex_occurrence_id, entity.dex_occurrence_id);
+            }
+            assert_eq!(row[0], Value::text(&caller.dex_occurrence_id));
+            assert_eq!(row[10], Value::text("external"));
+            assert_eq!(row[12], Value::Utf16(units.clone()));
+            assert!(matches!(&row[7], Value::Utf16(_)));
+            let Value::U64(DecimalU64(pc)) = row[3] else {
+                panic!("missing PC")
+            };
+            by_source
+                .entry(caller.dex_occurrence_id.clone())
+                .or_default()
+                .push(pc);
+        }
+        assert_eq!(by_source.len(), 2);
+        for pcs in by_source.values_mut() {
+            pcs.sort_unstable();
+            // Independent saved poly-custom fixture method-site oracle.
+            assert_eq!(pcs, &[12, 15, 18]);
+        }
+        let missing = prepare(
+            catalog
+                .method_call_query(&"Lmissing;->x()V".encode_utf16().collect::<Vec<_>>())
+                .unwrap(),
+            &catalog,
+        )
+        .unwrap();
+        assert!(
+            execute(
+                &missing,
+                &catalog,
+                mode,
+                &mut Control::new(ExecutionLimits::default())
+            )
+            .unwrap()
+            .rows()
+            .is_empty()
+        );
+        let limits = ExecutionLimits {
+            max_output_rows: 1,
+            ..ExecutionLimits::default()
+        };
+        assert_eq!(
+            execute(&plan, &catalog, mode, &mut Control::new(limits))
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::QuotaExceeded
+        );
+    }
+    assert_eq!(
+        catalog
+            .method_call_query(&vec![0; 1_000_001])
+            .unwrap_err()
+            .code,
+        ErrorCode::QuotaExceeded
+    );
+    let (mut incomplete, references) = native_references();
+    incomplete.occurrences[0].code = None;
+    let incomplete = ReferenceCatalog::new(incomplete, references).unwrap();
+    assert_eq!(
+        prepare(incomplete.method_call_query(&units).unwrap(), &incomplete)
+            .err()
+            .unwrap()
+            .code,
+        ErrorCode::IncompleteFacts
+    );
+}
+
+#[test]
 fn typed_reference_catalog_preserves_sites_and_joins_with_definitions() {
     let (native, mut references) = native_references();
     // A caller may provide facts in another order; output remains catalog ordered.

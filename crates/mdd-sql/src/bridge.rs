@@ -1357,7 +1357,7 @@ mod tests {
     }
 
     #[test]
-    fn legacy_integer_column_in_accepts_canonical_decimal_text_only() {
+    fn legacy_integer_column_in_accepts_exact_decimal_text() {
         use mdd_query::ir::Signed64;
         let (provider, native) = bridge();
         for dialect in [SqlDialect::DexSql010, SqlDialect::DexSql011] {
@@ -1374,8 +1374,6 @@ mod tests {
                 ]
             );
             for sql in [
-                "SELECT id IN ('01') FROM facts",
-                "SELECT id IN ('+1') FROM facts",
                 "SELECT id IN ('9223372036854775808') FROM facts",
                 "SELECT id IN ('1.0') FROM facts",
                 "WITH x AS (SELECT '1' AS id) SELECT id IN ('1') FROM x",
@@ -1628,7 +1626,6 @@ mod tests {
                 ]
             );
             for sql in [
-                "SELECT CAST('01' AS INTEGER) IN ('01')",
                 "SELECT CAST('01'||'' AS INTEGER) IN ('1')",
                 "SELECT CAST('01' AS BIGINT) IN ('1')",
             ] {
@@ -1642,6 +1639,82 @@ mod tests {
         assert_eq!(
             native
                 .query("SELECT CAST('01' AS INTEGER) IN ('1')")
+                .unwrap_err()
+                .code,
+            ErrorCode::UnsupportedQuery
+        );
+    }
+
+    #[test]
+    fn legacy_integer_in_text_affinity_matches_sqlite_for_exact_decimal_forms() {
+        let (provider, native) = bridge();
+        let sqlite = rusqlite::Connection::open_in_memory().unwrap();
+        sqlite
+            .execute_batch("CREATE TABLE facts(id INTEGER); INSERT INTO facts VALUES(1),(2),(3);")
+            .unwrap();
+        let cases = [
+            "SELECT id IN ('01','+1','  +0001  '),id NOT IN ('-0001',NULL),id IN ('-0',' +2 ') FROM facts ORDER BY id",
+            "SELECT CAST('-01' AS INTEGER) IN (' -0001 '),CAST('0' AS INTEGER) IN ('-0'),CAST('3' AS INTEGER) IN ('+0003',NULL)",
+            "SELECT CAST('-9223372036854775808' AS INTEGER) IN (' -009223372036854775808 '),CAST('1' AS INTEGER) IN ('\t+001\n')",
+            "SELECT f.id FROM facts f WHERE EXISTS (SELECT 1 FROM facts g WHERE f.id IN ('+001','002') AND g.id=f.id) ORDER BY f.id",
+        ];
+        for dialect in [SqlDialect::DexSql010, SqlDialect::DexSql011] {
+            let bridge = SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+            for sql in cases {
+                let mut stmt = sqlite.prepare(sql).unwrap();
+                let width = stmt.column_count();
+                let expected = stmt
+                    .query_map([], |row| {
+                        (0..width)
+                            .map(|i| row.get::<_, Option<i64>>(i))
+                            .collect::<rusqlite::Result<Vec<_>>>()
+                    })
+                    .unwrap()
+                    .collect::<rusqlite::Result<Vec<_>>>()
+                    .unwrap();
+                let actual = bridge
+                    .query(sql)
+                    .unwrap()
+                    .rows()
+                    .iter()
+                    .map(|row| {
+                        row.iter()
+                            .map(|cell| match cell {
+                                SqlValue::Null => None,
+                                SqlValue::I64(value) => Some(value.0),
+                                SqlValue::U64(value) => Some(i64::try_from(value.0).unwrap()),
+                                value => panic!("unexpected {value:?}"),
+                            })
+                            .collect::<Vec<_>>()
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(actual, expected, "{dialect:?}: {sql}");
+            }
+            for sql in [
+                "SELECT id IN ('1.0') FROM facts",
+                "SELECT id IN ('1e0') FROM facts",
+                "SELECT id IN ('9223372036854775808') FROM facts",
+                "SELECT id IN ('-9223372036854775809') FROM facts",
+                "SELECT id IN ('0x1') FROM facts",
+                "SELECT id IN ('　1') FROM facts",
+            ] {
+                assert_eq!(
+                    bridge.query(sql).unwrap_err().code,
+                    ErrorCode::UnsupportedQuery,
+                    "{sql}"
+                );
+            }
+            assert_eq!(
+                bridge
+                    .query("SELECT missing IN ('01') FROM facts")
+                    .unwrap_err()
+                    .code,
+                ErrorCode::InvalidArgument
+            );
+        }
+        assert_eq!(
+            native
+                .query("SELECT id IN ('01') FROM facts")
                 .unwrap_err()
                 .code,
             ErrorCode::UnsupportedQuery

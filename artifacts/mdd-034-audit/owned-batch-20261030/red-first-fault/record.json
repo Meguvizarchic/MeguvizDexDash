@@ -1,0 +1,35 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "mdd-session",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "1",
+    "batch_fault_records_first_error_and_preserves_computation",
+    "--",
+    "--nocapture"
+  ],
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-session/src/lib.rs": "1c062c4a475cfc9e783642d76c63a2ee8f898c2ff0c20eb079d11898863f323e",
+    "crates/mdd-session/src/cancellation.rs": "81209b2d2031f80f5c814567ccc134ea58d9b5e64805d5b4eb6df29ab1bfcc64",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  },
+  "started_utc": "2026-10-30T14:28:51.167347+00:00",
+  "scope": "injected batch identity failure before computation completion; local red",
+  "exit_code": 101,
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-session/src/lib.rs": "1c062c4a475cfc9e783642d76c63a2ee8f898c2ff0c20eb079d11898863f323e",
+    "crates/mdd-session/src/cancellation.rs": "81209b2d2031f80f5c814567ccc134ea58d9b5e64805d5b4eb6df29ab1bfcc64",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  },
+  "finished_utc": "2026-10-30T14:28:52.646370+00:00",
+  "stdout.txt_raw_sha256": "eee6f9cec018f02a3f616f02aef4a60ea3be9162b92e7ee76a692adab3cc7bdb",
+  "stderr.txt_raw_sha256": "4e13ee0e30c94a48853314d969dded79d63b0fe23054a64ab696816e2cd641b5"
+}

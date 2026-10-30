@@ -1,0 +1,35 @@
+   Compiling mdd-session v0.1.0-dev (<workspace>\crates\mdd-session)
+   Compiling mdd-query v0.1.0-dev (<workspace>\crates\mdd-query)
+   Compiling mdd-sql v0.1.0-dev (<workspace>\crates\mdd-sql)
+error[E0425]: cannot find function `canonical_i64_text_literal` in this scope
+    --> crates\mdd-sql\src\dialects\ast.rs:1300:46
+     |
+ 114 | fn exact_i64_text_literal(expr: &Expr) -> Option<i64> {
+     | ----------------------------------------------------- similarly named function `exact_i64_text_literal` defined here
+...
+1300 |                         if let Some(value) = canonical_i64_text_literal(right) {
+     |                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+help: a function with a similar name exists
+     |
+1300 -                         if let Some(value) = canonical_i64_text_literal(right) {
+1300 +                         if let Some(value) = exact_i64_text_literal(right) {
+     |
+
+error[E0425]: cannot find function `canonical_i64_text_literal` in this scope
+    --> crates\mdd-sql\src\dialects\ast.rs:1304:46
+     |
+ 114 | fn exact_i64_text_literal(expr: &Expr) -> Option<i64> {
+     | ----------------------------------------------------- similarly named function `exact_i64_text_literal` defined here
+...
+1304 |                         if let Some(value) = canonical_i64_text_literal(left) {
+     |                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+help: a function with a similar name exists
+     |
+1304 -                         if let Some(value) = canonical_i64_text_literal(left) {
+1304 +                         if let Some(value) = exact_i64_text_literal(left) {
+     |
+
+For more information about this error, try `rustc --explain E0425`.
+error: could not compile `mdd-sql` (lib test) due to 2 previous errors

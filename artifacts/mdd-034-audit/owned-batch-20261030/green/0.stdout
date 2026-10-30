@@ -1,0 +1,9 @@
+
+running 4 tests
+test tests::owned_batch_outlives_query_session_and_releases_once ... ok
+test tests::owned_batch_rejects_foreign_query_and_reports_release_fault ... ok
+test tests::owned_batch_release_is_independent_of_worker_and_concurrent_close ... ok
+test tests::owned_batch_requires_ack_and_keeps_bytes_after_delivery ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 19 filtered out; finished in 0.00s
+

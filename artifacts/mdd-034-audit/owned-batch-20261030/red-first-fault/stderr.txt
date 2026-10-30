@@ -1,0 +1,8 @@
+   Compiling mdd-session v0.1.0-dev (<workspace>\crates\mdd-session)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.20s
+     Running unittests src\lib.rs (target\debug\deps\mdd_session-34588e5d55bf44f1.exe)
+
+thread 'tests::batch_fault_records_first_error_and_preserves_computation' (32080) panicked at crates\mdd-session\src\lib.rs:1820:45:
+called `Result::unwrap()` on an `Err` value: MddError { code: InternalFault, stage: "lifecycle", message: "batch reservation identity mismatch", retryable: false, details: {} }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p mdd-session --lib`

@@ -1,0 +1,35 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "mdd-session",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "1",
+    "batch_fault_does_not_rewrite_prior_completed_query",
+    "--",
+    "--nocapture"
+  ],
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-session/src/lib.rs": "4b60e7db462e78400a0589ed1574bbaee1b3d44ee55253c3d89164183ef746fe",
+    "crates/mdd-session/src/cancellation.rs": "81209b2d2031f80f5c814567ccc134ea58d9b5e64805d5b4eb6df29ab1bfcc64",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  },
+  "started_utc": "2026-10-30T14:30:32.311862+00:00",
+  "scope": "injected later batch fault after completed query; local red",
+  "exit_code": 101,
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-session/src/lib.rs": "4b60e7db462e78400a0589ed1574bbaee1b3d44ee55253c3d89164183ef746fe",
+    "crates/mdd-session/src/cancellation.rs": "81209b2d2031f80f5c814567ccc134ea58d9b5e64805d5b4eb6df29ab1bfcc64",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  },
+  "finished_utc": "2026-10-30T14:30:34.465988+00:00",
+  "stdout.txt_raw_sha256": "5af8260f060bd9295dd78d76999dc1aad82d284b1aa0e7be3ea01904b2f4906a",
+  "stderr.txt_raw_sha256": "82313d8021229f1be7719c7276c58a6689e8a1be7c64c8884f6d94807fd4bb9b"
+}

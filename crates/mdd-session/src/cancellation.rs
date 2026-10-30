@@ -113,7 +113,7 @@ pub struct CancelOutcome {
 }
 impl Lifecycle {
     pub fn cancellation_token(&self, query: &QueryHandle) -> MddResult<QueryCancellation> {
-        self.lock()?.query(query)?;
+        self.lock_query_read(query)?.query(query)?;
         Ok(QueryCancellation {
             lifecycle: self.clone(),
             query: query.clone(),
@@ -121,18 +121,28 @@ impl Lifecycle {
     }
     /// First terminal wins. An execution-complete spool retains that completion if delivery fails.
     pub fn fail_query(&self, query: &QueryHandle, error: MddError) -> MddResult<QueryStatus> {
-        let mut state = self.lock()?;
-        state.query(query)?;
+        let mut state = self.lock_raw()?;
+        let entry = state.query(query)?;
+        if let Some(fault) = &state.batch_fault {
+            return if entry.status.error.is_some() || entry.status.phase == QueryPhase::Completed {
+                Ok(entry.status.clone())
+            } else {
+                Err(fault.clone())
+            };
+        }
         state.end_query(query.id(), error);
         Ok(state.query(query)?.status.clone())
     }
     pub fn delivery_abandoned(&self, query: &QueryHandle) -> MddResult<bool> {
-        Ok(self.lock()?.query(query)?.delivery_abandoned)
+        Ok(self
+            .lock_query_read(query)?
+            .query(query)?
+            .delivery_abandoned)
     }
 }
 impl QueryCancellation {
     pub fn claim_execution(&self) -> MddResult<()> {
-        let mut state = self.lifecycle.lock()?;
+        let mut state = self.lifecycle.lock_query(&self.query)?;
         state.checkpoint(&self.query)?;
         let entry = state.query(&self.query)?;
         if entry.status.phase != QueryPhase::Active
@@ -153,7 +163,12 @@ impl QueryCancellation {
         Ok(())
     }
     pub fn binding(&self) -> MddResult<crate::QueryBinding> {
-        Ok(self.lifecycle.lock()?.query(&self.query)?.binding.clone())
+        Ok(self
+            .lifecycle
+            .lock_query_read(&self.query)?
+            .query(&self.query)?
+            .binding
+            .clone())
     }
     pub fn snapshot_id(&self) -> MddResult<String> {
         Ok(self
@@ -166,13 +181,13 @@ impl QueryCancellation {
     pub fn session_id(&self) -> MddResult<String> {
         Ok(self
             .lifecycle
-            .lock()?
+            .lock_query_read(&self.query)?
             .query(&self.query)?
             .session_id
             .clone())
     }
     pub fn worker_owner_id(&self) -> MddResult<String> {
-        Ok(self.lifecycle.lock()?.owner.clone())
+        Ok(self.lifecycle.lock_query_read(&self.query)?.owner.clone())
     }
     pub fn query_handle(&self) -> &QueryHandle {
         &self.query
@@ -187,7 +202,7 @@ impl QueryCancellation {
         // The terminal error and active phase must be checked under one lock.
         // Otherwise cancellation between two separate reads could be reported
         // as an unrelated invalid-argument error.
-        let mut state = self.lifecycle.lock()?;
+        let mut state = self.lifecycle.lock_query(&self.query)?;
         state.checkpoint(&self.query)?;
         if state.query(&self.query)?.status.phase != QueryPhase::Active {
             return Err(MddError::new(
@@ -207,7 +222,7 @@ impl QueryCancellation {
                 "budget belongs to another query",
             ));
         }
-        let mut state = self.lifecycle.lock()?;
+        let mut state = self.lifecycle.lock_query(&self.query)?;
         state.checkpoint_delivery(&self.query, Some(budget))?;
         if state.query(&self.query)?.status.phase != QueryPhase::Active {
             return Err(MddError::new(
@@ -229,7 +244,7 @@ impl QueryCancellation {
         profile: &CancelProfile,
     ) -> MddResult<CancelOutcome> {
         {
-            let state = self.lifecycle.lock()?;
+            let state = self.lifecycle.lock_query(&self.query)?;
             state.owned_query(session, &self.query)?;
         }
         if profile.compat_cancel_closes_dataset {
@@ -249,7 +264,7 @@ impl QueryCancellation {
     pub fn mark_computed(&self) -> MddResult<()> {
         // The engine calls this only after it has actually computed the complete result.
         // A concurrent delivery cancellation must not erase that established fact.
-        let mut state = self.lifecycle.lock()?;
+        let mut state = self.lifecycle.lock_raw()?;
         let entry = state.query(&self.query)?;
         if !entry.execution_started {
             return Err(entry.status.error.clone().unwrap_or_else(|| {
@@ -259,6 +274,12 @@ impl QueryCancellation {
                     "computation was never active",
                 )
             }));
+        }
+        if entry.status.error.is_none()
+            && !(entry.status.phase == QueryPhase::Completed && entry.status.execution_complete)
+            && let Some(fault) = &state.batch_fault
+        {
+            return Err(fault.clone());
         }
         let entry = state.queries.get_mut(self.query.id()).unwrap();
         entry.status.execution_complete = true;
@@ -274,7 +295,7 @@ impl QueryCancellation {
             .finish_delivery_with_budget(&self.query, deadline)
     }
     fn owning_session(&self) -> MddResult<SessionHandle> {
-        let state = self.lifecycle.lock()?;
+        let state = self.lifecycle.lock_query_read(&self.query)?;
         let query = state.query(&self.query)?;
         let session = state.sessions.get(&query.session_id).ok_or_else(|| {
             MddError::new(

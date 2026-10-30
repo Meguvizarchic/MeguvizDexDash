@@ -1,0 +1,179 @@
+{
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-session/src/lib.rs": "4b60e7db462e78400a0589ed1574bbaee1b3d44ee55253c3d89164183ef746fe",
+    "crates/mdd-session/src/cancellation.rs": "b04d7294ce8a73cd17fdcfd1e6dbe7bcfb35aeef121cc27b1812840b78d0789c",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  },
+  "scope": "targeted synthetic owned batches and injected fault ordering; not production worker/IPC or full qualification",
+  "runs": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-session",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "owned_batch",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-10-30T14:30:52.780906+00:00",
+      "finished_utc": "2026-10-30T14:30:54.021905+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "aa3e1b089204b35ef4e28a9bee99f413f2b17ea6b2d0554f140f14bdec7c3c85",
+      "raw_stderr_sha256": "f75707f418680753e1dd47af715dae852caf82780b8d25a889d273ccf1f4607a"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-session",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "batch_release_fault_does_not_hide_prior_worker_failure",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-10-30T14:30:54.023224+00:00",
+      "finished_utc": "2026-10-30T14:30:54.229144+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "e4d850618fc40c443233e113eb1367509f57dc5ac06b4c2161057a22792a5d5c",
+      "raw_stderr_sha256": "88e3ead3f843eebf313f5b44989100b8d94fd6d41f9cf700c356dd0524c39a40"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-session",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "batch_fault_records_first_error_and_preserves_computation",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-10-30T14:30:54.230265+00:00",
+      "finished_utc": "2026-10-30T14:30:54.433808+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "4d54d39c04b671b86b872cb569e3e5b3706dea8de877778359461564f673eb90",
+      "raw_stderr_sha256": "88e3ead3f843eebf313f5b44989100b8d94fd6d41f9cf700c356dd0524c39a40"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-session",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "batch_fault_does_not_rewrite_prior_completed_query",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-10-30T14:30:54.434811+00:00",
+      "finished_utc": "2026-10-30T14:30:54.639314+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "384f0b0357fb68e3703b33cf4dbeb071c9d94436562188c6e0f5c1782b0e9d20",
+      "raw_stderr_sha256": "88e3ead3f843eebf313f5b44989100b8d94fd6d41f9cf700c356dd0524c39a40"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-session",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "terminal_queries_keep_live_buffer_accounting_until_release",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-10-30T14:30:54.640645+00:00",
+      "finished_utc": "2026-10-30T14:30:54.850012+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "2ad901607cc766f981b08067a9119d41df1fae374dbb12c12097490776897510",
+      "raw_stderr_sha256": "88e3ead3f843eebf313f5b44989100b8d94fd6d41f9cf700c356dd0524c39a40"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-session",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "buffered_output_must_be_released_before_delivery_completion",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-10-30T14:30:54.851357+00:00",
+      "finished_utc": "2026-10-30T14:30:55.066234+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "a7d3a5c7719e6219e4a5c972d4dc9d41c23a3171616fba40eda2fef04cb96904",
+      "raw_stderr_sha256": "88e3ead3f843eebf313f5b44989100b8d94fd6d41f9cf700c356dd0524c39a40"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-session",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "checkpoint_retains_first_terminal_and_rejects_completed_query",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-10-30T14:30:55.067303+00:00",
+      "finished_utc": "2026-10-30T14:30:55.308865+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "abd56da723c43bfe70b7a1fe93bd86a0216c8e5b474128de5ae6375856ad4c16",
+      "raw_stderr_sha256": "88e3ead3f843eebf313f5b44989100b8d94fd6d41f9cf700c356dd0524c39a40"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-session",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "never_started_terminal_cannot_be_marked_computed",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-10-30T14:30:55.309934+00:00",
+      "finished_utc": "2026-10-30T14:30:55.544275+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "391568be9fd1950b633e893b2a98d52b119e778499d0e75087e209123be597d3",
+      "raw_stderr_sha256": "ecb2af74b76b9f16d6818811701faf42b593f4b79941d8fc8bf20dd432b58554"
+    }
+  ],
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-session/src/lib.rs": "4b60e7db462e78400a0589ed1574bbaee1b3d44ee55253c3d89164183ef746fe",
+    "crates/mdd-session/src/cancellation.rs": "b04d7294ce8a73cd17fdcfd1e6dbe7bcfb35aeef121cc27b1812840b78d0789c",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  }
+}

@@ -256,6 +256,98 @@ impl ReferenceCatalog {
         })
     }
 
+    /// Query encoded method-target invoke sites by exact UTF-16 descriptor.
+    /// Distinct source occurrences and repeated call sites remain distinct.
+    /// This does not resolve runtime dispatch, CallSite-targeted invoke-custom,
+    /// inheritance, or the legacy HostLab table shape. It uses scan/filter/join,
+    /// not an indexed access path, and does not promise a stable row order.
+    pub fn method_call_query(&self, descriptor: &[u16]) -> MddResult<QueryIr> {
+        if descriptor.len() > 1_000_000 {
+            return Err(MddError::new(
+                ErrorCode::QuotaExceeded,
+                "query.facts",
+                "method descriptor predicate exceeds construction limit",
+            ));
+        }
+        let mut value = Vec::new();
+        value.try_reserve_exact(descriptor.len()).map_err(|_| {
+            MddError::new(
+                ErrorCode::QuotaExceeded,
+                "query.facts",
+                "method descriptor predicate allocation failed",
+            )
+        })?;
+        value.extend_from_slice(descriptor);
+        let sites = Node::Filter {
+            input: Box::new(Node::Scan {
+                relation: "reference_sites".into(),
+            }),
+            predicate: Predicate::And {
+                left: Box::new(Predicate::Eq {
+                    left: Expr::Column { ordinal: 6 },
+                    right: Expr::Literal {
+                        value: Value::text("method"),
+                    },
+                }),
+                right: Box::new(Predicate::Not {
+                    value: Box::new(Predicate::IsNull {
+                        value: Expr::Column { ordinal: 10 },
+                    }),
+                }),
+            },
+        };
+        let joined = Node::EquiJoin {
+            left: Box::new(sites),
+            right: Box::new(Node::Scan {
+                relation: "methods".into(),
+            }),
+            left_keys: vec![8],
+            right_keys: vec![0],
+            kind: JoinKind::Inner,
+        };
+        let matched = Node::Filter {
+            input: Box::new(joined),
+            predicate: Predicate::Eq {
+                left: Expr::Column { ordinal: 16 },
+                right: Expr::Literal {
+                    value: Value::Utf16(value),
+                },
+            },
+        };
+        let columns = [
+            ("dex_occurrence_id", DataType::Utf16, false, 0),
+            ("site_ordinal", DataType::U64, false, 1),
+            ("caller", DataType::Entity, false, 2),
+            ("code_unit_pc", DataType::U64, false, 3),
+            ("instruction_ordinal", DataType::U64, false, 4),
+            ("operand_ordinal", DataType::U64, false, 5),
+            ("opcode", DataType::U64, false, 9),
+            ("invoke_kind", DataType::Utf16, true, 10),
+            ("callee", DataType::Entity, false, 11),
+            ("callee_owner", DataType::Entity, false, 13),
+            ("callee_name", DataType::Utf16, false, 14),
+            ("callee_prototype", DataType::Entity, false, 15),
+            ("callee_descriptor", DataType::Utf16, false, 16),
+        ]
+        .into_iter()
+        .map(|(name, data_type, nullable, ordinal)| Projection {
+            column: column(name, data_type, nullable),
+            expression: Expr::Column { ordinal },
+        })
+        .collect();
+        Ok(QueryIr {
+            schema_version: IR_VERSION.into(),
+            text_semantics: TEXT_VERSION.into(),
+            snapshot_id: self.native.snapshot_id().to_owned(),
+            catalog_epoch: self.native.catalog_epoch(),
+            require_stable_order: false,
+            root: Node::Project {
+                input: Box::new(matched),
+                columns,
+            },
+        })
+    }
+
     /// Construct a typed exact-string reference query for this catalog.
     /// UTF-16 code units are compared without normalization or lossy decoding.
     /// Every encoded operand occurrence is retained; this is not an index

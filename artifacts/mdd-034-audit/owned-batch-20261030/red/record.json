@@ -1,0 +1,35 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "mdd-session",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "1",
+    "batch_release_fault_does_not_hide_prior_worker_failure",
+    "--",
+    "--nocapture"
+  ],
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-session/src/lib.rs": "f9c9b27e626214a74e675e676d3a83bfb2437f57fde7e49a791bebd91710ecca",
+    "crates/mdd-session/src/cancellation.rs": "3a513a628237f80365f8e48db7334fa6ee588123dc8b6462dffe657392c90677",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  },
+  "started_utc": "2026-10-30T14:24:30.792379+00:00",
+  "scope": "controlled injected batch identity corruption after worker loss; local targeted red",
+  "exit_code": 101,
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-session/src/lib.rs": "f9c9b27e626214a74e675e676d3a83bfb2437f57fde7e49a791bebd91710ecca",
+    "crates/mdd-session/src/cancellation.rs": "3a513a628237f80365f8e48db7334fa6ee588123dc8b6462dffe657392c90677",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  },
+  "finished_utc": "2026-10-30T14:24:32.972495+00:00",
+  "stdout.txt_raw_sha256": "b044cdaf5b5abe7f0cd5ae21e4d57b6fc1b752e4721b76d01127e5bfd0a166c8",
+  "stderr.txt_raw_sha256": "0d5c76236b65a623f1994d7756e33121956a1b3f1e01c9d2f6fe193ad3e315f4"
+}

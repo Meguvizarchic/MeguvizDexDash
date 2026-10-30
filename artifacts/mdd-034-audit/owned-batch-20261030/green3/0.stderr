@@ -1,0 +1,8 @@
+   Compiling mdd-session v0.1.0-dev (<workspace>\crates\mdd-session)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.31s
+     Running unittests src\lib.rs (target\debug\deps\mdd_session-34588e5d55bf44f1.exe)
+
+thread 'tests::owned_batch_rejects_foreign_query_and_reports_release_fault' (30768) panicked at crates\mdd-session\src\lib.rs:1737:42:
+called `Result::unwrap_err()` on an `Ok` value: QueryStatus { phase: Failed, execution_complete: false, delivery_complete: false, catalog_epoch: DecimalU64(0), error: Some(MddError { code: InternalFault, stage: "lifecycle", message: "batch reservation identity mismatch", retryable: false, details: {} }) }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p mdd-session --lib`

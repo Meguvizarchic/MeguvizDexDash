@@ -34,6 +34,121 @@ handle!(SessionHandle);
 handle!(QueryHandle);
 handle!(CursorHandle);
 
+/// An owned, immutable delivered batch. Clones share one reservation; the
+/// last release returns it, including after the query or session is removed.
+/// Retaining a batch is not by itself a delivery-completion receipt.
+#[derive(Clone)]
+pub struct BatchHandle(Arc<OwnedBatch>);
+
+struct OwnedBatch {
+    lifecycle: Lifecycle,
+    token: Token,
+    query: Token,
+    snapshot: Arc<Snapshot>,
+    bytes: Box<[u8]>,
+    released: bool,
+}
+
+impl BatchHandle {
+    pub fn id(&self) -> &str {
+        &self.0.token.id
+    }
+
+    pub fn snapshot_id(&self) -> &str {
+        &self.0.snapshot.manifest().snapshot_id
+    }
+
+    pub fn bytes(&self) -> &[u8] {
+        &self.0.bytes
+    }
+
+    /// Explicitly acknowledge this batch's consumption while its query is
+    /// still active. Owning or dropping the handle alone is not an ack.
+    pub fn acknowledge(&self) -> MddResult<()> {
+        let query = QueryHandle(self.0.query.clone());
+        let mut state = self.0.lifecycle.lock_query(&query)?;
+        let entry = state
+            .batches
+            .get(&self.0.token.id)
+            .ok_or_else(|| invalid("stale batch handle"))?;
+        state.check(&self.0.token, &entry.token)?;
+        if entry.query_id != self.0.query.id {
+            return Err(invalid("batch query binding mismatch"));
+        }
+        state.checkpoint(&query)?;
+        if state.query(&query)?.status.phase != QueryPhase::Active {
+            return Err(invalid("query is not active"));
+        }
+        let entry = state.batches.get_mut(&self.0.token.id).unwrap();
+        if entry.acknowledged {
+            return Err(invalid("batch already acknowledged"));
+        }
+        entry.acknowledged = true;
+        Ok(())
+    }
+
+    /// Release this reference. The final reference reports a registry failure;
+    /// dropping instead records such a failure on the lifecycle for later calls.
+    pub fn release(self) -> MddResult<()> {
+        match Arc::into_inner(self.0) {
+            Some(mut batch) => batch.release_reservation(),
+            None => Ok(()),
+        }
+    }
+}
+
+impl OwnedBatch {
+    fn release_reservation(&mut self) -> MddResult<()> {
+        if self.released {
+            return Ok(());
+        }
+        let mut state = self.lifecycle.inner.lock().map_err(|_| {
+            MddError::new(
+                ErrorCode::InternalFault,
+                "lifecycle",
+                "registry mutex poisoned",
+            )
+        })?;
+        let valid = state
+            .batches
+            .get(&self.token.id)
+            .is_some_and(|entry| entry.token == self.token && entry.token.owner == state.owner);
+        if !valid {
+            let error = MddError::new(
+                ErrorCode::InternalFault,
+                "lifecycle",
+                "batch reservation identity mismatch",
+            );
+            state.record_batch_fault(error.clone());
+            return Err(error);
+        }
+        let batch = state.batches.remove(&self.token.id).unwrap();
+        if !batch.acknowledged
+            && let Some(query) = state.queries.get_mut(&batch.query_id)
+            && !query.status.phase.terminal()
+        {
+            query.delivery_abandoned = true;
+        }
+        self.released = true;
+        Ok(())
+    }
+}
+
+impl Drop for OwnedBatch {
+    fn drop(&mut self) {
+        if self.release_reservation().is_err()
+            && let Ok(mut state) = self.lifecycle.inner.lock()
+            && state.batch_fault.is_none()
+        {
+            state.record_batch_fault(MddError::new(
+                ErrorCode::InternalFault,
+                "lifecycle",
+                "batch reservation release failed",
+            ));
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct ResourceLimits {
     pub max_threads: usize,
@@ -152,6 +267,14 @@ struct CursorEntry {
     consumed: bool,
 }
 
+struct BatchEntry {
+    token: Token,
+    session_id: String,
+    query_id: String,
+    bytes: u64,
+    acknowledged: bool,
+}
+
 struct State {
     owner: String,
     next_generation: u64,
@@ -162,6 +285,8 @@ struct State {
     sessions: HashMap<String, SessionEntry>,
     queries: HashMap<String, QueryEntry>,
     cursors: HashMap<String, CursorEntry>,
+    batches: HashMap<String, BatchEntry>,
+    batch_fault: Option<MddError>,
 }
 
 #[derive(Clone)]
@@ -197,6 +322,29 @@ fn quota(name: &str, limit: impl ToString, observed: impl ToString) -> MddError 
 }
 
 impl State {
+    fn record_batch_fault(&mut self, error: MddError) {
+        if self.batch_fault.is_some() {
+            return;
+        }
+        self.batch_fault = Some(error.clone());
+        for query in self.queries.values_mut() {
+            if !query.status.phase.terminal() {
+                query.status.phase = QueryPhase::Failed;
+                query.status.error = Some(error.clone());
+                query.reserved_threads = 0;
+            }
+        }
+        for cursor in self.cursors.values_mut() {
+            if self
+                .queries
+                .get(&cursor.query_id)
+                .is_some_and(|q| q.status.phase == QueryPhase::Failed)
+            {
+                cursor.open = false;
+            }
+        }
+    }
+
     fn token(&mut self, kind: &str) -> MddResult<Token> {
         let generation = self.next_generation;
         self.next_generation = generation
@@ -263,6 +411,57 @@ impl State {
             return Err(invalid("query belongs to another session"));
         }
         Ok(entry)
+    }
+
+    fn checked_buffered_add(&self, query: &QueryHandle, bytes: u64) -> MddResult<u64> {
+        let entry = self.query(query)?;
+        let mut total = Some(0u64);
+        let mut session_total = Some(0u64);
+        let mut query_total = Some(0u64);
+        for other in self.queries.values() {
+            total = total.and_then(|v| v.checked_add(other.buffered_bytes));
+            if other.session_id == entry.session_id {
+                session_total = session_total.and_then(|v| v.checked_add(other.buffered_bytes));
+            }
+            if other.token.id == query.id() {
+                query_total = query_total.and_then(|v| v.checked_add(other.buffered_bytes));
+            }
+        }
+        for batch in self.batches.values() {
+            total = total.and_then(|v| v.checked_add(batch.bytes));
+            if batch.session_id == entry.session_id {
+                session_total = session_total.and_then(|v| v.checked_add(batch.bytes));
+            }
+            if batch.query_id == query.id() {
+                query_total = query_total.and_then(|v| v.checked_add(batch.bytes));
+            }
+        }
+        total = total.and_then(|v| v.checked_add(bytes));
+        session_total = session_total.and_then(|v| v.checked_add(bytes));
+        query_total = query_total.and_then(|v| v.checked_add(bytes));
+        let session_limit = self
+            .sessions
+            .get(&entry.session_id)
+            .map_or(entry.limits.max_buffered_bytes, |session| {
+                session.limits.max_buffered_bytes
+            });
+        if total.is_none_or(|v| v > self.limits.max_buffered_bytes)
+            || session_total.is_none_or(|v| v > session_limit)
+            || query_total.is_none_or(|v| v > entry.limits.max_buffered_bytes)
+        {
+            return Err(quota(
+                "max_buffered_bytes",
+                entry.limits.max_buffered_bytes,
+                query_total.map_or("overflow".to_owned(), |n| n.to_string()),
+            ));
+        }
+        entry.buffered_bytes.checked_add(bytes).ok_or_else(|| {
+            quota(
+                "max_buffered_bytes",
+                entry.limits.max_buffered_bytes,
+                "overflow",
+            )
+        })
     }
 
     fn end_query(&mut self, id: &str, error: MddError) {
@@ -358,11 +557,13 @@ impl Lifecycle {
                 sessions: HashMap::new(),
                 queries: HashMap::new(),
                 cursors: HashMap::new(),
+                batches: HashMap::new(),
+                batch_fault: None,
             })),
         })
     }
 
-    fn lock(&self) -> MddResult<MutexGuard<'_, State>> {
+    fn lock_raw(&self) -> MddResult<MutexGuard<'_, State>> {
         self.inner.lock().map_err(|_| {
             MddError::new(
                 ErrorCode::InternalFault,
@@ -370,6 +571,60 @@ impl Lifecycle {
                 "registry mutex poisoned",
             )
         })
+    }
+
+    fn lock(&self) -> MddResult<MutexGuard<'_, State>> {
+        let state = self.lock_raw()?;
+        if let Some(error) = &state.batch_fault {
+            return Err(error.clone());
+        }
+        Ok(state)
+    }
+
+    // A query's earlier terminal fault remains authoritative even when a
+    // later batch cleanup makes the lifecycle registry fail closed.
+    fn lock_query(&self, query: &QueryHandle) -> MddResult<MutexGuard<'_, State>> {
+        let state = self.lock_raw()?;
+        let entry = state.query(query)?;
+        if let Some(fault) = &state.batch_fault {
+            return Err(entry.status.error.clone().unwrap_or_else(|| fault.clone()));
+        }
+        Ok(state)
+    }
+
+    fn lock_query_read(&self, query: &QueryHandle) -> MddResult<MutexGuard<'_, State>> {
+        let state = self.lock_raw()?;
+        let entry = state.query(query)?;
+        if entry.status.error.is_none()
+            && entry.status.phase != QueryPhase::Completed
+            && let Some(fault) = &state.batch_fault
+        {
+            return Err(fault.clone());
+        }
+        Ok(state)
+    }
+
+    fn lock_cursor(&self, cursor: &CursorHandle) -> MddResult<MutexGuard<'_, State>> {
+        let state = self.lock_raw()?;
+        let entry = state
+            .cursors
+            .get(cursor.id())
+            .ok_or_else(|| MddError::new(ErrorCode::InvalidCursor, "lifecycle", "stale cursor"))?;
+        state.check(&cursor.0, &entry.token)?;
+        if let Some(fault) = &state.batch_fault {
+            let prior = state
+                .queries
+                .get(&entry.query_id)
+                .and_then(|q| q.status.error.clone());
+            return Err(prior.unwrap_or_else(|| fault.clone()));
+        }
+        Ok(state)
+    }
+
+    /// Expose any batch reservation cleanup fault independently of a query's
+    /// earlier terminal error. A poisoned registry still reports its own fault.
+    pub fn batch_release_error(&self) -> MddResult<Option<MddError>> {
+        Ok(self.lock_raw()?.batch_fault.clone())
     }
 
     pub fn limits(&self) -> MddResult<ResourceLimits> {
@@ -569,7 +824,7 @@ impl Lifecycle {
     }
 
     pub fn queue_query(&self, session: &SessionHandle, query: &QueryHandle) -> MddResult<()> {
-        let mut state = self.lock()?;
+        let mut state = self.lock_query(query)?;
         state.owned_query(session, query)?;
         state.checkpoint(query)?;
         if state.query(query)?.status.phase != QueryPhase::Prepared {
@@ -585,7 +840,7 @@ impl Lifecycle {
         query: &QueryHandle,
         threads: usize,
     ) -> MddResult<()> {
-        let mut state = self.lock()?;
+        let mut state = self.lock_query(query)?;
         let entry = state.owned_query(session, query)?;
         if !matches!(
             entry.status.phase,
@@ -631,52 +886,79 @@ impl Lifecycle {
     }
 
     pub fn checkpoint(&self, query: &QueryHandle) -> MddResult<()> {
-        self.lock()?.checkpoint(query)
+        self.lock_query(query)?.checkpoint(query)
     }
 
     pub fn reserve_buffered_bytes(&self, query: &QueryHandle, bytes: u64) -> MddResult<()> {
-        let mut state = self.lock()?;
+        let mut state = self.lock_query(query)?;
         state.checkpoint(query)?;
         let entry = state.query(query)?;
         if entry.status.phase != QueryPhase::Active {
             return Err(invalid("query is not active"));
         }
-        let total = state
-            .queries
-            .values()
-            .try_fold(0u64, |total, q| total.checked_add(q.buffered_bytes))
-            .and_then(|total| total.checked_add(bytes));
-        let own = state
-            .queries
-            .values()
-            .filter(|q| q.session_id == entry.session_id)
-            .try_fold(0u64, |total, q| total.checked_add(q.buffered_bytes))
-            .and_then(|n| n.checked_add(bytes));
-        let query_total = entry.buffered_bytes.checked_add(bytes);
-        let session_limit = state
-            .sessions
-            .get(&entry.session_id)
-            .map_or(entry.limits.max_buffered_bytes, |session| {
-                session.limits.max_buffered_bytes
-            });
-        if total.is_none_or(|n| n > state.limits.max_buffered_bytes)
-            || own.is_none_or(|n| n > session_limit)
-            || query_total.is_none_or(|n| n > entry.limits.max_buffered_bytes)
-        {
-            return Err(quota(
-                "max_buffered_bytes",
-                entry.limits.max_buffered_bytes,
-                query_total.map_or("overflow".to_owned(), |n| n.to_string()),
+        let query_total = state.checked_buffered_add(query, bytes)?;
+        state.queries.get_mut(query.id()).unwrap().buffered_bytes = query_total;
+        Ok(())
+    }
+
+    /// Own delivered bytes independently of their originating query/session.
+    /// The caller constructs the owned bytes; construction allocation and RSS
+    /// are not covered by this logical reservation. The caller must establish
+    /// that the payload belongs to this query's snapshot and delivery protocol.
+    pub fn own_batch(&self, query: &QueryHandle, bytes: Box<[u8]>) -> MddResult<BatchHandle> {
+        let size = u64::try_from(bytes.len()).map_err(|_| invalid("batch length overflow"))?;
+        let mut state = self.lock_query(query)?;
+        state.checkpoint(query)?;
+        let entry = state.query(query)?;
+        if entry.status.phase != QueryPhase::Active {
+            return Err(invalid("query is not active"));
+        }
+        state.checked_buffered_add(query, size)?;
+        let snapshot = Arc::clone(&entry.snapshot);
+        let session_id = entry.session_id.clone();
+        if state.batches.len() >= 10_000 {
+            return Err(quota("max_batch_handles", 10_000, state.batches.len() + 1));
+        }
+        state.batches.try_reserve(1).map_err(|_| {
+            MddError::new(
+                ErrorCode::QuotaExceeded,
+                "lifecycle",
+                "batch registry allocation failed",
+            )
+        })?;
+        let token = state.token("batch")?;
+        if state.batches.contains_key(&token.id) {
+            return Err(MddError::new(
+                ErrorCode::InternalFault,
+                "lifecycle",
+                "duplicate batch identity",
             ));
         }
-        state.queries.get_mut(query.id()).unwrap().buffered_bytes = query_total.unwrap();
-        Ok(())
+        state.batches.insert(
+            token.id.clone(),
+            BatchEntry {
+                token: token.clone(),
+                session_id,
+                query_id: query.id().to_owned(),
+                bytes: size,
+                acknowledged: false,
+            },
+        );
+        drop(state);
+        Ok(BatchHandle(Arc::new(OwnedBatch {
+            lifecycle: self.clone(),
+            token,
+            query: query.0.clone(),
+            snapshot,
+            bytes,
+            released: false,
+        })))
     }
 
     /// Return a prior logical buffer reservation, including after cancellation,
     /// session closure or worker loss. This does not itself free a caller buffer.
     pub fn release_buffered_bytes(&self, query: &QueryHandle, bytes: u64) -> MddResult<()> {
-        let mut state = self.lock()?;
+        let mut state = self.lock_query(query)?;
         let remaining = state
             .query(query)?
             .buffered_bytes
@@ -687,7 +969,7 @@ impl Lifecycle {
     }
 
     pub fn complete_execution(&self, query: &QueryHandle) -> MddResult<()> {
-        let mut state = self.lock()?;
+        let mut state = self.lock_query(query)?;
         state.checkpoint(query)?;
         let entry = state.queries.get_mut(query.id()).unwrap();
         if entry.status.phase != QueryPhase::Active {
@@ -719,7 +1001,7 @@ impl Lifecycle {
         query: &QueryHandle,
         budget: Option<&cancellation::DeliveryBudgetDeadline>,
     ) -> MddResult<()> {
-        let mut state = self.lock()?;
+        let mut state = self.lock_query(query)?;
         state.checkpoint_delivery(query, budget)?;
         if state.query(query)?.status.phase == QueryPhase::Completed {
             return Ok(());
@@ -739,6 +1021,17 @@ impl Lifecycle {
                 ErrorCode::InvalidCursor,
                 "lifecycle",
                 "unconsumed buffered output remains",
+            ));
+        }
+        if state
+            .batches
+            .values()
+            .any(|batch| batch.query_id == query.id() && !batch.acknowledged)
+        {
+            return Err(MddError::new(
+                ErrorCode::InvalidCursor,
+                "lifecycle",
+                "unacknowledged batch remains",
             ));
         }
         if state
@@ -771,7 +1064,7 @@ impl Lifecycle {
         if budget.owner() != query.id() {
             return Err(invalid("delivery budget belongs to another query"));
         }
-        let mut state = self.lock()?;
+        let mut state = self.lock_query(query)?;
         state.owned_query(session, query)?;
         state.checkpoint_delivery(query, Some(budget))?;
         let cursor_entry = state
@@ -799,7 +1092,13 @@ impl Lifecycle {
         if !entry.status.execution_complete {
             return Err(invalid("computation is not complete"));
         }
-        if entry.delivery_abandoned || entry.buffered_bytes != 0 {
+        if entry.delivery_abandoned
+            || entry.buffered_bytes != 0
+            || state
+                .batches
+                .values()
+                .any(|batch| batch.query_id == query.id() && !batch.acknowledged)
+        {
             return Err(MddError::new(
                 ErrorCode::InvalidCursor,
                 "lifecycle",
@@ -833,7 +1132,7 @@ impl Lifecycle {
         session: &SessionHandle,
         query: &QueryHandle,
     ) -> MddResult<CursorHandle> {
-        let mut state = self.lock()?;
+        let mut state = self.lock_query(query)?;
         let entry = state.owned_query(session, query)?;
         if entry.status.phase != QueryPhase::Active {
             return Err(invalid("cursor requires active query"));
@@ -883,7 +1182,7 @@ impl Lifecycle {
         query: &QueryHandle,
         cursor: &CursorHandle,
     ) -> MddResult<u64> {
-        let mut state = self.lock()?;
+        let mut state = self.lock_query(query)?;
         state.owned_query(session, query)?;
         state.checkpoint(query)?;
         let entry = state
@@ -911,7 +1210,7 @@ impl Lifecycle {
     }
 
     pub fn close_cursor(&self, cursor: &CursorHandle) -> MddResult<()> {
-        let mut state = self.lock()?;
+        let mut state = self.lock_cursor(cursor)?;
         let entry = state
             .cursors
             .get(cursor.id())
@@ -938,7 +1237,7 @@ impl Lifecycle {
         cursor: &CursorHandle,
     ) -> MddResult<()> {
         self.validate_cursor(session, query, cursor)?;
-        let mut state = self.lock()?;
+        let mut state = self.lock_query(query)?;
         state.owned_query(session, query)?;
         state.checkpoint(query)?;
         let entry = state
@@ -961,7 +1260,7 @@ impl Lifecycle {
 
     pub fn release_cursor(&self, cursor: &CursorHandle) -> MddResult<()> {
         self.close_cursor(cursor)?;
-        let mut state = self.lock()?;
+        let mut state = self.lock_cursor(cursor)?;
         let entry = state
             .cursors
             .get(cursor.id())
@@ -972,7 +1271,7 @@ impl Lifecycle {
     }
 
     pub fn cancel_query(&self, query: &QueryHandle) -> MddResult<()> {
-        let mut state = self.lock()?;
+        let mut state = self.lock_query(query)?;
         state.query(query)?;
         state.end_query(
             query.id(),
@@ -982,15 +1281,17 @@ impl Lifecycle {
     }
 
     pub fn query_status(&self, query: &QueryHandle) -> MddResult<QueryStatus> {
-        Ok(self.lock()?.query(query)?.status.clone())
+        Ok(self.lock_query_read(query)?.query(query)?.status.clone())
     }
 
     pub fn query_snapshot_lease(&self, query: &QueryHandle) -> MddResult<Arc<Snapshot>> {
-        Ok(Arc::clone(&self.lock()?.query(query)?.snapshot))
+        Ok(Arc::clone(
+            &self.lock_query_read(query)?.query(query)?.snapshot,
+        ))
     }
 
     pub fn release_query(&self, query: &QueryHandle) -> MddResult<()> {
-        let mut state = self.lock()?;
+        let mut state = self.lock_query(query)?;
         state.query(query)?;
         state.end_query(
             query.id(),
@@ -1313,6 +1614,329 @@ mod tests {
             ErrorCode::WorkerLost
         );
         runtime.release_query(&a).unwrap();
+    }
+
+    #[test]
+    fn owned_batch_outlives_query_session_and_releases_once() {
+        let limits = ResourceLimits {
+            max_threads: 2,
+            max_buffered_bytes: 8,
+            ..ResourceLimits::default()
+        };
+        let (runtime, snapshot_handle, session) = runtime(limits);
+        let other_session = runtime.open_session(&snapshot_handle, limits).unwrap();
+        let query = prepare(&runtime, &session);
+        let other = prepare(&runtime, &other_session);
+        runtime.start_query(&session, &query, 1).unwrap();
+        runtime.start_query(&other_session, &other, 1).unwrap();
+        let snapshot_id = runtime
+            .query_snapshot_lease(&query)
+            .unwrap()
+            .manifest()
+            .snapshot_id
+            .clone();
+        runtime.reserve_buffered_bytes(&query, 2).unwrap();
+        let batch = runtime
+            .own_batch(&query, vec![1, 2, 3, 4, 5].into_boxed_slice())
+            .unwrap();
+        assert_eq!(batch.snapshot_id(), snapshot_id);
+        let held = batch.clone();
+        assert_eq!(
+            runtime.reserve_buffered_bytes(&other, 2).unwrap_err().code,
+            ErrorCode::QuotaExceeded
+        );
+        runtime.release_buffered_bytes(&query, 2).unwrap();
+        runtime.release_query(&query).unwrap();
+        runtime.release_session(&session).unwrap();
+        runtime.release_snapshot(&snapshot_handle).unwrap();
+        assert_eq!(held.bytes(), &[1, 2, 3, 4, 5]);
+        assert!(runtime.query_status(&query).is_err());
+        assert_eq!(
+            runtime.reserve_buffered_bytes(&other, 4).unwrap_err().code,
+            ErrorCode::QuotaExceeded
+        );
+        batch.release().unwrap();
+        assert_eq!(
+            runtime.reserve_buffered_bytes(&other, 4).unwrap_err().code,
+            ErrorCode::QuotaExceeded
+        );
+        held.release().unwrap();
+        runtime.reserve_buffered_bytes(&other, 4).unwrap();
+        runtime.release_buffered_bytes(&other, 4).unwrap();
+    }
+
+    #[test]
+    fn owned_batch_release_is_independent_of_worker_and_concurrent_close() {
+        let limits = ResourceLimits {
+            max_threads: 2,
+            max_buffered_bytes: 8,
+            ..ResourceLimits::default()
+        };
+        let (runtime, snapshot, session) = runtime(limits);
+        let other_session = runtime.open_session(&snapshot, limits).unwrap();
+        let a = prepare(&runtime, &session);
+        let b = prepare(&runtime, &other_session);
+        runtime.start_query(&session, &a, 1).unwrap();
+        runtime.start_query(&other_session, &b, 1).unwrap();
+        let batch = runtime
+            .own_batch(&a, vec![9u8; 5].into_boxed_slice())
+            .unwrap();
+        let clone = batch.clone();
+        let gate = Arc::new(Barrier::new(3));
+        let release_gate = Arc::clone(&gate);
+        let release = thread::spawn(move || {
+            release_gate.wait();
+            clone.release().unwrap();
+        });
+        let close_gate = Arc::clone(&gate);
+        let owner = runtime.clone();
+        let handle = a.clone();
+        let close = thread::spawn(move || {
+            close_gate.wait();
+            owner.release_query(&handle).unwrap();
+        });
+        gate.wait();
+        release.join().unwrap();
+        close.join().unwrap();
+        assert_eq!(batch.bytes(), &[9; 5]);
+        assert_eq!(
+            runtime.reserve_buffered_bytes(&b, 4).unwrap_err().code,
+            ErrorCode::QuotaExceeded
+        );
+        drop(batch);
+        runtime.reserve_buffered_bytes(&b, 4).unwrap();
+        runtime.release_buffered_bytes(&b, 4).unwrap();
+
+        let second = runtime
+            .own_batch(&b, vec![7u8; 3].into_boxed_slice())
+            .unwrap();
+        runtime.worker_lost("synthetic loss").unwrap();
+        runtime.release_query(&b).unwrap();
+        runtime.release_session(&other_session).unwrap();
+        assert_eq!(second.bytes(), &[7; 3]);
+        second.release().unwrap();
+    }
+
+    #[test]
+    fn owned_batch_rejects_foreign_query_and_reports_release_fault() {
+        let (runtime, _, session) = runtime(ResourceLimits::default());
+        let query = prepare(&runtime, &session);
+        runtime.start_query(&session, &query, 1).unwrap();
+        let (foreign, _, _) = self::runtime(ResourceLimits::default());
+        assert_eq!(
+            foreign.own_batch(&query, Box::new([1])).err().unwrap().code,
+            ErrorCode::InvalidArgument
+        );
+        let batch = runtime.own_batch(&query, Box::new([1])).unwrap();
+        {
+            let mut state = runtime.inner.lock().unwrap();
+            state.batches.get_mut(batch.id()).unwrap().token.generation += 1;
+        }
+        assert_eq!(batch.release().unwrap_err().code, ErrorCode::InternalFault);
+        let status = runtime.query_status(&query).unwrap();
+        assert_eq!(status.phase, QueryPhase::Failed);
+        assert_eq!(status.error.unwrap().code, ErrorCode::InternalFault);
+        assert!(!status.execution_complete && !status.delivery_complete);
+    }
+
+    #[test]
+    fn batch_release_fault_does_not_hide_prior_worker_failure() {
+        let (runtime, _, session) = runtime(ResourceLimits::default());
+        let query = prepare(&runtime, &session);
+        runtime.start_query(&session, &query, 1).unwrap();
+        let cancel = runtime.cancellation_token(&query).unwrap();
+        let cursor = runtime.open_cursor(&session, &query).unwrap();
+        let batch = runtime.own_batch(&query, Box::new([1])).unwrap();
+        let unstarted = prepare(&runtime, &session);
+        let unstarted_token = runtime.cancellation_token(&unstarted).unwrap();
+        runtime.worker_lost("first failure").unwrap();
+        {
+            let mut state = runtime.inner.lock().unwrap();
+            state.batches.get_mut(batch.id()).unwrap().token.generation += 1;
+        }
+        assert_eq!(batch.release().unwrap_err().code, ErrorCode::InternalFault);
+        let status = runtime.query_status(&query).unwrap();
+        assert_eq!(status.error.unwrap().code, ErrorCode::WorkerLost);
+        assert_eq!(
+            cancel.status().unwrap().error.unwrap().code,
+            ErrorCode::WorkerLost
+        );
+        assert_eq!(cancel.checkpoint().unwrap_err().code, ErrorCode::WorkerLost);
+        let now = Instant::now();
+        let witness = cancellation::DeliveryBudgetDeadline::new(
+            now,
+            now + Duration::from_secs(10),
+            now + Duration::from_secs(10),
+            query.id().into(),
+        )
+        .unwrap();
+        assert_eq!(
+            cancel.checkpoint_with_budget(&witness).unwrap_err().code,
+            ErrorCode::WorkerLost
+        );
+        assert_eq!(
+            cancel
+                .fail(MddError::new(ErrorCode::QuotaExceeded, "test", "later"))
+                .unwrap()
+                .error
+                .unwrap()
+                .code,
+            ErrorCode::WorkerLost
+        );
+        assert_eq!(
+            cancel.binding().unwrap().request_key,
+            "request-content-hash"
+        );
+        assert!(!cancel.snapshot_id().unwrap().is_empty());
+        assert_eq!(
+            cancel.finish_delivery().unwrap_err().code,
+            ErrorCode::WorkerLost
+        );
+        assert_eq!(
+            runtime
+                .validate_cursor(&session, &query, &cursor)
+                .unwrap_err()
+                .code,
+            ErrorCode::WorkerLost
+        );
+        assert_eq!(
+            runtime.close_cursor(&cursor).unwrap_err().code,
+            ErrorCode::WorkerLost
+        );
+        assert_eq!(
+            runtime.release_cursor(&cursor).unwrap_err().code,
+            ErrorCode::WorkerLost
+        );
+        cancel.mark_computed().unwrap();
+        assert!(runtime.query_status(&query).unwrap().execution_complete);
+        assert_eq!(
+            unstarted_token.mark_computed().unwrap_err().code,
+            ErrorCode::WorkerLost
+        );
+        assert!(!runtime.query_status(&unstarted).unwrap().execution_complete);
+        assert_eq!(
+            runtime.release_query(&query).unwrap_err().code,
+            ErrorCode::WorkerLost
+        );
+        assert_eq!(
+            runtime.batch_release_error().unwrap().unwrap().code,
+            ErrorCode::InternalFault
+        );
+        assert_eq!(runtime.limits().unwrap_err().code, ErrorCode::InternalFault);
+    }
+
+    #[test]
+    fn batch_fault_records_first_error_and_preserves_computation() {
+        let (runtime, _, session) = runtime(ResourceLimits::default());
+        let active = prepare(&runtime, &session);
+        runtime.start_query(&session, &active, 1).unwrap();
+        let active_cancel = runtime.cancellation_token(&active).unwrap();
+        let batch = runtime.own_batch(&active, Box::new([1])).unwrap();
+        let pending = prepare(&runtime, &session);
+        let pending_cancel = runtime.cancellation_token(&pending).unwrap();
+        let completed = prepare(&runtime, &session);
+        runtime.start_query(&session, &completed, 1).unwrap();
+        runtime.complete_execution(&completed).unwrap();
+        runtime.finish_delivery(&completed).unwrap();
+        {
+            let mut state = runtime.inner.lock().unwrap();
+            state.batches.get_mut(batch.id()).unwrap().token.generation += 1;
+        }
+        assert_eq!(batch.release().unwrap_err().code, ErrorCode::InternalFault);
+        let status = active_cancel.status().unwrap();
+        assert_eq!(status.phase, QueryPhase::Failed);
+        assert_eq!(status.error.unwrap().code, ErrorCode::InternalFault);
+        assert!(!status.execution_complete);
+        active_cancel.mark_computed().unwrap();
+        let status = active_cancel.status().unwrap();
+        assert!(status.execution_complete);
+        assert!(!status.delivery_complete);
+        assert_eq!(status.error.unwrap().code, ErrorCode::InternalFault);
+        assert_eq!(
+            pending_cancel.mark_computed().unwrap_err().code,
+            ErrorCode::InternalFault
+        );
+        let pending_status = pending_cancel.status().unwrap();
+        assert!(!pending_status.execution_complete);
+        assert_eq!(pending_status.error.unwrap().code, ErrorCode::InternalFault);
+        let completed_status = runtime.query_status(&completed).unwrap();
+        assert_eq!(completed_status.phase, QueryPhase::Completed);
+        assert!(completed_status.execution_complete && completed_status.delivery_complete);
+        assert!(completed_status.error.is_none());
+        assert_eq!(
+            runtime.batch_release_error().unwrap().unwrap().code,
+            ErrorCode::InternalFault
+        );
+    }
+
+    #[test]
+    fn batch_fault_does_not_rewrite_prior_completed_query() {
+        let (runtime, _, session) = runtime(ResourceLimits::default());
+        let completed = prepare(&runtime, &session);
+        runtime.start_query(&session, &completed, 1).unwrap();
+        let completed_token = runtime.cancellation_token(&completed).unwrap();
+        runtime.complete_execution(&completed).unwrap();
+        runtime.finish_delivery(&completed).unwrap();
+        let active = prepare(&runtime, &session);
+        runtime.start_query(&session, &active, 1).unwrap();
+        let batch = runtime.own_batch(&active, Box::new([1])).unwrap();
+        {
+            let mut state = runtime.inner.lock().unwrap();
+            state.batches.get_mut(batch.id()).unwrap().token.generation += 1;
+        }
+        assert_eq!(batch.release().unwrap_err().code, ErrorCode::InternalFault);
+        let status = completed_token
+            .fail(MddError::new(ErrorCode::InvalidInput, "test", "later"))
+            .unwrap();
+        assert_eq!(status.phase, QueryPhase::Completed);
+        assert!(status.execution_complete && status.delivery_complete);
+        assert!(status.error.is_none());
+        completed_token.mark_computed().unwrap();
+        let status = completed_token.status().unwrap();
+        assert_eq!(status.phase, QueryPhase::Completed);
+        assert!(status.execution_complete && status.delivery_complete);
+        assert!(status.error.is_none());
+        assert_eq!(
+            runtime.batch_release_error().unwrap().unwrap().code,
+            ErrorCode::InternalFault
+        );
+    }
+
+    #[test]
+    fn owned_batch_requires_ack_and_keeps_bytes_after_delivery() {
+        let (runtime, _, session) = runtime(ResourceLimits::default());
+        let query = prepare(&runtime, &session);
+        runtime.start_query(&session, &query, 1).unwrap();
+        let batch = runtime.own_batch(&query, Box::new([4, 5])).unwrap();
+        runtime.complete_execution(&query).unwrap();
+        assert_eq!(
+            runtime.finish_delivery(&query).unwrap_err().code,
+            ErrorCode::InvalidCursor
+        );
+        assert!(!runtime.query_status(&query).unwrap().delivery_complete);
+        batch.acknowledge().unwrap();
+        assert_eq!(
+            batch.acknowledge().unwrap_err().code,
+            ErrorCode::InvalidArgument
+        );
+        runtime.finish_delivery(&query).unwrap();
+        assert!(runtime.query_status(&query).unwrap().delivery_complete);
+        runtime.release_query(&query).unwrap();
+        runtime.release_session(&session).unwrap();
+        assert_eq!(batch.bytes(), &[4, 5]);
+        batch.release().unwrap();
+
+        let (runtime, _, session) = self::runtime(ResourceLimits::default());
+        let query = prepare(&runtime, &session);
+        runtime.start_query(&session, &query, 1).unwrap();
+        let batch = runtime.own_batch(&query, Box::new([])).unwrap();
+        drop(batch);
+        runtime.complete_execution(&query).unwrap();
+        assert_eq!(
+            runtime.finish_delivery(&query).unwrap_err().code,
+            ErrorCode::InvalidCursor
+        );
+        assert!(!runtime.query_status(&query).unwrap().delivery_complete);
     }
 
     #[test]

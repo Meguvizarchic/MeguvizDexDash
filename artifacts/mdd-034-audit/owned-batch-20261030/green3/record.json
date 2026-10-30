@@ -1,0 +1,39 @@
+{
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-session/src/lib.rs": "7f41a71122909482c484afcab888108aa781650d25a0fdf17add94594777b64b",
+    "crates/mdd-session/src/cancellation.rs": "81209b2d2031f80f5c814567ccc134ea58d9b5e64805d5b4eb6df29ab1bfcc64",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  },
+  "scope": "targeted synthetic owned batches and injected fault ordering; not production worker/IPC or full qualification",
+  "runs": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-session",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "owned_batch",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-10-30T14:29:15.508033+00:00",
+      "finished_utc": "2026-10-30T14:29:17.075636+00:00",
+      "exit_code": 101,
+      "raw_stdout_sha256": "a637a198f51c0b5c8fa85d501a25ad059752b23c377b64bae8537da5bc3ede1b",
+      "raw_stderr_sha256": "96470307aab280a6de770dc62ab1132e9714e1b3c7baa6fe05731f7b7f318580"
+    }
+  ],
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-session/src/lib.rs": "7f41a71122909482c484afcab888108aa781650d25a0fdf17add94594777b64b",
+    "crates/mdd-session/src/cancellation.rs": "81209b2d2031f80f5c814567ccc134ea58d9b5e64805d5b4eb6df29ab1bfcc64",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  }
+}
