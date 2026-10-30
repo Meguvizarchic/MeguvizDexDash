@@ -100,6 +100,27 @@ fn shared_ready_objects_have_one_owner_and_per_object_borrow_admission() {
     assert_eq!(used(&global, Resource::ReadyFactsBytes), 0);
 }
 #[test]
+fn unbound_sender_quota_remains_recoverable() {
+    let (_, _, _, query) = tree(BudgetLimits::default().with(Resource::QueueBytes, 4));
+    let (sender, mut receiver) = bounded_channel::<u8>(query, None, 1).unwrap();
+    assert_eq!(
+        sender.send(1, 5).unwrap_err().code,
+        ErrorCode::QuotaExceeded
+    );
+    sender.send(2, 4).unwrap();
+    sender.finish(Ok(())).unwrap();
+    let QueueEvent::Data(packet) = receiver.receive().unwrap() else {
+        panic!("valid unbound retry was not delivered");
+    };
+    assert_eq!(*packet.payload(), 2);
+    drop(packet);
+    assert!(matches!(
+        receiver.receive().unwrap(),
+        QueueEvent::End(Ok(()))
+    ));
+}
+
+#[test]
 fn queue_backpressure_and_dequeued_payload_keep_memory_until_consumer_drop() {
     let (global, _, _, query) = tree(BudgetLimits::default().with(Resource::QueueItems, 1));
     let (sender, mut receiver) = bounded_channel(query, None, 1).unwrap();

@@ -1,0 +1,11 @@
+
+running 1 test
+test executor::runtime_tests::bound_reserved_sender_in_flight_failure_cannot_race_successful_end ... FAILED
+
+failures:
+
+failures:
+    executor::runtime_tests::bound_reserved_sender_in_flight_failure_cannot_race_successful_end
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 65 filtered out; finished in 0.01s
+

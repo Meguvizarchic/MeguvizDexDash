@@ -1642,17 +1642,21 @@ pub fn execute_into(
     // Keep the caller's sender alive on preflight/claim failure; otherwise dropping the last
     // sender would overwrite a binding error with a synthetic worker-loss terminal.
     let sender = sender.try_clone()?;
+    // Claim this queue before the lifecycle execution claim: external senders
+    // cannot publish a success terminal during provider or JSON work.
+    let mut producer = sender.claim_producer()?;
     if let Err(error) = runtime_begin(prepared, control) {
         // API misuse must not poison a running query; an already-terminal query, however,
         // must expose its original cancellation/deadline/error as an explicit queue End.
         if let Ok(status) = runtime.cancellation().status()
             && let Some(original) = status.error
         {
-            let _ = sender.finish(Err(original.clone()));
+            let _ = sender.finish_produced(&mut producer, Err(original.clone()));
             return Err(original);
         }
         return Err(error);
     }
+    producer.arm();
     let mut dropped = false;
     let mut produced = 0u64;
     let result = (|| {
@@ -1709,7 +1713,7 @@ pub fn execute_into(
                 dropped = true;
                 return Err(error);
             }
-            if let Err(error) = sender.send_reserved(row, wire_bytes, memory) {
+            if let Err(error) = sender.send_reserved_produced(row, wire_bytes, memory, &producer) {
                 dropped = true;
                 return Err(error);
             }
@@ -1721,7 +1725,7 @@ pub fn execute_into(
             terminal.computation_complete(produced)?;
             runtime.cancellation().mark_computed()?;
         }
-        sender.finish(Ok(()))?;
+        sender.finish_produced(&mut producer, Ok(()))?;
         Ok::<(), MddError>(())
     })();
     match result {
@@ -1736,7 +1740,10 @@ pub fn execute_into(
         }),
         Err(error) => {
             let error = control.stop(error);
-            if sender.finish(Err(error.clone())).is_err() {
+            if sender
+                .finish_produced(&mut producer, Err(error.clone()))
+                .is_err()
+            {
                 return Err(error);
             }
             Ok(PendingDelivery {

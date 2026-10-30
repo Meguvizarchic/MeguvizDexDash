@@ -1560,6 +1560,405 @@ fn duplicate_end_and_out_of_order_ack_are_sticky_failures() {
 }
 
 #[test]
+fn producer_lease_drop_and_external_error_preserve_first_terminal() {
+    let f = setup_with_rows(BudgetLimits::default(), 0);
+    let (sender, mut receiver) =
+        bounded_channel::<u8>(f.runtime.pool().clone(), Some(f.cancel.clone()), 2).unwrap();
+    let unarmed = sender.claim_producer().unwrap();
+    drop(unarmed);
+    assert!(f.cancel.status().unwrap().error.is_none());
+    sender.send(1, 1).unwrap();
+    f.cancel.mark_computed().unwrap();
+    sender.finish(Ok(())).unwrap();
+    let QueueEvent::Data(packet) = receiver.receive().unwrap() else {
+        panic!("row missing")
+    };
+    packet.acknowledge().unwrap();
+    assert!(matches!(
+        receiver.receive().unwrap(),
+        QueueEvent::End(Ok(()))
+    ));
+    let mut receipt = receiver.into_delivery_receipt().unwrap();
+    receipt.finish_cursor().unwrap();
+    f.cancel.finish_delivery().unwrap();
+    assert!(f.cancel.status().unwrap().delivery_complete);
+
+    let f = setup_with_rows(BudgetLimits::default(), 0);
+    let (sender, mut receiver) =
+        bounded_channel::<u8>(f.runtime.pool().clone(), Some(f.cancel.clone()), 2).unwrap();
+    let mut armed = sender.claim_producer().unwrap();
+    armed.arm();
+    drop(armed);
+    let QueueEvent::End(end) = receiver.receive().unwrap() else {
+        panic!("lost End missing")
+    };
+    assert_eq!(end.unwrap_err().code, ErrorCode::WorkerLost);
+    assert_eq!(
+        f.cancel.status().unwrap().error.unwrap().code,
+        ErrorCode::WorkerLost
+    );
+
+    let f = setup_with_rows(BudgetLimits::default(), 0);
+    let (sender, mut receiver) =
+        bounded_channel::<u8>(f.runtime.pool().clone(), Some(f.cancel.clone()), 2).unwrap();
+    let mut armed = sender.claim_producer().unwrap();
+    armed.arm();
+    let original = MddError::new(ErrorCode::InvalidInput, "test.input", "source corrupt");
+    sender.finish(Err(original.clone())).unwrap();
+    drop(armed);
+    let QueueEvent::End(end) = receiver.receive().unwrap() else {
+        panic!("failed End missing")
+    };
+    assert_eq!(end.unwrap_err().code, ErrorCode::InvalidInput);
+    let actual = f.cancel.status().unwrap().error.unwrap();
+    assert_eq!(
+        (actual.code, actual.stage, actual.message),
+        (original.code, original.stage, original.message)
+    );
+}
+
+#[test]
+fn execute_into_zero_row_still_requires_end_and_receipt() {
+    let f = setup_with_rows(BudgetLimits::default(), 0);
+    let (sender, mut receiver) =
+        bounded_channel(f.runtime.pool().clone(), Some(f.cancel.clone()), 2).unwrap();
+    let mut pending = execute_into(
+        &f.prepared,
+        &f.source,
+        ExecutionMode::Streaming,
+        &mut Control::new(ExecutionLimits::default()).with_runtime(f.runtime.clone()),
+        terminal(&f),
+        &sender,
+    )
+    .unwrap();
+    assert!(!f.cancel.status().unwrap().delivery_complete);
+    assert!(matches!(
+        receiver.receive().unwrap(),
+        QueueEvent::End(Ok(()))
+    ));
+    let mut receipt = receiver.into_delivery_receipt().unwrap();
+    assert!(receipt.finish(&mut pending).unwrap().is_complete_result());
+    assert!(f.cancel.status().unwrap().delivery_complete);
+}
+
+#[test]
+fn execute_into_counting_cannot_race_external_successful_end() {
+    let f = setup_with_rows(BudgetLimits::default(), 1);
+    let (sender, mut receiver) =
+        bounded_channel(f.runtime.pool().clone(), Some(f.cancel.clone()), 2).unwrap();
+    let producer_sender = sender.try_clone().unwrap();
+    let (ready_tx, ready_rx) = std::sync::mpsc::channel();
+    let (release_tx, release_rx) = std::sync::mpsc::channel();
+    std::thread::scope(|scope| {
+        let fixture = &f;
+        let producer = scope.spawn(move || {
+            let mut paused = false;
+            let mut control = Control::new(ExecutionLimits::default())
+                .with_runtime(fixture.runtime.clone())
+                .with_hook(move |point| {
+                    if point.phase == "json_count" && !paused {
+                        paused = true;
+                        ready_tx.send(()).map_err(|_| {
+                            MddError::new(ErrorCode::InternalFault, "test", "ready channel closed")
+                        })?;
+                        release_rx
+                            .recv_timeout(std::time::Duration::from_secs(5))
+                            .map_err(|_| {
+                                MddError::new(
+                                    ErrorCode::DeadlineExceeded,
+                                    "test",
+                                    "release timed out",
+                                )
+                            })?;
+                    }
+                    Ok(())
+                });
+            execute_into(
+                &fixture.prepared,
+                &fixture.source,
+                ExecutionMode::Streaming,
+                &mut control,
+                terminal(fixture),
+                &producer_sender,
+            )
+        });
+        ready_rx
+            .recv_timeout(std::time::Duration::from_secs(2))
+            .unwrap();
+        let competing = execute_into(
+            &f.prepared,
+            &f.source,
+            ExecutionMode::Streaming,
+            &mut Control::new(ExecutionLimits::default()).with_runtime(f.runtime.clone()),
+            terminal(&f),
+            &sender,
+        );
+        assert_eq!(competing.err().unwrap().code, ErrorCode::InvalidArgument);
+        assert_eq!(
+            sender
+                .send(vec![Value::U64(DecimalU64(7))], 1)
+                .unwrap_err()
+                .code,
+            ErrorCode::InvalidArgument
+        );
+        assert!(f.cancel.status().unwrap().error.is_none());
+        let finish = sender.finish(Ok(()));
+        let premature_success_end = if finish.is_ok() {
+            matches!(receiver.receive().unwrap(), QueueEvent::End(Ok(())))
+        } else {
+            false
+        };
+        release_tx.send(()).unwrap();
+        let result = producer.join().unwrap();
+        assert!(
+            !premature_success_end,
+            "counting published an early successful End"
+        );
+        assert!(
+            finish.is_err(),
+            "counting allowed an external successful End"
+        );
+        let mut pending = result.unwrap();
+        let QueueEvent::Data(packet) = receiver.receive().unwrap() else {
+            panic!("expected computed row");
+        };
+        packet.acknowledge().unwrap();
+        assert!(matches!(
+            receiver.receive().unwrap(),
+            QueueEvent::End(Ok(()))
+        ));
+        let mut receipt = receiver.into_delivery_receipt().unwrap();
+        assert!(receipt.finish(&mut pending).unwrap().is_complete_result());
+    });
+}
+
+#[test]
+fn execute_into_reserved_queue_quota_keeps_pending_delivery_error() {
+    let f = setup_with_rows(BudgetLimits::default().with(Resource::QueueBytes, 4), 1);
+    let (sender, mut receiver) =
+        bounded_channel(f.runtime.pool().clone(), Some(f.cancel.clone()), 2).unwrap();
+    let mut pending = execute_into(
+        &f.prepared,
+        &f.source,
+        ExecutionMode::Streaming,
+        &mut Control::new(ExecutionLimits::default()).with_runtime(f.runtime.clone()),
+        terminal(&f),
+        &sender,
+    )
+    .unwrap();
+    let used = f.runtime.pool().usage().unwrap().used;
+    assert!(used.get(&Resource::OutputBytes).map_or(0, |value| value.0) > 0);
+    assert_eq!(
+        used.get(&Resource::QueryWorkspaceBytes)
+            .map_or(0, |value| value.0),
+        0
+    );
+    let QueueEvent::End(end) = receiver.receive().unwrap() else {
+        panic!("reserved queue quota produced a row");
+    };
+    let error = end.unwrap_err();
+    assert_eq!(error.code, ErrorCode::QuotaExceeded);
+    assert_eq!(error.details["budget"], "queue_bytes");
+    let mut receipt = receiver.into_delivery_receipt().unwrap();
+    let envelope = receipt.finish(&mut pending).unwrap();
+    assert_eq!(envelope.error.unwrap().code, ErrorCode::QuotaExceeded);
+    assert!(envelope.response.truncated);
+    assert!(!f.cancel.status().unwrap().delivery_complete);
+}
+
+#[test]
+fn bound_sender_cannot_mark_success_after_oversized_send() {
+    let f = setup(BudgetLimits::default().with(Resource::QueueBytes, 4));
+    let (sender, mut receiver) =
+        bounded_channel::<u8>(f.runtime.pool().clone(), Some(f.cancel.clone()), 2).unwrap();
+    assert_eq!(
+        sender.send(7, 5).unwrap_err().code,
+        ErrorCode::QuotaExceeded
+    );
+    assert!(
+        sender.finish(Ok(())).is_err(),
+        "failed send accepted successful End"
+    );
+    let QueueEvent::End(end) = receiver.receive().unwrap() else {
+        panic!("failed send did not emit an error terminal");
+    };
+    assert_eq!(end.unwrap_err().code, ErrorCode::QuotaExceeded);
+}
+
+#[test]
+fn bound_sender_quota_is_sticky_and_cannot_be_finished_as_success() {
+    let f = setup(BudgetLimits::default().with(Resource::QueueBytes, 4));
+    let (sender, mut receiver) =
+        bounded_channel::<u8>(f.runtime.pool().clone(), Some(f.cancel.clone()), 2).unwrap();
+    let error = sender.send(7, 5).unwrap_err();
+    assert_eq!(error.code, ErrorCode::QuotaExceeded);
+    assert_eq!(
+        f.cancel.status().unwrap().error.unwrap().code,
+        ErrorCode::QuotaExceeded
+    );
+    assert!(sender.finish(Ok(())).is_err());
+    let QueueEvent::End(end) = receiver.receive().unwrap() else {
+        panic!("failed send did not emit an error terminal");
+    };
+    assert_eq!(end.unwrap_err().code, ErrorCode::QuotaExceeded);
+    drop(receiver);
+    assert_eq!(
+        f.cancel.status().unwrap().error.unwrap().code,
+        ErrorCode::QuotaExceeded
+    );
+    assert!(!f.cancel.status().unwrap().delivery_complete);
+}
+
+fn check_bound_send_in_flight_failure(use_reserved: bool) {
+    struct DropGate {
+        ready: std::sync::mpsc::Sender<()>,
+        release: std::sync::mpsc::Receiver<()>,
+    }
+    impl Drop for DropGate {
+        fn drop(&mut self) {
+            let _ = self.ready.send(());
+            let _ = self.release.recv_timeout(std::time::Duration::from_secs(5));
+        }
+    }
+
+    let f = setup(BudgetLimits::default().with(Resource::QueueBytes, 4));
+    let (sender, receiver) =
+        bounded_channel::<DropGate>(f.runtime.pool().clone(), Some(f.cancel.clone()), 2).unwrap();
+    let producer = sender.try_clone().unwrap();
+    let (ready_tx, ready_rx) = std::sync::mpsc::channel();
+    let (release_tx, release_rx) = std::sync::mpsc::channel();
+    let reservation = if use_reserved {
+        Some(sender.reserve_payload(4).unwrap())
+    } else {
+        None
+    };
+    let worker = std::thread::spawn(move || {
+        let payload = DropGate {
+            ready: ready_tx,
+            release: release_rx,
+        };
+        match reservation {
+            Some(memory) => producer.send_reserved(payload, 5, memory),
+            None => producer.send(payload, 5),
+        }
+    });
+    ready_rx
+        .recv_timeout(std::time::Duration::from_secs(2))
+        .unwrap();
+    let mut receiver = Some(receiver);
+    let finish = sender.finish(Ok(()));
+    let mut incorrectly_completed = false;
+    if finish.is_ok() {
+        let mut current = receiver.take().unwrap();
+        if matches!(current.receive().unwrap(), QueueEvent::End(Ok(()))) {
+            let mut receipt = current.into_delivery_receipt().unwrap();
+            f.cancel.mark_computed().unwrap();
+            receipt.finish_cursor().unwrap();
+            f.cancel.finish_delivery().unwrap();
+            incorrectly_completed = f.cancel.status().unwrap().delivery_complete;
+        }
+    }
+    release_tx.send(()).unwrap();
+    let send_error = worker.join().unwrap().unwrap_err();
+    assert!(
+        !incorrectly_completed,
+        "quota failure raced into complete delivery"
+    );
+    assert!(finish.is_err(), "in-flight send accepted successful End");
+    assert_eq!(send_error.code, ErrorCode::QuotaExceeded);
+    if use_reserved {
+        // The executor, not send_reserved, publishes the explicit failure End.
+        sender.finish(Err(send_error.clone())).unwrap();
+    }
+    let mut remaining = receiver.take().expect("failure terminal must remain");
+    let QueueEvent::End(end) = remaining.receive().unwrap() else {
+        panic!("quota error terminal missing");
+    };
+    assert_eq!(end.unwrap_err().code, ErrorCode::QuotaExceeded);
+}
+
+#[test]
+fn bound_sender_in_flight_failure_cannot_race_successful_end() {
+    check_bound_send_in_flight_failure(false);
+}
+
+#[test]
+fn bound_reserved_sender_in_flight_failure_cannot_race_successful_end() {
+    check_bound_send_in_flight_failure(true);
+}
+
+#[test]
+fn bound_sender_preserves_existing_cancel_or_worker_loss() {
+    for worker_loss in [false, true] {
+        let f = setup(BudgetLimits::default().with(Resource::QueueBytes, 4));
+        let (sender, mut receiver) =
+            bounded_channel::<u8>(f.runtime.pool().clone(), Some(f.cancel.clone()), 2).unwrap();
+        let expected = if worker_loss {
+            f.lifecycle.worker_lost("test worker lost").unwrap();
+            ErrorCode::WorkerLost
+        } else {
+            f.cancel.cancel().unwrap();
+            ErrorCode::Cancelled
+        };
+        assert_eq!(sender.send(7, 5).unwrap_err().code, expected);
+        let QueueEvent::End(end) = receiver.receive().unwrap() else {
+            panic!("previous failure was not sent as End");
+        };
+        assert_eq!(end.unwrap_err().code, expected);
+        drop(receiver);
+        assert_eq!(f.cancel.status().unwrap().error.unwrap().code, expected);
+    }
+}
+
+#[test]
+fn bound_sender_normal_backpressure_still_delivers_all_rows() {
+    let f = setup(BudgetLimits::default().with(Resource::QueueItems, 1));
+    let (sender, mut receiver) =
+        bounded_channel::<u8>(f.runtime.pool().clone(), Some(f.cancel.clone()), 1).unwrap();
+    sender.send(1, 4).unwrap();
+    let waiting = sender.try_clone().unwrap();
+    let (ready_tx, ready_rx) = std::sync::mpsc::channel();
+    let (result_tx, result_rx) = std::sync::mpsc::channel();
+    let worker = std::thread::spawn(move || {
+        ready_tx.send(()).unwrap();
+        result_tx.send(waiting.send(2, 4)).unwrap();
+    });
+    ready_rx
+        .recv_timeout(std::time::Duration::from_secs(1))
+        .unwrap();
+    assert!(
+        result_rx
+            .recv_timeout(std::time::Duration::from_millis(20))
+            .is_err()
+    );
+    let QueueEvent::Data(first) = receiver.receive().unwrap() else {
+        panic!("first row missing");
+    };
+    assert_eq!(*first.payload(), 1);
+    first.acknowledge().unwrap();
+    result_rx
+        .recv_timeout(std::time::Duration::from_secs(1))
+        .unwrap()
+        .unwrap();
+    worker.join().unwrap();
+    f.cancel.mark_computed().unwrap();
+    sender.finish(Ok(())).unwrap();
+    let QueueEvent::Data(second) = receiver.receive().unwrap() else {
+        panic!("second row missing");
+    };
+    assert_eq!(*second.payload(), 2);
+    second.acknowledge().unwrap();
+    assert!(matches!(
+        receiver.receive().unwrap(),
+        QueueEvent::End(Ok(()))
+    ));
+    let mut receipt = receiver.into_delivery_receipt().unwrap();
+    receipt.finish_cursor().unwrap();
+    f.cancel.finish_delivery().unwrap();
+    assert!(f.cancel.status().unwrap().delivery_complete);
+}
+
+#[test]
 fn worker_loss_and_cancel_before_final_receipt_are_not_success() {
     let f = setup(BudgetLimits::default());
     let (sender, mut receiver) =

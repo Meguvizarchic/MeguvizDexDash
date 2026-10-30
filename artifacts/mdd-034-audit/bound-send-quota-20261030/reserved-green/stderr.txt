@@ -1,0 +1,8 @@
+   Compiling mdd-query v0.1.0-dev (D:\MeguvisDexDash\crates\mdd-query)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 19.28s
+     Running unittests src\lib.rs (target\debug\deps\mdd_query-82579f4092cfd058.exe)
+
+thread 'executor::runtime_tests::bound_reserved_sender_in_flight_failure_cannot_race_successful_end' (44860) panicked at crates\mdd-query\src\executor\runtime_tests.rs:1697:52:
+called `Result::unwrap()` on an `Err` value: MddError { code: QuotaExceeded, stage: "budget", message: "budget exhausted", retryable: false, details: {"budget": String("queue_bytes"), "limit": String("4"), "observed": String("5"), "owner": String("query-2284c2eead4817efd512777bf3ba258ca277fb3ba7921f48d1dbefbc4288ca57")} }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p mdd-query --lib`

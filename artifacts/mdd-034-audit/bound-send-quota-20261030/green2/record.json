@@ -1,0 +1,32 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "mdd-query",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "1",
+    "bound_sender_cannot_mark_success_after_oversized_send",
+    "--",
+    "--nocapture"
+  ],
+  "started_utc": "2026-10-30T08:13:30.922505+00:00",
+  "finished_utc": "2026-10-30T08:13:31.196046+00:00",
+  "exit_code": 0,
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "crates/mdd-query/src/budget.rs": "62c0d8937224f06a93646ae467d948fe2469b3793614c577e7485e8c6c89e861",
+    "crates/mdd-query/src/executor/runtime_tests.rs": "53fae0ec1460b718d57b98e23c678659f09c4b98b444cb7d4006a966d613f0e7"
+  },
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "crates/mdd-query/src/budget.rs": "62c0d8937224f06a93646ae467d948fe2469b3793614c577e7485e8c6c89e861",
+    "crates/mdd-query/src/executor/runtime_tests.rs": "53fae0ec1460b718d57b98e23c678659f09c4b98b444cb7d4006a966d613f0e7"
+  },
+  "source_unchanged": true,
+  "stdout_sha256": "5bd0ea106ce572a5b8fa45170e19b5343a0c8402b7536b89c99c7666071a2cb8",
+  "stderr_sha256": "ba1f28f030931b593ce1742dccfa3156e0898b33bae5b4fc13ea7249a4d6310a",
+  "scope": "targeted local queue test; no worker or profile qualification"
+}

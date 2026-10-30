@@ -1,0 +1,6 @@
+
+running 1 test
+test executor::runtime_tests::worker_loss_and_cancel_before_final_receipt_are_not_success ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 68 filtered out; finished in 0.00s
+

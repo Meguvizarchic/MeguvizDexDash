@@ -1,0 +1,3 @@
+   Compiling mdd-query v0.1.0-dev (D:\MeguvisDexDash\crates\mdd-query)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.28s
+     Running unittests src\lib.rs (target\debug\deps\mdd_query-82579f4092cfd058.exe)

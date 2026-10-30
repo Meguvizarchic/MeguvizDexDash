@@ -1,0 +1,6 @@
+
+running 1 test
+test executor::runtime_tests::bound_sender_quota_is_sticky_and_cannot_be_finished_as_success ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 59 filtered out; finished in 0.00s
+

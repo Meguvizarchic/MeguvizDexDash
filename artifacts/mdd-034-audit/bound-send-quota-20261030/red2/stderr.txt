@@ -1,0 +1,8 @@
+   Compiling mdd-query v0.1.0-dev (D:\MeguvisDexDash\crates\mdd-query)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.04s
+     Running unittests src\lib.rs (target\debug\deps\mdd_query-82579f4092cfd058.exe)
+
+thread 'executor::runtime_tests::bound_sender_cannot_mark_success_after_oversized_send' (20236) panicked at crates\mdd-query\src\executor\runtime_tests.rs:1568:5:
+failed send accepted successful End
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p mdd-query --lib`

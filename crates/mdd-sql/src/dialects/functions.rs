@@ -2,7 +2,7 @@ use crate::{
     control::SqlControl,
     dialects::SqlDialect,
     invalid, quota,
-    values::{BYTES, SqlText, SqlValue},
+    values::{BYTES, SqlText, SqlValue, TEXT},
 };
 use mdd_query::{budget::Reservation, ir::Signed64};
 use mdd_types::{DecimalU64, MddError, MddResult};
@@ -52,34 +52,38 @@ fn scalar_text_cow<'a>(value: &'a SqlValue, control: &SqlControl) -> MddResult<C
         value => Ok(Cow::Owned(scalar_text(value, control)?)),
     }
 }
-fn encoded_text(text: &SqlText, dialect: SqlDialect, control: &SqlControl) -> MddResult<Vec<u8>> {
-    fn emit(code: u32, out: &mut Vec<u8>) {
+fn visit_encoded_text(
+    text: &SqlText,
+    dialect: SqlDialect,
+    control: &SqlControl,
+    mut output: impl FnMut(&[u8]) -> MddResult<()>,
+) -> MddResult<()> {
+    fn emit(code: u32, output: &mut impl FnMut(&[u8]) -> MddResult<()>) -> MddResult<()> {
         if code < 0x80 {
-            out.push(code as u8);
+            output(&[code as u8])
         } else if code < 0x800 {
-            out.extend([(0xc0 | (code >> 6)) as u8, (0x80 | (code & 63)) as u8]);
+            output(&[(0xc0 | (code >> 6)) as u8, (0x80 | (code & 63)) as u8])
         } else if code < 0x10000 {
-            out.extend([
+            output(&[
                 (0xe0 | (code >> 12)) as u8,
                 (0x80 | ((code >> 6) & 63)) as u8,
                 (0x80 | (code & 63)) as u8,
-            ]);
+            ])
         } else {
-            out.extend([
+            output(&[
                 (0xf0 | (code >> 18)) as u8,
                 (0x80 | ((code >> 12) & 63)) as u8,
                 (0x80 | ((code >> 6) & 63)) as u8,
                 (0x80 | (code & 63)) as u8,
-            ]);
+            ])
         }
     }
-    let mut out = Vec::new();
     let mut at = 0;
     while at < text.utf16.len() {
         control.checkpoint(1, false)?;
         let value = text.utf16[at];
         if dialect != SqlDialect::NativeV1 && value == 0 {
-            out.extend([0xc0, 0x80]);
+            output(&[0xc0, 0x80])?;
         } else if dialect == SqlDialect::NativeV1
             && (0xd800..=0xdbff).contains(&value)
             && text
@@ -91,14 +95,22 @@ fn encoded_text(text: &SqlText, dialect: SqlDialect, control: &SqlControl) -> Md
             let low = text.utf16[at + 1];
             emit(
                 0x10000 + ((u32::from(value) - 0xd800) << 10) + (u32::from(low) - 0xdc00),
-                &mut out,
-            );
+                &mut output,
+            )?;
             at += 1;
         } else {
-            emit(u32::from(value), &mut out);
+            emit(u32::from(value), &mut output)?;
         }
         at += 1;
     }
+    Ok(())
+}
+fn encoded_text(text: &SqlText, dialect: SqlDialect, control: &SqlControl) -> MddResult<Vec<u8>> {
+    let mut out = Vec::new();
+    visit_encoded_text(text, dialect, control, |bytes| {
+        out.extend_from_slice(bytes);
+        Ok(())
+    })?;
     Ok(out)
 }
 fn decoded_text(bytes: &[u8], dialect: SqlDialect, control: &SqlControl) -> MddResult<SqlText> {
@@ -1120,6 +1132,88 @@ fn case_text_with_lease(
     Ok((SqlValue::Text(text), lease))
 }
 
+/// Construct HEX's tagged UTF-16 SQLite carrier under one logical lease.
+/// Caller input, allocator overhead and SQLite's own copies are not covered.
+fn hex_with_lease(
+    value: &SqlValue,
+    dialect: SqlDialect,
+    control: &SqlControl,
+) -> MddResult<(Cell, Option<Reservation>)> {
+    control.checkpoint(1, false)?;
+    let raw = match value {
+        SqlValue::Null => Some(&[][..]),
+        SqlValue::Bytes(bytes) | SqlValue::DexMutf8 { bytes, .. } => Some(bytes.as_slice()),
+        _ => None,
+    };
+    let text = if raw.is_none() {
+        Some(scalar_text_cow(value, control)?)
+    } else {
+        None
+    };
+    let limit = control.inner.limits.max_cell_bytes / 4;
+    let byte_count = if let Some(bytes) = raw {
+        u64::try_from(bytes.len())
+            .map_err(|_| control.fail(quota("HEX_RESULT_CAPACITY_OVERFLOW")))?
+    } else {
+        let mut count = 0u64;
+        visit_encoded_text(text.as_ref().unwrap(), dialect, control, |bytes| {
+            count = count
+                .checked_add(bytes.len() as u64)
+                .ok_or_else(|| control.fail(quota("HEX_RESULT_CAPACITY_OVERFLOW")))?;
+            if count > limit {
+                return Err(control.fail(quota("HEX_RESULT_CELL_BYTES")));
+            }
+            Ok(())
+        })?;
+        count
+    };
+    if byte_count > limit {
+        return Err(control.fail(quota("HEX_RESULT_CELL_BYTES")));
+    }
+    let digits = byte_count
+        .checked_mul(2)
+        .ok_or_else(|| control.fail(quota("HEX_RESULT_CAPACITY_OVERFLOW")))?;
+    let workspace = digits
+        .checked_mul(2)
+        .and_then(|n| n.checked_add(TEXT.len() as u64))
+        .ok_or_else(|| control.fail(quota("HEX_RESULT_WORKSPACE_OVERFLOW")))?;
+    let lease = control
+        .runtime()
+        .map(|runtime| {
+            runtime
+                .pool()
+                .reserve(mdd_query::budget::Resource::QueryWorkspaceBytes, workspace)
+                .map_err(|error| control.fail(error))
+        })
+        .transpose()?;
+    let mut carrier = Vec::new();
+    carrier
+        .try_reserve_exact(
+            usize::try_from(workspace)
+                .map_err(|_| control.fail(quota("HEX_RESULT_CAPACITY_OVERFLOW")))?,
+        )
+        .map_err(|_| control.fail(quota("HEX_RESULT_ALLOCATION")))?;
+    carrier.extend_from_slice(TEXT);
+    const DIGITS: &[u8; 16] = b"0123456789ABCDEF";
+    let mut emit = |bytes: &[u8]| {
+        for &byte in bytes {
+            control.checkpoint(1, false)?;
+            carrier.extend([0, DIGITS[usize::from(byte >> 4)]]);
+            carrier.extend([0, DIGITS[usize::from(byte & 0x0f)]]);
+        }
+        Ok(())
+    };
+    if let Some(bytes) = raw {
+        emit(bytes)?;
+    } else {
+        visit_encoded_text(text.as_ref().unwrap(), dialect, control, &mut emit)?;
+    }
+    if u64::try_from(carrier.len()).ok() != Some(workspace) {
+        return Err(invalid("HEX_RESULT_LENGTH_CHANGED"));
+    }
+    Ok((Cell::Blob(carrier), lease))
+}
+
 fn scalar(
     name: &str,
     args: &[SqlValue],
@@ -1127,36 +1221,6 @@ fn scalar(
     control: &SqlControl,
 ) -> MddResult<SqlValue> {
     control.checkpoint(1, false)?;
-    if name == "mdd_hex" {
-        let bytes: Cow<'_, [u8]> = match &args[0] {
-            SqlValue::Null => Cow::Borrowed(&[]),
-            SqlValue::Bytes(bytes) | SqlValue::DexMutf8 { bytes, .. } => Cow::Borrowed(bytes),
-            value => Cow::Owned(encoded_text(
-                &scalar_text(value, control)?,
-                dialect,
-                control,
-            )?),
-        };
-        if bytes.len() as u64 > control.inner.limits.max_cell_bytes / 4 {
-            return Err(quota("HEX_RESULT_CELL_BYTES"));
-        }
-        let capacity = bytes
-            .len()
-            .checked_mul(2)
-            .ok_or_else(|| control.fail(quota("HEX_RESULT_CAPACITY_OVERFLOW")))?;
-        let mut output = String::new();
-        output
-            .try_reserve_exact(capacity)
-            .map_err(|_| control.fail(quota("HEX_RESULT_ALLOCATION")))?;
-        const DIGITS: &[u8; 16] = b"0123456789ABCDEF";
-        for &byte in bytes.iter() {
-            control.checkpoint(1, false)?;
-            output.push(char::from(DIGITS[usize::from(byte >> 4)]));
-            output.push(char::from(DIGITS[usize::from(byte & 0x0f)]));
-        }
-        // The result and argument buffers are not covered by a workspace lease.
-        return Ok(SqlValue::text(&output));
-    }
     if name == "mdd_key" || name == "mdd_sort_key" {
         if args[0] == SqlValue::Null {
             return Ok(SqlValue::Null);
@@ -1519,25 +1583,31 @@ pub(crate) fn register(
             } else {
                 None
             };
-            let (value, result_workspace) = if name == "mdd_concat"
-                && dialect != SqlDialect::NativeV1
-                && !values.contains(&SqlValue::Null)
-            {
-                legacy_concat(&values, &control).map_err(|e| failure(&control, e))?
-            } else if matches!(name, "mdd_lower" | "mdd_upper")
-                && matches!(&values[0], SqlValue::Text(_) | SqlValue::DexMutf8 { .. })
-            {
-                case_text_with_lease(name, &values[0], &control)
-                    .map_err(|e| failure(&control, e))?
+            let (value, result_workspace) = if name == "mdd_hex" {
+                hex_with_lease(&values[0], dialect, &control).map_err(|e| failure(&control, e))?
             } else {
-                (
-                    scalar(name, &values, dialect, &control).map_err(|e| failure(&control, e))?,
-                    None,
-                )
+                let (value, workspace) = if name == "mdd_concat"
+                    && dialect != SqlDialect::NativeV1
+                    && !values.contains(&SqlValue::Null)
+                {
+                    legacy_concat(&values, &control).map_err(|e| failure(&control, e))?
+                } else if matches!(name, "mdd_lower" | "mdd_upper")
+                    && matches!(&values[0], SqlValue::Text(_) | SqlValue::DexMutf8 { .. })
+                {
+                    case_text_with_lease(name, &values[0], &control)
+                        .map_err(|e| failure(&control, e))?
+                } else {
+                    (
+                        scalar(name, &values, dialect, &control)
+                            .map_err(|e| failure(&control, e))?,
+                        None,
+                    )
+                };
+                let value = value
+                    .sqlite(control.inner.limits.max_cell_bytes)
+                    .map_err(|e| failure(&control, e))?;
+                (value, workspace)
             };
-            let value = value
-                .sqlite(control.inner.limits.max_cell_bytes)
-                .map_err(|e| failure(&control, e))?;
             Ok(SqlCellWithKeyLease {
                 value,
                 _workspace: key_workspace.or(result_workspace),

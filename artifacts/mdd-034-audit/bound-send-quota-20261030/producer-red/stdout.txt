@@ -1,0 +1,11 @@
+
+running 1 test
+test executor::runtime_tests::execute_into_counting_cannot_race_external_successful_end ... FAILED
+
+failures:
+
+failures:
+    executor::runtime_tests::execute_into_counting_cannot_race_external_successful_end
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 66 filtered out; finished in 0.01s
+

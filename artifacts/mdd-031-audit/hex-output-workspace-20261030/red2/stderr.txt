@@ -1,0 +1,10 @@
+   Compiling mdd-query v0.1.0-dev (D:\MeguvisDexDash\crates\mdd-query)
+   Compiling mdd-sql v0.1.0-dev (D:\MeguvisDexDash\crates\mdd-sql)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 19.57s
+     Running unittests src\lib.rs (target\debug\deps\mdd_sql-46977fcd4387e316.exe)
+hex diagnostic dialect=NativeV1 steps=10017 error=MddError { code: QuotaExceeded, stage: "budget", message: "budget exhausted", retryable: false, details: {"budget": String("query_workspace_bytes"), "limit": String("4096"), "observed": String("22193"), "owner": String("query-36295be6f69060e46709951e82598aeb1dc8e0b75ed14b06a0ee4a2b119fbeb9")} }
+
+thread 'runtime_tests::hex_result_workspace_is_reserved_before_output_construction' (42352) panicked at crates\mdd-sql\src\runtime_tests.rs:656:13:
+assertion failed: usage.used.get(&Resource::QuerySteps).map_or(0, |v| v.0) < max_steps
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p mdd-sql --lib`

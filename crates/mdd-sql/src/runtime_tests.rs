@@ -632,6 +632,44 @@ fn key_scan_cancelled_after_steps_stays_failed() {
 }
 
 #[test]
+fn hex_result_workspace_is_reserved_before_output_construction() {
+    use crate::values::SqlValue;
+    for dialect in [
+        SqlDialect::NativeV1,
+        SqlDialect::DexSql010,
+        SqlDialect::DexSql011,
+    ] {
+        for (value, max_steps) in [
+            (SqlValue::text(&"A".repeat(5000)), 6000),
+            (SqlValue::Bytes(vec![b'A'; 5000]), 1000),
+        ] {
+            let (lifecycle, session, _, bridge) = setup_with_dialect(dialect);
+            let prepared = bridge
+                .prepare_with_parameters("SELECT hex(?) AS v", &[value])
+                .unwrap();
+            // Permit the result metadata reservation (~2 KiB) so this check
+            // reaches the HEX callback rather than failing during setup.
+            let limits = BudgetLimits::default().with(Resource::QueryWorkspaceBytes, 4096);
+            let (runtime, token) = runtime(&lifecycle, &session, &prepared, limits);
+            let pool = runtime.pool().clone();
+            let error = prepared
+                .bind_runtime(&runtime)
+                .unwrap()
+                .execute(SqlControl::new(SqlLimits::default(), None).with_runtime(runtime))
+                .unwrap_err();
+            assert_eq!(error.code, ErrorCode::QuotaExceeded, "{dialect:?}");
+            assert_eq!(error.details["budget"], "query_workspace_bytes");
+            let usage = pool.usage().unwrap();
+            assert!(usage.used.get(&Resource::QuerySteps).map_or(0, |v| v.0) < max_steps);
+            for resource in [Resource::QueryWorkspaceBytes, Resource::ResidentBytes] {
+                assert_eq!(usage.used.get(&resource).map_or(0, |v| v.0), 0);
+            }
+            assert!(!token.status().unwrap().execution_complete);
+        }
+    }
+}
+
+#[test]
 fn hex_long_text_respects_session_step_budget() {
     use crate::values::SqlValue;
     for dialect in [
@@ -730,8 +768,19 @@ fn hex_preserves_null_bytes_nul_and_surrogate_encoding() {
         });
         let prepared = bridge
             .prepare_with_parameters(
-                "SELECT hex(NULL),hex(?),hex(?)",
-                &[SqlValue::Bytes(vec![0, 0xff]), value],
+                "SELECT hex(NULL),hex(?),hex(?),hex(?),hex(CAST(? AS TEXT))",
+                &[
+                    SqlValue::Bytes(vec![0, 0xff]),
+                    value,
+                    SqlValue::DexMutf8 {
+                        bytes: vec![0xc0, 0x80, 0xed, 0xa0, 0x80],
+                        utf16_code_units: DecimalU64(2),
+                    },
+                    SqlValue::DexMutf8 {
+                        bytes: vec![0xc0, 0x80, 0xed, 0xa0, 0x80],
+                        utf16_code_units: DecimalU64(2),
+                    },
+                ],
             )
             .unwrap();
         let result = prepared
@@ -747,7 +796,13 @@ fn hex_preserves_null_bytes_nul_and_surrogate_encoding() {
             vec![
                 SqlValue::text(""),
                 SqlValue::text("00FF"),
-                SqlValue::text(encoded)
+                SqlValue::text(encoded),
+                SqlValue::text("C080EDA080"),
+                SqlValue::text(if dialect == SqlDialect::NativeV1 {
+                    "00EDA080"
+                } else {
+                    "C080EDA080"
+                }),
             ],
             "{dialect:?}"
         );
@@ -780,13 +835,21 @@ fn hex_cancelled_after_scan_starts_stays_failed() {
             });
             let deadline = Instant::now() + Duration::from_secs(10);
             loop {
-                let steps = pool
-                    .usage()
-                    .unwrap()
+                let usage = pool.usage().unwrap();
+                let steps = usage
                     .used
                     .get(&Resource::QuerySteps)
                     .map_or(0, |value| value.0);
                 if steps > 5_000 {
+                    if kind == "bytes" {
+                        assert!(
+                            usage
+                                .used
+                                .get(&Resource::QueryWorkspaceBytes)
+                                .map_or(0, |value| value.0)
+                                >= 800_009
+                        );
+                    }
                     break;
                 }
                 if handle.is_finished() || Instant::now() >= deadline {
@@ -802,6 +865,10 @@ fn hex_cancelled_after_scan_starts_stays_failed() {
                 ErrorCode::Cancelled
             );
             assert!(!token.status().unwrap().execution_complete);
+            let usage = pool.usage().unwrap();
+            for resource in [Resource::QueryWorkspaceBytes, Resource::ResidentBytes] {
+                assert_eq!(usage.used.get(&resource).map_or(0, |value| value.0), 0);
+            }
         }
     }
 }

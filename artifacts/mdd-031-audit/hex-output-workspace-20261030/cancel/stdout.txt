@@ -1,0 +1,6 @@
+
+running 1 test
+test runtime_tests::hex_cancelled_after_scan_starts_stays_failed ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 99 filtered out; finished in 2.48s
+

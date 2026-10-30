@@ -805,6 +805,8 @@ struct QueueState<T> {
     entries: VecDeque<Entry<T>>,
     terminal: Option<MddResult<()>>,
     senders: usize,
+    bound_sends_in_flight: usize,
+    bound_producer_active: bool,
     receiver_closed: bool,
     end_delivered: bool,
     receipt_issued: bool,
@@ -816,6 +818,16 @@ struct Channel<T> {
     cancel: Option<QueryCancellation>,
     capacity: usize,
     delivery: Option<Arc<DeliveryTracker>>,
+}
+struct BoundSendGuard<T> {
+    channel: Arc<Channel<T>>,
+}
+/// Exclusive query producer capability. Its fields are private so only the
+/// queue can issue or complete it; dropping an armed lease fails the query.
+pub(crate) struct BoundProducerLease<T> {
+    channel: Arc<Channel<T>>,
+    active: bool,
+    armed: bool,
 }
 pub struct BoundedSender<T>(Arc<Channel<T>>);
 pub struct BoundedReceiver<T>(Arc<Channel<T>>);
@@ -857,6 +869,8 @@ pub fn bounded_channel<T>(
             entries: VecDeque::new(),
             terminal: None,
             senders: 1,
+            bound_sends_in_flight: 0,
+            bound_producer_active: false,
             receiver_closed: false,
             end_delivered: false,
             receipt_issued: false,
@@ -897,8 +911,175 @@ impl<T> Channel<T> {
         }
         error
     }
+    fn bound_query_failure(&self, error: MddError) -> MddError {
+        match &self.cancel {
+            Some(cancel) => match cancel.fail(error.clone()) {
+                Ok(status) => status.error.unwrap_or(error),
+                Err(failure) => failure,
+            },
+            None => error,
+        }
+    }
+    fn bound_send_failure(&self, error: MddError) -> MddError {
+        let Some(cancel) = &self.cancel else {
+            return error;
+        };
+        // Serialize against finish(): a bound queue must not publish an Ok End
+        // after an unrecoverable send error. Preserve an earlier error terminal.
+        let mut queue = match self.state.lock() {
+            Ok(queue) => queue,
+            Err(_) => {
+                return match cancel.fail(error.clone()) {
+                    Ok(status) => status.error.unwrap_or(error),
+                    Err(failure) => failure,
+                };
+            }
+        };
+        let candidate = match queue.terminal.as_ref() {
+            Some(Err(previous)) => previous.clone(),
+            _ => error,
+        };
+        let first = match cancel.fail(candidate.clone()) {
+            Ok(status) => status.error.unwrap_or(candidate),
+            Err(failure) => failure,
+        };
+        if !queue.end_delivered && !queue.receiver_closed {
+            queue.terminal = Some(Err(first.clone()));
+            self.changed.notify_all();
+        }
+        first
+    }
+}
+impl<T> Drop for BoundSendGuard<T> {
+    fn drop(&mut self) {
+        let failure = match self.channel.state.lock() {
+            Ok(mut queue) => match queue.bound_sends_in_flight.checked_sub(1) {
+                Some(remaining) => {
+                    queue.bound_sends_in_flight = remaining;
+                    self.channel.changed.notify_all();
+                    None
+                }
+                None => Some(fault("bound send count underflow")),
+            },
+            Err(_) => Some(fault("queue mutex poisoned")),
+        };
+        if let Some(error) = failure {
+            let _ = self.channel.bound_send_failure(error);
+        }
+    }
+}
+impl<T> BoundProducerLease<T> {
+    pub(crate) fn arm(&mut self) {
+        self.armed = true;
+    }
+}
+impl<T> Drop for BoundProducerLease<T> {
+    fn drop(&mut self) {
+        if !self.active {
+            return;
+        }
+        let mut queue = match self.channel.state.lock() {
+            Ok(queue) => queue,
+            Err(_) => {
+                if self.armed {
+                    let _ = self
+                        .channel
+                        .bound_query_failure(fault("queue mutex poisoned"));
+                }
+                return;
+            }
+        };
+        queue.bound_producer_active = false;
+        if self.armed {
+            let error = match queue.terminal.as_ref() {
+                Some(Err(previous)) => previous.clone(),
+                _ => MddError::new(
+                    ErrorCode::WorkerLost,
+                    "queue.producer",
+                    "query producer dropped before its terminal",
+                ),
+            };
+            let first = self.channel.bound_query_failure(error);
+            if !queue.end_delivered && !queue.receiver_closed {
+                queue.terminal = Some(Err(first));
+            }
+        }
+        self.channel.changed.notify_all();
+    }
 }
 impl<T> BoundedSender<T> {
+    pub(crate) fn claim_producer(&self) -> MddResult<BoundProducerLease<T>> {
+        let tracker = self
+            .0
+            .delivery
+            .as_ref()
+            .ok_or_else(|| invalid("producer needs a bound queue"))?;
+        let mut queue = self
+            .0
+            .state
+            .lock()
+            .map_err(|_| fault("queue mutex poisoned"))?;
+        if queue.bound_producer_active
+            || queue.bound_sends_in_flight != 0
+            || queue.receiver_closed
+            || queue.end_delivered
+            || queue.terminal.is_some()
+            || !queue.entries.is_empty()
+        {
+            return Err(invalid("bound queue is not available for a producer"));
+        }
+        let delivery = tracker
+            .state
+            .lock()
+            .map_err(|_| fault("delivery tracking mutex poisoned"))?;
+        if delivery.sent != 0
+            || delivery.acknowledged != 0
+            || delivery.end_seen
+            || delivery.abandoned
+        {
+            return Err(invalid("bound queue has prior delivery state"));
+        }
+        drop(delivery);
+        queue.bound_producer_active = true;
+        Ok(BoundProducerLease {
+            channel: Arc::clone(&self.0),
+            active: true,
+            armed: false,
+        })
+    }
+    fn begin_bound_send(
+        &self,
+        producer: Option<&BoundProducerLease<T>>,
+    ) -> MddResult<Option<BoundSendGuard<T>>> {
+        if self.0.delivery.is_none() {
+            return if producer.is_some() {
+                Err(invalid("producer lease cannot use an unbound queue"))
+            } else {
+                Ok(None)
+            };
+        }
+        let mut queue = self
+            .0
+            .state
+            .lock()
+            .map_err(|_| fault("queue mutex poisoned"))?;
+        if queue.bound_producer_active {
+            if !producer.is_some_and(|lease| {
+                lease.active && lease.armed && Arc::ptr_eq(&lease.channel, &self.0)
+            }) {
+                return Err(invalid("bound queue has an exclusive producer"));
+            }
+        } else if producer.is_some() {
+            return Err(invalid("bound producer lease is not active"));
+        }
+        queue.bound_sends_in_flight = queue
+            .bound_sends_in_flight
+            .checked_add(1)
+            .ok_or_else(|| fault("bound send count overflow"))?;
+        Ok(Some(BoundSendGuard {
+            channel: Arc::clone(&self.0),
+        }))
+    }
     pub(crate) fn matches_runtime(&self, runtime: &RuntimeBudget) -> bool {
         self.0.delivery.as_ref().is_some_and(|tracker| {
             Arc::ptr_eq(&self.0.pool.state, &runtime.pool.state)
@@ -919,7 +1100,13 @@ impl<T> BoundedSender<T> {
         Ok(Self(Arc::clone(&self.0)))
     }
     pub fn send(&self, payload: T, bytes: u64) -> MddResult<()> {
+        let _send = match self.begin_bound_send(None) {
+            Ok(guard) => guard,
+            Err(error) if error.code == ErrorCode::InvalidArgument => return Err(error),
+            Err(error) => return Err(self.0.bound_send_failure(error)),
+        };
         self.send_with_resident_bytes(payload, bytes, bytes)
+            .map_err(|error| self.0.bound_send_failure(error))
     }
     /// Queue occupancy and the owned payload's logical resident estimate are distinct.
     pub(crate) fn send_with_resident_bytes(
@@ -943,6 +1130,34 @@ impl<T> BoundedSender<T> {
             .reserve(Resource::QueryWorkspaceBytes, resident_bytes)
     }
     pub(crate) fn send_reserved(
+        &self,
+        payload: T,
+        wire_bytes: u64,
+        memory: Reservation,
+    ) -> MddResult<()> {
+        self.send_reserved_checked(payload, wire_bytes, memory, None)
+    }
+    pub(crate) fn send_reserved_produced(
+        &self,
+        payload: T,
+        wire_bytes: u64,
+        memory: Reservation,
+        producer: &BoundProducerLease<T>,
+    ) -> MddResult<()> {
+        self.send_reserved_checked(payload, wire_bytes, memory, Some(producer))
+    }
+    fn send_reserved_checked(
+        &self,
+        payload: T,
+        wire_bytes: u64,
+        memory: Reservation,
+        producer: Option<&BoundProducerLease<T>>,
+    ) -> MddResult<()> {
+        let _send = self.begin_bound_send(producer)?;
+        self.send_reserved_inner(payload, wire_bytes, memory)
+            .map_err(|error| self.0.bound_query_failure(error))
+    }
+    fn send_reserved_inner(
         &self,
         payload: T,
         wire_bytes: u64,
@@ -1030,6 +1245,31 @@ impl<T> BoundedSender<T> {
         }
     }
     pub fn finish(&self, result: MddResult<()>) -> MddResult<()> {
+        self.finish_checked(result, None)
+    }
+    pub(crate) fn finish_produced(
+        &self,
+        producer: &mut BoundProducerLease<T>,
+        result: MddResult<()>,
+    ) -> MddResult<()> {
+        self.finish_checked(result, Some(producer))
+    }
+    fn finish_checked(
+        &self,
+        mut result: MddResult<()>,
+        producer: Option<&mut BoundProducerLease<T>>,
+    ) -> MddResult<()> {
+        let owned = if let Some(lease) = producer.as_ref() {
+            if !lease.active
+                || !Arc::ptr_eq(&lease.channel, &self.0)
+                || (result.is_ok() && !lease.armed)
+            {
+                return Err(invalid("producer lease does not own this queue"));
+            }
+            true
+        } else {
+            false
+        };
         let mut state = self
             .0
             .state
@@ -1046,7 +1286,31 @@ impl<T> BoundedSender<T> {
                 "consumer closed",
             ));
         }
+        if owned && !state.bound_producer_active {
+            return Err(invalid("bound producer lease is not active"));
+        }
+        if state.bound_producer_active && !owned && result.is_ok() {
+            return Err(invalid("bound queue has an active producer"));
+        }
+        if self.0.delivery.is_some() && result.is_ok() && state.bound_sends_in_flight != 0 {
+            return Err(invalid("bound queue has sends in flight"));
+        }
+        if let (Some(cancel), Ok(())) = (&self.0.cancel, &result)
+            && let Some(error) = cancel.status()?.error
+        {
+            state.terminal = Some(Err(error.clone()));
+            self.0.changed.notify_all();
+            return Err(error);
+        }
+        if let (Some(cancel), Err(error)) = (&self.0.cancel, &result) {
+            let status = cancel.fail(error.clone())?;
+            result = Err(status.error.unwrap_or_else(|| error.clone()));
+        }
         state.terminal = Some(result);
+        if let Some(lease) = producer {
+            state.bound_producer_active = false;
+            lease.active = false;
+        }
         self.0.changed.notify_all();
         Ok(())
     }

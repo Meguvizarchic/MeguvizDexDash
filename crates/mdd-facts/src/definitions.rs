@@ -1,5 +1,5 @@
 //! Source-bound definition facts. Unbuilt code columns never masquerade as NULL.
-use crate::metadata::{EntityKind, EntityRef, MetadataFacts, MetadataSource};
+use crate::metadata::{EntityKind, EntityRef, MetadataFacts, MetadataSource, TypeFact};
 use mdd_dex::{
     definitions::{
         ClassDefinition, DefinitionLimits, DefinitionMetadata, DexDefinitions, FieldDefinition,
@@ -183,6 +183,65 @@ pub struct MethodFactViews<'a> {
     definitions: Vec<&'a MethodDefinition>,
 }
 
+/// Per-method parameter cardinality limit; this is not a CPU or RSS bound.
+#[derive(Clone, Copy, Debug)]
+pub struct PrototypeParameterLimits {
+    pub max_parameters: u64,
+}
+impl Default for PrototypeParameterLimits {
+    fn default() -> Self {
+        Self {
+            max_parameters: 1_000_000,
+        }
+    }
+}
+
+/// One declared prototype position and its exact same-occurrence type identity.
+pub struct PrototypeParameterType<'a> {
+    pub ordinal: u32,
+    pub type_fact: &'a TypeFact,
+}
+
+/// Type facts alone do not imply anything about parameter annotations or runtime values.
+pub struct MethodPrototypeParameters<'a> {
+    pub source: &'a MetadataSource,
+    pub reference: &'a MethodReference,
+    pub prototype: &'a DexPrototype,
+    pub definition: Option<&'a MethodDefinition>,
+    metadata: &'a MetadataFacts,
+}
+impl<'a> MethodPrototypeParameters<'a> {
+    /// Each iteration preserves prototype order and repeated type identities.
+    pub fn iter(
+        &self,
+    ) -> impl ExactSizeIterator<Item = MddResult<PrototypeParameterType<'a>>> + '_ {
+        self.prototype
+            .parameter_type_indices
+            .iter()
+            .enumerate()
+            .map(|(ordinal, index)| {
+                let fact = self.metadata.types().get(*index as usize).ok_or_else(|| {
+                    MddError::new(
+                        ErrorCode::InternalFault,
+                        "facts.method_parameters",
+                        "validated parameter type is missing",
+                    )
+                })?;
+                let ordinal = u32::try_from(ordinal).map_err(|_| {
+                    MddError::new(
+                        ErrorCode::QuotaExceeded,
+                        "facts.method_parameters",
+                        "parameter ordinal overflow",
+                    )
+                })?;
+                Ok(PrototypeParameterType {
+                    ordinal,
+                    type_fact: fact,
+                })
+            })
+    }
+}
+
 /// Limits for the borrowed field-reference-to-definition join, not a total RSS bound.
 #[derive(Clone, Copy, Debug)]
 pub struct FieldViewLimits {
@@ -247,6 +306,124 @@ impl<'a> FieldFactViews<'a> {
     }
 }
 impl<'a> MethodFactViews<'a> {
+    /// Read prototype parameter types without requiring annotations or code.
+    /// Definition identities must name an actual definition in this occurrence;
+    /// reference identities may describe a reference-only method.
+    pub fn parameter_types(
+        &self,
+        method: &EntityRef,
+        limits: PrototypeParameterLimits,
+    ) -> MddResult<MethodPrototypeParameters<'a>> {
+        let source = self.facts.metadata.source();
+        if method.snapshot_id != source.snapshot_id
+            || method.dex_occurrence_id != source.dex_occurrence_id
+            || !matches!(
+                method.kind,
+                EntityKind::MethodReference | EntityKind::MethodDefinition
+            )
+        {
+            return Err(MddError::new(
+                ErrorCode::InvalidArgument,
+                "facts.method_parameters",
+                "foreign or invalid method identity",
+            ));
+        }
+        let reference = self
+            .facts
+            .definitions
+            .method_references
+            .get(method.local_index as usize)
+            .filter(|entry| entry.method_idx == method.local_index)
+            .ok_or_else(|| {
+                MddError::new(
+                    ErrorCode::InvalidArgument,
+                    "facts.method_parameters",
+                    "method reference is missing",
+                )
+            })?;
+        let definition = self
+            .definitions
+            .binary_search_by_key(&method.local_index, |entry| entry.method_idx)
+            .ok()
+            .map(|index| self.definitions[index]);
+        if method.kind == EntityKind::MethodDefinition && definition.is_none() {
+            return Err(MddError::new(
+                ErrorCode::InvalidArgument,
+                "facts.method_parameters",
+                "method definition is missing",
+            ));
+        }
+        let broken = || {
+            MddError::new(
+                ErrorCode::InternalFault,
+                "facts.method_parameters",
+                "validated method prototype is inconsistent",
+            )
+        };
+        if definition.is_some_and(|entry| entry.class_idx != reference.class_idx) {
+            return Err(broken());
+        }
+        let prototype = self
+            .facts
+            .metadata
+            .prototypes()
+            .get(reference.proto_idx as usize)
+            .filter(|entry| {
+                entry.data.proto_idx == reference.proto_idx
+                    && entry.entity.kind == EntityKind::Prototype
+                    && entry.entity.local_index == reference.proto_idx
+                    && entry.entity.snapshot_id == source.snapshot_id
+                    && entry.entity.dex_occurrence_id == source.dex_occurrence_id
+            })
+            .map(|entry| &entry.data)
+            .ok_or_else(broken)?;
+        let count = u64::try_from(prototype.parameter_type_indices.len()).map_err(|_| {
+            MddError::new(
+                ErrorCode::QuotaExceeded,
+                "facts.method_parameters",
+                "parameter count overflow",
+            )
+        })?;
+        if count > limits.max_parameters || count > u64::from(u32::MAX) {
+            return Err(MddError::new(
+                ErrorCode::QuotaExceeded,
+                "facts.method_parameters",
+                "parameter count budget exceeded",
+            ));
+        }
+        if reference.parameter_descriptors.len() != prototype.parameter_type_indices.len() {
+            return Err(broken());
+        }
+        for (index, expected) in prototype
+            .parameter_type_indices
+            .iter()
+            .zip(&reference.parameter_descriptors)
+        {
+            let fact = self
+                .facts
+                .metadata
+                .types()
+                .get(*index as usize)
+                .ok_or_else(broken)?;
+            if fact.data.type_idx != *index
+                || fact.data.descriptor != *expected
+                || fact.entity.kind != EntityKind::Type
+                || fact.entity.local_index != *index
+                || fact.entity.snapshot_id != source.snapshot_id
+                || fact.entity.dex_occurrence_id != source.dex_occurrence_id
+            {
+                return Err(broken());
+            }
+        }
+        Ok(MethodPrototypeParameters {
+            source,
+            reference,
+            prototype,
+            definition,
+            metadata: &self.facts.metadata,
+        })
+    }
+
     /// Iterate every encoded method reference in DEX method-id order without copying values.
     pub fn iter(&self) -> impl Iterator<Item = MddResult<MethodFactView<'a>>> + '_ {
         self.facts
@@ -832,6 +1009,167 @@ mod tests {
                 .unwrap()
             })
             .collect()
+    }
+    #[test]
+    fn prototype_parameter_types_preserve_identity_without_annotations() {
+        let facts = build_two();
+        for fact in &facts {
+            assert!(
+                fact.unbuilt_layers()
+                    .iter()
+                    .any(|layer| layer == "annotations")
+            );
+            let views = fact.method_fact_views(MethodViewLimits::default()).unwrap();
+            for name in ["staticCall", "externalCall"] {
+                let reference = fact
+                    .definitions()
+                    .method_references
+                    .iter()
+                    .find(|reference| reference.method_name == name)
+                    .unwrap();
+                let id = fact
+                    .entity(EntityKind::MethodReference, reference.method_idx)
+                    .unwrap();
+                let params = views
+                    .parameter_types(&id, PrototypeParameterLimits::default())
+                    .unwrap();
+                assert_eq!(
+                    params.source.dex_occurrence_id,
+                    fact.metadata().source().dex_occurrence_id
+                );
+                assert_eq!(params.definition.is_none(), name == "externalCall");
+                let types = params.iter().collect::<MddResult<Vec<_>>>().unwrap();
+                assert_eq!(types.len(), 1);
+                assert_eq!(types[0].ordinal, 0);
+                assert_eq!(types[0].type_fact.data.descriptor, "I");
+                assert_eq!(
+                    types[0].type_fact.entity.dex_occurrence_id,
+                    id.dex_occurrence_id
+                );
+                assert_eq!(
+                    views
+                        .parameter_types(&id, PrototypeParameterLimits { max_parameters: 0 })
+                        .err()
+                        .unwrap()
+                        .code,
+                    ErrorCode::QuotaExceeded
+                );
+                if name == "externalCall" {
+                    let forged = EntityRef {
+                        kind: EntityKind::MethodDefinition,
+                        ..id.clone()
+                    };
+                    assert_eq!(
+                        views
+                            .parameter_types(&forged, PrototypeParameterLimits::default())
+                            .err()
+                            .unwrap()
+                            .code,
+                        ErrorCode::InvalidArgument
+                    );
+                }
+            }
+            let reference = fact
+                .definitions()
+                .method_references
+                .iter()
+                .find(|reference| reference.method_name == "virtualCall")
+                .unwrap();
+            let id = fact
+                .entity(EntityKind::MethodDefinition, reference.method_idx)
+                .unwrap();
+            let empty = views
+                .parameter_types(&id, PrototypeParameterLimits { max_parameters: 0 })
+                .unwrap();
+            assert_eq!(empty.iter().count(), 0);
+        }
+        let other = facts[1]
+            .definitions()
+            .method_references
+            .iter()
+            .find(|reference| reference.method_name == "staticCall")
+            .unwrap();
+        let foreign = facts[1]
+            .entity(EntityKind::MethodReference, other.method_idx)
+            .unwrap();
+        let views = facts[0]
+            .method_fact_views(MethodViewLimits::default())
+            .unwrap();
+        assert_eq!(
+            views
+                .parameter_types(&foreign, PrototypeParameterLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InvalidArgument
+        );
+
+        let mut corrupted = facts[0].clone();
+        let reference = corrupted
+            .definitions
+            .method_references
+            .iter_mut()
+            .find(|reference| reference.method_name == "staticCall")
+            .unwrap();
+        reference.parameter_descriptors[0] = "J".into();
+        let index = reference.method_idx;
+        let views = corrupted
+            .method_fact_views(MethodViewLimits::default())
+            .unwrap();
+        let id = corrupted
+            .entity(EntityKind::MethodReference, index)
+            .unwrap();
+        assert_eq!(
+            views
+                .parameter_types(&id, PrototypeParameterLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InternalFault
+        );
+
+        // A second physical fixture has two differently typed parameters;
+        // only metadata and definitions are built, not annotation facts.
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/annotations/generated/annotations-038.dex");
+        let snapshot = Snapshot::capture(
+            &[InputSpec {
+                path,
+                kind: InputKind::RawDex,
+                expected_sha256: None,
+            }],
+            CaptureLimits::default(),
+        )
+        .unwrap();
+        let inventory = ArchiveInventory::build(
+            &snapshot.sources()[0],
+            InventoryPolicy::default(),
+            ArchiveLimits::default(),
+        )
+        .unwrap();
+        let metadata =
+            MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default()).unwrap();
+        let facts = DefinitionFacts::build(metadata, DefinitionLimits::default()).unwrap();
+        let reference = facts
+            .definitions()
+            .method_references
+            .iter()
+            .find(|reference| reference.method_name == "m")
+            .unwrap();
+        let id = facts
+            .entity(EntityKind::MethodReference, reference.method_idx)
+            .unwrap();
+        let views = facts
+            .method_fact_views(MethodViewLimits::default())
+            .unwrap();
+        let params = views
+            .parameter_types(&id, PrototypeParameterLimits::default())
+            .unwrap();
+        let values = params
+            .iter()
+            .map(|value| value.unwrap().type_fact.data.descriptor.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(values, ["Ljava/util/List;", "I"]);
     }
     #[test]
     fn borrowed_class_views_preserve_occurrences_direct_interfaces_and_lossless_source() {

@@ -1,0 +1,8 @@
+   Compiling mdd-query v0.1.0-dev (D:\MeguvisDexDash\crates\mdd-query)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.95s
+     Running unittests src\lib.rs (target\debug\deps\mdd_query-82579f4092cfd058.exe)
+
+thread 'executor::runtime_tests::bound_sender_in_flight_failure_cannot_race_successful_end' (17852) panicked at crates\mdd-query\src\executor\runtime_tests.rs:1643:5:
+quota failure raced into complete delivery
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p mdd-query --lib`
