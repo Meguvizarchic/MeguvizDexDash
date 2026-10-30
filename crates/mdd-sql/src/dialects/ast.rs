@@ -299,12 +299,19 @@ pub(crate) fn adapt(
         {
             // Only currently visible, already parsed CTE containers can be
             // considered by the read-only SQLite binding check on this path.
-            let names = rewrite
+            let mut names = rewrite
                 .cte_scopes
                 .iter()
                 .flat_map(|scope| scope.keys())
                 .cloned()
                 .collect::<BTreeSet<_>>();
+            if let Some(additional) = error.details.get("visible_ctes").and_then(|v| v.as_array()) {
+                names.extend(
+                    additional
+                        .iter()
+                        .filter_map(|v| v.as_str().map(str::to_owned)),
+                );
+            }
             return Err(error.detail(
                 "visible_ctes",
                 names
@@ -435,6 +442,52 @@ impl Rewrite<'_> {
             }
         }
         None
+    }
+
+    /// Only a direct column from a single known base table is currently
+    /// admitted. No derived/CTE schema or expression affinity is inferred.
+    fn direct_subquery_column_type(&self, query: &Query) -> Option<crate::values::SqlType> {
+        if query.with.is_some() || query.order_by.is_some() {
+            return None;
+        }
+        let SetExpr::Select(select) = query.body.as_ref() else {
+            return None;
+        };
+        if select.from.len() != 1
+            || !select.from[0].joins.is_empty()
+            || select.having.is_some()
+            || select.distinct.is_some()
+            || !matches!(&select.group_by, GroupByExpr::Expressions(values, modifiers)
+                if values.is_empty() && modifiers.is_empty())
+            || select.projection.len() != 1
+        {
+            return None;
+        }
+        let scope = self.base_in_scope(select)?;
+        if scope.tables.len() != 1 {
+            return None;
+        }
+        let mut expr = match &select.projection[0] {
+            SelectItem::UnnamedExpr(expr) | SelectItem::ExprWithAlias { expr, .. } => expr,
+            _ => return None,
+        };
+        while let Expr::Nested(inner) = expr {
+            expr = inner;
+        }
+        match expr {
+            Expr::Identifier(id) => scope
+                .tables
+                .values()
+                .next()?
+                .get(&id.value.to_ascii_lowercase())
+                .copied(),
+            Expr::CompoundIdentifier(ids) if ids.len() == 2 => scope
+                .tables
+                .get(&ids[0].value.to_ascii_lowercase())?
+                .get(&ids[1].value.to_ascii_lowercase())
+                .copied(),
+            _ => None,
+        }
     }
     fn safe_in_affinity(&self, left: &Expr, list: &[Expr]) -> bool {
         if list.is_empty() || no_affinity(left) {
@@ -1227,8 +1280,48 @@ impl Rewrite<'_> {
                 let dependencies = self.query(query, depth + 1)?;
                 self.dependencies.extend(dependencies);
             }
-            Expr::InSubquery { .. } => {
-                return Err(unsupported("IN_SUBQUERY_REQUIRES_TYPED_KEY_BINDING"));
+            Expr::InSubquery {
+                expr: child,
+                subquery,
+                ..
+            } => {
+                let left = self.in_column_type(child);
+                let right = self.direct_subquery_column_type(subquery);
+                let supported = left == right
+                    && matches!(
+                        left,
+                        Some(
+                            crate::values::SqlType::I64
+                                | crate::values::SqlType::U64
+                                | crate::values::SqlType::Text
+                        )
+                    );
+                if !supported {
+                    let ctes = subquery
+                        .with
+                        .as_ref()
+                        .into_iter()
+                        .flat_map(|with| with.cte_tables.iter())
+                        .map(|cte| {
+                            serde_json::Value::from(cte.alias.name.value.to_ascii_lowercase())
+                        })
+                        .collect::<Vec<_>>();
+                    return Err(unsupported("IN_SUBQUERY_REQUIRES_TYPED_KEY_BINDING")
+                        .detail("confirm_sqlite_syntax", true)
+                        .detail("visible_ctes", ctes));
+                }
+                self.expr(child, depth + 1)?;
+                **child = call("mdd_key", vec![take(child)]);
+                let dependencies = self.query(subquery, depth + 1)?;
+                self.dependencies.extend(dependencies);
+                let SetExpr::Select(select) = subquery.body.as_mut() else {
+                    return Err(invalid("INTERNAL_IN_SUBQUERY_BODY"));
+                };
+                let expression = match &mut select.projection[0] {
+                    SelectItem::UnnamedExpr(expr) | SelectItem::ExprWithAlias { expr, .. } => expr,
+                    _ => return Err(invalid("INTERNAL_IN_SUBQUERY_PROJECTION")),
+                };
+                *expression = call("mdd_key", vec![take(expression)]);
             }
             Expr::Substring {
                 expr: value,
@@ -1903,6 +1996,10 @@ fn validate_iterative(query: &Query, limits: SqlLimits) -> MddResult<usize> {
                     for expr in list {
                         stack.push((Node::Expr(expr), depth + 1));
                     }
+                }
+                Expr::InSubquery { expr, subquery, .. } => {
+                    stack.push((Node::Expr(expr), depth + 1));
+                    stack.push((Node::Query(subquery), depth + 1));
                 }
                 Expr::Case {
                     operand,

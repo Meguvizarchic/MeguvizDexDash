@@ -113,9 +113,12 @@ impl QueryCancellation {
         self.lifecycle.query_status(&self.query)
     }
     pub fn checkpoint(&self) -> MddResult<()> {
-        self.lifecycle.checkpoint(&self.query)?;
-        let status = self.status()?;
-        if status.phase != QueryPhase::Active {
+        // The terminal error and active phase must be checked under one lock.
+        // Otherwise cancellation between two separate reads could be reported
+        // as an unrelated invalid-argument error.
+        let mut state = self.lifecycle.lock()?;
+        state.checkpoint(&self.query)?;
+        if state.query(&self.query)?.status.phase != QueryPhase::Active {
             return Err(MddError::new(
                 ErrorCode::InvalidArgument,
                 "cancel.checkpoint",
@@ -262,6 +265,9 @@ mod tests {
         let cancelled = a.cancel_with_profile(&session, &native).unwrap();
         assert!(!cancelled.compat_cancel_closes_dataset);
         assert_eq!(a.status().unwrap().phase, QueryPhase::Cancelled);
+        let error = a.checkpoint().unwrap_err();
+        assert_eq!(error.code, ErrorCode::Cancelled);
+        assert_eq!(error.stage, "lifecycle");
         b.checkpoint().unwrap();
         let compat = CancelProfile::new("dataset-closing-test-unqualified".into(), true).unwrap();
         let outcome = b.cancel_with_profile(&session, &compat).unwrap();
@@ -279,6 +285,43 @@ mod tests {
                     ResourceLimits::default()
                 )
                 .is_err()
+        );
+    }
+    #[test]
+    fn checkpoint_retains_first_terminal_and_rejects_completed_query() {
+        let (lifecycle, session) = runtime();
+        let expired = query(&lifecycle, &session);
+        {
+            let mut state = lifecycle.lock().unwrap();
+            state
+                .queries
+                .get_mut(expired.query_handle().id())
+                .unwrap()
+                .deadline = std::time::Instant::now();
+        }
+        let first = expired.checkpoint().unwrap_err();
+        assert_eq!(first.code, ErrorCode::DeadlineExceeded);
+        expired.cancel().unwrap();
+        let second = expired.checkpoint().unwrap_err();
+        assert_eq!(second.code, first.code);
+        assert_eq!(second.stage, first.stage);
+        assert_eq!(second.details, first.details);
+
+        let (lifecycle, session) = runtime();
+        let lost = query(&lifecycle, &session);
+        lifecycle.worker_lost("test worker lost").unwrap();
+        lost.cancel().unwrap();
+        let error = lost.checkpoint().unwrap_err();
+        assert_eq!(error.code, ErrorCode::WorkerLost);
+        assert_eq!(error.stage, "worker");
+
+        let (lifecycle, session) = runtime();
+        let finished = query(&lifecycle, &session);
+        finished.mark_computed().unwrap();
+        finished.finish_delivery().unwrap();
+        assert_eq!(
+            finished.checkpoint().unwrap_err().code,
+            ErrorCode::InvalidArgument
         );
     }
     #[test]

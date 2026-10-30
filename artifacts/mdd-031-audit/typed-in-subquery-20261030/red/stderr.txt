@@ -1,0 +1,11 @@
+   Compiling mdd-facts v0.1.0-dev (D:\MeguvisDexDash\crates\mdd-facts)
+   Compiling mdd-session v0.1.0-dev (D:\MeguvisDexDash\crates\mdd-session)
+   Compiling mdd-query v0.1.0-dev (D:\MeguvisDexDash\crates\mdd-query)
+   Compiling mdd-sql v0.1.0-dev (D:\MeguvisDexDash\crates\mdd-sql)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 11.44s
+     Running unittests src\lib.rs (target\debug\deps\mdd_sql-46977fcd4387e316.exe)
+
+thread 'bridge::tests::in_subquery_same_typed_columns_preserves_null_duplicates_and_binding_errors' (620) panicked at crates\mdd-sql\src\bridge.rs:2261:48:
+called `Result::unwrap()` on an `Err` value: MddError { code: UnsupportedQuery, stage: "sql.ast", message: "IN_SUBQUERY_REQUIRES_TYPED_KEY_BINDING", retryable: false, details: {} }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p mdd-sql --lib`

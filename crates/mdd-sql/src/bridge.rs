@@ -2225,6 +2225,207 @@ mod tests {
             }))
         }
     }
+    #[test]
+    fn in_subquery_same_typed_columns_preserves_null_duplicates_and_binding_errors() {
+        use mdd_query::ir::Signed64;
+        let pairs = [
+            (None, Some(1)),
+            (Some(1), Some(1)),
+            (Some(2), None),
+            (Some(2), Some(2)),
+            (Some(3), Some(2)),
+        ];
+        let provider = Arc::new(RowsProvider {
+            binding: SqlBinding {
+                provider_identity: "in-subquery".into(),
+                snapshot_id: "in-subquery-snapshot".into(),
+                catalog_epoch: DecimalU64(0),
+            },
+            columns: vec![
+                SqlColumn {
+                    id: "lhs".into(),
+                    name: "lhs".into(),
+                    data_type: SqlType::I64,
+                    nullable: true,
+                },
+                SqlColumn {
+                    id: "rhs".into(),
+                    name: "rhs".into(),
+                    data_type: SqlType::I64,
+                    nullable: true,
+                },
+                SqlColumn {
+                    id: "txt".into(),
+                    name: "txt".into(),
+                    data_type: SqlType::Text,
+                    nullable: false,
+                },
+            ],
+            rows: pairs
+                .into_iter()
+                .map(|(a, b)| {
+                    vec![
+                        a.map_or(SqlValue::Null, |v| SqlValue::I64(Signed64(v))),
+                        b.map_or(SqlValue::Null, |v| SqlValue::I64(Signed64(v))),
+                        SqlValue::text("1"),
+                    ]
+                })
+                .collect(),
+        });
+        let sqlite = rusqlite::Connection::open_in_memory().unwrap();
+        sqlite.execute_batch("CREATE TABLE vals(lhs INTEGER,rhs INTEGER,txt TEXT); INSERT INTO vals VALUES(NULL,1,'1'),(1,1,'1'),(2,NULL,'1'),(2,2,'1'),(3,2,'1');").unwrap();
+        let queries = [
+            "SELECT lhs,lhs IN (SELECT rhs FROM vals),lhs NOT IN (SELECT rhs FROM vals) FROM vals ORDER BY lhs",
+            "SELECT lhs,lhs IN (SELECT rhs FROM vals LIMIT 0),lhs NOT IN (SELECT rhs FROM vals LIMIT 0) FROM vals ORDER BY lhs",
+            "SELECT a.lhs,a.lhs IN (SELECT b.rhs FROM vals b) FROM vals a ORDER BY a.lhs",
+            "SELECT a.lhs,a.lhs IN (SELECT b.rhs FROM vals b WHERE b.rhs IS NOT NULL) FROM vals a ORDER BY a.lhs",
+            "SELECT a.lhs,a.lhs IN (SELECT b.rhs FROM vals b WHERE b.rhs=a.lhs) FROM vals a ORDER BY a.lhs",
+            "SELECT a.lhs,EXISTS (SELECT 1 FROM vals a WHERE a.lhs IN (SELECT c.rhs FROM vals c)) FROM vals a ORDER BY a.lhs",
+        ];
+        for dialect in [
+            SqlDialect::NativeV1,
+            SqlDialect::DexSql010,
+            SqlDialect::DexSql011,
+        ] {
+            let bridge = SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+            for sql in queries {
+                let mut statement = sqlite.prepare(sql).unwrap();
+                let width = statement.column_count();
+                let expected = statement
+                    .query_map([], |row| {
+                        (0..width)
+                            .map(|i| row.get::<_, Option<i64>>(i))
+                            .collect::<rusqlite::Result<Vec<_>>>()
+                    })
+                    .unwrap()
+                    .collect::<rusqlite::Result<Vec<_>>>()
+                    .unwrap();
+                let actual = bridge
+                    .query(sql)
+                    .unwrap()
+                    .rows()
+                    .iter()
+                    .map(|row| {
+                        row.iter()
+                            .map(|value| match value {
+                                SqlValue::Null => None,
+                                SqlValue::I64(v) => Some(v.0),
+                                _ => panic!("unexpected SQL cell: {value:?}"),
+                            })
+                            .collect::<Vec<_>>()
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(actual, expected, "{dialect:?}: {sql}");
+            }
+            for sql in [
+                "SELECT lhs IN (SELECT missing FROM vals) FROM vals",
+                "SELECT lhs IN (SELECT rhs FROM absent) FROM vals",
+            ] {
+                assert_eq!(
+                    bridge.query(sql).unwrap_err().code,
+                    ErrorCode::InvalidArgument,
+                    "{dialect:?}: {sql}"
+                );
+            }
+            assert_eq!(
+                bridge
+                    .query("SELECT lhs IN (SELECT txt FROM vals) FROM vals")
+                    .unwrap_err()
+                    .code,
+                ErrorCode::UnsupportedQuery
+            );
+            for sql in [
+                "WITH d AS (SELECT rhs FROM vals) SELECT lhs IN (SELECT rhs FROM d) FROM vals",
+                "SELECT lhs IN (WITH d AS (SELECT rhs FROM vals) SELECT rhs FROM d) FROM vals",
+                "SELECT lhs IN (SELECT rhs FROM (WITH d AS (SELECT rhs FROM vals) SELECT rhs FROM d) AS z) FROM vals",
+                "SELECT lhs IN (SELECT n FROM (WITH d AS (SELECT rhs FROM vals) SELECT COUNT(*) AS n FROM d) AS z) FROM vals",
+            ] {
+                assert_eq!(
+                    bridge.query(sql).unwrap_err().code,
+                    ErrorCode::UnsupportedQuery,
+                    "{dialect:?}: {sql}"
+                );
+            }
+            assert_eq!(bridge.query("SELECT lhs IN (WITH d AS (SELECT missing FROM vals) SELECT rhs FROM d) FROM vals").unwrap_err().code,
+                       ErrorCode::InvalidArgument, "{dialect:?}");
+            assert_eq!(bridge.query("SELECT lhs IN (SELECT n FROM (WITH d AS (SELECT missing FROM vals) SELECT COUNT(*) AS n FROM d) AS z) FROM vals").unwrap_err().code,
+                       ErrorCode::InvalidArgument, "{dialect:?}");
+        }
+        let numeric = numeric_bridge();
+        let text = |units: Vec<u16>| {
+            SqlValue::Text(crate::values::SqlText {
+                utf16: units,
+                original_mutf8: None,
+            })
+        };
+        let text_provider = Arc::new(RowsProvider {
+            binding: SqlBinding {
+                provider_identity: "in-text".into(),
+                snapshot_id: "in-text-snapshot".into(),
+                catalog_epoch: DecimalU64(0),
+            },
+            columns: vec![
+                SqlColumn {
+                    id: "l".into(),
+                    name: "l".into(),
+                    data_type: SqlType::Text,
+                    nullable: true,
+                },
+                SqlColumn {
+                    id: "r".into(),
+                    name: "r".into(),
+                    data_type: SqlType::Text,
+                    nullable: true,
+                },
+            ],
+            rows: vec![
+                vec![SqlValue::Null, SqlValue::Null],
+                vec![text(vec![65, 0, 66]), text(vec![65, 0, 66])],
+                vec![text(vec![0xd800]), text(vec![0xd800])],
+                vec![text(vec![65, 0, 66]), SqlValue::text("q")],
+                vec![SqlValue::text("Q"), SqlValue::text("q")],
+            ],
+        });
+        for dialect in [
+            SqlDialect::NativeV1,
+            SqlDialect::DexSql010,
+            SqlDialect::DexSql011,
+        ] {
+            let bridge =
+                SqlBridge::new(numeric.provider.clone(), dialect, SqlLimits::default()).unwrap();
+            let rows = bridge
+                .query("SELECT u IN (SELECT u FROM vals),u NOT IN (SELECT u FROM vals) FROM vals")
+                .unwrap();
+            assert_eq!(rows.rows().len(), 7);
+            assert!(
+                rows.rows()
+                    .iter()
+                    .all(|row| row == &[SqlValue::I64(Signed64(1)), SqlValue::I64(Signed64(0))])
+            );
+            assert_eq!(
+                bridge
+                    .query("SELECT u IN (SELECT f FROM vals) FROM vals")
+                    .unwrap_err()
+                    .code,
+                ErrorCode::UnsupportedQuery
+            );
+            let bridge =
+                SqlBridge::new(text_provider.clone(), dialect, SqlLimits::default()).unwrap();
+            let rows = bridge
+                .query("SELECT l IN (SELECT r FROM vals) FROM vals ORDER BY l")
+                .unwrap();
+            assert_eq!(
+                rows.rows(),
+                &[
+                    vec![SqlValue::Null],
+                    vec![SqlValue::I64(Signed64(1))],
+                    vec![SqlValue::I64(Signed64(1))],
+                    vec![SqlValue::Null],
+                    vec![SqlValue::I64(Signed64(1))],
+                ]
+            );
+        }
+    }
     fn numeric_bridge() -> SqlBridge {
         let unsigned = [
             1,

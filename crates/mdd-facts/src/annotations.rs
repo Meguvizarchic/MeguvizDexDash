@@ -4,8 +4,8 @@ use crate::{
     metadata::{EntityKind, EntityRef, MetadataSource},
 };
 use mdd_dex::annotations::{
-    AnnotationLimits, AnnotationOwnerBinding, AnnotationOwnerKind, AnnotationSetRefList,
-    DexAnnotations, EncodedKind, ExactFloat, read_annotations,
+    AnnotationItem, AnnotationLimits, AnnotationOwnerBinding, AnnotationOwnerKind,
+    AnnotationSetRefList, DexAnnotations, EncodedKind, EncodedValue, ExactFloat, read_annotations,
 };
 use mdd_dex::{
     definitions::{MethodDefinition, MethodReference},
@@ -27,6 +27,32 @@ pub struct AnnotationOwnerRef {
     pub reference: EntityRef,
     pub definition: Option<EntityRef>,
     pub parameter_ordinal: Option<u32>,
+}
+
+/// Logical entry-visit and result bounds for a physical annotation value view.
+/// These do not represent allocation, byte-scan, cancellation, or RSS limits.
+#[derive(Clone, Copy, Debug)]
+pub struct AnnotationValueViewLimits {
+    pub max_scanned_entries: u64,
+    pub max_values: u64,
+}
+impl Default for AnnotationValueViewLimits {
+    fn default() -> Self {
+        Self {
+            max_scanned_entries: 32_000_000,
+            max_values: 8_000_000,
+        }
+    }
+}
+
+/// One physical value node in an immutable annotation item. `raw_encoded`
+/// includes the value header and its full validated encoded payload; children
+/// retain their own entries and ranges. `kind` determines NULL semantics.
+pub struct AnnotationValueFact<'a> {
+    pub source: &'a MetadataSource,
+    pub annotation: &'a AnnotationItem,
+    pub value: &'a EncodedValue,
+    pub raw_encoded: &'a [u8],
 }
 
 /// Logical limits for a single method's borrowed parameter view, not an RSS bound.
@@ -456,6 +482,143 @@ impl AnnotationFacts {
     pub fn source(&self) -> &MetadataSource {
         self.definitions.metadata.source()
     }
+    /// Iterate physical value nodes for one exact annotation item in parser order.
+    /// The caller must consume the iterator and handle each error before calling
+    /// the result complete. This does not infer an annotation owner or profile.
+    pub fn annotation_value_facts(
+        &self,
+        annotation: &AnnotationRef,
+        limits: AnnotationValueViewLimits,
+    ) -> MddResult<impl Iterator<Item = MddResult<AnnotationValueFact<'_>>> + '_> {
+        let source = self.source();
+        if annotation.snapshot_id != source.snapshot_id
+            || annotation.dex_occurrence_id != source.dex_occurrence_id
+        {
+            return Err(MddError::new(
+                ErrorCode::InvalidArgument,
+                "facts.annotation_values",
+                "annotation belongs to another snapshot or occurrence",
+            ));
+        }
+        if self.annotation_coverage != Completeness::Complete
+            || self.definitions.definition_coverage() != Completeness::Complete
+            || self.definitions.metadata().metadata_coverage() != Completeness::Complete
+        {
+            return Err(MddError::new(
+                ErrorCode::IncompleteFacts,
+                "facts.annotation_values",
+                "complete metadata, definitions and annotations are required",
+            ));
+        }
+        let quota = || {
+            MddError::new(
+                ErrorCode::QuotaExceeded,
+                "facts.annotation_values",
+                "annotation value view entry budget exceeded",
+            )
+        };
+        let items = u64::try_from(self.data.annotation_items.len()).map_err(|_| quota())?;
+        if items > limits.max_scanned_entries {
+            return Err(quota());
+        }
+        let mut found = self
+            .data
+            .annotation_items
+            .iter()
+            .filter(|item| item.byte_offset == annotation.annotation_byte_offset);
+        let item = found.next().ok_or_else(|| {
+            MddError::new(
+                ErrorCode::InvalidArgument,
+                "facts.annotation_values",
+                "annotation offset is not a physical item start",
+            )
+        })?;
+        let inconsistent = || {
+            MddError::new(
+                ErrorCode::InternalFault,
+                "facts.annotation_values",
+                "validated annotation values are inconsistent",
+            )
+        };
+        if found.next().is_some() || item.encoded_range.byte_offset.0 != u64::from(item.byte_offset)
+        {
+            return Err(inconsistent());
+        }
+        let visits = u64::try_from(self.data.values.len())
+            .ok()
+            .and_then(|count| count.checked_mul(2))
+            .and_then(|count| count.checked_add(items))
+            .and_then(|count| count.checked_add(item.elements.len() as u64))
+            .ok_or_else(quota)?;
+        if visits > limits.max_scanned_entries {
+            return Err(quota());
+        }
+        for (ordinal, node_id) in item.elements.iter().enumerate() {
+            let value = self
+                .data
+                .values
+                .get(*node_id as usize)
+                .ok_or_else(inconsistent)?;
+            if value.node_id != *node_id
+                || value.annotation_byte_offset != Some(item.byte_offset)
+                || value.depth != 0
+                || u32::try_from(ordinal).ok() != Some(value.ordinal)
+            {
+                return Err(inconsistent());
+            }
+        }
+        let count = u64::try_from(
+            self.data
+                .values
+                .iter()
+                .filter(|value| value.annotation_byte_offset == Some(item.byte_offset))
+                .count(),
+        )
+        .map_err(|_| quota())?;
+        if count > limits.max_values {
+            return Err(quota());
+        }
+        if count < item.elements.len() as u64 {
+            return Err(inconsistent());
+        }
+        let item_start = item.encoded_range.byte_offset.0;
+        let item_end = item_start
+            .checked_add(item.encoded_range.byte_length.0)
+            .ok_or_else(inconsistent)?;
+        if item.encoded_range.byte_length.0 == 0
+            || usize::try_from(item_end).map_or(true, |end| end > self.bytes().len())
+        {
+            return Err(inconsistent());
+        }
+        Ok(self
+            .data
+            .values
+            .iter()
+            .enumerate()
+            .filter(move |(_, value)| value.annotation_byte_offset == Some(item.byte_offset))
+            .map(move |(ordinal, value)| {
+                let start = value.encoded_range.byte_offset.0;
+                let end = start
+                    .checked_add(value.encoded_range.byte_length.0)
+                    .ok_or_else(inconsistent)?;
+                if u32::try_from(ordinal).ok() != Some(value.node_id)
+                    || value.encoded_range.byte_length.0 == 0
+                    || start < item_start
+                    || end > item_end
+                {
+                    return Err(inconsistent());
+                }
+                let start = usize::try_from(start).map_err(|_| inconsistent())?;
+                let end = usize::try_from(end).map_err(|_| inconsistent())?;
+                let raw_encoded = self.bytes().get(start..end).ok_or_else(inconsistent)?;
+                Ok(AnnotationValueFact {
+                    source,
+                    annotation: item,
+                    value,
+                    raw_encoded,
+                })
+            }))
+    }
     /// Bind one method to proven prototype positions and physical annotation slots.
     /// A short or otherwise unmapped list is not padded and is reported incomplete.
     pub fn method_parameter_facts(
@@ -859,6 +1022,7 @@ mod tests {
     use super::*;
     use crate::MetadataFacts;
     use mdd_dex::{definitions::DefinitionLimits, strings::StringLimits};
+    use mdd_types::DecimalU64;
     use mdd_input::{
         archive::{ArchiveInventory, ArchiveLimits, InventoryPolicy},
         snapshot::{CaptureLimits, InputKind, InputSpec, Snapshot},
@@ -887,6 +1051,204 @@ mod tests {
             MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default()).unwrap();
         let definitions = DefinitionFacts::build(metadata, DefinitionLimits::default()).unwrap();
         AnnotationFacts::build(definitions, AnnotationLimits::default()).unwrap()
+    }
+    #[test]
+    fn annotation_value_view_preserves_raw_nodes_scope_and_budgets() {
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/annotations/generated/annotations-038.dex");
+        let input = InputSpec {
+            path,
+            kind: InputKind::RawDex,
+            expected_sha256: None,
+        };
+        let snapshot =
+            Snapshot::capture(&[input.clone(), input], CaptureLimits::default()).unwrap();
+        let mut facts = Vec::new();
+        for source in snapshot.sources() {
+            let inventory = ArchiveInventory::build(
+                source,
+                InventoryPolicy::default(),
+                ArchiveLimits::default(),
+            )
+            .unwrap();
+            let metadata =
+                MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default()).unwrap();
+            let definitions =
+                DefinitionFacts::build(metadata, DefinitionLimits::default()).unwrap();
+            facts.push(AnnotationFacts::build(definitions, AnnotationLimits::default()).unwrap());
+        }
+        let oracle: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../tests/fixtures/annotations/oracle-results.json"
+        ))
+        .unwrap();
+        let expected = oracle["positive"]["annotation_elements"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|row| row["annotation_off"].as_u64() == Some(1012))
+            .collect::<Vec<_>>();
+        assert!(!expected.is_empty());
+        let mut occurrences = Vec::new();
+        for item in &facts {
+            let annotation = AnnotationRef {
+                snapshot_id: snapshot.manifest().snapshot_id.clone(),
+                dex_occurrence_id: item.source().dex_occurrence_id.clone(),
+                annotation_byte_offset: 1012,
+            };
+            let values = item
+                .annotation_value_facts(&annotation, AnnotationValueViewLimits::default())
+                .unwrap()
+                .collect::<MddResult<Vec<_>>>()
+                .unwrap();
+            assert_eq!(values.len(), expected.len());
+            for (actual, reference) in values.iter().zip(&expected) {
+                assert_eq!(
+                    actual.source.dex_occurrence_id,
+                    annotation.dex_occurrence_id
+                );
+                assert_eq!(actual.annotation.byte_offset, 1012);
+                assert_eq!(
+                    u64::from(actual.value.depth),
+                    reference["depth"].as_u64().unwrap()
+                );
+                assert_eq!(
+                    u64::from(actual.value.ordinal),
+                    reference["ordinal"].as_u64().unwrap()
+                );
+                assert_eq!(
+                    actual.value.kind.as_str(),
+                    reference["value_kind"].as_str().unwrap()
+                );
+                assert_eq!(
+                    actual.value.value_index.map(u64::from),
+                    reference["value_index"].as_u64()
+                );
+                let start = reference["value_off"].as_u64().unwrap() as usize;
+                let end = reference["value_end_off"].as_u64().unwrap() as usize;
+                assert_eq!(actual.raw_encoded, &item.bytes()[start..end]);
+            }
+            assert!(
+                values
+                    .iter()
+                    .any(|node| node.value.kind == EncodedKind::Null && node.raw_encoded == [0x1e])
+            );
+            assert!(
+                values
+                    .iter()
+                    .any(|node| node.value.kind == EncodedKind::Float
+                        && node.value.float_bit_width == Some(32)
+                        && node.value.float_bits == Some(DecimalU64(0x8000_0000)))
+            );
+            let root = item
+                .data
+                .annotation_items
+                .iter()
+                .find(|node| node.byte_offset == 1012)
+                .unwrap();
+            let visits = item.data.annotation_items.len() as u64
+                + 2 * item.data.values.len() as u64
+                + root.elements.len() as u64;
+            assert_eq!(
+                item.annotation_value_facts(
+                    &annotation,
+                    AnnotationValueViewLimits {
+                        max_scanned_entries: visits - 1,
+                        ..AnnotationValueViewLimits::default()
+                    }
+                )
+                .err()
+                .unwrap()
+                .code,
+                ErrorCode::QuotaExceeded
+            );
+            assert_eq!(
+                item.annotation_value_facts(
+                    &annotation,
+                    AnnotationValueViewLimits {
+                        max_scanned_entries: visits,
+                        max_values: expected.len() as u64,
+                    }
+                )
+                .unwrap()
+                .count(),
+                expected.len()
+            );
+            assert_eq!(
+                item.annotation_value_facts(
+                    &annotation,
+                    AnnotationValueViewLimits {
+                        max_values: expected.len() as u64 - 1,
+                        ..AnnotationValueViewLimits::default()
+                    }
+                )
+                .err()
+                .unwrap()
+                .code,
+                ErrorCode::QuotaExceeded
+            );
+            let mut interior = annotation.clone();
+            interior.annotation_byte_offset += 1;
+            assert_eq!(
+                item.annotation_value_facts(&interior, AnnotationValueViewLimits::default())
+                    .err()
+                    .unwrap()
+                    .code,
+                ErrorCode::InvalidArgument
+            );
+            let mut foreign = annotation.clone();
+            foreign.snapshot_id = "other".into();
+            assert_eq!(
+                item.annotation_value_facts(&foreign, AnnotationValueViewLimits::default())
+                    .err()
+                    .unwrap()
+                    .code,
+                ErrorCode::InvalidArgument
+            );
+            let mut partial = item.clone();
+            partial.annotation_coverage = Completeness::Partial;
+            assert_eq!(
+                partial
+                    .annotation_value_facts(&annotation, AnnotationValueViewLimits::default())
+                    .err()
+                    .unwrap()
+                    .code,
+                ErrorCode::IncompleteFacts
+            );
+            let mut corrupt = item.clone();
+            let node = corrupt
+                .data
+                .values
+                .iter_mut()
+                .find(|node| node.annotation_byte_offset == Some(1012))
+                .unwrap();
+            node.encoded_range.byte_offset = DecimalU64(1011);
+            assert_eq!(
+                corrupt
+                    .annotation_value_facts(&annotation, AnnotationValueViewLimits::default())
+                    .unwrap()
+                    .next()
+                    .unwrap()
+                    .err()
+                    .unwrap()
+                    .code,
+                ErrorCode::InternalFault
+            );
+            occurrences.push(annotation.dex_occurrence_id);
+        }
+        assert_ne!(occurrences[0], occurrences[1]);
+        let cross = AnnotationRef {
+            snapshot_id: facts[0].source().snapshot_id.clone(),
+            dex_occurrence_id: facts[1].source().dex_occurrence_id.clone(),
+            annotation_byte_offset: 1012,
+        };
+        assert_eq!(
+            facts[0]
+                .annotation_value_facts(&cross, AnnotationValueViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InvalidArgument
+        );
     }
     #[test]
     fn method_parameter_view_distinguishes_missing_list_zero_slot_and_unknown_position() {
