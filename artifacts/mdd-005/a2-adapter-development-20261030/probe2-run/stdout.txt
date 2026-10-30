@@ -1,0 +1,1 @@
+{"adapter_error": "compact producer rejected query", "producer_detail": ""}

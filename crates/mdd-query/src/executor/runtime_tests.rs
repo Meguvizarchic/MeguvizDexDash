@@ -367,6 +367,35 @@ fn streaming_row_json_matches_fixed_serde_json_for_all_value_shapes() {
 }
 
 #[test]
+fn long_entity_text_is_chunked_without_changing_json() {
+    let f = setup(BudgetLimits::default());
+    let hits = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let seen = Arc::clone(&hits);
+    let mut control = Control::new(ExecutionLimits::default())
+        .with_runtime(f.runtime.clone())
+        .with_hook(move |point| {
+            if point.phase == "json_count" {
+                seen.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            }
+            Ok(())
+        });
+    let id = format!("{}😀\\\"\n{}雪", "x".repeat(1023), "y".repeat(5000));
+    let row = vec![Value::Entity(mdd_facts::EntityRef {
+        snapshot_id: "snapshot".into(),
+        dex_occurrence_id: id.clone(),
+        kind: mdd_facts::EntityKind::MethodDefinition,
+        local_index: u32::MAX,
+    })];
+    let baseline = serde_json::to_vec(&row).unwrap();
+    assert_eq!(serde_json::to_vec(&StreamingRow(&row)).unwrap(), baseline);
+    assert_eq!(
+        count_wire_row(&row, &mut control, &f.runtime).unwrap(),
+        baseline.len() as u64
+    );
+    assert!(hits.load(std::sync::atomic::Ordering::SeqCst) >= id.len() / 1024);
+}
+
+#[test]
 fn json_count_preserves_real_error_and_checked_overflow() {
     struct Broken;
     impl Serialize for Broken {

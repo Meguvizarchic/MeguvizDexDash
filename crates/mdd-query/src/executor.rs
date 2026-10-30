@@ -711,6 +711,40 @@ impl Serialize for StreamingBytes<'_> {
         serializer.collect_str(&StreamingBase64(self.0))
     }
 }
+struct StreamingText<'a>(&'a str);
+impl fmt::Display for StreamingText<'_> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut start = 0;
+        while start < self.0.len() {
+            let mut end = start.saturating_add(1024).min(self.0.len());
+            while !self.0.is_char_boundary(end) {
+                end -= 1;
+            }
+            formatter.write_str(&self.0[start..end])?;
+            start = end;
+        }
+        Ok(())
+    }
+}
+impl Serialize for StreamingText<'_> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.collect_str(self)
+    }
+}
+struct StreamingEntity<'a>(&'a mdd_facts::EntityRef);
+impl Serialize for StreamingEntity<'_> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut entity = serializer.serialize_struct("EntityRef", 4)?;
+        entity.serialize_field("snapshot_id", &StreamingText(&self.0.snapshot_id))?;
+        entity.serialize_field(
+            "dex_occurrence_id",
+            &StreamingText(&self.0.dex_occurrence_id),
+        )?;
+        entity.serialize_field("kind", &self.0.kind)?;
+        entity.serialize_field("local_index", &self.0.local_index)?;
+        entity.end()
+    }
+}
 struct StreamingValue<'a>(&'a Value);
 impl Serialize for StreamingValue<'_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
@@ -719,6 +753,12 @@ impl Serialize for StreamingValue<'_> {
                 let mut value = serializer.serialize_struct("Value", 2)?;
                 value.serialize_field("type", "bytes")?;
                 value.serialize_field("value", &StreamingBytes(&bytes.0))?;
+                value.end()
+            }
+            Value::Entity(entity) => {
+                let mut value = serializer.serialize_struct("Value", 2)?;
+                value.serialize_field("type", "entity")?;
+                value.serialize_field("value", &StreamingEntity(entity))?;
                 value.end()
             }
             value => value.serialize(serializer),

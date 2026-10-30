@@ -1,0 +1,1 @@
+{"adapter_error": "compact producer rejected query", "producer_detail": {"structured_content": {"error": {"kind": "invalid_input", "message": "max_bytes must be in 4096..=131072"}}, "text": ""}}

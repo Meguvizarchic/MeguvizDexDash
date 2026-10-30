@@ -429,6 +429,45 @@ fn numeric(left: &SqlValue, right: &SqlValue, operation: &str) -> MddResult<SqlV
         matches!(left, SqlValue::U64(_)) || matches!(right, SqlValue::U64(_)),
     )
 }
+
+// Only the no-numeric-prefix case is admitted here. Numeric prefixes require
+// separate integer/real coercion and overflow evidence for the legacy dialects.
+fn legacy_no_numeric_prefix(
+    units: impl Iterator<Item = u16>,
+    control: &SqlControl,
+) -> MddResult<bool> {
+    control.checkpoint(1, false)?;
+    for unit in units {
+        control.checkpoint(1, false)?;
+        if matches!(unit, 9..=13 | 32) {
+            continue;
+        }
+        return Ok(!matches!(unit, 43 | 45 | 46 | 48..=57));
+    }
+    Ok(true)
+}
+
+fn legacy_numeric_operand<'a>(
+    value: &'a SqlValue,
+    control: &SqlControl,
+) -> MddResult<Cow<'a, SqlValue>> {
+    let no_prefix = match value {
+        SqlValue::Text(text) => legacy_no_numeric_prefix(text.utf16.iter().copied(), control)?,
+        SqlValue::Bytes(bytes) | SqlValue::DexMutf8 { bytes, .. } => {
+            legacy_no_numeric_prefix(bytes.iter().copied().map(u16::from), control)?
+        }
+        _ => return Ok(Cow::Borrowed(value)),
+    };
+    if no_prefix {
+        Ok(Cow::Owned(SqlValue::I64(Signed64(0))))
+    } else {
+        Err(MddError::new(
+            mdd_types::ErrorCode::UnsupportedQuery,
+            "sql.numeric",
+            "LEGACY_TEXT_NUMERIC_COERCION_NOT_IMPLEMENTED",
+        ))
+    }
+}
 /// SQLite's integer CAST consumes an ASCII decimal prefix and saturates at
 /// signed 64-bit bounds. Inspect units directly: no surrogate replacement or
 /// UTF-8 display conversion can enter this numeric operation.
@@ -1154,19 +1193,10 @@ fn scalar(
             }))
         }
         "mdd_add" | "mdd_sub" | "mdd_mul" | "mdd_div" | "mdd_mod" => {
-            if dialect != SqlDialect::NativeV1
-                && args.iter().any(|value| {
-                    matches!(
-                        value,
-                        SqlValue::Text(_) | SqlValue::Bytes(_) | SqlValue::DexMutf8 { .. }
-                    )
-                })
-            {
-                return Err(MddError::new(
-                    mdd_types::ErrorCode::UnsupportedQuery,
-                    "sql.numeric",
-                    "LEGACY_TEXT_NUMERIC_COERCION_NOT_IMPLEMENTED",
-                ));
+            if dialect != SqlDialect::NativeV1 {
+                let left = legacy_numeric_operand(&args[0], control)?;
+                let right = legacy_numeric_operand(&args[1], control)?;
+                return numeric(&left, &right, &name[4..]);
             }
             numeric(&args[0], &args[1], &name[4..])
         }
@@ -1343,6 +1373,47 @@ mod like_budget_tests {
     use super::*;
     use crate::control::SqlLimits;
     use mdd_types::ErrorCode;
+
+    #[test]
+    fn legacy_non_numeric_prefix_is_zero_and_budgeted() {
+        for input in ["", " ", " \tword", "\0", "雪"] {
+            let control = SqlControl::new(SqlLimits::default(), None);
+            let value = SqlValue::text(input);
+            assert_eq!(
+                legacy_numeric_operand(&value, &control).unwrap().as_ref(),
+                &SqlValue::I64(Signed64(0))
+            );
+        }
+        for input in ["1", "+1", "-2", ".5"] {
+            let control = SqlControl::new(SqlLimits::default(), None);
+            let value = SqlValue::text(input);
+            assert_eq!(
+                legacy_numeric_operand(&value, &control).unwrap_err().code,
+                ErrorCode::UnsupportedQuery
+            );
+        }
+        let limited = SqlControl::new(
+            SqlLimits {
+                max_steps: 2,
+                ..SqlLimits::default()
+            },
+            None,
+        );
+        assert_eq!(
+            legacy_numeric_operand(&SqlValue::text("   x"), &limited)
+                .unwrap_err()
+                .code,
+            ErrorCode::QuotaExceeded
+        );
+        let cancelled = SqlControl::new(SqlLimits::default(), None);
+        cancelled.cancel().unwrap();
+        assert_eq!(
+            legacy_numeric_operand(&SqlValue::text("x"), &cancelled)
+                .unwrap_err()
+                .code,
+            ErrorCode::Cancelled
+        );
+    }
 
     #[test]
     fn legacy_concat_lossy_decoder_agrees_with_bounded_standard_oracle() {

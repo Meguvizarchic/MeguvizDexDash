@@ -1,6 +1,6 @@
 # MeguvizDexDash 当前状态
 
-更新：2026-10-29（Asia/Shanghai）。唯一任务图：tasks/backlog.json；当前产品仍在实施，所有产品 profile admitted=false。
+更新：2026-10-30（Asia/Shanghai）。唯一任务图：tasks/backlog.json；当前产品仍在实施，所有产品 profile admitted=false。
 
 ## Checkout 与交付
 
@@ -113,6 +113,10 @@ MDD-034入队前取消边界：独立代码复核指出流式输出行已计数�
 MDD-031尾部转义与字节拼接实测：固定A0/A1在合成DEX上完成12个CLI查询，尾部LIKE为0、NOT LIKE为1，普通转义为1、NULL保持NULL；bytes拼接为text，含NUL和非UTF-8的HEX分别41C0804243/EFBFBD41。旧方言此前误报INVALID_ARGUMENT；现仅对DexSql010/011返回false，NativeV1保留原错误，配额/取消仍传播。该修复检查点独立桥探针21场景和8项旧引擎语义对照通过，见 artifacts/mdd-031-audit/legacy-escape-bridge-20261030/runs/20261030T020805554030Z/readback-run/record.json；Windows工作区251项测试、严格Clippy通过。旧版NULL wire与候选不同；当时bytes拼接类型和编码不等价，完整corpus及MDD-031资格未通过。
 
 MDD-031拼接候选：A0/A1合成矩阵32项与独立replacement/MUTF-8 oracle一致，覆盖跨操作数字节、无效/截断、混合类型、NULL和DEX来源；候选旧方言按操作数增量解码Bytes、保留DEX UTF-16并在分配前检查额度与预约，Native路径保持原样。目标红绿及SQL模块测试通过；首次严格Clippy报manual_contains并保留失败，修正后最终源码Windows工作区255项测试和严格Clippy通过，见 artifacts/mdd-031/legacy-concat-20261030-final/。最终源码独立桥探针构建完成后，运行前可用内存2082922496字节低于原3GiB门槛，未启动，见 artifacts/mdd-031-audit/legacy-concat-independent-20261030/runs/20261030T022444872913Z/report.json；不能将旧引擎矩阵等同最终桥对照。输入载体复制、SQLite副本、allocator及RSS未覆盖，完整语料和profile仍未准入。
+
+MDD-005 A2 查询转换候选位于 benchmarks/a2_compact_adapter.py，涵盖shape、HEX DTO、分页终态、额度、错误透传与失败后禁止复用。固定A1及公开合成DEX在旧接口上曾完成7行分页并与标准MCP DTO一致，前期生产者参数配置失败保留在 artifacts/mdd-005/a2-adapter-development-20261030/。最终接口新增强制快照绑定与投影确定总序检查，仅做Python语法检查，尚无已验证回调或真实producer重跑；未连接完整HostLab pipeline，20组等价与A2性能资格均not_run，MDD-005仍in_progress。
+
+2026-10-30 功能推进（统一验证待后续执行）：MDD-026 新增按 FieldSymbol 跨输入出现次数查询编码字段引用的懒索引、精确复验、独立标量扫描和失败重试；局部 field_symbol_indexes_preserve_sites_and_source_occurrences 通过，不推断运行时解析。MDD-034 实体来源标识在固定 JSON writer 路径按 UTF-8 边界分段，单次扫描最多约1024字节；局部 long_entity_text_is_chunked_without_changing_json 通过，其他序列化器与完整取消/性能资格未验证。MDD-031 旧方言新增无数值前缀文本/字节的零转换，逐单元检查预算和取消；数字、符号及小数点前缀仍显式未实现，Native 不变；相关三个局部测试通过，旧版 DTO 与完整数值语义未验证。依用户要求，完整工作区、跨平台、独立 oracle 及正式资格验证均留待统一执行，三项任务保持 in_progress。
 
 MDD-031 SQL桥仍进行中：受限虚表、会话预算绑定、U64真值、USING和子串路径有本机测试；独立真值18例及固定A0/A1子串16例通过，合成Q15结果与SQLite一致。真实完整corpus、legacy适配及生产工作区内存绑定尚未验收。检查点862b3dd的 Windows 离线测试161项、0失败/跳过，工作区严格Clippy通过，命令记录在 artifacts/integration/20261029/workspace-tests/ 与 workspace-clippy/。
 

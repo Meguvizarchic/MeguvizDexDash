@@ -8,7 +8,7 @@ mod views;
 use crate::{
     coverage::{CoverageLedger, CoverageReport, CoverageRequest, FactLayer},
     metadata::{EntityKind, EntityRef},
-    references::{MethodSymbol, ReferenceMatches, ReferenceTargetId, TargetKind},
+    references::{FieldSymbol, MethodSymbol, ReferenceMatches, ReferenceTargetId, TargetKind},
 };
 use lazy::{IndexAudit, LazyIndex};
 use mdd_types::{ErrorCode, MddError, MddResult};
@@ -157,6 +157,9 @@ struct DefinitionIndex {
 struct ReferenceSymbolIndex {
     methods: BTreeMap<MethodSymbol, Vec<ReferenceAtom>>,
 }
+struct FieldReferenceSymbolIndex {
+    fields: BTreeMap<FieldSymbol, Vec<ReferenceAtom>>,
+}
 #[derive(Clone, Debug, Serialize)]
 pub struct IndexMatches {
     pub scope_id: String,
@@ -192,6 +195,7 @@ pub struct SnapshotFactIndex<'a> {
     strings: LazyIndex<StringIndex>,
     definitions: LazyIndex<DefinitionIndex>,
     reference_symbols: LazyIndex<ReferenceSymbolIndex>,
+    field_reference_symbols: LazyIndex<FieldReferenceSymbolIndex>,
 }
 
 impl<'a> SnapshotFactIndex<'a> {
@@ -229,6 +233,11 @@ impl<'a> SnapshotFactIndex<'a> {
                 "encoded-reference-symbol-candidates-v1",
                 limits.max_build_attempts,
             )?,
+            field_reference_symbols: LazyIndex::new(
+                scope.scope_id(),
+                "encoded-field-reference-symbol-candidates-v1",
+                limits.max_build_attempts,
+            )?,
             scope,
             views: ordered,
             by_occurrence,
@@ -247,6 +256,7 @@ impl<'a> SnapshotFactIndex<'a> {
             self.strings.audit()?,
             self.definitions.audit()?,
             self.reference_symbols.audit()?,
+            self.field_reference_symbols.audit()?,
         ])
     }
     fn require(&self, layer: FactLayer) -> MddResult<CoverageReport> {
@@ -813,6 +823,49 @@ impl<'a> SnapshotFactIndex<'a> {
             .retry_failed(|| self.build_reference_symbols())?;
         self.reference_symbols.audit()
     }
+    pub fn retry_field_reference_symbol_index(&self) -> MddResult<IndexAudit> {
+        self.field_reference_symbols
+            .retry_failed(|| self.build_field_reference_symbols())?;
+        self.field_reference_symbols.audit()
+    }
+    fn build_field_reference_symbols(&self) -> MddResult<FieldReferenceSymbolIndex> {
+        self.require(FactLayer::Definitions)?;
+        let mut index = FieldReferenceSymbolIndex {
+            fields: BTreeMap::new(),
+        };
+        let mut budget = Budget::new(self.limits);
+        budget.charge(0, 0)?;
+        for (view, entry) in self.views.iter().enumerate() {
+            let facts = entry.definitions.ok_or_else(|| {
+                MddError::new(
+                    ErrorCode::IncompleteFacts,
+                    "facts.index",
+                    "definitions missing",
+                )
+            })?;
+            for reference in &facts.definitions().field_references {
+                let bytes = reference
+                    .class_descriptor
+                    .len()
+                    .checked_add(reference.field_name.len())
+                    .and_then(|v| v.checked_add(reference.type_descriptor.len()))
+                    .and_then(|v| v.checked_add(16))
+                    .and_then(|v| u64::try_from(v).ok())
+                    .ok_or_else(|| quota("INDEX_BYTE_BUDGET"))?;
+                budget.charge(1, bytes)?;
+                let symbol = FieldSymbol {
+                    owner: reference.class_descriptor.clone(),
+                    name: reference.field_name.clone(),
+                    field_type: reference.type_descriptor.clone(),
+                };
+                index.fields.entry(symbol).or_default().push(ReferenceAtom {
+                    view: u32::try_from(view).map_err(|_| quota("INDEX_ENTRY_BUDGET"))?,
+                    local: reference.field_idx,
+                });
+            }
+        }
+        Ok(index)
+    }
     fn build_reference_symbols(&self) -> MddResult<ReferenceSymbolIndex> {
         self.require(FactLayer::Definitions)?;
         let mut index = ReferenceSymbolIndex {
@@ -905,6 +958,7 @@ impl<'a> SnapshotFactIndex<'a> {
         mut sites: Vec<crate::references::ReferenceSiteId>,
         candidates: u64,
         scalar: bool,
+        field: bool,
         coverage: CoverageReport,
     ) -> MddResult<ReferenceIndexMatches> {
         self.check_site_budget(&sites)?;
@@ -921,10 +975,16 @@ impl<'a> SnapshotFactIndex<'a> {
             scope_id: self.scope.scope_id().into(),
             index_attempt: if scalar {
                 None
+            } else if field {
+                Some(self.field_reference_symbols.audit()?)
             } else {
                 Some(self.reference_symbols.audit()?)
             },
-            access_path: if scalar {
+            access_path: if scalar && field {
+                "scalar_encoded_field_refs_then_scalar_sites"
+            } else if field {
+                "field_symbol_candidates_then_exact_ref_and_existing_postings"
+            } else if scalar {
                 "scalar_encoded_method_refs_then_scalar_sites"
             } else {
                 "method_symbol_candidates_then_exact_ref_and_existing_postings"
@@ -933,11 +993,121 @@ impl<'a> SnapshotFactIndex<'a> {
             candidate_reference_count: candidates,
             absence_proven_within_selected_encoded_scope: sites.is_empty(),
             covers_all_captured_sources: self.scope.covers_all_captured_sources(),
-            runtime_resolution: "encoded_method_operands_only;runtime_dispatch_not_inferred",
+            runtime_resolution: if field {
+                "encoded_field_operands_only;runtime_resolution_not_inferred"
+            } else {
+                "encoded_method_operands_only;runtime_dispatch_not_inferred"
+            },
             sites,
             coverage,
         })
     }
+    /// Search encoded field operand sites in each selected DEX occurrence.
+    /// This matches reference symbols exactly; it does not infer runtime resolution.
+    pub fn references_to_field_symbol(
+        &self,
+        symbol: &FieldSymbol,
+    ) -> MddResult<ReferenceIndexMatches> {
+        self.references_to_field(symbol, false)
+    }
+    /// Independent full scan of encoded field references and sites, without the lazy index.
+    pub fn references_to_field_symbol_scalar(
+        &self,
+        symbol: &FieldSymbol,
+    ) -> MddResult<ReferenceIndexMatches> {
+        self.references_to_field(symbol, true)
+    }
+    fn references_to_field(
+        &self,
+        symbol: &FieldSymbol,
+        scalar: bool,
+    ) -> MddResult<ReferenceIndexMatches> {
+        if symbol
+            .owner
+            .len()
+            .saturating_add(symbol.name.len())
+            .saturating_add(symbol.field_type.len())
+            > 16 * 1024 * 1024
+        {
+            return Err(quota("INDEX_PREDICATE_BUDGET"));
+        }
+        let coverage = self.require(FactLayer::References)?;
+        let index = if scalar {
+            None
+        } else {
+            Some(
+                self.field_reference_symbols
+                    .get_or_build(|| self.build_field_reference_symbols())?,
+            )
+        };
+        let candidates: Box<dyn Iterator<Item = ReferenceAtom> + '_> = if let Some(index) = &index {
+            Box::new(index.fields.get(symbol).into_iter().flatten().copied())
+        } else {
+            Box::new(self.views.iter().enumerate().flat_map(|(view, entry)| {
+                entry.definitions.into_iter().flat_map(move |defs| {
+                    defs.definitions()
+                        .field_references
+                        .iter()
+                        .map(move |reference| ReferenceAtom {
+                            view: view as u32,
+                            local: reference.field_idx,
+                        })
+                })
+            }))
+        };
+        let mut result = Vec::new();
+        let mut result_bytes = 0u64;
+        let mut candidate_count = 0u64;
+        for candidate in candidates {
+            candidate_count = candidate_count
+                .checked_add(1)
+                .ok_or_else(|| quota("INDEX_ENTRY_BUDGET"))?;
+            let refs = self.views[candidate.view as usize]
+                .references
+                .ok_or_else(|| {
+                    MddError::new(
+                        ErrorCode::IncompleteFacts,
+                        "facts.index",
+                        "references missing",
+                    )
+                })?;
+            let reference =
+                &refs.definitions().definitions().field_references[candidate.local as usize];
+            if reference.class_descriptor != symbol.owner
+                || reference.field_name != symbol.name
+                || reference.type_descriptor != symbol.field_type
+            {
+                continue;
+            }
+            let target = refs.target_id(TargetKind::Field, candidate.local)?;
+            let matches = if scalar {
+                refs.find_target_scalar(&target)?
+            } else {
+                refs.find_target_indexed(&target)?
+            };
+            if result
+                .len()
+                .checked_add(matches.sites.len())
+                .and_then(|v| u64::try_from(v).ok())
+                .is_none_or(|count| count > self.limits.max_result_entries)
+            {
+                return Err(quota("INDEX_RESULT_ENTRY_BUDGET"));
+            }
+            self.check_site_budget(&matches.sites)?;
+            result_bytes = result_bytes
+                .checked_add(Self::site_bytes(&matches.sites)?)
+                .ok_or_else(|| quota("INDEX_RESULT_BYTE_BUDGET"))?;
+            if result_bytes > self.limits.max_result_bytes {
+                return Err(quota("INDEX_RESULT_BYTE_BUDGET"));
+            }
+            result
+                .try_reserve(matches.sites.len())
+                .map_err(|_| quota("INDEX_RESULT_ALLOCATION"))?;
+            result.extend(matches.sites);
+        }
+        self.reference_result(result, candidate_count, scalar, true, coverage)
+    }
+
     pub fn references_to_method_symbol(
         &self,
         symbol: &MethodSymbol,
@@ -1037,6 +1207,6 @@ impl<'a> SnapshotFactIndex<'a> {
                 .map_err(|_| quota("INDEX_RESULT_ALLOCATION"))?;
             result.extend(matches.sites);
         }
-        self.reference_result(result, candidate_count, scalar, coverage)
+        self.reference_result(result, candidate_count, scalar, false, coverage)
     }
 }

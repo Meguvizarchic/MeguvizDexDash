@@ -298,6 +298,104 @@ fn definitions_owners_and_encoded_reference_symbols_preserve_distinct_sites() {
 }
 
 #[test]
+fn field_symbol_indexes_preserve_sites_and_source_occurrences() {
+    let data = setup("references/generated/defined-field-035.dex", 2);
+    let refs = data
+        .definitions
+        .iter()
+        .zip(&data.codes)
+        .map(|(definition, code)| {
+            ReferenceFacts::build(definition.clone(), code.clone(), ReferenceLimits::default())
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
+    let views = refs
+        .iter()
+        .map(|r| FactView::unbuilt(&r.source().dex_occurrence_id).with_references(r))
+        .collect::<Vec<_>>();
+    let site = refs[0]
+        .sites()
+        .iter()
+        .find(|site| site.target_kind == TargetKind::Field)
+        .expect("fixture must have an encoded field operand");
+    let field =
+        &data.definitions[0].definitions().field_references[site.target_local_index as usize];
+    let symbol = FieldSymbol {
+        owner: field.class_descriptor.clone(),
+        name: field.field_name.clone(),
+        field_type: field.type_descriptor.clone(),
+    };
+    let index = SnapshotFactIndex::new(scope(&data), &views, IndexLimits::default()).unwrap();
+    let indexed = index.references_to_field_symbol(&symbol).unwrap();
+    let scalar = index.references_to_field_symbol_scalar(&symbol).unwrap();
+    let expected = refs
+        .iter()
+        .flat_map(|r| {
+            let target = r.target_id(TargetKind::Field, field.field_idx).unwrap();
+            r.find_target_scalar(&target).unwrap().sites
+        })
+        .collect::<Vec<_>>();
+    assert!(!expected.is_empty());
+    assert_eq!(indexed.sites, expected);
+    assert_eq!(scalar.sites, expected);
+    assert!(indexed.sites.iter().any(
+        |s| s.caller_method_definition.dex_occurrence_id == refs[0].source().dex_occurrence_id
+    ));
+    assert!(indexed.sites.iter().any(
+        |s| s.caller_method_definition.dex_occurrence_id == refs[1].source().dex_occurrence_id
+    ));
+    assert!(!indexed.runtime_resolution.contains("dispatch"));
+    assert_eq!(indexed.coverage.facts, Completeness::Complete);
+    let mut missing = symbol.clone();
+    missing.field_type.push('X');
+    let absent = index.references_to_field_symbol(&missing).unwrap();
+    assert!(absent.sites.is_empty());
+    assert!(absent.absence_proven_within_selected_encoded_scope);
+
+    let limited = SnapshotFactIndex::new(
+        scope(&data),
+        &views,
+        IndexLimits {
+            max_entries: 0,
+            ..IndexLimits::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        limited
+            .references_to_field_symbol(&symbol)
+            .unwrap_err()
+            .code,
+        ErrorCode::QuotaExceeded
+    );
+    assert_eq!(
+        limited
+            .references_to_field_symbol_scalar(&symbol)
+            .unwrap()
+            .sites,
+        expected
+    );
+    assert_eq!(limited.audits().unwrap()[3].phase, lazy::IndexPhase::Failed);
+    assert_eq!(
+        limited
+            .retry_field_reference_symbol_index()
+            .unwrap_err()
+            .code,
+        ErrorCode::QuotaExceeded
+    );
+
+    let partial =
+        SnapshotFactIndex::new(scope(&data), &[views[0].clone()], IndexLimits::default()).unwrap();
+    assert_eq!(
+        partial
+            .references_to_field_symbol(&symbol)
+            .unwrap_err()
+            .code,
+        ErrorCode::IncompleteFacts
+    );
+}
+
+#[test]
 fn explicit_subset_negative_proof_and_foreign_generation_are_bounded() {
     let data = setup("generated/strings-mutf8-035.dex", 2);
     let selected =

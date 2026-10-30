@@ -1,0 +1,192 @@
+"""Candidate A2 compact-MCP query adapter for the fixed HostLab CLI DTO.
+
+The caller owns one exclusive MCP client/dataset and supplies source,
+producer-snapshot, ordering checks and the frozen HostLab continuation guard.
+This module does not launch an engine, install a backend, qualify A2, or prove
+a stable source snapshot or query order on its own.
+Only a completely consumed query returns rows; failures never return a prefix.
+"""
+from __future__ import annotations
+
+import asyncio
+import json
+import time
+from typing import Callable
+
+
+class CompactAdapterError(RuntimeError):
+    """Explicit A2 transport or compatibility failure; no automatic fallback."""
+
+    def __init__(self, message, *, producer_detail=None):
+        super().__init__(message)
+        self.producer_detail = producer_detail
+
+
+class CompactRowsAdapter:
+    """One exclusive, already-open DexSQL 0.1.1 dataset; no concurrent use.
+
+    ``verify_source`` must raise if fixed input identity changed.
+    ``verify_snapshot_binding`` must raise unless the producer dataset is bound
+    to the intended immutable source generation; a pathname hash alone is not
+    sufficient. Both run before and after each call. ``verify_ordering`` must
+    raise unless the projected SQL guarantees a deterministic total order,
+    including ties, across re-executions. ``continuation_reason`` must be the
+    pinned HostLab guard. These external requirements are not established by
+    this adapter, and no caller here qualifies a workload.
+    """
+
+    def __init__(self, client, dataset_id: str, *, verify_source: Callable[[], None],
+                 verify_snapshot_binding: Callable[[str], None],
+                 verify_ordering: Callable[[str, str], None],
+                 continuation_reason: Callable[[str], str | None], timeout: float = 900,
+                 producer_timeout_ms: int = 5000):
+        if not isinstance(dataset_id, str) or not dataset_id:
+            raise ValueError("dataset identity is required")
+        if not all(callable(check) for check in (verify_source, verify_snapshot_binding,
+                                                 verify_ordering, continuation_reason)):
+            raise ValueError("source, producer snapshot, order and continuation checks are required")
+        if not isinstance(timeout, (int, float)) or isinstance(timeout, bool) or not 0 < timeout < float("inf"):
+            raise ValueError("a finite positive deadline is required")
+        if type(producer_timeout_ms) is not int or not 1 <= producer_timeout_ms <= (1 << 64) - 1:
+            raise ValueError("producer timeout must match its configured maximum")
+        self._client, self._dataset = client, dataset_id
+        self._verify_source, self._continuation_reason = verify_source, continuation_reason
+        self._verify_snapshot_binding, self._verify_ordering = verify_snapshot_binding, verify_ordering
+        self._producer_timeout_ms = producer_timeout_ms
+        self._deadline = time.monotonic() + timeout
+        self._lock = asyncio.Lock()
+        self._poisoned = False
+        self.queries = 0
+
+    async def _page(self, sql: str, offset: int, limit: int, max_bytes: int):
+        self._verify_source()
+        self._verify_snapshot_binding(self._dataset)
+        remaining = self._deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("A2 compact dataset deadline exhausted")
+        result = await asyncio.wait_for(self._client.call_tool("query", {
+            "dataset_id": self._dataset, "sql": [sql], "limit": limit,
+            "offset": offset, "compact": True, "max_bytes": max_bytes,
+            "timeout_ms": min(self._producer_timeout_ms, max(1, int(remaining * 1000))),
+        }), timeout=remaining)
+        self._verify_source()
+        self._verify_snapshot_binding(self._dataset)
+        if time.monotonic() >= self._deadline:
+            raise TimeoutError("A2 compact dataset deadline exhausted during source verification")
+        if result.is_error:
+            detail = {
+                "structured_content": result.structured_content,
+                "text": "\n".join(getattr(item, "text", "") for item in result.content),
+            }
+            raise CompactAdapterError("compact producer rejected query", producer_detail=detail)
+        if result.content:
+            raise CompactAdapterError("compact response unexpectedly includes text content")
+        raw = result.structured_content
+        if not isinstance(raw, dict) or raw.get("dataset_id") != self._dataset:
+            raise CompactAdapterError("compact dataset identity mismatch")
+        # The producer is asked to bound each serialized response. Check again;
+        # decoding the incoming response and allocator overhead are not covered.
+        try:
+            size = len(json.dumps(raw, ensure_ascii=False, allow_nan=False).encode("utf-8"))
+        except (TypeError, ValueError, UnicodeError) as exc:
+            raise CompactAdapterError("invalid compact response encoding") from exc
+        if size > max_bytes:
+            raise CompactAdapterError("compact response byte budget exceeded")
+        statements = raw.get("statements")
+        if not isinstance(statements, list) or len(statements) != 1 or not isinstance(statements[0], dict):
+            raise CompactAdapterError("compact statement count mismatch")
+        item = statements[0]
+        columns, rows, total, cursor = (item.get("columns"), item.get("rows"),
+                                        item.get("total_rows"), item.get("next_offset"))
+        if (item.get("kind") != "query" or item.get("statement_index") != 0
+                or type(item.get("offset")) is not int or item["offset"] != offset
+                or type(item.get("truncated")) is not bool
+                or not isinstance(columns, list) or not all(isinstance(x, str) for x in columns)
+                or len(set(columns)) != len(columns) or not isinstance(rows, list)
+                or len(rows) > limit or any(not isinstance(row, list) or len(row) != len(columns) for row in rows)
+                or type(total) is not int or total < 0 or offset + len(rows) > total):
+            raise CompactAdapterError("invalid compact page structure")
+        if cursor is None:
+            if item["truncated"] or offset + len(rows) != total:
+                raise CompactAdapterError("compact terminal incomplete or truncated")
+        elif (type(cursor) is not int or cursor != offset + len(rows) or cursor <= offset
+              or cursor >= total or cursor > 100000):
+            raise CompactAdapterError("compact cursor invalid or did not advance")
+        return columns, rows, total, cursor
+
+    async def rows(self, sql: str, *, page_size: int = 1000, max_rows: int = 500000,
+                   max_bytes: int = 128 * 1024 * 1024, max_page_bytes: int = 128 * 1024):
+        """Return complete HostLab-style dict rows, or raise without returning a prefix."""
+        async with self._lock:
+            if self._poisoned:
+                raise CompactAdapterError("compact adapter is unusable after a failed query")
+            try:
+                return await self._rows(sql, page_size, max_rows, max_bytes, max_page_bytes)
+            except BaseException:
+                # Cancellation, bad pages, and source changes must not silently
+                # reuse a dataset whose real state may have changed.
+                self._poisoned = True
+                raise
+
+    async def _rows(self, sql: str, page_size: int, max_rows: int,
+                    max_bytes: int, max_page_bytes: int):
+        if not isinstance(sql, str) or not sql.strip() or len(sql.encode("utf-8")) > 256 * 1024:
+            raise ValueError("invalid SQL or SQL byte budget exceeded")
+        if "ORDER BY" not in sql.upper():
+            raise ValueError("native audit requires stable ordering")
+        if (any(type(x) is not int or x <= 0 for x in (page_size, max_rows, max_bytes, max_page_bytes))
+                or page_size > 1000 or not 4096 <= max_page_bytes <= 131072):
+            raise ValueError("invalid query bounds")
+        source_sql = sql.rstrip(";\n")
+        names, shape_rows, shape_total, shape_next = await self._page(
+            "SELECT * FROM (" + source_sql + ") AS hostlab_shape LIMIT 0", 0, 1, max_page_bytes)
+        if not names or shape_rows or shape_total != 0 or shape_next is not None:
+            raise CompactAdapterError("invalid HostLab shape result")
+        def identifier(name):
+            return '"' + name.replace('"', '""') + '"'
+        projections = ["CASE WHEN " + identifier(name) + " IS NULL THEN 'N' ELSE hex(CAST("
+                       + identifier(name) + " AS TEXT)) END AS " + identifier(name) for name in names]
+        statement = "SELECT " + ",".join(projections) + " FROM (" + source_sql + ") AS hostlab_rows"
+        if len(statement.encode("utf-8")) > 256 * 1024:
+            raise CompactAdapterError("projected SQL exceeds HostLab byte budget")
+        self._verify_ordering(source_sql, statement)
+        offset, total, result, used = 0, None, [], 0
+        while True:
+            if offset + page_size > 100000:
+                requested = 100000 - offset
+                if requested <= 0:
+                    raise CompactAdapterError("compact producer offset limit prevents complete output")
+            else:
+                requested = page_size
+            columns, rows, current_total, cursor = await self._page(statement, offset, requested, max_page_bytes)
+            if columns != names or (total is not None and total != current_total):
+                raise CompactAdapterError("compact schema or total changed between pages")
+            total = current_total
+            if total > max_rows:
+                raise CompactAdapterError("HostLab complete row budget exceeded")
+            for cells in rows:
+                decoded = []
+                for cell in cells:
+                    if not isinstance(cell, str):
+                        raise CompactAdapterError("projected compact cell is not text")
+                    if cell == "N":
+                        value = None
+                    else:
+                        try:
+                            value = bytes.fromhex(cell).decode("utf-8", "strict")
+                        except (ValueError, UnicodeError) as exc:
+                            raise CompactAdapterError("malformed HostLab hex cell") from exc
+                    used += len(value.encode("utf-8")) if value is not None else 0
+                    if used > max_bytes:
+                        raise CompactAdapterError("HostLab complete byte budget exceeded")
+                    decoded.append(value)
+                result.append(dict(zip(names, decoded)))
+            if cursor is None:
+                if len(result) != total:
+                    raise CompactAdapterError("not all rows were consumed")
+                self.queries += 1
+                return result
+            reason = self._continuation_reason(source_sql)
+            if reason is not None:
+                raise CompactAdapterError("unsafe compact continuation: " + str(reason))
+            offset = cursor

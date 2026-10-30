@@ -1,0 +1,9 @@
+# A2 compact 查询转换候选
+
+`a2_compact_adapter.py` 是 MDD-005 的局部开发候选，接收调用者已打开、独占使用的 DexSQL 0.1.1 MCP dataset；它不启动或安装生产者，也不修改原 HostLab 仓库。它复用固定 HostLab CLI 的 shape 查询和 `hex(CAST(... AS TEXT))` 单元转换，完整消费所有页面后才返回 DTO；生产者错误、源检查失败、超时、异常页面、超出额度或消费者取消都会明确失败，不能作为完整输出或触发自动 fallback。完成失败后适配器不再复用。
+
+调用者必须提供四项检查：固定来源身份、生产者 dataset 与不可变来源代次的绑定、**投影查询**跨重执行时包含同值并列情况的确定总序、冻结 HostLab 的 continuation guard。单纯对输入路径做 SHA 检查不能证明生产者已经绑定该快照；原查询文本包含 `ORDER BY` 也不能证明外层投影顺序。当前仓库未提供这些检查的已验收生产实现，因而此候选不能用于签署审计完成或 A2 资格。
+
+固定 A1 二进制和合成 structured-035.dex 曾在旧候选接口上完成每页两行的七行传输，并与标准 MCP DTO 相等；证据为 `artifacts/mdd-005/a2-adapter-development-20261030/probe6-run/stdout.txt` 和 `probe6-admission.json`。此前超时和页面大小配置错误的真实记录原样保留。该观测发生在新增快照和顺序证明要求之前，不验证当前接口、跨代一致性、完整 20 组 HostLab 审计或性能。
+
+受限范围：A1 offset 加 limit 不得超过 100000；请求上限、源检查成本、调用方及 MCP 解码副本的内存未覆盖整体 RSS。该候选未连接 HostLab 原生同步 session，未解决进程生命周期、完整 inventory、marker 调度和大于 offset 上限的查询。保留旧后端和报告身份，直到后续统一验证与显式授权完成。

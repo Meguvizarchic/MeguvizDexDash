@@ -1,0 +1,1 @@
+{"adapter_error": "compact producer rejected query", "producer_detail": {"structured_content": {"error": {"kind": "invalid_input", "message": "timeout_ms must be in 1..=5000"}}, "text": ""}}

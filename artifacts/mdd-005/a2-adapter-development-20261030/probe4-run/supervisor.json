@@ -1,0 +1,28 @@
+{
+  "schema_version": "mdd.windows-job-run.v1",
+  "command_argv": [
+    "D:\\MeguvisDexDash\\artifacts\\local\\baseline-venv\\Scripts\\python.exe",
+    "D:\\MeguvisDexDash\\artifacts\\mdd-005\\a2-adapter-development-20261030\\probe4.py"
+  ],
+  "measurement_scope": "supervised development run; not automatically a qualified speed sample",
+  "limits": {
+    "memory_commit_bytes": "2147483648",
+    "affinity_mask": "15",
+    "max_processes": 8,
+    "timeout_seconds": 45,
+    "max_log_bytes": 4194304
+  },
+  "assigned_before_resume": true,
+  "tree_empty_verified": true,
+  "status": "failed",
+  "job_name": "mdd-baseline-7db168d7d3cb4abb8d99834dd3b9ee69",
+  "process_id": 19024,
+  "reason": null,
+  "exit_code": 1,
+  "cpu_user_seconds": 0.59375,
+  "cpu_kernel_seconds": 0.140625,
+  "total_processes": 7,
+  "peak_job_commit_bytes": "80871424",
+  "resource_scope": "all processes in the owned Job; peak commit is not RSS/PSS",
+  "wall_seconds": 1.8693524999998772
+}

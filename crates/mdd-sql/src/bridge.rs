@@ -1176,15 +1176,11 @@ mod tests {
                 bridge.query("SELECT CAST('1' AS TEXT)=1").unwrap_err().code,
                 ErrorCode::UnsupportedQuery
             );
-            assert_eq!(
-                bridge.query("SELECT 1+'a'").unwrap_err().code,
-                if dialect == SqlDialect::NativeV1 {
-                    ErrorCode::InvalidArgument
-                } else {
-                    ErrorCode::UnsupportedQuery
-                }
-            );
             if dialect == SqlDialect::NativeV1 {
+                assert_eq!(
+                    bridge.query("SELECT 1+'a'").unwrap_err().code,
+                    ErrorCode::InvalidArgument
+                );
                 assert_eq!(
                     bridge
                         .query("SELECT CAST('bad' AS INTEGER)")
@@ -1192,7 +1188,42 @@ mod tests {
                         .code,
                     ErrorCode::InvalidArgument
                 );
+            } else {
+                assert_eq!(
+                    bridge.query("SELECT 1+'a'").unwrap().rows()[0][0],
+                    SqlValue::I64(mdd_query::ir::Signed64(1))
+                );
+                assert_eq!(
+                    bridge.query("SELECT 1+'2'").unwrap_err().code,
+                    ErrorCode::UnsupportedQuery
+                );
             }
+        }
+    }
+    #[test]
+    fn legacy_arithmetic_handles_non_numeric_text_and_bytes_without_hiding_other_cases() {
+        let (provider, _) = bridge();
+        for dialect in [SqlDialect::DexSql010, SqlDialect::DexSql011] {
+            let bridge = SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+            let result = bridge
+                .query("SELECT 1+'a',1-' x',2*X'61',2/'a',2%'a',NULL+'a'")
+                .unwrap();
+            assert_eq!(
+                result.rows()[0],
+                vec![
+                    SqlValue::I64(mdd_query::ir::Signed64(1)),
+                    SqlValue::I64(mdd_query::ir::Signed64(1)),
+                    SqlValue::I64(mdd_query::ir::Signed64(0)),
+                    SqlValue::Null,
+                    SqlValue::Null,
+                    SqlValue::Null,
+                ],
+                "{dialect:?}"
+            );
+            assert_eq!(
+                bridge.query("SELECT 1+'2.5'").unwrap_err().code,
+                ErrorCode::UnsupportedQuery
+            );
         }
     }
     #[test]

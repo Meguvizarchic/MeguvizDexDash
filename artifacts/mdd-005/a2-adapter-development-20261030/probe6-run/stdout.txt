@@ -1,0 +1,1 @@
+{"status": "complete", "fixture_sha256": "108cf907d330b823c6e32d38eaab8f23709fe493f52537688bbd09ba3e271605", "engine_sha256": "602105c98232120c14d6124fb33574f2f95f12e50e51d25b8834f893925f28d6", "rows": 7, "queries": 1, "scope": "synthetic real A1 MCP; no full audit or performance qualification"}
