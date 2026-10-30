@@ -1021,6 +1021,41 @@ mod tests {
     }
 
     #[test]
+    fn legacy_numeric_literal_cast_to_text_equality_is_bounded() {
+        use mdd_query::ir::Signed64;
+        let (provider, native) = bridge();
+        for dialect in [SqlDialect::DexSql010, SqlDialect::DexSql011] {
+            let bridge = SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+            let result = bridge.query("SELECT CAST(1 AS TEXT)=1, 1=CAST(1 AS TEXT), CAST(10 AS TEXT)=1, CAST(1 AS TEXT)=NULL").unwrap();
+            assert_eq!(
+                result.rows()[0],
+                vec![
+                    SqlValue::I64(Signed64(1)),
+                    SqlValue::I64(Signed64(1)),
+                    SqlValue::I64(Signed64(0)),
+                    SqlValue::Null
+                ]
+            );
+            for sql in [
+                "SELECT CAST(1 AS TEXT)<>1",
+                "SELECT CAST(1 AS VARCHAR)=1",
+                "SELECT CAST(1+0 AS TEXT)=1",
+                "SELECT CAST(1 AS TEXT)=1.0",
+            ] {
+                assert_eq!(
+                    bridge.query(sql).unwrap_err().code,
+                    ErrorCode::UnsupportedQuery,
+                    "{sql}"
+                );
+            }
+        }
+        assert_eq!(
+            native.query("SELECT CAST(1 AS TEXT)=1").unwrap_err().code,
+            ErrorCode::UnsupportedQuery
+        );
+    }
+
+    #[test]
     fn legacy_literal_text_affinity_in_between_and_simple_case() {
         let (provider, native) = bridge();
         let sqlite = rusqlite::Connection::open_in_memory().unwrap();

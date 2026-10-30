@@ -27,18 +27,22 @@ class DeliveredQuery:
 
     sql_sha256: str
     row_count: int
-    columns: tuple[str, ...] | None
+    columns: tuple[str, ...]
     rows_sha256: str
 
 
 class _DeliveryDigest:
     """Length-framed UTF-8 values preserve NULL, order and repeated rows."""
 
-    def __init__(self, sql):
+    def __init__(self, sql, columns):
         self.sql_sha256 = hashlib.sha256(sql.encode('utf-8')).hexdigest()
-        self.columns = None
+        self.columns = columns
         self.count = 0
-        self.digest = hashlib.sha256(b'mdd-a2-hostlab-delivered-rows-v1\0')
+        self.digest = hashlib.sha256(b'mdd-a2-hostlab-delivered-rows-v2\0')
+        self.digest.update(b'S')
+        self.digest.update(len(columns).to_bytes(8, 'big'))
+        for name in columns:
+            self._text(self.digest, name)
 
     @staticmethod
     def _text(digest, text):
@@ -52,14 +56,9 @@ class _DeliveryDigest:
         columns = tuple(row.keys())
         if any(not isinstance(name, str) for name in columns):
             raise HostlabSessionError('delivered row has a non-text column')
-        if self.columns is not None and columns != self.columns:
+        if columns != self.columns:
             raise HostlabSessionError('delivered row column identity changed')
         next_digest = self.digest.copy()
-        if self.columns is None:
-            next_digest.update(b'S')
-            next_digest.update(len(columns).to_bytes(8, 'big'))
-            for name in columns:
-                self._text(next_digest, name)
         next_digest.update(b'R')
         for value in row.values():
             if value is None:
@@ -101,7 +100,7 @@ class HostlabCompactSession:
             raise ValueError("a running owner event loop is required")
         if not all(callable(fn) for fn in (verify_inventory, close_dataset, abort_transport)):
             raise ValueError("inventory, close and abort callbacks are required")
-        if not all(callable(getattr(adapter, name, None)) for name in ("rows", "remaining_seconds", "verify_binding")):
+        if not all(callable(getattr(adapter, name, None)) for name in ("result", "remaining_seconds", "verify_binding")):
             raise ValueError("a bound compact rows adapter is required")
         self._adapter, self._loop = adapter, loop
         self._verify_inventory, self._close_dataset, self._abort_transport = (
@@ -199,11 +198,17 @@ class HostlabCompactSession:
         self._active += 1
         exhausted = False
         try:
-            digest = _DeliveryDigest(sql)
-            records = self._wait(self._adapter.rows(sql, page_size=page_size,
-                                                    max_rows=max_rows, max_bytes=max_bytes))
-            if not isinstance(records, list):
-                raise HostlabSessionError("compact adapter did not return complete rows")
+            result = self._wait(self._adapter.result(sql, page_size=page_size,
+                                                     max_rows=max_rows, max_bytes=max_bytes))
+            records = getattr(result, 'rows', None)
+            columns = getattr(result, 'columns', None)
+            total = getattr(result, 'total_rows', None)
+            if (not isinstance(records, list) or not isinstance(columns, tuple) or not columns
+                    or any(not isinstance(name, str) for name in columns)
+                    or len(set(columns)) != len(columns) or type(total) is not int
+                    or total != len(records)):
+                raise HostlabSessionError("compact adapter did not return a complete shaped result")
+            digest = _DeliveryDigest(sql, columns)
             for record in records:
                 if self._closed or self._failed:
                     raise HostlabSessionError("compact session closed before row consumption")

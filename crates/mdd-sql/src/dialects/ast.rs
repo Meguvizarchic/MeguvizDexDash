@@ -95,6 +95,18 @@ fn integer_cast_string_literal(expr: &Expr) -> bool {
         _ => false,
     }
 }
+fn text_cast_nonnegative_i64_literal(expr: &Expr) -> bool {
+    match expr {
+        Expr::Nested(inner) => text_cast_nonnegative_i64_literal(inner),
+        Expr::Cast {
+            expr,
+            data_type: DataType::Text,
+            format: None,
+            ..
+        } => nonnegative_i64_literal(expr),
+        _ => false,
+    }
+}
 fn canonical_i64_text_literal(expr: &Expr) -> Option<i64> {
     let Expr::Value(value) = expr else {
         return None;
@@ -926,6 +938,12 @@ impl Rewrite<'_> {
                 // share this property; those retain the guarded comparator.
                 let no_affinity = no_affinity(left) && no_affinity(right);
                 let text_integer_affinity = direct_text_integer_affinity(self.dialect, left, right);
+                let numeric_cast_text_equality = self.dialect != super::SqlDialect::NativeV1
+                    && matches!(op, BinaryOperator::Eq)
+                    && ((text_cast_nonnegative_i64_literal(left)
+                        && nonnegative_i64_literal(right))
+                        || (nonnegative_i64_literal(left)
+                            && text_cast_nonnegative_i64_literal(right)));
                 if self.dialect != super::SqlDialect::NativeV1
                     && matches!(op, BinaryOperator::Eq | BinaryOperator::NotEq)
                 {
@@ -942,7 +960,9 @@ impl Rewrite<'_> {
                 self.expr(left, depth + 1)?;
                 self.expr(right, depth + 1)?;
                 let name = match op {
-                    BinaryOperator::Eq if text_integer_affinity => "mdd_text_integer_eq",
+                    BinaryOperator::Eq if text_integer_affinity || numeric_cast_text_equality => {
+                        "mdd_text_integer_eq"
+                    }
                     BinaryOperator::NotEq if text_integer_affinity => "mdd_text_integer_ne",
                     BinaryOperator::Gt if text_integer_affinity => "mdd_text_integer_gt",
                     BinaryOperator::GtEq if text_integer_affinity => "mdd_text_integer_ge",

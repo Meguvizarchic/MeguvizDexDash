@@ -943,6 +943,96 @@ fn callsite_encoded_byte_key_keeps_same_content_and_all_occurrence_sites() {
 }
 
 #[test]
+fn descriptor_owner_members_preserve_occurrences_and_exact_direct_declarations() {
+    let data = setup("references/generated/defined-field-035.dex", 2);
+    let views = data
+        .definitions
+        .iter()
+        .map(|d| FactView::unbuilt(&d.metadata().source().dex_occurrence_id).with_definitions(d))
+        .collect::<Vec<_>>();
+    let descriptor = data.definitions[0].definitions().classes[0]
+        .descriptor
+        .clone();
+    let index = SnapshotFactIndex::new(scope(&data), &views, IndexLimits::default()).unwrap();
+    for (kind, count) in [(DefinitionKind::Field, 2), (DefinitionKind::Method, 6)] {
+        for predicate in [
+            Utf16Predicate::Any,
+            Utf16Predicate::Prefix(vec![b'c' as u16]),
+            Utf16Predicate::Contains(vec![b'a' as u16]),
+        ] {
+            let indexed = index
+                .owner_members_by_descriptor(&descriptor, kind, &predicate)
+                .unwrap();
+            let scalar = index
+                .owner_members_by_descriptor_scalar(&descriptor, kind, &predicate)
+                .unwrap();
+            assert_eq!(indexed.entities, scalar.entities);
+            assert_eq!(indexed.coverage.facts, Completeness::Complete);
+            if matches!(predicate, Utf16Predicate::Any) {
+                assert_eq!(indexed.entities.len(), count);
+                assert!(indexed.entities.iter().any(|v| v.dex_occurrence_id
+                    == data.definitions[0].metadata().source().dex_occurrence_id));
+                assert!(indexed.entities.iter().any(|v| v.dex_occurrence_id
+                    == data.definitions[1].metadata().source().dex_occurrence_id));
+            }
+        }
+    }
+    assert!(
+        index
+            .owner_members_by_descriptor(
+                "Lmissing/Owner;",
+                DefinitionKind::Method,
+                &Utf16Predicate::Any
+            )
+            .unwrap()
+            .absence_proven_within_selected_scope
+    );
+    assert_eq!(
+        index
+            .owner_members_by_descriptor(&descriptor, DefinitionKind::Class, &Utf16Predicate::Any)
+            .unwrap_err()
+            .code,
+        ErrorCode::InvalidArgument
+    );
+    let limited = SnapshotFactIndex::new(
+        scope(&data),
+        &views,
+        IndexLimits {
+            max_result_entries: 1,
+            ..IndexLimits::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        limited
+            .owner_members_by_descriptor(&descriptor, DefinitionKind::Method, &Utf16Predicate::Any)
+            .unwrap_err()
+            .code,
+        ErrorCode::QuotaExceeded
+    );
+    assert_eq!(
+        limited
+            .owner_members_by_descriptor_scalar(
+                &descriptor,
+                DefinitionKind::Method,
+                &Utf16Predicate::Any
+            )
+            .unwrap_err()
+            .code,
+        ErrorCode::QuotaExceeded
+    );
+    let partial =
+        SnapshotFactIndex::new(scope(&data), &[views[0].clone()], IndexLimits::default()).unwrap();
+    assert_eq!(
+        partial
+            .owner_members_by_descriptor(&descriptor, DefinitionKind::Method, &Utf16Predicate::Any)
+            .unwrap_err()
+            .code,
+        ErrorCode::IncompleteFacts
+    );
+}
+
+#[test]
 fn explicit_subset_negative_proof_and_foreign_generation_are_bounded() {
     let data = setup("generated/strings-mutf8-035.dex", 2);
     let selected =

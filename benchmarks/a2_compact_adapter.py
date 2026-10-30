@@ -32,6 +32,18 @@ class OrderTerm:
         self.descending = descending
 
 
+class CompleteRows:
+    """One query's shape and fully received DTO, not a consumer receipt."""
+
+    __slots__ = ('columns', 'rows', 'total_rows', 'page_count')
+
+    def __init__(self, columns, rows, total_rows, page_count):
+        self.columns = tuple(columns)
+        self.rows = rows
+        self.total_rows = total_rows
+        self.page_count = page_count
+
+
 def _quote_identifier(name: str) -> str:
     return '"' + name.replace('"', '""') + '"'
 
@@ -164,6 +176,13 @@ class CompactRowsAdapter:
     async def rows(self, sql: str, *, page_size: int = 1000, max_rows: int = 500000,
                    max_bytes: int = 128 * 1024 * 1024, max_page_bytes: int = 128 * 1024):
         """Return complete HostLab-style dict rows, or raise without returning a prefix."""
+        result = await self.result(sql, page_size=page_size, max_rows=max_rows,
+                                   max_bytes=max_bytes, max_page_bytes=max_page_bytes)
+        return result.rows
+
+    async def result(self, sql: str, *, page_size: int = 1000, max_rows: int = 500000,
+                     max_bytes: int = 128 * 1024 * 1024, max_page_bytes: int = 128 * 1024):
+        """Return this query's shape and fully received rows after a valid terminal."""
         async with self._lock:
             if self._poisoned:
                 raise CompactAdapterError("compact adapter is unusable after a failed query")
@@ -198,7 +217,7 @@ class CompactRowsAdapter:
         if len(statement.encode("utf-8")) > 256 * 1024:
             raise CompactAdapterError("projected SQL exceeds HostLab byte budget")
         self._verify_ordering(source_sql, statement)
-        offset, total, result, used = 0, None, [], 0
+        offset, total, result, used, pages = 0, None, [], 0, 0
         page_limit = page_size
         while True:
             if offset + page_limit > 100000:
@@ -226,6 +245,7 @@ class CompactRowsAdapter:
                 continue
             if columns != names or (total is not None and total != current_total):
                 raise CompactAdapterError("compact schema or total changed between pages")
+            pages += 1
             total = current_total
             if total > max_rows:
                 raise CompactAdapterError("HostLab complete row budget exceeded")
@@ -250,7 +270,7 @@ class CompactRowsAdapter:
                 if len(result) != total:
                     raise CompactAdapterError("not all rows were consumed")
                 self.queries += 1
-                return result
+                return CompleteRows(names, result, total, pages)
             reason = self._continuation_reason(source_sql)
             if reason is not None:
                 raise CompactAdapterError("unsafe compact continuation: " + str(reason))

@@ -1099,6 +1099,172 @@ impl<'a> SnapshotFactIndex<'a> {
             coverage,
         )
     }
+    /// Find directly declared fields or methods for an exact class descriptor across the selected occurrences.
+    /// Duplicate definitions are retained and inheritance or runtime resolution is not inferred.
+    pub fn owner_members_by_descriptor(
+        &self,
+        descriptor: &str,
+        kind: DefinitionKind,
+        predicate: &Utf16Predicate,
+    ) -> MddResult<IndexMatches> {
+        self.owner_members_descriptor_impl(descriptor, kind, predicate, false)
+    }
+    /// Full scan independent of the lazy owner index.
+    pub fn owner_members_by_descriptor_scalar(
+        &self,
+        descriptor: &str,
+        kind: DefinitionKind,
+        predicate: &Utf16Predicate,
+    ) -> MddResult<IndexMatches> {
+        self.owner_members_descriptor_impl(descriptor, kind, predicate, true)
+    }
+    fn owner_members_descriptor_impl(
+        &self,
+        descriptor: &str,
+        kind: DefinitionKind,
+        predicate: &Utf16Predicate,
+        scalar: bool,
+    ) -> MddResult<IndexMatches> {
+        Self::check_predicate(predicate)?;
+        if kind == DefinitionKind::Class {
+            return Err(MddError::new(
+                ErrorCode::InvalidArgument,
+                "facts.index",
+                "member kind must be field or method",
+            ));
+        }
+        if descriptor.encode_utf16().take(1_000_001).count() > 1_000_000 {
+            return Err(quota("INDEX_PREDICATE_BUDGET"));
+        }
+        let coverage = self.require(FactLayer::Definitions)?;
+        let mut entities = Vec::new();
+        let mut result_bytes = 0;
+        let mut candidates = 0usize;
+        if scalar {
+            for (view, entry) in self.views.iter().enumerate() {
+                let facts = entry.definitions.ok_or_else(|| {
+                    MddError::new(
+                        ErrorCode::IncompleteFacts,
+                        "facts.index",
+                        "definitions missing",
+                    )
+                })?;
+                let view = u32::try_from(view).map_err(|_| quota("INDEX_ENTRY_BUDGET"))?;
+                for class in facts
+                    .definitions()
+                    .classes
+                    .iter()
+                    .filter(|class| class.descriptor == descriptor)
+                {
+                    let members: Box<dyn Iterator<Item = u32> + '_> = match kind {
+                        DefinitionKind::Field => Box::new(
+                            facts
+                                .definitions()
+                                .field_definitions
+                                .iter()
+                                .filter(move |item| item.class_def_idx == class.class_def_idx)
+                                .map(|item| item.field_idx),
+                        ),
+                        DefinitionKind::Method => Box::new(
+                            facts
+                                .definitions()
+                                .method_definitions
+                                .iter()
+                                .filter(move |item| item.class_def_idx == class.class_def_idx)
+                                .map(|item| item.method_idx),
+                        ),
+                        DefinitionKind::Class => unreachable!(),
+                    };
+                    for local in members {
+                        candidates = candidates
+                            .checked_add(1)
+                            .ok_or_else(|| quota("INDEX_RESULT_ENTRY_BUDGET"))?;
+                        let atom = DefinitionAtom { view, kind, local };
+                        if predicate.matches(&self.definition_name(atom)?) {
+                            self.append_entity(&mut entities, &mut result_bytes, view, || {
+                                self.definition_entity(atom)
+                            })?;
+                        }
+                    }
+                }
+            }
+        } else {
+            let index = self.definitions.get_or_build(|| self.build_definitions())?;
+            let key = (
+                DefinitionKind::Class,
+                descriptor.encode_utf16().collect::<Vec<_>>(),
+            );
+            for owner in index.names.get(&key).into_iter().flatten() {
+                let facts = self.definition_facts(owner.view)?;
+                let class = facts
+                    .definitions()
+                    .classes
+                    .get(owner.local as usize)
+                    .ok_or_else(|| {
+                        MddError::new(
+                            ErrorCode::InternalFault,
+                            "facts.index",
+                            "class candidate missing",
+                        )
+                    })?;
+                if class.descriptor != descriptor {
+                    continue;
+                }
+                for atom in index
+                    .owners
+                    .get(&(owner.view, owner.local, kind))
+                    .into_iter()
+                    .flatten()
+                {
+                    candidates = candidates
+                        .checked_add(1)
+                        .ok_or_else(|| quota("INDEX_RESULT_ENTRY_BUDGET"))?;
+                    let member_class = match kind {
+                        DefinitionKind::Field => facts
+                            .definitions()
+                            .field_references
+                            .get(atom.local as usize)
+                            .map(|member| member.class_idx),
+                        DefinitionKind::Method => facts
+                            .definitions()
+                            .method_references
+                            .get(atom.local as usize)
+                            .map(|member| member.class_idx),
+                        DefinitionKind::Class => unreachable!(),
+                    }
+                    .ok_or_else(|| {
+                        MddError::new(
+                            ErrorCode::InternalFault,
+                            "facts.index",
+                            "member candidate missing",
+                        )
+                    })?;
+                    if member_class == class.class_idx
+                        && predicate.matches(&self.definition_name(*atom)?)
+                    {
+                        self.append_entity(&mut entities, &mut result_bytes, owner.view, || {
+                            self.definition_entity(*atom)
+                        })?;
+                    }
+                }
+            }
+        }
+        self.result(
+            entities,
+            candidates,
+            if scalar {
+                "scalar_class_descriptor_and_direct_members"
+            } else {
+                "class_descriptor_and_owner_candidates_then_exact"
+            },
+            if scalar {
+                None
+            } else {
+                Some(self.definitions.audit()?)
+            },
+            coverage,
+        )
+    }
     pub fn retry_definition_index(&self) -> MddResult<IndexAudit> {
         self.definitions.retry_failed(|| self.build_definitions())?;
         self.definitions.audit()
