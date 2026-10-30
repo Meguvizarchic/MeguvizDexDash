@@ -130,6 +130,8 @@ MDD-005 A2 查询转换候选位于 benchmarks/a2_compact_adapter.py，涵盖sha
 
 2026-10-30 继续功能候选续（全量验证后续统一执行）：MDD-026 支持按精确类descriptor跨出现次数查询直接声明字段/方法，复验候选及owner，不推断继承；一项局部测试通过，独立oracle未运行。MDD-031 旧方言仅对直接非负i64数字字面量 CAST AS TEXT 与非负i64字面量的等值比较补充候选，局部测试通过，旧wire uint64与候选i64仍不同，完整对照not_run。MDD-005 compact result()将同一次查询shape列、完整页、总行数与页数一并交付，同步桥v2消费回执可保留零行实际schema，原rows()保持列表；局部合成检查通过，最终真实producer、快照、总序及HostLab验证not_run。任务与profile均未准入。
 
+2026-10-30 本轮后续功能候选（统一验证延后）：MDD-026 增加借用式方法事实视图，按同一DEX出现的method-id连接引用、prototype及可选真实definition，区分reference-only、native、abstract、present；未建代码和注解不填NULL，局部测试通过，HostLab methods关系及独立oracle未完成。MDD-031 对无关WITH保留可证明且未被可见CTE遮蔽的基础表IN作用域；局部检查覆盖别名、大小写遮蔽、派生表、歧义及未知列、递归拒绝，该次facts编译与并行修改有时间重叠，不当作最终工作区验证，A0/A1对照not_run。MDD-005 新增固定A1独占dataset关闭及空闲回读候选，合成DEX实际受控运行通过，见 artifacts/mdd-005/a2-dataset-close-20261030/record.json；两次环境/目录错误发生在作业创建前，非producer失败。此回读不证明快照、总序、生产进程树或A2资格，真实完整HostLab及全量验证均未运行。
+
 MDD-031 SQL桥仍进行中：受限虚表、会话预算绑定、U64真值、USING和子串路径有本机测试；独立真值18例及固定A0/A1子串16例通过，合成Q15结果与SQLite一致。真实完整corpus、legacy适配及生产工作区内存绑定尚未验收。检查点862b3dd的 Windows 离线测试161项、0失败/跳过，工作区严格Clippy通过，命令记录在 artifacts/integration/20261029/workspace-tests/ 与 workspace-clippy/。
 
 后续 SQL 结果驻留预算修复在 Windows 工作区重新运行165项测试、0失败/跳过及严格Clippy；零行 schema 的零预算错误、结果持有与释放独立复现。该计量是保守逻辑额度，SQLite内部分配、provider/调用方副本、传输缓冲及租约自身元数据仍需单独准入，不能称 RSS 硬上限。证据 artifacts/mdd-031-audit/result-memory-probe/after-fix.json、artifacts/integration/20261029/workspace-tests-result-budget/record.json。

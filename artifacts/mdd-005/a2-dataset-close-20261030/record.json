@@ -1,0 +1,52 @@
+{
+  "schema_version": "mdd.a2-exclusive-close-scoped-observation.v1",
+  "scope": "synthetic A1 close and idle readback only; no producer snapshot, full HostLab, A2 or performance qualification",
+  "inputs": {
+    "fixture": "tests/fixtures/generated/structured-035.dex",
+    "fixture_sha256": "108cf907d330b823c6e32d38eaab8f23709fe493f52537688bbd09ba3e271605",
+    "fixture_bytes": 536,
+    "engine": "DexSQL 0.1.1 fixed A1",
+    "engine_sha256": "602105c98232120c14d6124fb33574f2f95f12e50e51d25b8834f893925f28d6"
+  },
+  "source": {
+    "path": "benchmarks/a2_dataset_close.py",
+    "before_sha256": "311b1d22ddf2ee9cf6cd56231817b79c9edaec6f45b81dfd0142486c7d5d105a",
+    "after_sha256": "311b1d22ddf2ee9cf6cd56231817b79c9edaec6f45b81dfd0142486c7d5d105a",
+    "basis": "values emitted by actual supervised wrapper; current source independently rehashed"
+  },
+  "resource_admission": {
+    "minimum_available_bytes": "3221225472",
+    "observed_available_bytes": "7845298176"
+  },
+  "execution": {
+    "supervisor": "supervisor-sanitized.json",
+    "exit_code": 0,
+    "job_status": "completed",
+    "assigned_before_resume": true,
+    "tree_empty_verified": true,
+    "memory_commit_limit_bytes": "2147483648",
+    "timeout_seconds": 45,
+    "scope": "Job contains only owned synthetic test; tree status does not establish a reusable production owner"
+  },
+  "result": {
+    "status": "closed_and_exclusive_server_idle",
+    "fixture": "structured-035.dex",
+    "scope": "synthetic A1; not snapshot, process tree or A2 qualification"
+  },
+  "fake_local_check": {
+    "status": "passed",
+    "basis": "prior tool transcript; raw log was not separately captured",
+    "checks": [
+      "close_and_idle",
+      "wrong_dataset",
+      "running_request",
+      "structured_text_mismatch",
+      "duplicate_json_key",
+      "boolean_counter",
+      "no_reuse"
+    ],
+    "scope": "synthetic fake client; not real producer failure validation"
+  },
+  "separate_earlier_observation": "a1-close-observation.json",
+  "launch_failures": "launch-failures.json"
+}

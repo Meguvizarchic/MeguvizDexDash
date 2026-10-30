@@ -1,0 +1,21 @@
+{
+  "scope": "actual pre-launch environment/setup failures, not engine failures",
+  "attempts": [
+    {
+      "attempt": "initial .venv supervisor",
+      "status": "failed_before_job_creation",
+      "producer_started": false,
+      "error": "ModuleNotFoundError: No module named pywintypes",
+      "basis": "prior tool transcript; no Job output exists",
+      "existing_empty_folder": "artifacts/local/a2-lifecycle-observation/20261030T034928078593Z"
+    },
+    {
+      "attempt": "baseline-venv with pre-created output directory",
+      "status": "failed_before_job_creation",
+      "producer_started": false,
+      "error": "FileExistsError: output directory already exists",
+      "basis": "prior tool transcript; helper requires directory not to exist before CreateJobObject",
+      "existing_empty_folder": "artifacts/local/a2-lifecycle-observation/20261030T034952928976Z"
+    }
+  ]
+}

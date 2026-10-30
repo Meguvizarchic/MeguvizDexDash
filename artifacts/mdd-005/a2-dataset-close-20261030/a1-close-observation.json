@@ -1,0 +1,22 @@
+{
+  "scope": "prior synthetic A1 lifecycle response; input path and generated dataset handle omitted",
+  "engine_sha256": "602105c98232120c14d6124fb33574f2f95f12e50e51d25b8834f893925f28d6",
+  "fixture_sha256": "108cf907d330b823c6e32d38eaab8f23709fe493f52537688bbd09ba3e271605",
+  "open_has_dex": true,
+  "open_input_bytes": 536,
+  "before_dataset_count": 1,
+  "close_confirmed": true,
+  "close_matches_opened_dataset": true,
+  "after_dataset_count": 0,
+  "after_admitted_requests": 0,
+  "after_running_requests": 0,
+  "after_usage": {
+    "datasets": 0,
+    "input_bytes": 0
+  },
+  "job_status": "completed",
+  "exit_code": 0,
+  "tree_empty_verified": true,
+  "raw_stdout_sha256": "89dfd0165cd1a30bc1293e4e27ab2fb05296fa0c8dbc9ee6237d2570e4326a5c",
+  "raw_supervisor_sha256": "10d6231d24f29fc9954df97d436df0da45c20dda44e670e77bf18cbadc9c0272"
+}

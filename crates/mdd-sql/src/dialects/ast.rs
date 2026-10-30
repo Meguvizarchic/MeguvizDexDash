@@ -333,7 +333,7 @@ struct InScope {
 }
 impl Rewrite<'_> {
     fn base_in_scope(&self, select: &Select) -> Option<InScope> {
-        if !self.cte_scopes.is_empty() || select.from.is_empty() {
+        if select.from.is_empty() {
             return None;
         }
         let mut tables = BTreeMap::new();
@@ -348,10 +348,18 @@ impl Rewrite<'_> {
                     return None;
                 }
                 let id = name.0[0].as_ident()?;
-                let columns = self
-                    .schema_types
-                    .get(&id.value.to_ascii_lowercase())?
-                    .clone();
+                let source_name = id.value.to_ascii_lowercase();
+                // A visible CTE takes precedence over a same-named base table;
+                // an unrelated WITH clause does not change this source's type.
+                if self
+                    .cte_scopes
+                    .iter()
+                    .rev()
+                    .any(|scope| scope.contains_key(&source_name))
+                {
+                    return None;
+                }
+                let columns = self.schema_types.get(&source_name)?.clone();
                 let qualifier = alias
                     .as_ref()
                     .map_or_else(|| id.value.clone(), |a| a.name.value.clone())

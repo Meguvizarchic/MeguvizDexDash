@@ -1,8 +1,9 @@
 //! Source-bound definition facts. Unbuilt code columns never masquerade as NULL.
-use crate::metadata::{EntityKind, EntityRef, MetadataFacts};
+use crate::metadata::{EntityKind, EntityRef, MetadataFacts, MetadataSource};
 use mdd_dex::{
     definitions::{
-        ClassDefinition, DefinitionLimits, DefinitionMetadata, DexDefinitions, read_definitions,
+        ClassDefinition, DefinitionLimits, DefinitionMetadata, DexDefinitions, MethodDefinition,
+        MethodReference, read_definitions,
     },
     strings::DexString,
     types::{DexPrototype, DexType},
@@ -71,7 +72,131 @@ pub struct ClassInterfaceRow {
     pub interface_descriptor: String,
 }
 
+/// Limits for the borrowed method-reference-to-definition join, not a total RSS bound.
+#[derive(Clone, Copy, Debug)]
+pub struct MethodViewLimits {
+    pub max_definition_entries: u64,
+    pub max_index_bytes: u64,
+}
+impl Default for MethodViewLimits {
+    fn default() -> Self {
+        Self {
+            max_definition_entries: 4_000_000,
+            max_index_bytes: 256 * 1024 * 1024,
+        }
+    }
+}
+
+/// One method_id and its same-occurrence prototype and optional real definition.
+/// `definition == None` means this is reference-only because the definition layer is complete.
+/// This view intentionally has no code-layout or annotation fields: they are not NULL defaults.
+pub struct MethodFactView<'a> {
+    pub source: &'a MetadataSource,
+    pub reference: &'a MethodReference,
+    pub prototype: &'a DexPrototype,
+    pub definition: Option<&'a MethodDefinition>,
+}
+pub struct MethodFactViews<'a> {
+    facts: &'a DefinitionFacts,
+    definitions: Vec<&'a MethodDefinition>,
+}
+impl<'a> MethodFactViews<'a> {
+    /// Iterate every encoded method reference in DEX method-id order without copying values.
+    pub fn iter(&self) -> impl Iterator<Item = MddResult<MethodFactView<'a>>> + '_ {
+        self.facts
+            .definitions
+            .method_references
+            .iter()
+            .map(|reference| {
+                let prototype = self
+                    .facts
+                    .metadata
+                    .prototypes()
+                    .get(reference.proto_idx as usize)
+                    .map(|item| &item.data)
+                    .ok_or_else(|| {
+                        MddError::new(
+                            ErrorCode::InternalFault,
+                            "facts.methods",
+                            "validated method prototype is missing",
+                        )
+                    })?;
+                let definition = self
+                    .definitions
+                    .binary_search_by_key(&reference.method_idx, |definition| definition.method_idx)
+                    .ok()
+                    .map(|index| self.definitions[index]);
+                Ok(MethodFactView {
+                    source: self.facts.metadata.source(),
+                    reference,
+                    prototype,
+                    definition,
+                })
+            })
+    }
+}
+
 impl DefinitionFacts {
+    /// Build a bounded join for all method IDs in this immutable DEX occurrence.
+    pub fn method_fact_views(&self, limits: MethodViewLimits) -> MddResult<MethodFactViews<'_>> {
+        if self.definition_coverage != Completeness::Complete
+            || self.metadata.metadata_coverage() != Completeness::Complete
+        {
+            return Err(MddError::new(
+                ErrorCode::IncompleteFacts,
+                "facts.methods",
+                "complete metadata and definitions are required",
+            ));
+        }
+        let count = self.definitions.method_definitions.len();
+        let count_u64 = u64::try_from(count).map_err(|_| {
+            MddError::new(
+                ErrorCode::QuotaExceeded,
+                "facts.methods",
+                "method definition count overflow",
+            )
+        })?;
+        let bytes = count_u64
+            .checked_mul(std::mem::size_of::<&MethodDefinition>() as u64)
+            .ok_or_else(|| {
+                MddError::new(
+                    ErrorCode::QuotaExceeded,
+                    "facts.methods",
+                    "method join byte overflow",
+                )
+            })?;
+        if count_u64 > limits.max_definition_entries || bytes > limits.max_index_bytes {
+            return Err(MddError::new(
+                ErrorCode::QuotaExceeded,
+                "facts.methods",
+                "method join index budget exceeded",
+            ));
+        }
+        let mut definitions = Vec::new();
+        definitions.try_reserve_exact(count).map_err(|_| {
+            MddError::new(
+                ErrorCode::QuotaExceeded,
+                "facts.methods",
+                "method join allocation failed",
+            )
+        })?;
+        definitions.extend(self.definitions.method_definitions.iter());
+        definitions.sort_unstable_by_key(|definition| definition.method_idx);
+        if definitions
+            .windows(2)
+            .any(|pair| pair[0].method_idx == pair[1].method_idx)
+        {
+            return Err(MddError::new(
+                ErrorCode::InternalFault,
+                "facts.methods",
+                "duplicate method definition identity",
+            ));
+        }
+        Ok(MethodFactViews {
+            facts: self,
+            definitions,
+        })
+    }
     pub fn metadata(&self) -> &MetadataFacts {
         &self.metadata
     }
@@ -399,6 +524,106 @@ mod tests {
             })
             .collect()
     }
+    #[test]
+    fn borrowed_method_views_distinguish_reference_native_abstract_and_present() {
+        use mdd_dex::definitions::MethodBody;
+        let facts = build_two();
+        for fact in &facts {
+            let view = fact.method_fact_views(MethodViewLimits::default()).unwrap();
+            let rows = view.iter().collect::<MddResult<Vec<_>>>().unwrap();
+            assert_eq!(rows.len(), fact.definitions().method_references.len());
+            assert!(
+                rows.windows(2)
+                    .all(|r| r[0].reference.method_idx < r[1].reference.method_idx)
+            );
+            assert!(rows.iter().all(|r| r.source.dex_occurrence_id
+                == fact.metadata().source().dex_occurrence_id
+                && r.prototype.proto_idx == r.reference.proto_idx));
+            let external = rows
+                .iter()
+                .find(|r| r.reference.method_name == "externalCall")
+                .unwrap();
+            assert!(external.definition.is_none());
+            let native = rows
+                .iter()
+                .find(|r| r.reference.method_name == "nativeCall")
+                .unwrap();
+            assert!(matches!(
+                native.definition.unwrap().body,
+                MethodBody::Native
+            ));
+            let abstract_method = rows
+                .iter()
+                .find(|r| r.reference.method_name == "abstractCall")
+                .unwrap();
+            assert!(matches!(
+                abstract_method.definition.unwrap().body,
+                MethodBody::Abstract
+            ));
+            let present = rows
+                .iter()
+                .find(|r| r.reference.method_name == "virtualCall")
+                .unwrap();
+            assert!(matches!(
+                present.definition.unwrap().body,
+                MethodBody::Present { .. }
+            ));
+            let parameterized = rows
+                .iter()
+                .find(|r| r.reference.method_name == "staticCall")
+                .unwrap();
+            assert_eq!(parameterized.reference.parameter_descriptors, ["I"]);
+            assert_eq!(parameterized.reference.return_descriptor, "I");
+            assert_eq!(
+                present.prototype.parameter_type_indices,
+                fact.metadata().prototypes()[present.reference.proto_idx as usize]
+                    .data
+                    .parameter_type_indices
+            );
+            assert!(
+                fact.require_relation_columns(DefinitionRelation::Methods, &["opcode_hex"])
+                    .is_err()
+            );
+            assert!(
+                fact.require_relation_columns(DefinitionRelation::Methods, &["param_descriptors"])
+                    .is_err()
+            );
+        }
+        assert_eq!(
+            facts[0].metadata().source().snapshot_id,
+            facts[1].metadata().source().snapshot_id
+        );
+        assert_ne!(
+            facts[0].metadata().source().dex_occurrence_id,
+            facts[1].metadata().source().dex_occurrence_id
+        );
+        for limits in [
+            MethodViewLimits {
+                max_definition_entries: 0,
+                ..MethodViewLimits::default()
+            },
+            MethodViewLimits {
+                max_index_bytes: 0,
+                ..MethodViewLimits::default()
+            },
+        ] {
+            assert_eq!(
+                facts[0].method_fact_views(limits).err().unwrap().code,
+                ErrorCode::QuotaExceeded
+            );
+        }
+        let mut incomplete = facts[0].clone();
+        incomplete.definition_coverage = Completeness::Partial;
+        assert_eq!(
+            incomplete
+                .method_fact_views(MethodViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::IncompleteFacts
+        );
+    }
+
     #[test]
     fn occurrences_and_reference_definition_kinds_remain_distinct() {
         let facts = build_two();

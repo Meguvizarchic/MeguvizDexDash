@@ -946,6 +946,62 @@ mod tests {
     }
 
     #[test]
+    fn unrelated_cte_does_not_hide_direct_base_table_in_scope() {
+        use mdd_query::ir::Signed64;
+        let (provider, _) = bridge();
+        for dialect in [
+            SqlDialect::NativeV1,
+            SqlDialect::DexSql010,
+            SqlDialect::DexSql011,
+        ] {
+            let bridge = SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+            for sql in [
+                "WITH marker AS (SELECT 1 AS n) SELECT f.id FROM facts AS f WHERE f.id IN (1,2) ORDER BY f.id",
+                "WITH marker AS (SELECT 1 AS n), q AS (SELECT id FROM facts WHERE id IN (1,2)) SELECT id FROM q ORDER BY id",
+            ] {
+                assert_eq!(
+                    bridge.query(sql).unwrap().rows(),
+                    &[
+                        vec![SqlValue::U64(DecimalU64(1))],
+                        vec![SqlValue::U64(DecimalU64(2))]
+                    ],
+                    "{dialect:?}: {sql}"
+                );
+            }
+            for sql in [
+                "WITH FaCtS AS (SELECT '1' AS id) SELECT id IN (1) FROM facts",
+                "WITH facts AS (SELECT '1' AS id), q AS (SELECT id IN (1) AS v FROM FaCtS) SELECT v FROM q",
+                "WITH marker AS (SELECT 1 AS n) SELECT d.id IN (1) FROM (SELECT '1' AS id) AS d",
+            ] {
+                assert_eq!(
+                    bridge.query(sql).unwrap_err().code,
+                    ErrorCode::UnsupportedQuery,
+                    "{dialect:?}: {sql}"
+                );
+            }
+            for sql in [
+                "WITH marker AS (SELECT 1 AS n) SELECT missing IN (1) FROM facts",
+                "WITH marker AS (SELECT 1 AS n) SELECT id IN (1) FROM facts a JOIN facts b ON a.id=b.id",
+            ] {
+                assert_eq!(
+                    bridge.query(sql).unwrap_err().code,
+                    ErrorCode::InvalidArgument,
+                    "{dialect:?}: {sql}"
+                );
+            }
+            assert_eq!(bridge.query("WITH RECURSIVE q(n) AS (SELECT 1 UNION ALL SELECT n+1 FROM q WHERE n<3) SELECT n FROM q").unwrap_err().code, ErrorCode::UnsupportedQuery);
+            if dialect != SqlDialect::NativeV1 {
+                let rows = bridge
+                    .query(
+                        "WITH marker AS (SELECT 1 AS n) SELECT id IN ('1') FROM facts WHERE id=1",
+                    )
+                    .unwrap();
+                assert_eq!(rows.rows()[0][0], SqlValue::I64(Signed64(1)));
+            }
+        }
+    }
+
+    #[test]
     fn legacy_integer_cast_literal_in_uses_numeric_affinity() {
         use mdd_query::ir::Signed64;
         let (provider, native) = bridge();

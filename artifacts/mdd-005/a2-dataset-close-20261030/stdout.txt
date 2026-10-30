@@ -1,0 +1,1 @@
+{"status": "closed_and_exclusive_server_idle", "fixture": "structured-035.dex", "scope": "synthetic A1; not snapshot, process tree or A2 qualification"}
