@@ -1,0 +1,41 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "mdd-facts",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "1",
+    "encoded_parameter_list_retains_unknown_positions_and_physical_bytes",
+    "--",
+    "--nocapture"
+  ],
+  "started_utc": "2026-10-30T14:02:11.943976+00:00",
+  "source_before": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-facts/Cargo.toml": "92fab489949ecf2c0429ceec0ba5f5ff1e054ff90879f4e2d31cf597131bb29c",
+    "crates/mdd-facts/src/annotations.rs": "4ef77ff598119583aa17db4a9f391c3990a9d3dd6b15addf3bdfce87484f78b1",
+    "crates/mdd-facts/src/definitions.rs": "7a2ac801d7ebc89647888f501493ec9629d95b176125a09abddb239e489ac40a",
+    "crates/mdd-dex/src/annotations.rs": "59599c8eca5d765dcde214657cdb36359e1b55a2f60e48936fe45e036a4b470d",
+    "tests/fixtures/annotations/generated/bad-parameter-arity.dex": "dac87eb4842227104f1a7b3f215eb1fdc452422273c54020de89e88939ceea4f",
+    "tests/fixtures/definitions/generated/definitions-035.dex": "4e8f9e8deedf44c8793e10d99f2614e0bed705dcac617c0d74137e7b2bd459cc"
+  },
+  "scope": "one synthetic test; raw LE comparison; only listed sources fixed; no full qualification",
+  "exit_code": 0,
+  "source_after": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-facts/Cargo.toml": "92fab489949ecf2c0429ceec0ba5f5ff1e054ff90879f4e2d31cf597131bb29c",
+    "crates/mdd-facts/src/annotations.rs": "4ef77ff598119583aa17db4a9f391c3990a9d3dd6b15addf3bdfce87484f78b1",
+    "crates/mdd-facts/src/definitions.rs": "7a2ac801d7ebc89647888f501493ec9629d95b176125a09abddb239e489ac40a",
+    "crates/mdd-dex/src/annotations.rs": "59599c8eca5d765dcde214657cdb36359e1b55a2f60e48936fe45e036a4b470d",
+    "tests/fixtures/annotations/generated/bad-parameter-arity.dex": "dac87eb4842227104f1a7b3f215eb1fdc452422273c54020de89e88939ceea4f",
+    "tests/fixtures/definitions/generated/definitions-035.dex": "4e8f9e8deedf44c8793e10d99f2614e0bed705dcac617c0d74137e7b2bd459cc"
+  },
+  "finished_utc": "2026-10-30T14:02:24.320418+00:00"
+}

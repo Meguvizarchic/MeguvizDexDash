@@ -115,7 +115,13 @@ def require_object_keys(value, required, label):
         raise ValueError('invalid ' + label + ' fields')
 
 
-def consume(output, expected_inputs, expected_request, required_layers):
+def consume(output, expected_inputs, expected_request, required_layers, *, expected_identity):
+    """Check materialization against caller-trusted input and result identities.
+
+    The caller must obtain expected_identity independently of the result under
+    test. This comparison does not authenticate that identity, the selected
+    scope, upstream pages, or the reported completeness of the input and facts.
+    """
     if output["schema_version"] != "mdd.benchmark-output.v1":
         raise ValueError("driver output schema mismatch")
     if (canonical(output["input_manifest"]) != canonical(expected_inputs)
@@ -171,13 +177,26 @@ def consume(output, expected_inputs, expected_request, required_layers):
     response = result["response"]
     if not isinstance(response.get("schema_id"), str) or not response["schema_id"]:
         raise ValueError("missing response schema")
+    identity_fields = ('request_id', 'operation', 'profile', 'sql_dialect', 'session_id',
+                       'snapshot_id', 'catalog_epoch', 'query_id', 'scope_id', 'schema_id')
+    require_object_keys(expected_identity, identity_fields, 'expected result identity')
+    actual_identity = {name: result[name] for name in identity_fields[:-2]}
+    actual_identity['scope_id'] = coverage['scope_id']
+    actual_identity['schema_id'] = response['schema_id']
+    for name in identity_fields:
+        actual, expected = actual_identity[name], expected_identity[name]
+        if type(actual) is not type(expected) or actual != expected:
+            raise ValueError('result identity differs: ' + name)
     if response["truncated"] is not False or response["more_available"] is not False or response["next_cursor"] is not None:
         raise ValueError("output is truncated or pages remain")
     if response["total_rows_exact"] is not True:
         raise ValueError("inexact row count")
     if decimal(response["emitted_rows"]) != decimal(response["total_rows"]):
         raise ValueError("emitted/total row mismatch")
-    decimal(result["catalog_epoch"])
+    # Non-query operations can precede catalog creation; queries must bind
+    # an actual catalog generation. Never accept a noncanonical non-null value.
+    if result['operation'] == 'query' or result['catalog_epoch'] is not None:
+        decimal(result['catalog_epoch'])
     mode = output["comparison_mode"]
     if mode not in ("ordered", "bag", "structured"):
         raise ValueError("unqualified comparison mode")
@@ -353,7 +372,16 @@ class ContractTests(unittest.TestCase):
                 "final_dto": {"rows": []}}
 
     def consume(self, item):
-        return consume(item, ["fixture-occurrence"], "fixture-request", ["structure"])
+        return consume(item, ["fixture-occurrence"], "fixture-request", ["structure"],
+                       expected_identity=self.expected_identity())
+
+    def expected_identity(self):
+        # Frozen fixture expectations, not copied from the candidate response.
+        return {'request_id': 'example-request-1', 'operation': 'query',
+                'profile': 'mdd-native-v1', 'sql_dialect': None,
+                'session_id': 'example-session', 'snapshot_id': 'example-snapshot',
+                'catalog_epoch': '0', 'query_id': 'example-query',
+                'scope_id': 'example-complete-scope', 'schema_id': 'example-rows-v1'}
 
     def test_empty_complete_result(self):
         self.assertTrue(self.consume(self.fixture())["complete_output"])
@@ -384,7 +412,59 @@ class ContractTests(unittest.TestCase):
     def test_input_binding_distinguishes_bool_and_integer(self):
         item = self.fixture(); item['input_manifest'] = [{'ordinal': True}]
         with self.assertRaises(ValueError):
-            consume(item, [{'ordinal': 1}], 'fixture-request', ['structure'])
+            consume(item, [{'ordinal': 1}], 'fixture-request', ['structure'],
+                    expected_identity=self.expected_identity())
+
+    def test_result_identity_must_match_independent_expectations(self):
+        for field in self.expected_identity():
+            item = self.fixture()
+            target = item['result']
+            if field == 'scope_id': target = target['coverage']
+            if field == 'schema_id': target = target['response']
+            target[field] = 'different'
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                self.consume(item)
+        item = self.fixture()
+        expected = self.expected_identity()
+        del expected['scope_id']
+        with self.assertRaisesRegex(ValueError, 'expected result identity'):
+            consume(item, ['fixture-occurrence'], 'fixture-request', ['structure'],
+                    expected_identity=expected)
+        expected = self.expected_identity()
+        expected['unexpected'] = 'x'
+        with self.assertRaisesRegex(ValueError, 'expected result identity'):
+            consume(item, ['fixture-occurrence'], 'fixture-request', ['structure'],
+                    expected_identity=expected)
+        for field in ('session_id', 'sql_dialect'):
+            item = self.fixture()
+            item['result'][field] = None
+            expected = self.expected_identity()
+            expected[field] = None
+            self.assertTrue(consume(item, ['fixture-occurrence'], 'fixture-request', ['structure'],
+                                    expected_identity=expected)['complete_output'])
+
+    def test_nullable_epoch_only_for_nonquery(self):
+        item = self.fixture()
+        item['result']['operation'] = 'inspect'
+        item['result']['catalog_epoch'] = None
+        item['result']['query_id'] = None
+        expected = self.expected_identity()
+        expected.update(operation='inspect', catalog_epoch=None, query_id=None)
+        self.assertTrue(consume(item, ['fixture-occurrence'], 'fixture-request', ['structure'],
+                                expected_identity=expected)['complete_output'])
+        for value in ('01', '-1', '18446744073709551616', False):
+            item['result']['catalog_epoch'] = value
+            expected['catalog_epoch'] = value
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                consume(item, ['fixture-occurrence'], 'fixture-request', ['structure'],
+                        expected_identity=expected)
+        item = self.fixture()
+        item['result']['catalog_epoch'] = None
+        expected = self.expected_identity()
+        expected['catalog_epoch'] = None
+        with self.assertRaises(ValueError):
+            consume(item, ['fixture-occurrence'], 'fixture-request', ['structure'],
+                    expected_identity=expected)
 
     def test_coverage_issues_require_typed_reason_and_layer(self):
         for issue in ({'blocking': False}, {'blocking': False, 'layer': '', 'reason': 'x'},

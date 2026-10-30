@@ -5,7 +5,8 @@ use crate::{
 };
 use mdd_dex::annotations::{
     AnnotationItem, AnnotationLimits, AnnotationOwnerBinding, AnnotationOwnerKind, AnnotationSet,
-    AnnotationSetRefList, DexAnnotations, EncodedKind, EncodedValue, ExactFloat, read_annotations,
+    AnnotationSetRefList, DexAnnotations, EncodedKind, EncodedValue, ExactFloat,
+    ParameterListBinding, read_annotations,
 };
 use mdd_dex::{
     definitions::{MethodDefinition, MethodReference},
@@ -149,6 +150,18 @@ pub struct MethodParameterFacts<'a> {
     pub definition: Option<&'a MethodDefinition>,
     pub prototype: &'a DexPrototype,
     pub encoded_list: Option<&'a AnnotationSetRefList>,
+}
+
+/// An encoded method-to-list binding and physical bytes from one DEX occurrence.
+/// Slots are physical list positions, not necessarily prototype positions;
+/// consult `binding.prototype_position_coverage` before interpreting them.
+pub struct EncodedParameterListFact<'a> {
+    pub source: &'a MetadataSource,
+    pub method_reference: &'a MethodReference,
+    pub definition: Option<&'a MethodDefinition>,
+    pub binding: &'a ParameterListBinding,
+    pub list: &'a AnnotationSetRefList,
+    pub raw_encoded: &'a [u8],
 }
 impl<'a> MethodParameterFacts<'a> {
     pub fn source(&self) -> &'a MetadataSource {
@@ -905,6 +918,147 @@ impl AnnotationFacts {
                 })
             }))
     }
+    /// Resolve the physical encoded parameter-annotation list for one method.
+    /// `None` means no such binding was encoded in this complete DEX occurrence;
+    /// it does not prove absence from another source or at runtime. A present list
+    /// can have unknown prototype-position coverage and is never padded.
+    /// Limits bound logical scan entries and encoded slots, not CPU or RSS.
+    pub fn method_encoded_parameter_list(
+        &self,
+        method: &EntityRef,
+        limits: ParameterViewLimits,
+    ) -> MddResult<Option<EncodedParameterListFact<'_>>> {
+        let source = self.source();
+        if method.snapshot_id != source.snapshot_id
+            || method.dex_occurrence_id != source.dex_occurrence_id
+            || !matches!(
+                method.kind,
+                EntityKind::MethodReference | EntityKind::MethodDefinition
+            )
+        {
+            return Err(MddError::new(
+                ErrorCode::InvalidArgument,
+                "facts.parameters",
+                "method is foreign or has the wrong identity kind",
+            ));
+        }
+        if self.annotation_coverage != Completeness::Complete
+            || self.definitions.definition_coverage() != Completeness::Complete
+            || self.definitions.metadata().metadata_coverage() != Completeness::Complete
+        {
+            return Err(MddError::new(
+                ErrorCode::IncompleteFacts,
+                "facts.parameters",
+                "complete metadata, definitions and annotations are required",
+            ));
+        }
+        let defs = self.definitions.definitions();
+        let quota = || {
+            MddError::new(
+                ErrorCode::QuotaExceeded,
+                "facts.parameters",
+                "encoded parameter list budget exceeded",
+            )
+        };
+        let broken = || {
+            MddError::new(
+                ErrorCode::InternalFault,
+                "facts.parameters",
+                "validated parameter list is inconsistent",
+            )
+        };
+        let scans = [
+            defs.method_definitions.len(),
+            self.data.parameter_lists.len(),
+            self.data.ref_lists.len(),
+        ]
+        .into_iter()
+        .try_fold(0u64, |total, len| {
+            u64::try_from(len).ok().and_then(|n| total.checked_add(n))
+        })
+        .ok_or_else(quota)?;
+        if scans > limits.max_scan_entries {
+            return Err(quota());
+        }
+        let reference = defs
+            .method_references
+            .get(method.local_index as usize)
+            .filter(|r| r.method_idx == method.local_index)
+            .ok_or_else(|| {
+                MddError::new(
+                    ErrorCode::InvalidArgument,
+                    "facts.parameters",
+                    "method reference does not exist in this occurrence",
+                )
+            })?;
+        let mut definitions = defs
+            .method_definitions
+            .iter()
+            .filter(|d| d.method_idx == method.local_index);
+        let definition = definitions.next();
+        if definitions.next().is_some() {
+            return Err(broken());
+        }
+        if method.kind == EntityKind::MethodDefinition && definition.is_none() {
+            return Err(MddError::new(
+                ErrorCode::InvalidArgument,
+                "facts.parameters",
+                "method definition does not exist in this occurrence",
+            ));
+        }
+        let mut bindings = self
+            .data
+            .parameter_lists
+            .iter()
+            .filter(|b| b.method_idx == method.local_index);
+        let Some(binding) = bindings.next() else {
+            return Ok(None);
+        };
+        if bindings.next().is_some() {
+            return Err(broken());
+        }
+        if !binding.encoded_slots_complete {
+            return Err(MddError::new(
+                ErrorCode::IncompleteFacts,
+                "facts.parameters",
+                "encoded parameter slots are incomplete",
+            ));
+        }
+        let mut lists = self
+            .data
+            .ref_lists
+            .iter()
+            .filter(|list| list.byte_offset == binding.ref_list_byte_offset);
+        let list = lists.next().ok_or_else(broken)?;
+        if lists.next().is_some()
+            || u64::try_from(list.annotation_set_offsets.len()).map_err(|_| quota())?
+                != u64::from(binding.encoded_slot_count)
+            || list.encoded_range.byte_offset.0 != u64::from(list.byte_offset)
+        {
+            return Err(broken());
+        }
+        if u64::from(binding.encoded_slot_count) > limits.max_parameters {
+            return Err(quota());
+        }
+        let start = usize::try_from(list.encoded_range.byte_offset.0).map_err(|_| broken())?;
+        let end = list
+            .encoded_range
+            .byte_offset
+            .0
+            .checked_add(list.encoded_range.byte_length.0)
+            .and_then(|v| usize::try_from(v).ok())
+            .ok_or_else(broken)?;
+        let raw_encoded = self.bytes().get(start..end).ok_or_else(broken)?;
+        Ok(Some(EncodedParameterListFact {
+            source,
+            method_reference: reference,
+            definition,
+            binding,
+            list,
+            raw_encoded,
+        }))
+    }
+
     /// Bind one method to proven prototype positions and physical annotation slots.
     /// A short or otherwise unmapped list is not padded and is reported incomplete.
     pub fn method_parameter_facts(
@@ -1953,6 +2107,128 @@ mod tests {
                 .unwrap()
                 .code,
             ErrorCode::InvalidArgument
+        );
+    }
+    #[test]
+    fn encoded_parameter_list_retains_unknown_positions_and_physical_bytes() {
+        let short = build("tests/fixtures/annotations/generated/bad-parameter-arity.dex");
+        let method = short
+            .definitions()
+            .entity(EntityKind::MethodReference, 0)
+            .unwrap();
+        let view = short
+            .method_encoded_parameter_list(&method, ParameterViewLimits::default())
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            view.source.dex_occurrence_id,
+            short.source().dex_occurrence_id
+        );
+        assert_eq!(
+            view.binding.prototype_position_coverage,
+            Completeness::Unknown
+        );
+        assert_eq!(view.binding.prototype_parameter_count, 2);
+        assert_eq!(view.binding.encoded_slot_count, 1);
+        assert_eq!(view.list.annotation_set_offsets.len(), 1);
+        let raw = view.raw_encoded;
+        assert_eq!(raw.len(), 8);
+        assert_eq!(u32::from_le_bytes(raw[0..4].try_into().unwrap()), 1);
+        let encoded_set = u32::from_le_bytes(raw[4..8].try_into().unwrap());
+        assert_eq!(
+            view.list.annotation_set_offsets[0],
+            (encoded_set != 0).then_some(encoded_set)
+        );
+        assert_eq!(
+            short
+                .method_parameter_facts(&method, ParameterViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::IncompleteFacts
+        );
+        for limits in [
+            ParameterViewLimits {
+                max_scan_entries: 0,
+                ..ParameterViewLimits::default()
+            },
+            ParameterViewLimits {
+                max_parameters: 0,
+                ..ParameterViewLimits::default()
+            },
+        ] {
+            assert_eq!(
+                short
+                    .method_encoded_parameter_list(&method, limits)
+                    .err()
+                    .unwrap()
+                    .code,
+                ErrorCode::QuotaExceeded
+            );
+        }
+        let mut partial = short.clone();
+        partial.annotation_coverage = Completeness::Unknown;
+        assert_eq!(
+            partial
+                .method_encoded_parameter_list(&method, ParameterViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::IncompleteFacts
+        );
+        let mut incomplete_slots = short.clone();
+        incomplete_slots.data.parameter_lists[0].encoded_slots_complete = false;
+        assert_eq!(
+            incomplete_slots
+                .method_encoded_parameter_list(&method, ParameterViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::IncompleteFacts
+        );
+        let mut duplicate = short.clone();
+        duplicate
+            .data
+            .parameter_lists
+            .push(duplicate.data.parameter_lists[0].clone());
+        assert_eq!(
+            duplicate
+                .method_encoded_parameter_list(&method, ParameterViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InternalFault
+        );
+        let other = build("tests/fixtures/annotations/generated/bad-parameter-arity.dex");
+        let foreign = other
+            .definitions()
+            .entity(EntityKind::MethodReference, 0)
+            .unwrap();
+        assert_eq!(
+            short
+                .method_encoded_parameter_list(&foreign, ParameterViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InvalidArgument
+        );
+        let plain = build("tests/fixtures/definitions/generated/definitions-035.dex");
+        let external = plain
+            .definitions()
+            .definitions()
+            .method_references
+            .iter()
+            .find(|m| m.method_name == "externalCall")
+            .unwrap();
+        let unbound = plain
+            .definitions()
+            .entity(EntityKind::MethodReference, external.method_idx)
+            .unwrap();
+        assert!(
+            plain
+                .method_encoded_parameter_list(&unbound, ParameterViewLimits::default())
+                .unwrap()
+                .is_none()
         );
     }
     #[test]

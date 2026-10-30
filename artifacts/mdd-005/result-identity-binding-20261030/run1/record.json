@@ -1,0 +1,45 @@
+{
+  "started_utc": "2026-10-30T14:01:18.034278+00:00",
+  "finished_utc": "2026-10-30T14:01:18.489905+00:00",
+  "source_before": {
+    "benchmarks/run-existing-baselines.py": "678e3c7e77c2fb66cea8c6d7513bbe7562a53c01734a5ea08fbfc2adef772a3f",
+    "contracts/examples/result_complete.example.json": "46fe45fc09a8858435cbe8514fd3b9204e24a5f7616c51616998a6b2d48c2344",
+    "contracts/result.schema.json": "ad631566261960e848131ae22247a83da7c23b09084abb2f575fa606c2c54113"
+  },
+  "source_after": {
+    "benchmarks/run-existing-baselines.py": "678e3c7e77c2fb66cea8c6d7513bbe7562a53c01734a5ea08fbfc2adef772a3f",
+    "contracts/examples/result_complete.example.json": "46fe45fc09a8858435cbe8514fd3b9204e24a5f7616c51616998a6b2d48c2344",
+    "contracts/result.schema.json": "ad631566261960e848131ae22247a83da7c23b09084abb2f575fa606c2c54113"
+  },
+  "runs": [
+    {
+      "command": [
+        "python",
+        "-B",
+        "-O",
+        "-c",
+        "import importlib.util,unittest; s=importlib.util.spec_from_file_location('baseline', 'benchmarks/run-existing-baselines.py'); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); r=unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite([m.ContractTests('test_result_identity_must_match_independent_expectations')])); raise SystemExit(not r.wasSuccessful())"
+      ],
+      "started_utc": "2026-10-30T14:01:18.034292+00:00",
+      "finished_utc": "2026-10-30T14:01:18.309985+00:00",
+      "exit_code": 0,
+      "stdout": "identity.stdout",
+      "stderr": "identity.stderr"
+    },
+    {
+      "command": [
+        "python",
+        "-B",
+        "-O",
+        "benchmarks/run-existing-baselines.py",
+        "--self-test"
+      ],
+      "started_utc": "2026-10-30T14:01:18.310001+00:00",
+      "finished_utc": "2026-10-30T14:01:18.489894+00:00",
+      "exit_code": 0,
+      "stdout": "self-test.stdout",
+      "stderr": "self-test.stderr"
+    }
+  ],
+  "scope": "synthetic identity binding and local consumer self-tests; caller must independently supply trusted expectations; not full audit or benchmark qualification"
+}

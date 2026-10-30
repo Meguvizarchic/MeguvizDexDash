@@ -4588,6 +4588,56 @@
       "sha256": "8a60a382bdb3e1611b9305a0990a77d7af9861209ba4c7a64a3c2973c34235f6"
     },
     {
+      "path": "artifacts/mdd-005/result-identity-binding-20261030/run1/identity.stderr",
+      "bytes": 249,
+      "sha256": "5c6993567ad957d9e194c3a59b6894bfc55ae617689e1215cc456c869b5f5cd0"
+    },
+    {
+      "path": "artifacts/mdd-005/result-identity-binding-20261030/run1/identity.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifacts/mdd-005/result-identity-binding-20261030/run1/record.json",
+      "bytes": 2076,
+      "sha256": "8910fe51dfcee00e5ba46a267b41726f57d21f1e16485cc7641ae95d4a685f4a"
+    },
+    {
+      "path": "artifacts/mdd-005/result-identity-binding-20261030/run1/self-test.stderr",
+      "bytes": 1914,
+      "sha256": "db273f611147af6164ba97a5bea62629b46af3c4bb2ffa76bff10510d246ccec"
+    },
+    {
+      "path": "artifacts/mdd-005/result-identity-binding-20261030/run1/self-test.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifacts/mdd-005/result-identity-binding-20261030/run2/record.json",
+      "bytes": 2364,
+      "sha256": "97b784112d2d3570296c2ac13b4fb88a4e83ac16a87374ec8e1f57848b9a8328"
+    },
+    {
+      "path": "artifacts/mdd-005/result-identity-binding-20261030/run2/self-test.stderr",
+      "bytes": 2023,
+      "sha256": "aa474a1a68b2e870b509456f9742d7476fcb64f3576d0bf7fe0327df2b6ea359"
+    },
+    {
+      "path": "artifacts/mdd-005/result-identity-binding-20261030/run2/self-test.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifacts/mdd-005/result-identity-binding-20261030/run2/targeted.stderr",
+      "bytes": 359,
+      "sha256": "09020f70c377b2d09482c071f5e8c21bc9d85f03987b117732a1c59ad73d9459"
+    },
+    {
+      "path": "artifacts/mdd-005/result-identity-binding-20261030/run2/targeted.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
       "path": "artifacts/mdd-005/row-shape-20261030/green/output.txt",
       "bytes": 1535,
       "sha256": "f41922a1a29c2f5b4770a5ad55619118585e2b53d5c4c1d074f931b39679df73"
@@ -13901,6 +13951,26 @@
       "path": "artifacts/mdd-026/dynamic-source-audit/20261029T012418079194Z/result.json",
       "bytes": 6973,
       "sha256": "45cce2fde18c9af7aa535a31ceb688ec83b2dab2ca04f89cad1dd29e7a50294d"
+    },
+    {
+      "path": "artifacts/mdd-026/encoded-parameter-list-20261030/run1/record.json",
+      "bytes": 2448,
+      "sha256": "9191c135a1635700ae1baaae93f285bc499a60b6817fee505d0e9c00d6ca09cb"
+    },
+    {
+      "path": "artifacts/mdd-026/encoded-parameter-list-20261030/run1/redaction.json",
+      "bytes": 175,
+      "sha256": "70e1b0a23fb0c27f50d6d56c6381e7d42e5167dc72d53a8269f7bb56b528fb83"
+    },
+    {
+      "path": "artifacts/mdd-026/encoded-parameter-list-20261030/run1/stderr.txt",
+      "bytes": 430,
+      "sha256": "802663015a59e89c1579d6d3fcd75a33f97a0c3e35bf95f6e1ccdfcd46e1aaac"
+    },
+    {
+      "path": "artifacts/mdd-026/encoded-parameter-list-20261030/run1/stdout.txt",
+      "bytes": 439,
+      "sha256": "32ad2521b440869a0ffd4477e98e54c16d3d6fa5f0b5ebafd983323a3c049d73"
     },
     {
       "path": "artifacts/mdd-026/facts-differential.json",

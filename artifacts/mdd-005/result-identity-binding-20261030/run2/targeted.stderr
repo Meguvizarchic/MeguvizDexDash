@@ -1,0 +1,7 @@
+test_nullable_epoch_only_for_nonquery (baseline.ContractTests.test_nullable_epoch_only_for_nonquery) ... ok
+test_result_identity_must_match_independent_expectations (baseline.ContractTests.test_result_identity_must_match_independent_expectations) ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.003s
+
+OK

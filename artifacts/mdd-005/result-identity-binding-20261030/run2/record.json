@@ -1,0 +1,47 @@
+{
+  "started_utc": "2026-10-30T14:03:31.282415+00:00",
+  "finished_utc": "2026-10-30T14:03:31.978972+00:00",
+  "source_before": {
+    "benchmarks/run-existing-baselines.py": "11491567d1235b86d8cedf3232770e65b4d203039f5bd32c0db18c54d74fe0f6",
+    "contracts/examples/result_complete.example.json": "46fe45fc09a8858435cbe8514fd3b9204e24a5f7616c51616998a6b2d48c2344",
+    "contracts/result.schema.json": "ad631566261960e848131ae22247a83da7c23b09084abb2f575fa606c2c54113",
+    "docs/02_ARCHITECTURE_AND_CONTRACTS.md": "8ac8f76e252f2710a495a47c2f6d0f3b86b49234ae1f7f548415d5fe92b04505"
+  },
+  "source_after": {
+    "benchmarks/run-existing-baselines.py": "11491567d1235b86d8cedf3232770e65b4d203039f5bd32c0db18c54d74fe0f6",
+    "contracts/examples/result_complete.example.json": "46fe45fc09a8858435cbe8514fd3b9204e24a5f7616c51616998a6b2d48c2344",
+    "contracts/result.schema.json": "ad631566261960e848131ae22247a83da7c23b09084abb2f575fa606c2c54113",
+    "docs/02_ARCHITECTURE_AND_CONTRACTS.md": "8ac8f76e252f2710a495a47c2f6d0f3b86b49234ae1f7f548415d5fe92b04505"
+  },
+  "runs": [
+    {
+      "command": [
+        "python",
+        "-B",
+        "-O",
+        "-c",
+        "import importlib.util,unittest; s=importlib.util.spec_from_file_location('baseline', 'benchmarks/run-existing-baselines.py'); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); r=unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite([m.ContractTests('test_nullable_epoch_only_for_nonquery'),m.ContractTests('test_result_identity_must_match_independent_expectations')])); raise SystemExit(not r.wasSuccessful())"
+      ],
+      "started_utc": "2026-10-30T14:03:31.282432+00:00",
+      "finished_utc": "2026-10-30T14:03:31.631894+00:00",
+      "exit_code": 0,
+      "stdout": "targeted.stdout",
+      "stderr": "targeted.stderr"
+    },
+    {
+      "command": [
+        "python",
+        "-B",
+        "-O",
+        "benchmarks/run-existing-baselines.py",
+        "--self-test"
+      ],
+      "started_utc": "2026-10-30T14:03:31.631909+00:00",
+      "finished_utc": "2026-10-30T14:03:31.978958+00:00",
+      "exit_code": 0,
+      "stdout": "self-test.stdout",
+      "stderr": "self-test.stderr"
+    }
+  ],
+  "scope": "synthetic identity and null epoch tests plus local consumer self-tests; caller must independently supply expectations; no full audit or benchmark qualification"
+}
