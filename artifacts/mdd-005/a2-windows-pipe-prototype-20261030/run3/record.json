@@ -1,0 +1,20 @@
+{
+  "command": [
+    "artifacts/local/baseline-venv/Scripts/python.exe",
+    "-B",
+    "-O",
+    "artifacts/mdd-005/a2-windows-pipe-prototype-20261030/probe3.py"
+  ],
+  "started_utc": "2026-10-30T05:50:02.846646+00:00",
+  "finished_utc": "2026-10-30T05:50:03.127612+00:00",
+  "elapsed_seconds": 0.28099999999994907,
+  "exit_code": 0,
+  "timed_out": false,
+  "source_sha256": {
+    "artifacts/mdd-005/a2-windows-pipe-prototype-20261030/probe3.py": "71c0c7b1c98718063a45cf9fdfb62cb59618743d262b1d833c060013ba34dbb1"
+  },
+  "source_unchanged": true,
+  "stdout_sha256": "30b36b36f2643d97a582aba35d77b95871a17c5ddcee532e51bf0cb96f45d3d3",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "scope": "self-owned hidden short process; no actual MCP, snapshot, A2 or performance qualification"
+}

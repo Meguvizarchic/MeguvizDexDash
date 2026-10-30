@@ -1,0 +1,21 @@
+{
+  "command": [
+    "artifacts/local/baseline-venv/Scripts/python.exe",
+    "-B",
+    "-O",
+    "artifacts/mdd-005/a2-windows-pipe-owner-20261030/probe.py"
+  ],
+  "started_utc": "2026-10-30T06:03:16.172568+00:00",
+  "finished_utc": "2026-10-30T06:03:19.597679+00:00",
+  "elapsed_seconds": 3.4209999999998217,
+  "exit_code": 1,
+  "timed_out": false,
+  "source_sha256": {
+    "benchmarks/a2_windows_pipe_owner.py": "0e54501a3f23c7244aa6b208829ef7b05ced8af056587dc3c75c8957b87ba0e0",
+    "artifacts/mdd-005/a2-windows-pipe-owner-20261030/probe.py": "dd540e43fb1d0071fbe1306c4e0209e5bfe73e04825a7089453d42a92f1dac2c"
+  },
+  "source_unchanged": true,
+  "stdout_sha256": "63ccd6e5b23c4d1d587d0c1df9bca2731e9ed3cc9ec79fc44e607a2246d89049",
+  "stderr_sha256": "76035571452fca70c7512393bdb640c94d44200642f483641f8c1f5bbc1aa962",
+  "scope": "self-owned hidden short processes only; no MCP, snapshot, A2 or performance qualification"
+}

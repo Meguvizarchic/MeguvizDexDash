@@ -35,21 +35,21 @@ fn integer_value(value: i128, unsigned: bool) -> MddResult<SqlValue> {
         Err(invalid("INTEGER_OVERFLOW"))
     }
 }
-fn scalar_text(value: &SqlValue) -> MddResult<SqlText> {
+fn scalar_text(value: &SqlValue, control: &SqlControl) -> MddResult<SqlText> {
     Ok(match value {
         SqlValue::Text(value) => value.clone(),
         SqlValue::I64(v) => SqlText::from_utf8(&v.0.to_string()),
         SqlValue::U64(v) => SqlText::from_utf8(&v.0.to_string()),
         SqlValue::Bool(v) => SqlText::from_utf8(if *v { "1" } else { "0" }),
         SqlValue::F64(bits) => SqlText::from_utf8(&f64::from_bits(bits.0).to_string()),
-        SqlValue::DexMutf8 { bytes, .. } => decoded_text(bytes, SqlDialect::DexSql010)?,
+        SqlValue::DexMutf8 { bytes, .. } => decoded_text(bytes, SqlDialect::DexSql010, control)?,
         _ => return Err(invalid("TEXT_CONVERSION_TYPE")),
     })
 }
-fn scalar_text_cow(value: &SqlValue) -> MddResult<Cow<'_, SqlText>> {
+fn scalar_text_cow<'a>(value: &'a SqlValue, control: &SqlControl) -> MddResult<Cow<'a, SqlText>> {
     match value {
         SqlValue::Text(text) => Ok(Cow::Borrowed(text)),
-        value => Ok(Cow::Owned(scalar_text(value)?)),
+        value => Ok(Cow::Owned(scalar_text(value, control)?)),
     }
 }
 fn encoded_text(text: &SqlText, dialect: SqlDialect, control: &SqlControl) -> MddResult<Vec<u8>> {
@@ -101,10 +101,12 @@ fn encoded_text(text: &SqlText, dialect: SqlDialect, control: &SqlControl) -> Md
     }
     Ok(out)
 }
-fn decoded_text(bytes: &[u8], dialect: SqlDialect) -> MddResult<SqlText> {
+fn decoded_text(bytes: &[u8], dialect: SqlDialect, control: &SqlControl) -> MddResult<SqlText> {
+    control.checkpoint(1, false)?;
     let mut units = Vec::new();
     let mut at = 0;
     while at < bytes.len() {
+        control.checkpoint(1, false)?;
         let first = bytes[at];
         let (count, mut value, min) = match first {
             0..=0x7f => (1, u32::from(first), 0),
@@ -650,7 +652,7 @@ fn cast(
     }
     Ok(match target {
         "text" => SqlValue::Text(if let SqlValue::Bytes(bytes) = value {
-            decoded_text(&bytes, dialect)?
+            decoded_text(&bytes, dialect, control)?
         } else if let SqlValue::F64(bits) = value {
             let number = f64::from_bits(bits.0);
             let text = if dialect == SqlDialect::NativeV1 {
@@ -660,12 +662,16 @@ fn cast(
             };
             SqlText::from_utf8(&text)
         } else {
-            scalar_text(&value)?
+            scalar_text(&value, control)?
         }),
         "bytes" => match value {
             SqlValue::Bytes(_) => value,
             SqlValue::DexMutf8 { bytes, .. } => SqlValue::Bytes(bytes),
-            value => SqlValue::Bytes(encoded_text(&scalar_text(&value)?, dialect, control)?),
+            value => SqlValue::Bytes(encoded_text(
+                &scalar_text(&value, control)?,
+                dialect,
+                control,
+            )?),
         },
         "i64" => {
             let value = if let SqlValue::Text(text) = &value {
@@ -955,7 +961,7 @@ fn legacy_concat_units(
         }
         _ => {
             // Scalar numeric formatting has bounded size; do not clone a text operand.
-            let text = scalar_text(value)?;
+            let text = scalar_text(value, control)?;
             for unit in text.utf16 {
                 control.checkpoint(1, false)?;
                 emit(unit)?;
@@ -1034,7 +1040,11 @@ fn scalar(
         let bytes: Cow<'_, [u8]> = match &args[0] {
             SqlValue::Null => Cow::Borrowed(&[]),
             SqlValue::Bytes(bytes) | SqlValue::DexMutf8 { bytes, .. } => Cow::Borrowed(bytes),
-            value => Cow::Owned(encoded_text(&scalar_text(value)?, dialect, control)?),
+            value => Cow::Owned(encoded_text(
+                &scalar_text(value, control)?,
+                dialect,
+                control,
+            )?),
         };
         if bytes.len() as u64 > control.inner.limits.max_cell_bytes / 4 {
             return Err(quota("HEX_RESULT_CELL_BYTES"));
@@ -1105,8 +1115,8 @@ fn scalar(
                 return Ok(SqlValue::Bytes(bytes[begin..end].to_vec()));
             }
             let text = match &args[0] {
-                SqlValue::Bytes(bytes) => decoded_text(bytes, dialect)?,
-                value => scalar_text(value)?,
+                SqlValue::Bytes(bytes) => decoded_text(bytes, dialect, control)?,
+                value => scalar_text(value, control)?,
             };
             // The offset table holds at most one index per UTF-16 unit plus
             // the final boundary. Charge its logical capacity before it is
@@ -1161,7 +1171,7 @@ fn scalar(
             }))
         }
         "mdd_length" => {
-            let text = scalar_text(&args[0])?;
+            let text = scalar_text(&args[0], control)?;
             let units = &text.utf16;
             let mut length = units.len();
             if dialect != SqlDialect::NativeV1 {
@@ -1180,7 +1190,7 @@ fn scalar(
         }
         "mdd_cast" => cast(
             args[0].clone(),
-            &scalar_text(&args[1])?.strict_utf8()?,
+            &scalar_text(&args[1], control)?.strict_utf8()?,
             dialect,
             control,
         ),
@@ -1189,12 +1199,12 @@ fn scalar(
             if has_escape && args[2] == SqlValue::Null {
                 return Ok(SqlValue::Null);
             }
-            let value = scalar_text(&args[0])?;
-            let pattern = scalar_text(&args[1])?;
+            let value = scalar_text(&args[0], control)?;
+            let pattern = scalar_text(&args[1], control)?;
             let escape = if !has_escape {
                 None
             } else {
-                let escape = scalar_text(&args[2])?;
+                let escape = scalar_text(&args[2], control)?;
                 if escape.utf16.len() != 1 {
                     return Err(invalid("LIKE_ESCAPE_REQUIRES_ONE_UTF16_UNIT"));
                 }
@@ -1223,8 +1233,8 @@ fn scalar(
                 }
                 return Ok(SqlValue::Bytes(bytes));
             }
-            let left = scalar_text_cow(&args[0])?;
-            let right = scalar_text_cow(&args[1])?;
+            let left = scalar_text_cow(&args[0], control)?;
+            let right = scalar_text_cow(&args[1], control)?;
             let capacity = concat_capacity(
                 left.utf16.len(),
                 right.utf16.len(),
@@ -1248,7 +1258,7 @@ fn scalar(
             }))
         }
         "mdd_lower" | "mdd_upper" => {
-            let mut text = scalar_text(&args[0])?;
+            let mut text = scalar_text(&args[0], control)?;
             for value in &mut text.utf16 {
                 control.checkpoint(1, false)?;
                 if name == "mdd_lower" && (65..=90).contains(value) {
@@ -1508,6 +1518,79 @@ mod like_budget_tests {
     use super::*;
     use crate::control::SqlLimits;
     use mdd_types::ErrorCode;
+
+    #[test]
+    fn text_decode_obeys_step_budget_and_cancellation() {
+        for dialect in [
+            SqlDialect::NativeV1,
+            SqlDialect::DexSql010,
+            SqlDialect::DexSql011,
+        ] {
+            let limited = SqlControl::new(
+                SqlLimits {
+                    max_steps: 8,
+                    ..SqlLimits::default()
+                },
+                None,
+            );
+            let value = SqlValue::Bytes(vec![b'A'; 256]);
+            assert_eq!(
+                cast(value.clone(), "text", dialect, &limited)
+                    .unwrap_err()
+                    .code,
+                ErrorCode::QuotaExceeded
+            );
+            let cancelled = SqlControl::new(SqlLimits::default(), None);
+            cancelled.cancel().unwrap();
+            assert_eq!(
+                cast(value, "text", dialect, &cancelled).unwrap_err().code,
+                ErrorCode::Cancelled
+            );
+            let limited_mutf = SqlControl::new(
+                SqlLimits {
+                    max_steps: 8,
+                    ..SqlLimits::default()
+                },
+                None,
+            );
+            let value = SqlValue::DexMutf8 {
+                bytes: vec![b'A'; 256],
+                utf16_code_units: DecimalU64(256),
+            };
+            assert_eq!(
+                cast(value, "text", dialect, &limited_mutf)
+                    .unwrap_err()
+                    .code,
+                ErrorCode::QuotaExceeded
+            );
+            let normal = SqlControl::new(SqlLimits::default(), None);
+            assert_eq!(
+                cast(SqlValue::Bytes(vec![0xff]), "text", dialect, &normal)
+                    .unwrap_err()
+                    .message,
+                "CAST_TEXT_BAD_ENCODING"
+            );
+            let normal = SqlControl::new(SqlLimits::default(), None);
+            assert_eq!(
+                cast(SqlValue::Bytes(vec![0xe2, 0x82]), "text", dialect, &normal)
+                    .unwrap_err()
+                    .message,
+                "CAST_TEXT_TRUNCATED_ENCODING"
+            );
+            let normal = SqlControl::new(SqlLimits::default(), None);
+            let surrogate = SqlValue::DexMutf8 {
+                bytes: vec![0xed, 0xa0, 0x80],
+                utf16_code_units: DecimalU64(1),
+            };
+            assert_eq!(
+                cast(surrogate, "text", dialect, &normal).unwrap(),
+                SqlValue::Text(SqlText {
+                    utf16: vec![0xd800],
+                    original_mutf8: None,
+                })
+            );
+        }
+    }
 
     #[test]
     fn text_and_bytes_comparisons_account_for_work() {

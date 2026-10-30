@@ -1,0 +1,1 @@
+{"status": "passed", "checks": ["first_exception_identity_and_secondary_errors", "cancellation_type_and_remaining_cleanup"], "executable_sha256": "d59c9a894b319828d023f3aa83d9a3488d2339f9e27e60e49b02abb0d53cf538", "scope": "owned hidden synthetic children only; no MCP, snapshot or A2 qualification"}

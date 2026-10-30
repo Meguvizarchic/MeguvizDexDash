@@ -2,7 +2,7 @@
 use crate::{
     code::CodeFacts,
     definitions::DefinitionFacts,
-    metadata::{EntityKind, EntityRef, MetadataSource},
+    metadata::{EntityKind, EntityRef, MetadataSource, StringFact, StringPoolIdentity},
 };
 use mdd_dex::{
     DexRange,
@@ -10,7 +10,7 @@ use mdd_dex::{
         AnnotationLimits, EncodedArraySection, EncodedKind, MethodHandleSection,
         MethodHandleTarget, read_encoded_array_section, read_method_handle_section,
     },
-    definitions::MethodBody,
+    definitions::{MethodBody, MethodReference},
     instructions::{InvokeKind, ReferenceKind},
 };
 use mdd_input::{
@@ -98,6 +98,31 @@ pub struct LocalReferenceSite {
     pub invoke_kind: Option<InvokeKind>,
     pub instruction_range: DexRange,
     pub operand_range: DexRange,
+}
+/// One encoded string operand with its exact same-occurrence caller and text fact.
+/// UTF-16 units and original MUTF-8 bytes are available from `string.data.text`;
+/// the borrowed site retains its caller, PC, operand ordinal and raw ranges.
+pub struct StringReferenceSite<'a> {
+    pub source: &'a MetadataSource,
+    pub string_pool: &'a StringPoolIdentity,
+    pub site: &'a LocalReferenceSite,
+    pub caller: &'a MethodReference,
+    pub string: &'a StringFact,
+}
+
+/// Bounds total site visits across both linear scans, not bytes or process RSS.
+#[derive(Clone, Copy, Debug)]
+pub struct StringReferenceViewLimits {
+    pub max_scanned_sites: u64,
+    pub max_result_sites: u64,
+}
+impl Default for StringReferenceViewLimits {
+    fn default() -> Self {
+        Self {
+            max_scanned_sites: 32_000_000,
+            max_result_sites: 16_000_000,
+        }
+    }
 }
 #[derive(Clone, Debug, Serialize)]
 pub struct ScopedReferenceSite {
@@ -640,6 +665,72 @@ impl ReferenceFacts {
     }
     pub fn sites(&self) -> &[LocalReferenceSite] {
         &self.sites
+    }
+    /// Borrow all encoded string sites without converting their text to UTF-8.
+    /// Complete reference coverage is required before an empty result can be
+    /// interpreted as absence; each physical operand occurrence is retained.
+    pub fn string_reference_sites(
+        &self,
+        limits: StringReferenceViewLimits,
+    ) -> MddResult<impl Iterator<Item = MddResult<StringReferenceSite<'_>>> + '_> {
+        self.require_complete()?;
+        let visits = u64::try_from(self.sites.len())
+            .ok()
+            .and_then(|count| count.checked_mul(2))
+            .ok_or_else(|| quota("STRING_REFERENCE_SCAN_BUDGET"))?;
+        if visits > limits.max_scanned_sites {
+            return Err(quota("STRING_REFERENCE_SCAN_BUDGET"));
+        }
+        let matches = u64::try_from(
+            self.sites
+                .iter()
+                .filter(|site| site.target_kind == TargetKind::String)
+                .count(),
+        )
+        .map_err(|_| quota("STRING_REFERENCE_RESULT_BUDGET"))?;
+        if matches > limits.max_result_sites {
+            return Err(quota("STRING_REFERENCE_RESULT_BUDGET"));
+        }
+        Ok(self
+            .sites
+            .iter()
+            .filter(|site| site.target_kind == TargetKind::String)
+            .map(move |site| {
+                let inconsistent = || {
+                    MddError::new(
+                        ErrorCode::InternalFault,
+                        "facts.references.string_view",
+                        "validated string reference identity is inconsistent",
+                    )
+                };
+                let metadata = self.definitions.metadata();
+                let caller = self
+                    .definitions
+                    .definitions()
+                    .method_references
+                    .get(site.caller_method_idx as usize)
+                    .filter(|caller| caller.method_idx == site.caller_method_idx)
+                    .ok_or_else(inconsistent)?;
+                let string = metadata
+                    .strings()
+                    .get(site.target_local_index as usize)
+                    .filter(|string| {
+                        string.data.string_idx == site.target_local_index
+                            && string.entity.kind == EntityKind::String
+                            && string.entity.local_index == site.target_local_index
+                            && string.entity.snapshot_id == self.source().snapshot_id
+                            && string.entity.dex_occurrence_id == self.source().dex_occurrence_id
+                            && string.string_pool_id == metadata.string_pool().string_pool_id
+                    })
+                    .ok_or_else(inconsistent)?;
+                Ok(StringReferenceSite {
+                    source: self.source(),
+                    string_pool: metadata.string_pool(),
+                    site,
+                    caller,
+                    string,
+                })
+            }))
     }
     pub fn dynamic_calls(&self) -> &[DynamicCallSite] {
         &self.dynamic_calls
@@ -1728,6 +1819,118 @@ mod tests {
             .collect::<Vec<_>>();
         values.sort();
         values
+    }
+
+    #[test]
+    fn borrowed_string_sites_preserve_nonscalar_bytes_occurrences_and_coverage() {
+        let data = setup("nonscalar-string-035", 2).unwrap();
+        let mut occurrences = Vec::new();
+        for ordinal in 0..2 {
+            let facts = ReferenceFacts::build(
+                data.definitions[ordinal].clone(),
+                data.code[ordinal].clone(),
+                ReferenceLimits::default(),
+            )
+            .unwrap();
+            let sites = facts
+                .string_reference_sites(StringReferenceViewLimits::default())
+                .unwrap()
+                .collect::<MddResult<Vec<_>>>()
+                .unwrap();
+            let expected = facts
+                .sites()
+                .iter()
+                .filter(|site| site.target_kind == TargetKind::String)
+                .count();
+            assert!(expected > 0);
+            assert_eq!(sites.len(), expected);
+            for view in sites {
+                assert_eq!(
+                    view.source.snapshot_id,
+                    data.snapshot.manifest().snapshot_id
+                );
+                assert_eq!(view.site.target_kind, TargetKind::String);
+                assert_eq!(view.site.caller_method_idx, view.caller.method_idx);
+                assert_eq!(view.site.target_local_index, view.string.data.string_idx);
+                assert_eq!(view.string.data.text.utf16_units, [0xd800]);
+                assert_eq!(view.string.data.text.raw_mutf8, [0xed, 0xa0, 0x80]);
+                assert_eq!(view.string_pool.string_pool_id, view.string.string_pool_id);
+                assert_eq!(
+                    facts.raw_operand(view.site.site_ordinal).unwrap().len() as u64,
+                    view.site.operand_range.byte_length.0
+                );
+            }
+            assert_eq!(
+                facts
+                    .string_reference_sites(StringReferenceViewLimits {
+                        max_scanned_sites: 0,
+                        ..StringReferenceViewLimits::default()
+                    })
+                    .err()
+                    .unwrap()
+                    .code,
+                ErrorCode::QuotaExceeded
+            );
+            let visits = (facts.sites().len() as u64) * 2;
+            assert_eq!(
+                facts
+                    .string_reference_sites(StringReferenceViewLimits {
+                        max_scanned_sites: visits - 1,
+                        ..StringReferenceViewLimits::default()
+                    })
+                    .err()
+                    .unwrap()
+                    .code,
+                ErrorCode::QuotaExceeded
+            );
+            assert_eq!(
+                facts
+                    .string_reference_sites(StringReferenceViewLimits {
+                        max_scanned_sites: visits,
+                        ..StringReferenceViewLimits::default()
+                    })
+                    .unwrap()
+                    .count(),
+                expected
+            );
+            assert_eq!(
+                facts
+                    .string_reference_sites(StringReferenceViewLimits {
+                        max_result_sites: 0,
+                        ..StringReferenceViewLimits::default()
+                    })
+                    .err()
+                    .unwrap()
+                    .code,
+                ErrorCode::QuotaExceeded
+            );
+            occurrences.push(facts.source().dex_occurrence_id.clone());
+        }
+        assert_ne!(occurrences[0], occurrences[1]);
+
+        let partial = CodeFacts::build_offsets(
+            &data.snapshot,
+            &data.inventories[0],
+            0,
+            &[],
+            CodeLimits::default(),
+        )
+        .unwrap();
+        let facts = ReferenceFacts::build(
+            data.definitions[0].clone(),
+            partial,
+            ReferenceLimits::default(),
+        )
+        .unwrap();
+        assert_eq!(facts.coverage().facts, Completeness::Partial);
+        assert_eq!(
+            facts
+                .string_reference_sites(StringReferenceViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::IncompleteFacts
+        );
     }
     fn target_method(facts: &DefinitionFacts, name: &str) -> u32 {
         facts

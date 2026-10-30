@@ -1,0 +1,1 @@
+{"roundtrip_observed": {"input": "hello\n", "sentinel": true}}

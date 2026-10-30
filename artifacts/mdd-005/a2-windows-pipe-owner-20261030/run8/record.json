@@ -1,0 +1,21 @@
+{
+  "command": [
+    "artifacts/local/baseline-venv/Scripts/python.exe",
+    "-B",
+    "-O",
+    "artifacts/mdd-005/a2-windows-pipe-owner-20261030/probe-cause.py"
+  ],
+  "started_utc": "2026-10-30T06:07:55.898271+00:00",
+  "finished_utc": "2026-10-30T06:07:56.130246+00:00",
+  "elapsed_seconds": 0.21900000000005093,
+  "exit_code": 0,
+  "timed_out": false,
+  "source_sha256": {
+    "benchmarks/a2_windows_pipe_owner.py": "fa9eaef5a63a841ff969e6acb4a751bbd04fa37ef7c61f98657820b4acb0fbe7",
+    "artifacts/mdd-005/a2-windows-pipe-owner-20261030/probe-cause.py": "56991b54d4388ed05902f572bd713b9429999afb92611b352e81a5e4b9011703"
+  },
+  "source_unchanged": true,
+  "stdout_sha256": "4046b8a8c69748dacffc1cee2b2b90cacb9fa96dc4053f3ddecfb52c357c349d",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "scope": "targeted owned hidden synthetic children; no MCP, snapshot, A2 or performance qualification"
+}

@@ -1,0 +1,1 @@
+{"status": "passed", "assigned_before_resume": true, "tree_empty_verified": true, "child_exit": 0, "extra_inheritable_handle_seen": false, "roundtrip": "hello", "executable_sha256": "d59c9a894b319828d023f3aa83d9a3488d2339f9e27e60e49b02abb0d53cf538", "scope": "self-owned hidden synthetic child only; no MCP, snapshot or A2 qualification"}

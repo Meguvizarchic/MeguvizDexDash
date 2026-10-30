@@ -1912,6 +1912,54 @@ mod tests {
         }
     }
     #[test]
+    fn sql_text_decode_quota_propagates_through_bridge() {
+        let (provider, _) = bridge();
+        for dialect in [
+            SqlDialect::NativeV1,
+            SqlDialect::DexSql010,
+            SqlDialect::DexSql011,
+        ] {
+            let bridge = SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+            let limits = SqlLimits {
+                max_steps: 64,
+                ..SqlLimits::default()
+            };
+            let short = bridge
+                .prepare_with_parameters(
+                    "SELECT CAST(? AS TEXT)",
+                    &[SqlValue::Bytes(vec![b'A'; 2])],
+                )
+                .unwrap();
+            assert_eq!(
+                short
+                    .execute(SqlControl::new(limits.clone(), None))
+                    .unwrap()
+                    .rows()[0][0],
+                SqlValue::text("AA"),
+                "{dialect:?}"
+            );
+            for value in [
+                SqlValue::Bytes(vec![b'A'; 2000]),
+                SqlValue::DexMutf8 {
+                    bytes: vec![b'A'; 2000],
+                    utf16_code_units: DecimalU64(2000),
+                },
+            ] {
+                let prepared = bridge
+                    .prepare_with_parameters("SELECT CAST(? AS TEXT)", &[value])
+                    .unwrap();
+                assert_eq!(
+                    prepared
+                        .execute(SqlControl::new(limits.clone(), None))
+                        .unwrap_err()
+                        .code,
+                    ErrorCode::QuotaExceeded,
+                    "{dialect:?}"
+                );
+            }
+        }
+    }
+    #[test]
     fn substring_retains_policy_units_and_bounded_negative_indices() {
         let (provider, native) = bridge();
         let expected = vec![

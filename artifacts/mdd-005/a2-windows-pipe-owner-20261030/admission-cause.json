@@ -1,0 +1,17 @@
+[
+  {
+    "available_bytes": "9380020224",
+    "minimum_bytes": "3221225472",
+    "admitted": true
+  },
+  {
+    "available_bytes": "9379508224",
+    "minimum_bytes": "3221225472",
+    "admitted": true
+  },
+  {
+    "available_bytes": "9364647936",
+    "minimum_bytes": "3221225472",
+    "admitted": true
+  }
+]
