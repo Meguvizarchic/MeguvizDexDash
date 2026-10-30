@@ -1,0 +1,35 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "mdd-sql",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "1",
+    "boolean_tokens_respect_shadowing_in_general_expressions",
+    "--",
+    "--nocapture"
+  ],
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "crates/mdd-sql/src/dialects/ast.rs": "064e7bd1b614b63504dcb13f21f7f6e7fece8fc15e44dbe955feedd330c82d37",
+    "crates/mdd-sql/src/bridge.rs": "208e1a48d709ff4d2a5ce276e01a4ded7243717036f042533d761a1579567b6f",
+    "crates/mdd-query/src/budget.rs": "814e1b33fa4ea7b127534caf2c2615d08465ddd11c15433eb92be59fc3b7db63",
+    "crates/mdd-session/src/lib.rs": "4b60e7db462e78400a0589ed1574bbaee1b3d44ee55253c3d89164183ef746fe"
+  },
+  "started_utc": "2026-10-30T14:41:56.325842+00:00",
+  "scope": "one SQLite comparison of shadowed TRUE in numeric IN",
+  "raw_stdout_sha256": "088d19c0c3a265421cc2c62e6dfabf5fab3a40d2398983cb68b7370ea5555766",
+  "raw_stderr_sha256": "d5b0cfadb0511c7d20ee111c6d23181527e3f0849b27eb599123e9cfe3a586e6",
+  "exit_code": 101,
+  "finished_utc": "2026-10-30T14:42:07.338648+00:00",
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "crates/mdd-sql/src/dialects/ast.rs": "064e7bd1b614b63504dcb13f21f7f6e7fece8fc15e44dbe955feedd330c82d37",
+    "crates/mdd-sql/src/bridge.rs": "208e1a48d709ff4d2a5ce276e01a4ded7243717036f042533d761a1579567b6f",
+    "crates/mdd-query/src/budget.rs": "814e1b33fa4ea7b127534caf2c2615d08465ddd11c15433eb92be59fc3b7db63",
+    "crates/mdd-session/src/lib.rs": "4b60e7db462e78400a0589ed1574bbaee1b3d44ee55253c3d89164183ef746fe"
+  }
+}

@@ -1,0 +1,88 @@
+{
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-sql/src/dialects/ast.rs": "d25f0a219b0d3dd10016c4cae8593071dc36da9b70b17101074e828a41940a92",
+    "crates/mdd-sql/src/bridge.rs": "318e2b6af0a3aeb14345277caa9710571b0ce4a9bd2717d5be1cd47f1d580376",
+    "crates/mdd-query/src/budget.rs": "814e1b33fa4ea7b127534caf2c2615d08465ddd11c15433eb92be59fc3b7db63",
+    "crates/mdd-query/src/executor/facts.rs": "ef6c855a9d46960bce866d77777864fad92d4f6e856ea10552edb8135bdc928d",
+    "crates/mdd-session/src/lib.rs": "4b60e7db462e78400a0589ed1574bbaee1b3d44ee55253c3d89164183ef746fe",
+    "crates/mdd-session/src/cancellation.rs": "b04d7294ce8a73cd17fdcfd1e6dbe7bcfb35aeef121cc27b1812840b78d0789c"
+  },
+  "runs": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-sql",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "legacy_text_in_boolean_token_respects_column_shadowing",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-10-30T14:39:23.705997+00:00",
+      "finished_utc": "2026-10-30T14:39:36.276522+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "04f9530df5deafc452ec8927aab01ac680737c042da61d66f95010e8af3455e2",
+      "raw_stderr_sha256": "22e6a2c148ba59c58d7e8e8b0e03ae7fbefcd052dfd9ee1d28c4eac15e6b76eb",
+      "redaction": "workspace path replaced; raw retained under ignored local evidence"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-sql",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "legacy_text_column_in_integer_literals_matches_sqlite_affinity",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-10-30T14:39:36.276573+00:00",
+      "finished_utc": "2026-10-30T14:39:36.752928+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "64cf15f4dc25f08866a80ea546624d2989cb7a04e09a748de8708d57e630ed16",
+      "raw_stderr_sha256": "36064f8546526ae69b22ef55a4185806982381e28e4d2d61a4c628f031a60e80",
+      "redaction": "workspace path replaced; raw retained under ignored local evidence"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-sql",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "legacy_integer_in_text_affinity_matches_sqlite_for_exact_decimal_forms",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-10-30T14:39:36.752986+00:00",
+      "finished_utc": "2026-10-30T14:39:37.595520+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "d9b1cd134c1c1090c041a3d84bf79883a8cdc5ba6e3cbb8e9a941e966b2a87ca",
+      "raw_stderr_sha256": "c6c7fc0f5d036b89dcc0da10b9773b30c6baed9d57a08044e5df76d39ff84c66",
+      "redaction": "workspace path replaced; raw retained under ignored local evidence"
+    }
+  ],
+  "scope": "targeted shadow, legacy text IN and prior numeric IN tests; not HostLab or full qualification",
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-sql/src/dialects/ast.rs": "d25f0a219b0d3dd10016c4cae8593071dc36da9b70b17101074e828a41940a92",
+    "crates/mdd-sql/src/bridge.rs": "318e2b6af0a3aeb14345277caa9710571b0ce4a9bd2717d5be1cd47f1d580376",
+    "crates/mdd-query/src/budget.rs": "814e1b33fa4ea7b127534caf2c2615d08465ddd11c15433eb92be59fc3b7db63",
+    "crates/mdd-query/src/executor/facts.rs": "ef6c855a9d46960bce866d77777864fad92d4f6e856ea10552edb8135bdc928d",
+    "crates/mdd-session/src/lib.rs": "4b60e7db462e78400a0589ed1574bbaee1b3d44ee55253c3d89164183ef746fe",
+    "crates/mdd-session/src/cancellation.rs": "b04d7294ce8a73cd17fdcfd1e6dbe7bcfb35aeef121cc27b1812840b78d0789c"
+  }
+}

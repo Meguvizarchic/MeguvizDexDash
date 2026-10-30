@@ -1,0 +1,63 @@
+{
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-sql/src/dialects/ast.rs": "0edd594883f45f84fa79877ca35023fcba329806b42e7cdbc997733f8bf37596",
+    "crates/mdd-sql/src/bridge.rs": "7a91075dce1bd29a0b6143d2195de5fb5115541a4397abc5c5c6135bbc4de8a9",
+    "crates/mdd-query/src/budget.rs": "814e1b33fa4ea7b127534caf2c2615d08465ddd11c15433eb92be59fc3b7db63",
+    "crates/mdd-session/src/lib.rs": "4b60e7db462e78400a0589ed1574bbaee1b3d44ee55253c3d89164183ef746fe"
+  },
+  "runs": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-sql",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "like_without_escape_internal_flag_ignores_false_column",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-10-30T14:45:39.135861+00:00",
+      "finished_utc": "2026-10-30T14:45:46.496632+00:00",
+      "exit_code": 101,
+      "raw_stdout_sha256": "bef2ea08b61deb521944873b3500d6192896785df6371674711fc578b94c8786",
+      "raw_stderr_sha256": "121bed437c444412a11e39faaeac124e7fc8d3f490b34167c8062330b4802b3c",
+      "redaction": "workspace path replaced; raw retained under ignored local evidence"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-sql",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "like_with_escape_internal_flag_ignores_true_column",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-10-30T14:45:46.496678+00:00",
+      "finished_utc": "2026-10-30T14:45:46.952918+00:00",
+      "exit_code": 101,
+      "raw_stdout_sha256": "7dc06179a759928a403177bfd7b362bb108d550f9683ac4fe3a1b3ad6a5e1059",
+      "raw_stderr_sha256": "2e1a12ed47cbe99f37b99c8c071a432f25671c0d61fd3fe9e025e65ee27045e1",
+      "redaction": "workspace path replaced; raw retained under ignored local evidence"
+    }
+  ],
+  "scope": "two targeted SQLite LIKE escape-flag column shadow counterexamples",
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-sql/src/dialects/ast.rs": "0edd594883f45f84fa79877ca35023fcba329806b42e7cdbc997733f8bf37596",
+    "crates/mdd-sql/src/bridge.rs": "7a91075dce1bd29a0b6143d2195de5fb5115541a4397abc5c5c6135bbc4de8a9",
+    "crates/mdd-query/src/budget.rs": "814e1b33fa4ea7b127534caf2c2615d08465ddd11c15433eb92be59fc3b7db63",
+    "crates/mdd-session/src/lib.rs": "4b60e7db462e78400a0589ed1574bbaee1b3d44ee55253c3d89164183ef746fe"
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "mdd-sql",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "1",
+    "is_boolean_predicates_respect_text_column_shadowing",
+    "--",
+    "--nocapture"
+  ],
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-sql/src/dialects/ast.rs": "dd2cc4ad62a9a92baf78ab71f7d61ac56d622ae7126de7546441623b16d96b03",
+    "crates/mdd-sql/src/bridge.rs": "b37df41fc257cb0a3c36f3c5fb8dcb40d24d1b12cdcb852141d229474904464d",
+    "crates/mdd-sql/src/dialects/functions.rs": "f4aca963abe8d9ef73003d1860111b8a6da14505be7f9f0c1eddec6f9fe3015c",
+    "crates/mdd-query/src/budget.rs": "814e1b33fa4ea7b127534caf2c2615d08465ddd11c15433eb92be59fc3b7db63",
+    "crates/mdd-session/src/lib.rs": "4b60e7db462e78400a0589ed1574bbaee1b3d44ee55253c3d89164183ef746fe"
+  },
+  "started_utc": "2026-10-30T14:48:46.535450+00:00",
+  "scope": "SQLite versus bridge IS [NOT] TRUE/FALSE with shadowing TEXT columns",
+  "raw_stdout_sha256": "0dec685bb639d9943660513edc7c0de2d4c9d13385472b1ca1cc834aae4bb9ed",
+  "raw_stderr_sha256": "f6e67f11909d18281f2cdde53bc97aed6694f5ebaaeaf96062a51fe70061e959",
+  "exit_code": 101,
+  "finished_utc": "2026-10-30T14:48:56.722126+00:00",
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-sql/src/dialects/ast.rs": "dd2cc4ad62a9a92baf78ab71f7d61ac56d622ae7126de7546441623b16d96b03",
+    "crates/mdd-sql/src/bridge.rs": "b37df41fc257cb0a3c36f3c5fb8dcb40d24d1b12cdcb852141d229474904464d",
+    "crates/mdd-sql/src/dialects/functions.rs": "f4aca963abe8d9ef73003d1860111b8a6da14505be7f9f0c1eddec6f9fe3015c",
+    "crates/mdd-query/src/budget.rs": "814e1b33fa4ea7b127534caf2c2615d08465ddd11c15433eb92be59fc3b7db63",
+    "crates/mdd-session/src/lib.rs": "4b60e7db462e78400a0589ed1574bbaee1b3d44ee55253c3d89164183ef746fe"
+  }
+}

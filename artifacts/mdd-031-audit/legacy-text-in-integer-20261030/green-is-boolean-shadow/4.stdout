@@ -1,0 +1,6 @@
+
+running 1 test
+test bridge::tests::like_with_escape_internal_flag_ignores_true_column ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 131 filtered out; finished in 0.00s
+

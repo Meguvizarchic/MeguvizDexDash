@@ -1,0 +1,11 @@
+
+running 1 test
+test bridge::tests::is_boolean_predicates_respect_text_column_shadowing ... FAILED
+
+failures:
+
+failures:
+    bridge::tests::is_boolean_predicates_respect_text_column_shadowing
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 131 filtered out; finished in 0.01s
+

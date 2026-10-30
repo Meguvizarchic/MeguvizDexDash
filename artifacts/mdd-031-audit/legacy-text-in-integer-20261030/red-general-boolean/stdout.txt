@@ -1,0 +1,11 @@
+
+running 1 test
+test bridge::tests::boolean_tokens_respect_shadowing_in_general_expressions ... FAILED
+
+failures:
+
+failures:
+    bridge::tests::boolean_tokens_respect_shadowing_in_general_expressions
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 127 filtered out; finished in 0.01s
+

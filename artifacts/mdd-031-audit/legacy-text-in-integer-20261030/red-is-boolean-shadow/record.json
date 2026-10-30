@@ -1,0 +1,37 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "mdd-sql",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "1",
+    "is_boolean_predicates_respect_same_named_columns",
+    "--",
+    "--nocapture"
+  ],
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-sql/src/dialects/ast.rs": "dd2cc4ad62a9a92baf78ab71f7d61ac56d622ae7126de7546441623b16d96b03",
+    "crates/mdd-sql/src/bridge.rs": "e108cedc82078fb4e93423b8a1f9031249ba06fbb7ae0fd688263f719b12926d",
+    "crates/mdd-query/src/budget.rs": "814e1b33fa4ea7b127534caf2c2615d08465ddd11c15433eb92be59fc3b7db63",
+    "crates/mdd-session/src/lib.rs": "4b60e7db462e78400a0589ed1574bbaee1b3d44ee55253c3d89164183ef746fe"
+  },
+  "started_utc": "2026-10-30T14:48:11.341197+00:00",
+  "scope": "SQLite versus bridge IS [NOT] TRUE/FALSE with shadowing columns",
+  "raw_stdout_sha256": "4af3425e89b324f7c5430fab3751a3adef3aa7543b149ff8ce75850107b8ade7",
+  "raw_stderr_sha256": "fd7de5ed9ea63a7ca0a84c933d5592eb6dc5cfefd51aac67dadb526cc02511cd",
+  "exit_code": 0,
+  "finished_utc": "2026-10-30T14:48:20.144234+00:00",
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-sql/src/dialects/ast.rs": "dd2cc4ad62a9a92baf78ab71f7d61ac56d622ae7126de7546441623b16d96b03",
+    "crates/mdd-sql/src/bridge.rs": "e108cedc82078fb4e93423b8a1f9031249ba06fbb7ae0fd688263f719b12926d",
+    "crates/mdd-query/src/budget.rs": "814e1b33fa4ea7b127534caf2c2615d08465ddd11c15433eb92be59fc3b7db63",
+    "crates/mdd-session/src/lib.rs": "4b60e7db462e78400a0589ed1574bbaee1b3d44ee55253c3d89164183ef746fe"
+  }
+}

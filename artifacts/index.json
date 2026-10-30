@@ -21938,6 +21938,441 @@
       "sha256": "a815826958ba6262f7e207772cbc93432cfb356027fd74d0aea23282efa5eb96"
     },
     {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-boolean-shadow/0.stderr",
+      "bytes": 218,
+      "sha256": "107ea7e599d7ad2f8aa4ba908a717d2118bb6785df97d88a2e019130da1dd6c8"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-boolean-shadow/0.stdout",
+      "bytes": 196,
+      "sha256": "04f9530df5deafc452ec8927aab01ac680737c042da61d66f95010e8af3455e2"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-boolean-shadow/1.stderr",
+      "bytes": 156,
+      "sha256": "36064f8546526ae69b22ef55a4185806982381e28e4d2d61a4c628f031a60e80"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-boolean-shadow/1.stdout",
+      "bytes": 204,
+      "sha256": "64cf15f4dc25f08866a80ea546624d2989cb7a04e09a748de8708d57e630ed16"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-boolean-shadow/2.stderr",
+      "bytes": 156,
+      "sha256": "c6c7fc0f5d036b89dcc0da10b9773b30c6baed9d57a08044e5df76d39ff84c66"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-boolean-shadow/2.stdout",
+      "bytes": 212,
+      "sha256": "d9b1cd134c1c1090c041a3d84bf79883a8cdc5ba6e3cbb8e9a941e966b2a87ca"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-boolean-shadow/record.json",
+      "bytes": 3956,
+      "sha256": "6d698fcb5776c45f4e8dbb0f829c7f7d70c5de6cc8e881664b97208d2564db6e"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-boolean-shadow2/0.stderr",
+      "bytes": 217,
+      "sha256": "13dce069e95a67784f81050905cfe8537e0c9de617f67b2c89a1a0fe04b49061"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-boolean-shadow2/0.stdout",
+      "bytes": 196,
+      "sha256": "04f9530df5deafc452ec8927aab01ac680737c042da61d66f95010e8af3455e2"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-boolean-shadow2/1.stderr",
+      "bytes": 156,
+      "sha256": "20eb71464b183dd23322b2c9190d0f70d02a6b64265bfbd4cb492ae2860a8c48"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-boolean-shadow2/1.stdout",
+      "bytes": 204,
+      "sha256": "ee6b0dedfc017ebff9173cb50623a4c9c637f79867cbf2751e14f13f9f0f690a"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-boolean-shadow2/2.stderr",
+      "bytes": 156,
+      "sha256": "821c506d79dd1de5feb5168edc6b67fb6086268da14ddebb71c3aaeabe0ac715"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-boolean-shadow2/2.stdout",
+      "bytes": 212,
+      "sha256": "f822e2d84b6219437c78468d5ccbf993c955ce18632e614a8eacd8f4aa1e8eff"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-boolean-shadow2/record.json",
+      "bytes": 3973,
+      "sha256": "0fd25200221ee85afd860d5a9a71015a6b40980aacf39ef60e78aff9df3ada36"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-final-regression/0.stderr",
+      "bytes": 156,
+      "sha256": "800a42e37e8657ec0f87d7cbef0784a607efd053c15bce73c9bd6d0fe80bc9a1"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-final-regression/0.stdout",
+      "bytes": 196,
+      "sha256": "3c696c6ce17679a25673389e7f328e42b2e1db049da797366295a829fc1e92a3"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-final-regression/1.stderr",
+      "bytes": 156,
+      "sha256": "8813562ca7031a06a4c44c1dbb9d801af3f94fd94e830b5bc4de663ebc300fed"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-final-regression/1.stdout",
+      "bytes": 204,
+      "sha256": "a151b5096417b6e2f650c6896ac30e8809c62c22c705e02f5d3b5f2eba9af81c"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-final-regression/2.stderr",
+      "bytes": 156,
+      "sha256": "107c759f9799abf4e7a4fb7519ec401ae76035e2b8b285c578e6f859b3e3c1d2"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-final-regression/2.stdout",
+      "bytes": 212,
+      "sha256": "3706f5536988d6cb6a6574ed9a433ef6e9e734c3c6be2af0e9516c6a8d2f2daa"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-final-regression/record.json",
+      "bytes": 4195,
+      "sha256": "7ee4d967f373862d91fd23d572a7a1f787d082228e1026fb287cff78a9c366a7"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-general-boolean/0.stderr",
+      "bytes": 767,
+      "sha256": "2ed0f01f0ae930eaf07f050e0c1da55ecc4abb2189255e77002eb17b3083c608"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-general-boolean/0.stdout",
+      "bytes": 302,
+      "sha256": "877fb9e14f042faff52d2adb883ea954b438100baeed44e2c0458632c21632cd"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-general-boolean/record.json",
+      "bytes": 2581,
+      "sha256": "a2f7eb01f632bc50a6f1d2a9df4a54aff2162179a99bc66c9615cc7f593c0d10"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-general-boolean2/0.stderr",
+      "bytes": 217,
+      "sha256": "12cd681ea01c962b6cb49154cd280dad94d28e6e761baee7973fc8dfd658f28b"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-general-boolean2/0.stdout",
+      "bytes": 197,
+      "sha256": "ce9202d5a15b95e9e9035ed43a508204b83b8a4d0b889ff2d7748c49ff9ffb1f"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-general-boolean2/1.stderr",
+      "bytes": 156,
+      "sha256": "6f84e0f910deba6b677d731947f9bfa085a950f0d806370da370d85702cc6360"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-general-boolean2/1.stdout",
+      "bytes": 196,
+      "sha256": "74ed3866746c03fba76c380e53b9c5edf169987048e5ca8dcddba3649f21db4b"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-general-boolean2/2.stderr",
+      "bytes": 156,
+      "sha256": "8813562ca7031a06a4c44c1dbb9d801af3f94fd94e830b5bc4de663ebc300fed"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-general-boolean2/2.stdout",
+      "bytes": 204,
+      "sha256": "c76b11cc9f95d533e347360fd76c1d0580ff6f0d15252cbd29a43173f1fd80f8"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-general-boolean2/3.stderr",
+      "bytes": 156,
+      "sha256": "6f84e0f910deba6b677d731947f9bfa085a950f0d806370da370d85702cc6360"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-general-boolean2/3.stdout",
+      "bytes": 212,
+      "sha256": "1d24a4a925cda4e8f82d46f357b309969584aa735ec9deef01eebe4bec472090"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-general-boolean2/record.json",
+      "bytes": 4712,
+      "sha256": "0c4d6a31413c14a1164187157074f4e6def1807bd7a13641456fc08ddca11330"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-is-boolean-shadow/0.stderr",
+      "bytes": 218,
+      "sha256": "ffeb1ab926c7f9a92eae8e9c7a8720d27a58e91c2e78e53da87a579e4bb50d3e"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-is-boolean-shadow/0.stdout",
+      "bytes": 193,
+      "sha256": "90894b2e6560d7618cb1a1c5230215e5d6274e18c9a73a02574964c81f7d77bd"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-is-boolean-shadow/1.stderr",
+      "bytes": 156,
+      "sha256": "8813562ca7031a06a4c44c1dbb9d801af3f94fd94e830b5bc4de663ebc300fed"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-is-boolean-shadow/1.stdout",
+      "bytes": 190,
+      "sha256": "cec5f2e26d36d4e3d3e4b10fe9dfd93277404f125b146fe9553ea7b56d62be44"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-is-boolean-shadow/2.stderr",
+      "bytes": 156,
+      "sha256": "257ab09f20937b0008a48730fd461be294878d169ca044f8eb65485d0142a389"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-is-boolean-shadow/2.stdout",
+      "bytes": 197,
+      "sha256": "59163d15f144b4aef5783ce00a2e4589a281602105d4a1c3b6905773f04072f6"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-is-boolean-shadow/3.stderr",
+      "bytes": 156,
+      "sha256": "6f84e0f910deba6b677d731947f9bfa085a950f0d806370da370d85702cc6360"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-is-boolean-shadow/3.stdout",
+      "bytes": 196,
+      "sha256": "72fac43eb7295bcbf514c5997711ac6fc71677695275c5638a24ae91c382182e"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-is-boolean-shadow/4.stderr",
+      "bytes": 156,
+      "sha256": "821c506d79dd1de5feb5168edc6b67fb6086268da14ddebb71c3aaeabe0ac715"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-is-boolean-shadow/4.stdout",
+      "bytes": 192,
+      "sha256": "fffb2879c84e5605ee196d2a390139abcf9f0dabb862d9f1a484ad12d6429e43"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-is-boolean-shadow/record.json",
+      "bytes": 5549,
+      "sha256": "0e92e9168328a2e4b691b5adb7eedc05476b17edaada0690857555cc3dff2d16"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-is-final-text-regression/0.stderr",
+      "bytes": 156,
+      "sha256": "d327b388b240bbf3e9980a27b9e1df3c902d71a9fbf90839313cdee11f505169"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-is-final-text-regression/0.stdout",
+      "bytes": 196,
+      "sha256": "f94f5ecc2e088caabd91112d535a55a6e9a5c973f0ba4436bce66a935e19fe6b"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-is-final-text-regression/1.stderr",
+      "bytes": 156,
+      "sha256": "8813562ca7031a06a4c44c1dbb9d801af3f94fd94e830b5bc4de663ebc300fed"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-is-final-text-regression/1.stdout",
+      "bytes": 204,
+      "sha256": "4490e31c1ded8696ae955bfd899831baabed1514468f9983b09d5b179ace1f27"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-is-final-text-regression/2.stderr",
+      "bytes": 156,
+      "sha256": "951476c37742acfee65c1d3850772256826335e59bfd5677fbea1ae034baee4a"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-is-final-text-regression/2.stdout",
+      "bytes": 212,
+      "sha256": "1a83f9691862b58d213e1c7a8193a2dc54b7af531f72eac7d1f5741ccd1ebdde"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-is-final-text-regression/record.json",
+      "bytes": 4205,
+      "sha256": "c0f5a0605258f717a53934217ca54c4fc318a85517a55eefe3e860f35923170d"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-like-shadow/0.stderr",
+      "bytes": 217,
+      "sha256": "35042d94ddb24fe299b2d32fdbd3fcb3535717deb170e833ec650e5cc4475f56"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-like-shadow/0.stdout",
+      "bytes": 196,
+      "sha256": "473e1e50e49bd4771dc973bd35eaf6755a3e4cc8be62279ecbf3cf93787c2284"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-like-shadow/1.stderr",
+      "bytes": 156,
+      "sha256": "86f07ef44d84bac51d8d44c26f42618ba360de4f7d3832b9c99448e44a2ee8b3"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-like-shadow/1.stdout",
+      "bytes": 192,
+      "sha256": "ae3566b68f476ee48bc62d1332b7a2784c5f71f1a2bb8a8c48941fd14ab81a46"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-like-shadow/2.stderr",
+      "bytes": 156,
+      "sha256": "62a197d91812302844637bfd0fce4d06b8fdd452675d8cc0003a5277f0a61972"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-like-shadow/2.stdout",
+      "bytes": 189,
+      "sha256": "69381ead0d88d1b5a622fd43a3050fc75fa1a48c15e4a02b3cde36c0bb3a7810"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-like-shadow/3.stderr",
+      "bytes": 156,
+      "sha256": "6f84e0f910deba6b677d731947f9bfa085a950f0d806370da370d85702cc6360"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-like-shadow/3.stdout",
+      "bytes": 191,
+      "sha256": "0762109c19469d9ef8d46869410b34fb91e765bc7cd55ffb1ed0b2e5857cfe2b"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-like-shadow/4.stderr",
+      "bytes": 156,
+      "sha256": "20eb71464b183dd23322b2c9190d0f70d02a6b64265bfbd4cb492ae2860a8c48"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-like-shadow/4.stdout",
+      "bytes": 197,
+      "sha256": "8c3daa8d4b14bc1bb1140fbf604f8f315af855eb88943e8043719cdc169e7fa5"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/green-like-shadow/record.json",
+      "bytes": 5566,
+      "sha256": "9069c7f9f21fb0593eff137e900022f18434203a9ae98403147709e43b0c83a6"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/red-boolean-shadow/record.json",
+      "bytes": 1661,
+      "sha256": "9ff06940290aa4d2b3c42c0d0456f7a49e3d1e51879872e958f6808dbf6b86c8"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/red-boolean-shadow/stderr.txt",
+      "bytes": 537,
+      "sha256": "20778db450b04f5a6e1598d77bb3abd2b469045c4e64fbf5d816cf7c27bb2b41"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/red-boolean-shadow/stdout.txt",
+      "bytes": 300,
+      "sha256": "dc34efa8db75f63ebb88d98faeaaaa01377e0ef28da39f7cb2736437facb7746"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/red-boolean-shadow2/record.json",
+      "bytes": 1688,
+      "sha256": "f5a24012e00f3d460b1173d208e1f3221456d71ce9f5847e2e9f5b2c07f3092f"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/red-boolean-shadow2/stderr.txt",
+      "bytes": 567,
+      "sha256": "55e1c1b5753b39b176360603f85cd7e56aba9a0503651d5ddce402d138f7644b"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/red-boolean-shadow2/stdout.txt",
+      "bytes": 300,
+      "sha256": "dc34efa8db75f63ebb88d98faeaaaa01377e0ef28da39f7cb2736437facb7746"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/red-general-boolean/record.json",
+      "bytes": 1667,
+      "sha256": "6e314525ec223c6fc247f4b824d9ad0c6d57174bf24d3ea1299de9aa12216fd8"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/red-general-boolean/stderr.txt",
+      "bytes": 567,
+      "sha256": "0c2ac2624c635579e2c63897f6d4ded6822012c30fba0faac7f694389f510f42"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/red-general-boolean/stdout.txt",
+      "bytes": 302,
+      "sha256": "088d19c0c3a265421cc2c62e6dfabf5fab3a40d2398983cb68b7370ea5555766"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/red-is-boolean-shadow/record.json",
+      "bytes": 1859,
+      "sha256": "fa29c4cef0b6170659af1e4db52a5715836110cc862d3ba62b63f0cfb1166d1d"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/red-is-boolean-shadow/stderr.txt",
+      "bytes": 217,
+      "sha256": "5bf98a3d3fd468c6b1a45ba632e1af2db94e47b4dd79a952744bee762a388b76"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/red-is-boolean-shadow/stdout.txt",
+      "bytes": 190,
+      "sha256": "4af3425e89b324f7c5430fab3751a3adef3aa7543b149ff8ce75850107b8ade7"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/red-is-boolean-text-shadow/record.json",
+      "bytes": 2101,
+      "sha256": "54cf91df9273fb6ce621684bc65456c05f886925884c2014f8883042978fa8ff"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/red-is-boolean-text-shadow/stderr.txt",
+      "bytes": 688,
+      "sha256": "75307a8cdf4b136aa9cd857f26c623bdcf10b1aab160ebc2e6360944c130263c"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/red-is-boolean-text-shadow/stdout.txt",
+      "bytes": 294,
+      "sha256": "0dec685bb639d9943660513edc7c0de2d4c9d13385472b1ca1cc834aae4bb9ed"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/red-like-shadow/0.stderr",
+      "bytes": 567,
+      "sha256": "123ea1a6791559068db7fa248cc168ac54ad46be55912c72ffbe7382be647012"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/red-like-shadow/0.stdout",
+      "bytes": 300,
+      "sha256": "bef2ea08b61deb521944873b3500d6192896785df6371674711fc578b94c8786"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/red-like-shadow/1.stderr",
+      "bytes": 514,
+      "sha256": "2e1a12ed47cbe99f37b99c8c071a432f25671c0d61fd3fe9e025e65ee27045e1"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/red-like-shadow/1.stdout",
+      "bytes": 292,
+      "sha256": "7dc06179a759928a403177bfd7b362bb108d550f9683ac4fe3a1b3ad6a5e1059"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/red-like-shadow/record.json",
+      "bytes": 2753,
+      "sha256": "8bbdc9b8452ce51b5faff6c9bb4587cd178fff766865ef3b6ed9d3616cb8fd2e"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/run1/0.stderr",
+      "bytes": 283,
+      "sha256": "5c61c23dfc9ef26bce21b006ba32cf1c271e4384d4a135305e73dc9228e2c9db"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/run1/0.stdout",
+      "bytes": 204,
+      "sha256": "a1893bb0e4bb80fc9281e29931a30ffb8301313f9476afc7737ed87d66558b93"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/run1/1.stderr",
+      "bytes": 156,
+      "sha256": "86f07ef44d84bac51d8d44c26f42618ba360de4f7d3832b9c99448e44a2ee8b3"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/run1/1.stdout",
+      "bytes": 212,
+      "sha256": "b1b0376d7533a5abe7d4f7c72aeb1af62eb7f839ba3530ed5094bce99857fa86"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-text-in-integer-20261030/run1/record.json",
+      "bytes": 3259,
+      "sha256": "bb263a04b0cf4af587e7eaefd32e621af35391f2731b6f1a445297510d39da0e"
+    },
+    {
       "path": "artifacts/mdd-031-audit/length-budget-20261029/clippy/record.json",
       "bytes": 742,
       "sha256": "7ab981f79dfa703559177ca39b36f23b4a06077554ebe749d6a1b4693889c99c"

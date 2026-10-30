@@ -145,6 +145,41 @@ fn canonical_i64_text_literal(expr: &Expr) -> Option<i64> {
 fn replace_with_i64_literal(expr: &mut Expr, value: i64) {
     *expr = Expr::Value(Value::Number(value.to_string(), false).into());
 }
+
+// SQLite TEXT affinity renders an integer literal as canonical decimal text.
+// Only accept syntactic integers that fit i64: real literals and integers
+// beyond SQLite's signed range require a separately proven formatting rule.
+fn exact_i64_numeric_literal(expr: &Expr) -> Option<i64> {
+    match expr {
+        Expr::Nested(inner) => exact_i64_numeric_literal(inner),
+        Expr::Value(value) => match &value.value {
+            Value::Number(number, _) if number.bytes().all(|b| b.is_ascii_digit()) => {
+                number.parse::<i64>().ok()
+            }
+            Value::Boolean(value) => Some(i64::from(*value)),
+            _ => None,
+        },
+        Expr::UnaryOp { op, expr } if matches!(op, UnaryOperator::Plus | UnaryOperator::Minus) => {
+            let Expr::Value(value) = expr.as_ref() else {
+                return None;
+            };
+            let Value::Number(number, _) = &value.value else {
+                return None;
+            };
+            if !number.bytes().all(|b| b.is_ascii_digit()) {
+                return None;
+            }
+            let magnitude = number.parse::<i128>().ok()?;
+            let signed = if matches!(op, UnaryOperator::Minus) {
+                -magnitude
+            } else {
+                magnitude
+            };
+            i64::try_from(signed).ok()
+        }
+        _ => None,
+    }
+}
 fn direct_text_integer_affinity(dialect: super::SqlDialect, left: &Expr, right: &Expr) -> bool {
     dialect != super::SqlDialect::NativeV1
         && ((text_cast_string_literal(left) && nonnegative_i64_literal(right))
@@ -427,6 +462,7 @@ struct Rewrite<'a> {
 struct InScope {
     tables: BTreeMap<String, BTreeMap<String, crate::values::SqlType>>,
     order_aliases: BTreeSet<String>,
+    boolean_aliases: BTreeSet<String>,
 }
 impl Rewrite<'_> {
     fn single_cte_literal_text_scope(&self, select: &Select) -> Option<(String, String)> {
@@ -470,9 +506,6 @@ impl Rewrite<'_> {
         }
     }
     fn base_in_scope(&self, select: &Select) -> Option<InScope> {
-        if select.from.is_empty() {
-            return None;
-        }
         let mut tables = BTreeMap::new();
         for from in &select.from {
             for factor in
@@ -506,9 +539,23 @@ impl Rewrite<'_> {
                 }
             }
         }
+        let boolean_aliases = select
+            .projection
+            .iter()
+            .filter_map(|item| match item {
+                SelectItem::ExprWithAlias { alias, .. }
+                    if alias.value.eq_ignore_ascii_case("true")
+                        || alias.value.eq_ignore_ascii_case("false") =>
+                {
+                    Some(alias.value.to_ascii_lowercase())
+                }
+                _ => None,
+            })
+            .collect();
         Some(InScope {
             tables,
             order_aliases: BTreeSet::new(),
+            boolean_aliases,
         })
     }
 
@@ -610,6 +657,12 @@ impl Rewrite<'_> {
         for frame in self.in_scopes.iter().rev() {
             // Unknown derived/CTE scope may shadow any outer column. Do not infer past it.
             let scope = frame.as_ref()?;
+            // Keep the prior conservative binding rule for a SELECT without
+            // a local FROM; the empty frame is only known for Boolean shadow
+            // checks and must not silently change IN column inference.
+            if scope.tables.is_empty() {
+                return None;
+            }
             match left {
                 Expr::Identifier(id) => {
                     let name = id.value.to_ascii_lowercase();
@@ -744,6 +797,65 @@ impl Rewrite<'_> {
         for (item, value) in list.iter_mut().zip(values) {
             if let Some(value) = value {
                 replace_with_i64_literal(item, value);
+            }
+        }
+        true
+    }
+    // SQLite can resolve TRUE/FALSE as a same-named input column or SELECT
+    // alias. Unknown inner scopes may shadow outer sources as well. Never
+    // convert such a token to a constant until its binding is proven.
+    fn boolean_token_shadowed(&self, value: bool) -> bool {
+        let name = if value { "true" } else { "false" };
+        self.in_scopes.iter().rev().any(|frame| match frame {
+            None => true,
+            Some(scope) => {
+                scope.order_aliases.contains(name)
+                    || scope.boolean_aliases.contains(name)
+                    || scope
+                        .tables
+                        .values()
+                        .any(|columns| columns.contains_key(name))
+            }
+        })
+    }
+
+    fn legacy_text_in_literals(&self, left: &Expr, list: &mut [Expr]) -> bool {
+        if self.dialect == super::SqlDialect::NativeV1
+            || self.in_column_type(left) != Some(crate::values::SqlType::Text)
+        {
+            return false;
+        }
+        if list.iter().any(|expr| {
+            let mut expr = expr;
+            while let Expr::Nested(inner) = expr {
+                expr = inner;
+            }
+            matches!(expr, Expr::Value(value) if matches!(value.value, Value::Boolean(value) if self.boolean_token_shadowed(value)))
+        }) {
+            return false;
+        }
+        let values: Option<Vec<Option<i64>>> = list
+            .iter()
+            .map(|item| {
+                if let Some(value) = exact_i64_numeric_literal(item) {
+                    Some(Some(value))
+                } else if matches!(
+                    literal_in_class(item),
+                    Some(None) | Some(Some(InStorageClass::Text))
+                ) {
+                    Some(None)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        let Some(values) = values else { return false };
+        if !values.iter().any(Option::is_some) {
+            return false;
+        }
+        for (item, value) in list.iter_mut().zip(values) {
+            if let Some(value) = value {
+                *item = Expr::Value(Value::SingleQuotedString(value.to_string()).into());
             }
         }
         true
@@ -1193,7 +1305,13 @@ impl Rewrite<'_> {
             Expr::Value(value) => {
                 let value = match &value.value {
                     Value::Null => return Ok(()),
-                    Value::Boolean(value) => SqlValue::Bool(*value),
+                    Value::Boolean(value) => {
+                        if self.boolean_token_shadowed(*value) {
+                            return Err(unsupported("BOOLEAN_TOKEN_BINDING_NOT_PROVEN")
+                                .detail("confirm_sqlite_syntax", true));
+                        }
+                        SqlValue::Bool(*value)
+                    }
                     Value::SingleQuotedString(value) => {
                         if value.encode_utf16().count() as u64 > self.limits.max_cell_bytes / 2 {
                             return Err(quota("SQL_LITERAL_UTF16_BEFORE_ALLOCATION"));
@@ -1262,10 +1380,19 @@ impl Rewrite<'_> {
             Expr::Nested(child) | Expr::IsNull(child) | Expr::IsNotNull(child) => {
                 self.expr(child, depth + 1)?
             }
-            Expr::IsTrue(child)
-            | Expr::IsFalse(child)
-            | Expr::IsNotTrue(child)
-            | Expr::IsNotFalse(child) => {
+            Expr::IsTrue(child) | Expr::IsNotTrue(child) => {
+                if self.boolean_token_shadowed(true) {
+                    return Err(unsupported("BOOLEAN_TOKEN_BINDING_NOT_PROVEN")
+                        .detail("confirm_sqlite_syntax", true));
+                }
+                self.expr(child, depth + 1)?;
+                **child = call("mdd_truth_input", vec![take(child)]);
+            }
+            Expr::IsFalse(child) | Expr::IsNotFalse(child) => {
+                if self.boolean_token_shadowed(false) {
+                    return Err(unsupported("BOOLEAN_TOKEN_BINDING_NOT_PROVEN")
+                        .detail("confirm_sqlite_syntax", true));
+                }
                 self.expr(child, depth + 1)?;
                 **child = call("mdd_truth_input", vec![take(child)]);
             }
@@ -1372,7 +1499,9 @@ impl Rewrite<'_> {
                 if let Some(escape) = escape_char {
                     self.expr(escape, depth + 1)?;
                 }
-                let has_escape = Expr::Value(Value::Boolean(escape_char.is_some()).into());
+                // A literal TRUE/FALSE token can resolve to a same-named SQL
+                // column. This is an internal flag, so bind it as a parameter.
+                let has_escape = self.bind(SqlValue::Bool(escape_char.is_some()))?;
                 let function = call(
                     "mdd_like",
                     vec![
@@ -1428,6 +1557,7 @@ impl Rewrite<'_> {
             } => {
                 if !self.safe_in_affinity(child, list)
                     && !self.legacy_numeric_in_literals(child, list)
+                    && !self.legacy_text_in_literals(child, list)
                 {
                     return Err(unsupported("IN_LEFT_AFFINITY_NOT_IMPLEMENTED")
                         .detail("confirm_sqlite_syntax", true));
