@@ -1165,7 +1165,7 @@ impl SqlFactProvider for CombinedSqlProvider {
                 .as_ref()
                 .ok_or_else(|| invalid("UNKNOWN_CODE_RELATION"))?
                 .require_relation(relation)
-        } else if relation.eq_ignore_ascii_case("native_reference_sites") {
+        } else if is_reference_relation(relation) {
             self.references
                 .as_ref()
                 .ok_or_else(|| invalid("UNKNOWN_REFERENCE_RELATION"))?
@@ -1195,7 +1195,7 @@ impl SqlFactProvider for CombinedSqlProvider {
                     .ok_or_else(|| invalid("UNKNOWN_CODE_RELATION"))?,
             )
             .open_cursor(relation, control)
-        } else if relation.eq_ignore_ascii_case("native_reference_sites") {
+        } else if is_reference_relation(relation) {
             Arc::clone(
                 self.references
                     .as_ref()
@@ -2138,6 +2138,10 @@ pub struct ReferenceSqlProvider {
     binding: SqlBinding,
     occurrences: Vec<Arc<mdd_facts::references::ReferenceFacts>>,
 }
+fn is_reference_relation(name: &str) -> bool {
+    name.eq_ignore_ascii_case("native_reference_sites")
+        || name.eq_ignore_ascii_case("native_method_call_sites")
+}
 impl ReferenceSqlProvider {
     pub fn new(
         occurrences: Vec<Arc<mdd_facts::references::ReferenceFacts>>,
@@ -2172,6 +2176,7 @@ struct ReferenceCursor {
     provider: Arc<ReferenceSqlProvider>,
     occurrence: usize,
     ordinal: usize,
+    method_calls_only: bool,
     control: SqlControl,
 }
 impl SqlFactCursor for ReferenceCursor {
@@ -2182,6 +2187,12 @@ impl SqlFactCursor for ReferenceCursor {
             self.control.checkpoint(1, false)?;
             if let Some(site) = facts.sites().get(self.ordinal) {
                 self.control.work(200)?;
+                if self.method_calls_only
+                    && (site.target_kind != TargetKind::Method || site.invoke_kind.is_none())
+                {
+                    self.ordinal += 1;
+                    continue;
+                }
                 let target_kind = match site.target_kind {
                     TargetKind::String => "string",
                     TargetKind::Type => "type",
@@ -2267,15 +2278,15 @@ impl SqlFactProvider for ReferenceSqlProvider {
                 total.checked_add(u64::try_from(facts.sites().len()).ok()?)
             })
             .ok_or_else(|| quota("REFERENCE_SQL_ROWS_OVERFLOW"))?;
-        Ok(vec![SqlRelation {
-            name: "native_reference_sites".into(),
+        let make_relation = |name: &str, method_calls_only: bool| SqlRelation {
+            name: name.into(),
             columns: columns
                 .iter()
                 .map(|(name, data_type, nullable)| SqlColumn {
                     id: (*name).into(),
                     name: (*name).into(),
                     data_type: *data_type,
-                    nullable: *nullable,
+                    nullable: *nullable && !(method_calls_only && *name == "invoke_kind"),
                 })
                 .collect(),
             required_layers: vec![
@@ -2285,10 +2296,15 @@ impl SqlFactProvider for ReferenceSqlProvider {
                 FactLayer::References,
             ],
             estimated_rows: Some(DecimalU64(count)),
-        }])
+        };
+        // The total site count is an upper bound for the filtered relation.
+        Ok(vec![
+            make_relation("native_reference_sites", false),
+            make_relation("native_method_call_sites", true),
+        ])
     }
     fn require_relation(&self, relation: &str) -> MddResult<()> {
-        if !relation.eq_ignore_ascii_case("native_reference_sites") {
+        if !is_reference_relation(relation) {
             return Err(invalid("UNKNOWN_REFERENCE_RELATION"));
         }
         for facts in &self.occurrences {
@@ -2306,6 +2322,7 @@ impl SqlFactProvider for ReferenceSqlProvider {
             provider: self,
             occurrence: 0,
             ordinal: 0,
+            method_calls_only: relation.eq_ignore_ascii_case("native_method_call_sites"),
             control,
         }))
     }
@@ -3404,6 +3421,19 @@ mod tests {
         );
         let combined = Arc::new(make_combined().with_references(full).unwrap());
         let bridge = SqlBridge::new(combined, SqlDialect::NativeV1, SqlLimits::default()).unwrap();
+        let call_rows = bridge
+            .query("SELECT dex_occurrence_id,site_ordinal FROM native_method_call_sites")
+            .unwrap();
+        let expected_call_count = refs
+            .iter()
+            .flat_map(|r| r.sites())
+            .filter(|site| {
+                site.target_kind == mdd_facts::references::TargetKind::Method
+                    && site.invoke_kind.is_some()
+            })
+            .count();
+        assert!(expected_call_count > 0);
+        assert_eq!(call_rows.rows().len(), expected_call_count);
         let result = bridge.query("SELECT s.dex_occurrence_id,s.site_ordinal FROM native_reference_sites s JOIN native_method_references m ON s.dex_occurrence_id=m.dex_occurrence_id AND s.caller_method_idx=m.method_idx").unwrap();
         let actual: BTreeSet<_> = result
             .rows()
@@ -3503,6 +3533,48 @@ mod tests {
             sources[0].source().dex_occurrence_id,
             sources[1].source().dex_occurrence_id
         );
+        let calls = bridge.query("SELECT dex_occurrence_id,site_ordinal,caller_method_idx,code_unit_pc,operand_ordinal,target_local_index,invoke_kind FROM native_method_call_sites").unwrap();
+        let expected_calls: Vec<_> = sources
+            .iter()
+            .flat_map(|source| {
+                source
+                    .sites()
+                    .iter()
+                    .filter(|site| {
+                        site.target_kind == mdd_facts::references::TargetKind::Method
+                            && site.invoke_kind.is_some()
+                    })
+                    .map(move |site| (source.source().dex_occurrence_id.as_str(), site))
+            })
+            .collect();
+        // The retained independent fixture oracle has six call rows per occurrence.
+        assert_eq!(expected_calls.len(), 12);
+        assert_eq!(calls.rows().len(), expected_calls.len());
+        let mut oracle_targets = std::collections::BTreeMap::<String, Vec<u64>>::new();
+        for (row, (source, site)) in calls.rows().iter().zip(expected_calls) {
+            assert!(
+                matches!(&row[0], SqlValue::Text(text) if text.strict_utf8().unwrap() == source)
+            );
+            for (index, expected) in [
+                (1, site.site_ordinal as u64),
+                (2, site.caller_method_idx as u64),
+                (3, site.code_unit_pc as u64),
+                (4, site.operand_ordinal as u64),
+                (5, site.target_local_index as u64),
+            ] {
+                assert_eq!(row[index], SqlValue::U64(DecimalU64(expected)));
+            }
+            assert!(matches!(&row[6], SqlValue::Text(_)));
+            oracle_targets
+                .entry(source.to_owned())
+                .or_default()
+                .push(site.target_local_index as u64);
+        }
+        assert_eq!(oracle_targets.len(), 2);
+        for targets in oracle_targets.values_mut() {
+            targets.sort_unstable();
+            assert_eq!(targets, &[2, 4, 4, 4, 5, 5]);
+        }
     }
     #[test]
     fn native_string_pools_bind_each_occurrence_without_cross_source_duplication() {

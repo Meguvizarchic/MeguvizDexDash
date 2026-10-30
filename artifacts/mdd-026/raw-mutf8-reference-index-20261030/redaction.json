@@ -1,0 +1,7 @@
+{
+  "scope": "Workspace paths replaced in compiler logs; originals retained in ignored artifacts/local/raw-mutf8-evidence-20261030.",
+  "raw_sha256": {
+    "run1/raw.stderr": "8e9a6bee49beb50e2c927761c345767964c51e35be3c9820987a6f9b5bdf99e1",
+    "run1/utf16.stderr": "662a6856ebe33737e05960e581c9d1d350c08e9f649d132764ca2cef0f284329"
+  }
+}

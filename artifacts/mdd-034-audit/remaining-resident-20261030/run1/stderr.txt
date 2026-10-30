@@ -1,0 +1,4 @@
+   Compiling mdd-facts v0.1.0-dev (<workspace>\crates\mdd-facts)
+   Compiling mdd-query v0.1.0-dev (<workspace>\crates\mdd-query)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 16.22s
+     Running unittests src\lib.rs (target\debug\deps\mdd_query-82579f4092cfd058.exe)

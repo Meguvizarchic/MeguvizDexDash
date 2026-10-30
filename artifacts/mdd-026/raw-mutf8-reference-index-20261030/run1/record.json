@@ -1,0 +1,69 @@
+{
+  "started_utc": "2026-10-30T13:57:30.795424+00:00",
+  "finished_utc": "2026-10-30T13:57:43.203352+00:00",
+  "source_before": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-facts/Cargo.toml": "92fab489949ecf2c0429ceec0ba5f5ff1e054ff90879f4e2d31cf597131bb29c",
+    "crates/mdd-facts/src/indexes/mod.rs": "103b9e855294fa85ff5cb7cf2a612b6a3b93837594347697135c044e0e738c16",
+    "crates/mdd-facts/src/indexes/tests.rs": "c067fc51ebed94726df8b2f525fa13d56902565e3588051fd5d63fd78404789b",
+    "crates/mdd-facts/src/indexes/views.rs": "9edb1fa3ac471a6a7a48b30ba624009e9b5a5d099060b3718635c4955d03a2ba",
+    "crates/mdd-facts/src/indexes/scope.rs": "3fc13c036409a0abe526cb9a2da83f35f88f606a1b7f61d45bd3f38b689f84b3",
+    "crates/mdd-facts/src/indexes/lazy.rs": "64f00b432f6ad641376b57bdd3b9d94b52da0131f445b1f5c8d51b7f39e0a862",
+    "crates/mdd-facts/src/references.rs": "ff11737c8a45336489beca2867c4bfd7d455012f03ebfa1fdddc3edaa1418349",
+    "crates/mdd-facts/src/metadata.rs": "e5fafa598807cc23d011570e7411ee53e1129391362c08b5cef5a38afe040357",
+    "crates/mdd-dex/src/strings.rs": "5abafc2942b4ce4501742c77f643530aaf92a589b7a59abe4763f5853e2bfe96",
+    "tests/fixtures/references/generated/nonscalar-string-035.dex": "d2bc2a79ed9d2304a3ffeb9bc0c762fccc5460019a280ab923901b84ddd9510a"
+  },
+  "source_after": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-facts/Cargo.toml": "92fab489949ecf2c0429ceec0ba5f5ff1e054ff90879f4e2d31cf597131bb29c",
+    "crates/mdd-facts/src/indexes/mod.rs": "103b9e855294fa85ff5cb7cf2a612b6a3b93837594347697135c044e0e738c16",
+    "crates/mdd-facts/src/indexes/tests.rs": "c067fc51ebed94726df8b2f525fa13d56902565e3588051fd5d63fd78404789b",
+    "crates/mdd-facts/src/indexes/views.rs": "9edb1fa3ac471a6a7a48b30ba624009e9b5a5d099060b3718635c4955d03a2ba",
+    "crates/mdd-facts/src/indexes/scope.rs": "3fc13c036409a0abe526cb9a2da83f35f88f606a1b7f61d45bd3f38b689f84b3",
+    "crates/mdd-facts/src/indexes/lazy.rs": "64f00b432f6ad641376b57bdd3b9d94b52da0131f445b1f5c8d51b7f39e0a862",
+    "crates/mdd-facts/src/references.rs": "ff11737c8a45336489beca2867c4bfd7d455012f03ebfa1fdddc3edaa1418349",
+    "crates/mdd-facts/src/metadata.rs": "e5fafa598807cc23d011570e7411ee53e1129391362c08b5cef5a38afe040357",
+    "crates/mdd-dex/src/strings.rs": "5abafc2942b4ce4501742c77f643530aaf92a589b7a59abe4763f5853e2bfe96",
+    "tests/fixtures/references/generated/nonscalar-string-035.dex": "d2bc2a79ed9d2304a3ffeb9bc0c762fccc5460019a280ab923901b84ddd9510a"
+  },
+  "runs": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-facts",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "raw_mutf8_reference_index_preserves_exact_sites_and_source_occurrences",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-facts",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "string_utf16_reference_index_preserves_nonscalar_sites_and_occurrences",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "scope": "two targeted synthetic tests; listed sources only, no full workspace, independent oracle, platform or profile qualification"
+}

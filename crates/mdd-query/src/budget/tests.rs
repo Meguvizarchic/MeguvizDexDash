@@ -3,6 +3,67 @@ use std::sync::mpsc;
 use std::thread;
 
 #[test]
+fn remaining_physical_memory_respects_shared_resident_and_ancestors() {
+    let limits = BudgetLimits::default()
+        .with(Resource::ResidentBytes, 100)
+        .with(Resource::QueryWorkspaceBytes, 90)
+        .with(Resource::InputResidentBytes, 100);
+    let root = BudgetPool::global("remaining-root".into(), limits.clone()).unwrap();
+    let worker = root
+        .child(
+            "remaining-worker".into(),
+            BudgetScope::Worker,
+            limits.clone(),
+        )
+        .unwrap();
+    let session = worker
+        .child(
+            "remaining-session".into(),
+            BudgetScope::Session,
+            limits.clone(),
+        )
+        .unwrap();
+    let left = session
+        .child("remaining-left".into(), BudgetScope::Query, limits.clone())
+        .unwrap();
+    let right = session
+        .child("remaining-right".into(), BudgetScope::Query, limits)
+        .unwrap();
+    let input = left.reserve(Resource::InputResidentBytes, 80).unwrap();
+    for resource in [
+        Resource::InputResidentBytes,
+        Resource::ArchiveResidentBytes,
+        Resource::BuildWorkspaceBytes,
+        Resource::ReadyFactsBytes,
+        Resource::QueryWorkspaceBytes,
+    ] {
+        assert_eq!(right.remaining(resource).unwrap(), 20);
+    }
+    assert_eq!(
+        right.remaining(Resource::QueueBytes).unwrap(),
+        BudgetLimits::default().limit(Resource::QueueBytes)
+    );
+    assert_eq!(right.remaining(Resource::ResidentBytes).unwrap(), 20);
+    assert_eq!(
+        right
+            .reserve(Resource::QueryWorkspaceBytes, 21)
+            .err()
+            .unwrap()
+            .code,
+        ErrorCode::QuotaExceeded
+    );
+    let query = right.reserve(Resource::QueryWorkspaceBytes, 20).unwrap();
+    assert_eq!(left.remaining(Resource::QueryWorkspaceBytes).unwrap(), 0);
+    drop(query);
+    drop(input);
+    assert_eq!(right.remaining(Resource::QueryWorkspaceBytes).unwrap(), 90);
+    let direct = right.reserve(Resource::ResidentBytes, 25).unwrap();
+    assert_eq!(left.remaining(Resource::QueryWorkspaceBytes).unwrap(), 75);
+    drop(direct);
+    assert_eq!(left.remaining(Resource::QueryWorkspaceBytes).unwrap(), 90);
+}
+
+#[test]
 fn poisoned_bound_queue_io_preserves_first_fault() {
     use mdd_input::snapshot::{CaptureLimits, InputKind, InputSpec, Snapshot};
     use mdd_session::{Lifecycle, QueryBinding, ResourceLimits};

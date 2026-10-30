@@ -802,6 +802,118 @@ fn string_utf16_reference_index_preserves_nonscalar_sites_and_occurrences() {
 }
 
 #[test]
+fn raw_mutf8_reference_index_preserves_exact_sites_and_source_occurrences() {
+    let data = setup("references/generated/nonscalar-string-035.dex", 2);
+    let refs = data
+        .definitions
+        .iter()
+        .zip(&data.codes)
+        .map(|(definition, code)| {
+            ReferenceFacts::build(definition.clone(), code.clone(), ReferenceLimits::default())
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
+    let views = refs
+        .iter()
+        .map(|r| FactView::unbuilt(&r.source().dex_occurrence_id).with_references(r))
+        .collect::<Vec<_>>();
+    let raw = &[0xed, 0xa0, 0x80]; // isolated U+D800, no encoded terminator
+    let mut expected = Vec::new();
+    for source in &refs {
+        for string in source.definitions().metadata().strings() {
+            if string.data.text.raw_mutf8 == raw {
+                let target = source
+                    .target_id(TargetKind::String, string.data.string_idx)
+                    .unwrap();
+                expected.extend(source.find_target_scalar(&target).unwrap().sites);
+            }
+        }
+    }
+    assert!(!expected.is_empty());
+    let index = SnapshotFactIndex::new(scope(&data), &views, IndexLimits::default()).unwrap();
+    let indexed = index.references_to_string_raw_mutf8(raw).unwrap();
+    let scalar = index.references_to_string_raw_mutf8_scalar(raw).unwrap();
+    assert_eq!(indexed.sites, expected);
+    assert_eq!(scalar.sites, expected);
+    assert_eq!(
+        indexed.sites,
+        index.references_to_string_utf16(&[0xd800]).unwrap().sites
+    );
+    assert!(
+        indexed
+            .sites
+            .iter()
+            .any(|site| site.caller_method_definition.dex_occurrence_id
+                == refs[0].source().dex_occurrence_id)
+    );
+    assert!(
+        indexed
+            .sites
+            .iter()
+            .any(|site| site.caller_method_definition.dex_occurrence_id
+                == refs[1].source().dex_occurrence_id)
+    );
+    assert!(indexed.access_path.starts_with("raw_mutf8_"));
+    for absent in [
+        &[0xed, 0xa0, 0x80, 0][..],
+        &[0xef, 0xbf, 0xbd][..],
+        &[0][..],
+    ] {
+        assert!(
+            index
+                .references_to_string_raw_mutf8(absent)
+                .unwrap()
+                .absence_proven_within_selected_encoded_scope
+        );
+        assert!(
+            index
+                .references_to_string_raw_mutf8_scalar(absent)
+                .unwrap()
+                .absence_proven_within_selected_encoded_scope
+        );
+    }
+    let limited = SnapshotFactIndex::new(
+        scope(&data),
+        &views,
+        IndexLimits {
+            max_entries: 0,
+            ..IndexLimits::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        limited
+            .references_to_string_raw_mutf8(raw)
+            .unwrap_err()
+            .code,
+        ErrorCode::QuotaExceeded
+    );
+    assert_eq!(
+        limited
+            .references_to_string_raw_mutf8_scalar(raw)
+            .unwrap()
+            .sites,
+        expected
+    );
+    let partial =
+        SnapshotFactIndex::new(scope(&data), &[views[0].clone()], IndexLimits::default()).unwrap();
+    assert_eq!(
+        partial
+            .references_to_string_raw_mutf8(raw)
+            .unwrap_err()
+            .code,
+        ErrorCode::IncompleteFacts
+    );
+    assert_eq!(
+        partial
+            .references_to_string_raw_mutf8_scalar(raw)
+            .unwrap_err()
+            .code,
+        ErrorCode::IncompleteFacts
+    );
+}
+
+#[test]
 fn type_descriptor_reference_index_preserves_exact_sites_and_occurrences() {
     let data = setup("references/generated/type-names-035.dex", 2);
     let refs = data

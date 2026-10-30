@@ -465,11 +465,17 @@ enum ReferenceResultKind {
     Method,
     Field,
     String,
+    RawString,
     Type,
     Prototype,
     MethodHandle,
     CallSiteBytes,
     Caller,
+}
+#[derive(Clone, Copy)]
+enum StringReferencePredicate<'a> {
+    Utf16(&'a [u16]),
+    RawMutf8(&'a [u8]),
 }
 #[derive(Clone, Debug, Serialize)]
 pub struct IndexMatches {
@@ -1947,7 +1953,9 @@ impl<'a> SnapshotFactIndex<'a> {
                 (true, _) => None,
                 (false, ReferenceResultKind::Method) => Some(self.reference_symbols.audit()?),
                 (false, ReferenceResultKind::Field) => Some(self.field_reference_symbols.audit()?),
-                (false, ReferenceResultKind::String) => Some(self.strings.audit()?),
+                (false, ReferenceResultKind::String | ReferenceResultKind::RawString) => {
+                    Some(self.strings.audit()?)
+                }
                 (false, ReferenceResultKind::Type) => Some(self.type_references.audit()?),
                 (false, ReferenceResultKind::Prototype) => Some(self.prototype_references.audit()?),
                 (false, ReferenceResultKind::MethodHandle) => Some(self.method_handles.audit()?),
@@ -1968,6 +1976,12 @@ impl<'a> SnapshotFactIndex<'a> {
                 (true, ReferenceResultKind::String) => "scalar_utf16_strings_then_scalar_sites",
                 (false, ReferenceResultKind::String) => {
                     "utf16_string_candidates_then_exact_ref_and_existing_postings"
+                }
+                (true, ReferenceResultKind::RawString) => {
+                    "scalar_raw_mutf8_strings_then_scalar_sites"
+                }
+                (false, ReferenceResultKind::RawString) => {
+                    "raw_mutf8_string_candidates_then_exact_ref_and_existing_postings"
                 }
                 (true, ReferenceResultKind::Type) => "scalar_type_descriptors_then_scalar_sites",
                 (false, ReferenceResultKind::Type) => {
@@ -2007,7 +2021,7 @@ impl<'a> SnapshotFactIndex<'a> {
                 ReferenceResultKind::Method => {
                     "encoded_method_operands_only;runtime_dispatch_not_inferred"
                 }
-                ReferenceResultKind::String => {
+                ReferenceResultKind::String | ReferenceResultKind::RawString => {
                     "encoded_string_operands_only;runtime_values_not_inferred"
                 }
                 ReferenceResultKind::Type => {
@@ -2732,21 +2746,37 @@ impl<'a> SnapshotFactIndex<'a> {
     /// Search encoded string operand sites by exact UTF-16 code units across selected occurrences.
     /// Raw MUTF-8 byte equality is a separate predicate and is not implied by this query.
     pub fn references_to_string_utf16(&self, value: &[u16]) -> MddResult<ReferenceIndexMatches> {
-        self.references_to_string(value, false)
+        self.references_to_string(StringReferencePredicate::Utf16(value), false)
     }
     /// Scan immutable string and reference facts without using the lazy candidate index.
     pub fn references_to_string_utf16_scalar(
         &self,
         value: &[u16],
     ) -> MddResult<ReferenceIndexMatches> {
-        self.references_to_string(value, true)
+        self.references_to_string(StringReferencePredicate::Utf16(value), true)
+    }
+    /// Search encoded string operands using the exact MUTF-8 payload bytes.
+    /// The bytes exclude the terminating zero and the encoded UTF-16 length.
+    /// This does not imply a runtime string value or Unicode normalization.
+    pub fn references_to_string_raw_mutf8(&self, value: &[u8]) -> MddResult<ReferenceIndexMatches> {
+        self.references_to_string(StringReferencePredicate::RawMutf8(value), false)
+    }
+    /// Scan immutable strings and encoded reference sites without the candidate index.
+    pub fn references_to_string_raw_mutf8_scalar(
+        &self,
+        value: &[u8],
+    ) -> MddResult<ReferenceIndexMatches> {
+        self.references_to_string(StringReferencePredicate::RawMutf8(value), true)
     }
     fn references_to_string(
         &self,
-        value: &[u16],
+        value: StringReferencePredicate<'_>,
         scalar: bool,
     ) -> MddResult<ReferenceIndexMatches> {
-        if value.len() > 1_000_000 {
+        if match value {
+            StringReferencePredicate::Utf16(units) => units.len() > 1_000_000,
+            StringReferencePredicate::RawMutf8(bytes) => bytes.len() > 16 * 1024 * 1024,
+        } {
             return Err(quota("INDEX_PREDICATE_BUDGET"));
         }
         let coverage = self.require(FactLayer::References)?;
@@ -2757,7 +2787,14 @@ impl<'a> SnapshotFactIndex<'a> {
             Some(self.strings.get_or_build(|| self.build_strings())?)
         };
         let candidates: Box<dyn Iterator<Item = Atom> + '_> = if let Some(index) = &index {
-            Box::new(index.utf16.get(value).into_iter().flatten().copied())
+            match value {
+                StringReferencePredicate::Utf16(units) => {
+                    Box::new(index.utf16.get(units).into_iter().flatten().copied())
+                }
+                StringReferencePredicate::RawMutf8(bytes) => {
+                    Box::new(index.raw.get(bytes).into_iter().flatten().copied())
+                }
+            }
         } else {
             Box::new(self.views.iter().enumerate().flat_map(|(view, entry)| {
                 entry.metadata.into_iter().flat_map(move |metadata| {
@@ -2785,7 +2822,11 @@ impl<'a> SnapshotFactIndex<'a> {
                     )
                 })?;
             let string = &refs.definitions().metadata().strings()[candidate.local as usize];
-            if string.data.text.utf16_units != value {
+            let exact = match value {
+                StringReferencePredicate::Utf16(units) => string.data.text.utf16_units == units,
+                StringReferencePredicate::RawMutf8(bytes) => string.data.text.raw_mutf8 == bytes,
+            };
+            if !exact {
                 continue;
             }
             let target = refs.target_id(TargetKind::String, candidate.local)?;
@@ -2818,7 +2859,10 @@ impl<'a> SnapshotFactIndex<'a> {
             result,
             candidate_count,
             scalar,
-            ReferenceResultKind::String,
+            match value {
+                StringReferencePredicate::Utf16(_) => ReferenceResultKind::String,
+                StringReferencePredicate::RawMutf8(_) => ReferenceResultKind::RawString,
+            },
             coverage,
         )
     }

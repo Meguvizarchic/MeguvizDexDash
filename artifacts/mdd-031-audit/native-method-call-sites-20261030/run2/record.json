@@ -1,0 +1,78 @@
+{
+  "scope": "two targeted local tests, synthetic fixture; only listed sources hashed, no full qualification",
+  "source_before": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-sql/src/provider/metadata.rs": "9fb9111b3db1f1a2d0de29461aeace41f212b678685f57b395436e76f678909a",
+    "crates/mdd-sql/src/provider.rs": "27cdcc535265c054e4c470ab737cf5402abb9c734b2d5894a2b1cb439d0ace56",
+    "crates/mdd-sql/src/bridge.rs": "82b0fc6e6df90752d4cdb3118874b7546071ae18aa8b1c9151623557cc9c8483",
+    "crates/mdd-facts/src/references.rs": "ff11737c8a45336489beca2867c4bfd7d455012f03ebfa1fdddc3edaa1418349",
+    "crates/mdd-facts/src/indexes/mod.rs": "103b9e855294fa85ff5cb7cf2a612b6a3b93837594347697135c044e0e738c16",
+    "crates/mdd-dex/src/instructions/mod.rs": "b2188ce78fb2846a1aa954483c4e71894c97ac3cf010b13cbeb8f01d0ce28456",
+    "crates/mdd-dex/src/instructions/decode.rs": "d339978b8d59fbfc563117e610f26af9b09dc12ed174c3e28170a3916eaa1970",
+    "tests/fixtures/references/generated/poly-custom-038.dex": "25bc5a03641d31d87212a9a292d798e64c563e2666d03f579e7fc894ac8ee425",
+    "tests/fixtures/references/oracle-results.json": "2a4decaf563592449229a9a494c804609b686fc8bbe4eb4cb21cf588db3070ad"
+  },
+  "source_after": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-sql/src/provider/metadata.rs": "9fb9111b3db1f1a2d0de29461aeace41f212b678685f57b395436e76f678909a",
+    "crates/mdd-sql/src/provider.rs": "27cdcc535265c054e4c470ab737cf5402abb9c734b2d5894a2b1cb439d0ace56",
+    "crates/mdd-sql/src/bridge.rs": "82b0fc6e6df90752d4cdb3118874b7546071ae18aa8b1c9151623557cc9c8483",
+    "crates/mdd-facts/src/references.rs": "ff11737c8a45336489beca2867c4bfd7d455012f03ebfa1fdddc3edaa1418349",
+    "crates/mdd-facts/src/indexes/mod.rs": "103b9e855294fa85ff5cb7cf2a612b6a3b93837594347697135c044e0e738c16",
+    "crates/mdd-dex/src/instructions/mod.rs": "b2188ce78fb2846a1aa954483c4e71894c97ac3cf010b13cbeb8f01d0ce28456",
+    "crates/mdd-dex/src/instructions/decode.rs": "d339978b8d59fbfc563117e610f26af9b09dc12ed174c3e28170a3916eaa1970",
+    "tests/fixtures/references/generated/poly-custom-038.dex": "25bc5a03641d31d87212a9a292d798e64c563e2666d03f579e7fc894ac8ee425",
+    "tests/fixtures/references/oracle-results.json": "2a4decaf563592449229a9a494c804609b686fc8bbe4eb4cb21cf588db3070ad"
+  },
+  "listed_sources_unchanged": true,
+  "runs": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-sql",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "native_reference_sites_keep_operand_and_occurrence_identity",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-10-30T13:58:15.357399+00:00",
+      "finished_utc": "2026-10-30T13:58:29.643175+00:00",
+      "exit_code": 101,
+      "stdout": "native_reference_sites_keep_operand_and_occurrence_identity.stdout",
+      "stderr": "native_reference_sites_keep_operand_and_occurrence_identity.stderr",
+      "raw_stderr_sha256": "ccd924bf42347934ff6fc0ac2ea89e7e408cc58239562e73e4ff2c4e09bb068a",
+      "stderr_redaction": "workspace path replaced; original retained under ignored local evidence"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-sql",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "combined_reference_sites_join_only_matching_occurrences",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-10-30T13:58:29.643220+00:00",
+      "finished_utc": "2026-10-30T13:58:30.116007+00:00",
+      "exit_code": 0,
+      "stdout": "combined_reference_sites_join_only_matching_occurrences.stdout",
+      "stderr": "combined_reference_sites_join_only_matching_occurrences.stderr",
+      "raw_stderr_sha256": "86f07ef44d84bac51d8d44c26f42618ba360de4f7d3832b9c99448e44a2ee8b3",
+      "stderr_redaction": "workspace path replaced; original retained under ignored local evidence"
+    }
+  ]
+}

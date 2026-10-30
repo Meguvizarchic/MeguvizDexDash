@@ -1,0 +1,39 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "mdd-query",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "1",
+    "remaining_physical_memory_respects_shared_resident_and_ancestors",
+    "--",
+    "--nocapture"
+  ],
+  "started_utc": "2026-10-30T13:56:49.822435+00:00",
+  "source_before": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-query/Cargo.toml": "eb0e0c3d083ae0f3257a44519d9ffd1fa59bab82a332c1e20a16a7efb840d51d",
+    "crates/mdd-query/src/budget.rs": "185ffe4db3ffce8d919e19bd8142089df1867b3f7915d78303f3d6ef3d352e3e",
+    "crates/mdd-query/src/budget/tests.rs": "81dc05f99b39fa1c669fcafa4eae1af91ea7b0e529c672eb782de4caa24df39a",
+    "crates/mdd-session/src/cancellation.rs": "ebf6ef5fd3c84f1400297f459b9794d089e97cd497e5cb33883b70f12ca25cdc",
+    "crates/mdd-session/src/lib.rs": "8bbe6edab753a1bfc60e933fb833a97d8992aa9c8c9cdead3aee5ee3ea73f994"
+  },
+  "scope": "one logical budget headroom test; no RSS, concurrency or full runtime qualification",
+  "exit_code": 0,
+  "source_after": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-query/Cargo.toml": "eb0e0c3d083ae0f3257a44519d9ffd1fa59bab82a332c1e20a16a7efb840d51d",
+    "crates/mdd-query/src/budget.rs": "185ffe4db3ffce8d919e19bd8142089df1867b3f7915d78303f3d6ef3d352e3e",
+    "crates/mdd-query/src/budget/tests.rs": "81dc05f99b39fa1c669fcafa4eae1af91ea7b0e529c672eb782de4caa24df39a",
+    "crates/mdd-session/src/cancellation.rs": "ebf6ef5fd3c84f1400297f459b9794d089e97cd497e5cb33883b70f12ca25cdc",
+    "crates/mdd-session/src/lib.rs": "8bbe6edab753a1bfc60e933fb833a97d8992aa9c8c9cdead3aee5ee3ea73f994"
+  },
+  "finished_utc": "2026-10-30T13:57:06.783352+00:00"
+}

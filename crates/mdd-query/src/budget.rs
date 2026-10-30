@@ -389,15 +389,32 @@ impl BudgetPool {
             Ok(())
         }
     }
+    /// Current logical headroom across all ancestors. Physical-memory
+    /// categories also consume the shared `ResidentBytes` budget. This is a
+    /// snapshot, not an admission: concurrent charges or reservation limits
+    /// may still cause the subsequent operation to fail.
     pub fn remaining(&self, resource: Resource) -> MddResult<u64> {
         let state = self.lock()?;
         Ok(Self::ancestors(&state, &self.owner)
             .iter()
             .map(|owner| {
                 let node = &state.nodes[owner];
-                node.limits
+                let category = node
+                    .limits
                     .limit(resource)
-                    .saturating_sub(node.used.get(&resource).copied().unwrap_or(0))
+                    .saturating_sub(node.used.get(&resource).copied().unwrap_or(0));
+                if resource.physical_memory() {
+                    category.min(
+                        node.limits.limit(Resource::ResidentBytes).saturating_sub(
+                            node.used
+                                .get(&Resource::ResidentBytes)
+                                .copied()
+                                .unwrap_or(0),
+                        ),
+                    )
+                } else {
+                    category
+                }
             })
             .min()
             .unwrap_or(0))

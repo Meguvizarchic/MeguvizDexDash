@@ -1,0 +1,11 @@
+
+running 1 test
+test provider::metadata::tests::native_reference_sites_keep_operand_and_occurrence_identity ... FAILED
+
+failures:
+
+failures:
+    provider::metadata::tests::native_reference_sites_keep_operand_and_occurrence_identity
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 121 filtered out; finished in 0.01s
+

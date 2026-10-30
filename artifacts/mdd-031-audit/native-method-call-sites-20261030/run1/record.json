@@ -1,0 +1,6 @@
+{
+  "status": "failed_before_tests",
+  "error": "FileNotFoundError: source list contained nonexistent crates/mdd-dex/src/instructions.rs; actual instructions module is a directory",
+  "tests_started": 0,
+  "note": "Evidence collection failed before any cargo invocation; retained as a failed attempt."
+}

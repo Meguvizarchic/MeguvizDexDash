@@ -1,0 +1,11 @@
+   Compiling mdd-query v0.1.0-dev (<workspace>\crates\mdd-query)
+   Compiling mdd-sql v0.1.0-dev (<workspace>\crates\mdd-sql)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 13.27s
+     Running unittests src\lib.rs (target\debug\deps\mdd_sql-46977fcd4387e316.exe)
+
+thread 'provider::metadata::tests::native_reference_sites_keep_operand_and_occurrence_identity' (37860) panicked at crates\mdd-sql\src\provider\metadata.rs:3551:9:
+assertion `left == right` failed
+  left: 12
+ right: 4
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p mdd-sql --lib`
