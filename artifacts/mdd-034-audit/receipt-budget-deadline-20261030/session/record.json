@@ -1,0 +1,27 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "mdd-session",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "1",
+    "delivery_budget_deadline_keeps_computation_and_first_terminal",
+    "--",
+    "--nocapture"
+  ],
+  "started_utc": "2026-10-30T08:56:56.228560+00:00",
+  "finished_utc": "2026-10-30T08:56:58.471092+00:00",
+  "exit_code": 0,
+  "source_sha256": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "crates/mdd-session/src/lib.rs": "1c84c8f388a9c7f7d721f2449eaddf0c2704a173c30ceedad9ef6d9d3ba1b4d9",
+    "crates/mdd-session/src/cancellation.rs": "b00cbdaf047425f00449e38555693ed379f96bcfe026effb122ec894be225dad"
+  },
+  "source_unchanged": true,
+  "stdout_sha256": "0707b98d1a10652adb6d0d498a936773a78db82ff4ff9d15f2bdf434f35f630d",
+  "stderr_sha256": "86a9f7ce0e1978858fd159a983b8e9f878d0359208e0ebab2db7a714b3b2328b",
+  "scope": "targeted local session deadline; no full qualification"
+}

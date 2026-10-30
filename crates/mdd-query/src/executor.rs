@@ -1564,6 +1564,17 @@ impl QueueDeliveryReceipt {
         )? {
             return Err(invalid("DELIVERY_RECEIPT_QUEUE_OR_QUERY_MISMATCH"));
         }
+        let delivery_deadline = if pending.error.is_none() {
+            Some(
+                pending
+                    .runtime
+                    .pool()
+                    .delivery_deadline()
+                    .map_err(|error| pending.runtime.stop(error))?,
+            )
+        } else {
+            None
+        };
         let mut terminal = pending
             .terminal
             .take()
@@ -1578,10 +1589,7 @@ impl QueueDeliveryReceipt {
             return Ok(envelope);
         }
         let envelope = terminal.succeed(None)?;
-        if let Err(error) = self.finish_cursor() {
-            return Err(pending.runtime.stop(error));
-        }
-        if let Err(error) = pending.runtime.cancellation().finish_delivery() {
+        if let Err(error) = self.finish_cursor_with_budget(delivery_deadline.as_ref().unwrap()) {
             return Err(pending.runtime.stop(error));
         }
         pending.completed = true;

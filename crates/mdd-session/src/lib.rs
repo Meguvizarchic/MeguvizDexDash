@@ -307,6 +307,28 @@ impl State {
         }
         self.ensure_worker()
     }
+
+    fn checkpoint_delivery(
+        &mut self,
+        query: &QueryHandle,
+        budget: Option<&cancellation::DeliveryBudgetDeadline>,
+    ) -> MddResult<()> {
+        let entry = self.query(query)?;
+        // Preserve an already recorded terminal and an already completed query.
+        if entry.status.error.is_some() || entry.status.phase == QueryPhase::Completed {
+            return self.checkpoint(query);
+        }
+        let lifecycle_deadline = entry.deadline;
+        let now = Instant::now();
+        if let Some(budget) = budget
+            && budget.soft() < lifecycle_deadline
+            && let Some(error) = budget.error_at(now)
+        {
+            self.end_query(query.id(), error.clone());
+            return Err(error);
+        }
+        self.checkpoint(query)
+    }
 }
 
 impl Lifecycle {
@@ -659,8 +681,28 @@ impl Lifecycle {
     }
 
     pub fn finish_delivery(&self, query: &QueryHandle) -> MddResult<()> {
+        self.finish_delivery_checked(query, None)
+    }
+
+    /// Query runtimes supply their immutable budget deadline to the same delivery lock.
+    pub fn finish_delivery_with_budget(
+        &self,
+        query: &QueryHandle,
+        budget: &cancellation::DeliveryBudgetDeadline,
+    ) -> MddResult<()> {
+        if budget.owner() != query.id() {
+            return Err(invalid("delivery budget belongs to another query"));
+        }
+        self.finish_delivery_checked(query, Some(budget))
+    }
+
+    fn finish_delivery_checked(
+        &self,
+        query: &QueryHandle,
+        budget: Option<&cancellation::DeliveryBudgetDeadline>,
+    ) -> MddResult<()> {
         let mut state = self.lock()?;
-        state.checkpoint(query)?;
+        state.checkpoint_delivery(query, budget)?;
         if state.query(query)?.status.phase == QueryPhase::Completed {
             return Ok(());
         }
@@ -692,6 +734,76 @@ impl Lifecycle {
                 "unconsumed cursor remains",
             ));
         }
+        // Cursor scanning itself may cross a deadline; decide again at commit.
+        state.checkpoint_delivery(query, budget)?;
+        let entry = state.queries.get_mut(query.id()).unwrap();
+        entry.status.delivery_complete = true;
+        entry.status.phase = QueryPhase::Completed;
+        Ok(())
+    }
+
+    /// Confirm the bound queue cursor and complete delivery in one lifecycle lock.
+    pub fn finish_delivery_cursor_with_budget(
+        &self,
+        session: &SessionHandle,
+        query: &QueryHandle,
+        cursor: &CursorHandle,
+        budget: &cancellation::DeliveryBudgetDeadline,
+    ) -> MddResult<()> {
+        if budget.owner() != query.id() {
+            return Err(invalid("delivery budget belongs to another query"));
+        }
+        let mut state = self.lock()?;
+        state.owned_query(session, query)?;
+        state.checkpoint_delivery(query, Some(budget))?;
+        let cursor_entry = state
+            .cursors
+            .get(cursor.id())
+            .ok_or_else(|| MddError::new(ErrorCode::InvalidCursor, "lifecycle", "stale cursor"))?;
+        state.check(&cursor.0, &cursor_entry.token)?;
+        let query_entry = state.query(query)?;
+        if !cursor_entry.open
+            || cursor_entry.query_id != query.id()
+            || cursor_entry.session_id != session.id()
+            || cursor_entry.snapshot_id != state.session(session)?.snapshot_id
+            || cursor_entry.catalog_epoch != query_entry.status.catalog_epoch.0
+            || cursor_entry.binding.request_key != query_entry.binding.request_key
+            || cursor_entry.binding.schema_id != query_entry.binding.schema_id
+            || cursor_entry.binding.semantic_version != query_entry.binding.semantic_version
+        {
+            return Err(MddError::new(
+                ErrorCode::InvalidCursor,
+                "lifecycle",
+                "cursor binding or lifetime mismatch",
+            ));
+        }
+        let entry = state.query(query)?;
+        if !entry.status.execution_complete {
+            return Err(invalid("computation is not complete"));
+        }
+        if entry.delivery_abandoned || entry.buffered_bytes != 0 {
+            return Err(MddError::new(
+                ErrorCode::InvalidCursor,
+                "lifecycle",
+                "unconsumed cursor or buffered output remains",
+            ));
+        }
+        if state
+            .cursors
+            .iter()
+            .any(|(id, other)| id != cursor.id() && other.query_id == query.id() && other.open)
+        {
+            return Err(MddError::new(
+                ErrorCode::InvalidCursor,
+                "lifecycle",
+                "unconsumed cursor remains",
+            ));
+        }
+        // Recheck after scanning, at the delivery linearization point.
+        state.checkpoint_delivery(query, Some(budget))?;
+        let cursor_entry = state.cursors.get_mut(cursor.id()).unwrap();
+        cursor_entry.consumed = true;
+        cursor_entry.open = false;
         let entry = state.queries.get_mut(query.id()).unwrap();
         entry.status.delivery_complete = true;
         entry.status.phase = QueryPhase::Completed;

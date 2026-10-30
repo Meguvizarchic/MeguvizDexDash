@@ -1,0 +1,9 @@
+   Compiling mdd-facts v0.1.0-dev (D:\MeguvisDexDash\crates\mdd-facts)
+   Compiling mdd-query v0.1.0-dev (D:\MeguvisDexDash\crates\mdd-query)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 18.64s
+     Running unittests src\lib.rs (target\debug\deps\mdd_query-82579f4092cfd058.exe)
+
+thread 'executor::runtime_tests::delivery_receipt_does_not_succeed_after_query_budget_deadline' (21648) panicked at crates\mdd-query\src\executor\runtime_tests.rs:1987:46:
+called `Result::unwrap_err()` on an `Ok` value: ResultEnvelope { schema_version: "mdd.result.v1", request_id: "runtime-request", operation: "query", profile: "mdd-native-v1-unqualified", sql_dialect: None, session_id: Some("session-58f631bee8cc6c95117ac194a65d78b0939dcfcd94725354e2fb0901b5106361"), snapshot_id: Some("snapshot-60c55c2ce728af2156303239142c1e9baec56f9bda03a46c28ebad8b880661c9"), catalog_epoch: Some(DecimalU64(0)), query_id: Some("query-32e77a2b5636e440bf52d022c1e4b2695ae84c28e2a26482b6942180303e5ef4"), operation_status: Ok, coverage: Coverage { scope_id: "generic-owned-test-table", input: Complete, facts: Complete, required_layers: ["structure"], issues: [] }, execution: Execution { complete: true }, response: Response { schema_id: Some("mdd.rows.v1:b905d0d31699ce3162cc7ae59b799b5c7acacfe7efad757d7f986e5f7df88eca"), emitted_rows: DecimalU64(0), total_rows: Some(DecimalU64(0)), total_rows_exact: true, more_available: false, truncated: false, next_cursor: None }, data: None, error: None, warnings: [] }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p mdd-query --lib`

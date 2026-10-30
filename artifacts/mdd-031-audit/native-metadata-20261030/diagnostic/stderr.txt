@@ -1,0 +1,10 @@
+   Compiling mdd-sql v0.1.0-dev (D:\MeguvisDexDash\crates\mdd-sql)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.34s
+     Running unittests src\lib.rs (target\debug\deps\mdd_sql-46977fcd4387e316.exe)
+
+thread 'provider::metadata::tests::native_types_and_prototypes_preserve_occurrences_and_parameter_order' (5576) panicked at crates\mdd-sql\src\provider\metadata.rs:585:9:
+assertion `left == right` failed: MddError { code: InvalidArgument, stage: "sql.sqlite", message: "vtable constructor failed: native_types", retryable: false, details: {"sqlite_code": String("Unknown"), "sqlite_extended_code": Number(1)} }
+  left: InvalidArgument
+ right: QuotaExceeded
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p mdd-sql --lib`

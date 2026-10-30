@@ -1,0 +1,11 @@
+   Compiling mdd-query v0.1.0-dev (D:\MeguvisDexDash\crates\mdd-query)
+   Compiling mdd-sql v0.1.0-dev (D:\MeguvisDexDash\crates\mdd-sql)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 14.44s
+     Running unittests src\lib.rs (target\debug\deps\mdd_sql-46977fcd4387e316.exe)
+
+thread 'provider::metadata::tests::native_types_and_prototypes_preserve_occurrences_and_parameter_order' (39944) panicked at crates\mdd-sql\src\provider\metadata.rs:582:9:
+assertion `left == right` failed
+  left: InvalidArgument
+ right: QuotaExceeded
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p mdd-sql --lib`

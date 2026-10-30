@@ -1,0 +1,38 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "mdd-facts",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "1",
+    "raw_evidence_keeps_occurrences_shared_bodies_and_unique_definitions",
+    "--",
+    "--nocapture"
+  ],
+  "started_utc": "2026-10-30T08:53:27.181040+00:00",
+  "finished_utc": "2026-10-30T08:53:39.778449+00:00",
+  "elapsed_seconds": 12.593999999999141,
+  "exit_code": 0,
+  "timed_out": false,
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "crates/mdd-facts/src/raw_fingerprints.rs": "e0e0196a2c15959c33f15cfb4332cd3e7308379138cc82faa37e4d4366e8578f",
+    "crates/mdd-facts/src/definitions.rs": "94e3f72e27cca09fac48f7c472f7ffb23de531884011c7e296cfb66e96d90bbb",
+    "crates/mdd-facts/src/metadata.rs": "e5fafa598807cc23d011570e7411ee53e1129391362c08b5cef5a38afe040357",
+    "crates/mdd-dex/src/definitions.rs": "ccebdce7db90d5ba87bb02e69446b27d4920c5bb3671f9208f7e93e130c259a3"
+  },
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "crates/mdd-facts/src/raw_fingerprints.rs": "e0e0196a2c15959c33f15cfb4332cd3e7308379138cc82faa37e4d4366e8578f",
+    "crates/mdd-facts/src/definitions.rs": "94e3f72e27cca09fac48f7c472f7ffb23de531884011c7e296cfb66e96d90bbb",
+    "crates/mdd-facts/src/metadata.rs": "e5fafa598807cc23d011570e7411ee53e1129391362c08b5cef5a38afe040357",
+    "crates/mdd-dex/src/definitions.rs": "ccebdce7db90d5ba87bb02e69446b27d4920c5bb3671f9208f7e93e130c259a3"
+  },
+  "source_unchanged": true,
+  "stdout_sha256": "1787b08cb27e70e3d9617aae378241b884910f9eeb0c4b146b48b8b890124474",
+  "stderr_sha256": "51dcd7207a34873942cb7549972433fdcb73148af9df35ca09fd926b99dfe833",
+  "scope": "synthetic local targeted check; no performance or fact qualification"
+}

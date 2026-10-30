@@ -1,5 +1,5 @@
 //! Hierarchical logical budgets and RAII-owned resident/queue reservations, never RSS claims.
-use mdd_session::cancellation::QueryCancellation;
+use mdd_session::cancellation::{DeliveryBudgetDeadline, QueryCancellation};
 use mdd_types::{DecimalU64, ErrorCode, MddError, MddResult};
 use serde::{Serialize, Serializer, ser::SerializeStruct};
 use std::{
@@ -366,6 +366,16 @@ impl BudgetPool {
     }
     pub fn hard_deadline_due(&self) -> MddResult<bool> {
         Ok(Instant::now() >= self.lock()?.nodes[&self.owner].hard)
+    }
+    /// Copy the immutable absolute deadlines without holding the budget lock
+    /// while the lifecycle lock is acquired for final delivery.
+    pub(crate) fn delivery_deadline(&self) -> MddResult<DeliveryBudgetDeadline> {
+        let (started, soft, hard) = {
+            let state = self.lock()?;
+            let node = &state.nodes[&self.owner];
+            (node.started, node.soft, node.hard)
+        };
+        DeliveryBudgetDeadline::new(started, soft, hard, self.owner.clone())
     }
     pub fn limit(&self, resource: Resource) -> MddResult<u64> {
         Ok(self.lock()?.nodes[&self.owner].limits.limit(resource))
@@ -1483,10 +1493,21 @@ impl QueueDeliveryReceipt {
             && state.acknowledged == expected
             && same_error)
     }
+    #[cfg(test)]
     pub(crate) fn finish_cursor(&mut self) -> MddResult<()> {
         self.tracker
             .cancel
             .finish_delivery_cursor(&self.tracker.cursor)?;
+        self.consumed = true;
+        Ok(())
+    }
+    pub(crate) fn finish_cursor_with_budget(
+        &mut self,
+        deadline: &DeliveryBudgetDeadline,
+    ) -> MddResult<()> {
+        self.tracker
+            .cancel
+            .finish_delivery_cursor_with_budget(&self.tracker.cursor, deadline)?;
         self.consumed = true;
         Ok(())
     }

@@ -1,0 +1,11 @@
+
+running 1 test
+test provider::metadata::tests::native_types_and_prototypes_preserve_occurrences_and_parameter_order ... FAILED
+
+failures:
+
+failures:
+    provider::metadata::tests::native_types_and_prototypes_preserve_occurrences_and_parameter_order
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 100 filtered out; finished in 0.01s
+

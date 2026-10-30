@@ -1,0 +1,11 @@
+
+running 1 test
+test executor::runtime_tests::delivery_receipt_does_not_succeed_after_query_budget_deadline ... FAILED
+
+failures:
+
+failures:
+    executor::runtime_tests::delivery_receipt_does_not_succeed_after_query_budget_deadline
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 69 filtered out; finished in 0.25s
+

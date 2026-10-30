@@ -159,11 +159,28 @@ impl RawCodeEvidence {
                 "method evidence allocation failed",
             ))
         })?;
+        let mut method_index = BTreeMap::new();
         let mut total = 0u64;
         for method in &definitions.definitions().method_definitions {
-            let entity = definitions
-                .entity(EntityKind::MethodDefinition, method.method_idx)
-                .map_err(bind)?;
+            // The immutable, completely validated definitions are the source
+            // of this identity; searching the same collection again per item
+            // adds no validation and makes the join quadratic.
+            let entity = EntityRef {
+                snapshot_id: source.snapshot_id.clone(),
+                dex_occurrence_id: source.dex_occurrence_id.clone(),
+                kind: EntityKind::MethodDefinition,
+                local_index: method.method_idx,
+            };
+            if method_index
+                .insert(method.method_idx, methods.len())
+                .is_some()
+            {
+                return Err(bind(error(
+                    ErrorCode::InternalFault,
+                    "raw.code",
+                    "validated method definition identity is duplicated",
+                )));
+            }
             let (body_kind, offset, range, digest) = match &method.body {
                 MethodBody::Native => (RawBodyKind::NativeNoBody, None, None, None),
                 MethodBody::Abstract => (RawBodyKind::AbstractNoBody, None, None, None),
@@ -240,11 +257,6 @@ impl RawCodeEvidence {
                 sha256: digest,
             });
         }
-        let method_index = methods
-            .iter()
-            .enumerate()
-            .map(|(ordinal, method)| (method.method.local_index, ordinal))
-            .collect();
         Ok(Self {
             source: source.clone(),
             methods,
@@ -657,6 +669,86 @@ mod tests {
         assert_eq!(
             evidence.raw_method_body(&empty.method).unwrap(),
             Some(&[][..])
+        );
+    }
+
+    #[test]
+    fn raw_evidence_keeps_occurrences_shared_bodies_and_unique_definitions() {
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/references/generated/shared-code-035.dex");
+        let input = InputSpec {
+            path,
+            kind: InputKind::RawDex,
+            expected_sha256: None,
+        };
+        let snapshot =
+            Snapshot::capture(&[input.clone(), input], CaptureLimits::default()).unwrap();
+        let mut definitions = Vec::new();
+        let mut codes = Vec::new();
+        for source in snapshot.sources() {
+            let inventory = ArchiveInventory::build(
+                source,
+                InventoryPolicy::default(),
+                ArchiveLimits::default(),
+            )
+            .unwrap();
+            let metadata =
+                MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default()).unwrap();
+            definitions
+                .push(DefinitionFacts::build(metadata, DefinitionLimits::default()).unwrap());
+            codes.push(
+                CodeFacts::build_all_code_items(&snapshot, &inventory, 0, CodeLimits::default())
+                    .unwrap(),
+            );
+        }
+        let left = RawCodeEvidence::build(&definitions[0], &codes[0], FingerprintLimits::default())
+            .unwrap();
+        let right =
+            RawCodeEvidence::build(&definitions[1], &codes[1], FingerprintLimits::default())
+                .unwrap();
+        assert_eq!(left.methods().len(), right.methods().len());
+        assert_ne!(
+            left.source().dex_occurrence_id,
+            right.source().dex_occurrence_id
+        );
+        for (a, b) in left.methods().iter().zip(right.methods()) {
+            assert_eq!(a.method.local_index, b.method.local_index);
+            assert_ne!(a.method.dex_occurrence_id, b.method.dex_occurrence_id);
+            assert_eq!(a.body_kind, b.body_kind);
+            assert_eq!(a.sha256, b.sha256);
+            assert_eq!(
+                left.raw_method_body(&a.method).unwrap(),
+                right.raw_method_body(&b.method).unwrap()
+            );
+            assert_eq!(
+                left.raw_method_body(&b.method).unwrap_err().code,
+                ErrorCode::InvalidArgument
+            );
+        }
+        let shared = left.methods().iter().enumerate().any(|(i, a)| {
+            a.code_item_byte_offset.is_some()
+                && left.methods()[i + 1..].iter().any(|b| {
+                    a.method.local_index != b.method.local_index
+                        && a.code_item_byte_offset == b.code_item_byte_offset
+                        && a.sha256 == b.sha256
+                })
+        });
+        assert!(
+            shared,
+            "fixture must contain distinct owners of one code item"
+        );
+
+        let mut inconsistent = definitions[0].clone();
+        inconsistent
+            .definitions
+            .method_definitions
+            .push(inconsistent.definitions.method_definitions[0].clone());
+        assert_eq!(
+            RawCodeEvidence::build(&inconsistent, &codes[0], FingerprintLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InternalFault
         );
     }
 

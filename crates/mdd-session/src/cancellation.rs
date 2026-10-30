@@ -2,6 +2,77 @@
 use crate::{CursorHandle, Lifecycle, QueryHandle, QueryPhase, QueryStatus, SessionHandle};
 use mdd_types::{ErrorCode, MddError, MddResult};
 use serde::Serialize;
+use std::time::Instant;
+
+/// Immutable deadline copied by the query runtime from its budget tree.
+/// The runtime validates ownership before supplying this to delivery.
+#[derive(Clone, Debug)]
+pub struct DeliveryBudgetDeadline {
+    started: Instant,
+    soft: Instant,
+    hard: Instant,
+    owner: String,
+}
+impl DeliveryBudgetDeadline {
+    pub fn new(started: Instant, soft: Instant, hard: Instant, owner: String) -> MddResult<Self> {
+        if owner.is_empty() || hard < soft {
+            return Err(MddError::new(
+                ErrorCode::InvalidArgument,
+                "cancel.delivery_budget",
+                "invalid budget deadline witness",
+            ));
+        }
+        Ok(Self {
+            started,
+            soft,
+            hard,
+            owner,
+        })
+    }
+    pub(crate) fn soft(&self) -> Instant {
+        self.soft
+    }
+    pub(crate) fn owner(&self) -> &str {
+        &self.owner
+    }
+    pub(crate) fn error_at(&self, now: Instant) -> Option<MddError> {
+        if now < self.soft {
+            return None;
+        }
+        let hard = now >= self.hard;
+        Some(
+            MddError::new(
+                ErrorCode::DeadlineExceeded,
+                "budget",
+                "query deadline reached",
+            )
+            .detail("deadline_kind", if hard { "hard" } else { "soft" })
+            .detail(
+                "budget",
+                if hard {
+                    "hard_deadline_ms"
+                } else {
+                    "soft_deadline_ms"
+                },
+            )
+            .detail(
+                "limit",
+                (if hard { self.hard } else { self.soft })
+                    .saturating_duration_since(self.started)
+                    .as_millis()
+                    .to_string(),
+            )
+            .detail(
+                "observed",
+                now.saturating_duration_since(self.started)
+                    .as_millis()
+                    .to_string(),
+            )
+            .detail("owner", self.owner.clone())
+            .detail("supervisor_termination_required", hard),
+        )
+    }
+}
 
 #[derive(Clone, Debug, Serialize)]
 pub struct CancelProfile {
@@ -178,6 +249,11 @@ impl QueryCancellation {
     pub fn finish_delivery(&self) -> MddResult<()> {
         self.lifecycle.finish_delivery(&self.query)
     }
+    /// Complete delivery only if the runtime's immutable budget deadline is still valid.
+    pub fn finish_delivery_with_budget(&self, deadline: &DeliveryBudgetDeadline) -> MddResult<()> {
+        self.lifecycle
+            .finish_delivery_with_budget(&self.query, deadline)
+    }
     fn owning_session(&self) -> MddResult<SessionHandle> {
         let state = self.lifecycle.lock()?;
         let query = state.query(&self.query)?;
@@ -198,6 +274,19 @@ impl QueryCancellation {
     pub fn finish_delivery_cursor(&self, cursor: &CursorHandle) -> MddResult<()> {
         self.lifecycle
             .finish_cursor(&self.owning_session()?, &self.query, cursor)
+    }
+    /// Atomically confirm this queue cursor and complete delivery under its budget deadline.
+    pub fn finish_delivery_cursor_with_budget(
+        &self,
+        cursor: &CursorHandle,
+        deadline: &DeliveryBudgetDeadline,
+    ) -> MddResult<()> {
+        self.lifecycle.finish_delivery_cursor_with_budget(
+            &self.owning_session()?,
+            &self.query,
+            cursor,
+            deadline,
+        )
     }
     pub fn abandon_delivery_cursor(&self, cursor: &CursorHandle) -> MddResult<()> {
         self.lifecycle.close_cursor(cursor)
@@ -255,6 +344,131 @@ mod tests {
             .unwrap();
         lifecycle.start_query(session, &handle, 1).unwrap();
         lifecycle.cancellation_token(&handle).unwrap()
+    }
+    #[test]
+    fn delivery_budget_deadline_keeps_computation_and_first_terminal() {
+        use std::time::Duration;
+        let now = Instant::now();
+        let start = now.checked_sub(Duration::from_secs(2)).unwrap();
+        let early = now.checked_sub(Duration::from_secs(1)).unwrap();
+        let later = now.checked_sub(Duration::from_millis(500)).unwrap();
+        let future = now.checked_add(Duration::from_secs(60)).unwrap();
+        let (lifecycle, session) = runtime();
+        let result = query(&lifecycle, &session);
+        let witness =
+            DeliveryBudgetDeadline::new(start, early, future, result.query.id().into()).unwrap();
+        result.mark_computed().unwrap();
+        lifecycle
+            .lock()
+            .unwrap()
+            .queries
+            .get_mut(result.query.id())
+            .unwrap()
+            .deadline = later;
+        let error = result.finish_delivery_with_budget(&witness).unwrap_err();
+        assert_eq!(error.code, ErrorCode::DeadlineExceeded);
+        assert_eq!(error.stage, "budget");
+        assert_eq!(error.details["deadline_kind"], "soft");
+        let status = result.status().unwrap();
+        assert!(status.execution_complete);
+        assert!(!status.delivery_complete);
+        result.cancel().unwrap();
+        assert_eq!(result.status().unwrap().error.unwrap().stage, "budget");
+
+        let (lifecycle, session) = runtime();
+        let result = query(&lifecycle, &session);
+        result.mark_computed().unwrap();
+        lifecycle
+            .lock()
+            .unwrap()
+            .queries
+            .get_mut(result.query.id())
+            .unwrap()
+            .deadline = early;
+        let witness =
+            DeliveryBudgetDeadline::new(start, later, future, result.query.id().into()).unwrap();
+        let error = result.finish_delivery_with_budget(&witness).unwrap_err();
+        assert_eq!(error.code, ErrorCode::DeadlineExceeded);
+        assert_eq!(error.stage, "lifecycle");
+
+        let (lifecycle, session) = runtime();
+        let result = query(&lifecycle, &session);
+        result.mark_computed().unwrap();
+        result.finish_delivery().unwrap();
+        assert_eq!(
+            result
+                .finish_delivery_with_budget(&witness)
+                .unwrap_err()
+                .code,
+            ErrorCode::InvalidArgument
+        );
+        let witness =
+            DeliveryBudgetDeadline::new(start, later, future, result.query.id().into()).unwrap();
+        assert!(result.finish_delivery_with_budget(&witness).is_ok());
+        assert!(result.status().unwrap().delivery_complete);
+    }
+    #[test]
+    fn delivery_cursor_and_budget_commit_are_atomic() {
+        use std::time::Duration;
+        let now = Instant::now();
+        let future = now.checked_add(Duration::from_secs(60)).unwrap();
+        let past = now.checked_sub(Duration::from_secs(1)).unwrap();
+
+        let (lifecycle, session) = runtime();
+        let result = query(&lifecycle, &session);
+        let first = result.open_delivery_cursor().unwrap();
+        let second = result.open_delivery_cursor().unwrap();
+        result.mark_computed().unwrap();
+        let witness =
+            DeliveryBudgetDeadline::new(now, future, future, result.query.id().into()).unwrap();
+        let original_schema = {
+            let mut state = lifecycle.lock().unwrap();
+            let cursor = state.cursors.get_mut(first.id()).unwrap();
+            std::mem::replace(&mut cursor.binding.schema_id, "foreign-schema".into())
+        };
+        assert_eq!(
+            result
+                .finish_delivery_cursor_with_budget(&first, &witness)
+                .unwrap_err()
+                .code,
+            ErrorCode::InvalidCursor
+        );
+        lifecycle
+            .lock()
+            .unwrap()
+            .cursors
+            .get_mut(first.id())
+            .unwrap()
+            .binding
+            .schema_id = original_schema;
+        assert_eq!(
+            result
+                .finish_delivery_cursor_with_budget(&first, &witness)
+                .unwrap_err()
+                .code,
+            ErrorCode::InvalidCursor
+        );
+        assert!(!result.status().unwrap().delivery_complete);
+        result.finish_delivery_cursor(&second).unwrap();
+        result
+            .finish_delivery_cursor_with_budget(&first, &witness)
+            .unwrap();
+        assert!(result.status().unwrap().delivery_complete);
+
+        let (lifecycle, session) = runtime();
+        let result = query(&lifecycle, &session);
+        let cursor = result.open_delivery_cursor().unwrap();
+        result.mark_computed().unwrap();
+        let expired =
+            DeliveryBudgetDeadline::new(past, past, future, result.query.id().into()).unwrap();
+        let error = result
+            .finish_delivery_cursor_with_budget(&cursor, &expired)
+            .unwrap_err();
+        assert_eq!(error.code, ErrorCode::DeadlineExceeded);
+        assert_eq!(error.stage, "budget");
+        let status = result.status().unwrap();
+        assert!(status.execution_complete);
+        assert!(!status.delivery_complete);
     }
     #[test]
     fn native_query_cancel_and_explicit_dataset_profile_have_distinct_ownership() {

@@ -1,0 +1,38 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "mdd-query",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "1",
+    "delivery_receipt_does_not_succeed_after_query_budget_deadline",
+    "--",
+    "--nocapture"
+  ],
+  "started_utc": "2026-10-30T08:52:40.351924+00:00",
+  "finished_utc": "2026-10-30T08:53:00.147910+00:00",
+  "elapsed_seconds": 19.79700000000048,
+  "exit_code": 101,
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "crates/mdd-query/src/budget.rs": "2b401675c34019ebb20a3b34ab3d8a1e1ac065b99b6bd480d6eee640b8d9df69",
+    "crates/mdd-query/src/executor.rs": "91515f7882fc2aeff5c00d1b30616dbd5adf47d3880e75534f0f08303e215c5b",
+    "crates/mdd-query/src/executor/runtime_tests.rs": "d7bcd45908ca77d62a9de877916256f39ee7b62a93ac58ef660393e066bd25d6",
+    "crates/mdd-session/src/lib.rs": "8f4a805babfee189cb0db625d52d1779d46194ff29713004d5f6146178f863a1",
+    "crates/mdd-session/src/cancellation.rs": "14f4f9ae80f13dd59c1bc5731b47be8569f8793becf710aa6f82c34ff1a6cff3"
+  },
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "crates/mdd-query/src/budget.rs": "2b401675c34019ebb20a3b34ab3d8a1e1ac065b99b6bd480d6eee640b8d9df69",
+    "crates/mdd-query/src/executor.rs": "91515f7882fc2aeff5c00d1b30616dbd5adf47d3880e75534f0f08303e215c5b",
+    "crates/mdd-query/src/executor/runtime_tests.rs": "d7bcd45908ca77d62a9de877916256f39ee7b62a93ac58ef660393e066bd25d6",
+    "crates/mdd-session/src/lib.rs": "8f4a805babfee189cb0db625d52d1779d46194ff29713004d5f6146178f863a1",
+    "crates/mdd-session/src/cancellation.rs": "14f4f9ae80f13dd59c1bc5731b47be8569f8793becf710aa6f82c34ff1a6cff3"
+  },
+  "stdout_sha256": "00ffa8a03d759d139b8bafca7f26d5efa1cb58e1ce13b17c81094584632addc0",
+  "stderr_sha256": "251b70ad3332031e06b5dd604fe2c08753fd73ec1bac5be40efddcb3a4554b8f",
+  "scope": "zero-row query receipt with independent query budget deadline; no worker or profile claim"
+}

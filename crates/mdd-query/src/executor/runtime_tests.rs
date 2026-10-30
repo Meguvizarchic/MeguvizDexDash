@@ -1959,6 +1959,83 @@ fn bound_sender_normal_backpressure_still_delivers_all_rows() {
 }
 
 #[test]
+fn delivery_receipt_does_not_succeed_after_query_budget_deadline() {
+    let limits = BudgetLimits::default().deadlines(250, 5000).unwrap();
+    let f = setup_with_rows(limits, 0);
+    let (sender, mut receiver) =
+        bounded_channel(f.runtime.pool().clone(), Some(f.cancel.clone()), 2).unwrap();
+    let mut pending = execute_into(
+        &f.prepared,
+        &f.source,
+        ExecutionMode::Streaming,
+        &mut Control::new(ExecutionLimits::default()).with_runtime(f.runtime.clone()),
+        terminal(&f),
+        &sender,
+    )
+    .unwrap();
+    assert!(matches!(
+        receiver.receive().unwrap(),
+        QueueEvent::End(Ok(()))
+    ));
+    let mut receipt = receiver.into_delivery_receipt().unwrap();
+    let wait_started = std::time::Instant::now();
+    loop {
+        if let Err(error) = f.runtime.pool().checkpoint() {
+            assert_eq!(error.code, ErrorCode::DeadlineExceeded);
+            break;
+        }
+        assert!(wait_started.elapsed() < std::time::Duration::from_secs(3));
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    }
+    let error = receipt.finish(&mut pending).unwrap_err();
+    assert_eq!(error.code, ErrorCode::DeadlineExceeded);
+    assert_eq!(error.stage, "budget");
+    assert_eq!(error.details["budget"], "soft_deadline_ms");
+    let status = f.cancel.status().unwrap();
+    assert!(status.execution_complete);
+    assert!(!status.delivery_complete);
+    assert_eq!(status.error.unwrap().code, ErrorCode::DeadlineExceeded);
+}
+
+#[test]
+fn delivery_receipt_preserves_existing_failure_after_budget_deadline() {
+    let limits = BudgetLimits::default().deadlines(250, 5000).unwrap();
+    let f = setup_with_rows(limits, 1);
+    let (sender, mut receiver) =
+        bounded_channel(f.runtime.pool().clone(), Some(f.cancel.clone()), 2).unwrap();
+    let mut pending = execute_into(
+        &f.prepared,
+        &f.source,
+        ExecutionMode::Streaming,
+        &mut Control::new(ExecutionLimits {
+            max_output_rows: 0,
+            ..ExecutionLimits::default()
+        })
+        .with_runtime(f.runtime.clone()),
+        terminal(&f),
+        &sender,
+    )
+    .unwrap();
+    let QueueEvent::End(end) = receiver.receive().unwrap() else {
+        panic!("quota failure did not produce End")
+    };
+    assert_eq!(end.unwrap_err().code, ErrorCode::QuotaExceeded);
+    let mut receipt = receiver.into_delivery_receipt().unwrap();
+    let wait_started = std::time::Instant::now();
+    loop {
+        if let Err(error) = f.runtime.pool().checkpoint() {
+            assert_eq!(error.code, ErrorCode::DeadlineExceeded);
+            break;
+        }
+        assert!(wait_started.elapsed() < std::time::Duration::from_secs(3));
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    }
+    let result = receipt.finish(&mut pending).unwrap();
+    assert_eq!(result.error.unwrap().code, ErrorCode::QuotaExceeded);
+    assert!(!f.cancel.status().unwrap().delivery_complete);
+}
+
+#[test]
 fn worker_loss_and_cancel_before_final_receipt_are_not_success() {
     let f = setup(BudgetLimits::default());
     let (sender, mut receiver) =
