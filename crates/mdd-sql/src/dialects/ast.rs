@@ -291,7 +291,30 @@ pub(crate) fn adapt(
         display_overrides: BTreeMap::new(),
         dialect: dialect_policy,
     };
-    let dependencies = rewrite.query(query, 1)?;
+    let dependencies = match rewrite.query(query, 1) {
+        Ok(dependencies) => dependencies,
+        Err(error)
+            if error.details.get("confirm_sqlite_syntax")
+                == Some(&serde_json::Value::Bool(true)) =>
+        {
+            // Only currently visible, already parsed CTE containers can be
+            // considered by the read-only SQLite binding check on this path.
+            let names = rewrite
+                .cte_scopes
+                .iter()
+                .flat_map(|scope| scope.keys())
+                .cloned()
+                .collect::<BTreeSet<_>>();
+            return Err(error.detail(
+                "visible_ctes",
+                names
+                    .into_iter()
+                    .map(serde_json::Value::from)
+                    .collect::<Vec<_>>(),
+            ));
+        }
+        Err(error) => return Err(error),
+    };
     let required_relations = rewrite.resolve(&dependencies)?;
     if rewrite.next_input != parameters.len() {
         return Err(invalid("UNUSED_SQL_PARAMETERS"));
@@ -1088,21 +1111,8 @@ impl Rewrite<'_> {
                 if !self.safe_in_affinity(child, list)
                     && !self.legacy_numeric_in_literals(child, list)
                 {
-                    let visible_ctes = self
-                        .cte_scopes
-                        .iter()
-                        .flat_map(|scope| scope.keys())
-                        .cloned()
-                        .collect::<BTreeSet<_>>();
                     return Err(unsupported("IN_LEFT_AFFINITY_NOT_IMPLEMENTED")
-                        .detail("confirm_sqlite_syntax", true)
-                        .detail(
-                            "visible_ctes",
-                            visible_ctes
-                                .into_iter()
-                                .map(serde_json::Value::from)
-                                .collect::<Vec<_>>(),
-                        ));
+                        .detail("confirm_sqlite_syntax", true));
                 }
                 self.expr(child, depth + 1)?;
                 **child = call("mdd_key", vec![take(child)]);

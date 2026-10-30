@@ -130,6 +130,19 @@ mod tests {
                     .body,
                 MethodCodeBody::Abstract
             ));
+            let reference = rows
+                .iter()
+                .find(|r| r.method.reference.method_name == "externalCall")
+                .unwrap();
+            assert!(reference.body.decoded_opcode_bytes().is_none());
+            for name in ["nativeCall", "abstractCall"] {
+                let body = &rows
+                    .iter()
+                    .find(|r| r.method.reference.method_name == name)
+                    .unwrap()
+                    .body;
+                assert_eq!(body.decoded_opcode_bytes().unwrap().count(), 0);
+            }
             let present = rows
                 .iter()
                 .find(|r| r.method.reference.method_name == "virtualCall")
@@ -142,6 +155,14 @@ mod tests {
                 code.data().insns_range.byte_length.0
             );
             assert_eq!(*raw_insns, &[0x0e, 0]);
+            assert_eq!(
+                present
+                    .body
+                    .decoded_opcode_bytes()
+                    .unwrap()
+                    .collect::<Vec<_>>(),
+                [0x0e]
+            );
         }
         assert_ne!(
             codes[0].source().dex_occurrence_id,
@@ -230,10 +251,54 @@ mod tests {
                 (row.method.reference.method_name == "privateCall").then_some(row)
             })
             .unwrap();
+        assert_eq!(empty.body.decoded_opcode_bytes().unwrap().count(), 0);
         assert!(matches!(
             empty.body,
             MethodCodeBody::Present { raw_insns: [], .. }
         ));
+    }
+
+    #[test]
+    fn decoded_opcode_iteration_excludes_payload_words() {
+        for (name, expected) in [
+            ("packed-switch.dex", 0x2b),
+            ("sparse-switch.dex", 0x2c),
+            ("fill-array.dex", 0x26),
+        ] {
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../tests/fixtures/instructions/generated")
+                .join(name);
+            let snapshot = Snapshot::capture(
+                &[InputSpec {
+                    path,
+                    kind: InputKind::RawDex,
+                    expected_sha256: None,
+                }],
+                CaptureLimits::default(),
+            )
+            .unwrap();
+            let inventory = ArchiveInventory::build(
+                &snapshot.sources()[0],
+                InventoryPolicy::default(),
+                ArchiveLimits::default(),
+            )
+            .unwrap();
+            let code =
+                CodeFacts::build_all_code_items(&snapshot, &inventory, 0, CodeLimits::default())
+                    .unwrap();
+            assert_eq!(code.items()[0].data().payloads.len(), 1);
+            let body = MethodCodeBody::Present {
+                code: &code.items()[0],
+                raw_insns: code.raw_insns(0).unwrap(),
+            };
+            assert_eq!(
+                body.decoded_opcode_bytes().unwrap().collect::<Vec<_>>(),
+                [expected, 0x0e]
+            );
+            assert!(
+                code.raw_insns(0).unwrap().len() > 2 * body.decoded_opcode_bytes().unwrap().count()
+            );
+        }
     }
 
     #[test]
@@ -692,6 +757,21 @@ pub enum MethodCodeBody<'a> {
         code: &'a CodeFact,
         raw_insns: &'a [u8],
     },
+}
+impl MethodCodeBody<'_> {
+    /// Iterates decoded ordinary-instruction opcode bytes in code-unit order.
+    /// Payloads are separately represented by `CodeItem::payloads` and are not
+    /// instructions. The original body variant still distinguishes native,
+    /// abstract and present-empty; a reference has no defined opcode sequence.
+    /// This is not a legacy hexadecimal rendering or a profile qualification.
+    pub fn decoded_opcode_bytes(&self) -> Option<impl ExactSizeIterator<Item = u8> + '_> {
+        let instructions: &[mdd_dex::instructions::Instruction] = match self {
+            Self::ReferenceOnly => return None,
+            Self::Native | Self::Abstract => &[],
+            Self::Present { code, .. } => &code.data().instructions,
+        };
+        Some(instructions.iter().map(|instruction| instruction.opcode))
+    }
 }
 pub struct MethodCodeFactView<'a> {
     pub method: MethodFactView<'a>,

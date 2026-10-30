@@ -1152,6 +1152,43 @@ mod tests {
     }
 
     #[test]
+    fn unsupported_function_in_visible_cte_keeps_real_binding_errors() {
+        let (provider, _) = bridge();
+        for dialect in [
+            SqlDialect::NativeV1,
+            SqlDialect::DexSql010,
+            SqlDialect::DexSql011,
+        ] {
+            let bridge = SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+            let sql = "WITH d AS (SELECT 1 AS id) SELECT ABS(1) FROM d";
+            assert_eq!(
+                bridge.query(sql).unwrap_err().code,
+                ErrorCode::UnsupportedQuery,
+                "{dialect:?}: {sql}"
+            );
+            for sql in [
+                "WITH d AS (SELECT 1 AS id) SELECT ABS(1) FROM d WHERE missing=1",
+                "WITH d AS (SELECT 1 AS id) SELECT load_extension('x') FROM d",
+            ] {
+                assert_eq!(
+                    bridge.query(sql).unwrap_err().code,
+                    ErrorCode::InvalidArgument,
+                    "{dialect:?}: {sql}"
+                );
+            }
+            // Database-qualified relations are a genuine unsupported feature;
+            // rejecting them must not be confused with a missing-column error.
+            assert_eq!(
+                bridge
+                    .query("SELECT ABS(1) FROM main.sqlite_master")
+                    .unwrap_err()
+                    .code,
+                ErrorCode::UnsupportedQuery
+            );
+        }
+    }
+
+    #[test]
     fn legacy_integer_cast_literal_in_uses_numeric_affinity() {
         use mdd_query::ir::Signed64;
         let (provider, native) = bridge();

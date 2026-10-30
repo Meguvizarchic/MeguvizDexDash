@@ -138,6 +138,8 @@ MDD-005 A2 查询转换候选位于 benchmarks/a2_compact_adapter.py，涵盖sha
 
 2026-10-30 持续功能候选（全量验证后续统一执行）：MDD-026 增加同快照和DEX出现内的方法参数借用视图，区分未编码列表、显式零槽、非零集合及短列表Unknown；注解未建或位置不完整返回INCOMPLETE_FACTS，局部一项测试通过，兼容文本映射和独立oracle未运行。MDD-031 已解析CTE名称随PreparedSql传递；执行authorizer只放行database=None、空列名且名称命中的SQLite内部CTE容器读取，局部红绿覆盖直接/嵌套CTE及系统表、写入、ATTACH拒绝，A0/A1、独立安全和全量not_run。MDD-005 增加Windows自有Job持有期候选：隐藏无继承子进程挂起创建，分配验证后恢复，取消/期限/关闭核验自有child及Job归零；首次Job参数错误和中间清理竞态失败保留，最终 run5 注入创建失败时实际直接终止访问拒绝保留，随后确认同一子进程退出和树空，见 artifacts/mdd-005/a2-windows-job-owner-20261030/run5/record.json。无MCP双向通道，不证明Linux、输入快照、完整A2或资源资格。
 
+2026-10-30 后续功能候选（统一验证延后）：MDD-026 同源MethodCodeBody增加无分配已解码普通指令opcode迭代，保留reference-only/native/abstract/present-empty区别，单独保存的switch/array payload不当普通指令；两项局部测试通过，旧HEX表示及独立A0对照未运行。MDD-031 对明确要求SQLite语法确认的AST未实现错误统一传递当时可见、已解析CTE名称；局部检查合法CTE仍返回真实UNSUPPORTED、缺列/禁用函数保持INVALID_ARGUMENT，相关IN回归通过，完整A0/A1/安全验证not_run。MDD-005 Windows受控双向管道仅有自有短命进程原型：两次准入分别3004952576与2064080896字节，低于原3221225472字节，均未创建Job或子进程；记录 artifacts/mdd-005/a2-windows-pipe-prototype-20261030/。Job句柄白名单、挂起恢复与双向IPC未运行、未实现，MCP及快照资格不推断。
+
 MDD-031 SQL桥仍进行中：受限虚表、会话预算绑定、U64真值、USING和子串路径有本机测试；独立真值18例及固定A0/A1子串16例通过，合成Q15结果与SQLite一致。真实完整corpus、legacy适配及生产工作区内存绑定尚未验收。检查点862b3dd的 Windows 离线测试161项、0失败/跳过，工作区严格Clippy通过，命令记录在 artifacts/integration/20261029/workspace-tests/ 与 workspace-clippy/。
 
 后续 SQL 结果驻留预算修复在 Windows 工作区重新运行165项测试、0失败/跳过及严格Clippy；零行 schema 的零预算错误、结果持有与释放独立复现。该计量是保守逻辑额度，SQLite内部分配、provider/调用方副本、传输缓冲及租约自身元数据仍需单独准入，不能称 RSS 硬上限。证据 artifacts/mdd-031-audit/result-memory-probe/after-fix.json、artifacts/integration/20261029/workspace-tests-result-budget/record.json。
