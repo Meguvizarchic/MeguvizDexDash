@@ -110,6 +110,11 @@ def valid_issue(issue):
     return True
 
 
+def require_object_keys(value, required, label):
+    if not isinstance(value, dict) or set(value) != set(required):
+        raise ValueError('invalid ' + label + ' fields')
+
+
 def consume(output, expected_inputs, expected_request, required_layers):
     if output["schema_version"] != "mdd.benchmark-output.v1":
         raise ValueError("driver output schema mismatch")
@@ -121,6 +126,20 @@ def consume(output, expected_inputs, expected_request, required_layers):
     if type(output["fallback_count"]) is not int or output["fallback_count"] != 0:
         raise ValueError("fallback cannot qualify a replacement")
     result = output["result"]
+    require_object_keys(result, ('schema_version', 'request_id', 'operation', 'profile',
+        'sql_dialect', 'session_id', 'snapshot_id', 'catalog_epoch', 'query_id',
+        'operation_status', 'coverage', 'execution', 'response', 'data', 'error', 'warnings'),
+        'result')
+    require_object_keys(result['coverage'], ('scope_id', 'input', 'facts', 'required_layers', 'issues'), 'coverage')
+    require_object_keys(result['execution'], ('complete',), 'execution')
+    require_object_keys(result['response'], ('schema_id', 'emitted_rows', 'total_rows',
+        'total_rows_exact', 'more_available', 'truncated', 'next_cursor'), 'response')
+    for name in ('sql_dialect', 'session_id', 'snapshot_id', 'query_id'):
+        value = result[name]
+        if value is not None and (not isinstance(value, str) or not value):
+            raise ValueError('invalid optional result identity: ' + name)
+    if result['data'] is not None and not isinstance(result['data'], dict):
+        raise ValueError('invalid result data')
     if result["schema_version"] != "mdd.result.v1" or result["operation_status"] != "ok":
         raise ValueError("request failed")
     for name in ("request_id", "operation", "profile"):
@@ -418,6 +437,18 @@ class ContractTests(unittest.TestCase):
             ref[path[-1]] = value
             with self.subTest(path=path), self.assertRaises(ValueError):
                 self.consume(item)
+
+    def test_result_envelope_requires_declared_shape(self):
+        for name in ('session_id', 'sql_dialect', 'data'):
+            item = self.fixture(); del item['result'][name]
+            with self.subTest(missing=name), self.assertRaises(ValueError): self.consume(item)
+        for name, value in (('session_id', ''), ('sql_dialect', 0), ('data', []),
+                            ('undeclared', True)):
+            item = self.fixture(); item['result'][name] = value
+            with self.subTest(field=name), self.assertRaises(ValueError): self.consume(item)
+        for name in ('coverage', 'execution', 'response'):
+            item = self.fixture(); item['result'][name]['undeclared'] = True
+            with self.subTest(nested=name), self.assertRaises(ValueError): self.consume(item)
 
     def test_row_count(self):
         item = self.fixture(); item["final_dto"]["rows"] = [["unreported"]]

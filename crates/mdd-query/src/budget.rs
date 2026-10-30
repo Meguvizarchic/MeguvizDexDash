@@ -781,8 +781,10 @@ impl<T> Budgeted<T> {
             state.abandoned = true;
             drop(state);
             let error = invalid("delivery acknowledgement out of order or abandoned");
-            let _ = ack.tracker.cancel.fail(error.clone());
-            return Err(error);
+            return Err(match ack.tracker.cancel.fail(error.clone()) {
+                Ok(status) => status.error.unwrap_or(error),
+                Err(failure) => failure,
+            });
         }
         let Some(next) = state.acknowledged.checked_add(1) else {
             drop(state);

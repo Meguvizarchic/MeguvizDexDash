@@ -1,0 +1,15 @@
+{
+  "scope": "injected invalid acknowledgement and preexisting cancellation",
+  "command": "cargo test -p mdd-query --locked --offline --jobs 1 poisoned_acknowledgement_preserves_internal_fault -- --nocapture",
+  "exit_code": 0,
+  "source_before": {
+    "crates/mdd-query/src/budget.rs": "E0A29C0E9DE3BC08050A7061EE7795307B31A5494412714D48C9AE44E9462EAE",
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "crates/mdd-query/src/budget/tests.rs": "6E84C742EBDAA0E9FA730AFAC238D26247A64D36640434A2F9F5C6F163FF4F94"
+  },
+  "source_after": {
+    "crates/mdd-query/src/budget.rs": "E0A29C0E9DE3BC08050A7061EE7795307B31A5494412714D48C9AE44E9462EAE",
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "crates/mdd-query/src/budget/tests.rs": "6E84C742EBDAA0E9FA730AFAC238D26247A64D36640434A2F9F5C6F163FF4F94"
+  }
+}

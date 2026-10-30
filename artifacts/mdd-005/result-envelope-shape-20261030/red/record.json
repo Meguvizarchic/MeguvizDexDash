@@ -1,0 +1,6 @@
+{
+  "scope": "synthetic envelope shape",
+  "exit_code": 1,
+  "source_sha256": "54742EC75FB5CFA51A9C66B0662DFC2A9C6B71634AC86EB2222D544A59413293",
+  "command": "python -O benchmarks/run-existing-baselines.py --self-test"
+}

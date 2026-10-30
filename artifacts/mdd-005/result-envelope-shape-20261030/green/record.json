@@ -1,0 +1,7 @@
+{
+  "exit_code": 0,
+  "command": "python -O benchmarks/run-existing-baselines.py --self-test",
+  "source_after": "4ADAE499329BE9AFE5FFC0B09B6EC4C104D3AF5FFE838D73B5C1CF185E8BF59D",
+  "source_before": "4ADAE499329BE9AFE5FFC0B09B6EC4C104D3AF5FFE838D73B5C1CF185E8BF59D",
+  "scope": "synthetic envelope shape, no workload qualification"
+}

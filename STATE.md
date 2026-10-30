@@ -184,6 +184,10 @@ MDD-034 终态跟踪锁中毒的受控反例显示接收End和获取回执返回
 
 组合代码provider在本批最终事实与运行时源码上重跑1项通过，所列源码与fixture身份见 artifacts/mdd-031-audit/combined-code-provider-20261030/final2/record.json；未列依赖与引用provider同时组合仍未证明。
 
+2026-10-30 目标持续功能（统一验证延后）：MDD-026 引用事实新增完整站点身份查询，要求同snapshot/occurrence与完整事实，验证caller、PC、operand ordinal/kind；双来源及原始操作数字节1项通过，partial和重复站点为内部注入，见 artifacts/mdd-026/direct-reference-site-20261030/record.json；条目额度不涵盖定义校验、CPU或RSS。MDD-034 已记录取消后遇乱序确认的受控反例原先返回次生INVALID_ARGUMENT，候选保留原首错；局部红绿见 artifacts/mdd-034-audit/ack-prior-fault-20261030/，乱序由测试注入，生产worker与全并发未验证。MDD-005 基准消费者检查结果信封及coverage/execution/response必需和未知字段、可选身份与data类型；十个合成反例及17项自检见 artifacts/mdd-005/result-envelope-shape-20261030/，结构有效不证明scope manifest或实际来源绑定。全量、跨平台及性能验证未执行；用户已有A2未暂存工作保留。
+
+MDD-031 既有组合provider的引用、方法定义和代码字节三方JOIN新增双来源定向对照，两种绑定顺序1项通过，见 artifacts/mdd-031-audit/combined-three-layer-20261030/run1/record.json；夹具的共享方法体有既有证据，本测试自身未断言两个caller共享同一偏移。对照来自现有事实，并非独立DEX oracle，未证明A0/A1或profile，且本次未新增生产SQL实现。
+
 MDD-031 SQL桥仍进行中：受限虚表、会话预算绑定、U64真值、USING和子串路径有本机测试；独立真值18例及固定A0/A1子串16例通过，合成Q15结果与SQLite一致。真实完整corpus、legacy适配及生产工作区内存绑定尚未验收。检查点862b3dd的 Windows 离线测试161项、0失败/跳过，工作区严格Clippy通过，命令记录在 artifacts/integration/20261029/workspace-tests/ 与 workspace-clippy/。
 
 后续 SQL 结果驻留预算修复在 Windows 工作区重新运行165项测试、0失败/跳过及严格Clippy；零行 schema 的零预算错误、结果持有与释放独立复现。该计量是保守逻辑额度，SQLite内部分配、provider/调用方副本、传输缓冲及租约自身元数据仍需单独准入，不能称 RSS 硬上限。证据 artifacts/mdd-031-audit/result-memory-probe/after-fix.json、artifacts/integration/20261029/workspace-tests-result-budget/record.json。

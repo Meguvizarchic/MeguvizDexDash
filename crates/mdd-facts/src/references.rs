@@ -967,6 +967,52 @@ impl ReferenceFacts {
             operand_kind: site.target_kind,
         })
     }
+    /// Resolve one exact encoded operand site within this complete DEX occurrence.
+    /// `None` proves absence only within these complete encoded reference facts;
+    /// it does not infer runtime dispatch or absence in other occurrences.
+    /// `max_site_entries` limits the number of site entries examined, not CPU,
+    /// memory, or the definition identity validation performed before the scan.
+    pub fn site_by_id(
+        &self,
+        identity: &ReferenceSiteId,
+        max_site_entries: u64,
+    ) -> MddResult<Option<&LocalReferenceSite>> {
+        self.require_complete()?;
+        let caller = &identity.caller_method_definition;
+        if caller.snapshot_id != self.source().snapshot_id
+            || caller.dex_occurrence_id != self.source().dex_occurrence_id
+            || caller.kind != EntityKind::MethodDefinition
+        {
+            return Err(MddError::new(
+                ErrorCode::InvalidArgument,
+                "facts.references",
+                "site caller belongs to another occurrence or entity kind",
+            ));
+        }
+        self.definitions
+            .entity(EntityKind::MethodDefinition, caller.local_index)?;
+        if u64::try_from(self.sites.len()).map_err(|_| quota("SITE_ID_SCAN_BUDGET"))?
+            > max_site_entries
+        {
+            return Err(quota("SITE_ID_SCAN_BUDGET"));
+        }
+        let mut found = None;
+        for site in &self.sites {
+            if site.caller_method_idx == caller.local_index
+                && site.code_unit_pc == identity.code_unit_pc
+                && site.operand_ordinal == identity.operand_ordinal
+                && site.target_kind == identity.operand_kind
+                && found.replace(site).is_some()
+            {
+                return Err(MddError::new(
+                    ErrorCode::InternalFault,
+                    "facts.references",
+                    "duplicate encoded site identity in validated facts",
+                ));
+            }
+        }
+        Ok(found)
+    }
     pub fn scoped_site(&self, ordinal: u32) -> MddResult<ScopedReferenceSite> {
         let site = self.sites.get(ordinal as usize).ok_or_else(|| {
             MddError::new(
@@ -1945,6 +1991,64 @@ mod tests {
             .collect::<Vec<_>>();
         values.sort();
         values
+    }
+
+    #[test]
+    fn exact_site_lookup_preserves_occurrence_and_complete_scope() {
+        let data = setup("poly-custom-038", 2).unwrap();
+        let left = ReferenceFacts::build(
+            data.definitions[0].clone(),
+            data.code[0].clone(),
+            ReferenceLimits::default(),
+        )
+        .unwrap();
+        let right = ReferenceFacts::build(
+            data.definitions[1].clone(),
+            data.code[1].clone(),
+            ReferenceLimits::default(),
+        )
+        .unwrap();
+        assert!(!left.sites().is_empty());
+        let limit = left.sites().len() as u64;
+        for site in left.sites() {
+            let id = left.site_id(site.site_ordinal).unwrap();
+            let resolved = left.site_by_id(&id, limit).unwrap().unwrap();
+            assert_eq!(resolved.site_ordinal, site.site_ordinal);
+            assert_eq!(
+                left.raw_operand(resolved.site_ordinal).unwrap(),
+                left.raw_operand(site.site_ordinal).unwrap()
+            );
+            assert_eq!(
+                right.site_by_id(&id, limit).unwrap_err().code,
+                ErrorCode::InvalidArgument
+            );
+        }
+        let id = left.site_id(0).unwrap();
+        assert_eq!(
+            left.site_by_id(&id, limit - 1).unwrap_err().code,
+            ErrorCode::QuotaExceeded
+        );
+        let mut missing = id.clone();
+        missing.code_unit_pc = u32::MAX;
+        assert!(left.site_by_id(&missing, limit).unwrap().is_none());
+        let mut wrong_kind = id.clone();
+        wrong_kind.caller_method_definition.kind = EntityKind::MethodReference;
+        assert_eq!(
+            left.site_by_id(&wrong_kind, limit).unwrap_err().code,
+            ErrorCode::InvalidArgument
+        );
+        let mut partial = left.clone();
+        partial.coverage.facts = Completeness::Partial;
+        assert_eq!(
+            partial.site_by_id(&id, limit).unwrap_err().code,
+            ErrorCode::IncompleteFacts
+        );
+        let mut duplicate = left.clone();
+        duplicate.sites.push(duplicate.sites[0].clone());
+        assert_eq!(
+            duplicate.site_by_id(&id, limit + 1).unwrap_err().code,
+            ErrorCode::InternalFault
+        );
     }
 
     #[test]

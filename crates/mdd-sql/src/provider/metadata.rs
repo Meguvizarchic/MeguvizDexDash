@@ -1459,6 +1459,133 @@ mod tests {
         snapshot::{CaptureLimits, InputKind, InputSpec, Snapshot},
     };
     #[test]
+    fn combined_references_and_code_preserve_shared_owners_and_occurrences() {
+        use mdd_dex::{definitions::DefinitionLimits, instructions::CodeLimits};
+        use mdd_facts::{
+            code::CodeFacts,
+            references::{ReferenceFacts, ReferenceLimits},
+        };
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/references/generated/shared-code-035.dex");
+        let input = InputSpec {
+            path,
+            kind: InputKind::RawDex,
+            expected_sha256: None,
+        };
+        let snapshot =
+            Snapshot::capture(&[input.clone(), input], CaptureLimits::default()).unwrap();
+        let (mut metas, mut definitions, mut codes, mut references) =
+            (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+        for source in snapshot.sources() {
+            let inventory = ArchiveInventory::build(
+                source,
+                InventoryPolicy::default(),
+                ArchiveLimits::default(),
+            )
+            .unwrap();
+            let meta =
+                MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default()).unwrap();
+            let defs = DefinitionFacts::build(meta.clone(), DefinitionLimits::default()).unwrap();
+            let code =
+                CodeFacts::build_all_code_items(&snapshot, &inventory, 0, CodeLimits::default())
+                    .unwrap();
+            let refs =
+                ReferenceFacts::build(defs.clone(), code.clone(), ReferenceLimits::default())
+                    .unwrap();
+            metas.push(Arc::new(meta));
+            definitions.push(Arc::new(defs));
+            codes.push(Arc::new(code));
+            references.push(Arc::new(refs));
+        }
+        let mut expected = Vec::new();
+        for (refs, code) in references.iter().zip(&codes) {
+            for site in refs.sites() {
+                let index = code
+                    .items()
+                    .iter()
+                    .position(|item| {
+                        item.data().raw_range.byte_offset == site.code_item_byte_offset
+                    })
+                    .unwrap();
+                expected.push((
+                    refs.source().dex_occurrence_id.clone(),
+                    u64::from(site.caller_method_idx),
+                    site.code_item_byte_offset.0,
+                    u64::from(site.code_unit_pc),
+                    u64::from(site.operand_ordinal),
+                    code.raw_insns(index).unwrap().to_vec(),
+                ));
+            }
+        }
+        expected.sort();
+        assert!(!expected.is_empty());
+        assert_ne!(
+            references[0].source().dex_occurrence_id,
+            references[1].source().dex_occurrence_id
+        );
+        let callers: std::collections::BTreeSet<_> = expected.iter().map(|item| item.1).collect();
+        assert!(
+            callers.len() >= 2,
+            "fixture must exercise shared-body owners"
+        );
+        for reverse in [false, true] {
+            let combined = CombinedSqlProvider::new(
+                Arc::new(MetadataSqlProvider::new(metas.clone(), DecimalU64(7)).unwrap()),
+                Arc::new(DefinitionSqlProvider::new(definitions.clone(), DecimalU64(7)).unwrap()),
+            )
+            .unwrap();
+            let code = Arc::new(CodeSqlProvider::new(codes.clone(), DecimalU64(7)).unwrap());
+            let refs =
+                Arc::new(ReferenceSqlProvider::new(references.clone(), DecimalU64(7)).unwrap());
+            let combined = if reverse {
+                combined
+                    .with_references(refs)
+                    .unwrap()
+                    .with_code(code)
+                    .unwrap()
+            } else {
+                combined
+                    .with_code(code)
+                    .unwrap()
+                    .with_references(refs)
+                    .unwrap()
+            };
+            let bridge = SqlBridge::new(
+                Arc::new(combined),
+                SqlDialect::NativeV1,
+                SqlLimits::default(),
+            )
+            .unwrap();
+            let result = bridge.query("SELECT r.dex_occurrence_id,r.caller_method_idx,r.code_item_byte_offset,r.code_unit_pc,r.operand_ordinal,b.insns_raw FROM native_reference_sites r JOIN native_method_definitions m ON r.dex_occurrence_id=m.dex_occurrence_id AND r.caller_method_idx=m.method_idx AND r.code_item_byte_offset=m.code_byte_offset JOIN native_code_bytes b ON r.dex_occurrence_id=b.dex_occurrence_id AND r.code_item_byte_offset=b.code_byte_offset").unwrap();
+            let mut actual: Vec<_> = result
+                .rows()
+                .iter()
+                .map(
+                    |row| match (&row[0], &row[1], &row[2], &row[3], &row[4], &row[5]) {
+                        (
+                            SqlValue::Text(source),
+                            SqlValue::U64(caller),
+                            SqlValue::U64(offset),
+                            SqlValue::U64(pc),
+                            SqlValue::U64(ordinal),
+                            SqlValue::Bytes(bytes),
+                        ) => (
+                            source.strict_utf8().unwrap(),
+                            caller.0,
+                            offset.0,
+                            pc.0,
+                            ordinal.0,
+                            bytes.clone(),
+                        ),
+                        _ => panic!("unexpected result type"),
+                    },
+                )
+                .collect();
+            actual.sort();
+            assert_eq!(actual, expected);
+        }
+    }
+    #[test]
     fn combined_code_items_require_same_scope_and_keep_shared_owners() {
         use mdd_dex::{definitions::DefinitionLimits, instructions::CodeLimits};
         use mdd_facts::code::CodeFacts;

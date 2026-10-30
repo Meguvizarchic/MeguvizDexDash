@@ -369,7 +369,7 @@ fn poisoned_terminal_tracking_preserves_first_fault() {
 fn poisoned_acknowledgement_preserves_internal_fault() {
     use mdd_input::snapshot::{CaptureLimits, InputKind, InputSpec, Snapshot};
     use mdd_session::{Lifecycle, QueryBinding, ResourceLimits};
-    for mode in ["poison", "overflow"] {
+    for mode in ["poison", "overflow", "prior_cancel_out_of_order"] {
         let limits = ResourceLimits::default();
         let lifecycle = Lifecycle::new(limits).unwrap();
         let snapshot = Snapshot::capture(
@@ -429,12 +429,22 @@ fn poisoned_acknowledgement_preserves_internal_fault() {
                 panic!("injected tracker mutex poisoning");
             }));
             assert!(poisoned.is_err());
-        } else {
+        } else if mode == "overflow" {
             packet.acknowledgement.as_mut().unwrap().sequence = u64::MAX;
             tracker.state.lock().unwrap().acknowledged = u64::MAX;
+        } else {
+            packet.acknowledgement.as_mut().unwrap().sequence = 1;
+            cancel.cancel().unwrap();
         }
         let returned = packet.acknowledge().unwrap_err();
-        assert_eq!(returned.code, ErrorCode::InternalFault);
+        assert_eq!(
+            returned.code,
+            if mode == "prior_cancel_out_of_order" {
+                ErrorCode::Cancelled
+            } else {
+                ErrorCode::InternalFault
+            }
+        );
         let first = cancel.status().unwrap().error.unwrap();
         assert_eq!(first.code, returned.code);
         assert_eq!(first.stage, returned.stage);

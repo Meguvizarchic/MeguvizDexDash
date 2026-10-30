@@ -27,6 +27,8 @@ A2已实测A1原生MCP的12工具与query compact参数，未打开数据集；�
 
 消费者检查查询身份、覆盖范围和结果 schema 字段是否存在，并拒绝重复事实层；这些字段存在并不证明 scope manifest 与实际输入匹配，实际来源绑定仍需独立验证。限定自检见 `artifacts/mdd-005/result-identity-20261030/`。
 
+结果信封及 coverage、execution、response 对象按现有契约检查必需和未知字段；结构检查不能替代实际 scope manifest、快照或工作负载证明。合成反例见 `artifacts/mdd-005/result-envelope-shape-20261030/`。
+
 覆盖问题与警告按结果契约检查必需字段、可选身份和数据类型；畸形或阻断性诊断不能作为完整输出，合成检查见 `artifacts/mdd-005/diagnostic-contract-20261030/`。此检查不证明诊断内容已覆盖所有真实错误。
 
 当前 `ordered`／`bag` 读取器要求有序列描述中的 ordinal 从零连续、type 非空，并要求每行是与列数一致的数组；形状检查不验证单元格类型、语义或来源。局部反例见 `artifacts/mdd-005/row-shape-20261030/`，真实工作负载的 schema 和完整性仍需单独冻结验证。
