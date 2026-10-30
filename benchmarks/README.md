@@ -33,6 +33,8 @@ A2已实测A1原生MCP的12工具与query compact参数，未打开数据集；�
 
 `snapshot_commitment.py` 可对照调用方独立提供的来源摘要、长度、种类和顺序，检查捕获清单并重算内容键；同内容的多次输入仍逐次保留。快照句柄和输入身份的可信性需另行建立，清单一致不证明生产者确实使用该快照或所有成员和页面已消费。
 
+`capture_scope_binding.py` 将上述捕获清单与 scope 预像的期望输入按 ordinal 和摘要关联，允许显式子范围；`all_captured_sources_selected` 只表示捕获来源均被选择，不表示所选策略覆盖了全部成员或事实。清单和 DEX 成员期望仍必须由调用方独立核验。
+
 结果信封及 coverage、execution、response 对象按现有契约检查必需和未知字段；结构检查不能替代实际 scope manifest、快照或工作负载证明。合成反例见 `artifacts/mdd-005/result-envelope-shape-20261030/`。
 
 覆盖问题与警告按结果契约检查必需字段、可选身份和数据类型；畸形或阻断性诊断不能作为完整输出，合成检查见 `artifacts/mdd-005/diagnostic-contract-20261030/`。此检查不证明诊断内容已覆盖所有真实错误。

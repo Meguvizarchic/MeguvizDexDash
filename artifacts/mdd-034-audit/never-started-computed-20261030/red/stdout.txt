@@ -1,0 +1,11 @@
+
+running 1 test
+test cancellation::tests::never_started_terminal_cannot_be_marked_computed ... FAILED
+
+failures:
+
+failures:
+    cancellation::tests::never_started_terminal_cannot_be_marked_computed
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 16 filtered out; finished in 0.00s
+

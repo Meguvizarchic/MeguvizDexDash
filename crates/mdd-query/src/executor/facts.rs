@@ -3,8 +3,10 @@ use super::{FactSource, RelationSchema};
 use crate::ir::*;
 use mdd_dex::definitions::MethodBody;
 use mdd_facts::{
-    EntityKind, EntityRef, MetadataFacts, MetadataSource, code::CodeFacts,
+    EntityKind, EntityRef, MetadataFacts, MetadataSource,
+    code::CodeFacts,
     definitions::DefinitionFacts,
+    references::{ReferenceFacts, TargetKind},
 };
 use mdd_types::{Completeness, DecimalU64, ErrorCode, MddError, MddResult, opaque_id};
 use serde::{Deserialize, Serialize};
@@ -202,6 +204,167 @@ impl NativeCatalog {
             epoch,
             occurrences,
         })
+    }
+}
+
+/// Typed view combining a native catalog with complete encoded-reference facts.
+/// Occurrence order comes from the native catalog, not the supplied vector.
+/// Encoded references do not resolve dispatch or dynamic runtime targets.
+pub struct ReferenceCatalog {
+    identity: String,
+    native: NativeCatalog,
+    references: Vec<Arc<ReferenceFacts>>,
+}
+impl ReferenceCatalog {
+    pub fn new(native: NativeCatalog, references: Vec<Arc<ReferenceFacts>>) -> MddResult<Self> {
+        if references.len() != native.occurrences.len() {
+            return Err(incomplete(FactLayer::References));
+        }
+        let mut by_occurrence = BTreeMap::new();
+        for facts in references {
+            facts.require_complete()?;
+            if by_occurrence
+                .insert(facts.source().dex_occurrence_id.clone(), facts)
+                .is_some()
+            {
+                return Err(invalid("DUPLICATE_REFERENCE_OCCURRENCE"));
+            }
+        }
+        let mut ordered = Vec::with_capacity(native.occurrences.len());
+        for occurrence in &native.occurrences {
+            let facts = by_occurrence
+                .remove(&occurrence.metadata.source().dex_occurrence_id)
+                .ok_or_else(|| incomplete(FactLayer::References))?;
+            if !same(occurrence.metadata.source(), facts.source())
+                || !Arc::ptr_eq(
+                    &occurrence.metadata.lease(),
+                    &facts.definitions().metadata().lease(),
+                )
+                || !Arc::ptr_eq(&occurrence.metadata.lease(), &facts.code().lease())
+            {
+                return Err(invalid("NATIVE_REFERENCE_SOURCE_OR_LEASE"));
+            }
+            ordered.push(facts);
+        }
+        if !by_occurrence.is_empty() {
+            return Err(invalid("REFERENCE_OUTSIDE_CATALOG"));
+        }
+        Ok(Self {
+            identity: opaque_id("query-reference-catalog")?,
+            native,
+            references: ordered,
+        })
+    }
+}
+
+fn reference_schema() -> RelationSchema {
+    use DataType::*;
+    RelationSchema {
+        columns: vec![
+            column("dex_occurrence_id", Utf16, false),
+            column("site_ordinal", U64, false),
+            column("caller", Entity, false),
+            column("code_unit_pc", U64, false),
+            column("instruction_ordinal", U64, false),
+            column("operand_ordinal", U64, false),
+            column("target_kind", Utf16, false),
+            column("target_local_index", U64, false),
+            // CallSite and MethodHandle have no EntityKind today. The kind and
+            // local index remain present; NULL here means no entity encoding.
+            column("target_entity", Entity, true),
+            column("opcode", U64, false),
+            column("invoke_kind", Utf16, true),
+        ],
+        required_layers: vec![
+            FactLayer::Metadata,
+            FactLayer::Structure,
+            FactLayer::CodeLayout,
+            FactLayer::References,
+        ],
+    }
+}
+impl FactSource for ReferenceCatalog {
+    fn identity(&self) -> &str {
+        &self.identity
+    }
+    fn snapshot_id(&self) -> &str {
+        self.native.snapshot_id()
+    }
+    fn catalog_epoch(&self) -> DecimalU64 {
+        self.native.catalog_epoch()
+    }
+    fn relation_schema(&self, relation: &str) -> MddResult<RelationSchema> {
+        if relation == "reference_sites" {
+            Ok(reference_schema())
+        } else {
+            self.native.relation_schema(relation)
+        }
+    }
+    fn require_layers(&self, layers: &BTreeSet<FactLayer>) -> MddResult<()> {
+        if layers.contains(&FactLayer::References) {
+            for facts in &self.references {
+                facts.require_complete()?;
+            }
+        }
+        let native_layers = layers
+            .iter()
+            .copied()
+            .filter(|layer| *layer != FactLayer::References)
+            .collect();
+        self.native.require_layers(&native_layers)
+    }
+    fn validate_entity(&self, value: &EntityRef) -> MddResult<()> {
+        self.native.validate_entity(value)
+    }
+    fn scan<'a>(
+        &'a self,
+        relation: &str,
+    ) -> MddResult<Box<dyn Iterator<Item = MddResult<Row>> + 'a>> {
+        if relation != "reference_sites" {
+            return self.native.scan(relation);
+        }
+        self.require_layers(&reference_schema().required_layers.into_iter().collect())?;
+        Ok(Box::new(self.references.iter().flat_map(|facts| {
+            let source = facts.source();
+            facts.sites().iter().map(move |site| {
+                use mdd_dex::instructions::InvokeKind;
+                let (kind, entity_kind) = match site.target_kind {
+                    TargetKind::String => ("string", Some(EntityKind::String)),
+                    TargetKind::Type => ("type", Some(EntityKind::Type)),
+                    TargetKind::Field => ("field", Some(EntityKind::FieldReference)),
+                    TargetKind::Method => ("method", Some(EntityKind::MethodReference)),
+                    TargetKind::Prototype => ("prototype", Some(EntityKind::Prototype)),
+                    TargetKind::CallSite => ("call_site", None),
+                    TargetKind::MethodHandle => ("method_handle", None),
+                };
+                let invoke = site.invoke_kind.as_ref().map(|value| match value {
+                    InvokeKind::Ordinary => "ordinary",
+                    InvokeKind::OrdinaryRange => "ordinary_range",
+                    InvokeKind::Polymorphic => "polymorphic",
+                    InvokeKind::PolymorphicRange => "polymorphic_range",
+                    InvokeKind::Custom => "custom",
+                    InvokeKind::CustomRange => "custom_range",
+                });
+                Ok(vec![
+                    Value::text(&source.dex_occurrence_id),
+                    number(site.site_ordinal),
+                    entity(source, EntityKind::MethodDefinition, site.caller_method_idx),
+                    number(site.code_unit_pc),
+                    number(site.instruction_ordinal),
+                    number(site.operand_ordinal),
+                    Value::text(kind),
+                    number(site.target_local_index),
+                    entity_kind.map_or(Value::Null, |kind| {
+                        entity(source, kind, site.target_local_index)
+                    }),
+                    number(u32::from(site.opcode)),
+                    invoke.map_or(Value::Null, Value::text),
+                ])
+            })
+        })))
+    }
+    fn read_code_bytes(&self, value: &EntityRef) -> MddResult<Option<&[u8]>> {
+        self.native.read_code_bytes(value)
     }
 }
 fn column(id: &str, ty: DataType, nullable: bool) -> Column {

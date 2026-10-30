@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / 'benchmarks'))
 from scope_commitment import ExpectedDex, ExpectedInput, verify_scope_preimage
 from snapshot_commitment import ExpectedSource, verify_snapshot_manifest
+from capture_scope_binding import verify_capture_scope
 
 
 def sha(path):
@@ -46,6 +47,7 @@ def main():
     files = ['Cargo.lock', 'crates/mdd-facts/examples/scope_commitment_export.rs',
              'crates/mdd-facts/src/indexes/scope.rs', 'crates/mdd-input/src/archive/mod.rs',
              'crates/mdd-input/src/snapshot/mod.rs', 'benchmarks/snapshot_commitment.py',
+             'benchmarks/capture_scope_binding.py',
              'benchmarks/scope_commitment.py', 'artifacts/mdd-005/scope-verifier-20261030/cross_check.py',
              'tests/fixtures/generated/multidex-stored.apk']
     before = {name: sha(ROOT / name) for name in files}
@@ -93,6 +95,13 @@ def main():
                     captured_source_count=2, max_entries=4, max_bytes=65536)
         observation = verify_scope_preimage(data, **args)
         require(observation.input_count == 2 and observation.dex_count == 4, 'wrong verified counts')
+        bound = verify_capture_scope(result_json['snapshot_manifest'], data,
+            expected_snapshot_id=result_json['snapshot_id'], expected_sources=expected_sources,
+            expected_inputs=roster, scope_id=result_json['scope_id'],
+            scope_content_key=result_json['scope_content_key'], max_sources=2,
+            max_input_bytes=fixture.stat().st_size * 2, max_scope_entries=4, max_scope_bytes=65536)
+        require(bound.all_captured_sources_selected and bound.selected_dex_count == 4,
+                'capture and selected scope differ')
         altered = (ExpectedInput(0, 'sha256:' + '0' * 64, 'top-level-classes-v1', dexes), roster[1])
         try:
             verify_scope_preimage(data, **dict(args, expected_inputs=altered))

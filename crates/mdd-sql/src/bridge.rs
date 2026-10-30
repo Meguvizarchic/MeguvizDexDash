@@ -2769,6 +2769,11 @@ mod tests {
             "SELECT lhs,lhs IN (SELECT rhs FROM vals ORDER BY 1 DESC LIMIT 1 OFFSET 1) FROM vals ORDER BY lhs",
             "SELECT a.lhs,a.lhs IN (SELECT b.rhs FROM vals b WHERE b.rhs<=a.lhs ORDER BY b.rhs DESC LIMIT 1 OFFSET 1) FROM vals a ORDER BY a.lhs",
             "SELECT lhs,lhs IN (SELECT DISTINCT rhs FROM vals ORDER BY rhs DESC),lhs NOT IN (SELECT DISTINCT rhs FROM vals ORDER BY rhs DESC) FROM vals ORDER BY lhs",
+            "WITH d AS (SELECT rhs FROM vals) SELECT lhs,lhs IN (SELECT rhs FROM d),lhs NOT IN (SELECT rhs FROM d) FROM vals ORDER BY lhs",
+            "WITH d(a,b) AS (SELECT rhs,lhs FROM vals) SELECT b,b IN (SELECT a FROM d) FROM d ORDER BY b",
+            "WITH d(a,b) AS (SELECT rhs,lhs FROM vals) SELECT v.lhs,v.lhs IN (SELECT d.a FROM d WHERE d.b=v.lhs) FROM vals v ORDER BY v.lhs",
+            "WITH d AS (SELECT lhs AS rhs,rhs AS lhs FROM vals) SELECT d.lhs,d.lhs IN (SELECT v.rhs FROM vals v) FROM d ORDER BY d.lhs",
+            "WITH d AS (SELECT rhs AS x FROM vals) SELECT lhs,lhs IN (SELECT x FROM d WHERE EXISTS (WITH d AS (SELECT lhs AS x FROM vals) SELECT 1 FROM d WHERE d.x=1)) FROM vals ORDER BY lhs",
         ];
         for dialect in [
             SqlDialect::NativeV1,
@@ -2810,6 +2815,8 @@ mod tests {
                 "SELECT lhs IN (SELECT rhs FROM absent) FROM vals",
                 "SELECT lhs IN (SELECT DISTINCT missing FROM vals) FROM vals",
                 "SELECT lhs IN (SELECT rhs FROM vals ORDER BY missing LIMIT 1) FROM vals",
+                "WITH d AS (SELECT rhs FROM vals) SELECT lhs IN (SELECT missing FROM d) FROM vals",
+                "WITH d AS (SELECT rhs FROM vals) SELECT lhs IN (SELECT missing.rhs FROM d) FROM vals",
             ] {
                 assert_eq!(
                     bridge.query(sql).unwrap_err().code,
@@ -2825,9 +2832,17 @@ mod tests {
                 ErrorCode::UnsupportedQuery
             );
             for sql in [
+                "WITH vals(lhs,rhs) AS (SELECT 1,1) SELECT lhs IN (SELECT rhs FROM vals) FROM vals",
+                "WITH d(x,x) AS (SELECT rhs,txt FROM vals) SELECT lhs IN (SELECT x FROM d) FROM vals",
+            ] {
+                assert!(sqlite.prepare(sql).is_ok(), "SQLite rejected: {sql}");
+            }
+            for sql in [
                 "SELECT lhs IN (SELECT DISTINCT rhs FROM vals LIMIT 1) FROM vals",
                 "SELECT lhs IN (SELECT DISTINCT rhs FROM vals ORDER BY rhs LIMIT 1) FROM vals",
-                "WITH d AS (SELECT rhs FROM vals) SELECT lhs IN (SELECT rhs FROM d) FROM vals",
+                "WITH d AS (SELECT rhs+0 AS x FROM vals) SELECT lhs IN (SELECT x FROM d) FROM vals",
+                "WITH vals(lhs,rhs) AS (SELECT 1,1) SELECT lhs IN (SELECT rhs FROM vals) FROM vals",
+                "WITH d(x,x) AS (SELECT rhs,txt FROM vals) SELECT lhs IN (SELECT x FROM d) FROM vals",
                 "SELECT lhs IN (WITH d AS (SELECT rhs FROM vals) SELECT rhs FROM d) FROM vals",
                 "SELECT lhs IN (SELECT rhs FROM (WITH d AS (SELECT rhs FROM vals) SELECT rhs FROM d) AS z) FROM vals",
                 "SELECT lhs IN (SELECT n FROM (WITH d AS (SELECT rhs FROM vals) SELECT COUNT(*) AS n FROM d) AS z) FROM vals",
@@ -2888,6 +2903,10 @@ mod tests {
             let rows = bridge
                 .query("SELECT u IN (SELECT u FROM vals),u NOT IN (SELECT u FROM vals) FROM vals")
                 .unwrap();
+            let cte_rows = bridge
+                .query("WITH d(v) AS (SELECT u FROM vals) SELECT u IN (SELECT v FROM d),u NOT IN (SELECT v FROM d) FROM vals")
+                .unwrap();
+            assert_eq!(cte_rows.rows(), rows.rows());
             let distinct = bridge
                 .query("SELECT u IN (SELECT DISTINCT u FROM vals),u NOT IN (SELECT DISTINCT u FROM vals) FROM vals")
                 .unwrap();
@@ -2952,6 +2971,9 @@ mod tests {
                     vec![SqlValue::I64(Signed64(1))],
                 ]
             );
+            let plain = bridge.query("SELECT l IN (SELECT r FROM vals),l NOT IN (SELECT r FROM vals) FROM vals ORDER BY l").unwrap();
+            let cte = bridge.query("WITH d(v) AS (SELECT r FROM vals) SELECT l IN (SELECT v FROM d),l NOT IN (SELECT v FROM d) FROM vals ORDER BY l").unwrap();
+            assert_eq!(cte.rows(), plain.rows());
         }
     }
     #[test]

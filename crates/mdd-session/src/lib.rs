@@ -139,6 +139,7 @@ struct QueryEntry {
     buffered_bytes: u64,
     delivery_abandoned: bool,
     execution_claimed: bool,
+    execution_started: bool,
 }
 struct CursorEntry {
     token: Token,
@@ -560,6 +561,7 @@ impl Lifecycle {
                 buffered_bytes: 0,
                 delivery_abandoned: false,
                 execution_claimed: false,
+                execution_started: false,
             },
         );
         Ok(QueryHandle(token))
@@ -622,6 +624,7 @@ impl Lifecycle {
         }
         let entry = state.queries.get_mut(query.id()).unwrap();
         entry.reserved_threads = threads;
+        entry.execution_started = true;
         entry.status.phase = QueryPhase::Active;
         Ok(())
     }

@@ -1,0 +1,59 @@
+{
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-session/src/lib.rs": "76c2343b0a699537765ad0b72d5271bc3f5bd84e17a54257e62aff19e37e9762",
+    "crates/mdd-session/src/cancellation.rs": "3a513a628237f80365f8e48db7334fa6ee588123dc8b6462dffe657392c90677",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  },
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-session/src/lib.rs": "76c2343b0a699537765ad0b72d5271bc3f5bd84e17a54257e62aff19e37e9762",
+    "crates/mdd-session/src/cancellation.rs": "3a513a628237f80365f8e48db7334fa6ee588123dc8b6462dffe657392c90677",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  },
+  "runs": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-session",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "never_started_terminal_cannot_be_marked_computed",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-10-30T14:11:30.386636+00:00",
+      "finished_utc": "2026-10-30T14:11:34.112395+00:00",
+      "exit_code": 0,
+      "stdout_raw_sha256": "38e247f3c2b2ac9f04dea524c7d374185ec0c2d0844dbfd80ed33f1647322229",
+      "stderr_raw_sha256": "97206536533b3698098f9d723f17dd7bfd0e1de48c270806db1e3016e88032e8"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-session",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "checkpoint_retains_first_terminal_and_rejects_completed_query",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-10-30T14:11:34.112442+00:00",
+      "finished_utc": "2026-10-30T14:11:34.550183+00:00",
+      "exit_code": 0,
+      "stdout_raw_sha256": "60e0c96261ec52d51d724d6111e1492dc1d97c6432775faca5ad7f6cd10f0933",
+      "stderr_raw_sha256": "f3dac7ce9f229dd6bf7e90333f6c0aa670212e190bcbf18537bce5991add937d"
+    }
+  ],
+  "scope": "two targeted lifecycle tests; path-redacted originals retained under ignored local directory; no whole-workspace proof"
+}

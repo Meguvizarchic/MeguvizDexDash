@@ -1,8 +1,11 @@
-use super::facts::{MemoryCatalog, NativeCatalog, OccurrenceFacts, Table};
+use super::facts::{MemoryCatalog, NativeCatalog, OccurrenceFacts, ReferenceCatalog, Table};
 use super::*;
 use mdd_dex::{definitions::DefinitionLimits, instructions::CodeLimits, strings::StringLimits};
 use mdd_facts::{
-    EntityKind, EntityRef, MetadataFacts, code::CodeFacts, definitions::DefinitionFacts,
+    EntityKind, EntityRef, MetadataFacts,
+    code::CodeFacts,
+    definitions::DefinitionFacts,
+    references::{ReferenceFacts, ReferenceLimits, TargetKind},
 };
 use mdd_input::{
     archive::{ArchiveInventory, ArchiveLimits, InventoryPolicy},
@@ -20,6 +23,235 @@ struct Fixture {
     ready_layers: BTreeSet<FactLayer>,
     tables: BTreeMap<String, Table>,
     cases: Vec<Case>,
+}
+
+fn native_references() -> (NativeCatalog, Vec<Arc<ReferenceFacts>>) {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/references/generated/poly-custom-038.dex");
+    let input = InputSpec {
+        path,
+        kind: InputKind::RawDex,
+        expected_sha256: None,
+    };
+    let snapshot = Snapshot::capture(&[input.clone(), input], CaptureLimits::default()).unwrap();
+    let mut occurrences = Vec::new();
+    let mut references = Vec::new();
+    for input in snapshot.sources() {
+        let inventory =
+            ArchiveInventory::build(input, InventoryPolicy::default(), ArchiveLimits::default())
+                .unwrap();
+        let metadata =
+            MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default()).unwrap();
+        let definitions =
+            DefinitionFacts::build(metadata.clone(), DefinitionLimits::default()).unwrap();
+        let code = CodeFacts::build_all_code_items(&snapshot, &inventory, 0, CodeLimits::default())
+            .unwrap();
+        references.push(Arc::new(
+            ReferenceFacts::build(
+                definitions.clone(),
+                code.clone(),
+                ReferenceLimits::default(),
+            )
+            .unwrap(),
+        ));
+        occurrences.push(OccurrenceFacts {
+            metadata: Arc::new(metadata),
+            definitions: Some(Arc::new(definitions)),
+            code: Some(Arc::new(code)),
+        });
+    }
+    (
+        NativeCatalog::new(
+            snapshot.manifest().snapshot_id.clone(),
+            DecimalU64(7),
+            occurrences,
+        )
+        .unwrap(),
+        references,
+    )
+}
+
+#[test]
+fn typed_reference_catalog_preserves_sites_and_joins_with_definitions() {
+    let (native, mut references) = native_references();
+    // A caller may provide facts in another order; output remains catalog ordered.
+    references.reverse();
+    let catalog = ReferenceCatalog::new(native, references.clone()).unwrap();
+    let scan = Node::Scan {
+        relation: "reference_sites".into(),
+    };
+    let plan = prepare(
+        query(scan, catalog.snapshot_id(), catalog.catalog_epoch()),
+        &catalog,
+    )
+    .unwrap();
+    assert!(plan.required_layers().contains(&FactLayer::References));
+    let expected_count: usize = references.iter().map(|facts| facts.sites().len()).sum();
+    assert!(expected_count > 0);
+    for mode in [
+        ExecutionMode::Streaming,
+        ExecutionMode::MaterializedReference,
+    ] {
+        let result = execute(
+            &plan,
+            &catalog,
+            mode,
+            &mut Control::new(ExecutionLimits::default()),
+        )
+        .unwrap();
+        assert_eq!(result.rows().len(), expected_count);
+        let first = references.last().unwrap();
+        assert_eq!(
+            result.rows()[0][0],
+            Value::text(&first.source().dex_occurrence_id)
+        );
+        for facts in &references {
+            for site in facts.sites() {
+                let matching: Vec<_> = result
+                    .rows()
+                    .iter()
+                    .filter(|row| {
+                        row[0] == Value::text(&facts.source().dex_occurrence_id)
+                            && row[1] == Value::U64(DecimalU64(u64::from(site.site_ordinal)))
+                    })
+                    .collect();
+                assert_eq!(matching.len(), 1);
+                let row = matching[0];
+                assert_eq!(row[3], Value::U64(DecimalU64(u64::from(site.code_unit_pc))));
+                assert_eq!(
+                    row[5],
+                    Value::U64(DecimalU64(u64::from(site.operand_ordinal)))
+                );
+                if matches!(
+                    site.target_kind,
+                    TargetKind::CallSite | TargetKind::MethodHandle
+                ) {
+                    assert_eq!(row[8], Value::Null);
+                } else if site.target_kind == TargetKind::Method {
+                    assert_eq!(
+                        row[8],
+                        Value::Entity(EntityRef {
+                            snapshot_id: facts.source().snapshot_id.clone(),
+                            dex_occurrence_id: facts.source().dex_occurrence_id.clone(),
+                            kind: EntityKind::MethodReference,
+                            local_index: site.target_local_index,
+                        })
+                    );
+                }
+            }
+        }
+        let limited = ExecutionLimits {
+            max_output_rows: 1,
+            ..ExecutionLimits::default()
+        };
+        assert_eq!(
+            execute(&plan, &catalog, mode, &mut Control::new(limited))
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::QuotaExceeded
+        );
+    }
+    let join = Node::EquiJoin {
+        left: Box::new(Node::Scan {
+            relation: "reference_sites".into(),
+        }),
+        right: Box::new(Node::Scan {
+            relation: "method_definitions".into(),
+        }),
+        left_keys: vec![2],
+        right_keys: vec![0],
+        kind: JoinKind::Inner,
+    };
+    let plan = prepare(
+        query(join, catalog.snapshot_id(), catalog.catalog_epoch()),
+        &catalog,
+    )
+    .unwrap();
+    let joined = execute(
+        &plan,
+        &catalog,
+        ExecutionMode::Streaming,
+        &mut Control::new(ExecutionLimits::default()),
+    )
+    .unwrap();
+    assert_eq!(joined.rows().len(), expected_count);
+    for row in joined.rows() {
+        assert_eq!(row[2], row[11]);
+        assert!(matches!(&row[2], Value::Entity(entity)
+            if entity.kind == EntityKind::MethodDefinition
+            && row[0] == Value::text(&entity.dex_occurrence_id)
+            && entity.snapshot_id == catalog.snapshot_id()));
+    }
+    let target_join = Node::EquiJoin {
+        left: Box::new(Node::Scan {
+            relation: "reference_sites".into(),
+        }),
+        right: Box::new(Node::Scan {
+            relation: "methods".into(),
+        }),
+        left_keys: vec![8],
+        right_keys: vec![0],
+        kind: JoinKind::Inner,
+    };
+    let target_plan = prepare(
+        query(target_join, catalog.snapshot_id(), catalog.catalog_epoch()),
+        &catalog,
+    )
+    .unwrap();
+    let target_expected = references
+        .iter()
+        .flat_map(|facts| facts.sites())
+        .filter(|site| site.target_kind == TargetKind::Method)
+        .count();
+    assert!(target_expected > 0);
+    for mode in [
+        ExecutionMode::Streaming,
+        ExecutionMode::MaterializedReference,
+    ] {
+        let result = execute(
+            &target_plan,
+            &catalog,
+            mode,
+            &mut Control::new(ExecutionLimits::default()),
+        )
+        .unwrap();
+        assert_eq!(result.rows().len(), target_expected);
+        for row in result.rows() {
+            assert_eq!(row[8], row[11]);
+            assert!(matches!(&row[8], Value::Entity(entity)
+                if entity.kind == EntityKind::MethodReference
+                && row[0] == Value::text(&entity.dex_occurrence_id)
+                && entity.snapshot_id == catalog.snapshot_id()));
+        }
+    }
+    let (missing_native, _) = native_references();
+    assert_eq!(
+        ReferenceCatalog::new(missing_native, vec![])
+            .err()
+            .unwrap()
+            .code,
+        ErrorCode::IncompleteFacts
+    );
+    let (duplicate_native, duplicate_refs) = native_references();
+    assert_eq!(
+        ReferenceCatalog::new(
+            duplicate_native,
+            vec![duplicate_refs[0].clone(), duplicate_refs[0].clone()]
+        )
+        .err()
+        .unwrap()
+        .code,
+        ErrorCode::InvalidArgument
+    );
+    let (foreign_native, _) = native_references();
+    assert_eq!(
+        ReferenceCatalog::new(foreign_native, references)
+            .err()
+            .unwrap()
+            .code,
+        ErrorCode::IncompleteFacts
+    );
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]

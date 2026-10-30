@@ -251,15 +251,14 @@ impl QueryCancellation {
         // A concurrent delivery cancellation must not erase that established fact.
         let mut state = self.lifecycle.lock()?;
         let entry = state.query(&self.query)?;
-        if matches!(
-            entry.status.phase,
-            QueryPhase::Prepared | QueryPhase::Queued
-        ) {
-            return Err(MddError::new(
-                ErrorCode::InvalidArgument,
-                "cancel.computed",
-                "computation was never active",
-            ));
+        if !entry.execution_started {
+            return Err(entry.status.error.clone().unwrap_or_else(|| {
+                MddError::new(
+                    ErrorCode::InvalidArgument,
+                    "cancel.computed",
+                    "computation was never active",
+                )
+            }));
         }
         let entry = state.queries.get_mut(self.query.id()).unwrap();
         entry.status.execution_complete = true;
@@ -364,6 +363,68 @@ mod tests {
             .unwrap();
         lifecycle.start_query(session, &handle, 1).unwrap();
         lifecycle.cancellation_token(&handle).unwrap()
+    }
+    #[test]
+    fn never_started_terminal_cannot_be_marked_computed() {
+        for queued in [false, true] {
+            let (lifecycle, session) = runtime();
+            let handle = lifecycle
+                .prepare_query(
+                    &session,
+                    QueryBinding {
+                        request_key: "request".into(),
+                        schema_id: "rows".into(),
+                        semantic_version: "v1".into(),
+                    },
+                    ResourceLimits::default(),
+                )
+                .unwrap();
+            if queued {
+                lifecycle.queue_query(&session, &handle).unwrap();
+            }
+            let token = lifecycle.cancellation_token(&handle).unwrap();
+            token.cancel().unwrap();
+            assert_eq!(
+                token.mark_computed().unwrap_err().code,
+                ErrorCode::Cancelled
+            );
+            let status = token.status().unwrap();
+            assert!(!status.execution_complete);
+            assert!(!status.delivery_complete);
+            assert_eq!(status.error.unwrap().code, ErrorCode::Cancelled);
+        }
+        let (lifecycle, session) = runtime();
+        let handle = lifecycle
+            .prepare_query(
+                &session,
+                QueryBinding {
+                    request_key: "request".into(),
+                    schema_id: "rows".into(),
+                    semantic_version: "v1".into(),
+                },
+                ResourceLimits::default(),
+            )
+            .unwrap();
+        let token = lifecycle.cancellation_token(&handle).unwrap();
+        lifecycle
+            .worker_lost("test worker lost before start")
+            .unwrap();
+        assert_eq!(
+            token.mark_computed().unwrap_err().code,
+            ErrorCode::WorkerLost
+        );
+        let status = token.status().unwrap();
+        assert!(!status.execution_complete);
+        assert!(!status.delivery_complete);
+        assert_eq!(status.error.unwrap().code, ErrorCode::WorkerLost);
+        let (lifecycle, session) = runtime();
+        let active = query(&lifecycle, &session);
+        active.cancel().unwrap();
+        active.mark_computed().unwrap();
+        let status = active.status().unwrap();
+        assert!(status.execution_complete);
+        assert!(!status.delivery_complete);
+        assert_eq!(status.error.unwrap().code, ErrorCode::Cancelled);
     }
     #[test]
     fn delivery_budget_deadline_keeps_computation_and_first_terminal() {

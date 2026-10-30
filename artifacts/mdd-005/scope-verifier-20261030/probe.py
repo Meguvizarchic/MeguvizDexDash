@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / 'benchmarks'))
 from scope_commitment import ExpectedDex, ExpectedInput, verify_scope_preimage
 from snapshot_commitment import ExpectedSource, verify_snapshot_manifest
+from capture_scope_binding import verify_capture_scope
 
 
 def framed(value):
@@ -63,6 +64,45 @@ class Checks(unittest.TestCase):
         changed = dict(manifest, sources=list(reversed(manifest['sources'])))
         with self.assertRaises(ValueError):
             verify_snapshot_manifest(changed, **args)
+
+    def test_scope_binds_to_the_corresponding_captured_occurrence(self):
+        content = 'sha256:' + 'a' * 64
+        other = 'sha256:' + 'c' * 64
+        dex = ExpectedDex(content, None, 0)
+        selected = (ExpectedInput(2, content, 'top-level-classes-v1', (dex,)),)
+        body = b'mdd-selected-scope-v1' + framed((2).to_bytes(8, 'little'))
+        body += framed(content.encode()) + framed(b'top-level-classes-v1')
+        body += framed(content.encode()) + framed(((1 << 64)-1).to_bytes(8, 'little'))
+        body += framed((0).to_bytes(8, 'little'))
+        data = body + framed(b'snapshot-synthetic')
+        scope = {'snapshot_id': 'snapshot-synthetic', 'expected_inputs': selected,
+                 'scope_id': 'sha256:' + hashlib.sha256(data).hexdigest(),
+                 'scope_content_key': 'sha256:' + hashlib.sha256(body).hexdigest()}
+        sources = (ExpectedSource(other, 4, 'apk-zip'),
+                   ExpectedSource(other, 4, 'apk-zip'),
+                   ExpectedSource(content, 8, 'raw-dex'))
+        items = [[s.content_id, s.input_kind] for s in sources]
+        key = 'sha256:' + hashlib.sha256(json.dumps(['capture-owned-v1', items],
+                     separators=(',', ':')).encode()).hexdigest()
+        manifest = {'schema_version': 'mdd.snapshot.capture.v1',
+                    'snapshot_id': scope['snapshot_id'], 'snapshot_content_key': key,
+                    'capture_policy': 'owned-captured-bytes-v1',
+                    'sources': [{'occurrence_id': f"{scope['snapshot_id']}:source:{i}",
+                        'input_ordinal': str(i), 'content_id': item.content_id,
+                        'byte_length': str(item.byte_length), 'input_kind': item.input_kind}
+                        for i, item in enumerate(sources)],
+                    'captured_input_bytes': '16', 'scope': 'synthetic'}
+        args = dict(expected_snapshot_id=scope['snapshot_id'], expected_sources=sources,
+                    expected_inputs=scope['expected_inputs'], scope_id=scope['scope_id'],
+                    scope_content_key=scope['scope_content_key'], max_sources=3,
+                    max_input_bytes=16, max_scope_entries=3, max_scope_bytes=4096)
+        result = verify_capture_scope(manifest, data, **args)
+        self.assertFalse(result.all_captured_sources_selected)
+        self.assertEqual((result.captured_source_count, result.selected_input_count,
+                          result.selected_dex_count), (3, 1, 1))
+        mismatched = (ExpectedInput(2, other, 'top-level-classes-v1', scope['expected_inputs'][0].dexes),)
+        with self.assertRaisesRegex(ValueError, 'captured source'):
+            verify_capture_scope(manifest, data, **dict(args, expected_inputs=mismatched))
 
     def test_expected_roster_and_hashes(self):
         data, args = fixture()

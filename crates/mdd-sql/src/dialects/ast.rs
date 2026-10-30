@@ -315,6 +315,7 @@ pub(crate) fn adapt(
         cte_names: BTreeSet::new(),
         in_scopes: Vec::new(),
         cte_definitions: Vec::new(),
+        cte_direct_types: BTreeMap::new(),
         cte_literal_text_columns: BTreeMap::new(),
         cte_literal_text_scopes: Vec::new(),
         schemas,
@@ -388,6 +389,10 @@ struct Rewrite<'a> {
     cte_names: BTreeSet<String>,
     in_scopes: Vec<Option<InScope>>,
     cte_definitions: Vec<Vec<Dependency>>,
+    // Only CTEs whose complete projection is direct typed columns from one
+    // known base table are registered here. Unknown CTEs still shadow outer
+    // sources and cannot be used to infer affinity.
+    cte_direct_types: BTreeMap<usize, BTreeMap<String, crate::values::SqlType>>,
     cte_literal_text_columns: BTreeMap<usize, String>,
     cte_literal_text_scopes: Vec<Option<(String, String)>>,
     schemas: BTreeMap<String, Vec<String>>,
@@ -462,15 +467,15 @@ impl Rewrite<'_> {
                 let source_name = id.value.to_ascii_lowercase();
                 // A visible CTE takes precedence over a same-named base table;
                 // an unrelated WITH clause does not change this source's type.
-                if self
+                let cte = self
                     .cte_scopes
                     .iter()
                     .rev()
-                    .any(|scope| scope.contains_key(&source_name))
-                {
-                    return None;
-                }
-                let columns = self.schema_types.get(&source_name)?.clone();
+                    .find_map(|scope| scope.get(&source_name));
+                let columns = match cte {
+                    Some(id) => self.cte_direct_types.get(id)?.clone(),
+                    None => self.schema_types.get(&source_name)?.clone(),
+                };
                 let qualifier = alias
                     .as_ref()
                     .map_or_else(|| id.value.clone(), |a| a.name.value.clone())
@@ -484,6 +489,95 @@ impl Rewrite<'_> {
             tables,
             order_aliases: BTreeSet::new(),
         })
+    }
+
+    // Register only a direct projection from one non-CTE physical relation.
+    // Aliased columns are positional; duplicate output names are ambiguous.
+    fn direct_cte_column_types(
+        &self,
+        cte: &Cte,
+    ) -> Option<BTreeMap<String, crate::values::SqlType>> {
+        if cte.query.with.is_some()
+            || cte.query.order_by.is_some()
+            || cte.query.limit_clause.is_some()
+        {
+            return None;
+        }
+        let SetExpr::Select(select) = cte.query.body.as_ref() else {
+            return None;
+        };
+        if select.from.len() != 1
+            || !select.from[0].joins.is_empty()
+            || select.distinct.is_some()
+            || select.having.is_some()
+            || !matches!(&select.group_by, GroupByExpr::Expressions(values, modifiers)
+                if values.is_empty() && modifiers.is_empty())
+            || select.projection.is_empty()
+        {
+            return None;
+        }
+        let TableFactor::Table { name, .. } = &select.from[0].relation else {
+            return None;
+        };
+        if name.0.len() != 1 {
+            return None;
+        }
+        let source_name = name.0[0].as_ident()?.value.to_ascii_lowercase();
+        if self
+            .cte_scopes
+            .iter()
+            .rev()
+            .any(|frame| frame.contains_key(&source_name))
+        {
+            return None;
+        }
+        let scope = self.base_in_scope(select)?;
+        if scope.tables.len() != 1 {
+            return None;
+        }
+        if !cte.alias.columns.is_empty() && cte.alias.columns.len() != select.projection.len() {
+            return None;
+        }
+        let mut output = BTreeMap::new();
+        for (ordinal, projection) in select.projection.iter().enumerate() {
+            let (expr, name) = match projection {
+                SelectItem::UnnamedExpr(Expr::Identifier(id)) => {
+                    (Expr::Identifier(id.clone()), id.value.clone())
+                }
+                SelectItem::UnnamedExpr(Expr::CompoundIdentifier(ids)) if ids.len() == 2 => (
+                    Expr::CompoundIdentifier(ids.clone()),
+                    ids.last()?.value.clone(),
+                ),
+                SelectItem::ExprWithAlias { expr, alias } => (expr.clone(), alias.value.clone()),
+                _ => return None,
+            };
+            let mut original = &expr;
+            while let Expr::Nested(inner) = original {
+                original = inner;
+            }
+            let value = match original {
+                Expr::Identifier(id) => scope
+                    .tables
+                    .values()
+                    .next()?
+                    .get(&id.value.to_ascii_lowercase())?,
+                Expr::CompoundIdentifier(ids) if ids.len() == 2 => scope
+                    .tables
+                    .get(&ids[0].value.to_ascii_lowercase())?
+                    .get(&ids[1].value.to_ascii_lowercase())?,
+                _ => return None,
+            };
+            let name = cte
+                .alias
+                .columns
+                .get(ordinal)
+                .map_or(name, |column| column.name.value.clone())
+                .to_ascii_lowercase();
+            if output.insert(name, *value).is_some() {
+                return None;
+            }
+        }
+        Some(output)
     }
     fn in_column_type(&self, left: &Expr) -> Option<crate::values::SqlType> {
         // Never infer a column type from a global same-name schema. Derived
@@ -699,7 +793,11 @@ impl Rewrite<'_> {
                 let id =
                     self.cte_scopes.last().unwrap()[&cte.alias.name.value.to_ascii_lowercase()];
                 let literal_text_column = single_literal_text_cte_column(cte);
+                let direct_types = self.direct_cte_column_types(cte);
                 self.cte_definitions[id] = self.query(&mut cte.query, depth + 1)?;
+                if let Some(columns) = direct_types {
+                    self.cte_direct_types.insert(id, columns);
+                }
                 if let Some(column) = literal_text_column {
                     self.cte_literal_text_columns.insert(id, column);
                 }
