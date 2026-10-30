@@ -1,0 +1,9 @@
+   Compiling mdd-query v0.1.0-dev (<workspace>\crates\mdd-query)
+   Compiling mdd-sql v0.1.0-dev (<workspace>\crates\mdd-sql)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 15.26s
+     Running unittests src\lib.rs (target\debug\deps\mdd_sql-46977fcd4387e316.exe)
+
+thread 'bridge::tests::order_in_subquery_respects_current_scope_and_unknown_shadow' (45280) panicked at crates\mdd-sql\src\bridge.rs:3011:38:
+called `Result::unwrap_err()` on an `Ok` value: SqlResult { binding: SqlBinding { provider_identity: "order-scope", snapshot_id: "order-scope-snapshot", catalog_epoch: DecimalU64(0) }, dialect: NativeV1, columns: ["(WITH d AS (SELECT txt AS lhs FROM vals) SELECT lhs FROM d ORDER BY lhs IN (SELECT rhs FROM vals) DESC, lhs ASC LIMIT 1)"], rows: [[Text(SqlText { utf16: [48], original_mutf8: None })]], calculation_complete: true, profiles_admitted: [], sqlite_version: "3.53.2", optimizer: OptimizerPolicy { omit: false, order_by_consumed: false, limit_offset_pushdown: false, in_pushdown: false }, required_relations: ["vals"], required_layers: [], ast_nodes: 25, execution_binding: None, _result_memory: ResultMemory { reservations: 0, unused: 0 } }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p mdd-sql --lib`

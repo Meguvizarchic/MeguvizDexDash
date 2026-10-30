@@ -20078,6 +20078,86 @@
       "sha256": "941788fa086aeca03dc713e9e9a1246e97382ecf370dd820b5629a0836845959"
     },
     {
+      "path": "artifacts/mdd-031-audit/in-subquery-order-20261030/final-scope/0.stderr",
+      "bytes": 217,
+      "sha256": "0380d64791f7cc0d029b69e718a7fc6d1ff31a22aa16a342c47a210366a797fd"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/in-subquery-order-20261030/final-scope/0.stdout",
+      "bytes": 201,
+      "sha256": "102ed76256169f5fb9755d158a349f7bd890fd4604061e289326cf78c723a21d"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/in-subquery-order-20261030/final-scope/1.stderr",
+      "bytes": 156,
+      "sha256": "62a197d91812302844637bfd0fce4d06b8fdd452675d8cc0003a5277f0a61972"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/in-subquery-order-20261030/final-scope/1.stdout",
+      "bytes": 217,
+      "sha256": "89c76e2fb1eb851a78e325ceab1bb472c26e89efb23c64aadc718066fd283f91"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/in-subquery-order-20261030/final-scope/record.json",
+      "bytes": 2570,
+      "sha256": "47d8cf445af361cfaad4f927f6fed2b04b850e2dc79a0f393ee1f7f9abcbc360"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/in-subquery-order-20261030/green-scope/0.stderr",
+      "bytes": 217,
+      "sha256": "793f185787e6013e073acb824b475f697ab1845813e48facc758c72853e7b08e"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/in-subquery-order-20261030/green-scope/0.stdout",
+      "bytes": 201,
+      "sha256": "102ed76256169f5fb9755d158a349f7bd890fd4604061e289326cf78c723a21d"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/in-subquery-order-20261030/green-scope/1.stderr",
+      "bytes": 156,
+      "sha256": "a018fe47a92f6fd9ecc12a25b8c71fcc318e4ed65fb37abc70a8533307c4e96e"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/in-subquery-order-20261030/green-scope/1.stdout",
+      "bytes": 217,
+      "sha256": "d664d89973a278b9f2cef34313c682a296a3f6566bc8e629db6eca53b42e61a9"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/in-subquery-order-20261030/green-scope/record.json",
+      "bytes": 2569,
+      "sha256": "a044e5bfe94954916c0bd492c0de839806a5c4c3a3b2279bb5c8161525f5ba8d"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/in-subquery-order-20261030/red-scope/record.json",
+      "bytes": 1912,
+      "sha256": "3862472283b869d7d4db520c854ed2e4cd5aef6183a47c8afcf0c9c2fe76e823"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/in-subquery-order-20261030/red-scope/stderr.txt",
+      "bytes": 1309,
+      "sha256": "ce55a86edd0acbd83831ceb8cd6cc3ffc48c6bbcd82c9f6d623a420e3d6d7a82"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/in-subquery-order-20261030/red-scope/stdout.txt",
+      "bytes": 310,
+      "sha256": "3cedf03c5f6a191a062324f4e9075261616694fe131f213e124835e30e90c1a0"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/in-subquery-order-20261030/run1/record.json",
+      "bytes": 1949,
+      "sha256": "8416849c700b4a096f7fae9f5b42f6bcfe7bbb844c25693aa0474d79aaee957e"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/in-subquery-order-20261030/run1/stderr.txt",
+      "bytes": 347,
+      "sha256": "3aecc00ee3483d6664a4b946240a397781c10e368a985d9220ef7eac9757b507"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/in-subquery-order-20261030/run1/stdout.txt",
+      "bytes": 217,
+      "sha256": "3f6f46274e66a8b4a162d3b34aac59f65407cd786bdb5da4fa1dcaf1c30f6e71"
+    },
+    {
       "path": "artifacts/mdd-031-audit/integer-cast-observations/readback.py",
       "bytes": 3332,
       "sha256": "7da8041a1f16b6d676cfc5b22ae695be219ed350d0e311f126adff56546e403e"

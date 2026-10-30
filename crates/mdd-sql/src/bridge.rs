@@ -2764,6 +2764,11 @@ mod tests {
             "SELECT a.lhs,EXISTS (SELECT 1 FROM vals a WHERE a.lhs IN (SELECT c.rhs FROM vals c)) FROM vals a ORDER BY a.lhs",
             "SELECT lhs,lhs IN (SELECT DISTINCT rhs FROM vals),lhs NOT IN (SELECT DISTINCT rhs FROM vals) FROM vals ORDER BY lhs",
             "SELECT a.lhs,a.lhs IN (SELECT DISTINCT b.rhs FROM vals b WHERE b.rhs=a.lhs) FROM vals a ORDER BY a.lhs",
+            "SELECT lhs,lhs IN (SELECT rhs FROM vals ORDER BY rhs DESC LIMIT 1),lhs NOT IN (SELECT rhs FROM vals ORDER BY rhs DESC LIMIT 1) FROM vals ORDER BY lhs",
+            "SELECT lhs,lhs IN (SELECT rhs AS x FROM vals ORDER BY x LIMIT 2 OFFSET 1) FROM vals ORDER BY lhs",
+            "SELECT lhs,lhs IN (SELECT rhs FROM vals ORDER BY 1 DESC LIMIT 1 OFFSET 1) FROM vals ORDER BY lhs",
+            "SELECT a.lhs,a.lhs IN (SELECT b.rhs FROM vals b WHERE b.rhs<=a.lhs ORDER BY b.rhs DESC LIMIT 1 OFFSET 1) FROM vals a ORDER BY a.lhs",
+            "SELECT lhs,lhs IN (SELECT DISTINCT rhs FROM vals ORDER BY rhs DESC),lhs NOT IN (SELECT DISTINCT rhs FROM vals ORDER BY rhs DESC) FROM vals ORDER BY lhs",
         ];
         for dialect in [
             SqlDialect::NativeV1,
@@ -2804,6 +2809,7 @@ mod tests {
                 "SELECT lhs IN (SELECT missing FROM vals) FROM vals",
                 "SELECT lhs IN (SELECT rhs FROM absent) FROM vals",
                 "SELECT lhs IN (SELECT DISTINCT missing FROM vals) FROM vals",
+                "SELECT lhs IN (SELECT rhs FROM vals ORDER BY missing LIMIT 1) FROM vals",
             ] {
                 assert_eq!(
                     bridge.query(sql).unwrap_err().code,
@@ -2820,7 +2826,7 @@ mod tests {
             );
             for sql in [
                 "SELECT lhs IN (SELECT DISTINCT rhs FROM vals LIMIT 1) FROM vals",
-                "SELECT lhs IN (SELECT DISTINCT rhs FROM vals ORDER BY rhs) FROM vals",
+                "SELECT lhs IN (SELECT DISTINCT rhs FROM vals ORDER BY rhs LIMIT 1) FROM vals",
                 "WITH d AS (SELECT rhs FROM vals) SELECT lhs IN (SELECT rhs FROM d) FROM vals",
                 "SELECT lhs IN (WITH d AS (SELECT rhs FROM vals) SELECT rhs FROM d) FROM vals",
                 "SELECT lhs IN (SELECT rhs FROM (WITH d AS (SELECT rhs FROM vals) SELECT rhs FROM d) AS z) FROM vals",
@@ -2892,6 +2898,19 @@ mod tests {
                     .iter()
                     .all(|row| row == &[SqlValue::I64(Signed64(1)), SqlValue::I64(Signed64(0))])
             );
+            let ordered = bridge
+                .query("SELECT u,u IN (SELECT u FROM vals ORDER BY u DESC LIMIT 1 OFFSET 1) FROM vals ORDER BY u")
+                .unwrap();
+            assert_eq!(ordered.rows().len(), 7);
+            for row in ordered.rows() {
+                let SqlValue::U64(DecimalU64(value)) = row[0] else {
+                    panic!("unexpected unsigned value: {row:?}");
+                };
+                assert_eq!(
+                    row[1],
+                    SqlValue::I64(Signed64(i64::from(value == (1u64 << 63))))
+                );
+            }
             assert_eq!(
                 bridge
                     .query("SELECT u IN (SELECT f FROM vals) FROM vals")
@@ -2918,6 +2937,109 @@ mod tests {
                     vec![SqlValue::I64(Signed64(1))],
                 ]
             );
+            let ordered = bridge
+                .query(
+                    "SELECT l IN (SELECT r FROM vals ORDER BY r DESC LIMIT 1) FROM vals ORDER BY l",
+                )
+                .unwrap();
+            assert_eq!(
+                ordered.rows(),
+                &[
+                    vec![SqlValue::Null],
+                    vec![SqlValue::I64(Signed64(0))],
+                    vec![SqlValue::I64(Signed64(0))],
+                    vec![SqlValue::I64(Signed64(0))],
+                    vec![SqlValue::I64(Signed64(1))],
+                ]
+            );
+        }
+    }
+    #[test]
+    fn order_in_subquery_respects_current_scope_and_unknown_shadow() {
+        use mdd_query::ir::Signed64;
+        let provider = Arc::new(RowsProvider {
+            binding: SqlBinding {
+                provider_identity: "order-scope".into(),
+                snapshot_id: "order-scope-snapshot".into(),
+                catalog_epoch: DecimalU64(0),
+            },
+            columns: vec![
+                SqlColumn {
+                    id: "lhs".into(),
+                    name: "lhs".into(),
+                    data_type: SqlType::I64,
+                    nullable: false,
+                },
+                SqlColumn {
+                    id: "rhs".into(),
+                    name: "rhs".into(),
+                    data_type: SqlType::I64,
+                    nullable: false,
+                },
+                SqlColumn {
+                    id: "txt".into(),
+                    name: "txt".into(),
+                    data_type: SqlType::Text,
+                    nullable: false,
+                },
+            ],
+            rows: vec![
+                vec![
+                    SqlValue::I64(Signed64(0)),
+                    SqlValue::I64(Signed64(1)),
+                    SqlValue::text("0"),
+                ],
+                vec![
+                    SqlValue::I64(Signed64(1)),
+                    SqlValue::I64(Signed64(1)),
+                    SqlValue::text("1"),
+                ],
+            ],
+        });
+        let sqlite = rusqlite::Connection::open_in_memory().unwrap();
+        sqlite.execute_batch("CREATE TABLE vals(lhs INTEGER,rhs INTEGER,txt TEXT); INSERT INTO vals VALUES(0,1,'0'),(1,1,'1');").unwrap();
+        let shadow = "SELECT (WITH d AS (SELECT txt AS lhs FROM vals) SELECT lhs FROM d ORDER BY lhs IN (SELECT rhs FROM vals) DESC, lhs ASC LIMIT 1) FROM vals LIMIT 1";
+        let expected: String = sqlite.query_row(shadow, [], |row| row.get(0)).unwrap();
+        assert_eq!(expected, "1");
+        let alias_shadow = "SELECT txt AS lhs FROM vals ORDER BY lhs IN (SELECT rhs FROM vals) DESC, txt ASC LIMIT 1";
+        let expected: String = sqlite
+            .query_row(alias_shadow, [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(expected, "1");
+        let valid =
+            "SELECT txt FROM vals ORDER BY vals.lhs IN (SELECT rhs FROM vals) DESC, vals.lhs";
+        let expected: Vec<String> = sqlite
+            .prepare(valid)
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap();
+        for dialect in [
+            SqlDialect::NativeV1,
+            SqlDialect::DexSql010,
+            SqlDialect::DexSql011,
+        ] {
+            let bridge = SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+            assert_eq!(
+                bridge.query(shadow).unwrap_err().code,
+                ErrorCode::UnsupportedQuery
+            );
+            assert_eq!(
+                bridge.query(alias_shadow).unwrap_err().code,
+                ErrorCode::UnsupportedQuery
+            );
+            let actual: Vec<String> = bridge
+                .query(valid)
+                .unwrap()
+                .rows()
+                .iter()
+                .map(|row| match &row[0] {
+                    SqlValue::Text(value) => value.strict_utf8().unwrap(),
+                    value => panic!("unexpected value: {value:?}"),
+                })
+                .collect();
+            assert_eq!(actual, expected, "{dialect:?}");
         }
     }
     #[test]

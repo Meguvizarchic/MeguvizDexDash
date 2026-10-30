@@ -1,0 +1,59 @@
+{
+  "started_utc": "2026-10-30T14:04:06.277868+00:00",
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-sql/src/dialects/ast.rs": "606feea9c2260b18105b288a42360e249dac0bf397d5ad64c01f8309eb499d89",
+    "crates/mdd-sql/src/bridge.rs": "abbc35457966512c0035887022f8a6ff6bd13aaf21f95175b9de5c770ddadb32",
+    "crates/mdd-sql/src/values.rs": "ad87d663986bdec1b4f98710d170e911fd1be67695a9d1b53abc62c54e50c9f8",
+    "crates/mdd-query/src/budget.rs": "185ffe4db3ffce8d919e19bd8142089df1867b3f7915d78303f3d6ef3d352e3e"
+  },
+  "runs": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-sql",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "order_in_subquery_respects_current_scope_and_unknown_shadow",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "raw_stderr_sha256": "71e62e627cf9ca898bf0323861579662264c32b32394ec44885d532b55a54430",
+      "stderr_redaction": "workspace path replaced; raw retained under ignored local directory"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-sql",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "in_subquery_same_typed_columns_preserves_null_duplicates_and_binding_errors",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "raw_stderr_sha256": "a018fe47a92f6fd9ecc12a25b8c71fcc318e4ed65fb37abc70a8533307c4e96e",
+      "stderr_redaction": "workspace path replaced; raw retained under ignored local directory"
+    }
+  ],
+  "scope": "synthetic SQLite ordering/shadow and earlier narrow IN regression; no full profile qualification",
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-sql/src/dialects/ast.rs": "606feea9c2260b18105b288a42360e249dac0bf397d5ad64c01f8309eb499d89",
+    "crates/mdd-sql/src/bridge.rs": "abbc35457966512c0035887022f8a6ff6bd13aaf21f95175b9de5c770ddadb32",
+    "crates/mdd-sql/src/values.rs": "ad87d663986bdec1b4f98710d170e911fd1be67695a9d1b53abc62c54e50c9f8",
+    "crates/mdd-query/src/budget.rs": "185ffe4db3ffce8d919e19bd8142089df1867b3f7915d78303f3d6ef3d352e3e"
+  },
+  "finished_utc": "2026-10-30T14:04:15.435558+00:00"
+}

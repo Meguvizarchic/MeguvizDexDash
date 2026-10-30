@@ -400,6 +400,7 @@ struct Rewrite<'a> {
 }
 struct InScope {
     tables: BTreeMap<String, BTreeMap<String, crate::values::SqlType>>,
+    order_aliases: BTreeSet<String>,
 }
 impl Rewrite<'_> {
     fn single_cte_literal_text_scope(&self, select: &Select) -> Option<(String, String)> {
@@ -479,7 +480,10 @@ impl Rewrite<'_> {
                 }
             }
         }
-        Some(InScope { tables })
+        Some(InScope {
+            tables,
+            order_aliases: BTreeSet::new(),
+        })
     }
     fn in_column_type(&self, left: &Expr) -> Option<crate::values::SqlType> {
         // Never infer a column type from a global same-name schema. Derived
@@ -494,6 +498,12 @@ impl Rewrite<'_> {
             match left {
                 Expr::Identifier(id) => {
                     let name = id.value.to_ascii_lowercase();
+                    // In a compound ORDER BY expression SQLite can resolve a
+                    // bare identifier to a SELECT alias before a table column.
+                    // Alias expression type is not proven by this scope map.
+                    if scope.order_aliases.contains(&name) {
+                        return None;
+                    }
                     let mut matches = scope
                         .tables
                         .values()
@@ -523,7 +533,7 @@ impl Rewrite<'_> {
     /// Only a direct column from a single known base table is currently
     /// admitted. No derived/CTE schema or expression affinity is inferred.
     fn direct_subquery_column_type(&self, query: &Query) -> Option<crate::values::SqlType> {
-        if query.with.is_some() || query.order_by.is_some() {
+        if query.with.is_some() {
             return None;
         }
         let SetExpr::Select(select) = query.body.as_ref() else {
@@ -709,8 +719,52 @@ impl Rewrite<'_> {
                 }
             }
         }
+        // ORDER BY is rewritten after body() pops the SELECT frame. Recreate
+        // that exact frame from the unmodified SELECT so an inner scope cannot
+        // accidentally bind a same-named outer column. Compound and derived
+        // scopes remain unknown rather than exposing an outer source.
+        let (mut order_scope, order_cte_scope) = match query.body.as_ref() {
+            SetExpr::Select(select) => {
+                let mut scope = self.base_in_scope(select);
+                let aliases: BTreeSet<_> = select
+                    .projection
+                    .iter()
+                    .filter_map(|item| {
+                        match item {
+                            SelectItem::ExprWithAlias { alias, .. } => {
+                                Some(alias.value.to_ascii_lowercase())
+                            }
+                            // SQLite also exposes the expression's generated
+                            // output name as an ORDER BY identifier. A simple
+                            // column projection has the same binding/type.
+                            SelectItem::UnnamedExpr(expr)
+                                if !matches!(
+                                    expr,
+                                    Expr::Identifier(_) | Expr::CompoundIdentifier(_)
+                                ) =>
+                            {
+                                Some(expr.to_string().to_ascii_lowercase())
+                            }
+                            _ => None,
+                        }
+                    })
+                    .collect();
+                if let Some(scope) = &mut scope {
+                    scope.order_aliases = aliases.clone();
+                }
+                let cte_scope = if aliases.is_empty() {
+                    self.single_cte_literal_text_scope(select)
+                } else {
+                    None
+                };
+                (scope, cte_scope)
+            }
+            _ => (None, None),
+        };
         self.body(&mut query.body, depth + 1)?;
         if let Some(order) = &mut query.order_by {
+            self.in_scopes.push(order_scope.take());
+            self.cte_literal_text_scopes.push(order_cte_scope);
             if order.interpolate.is_some() {
                 return Err(unsupported("ORDER_INTERPOLATE"));
             }
@@ -743,6 +797,8 @@ impl Rewrite<'_> {
                     self.expr(&mut order.expr, depth + 1)?;
                 }
             }
+            self.cte_literal_text_scopes.pop();
+            self.in_scopes.pop();
         }
         if let Some(limit) = &mut query.limit_clause {
             match limit {
@@ -1405,8 +1461,9 @@ impl Rewrite<'_> {
                 self.expr(child, depth + 1)?;
                 **child = call("mdd_key", vec![take(child)]);
                 // IN/NOT IN observes membership and NULL, not multiplicity.
-                // With no LIMIT/OFFSET or ordering, ordinary DISTINCT cannot
-                // change that result. Remove only this narrowly typed form.
+                // With no LIMIT/OFFSET, ordinary DISTINCT cannot change the
+                // membership result even when the subquery has ordering.
+                // The order is still validated and evaluated by self.query.
                 if let SetExpr::Select(select) = subquery.body.as_mut()
                     && matches!(&select.distinct, Some(Distinct::Distinct))
                 {

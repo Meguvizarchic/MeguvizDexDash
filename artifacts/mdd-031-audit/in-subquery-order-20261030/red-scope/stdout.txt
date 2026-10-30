@@ -1,0 +1,11 @@
+
+running 1 test
+test bridge::tests::order_in_subquery_respects_current_scope_and_unknown_shadow ... FAILED
+
+failures:
+
+failures:
+    bridge::tests::order_in_subquery_respects_current_scope_and_unknown_shadow
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 122 filtered out; finished in 0.01s
+
