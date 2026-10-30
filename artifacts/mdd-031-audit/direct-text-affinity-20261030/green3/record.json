@@ -1,0 +1,26 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "mdd-sql",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "1",
+    "literal_mixed_class_comparisons_preserve_sqlite_rank_without_guessing_affinity",
+    "--",
+    "--nocapture"
+  ],
+  "exit_code": 0,
+  "source_sha256": {
+    "crates/mdd-sql/src/bridge.rs": "5b0df01ea007bb666d76892247b17116d2284056d6d0155622c08a2798f20ac4",
+    "crates/mdd-sql/src/dialects/functions.rs": "d727623f4b36ea93e911aa35703fe11f7b98ba58ce49d232eab30ae7e79a5b13",
+    "crates/mdd-sql/src/dialects/ast.rs": "99b596fe172e1a160411e368801b125abdba886b32d9dffeb4dc605e52a2c3de",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089"
+  },
+  "source_unchanged": true,
+  "stdout_sha256": "e68e6cb83566e817dee6a59c024abdaa431354a63a99801bdfe1db3bd6f3aae0",
+  "stderr_sha256": "a6ada103ccb9e4fa9964b455edc0d84e234d848c52613898a838aa6ee03e0b3a",
+  "scope": "targeted local development check; no qualification"
+}

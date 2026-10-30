@@ -224,6 +224,35 @@ fn compare_literal(left: &SqlValue, right: &SqlValue) -> MddResult<Ordering> {
     }
 }
 
+// The AST selects this only for a TEXT-cast string literal and an i64 literal.
+// Decimal formatting is bounded to 20 bytes; compare UTF-16 units without a
+// full-size conversion and retain query step/cancellation checks.
+fn compare_text_integer_literal(
+    left: &SqlValue,
+    right: &SqlValue,
+    control: &SqlControl,
+) -> MddResult<Ordering> {
+    let (text, number, reverse) = match (left, right) {
+        (SqlValue::Text(text), SqlValue::I64(number)) => (text, number, false),
+        (SqlValue::I64(number), SqlValue::Text(text)) => (text, number, true),
+        _ => return Err(invalid("TEXT_INTEGER_LITERAL_BINDING")),
+    };
+    let decimal = number.0.to_string();
+    let mut units = text.utf16.iter().copied();
+    let mut digits = decimal.bytes().map(u16::from);
+    let order = loop {
+        control.checkpoint(1, false)?;
+        match (units.next(), digits.next()) {
+            (Some(a), Some(b)) if a == b => (),
+            (Some(a), Some(b)) => break a.cmp(&b),
+            (Some(_), None) => break Ordering::Greater,
+            (None, Some(_)) => break Ordering::Less,
+            (None, None) => break Ordering::Equal,
+        }
+    };
+    Ok(if reverse { order.reverse() } else { order })
+}
+
 const KEY_HEADER: &[u8] = b"\0MDDKEY1";
 
 fn key_capacity(value: &SqlValue) -> MddResult<usize> {
@@ -1175,10 +1204,30 @@ fn scalar(
             }
         }
         "mdd_pos" => Ok(args[0].clone()),
-        "mdd_eq" | "mdd_ne" | "mdd_gt" | "mdd_ge" | "mdd_lt" | "mdd_le" | "mdd_literal_eq"
-        | "mdd_literal_ne" | "mdd_literal_gt" | "mdd_literal_ge" | "mdd_literal_lt"
-        | "mdd_literal_le" => {
-            let (order, operator) = if let Some(operator) = name.strip_prefix("mdd_literal_") {
+        "mdd_eq"
+        | "mdd_ne"
+        | "mdd_gt"
+        | "mdd_ge"
+        | "mdd_lt"
+        | "mdd_le"
+        | "mdd_literal_eq"
+        | "mdd_literal_ne"
+        | "mdd_literal_gt"
+        | "mdd_literal_ge"
+        | "mdd_literal_lt"
+        | "mdd_literal_le"
+        | "mdd_text_integer_eq"
+        | "mdd_text_integer_ne"
+        | "mdd_text_integer_gt"
+        | "mdd_text_integer_ge"
+        | "mdd_text_integer_lt"
+        | "mdd_text_integer_le" => {
+            let (order, operator) = if let Some(operator) = name.strip_prefix("mdd_text_integer_") {
+                (
+                    compare_text_integer_literal(&args[0], &args[1], control)?,
+                    operator,
+                )
+            } else if let Some(operator) = name.strip_prefix("mdd_literal_") {
                 (compare_literal(&args[0], &args[1])?, operator)
             } else {
                 (compare(&args[0], &args[1])?, &name[4..])
@@ -1267,6 +1316,12 @@ pub(crate) fn register(
         ("mdd_literal_ge", 2),
         ("mdd_literal_lt", 2),
         ("mdd_literal_le", 2),
+        ("mdd_text_integer_eq", 2),
+        ("mdd_text_integer_ne", 2),
+        ("mdd_text_integer_gt", 2),
+        ("mdd_text_integer_ge", 2),
+        ("mdd_text_integer_lt", 2),
+        ("mdd_text_integer_le", 2),
         ("mdd_concat", 2),
         ("mdd_cast", 2),
         ("mdd_add", 2),

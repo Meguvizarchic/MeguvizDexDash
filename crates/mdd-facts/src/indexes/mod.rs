@@ -160,6 +160,12 @@ struct ReferenceSymbolIndex {
 struct FieldReferenceSymbolIndex {
     fields: BTreeMap<FieldSymbol, Vec<ReferenceAtom>>,
 }
+#[derive(Clone, Copy)]
+enum ReferenceResultKind {
+    Method,
+    Field,
+    String,
+}
 #[derive(Clone, Debug, Serialize)]
 pub struct IndexMatches {
     pub scope_id: String,
@@ -958,7 +964,7 @@ impl<'a> SnapshotFactIndex<'a> {
         mut sites: Vec<crate::references::ReferenceSiteId>,
         candidates: u64,
         scalar: bool,
-        field: bool,
+        kind: ReferenceResultKind,
         coverage: CoverageReport,
     ) -> MddResult<ReferenceIndexMatches> {
         self.check_site_budget(&sites)?;
@@ -973,35 +979,141 @@ impl<'a> SnapshotFactIndex<'a> {
         Ok(ReferenceIndexMatches {
             snapshot_id: self.scope.snapshot_id().into(),
             scope_id: self.scope.scope_id().into(),
-            index_attempt: if scalar {
-                None
-            } else if field {
-                Some(self.field_reference_symbols.audit()?)
-            } else {
-                Some(self.reference_symbols.audit()?)
+            index_attempt: match (scalar, kind) {
+                (true, _) => None,
+                (false, ReferenceResultKind::Method) => Some(self.reference_symbols.audit()?),
+                (false, ReferenceResultKind::Field) => Some(self.field_reference_symbols.audit()?),
+                (false, ReferenceResultKind::String) => Some(self.strings.audit()?),
             },
-            access_path: if scalar && field {
-                "scalar_encoded_field_refs_then_scalar_sites"
-            } else if field {
-                "field_symbol_candidates_then_exact_ref_and_existing_postings"
-            } else if scalar {
-                "scalar_encoded_method_refs_then_scalar_sites"
-            } else {
-                "method_symbol_candidates_then_exact_ref_and_existing_postings"
+            access_path: match (scalar, kind) {
+                (true, ReferenceResultKind::Method) => {
+                    "scalar_encoded_method_refs_then_scalar_sites"
+                }
+                (false, ReferenceResultKind::Method) => {
+                    "method_symbol_candidates_then_exact_ref_and_existing_postings"
+                }
+                (true, ReferenceResultKind::Field) => "scalar_encoded_field_refs_then_scalar_sites",
+                (false, ReferenceResultKind::Field) => {
+                    "field_symbol_candidates_then_exact_ref_and_existing_postings"
+                }
+                (true, ReferenceResultKind::String) => "scalar_utf16_strings_then_scalar_sites",
+                (false, ReferenceResultKind::String) => {
+                    "utf16_string_candidates_then_exact_ref_and_existing_postings"
+                }
             }
             .into(),
             candidate_reference_count: candidates,
             absence_proven_within_selected_encoded_scope: sites.is_empty(),
             covers_all_captured_sources: self.scope.covers_all_captured_sources(),
-            runtime_resolution: if field {
-                "encoded_field_operands_only;runtime_resolution_not_inferred"
-            } else {
-                "encoded_method_operands_only;runtime_dispatch_not_inferred"
+            runtime_resolution: match kind {
+                ReferenceResultKind::Field => {
+                    "encoded_field_operands_only;runtime_resolution_not_inferred"
+                }
+                ReferenceResultKind::Method => {
+                    "encoded_method_operands_only;runtime_dispatch_not_inferred"
+                }
+                ReferenceResultKind::String => {
+                    "encoded_string_operands_only;runtime_values_not_inferred"
+                }
             },
             sites,
             coverage,
         })
     }
+    /// Search encoded string operand sites by exact UTF-16 code units across selected occurrences.
+    /// Raw MUTF-8 byte equality is a separate predicate and is not implied by this query.
+    pub fn references_to_string_utf16(&self, value: &[u16]) -> MddResult<ReferenceIndexMatches> {
+        self.references_to_string(value, false)
+    }
+    /// Scan immutable string and reference facts without using the lazy candidate index.
+    pub fn references_to_string_utf16_scalar(
+        &self,
+        value: &[u16],
+    ) -> MddResult<ReferenceIndexMatches> {
+        self.references_to_string(value, true)
+    }
+    fn references_to_string(
+        &self,
+        value: &[u16],
+        scalar: bool,
+    ) -> MddResult<ReferenceIndexMatches> {
+        if value.len() > 1_000_000 {
+            return Err(quota("INDEX_PREDICATE_BUDGET"));
+        }
+        let coverage = self.require(FactLayer::References)?;
+        self.require(FactLayer::Metadata)?;
+        let index = if scalar {
+            None
+        } else {
+            Some(self.strings.get_or_build(|| self.build_strings())?)
+        };
+        let candidates: Box<dyn Iterator<Item = Atom> + '_> = if let Some(index) = &index {
+            Box::new(index.utf16.get(value).into_iter().flatten().copied())
+        } else {
+            Box::new(self.views.iter().enumerate().flat_map(|(view, entry)| {
+                entry.metadata.into_iter().flat_map(move |metadata| {
+                    metadata.strings().iter().map(move |string| Atom {
+                        view: view as u32,
+                        local: string.data.string_idx,
+                    })
+                })
+            }))
+        };
+        let mut result = Vec::new();
+        let mut result_bytes = 0u64;
+        let mut candidate_count = 0u64;
+        for candidate in candidates {
+            candidate_count = candidate_count
+                .checked_add(1)
+                .ok_or_else(|| quota("INDEX_ENTRY_BUDGET"))?;
+            let refs = self.views[candidate.view as usize]
+                .references
+                .ok_or_else(|| {
+                    MddError::new(
+                        ErrorCode::IncompleteFacts,
+                        "facts.index",
+                        "references missing",
+                    )
+                })?;
+            let string = &refs.definitions().metadata().strings()[candidate.local as usize];
+            if string.data.text.utf16_units != value {
+                continue;
+            }
+            let target = refs.target_id(TargetKind::String, candidate.local)?;
+            let matches = if scalar {
+                refs.find_target_scalar(&target)?
+            } else {
+                refs.find_target_indexed(&target)?
+            };
+            if result
+                .len()
+                .checked_add(matches.sites.len())
+                .and_then(|v| u64::try_from(v).ok())
+                .is_none_or(|count| count > self.limits.max_result_entries)
+            {
+                return Err(quota("INDEX_RESULT_ENTRY_BUDGET"));
+            }
+            self.check_site_budget(&matches.sites)?;
+            result_bytes = result_bytes
+                .checked_add(Self::site_bytes(&matches.sites)?)
+                .ok_or_else(|| quota("INDEX_RESULT_BYTE_BUDGET"))?;
+            if result_bytes > self.limits.max_result_bytes {
+                return Err(quota("INDEX_RESULT_BYTE_BUDGET"));
+            }
+            result
+                .try_reserve(matches.sites.len())
+                .map_err(|_| quota("INDEX_RESULT_ALLOCATION"))?;
+            result.extend(matches.sites);
+        }
+        self.reference_result(
+            result,
+            candidate_count,
+            scalar,
+            ReferenceResultKind::String,
+            coverage,
+        )
+    }
+
     /// Search encoded field operand sites in each selected DEX occurrence.
     /// This matches reference symbols exactly; it does not infer runtime resolution.
     pub fn references_to_field_symbol(
@@ -1105,7 +1217,13 @@ impl<'a> SnapshotFactIndex<'a> {
                 .map_err(|_| quota("INDEX_RESULT_ALLOCATION"))?;
             result.extend(matches.sites);
         }
-        self.reference_result(result, candidate_count, scalar, true, coverage)
+        self.reference_result(
+            result,
+            candidate_count,
+            scalar,
+            ReferenceResultKind::Field,
+            coverage,
+        )
     }
 
     pub fn references_to_method_symbol(
@@ -1207,6 +1325,12 @@ impl<'a> SnapshotFactIndex<'a> {
                 .map_err(|_| quota("INDEX_RESULT_ALLOCATION"))?;
             result.extend(matches.sites);
         }
-        self.reference_result(result, candidate_count, scalar, false, coverage)
+        self.reference_result(
+            result,
+            candidate_count,
+            scalar,
+            ReferenceResultKind::Method,
+            coverage,
+        )
     }
 }

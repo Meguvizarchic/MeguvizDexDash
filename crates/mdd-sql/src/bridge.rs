@@ -476,6 +476,12 @@ impl SqlBridge {
                     "mdd_literal_ge",
                     "mdd_literal_lt",
                     "mdd_literal_le",
+                    "mdd_text_integer_eq",
+                    "mdd_text_integer_ne",
+                    "mdd_text_integer_gt",
+                    "mdd_text_integer_ge",
+                    "mdd_text_integer_lt",
+                    "mdd_text_integer_le",
                     "mdd_concat",
                     "mdd_cast",
                     "mdd_add",
@@ -1172,8 +1178,40 @@ mod tests {
                 result.rows()[0][0],
                 SqlValue::I64(mdd_query::ir::Signed64(0))
             );
+            if dialect == SqlDialect::NativeV1 {
+                assert_eq!(
+                    bridge.query("SELECT CAST('1' AS TEXT)=1").unwrap_err().code,
+                    ErrorCode::UnsupportedQuery
+                );
+            } else {
+                let cast_result = bridge
+                    .query("SELECT CAST('1' AS TEXT)=1,1=CAST('1' AS TEXT),CAST('10' AS TEXT)<2")
+                    .unwrap();
+                assert_eq!(
+                    cast_result.rows()[0],
+                    vec![
+                        SqlValue::I64(mdd_query::ir::Signed64(1)),
+                        SqlValue::I64(mdd_query::ir::Signed64(1)),
+                        SqlValue::I64(mdd_query::ir::Signed64(1)),
+                    ]
+                );
+                for sql in [
+                    "SELECT CAST('1' AS VARCHAR)=1",
+                    "SELECT CAST('1' AS TEXT)=1.0",
+                    "SELECT CAST('1'||'' AS TEXT)=1",
+                ] {
+                    assert_eq!(
+                        bridge.query(sql).unwrap_err().code,
+                        ErrorCode::UnsupportedQuery,
+                        "{sql}"
+                    );
+                }
+            }
             assert_eq!(
-                bridge.query("SELECT CAST('1' AS TEXT)=1").unwrap_err().code,
+                bridge
+                    .query("WITH t AS (SELECT CAST('1' AS TEXT) AS x) SELECT x=1 FROM t")
+                    .unwrap_err()
+                    .code,
                 ErrorCode::UnsupportedQuery
             );
             if dialect == SqlDialect::NativeV1 {

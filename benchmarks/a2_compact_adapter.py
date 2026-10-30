@@ -57,6 +57,7 @@ class CompactRowsAdapter:
         self._lock = asyncio.Lock()
         self._poisoned = False
         self.queries = 0
+        self.oversize_retries = 0
 
     async def _page(self, sql: str, offset: int, limit: int, max_bytes: int):
         self._verify_source()
@@ -151,14 +152,31 @@ class CompactRowsAdapter:
             raise CompactAdapterError("projected SQL exceeds HostLab byte budget")
         self._verify_ordering(source_sql, statement)
         offset, total, result, used = 0, None, [], 0
+        page_limit = page_size
         while True:
-            if offset + page_size > 100000:
+            if offset + page_limit > 100000:
                 requested = 100000 - offset
                 if requested <= 0:
                     raise CompactAdapterError("compact producer offset limit prevents complete output")
             else:
-                requested = page_size
-            columns, rows, current_total, cursor = await self._page(statement, offset, requested, max_page_bytes)
+                requested = page_limit
+            try:
+                columns, rows, current_total, cursor = await self._page(
+                    statement, offset, requested, max_page_bytes)
+            except CompactAdapterError as exc:
+                detail = exc.producer_detail
+                raw = detail.get("structured_content") if isinstance(detail, dict) else None
+                error = raw.get("error") if isinstance(raw, dict) else None
+                if (not isinstance(error, dict) or error.get("kind") != "output_too_large"
+                        or error.get("dataset_closed") is not False
+                        or raw.get("dataset_id") != self._dataset or requested <= 1
+                        or self._continuation_reason(source_sql) is not None):
+                    raise
+                # Only the same producer/dataset and an explicit live-dataset
+                # error permit retrying this offset. Never admit partial rows.
+                page_limit = max(1, requested // 2)
+                self.oversize_retries += 1
+                continue
             if columns != names or (total is not None and total != current_total):
                 raise CompactAdapterError("compact schema or total changed between pages")
             total = current_total

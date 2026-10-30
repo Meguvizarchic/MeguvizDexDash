@@ -51,6 +51,36 @@ fn no_affinity(expr: &Expr) -> bool {
         _ => false,
     }
 }
+
+// Admit only the directly observed form. Derived columns, CTEs and arbitrary
+// expressions need their own affinity binding; they must not inherit this rule.
+fn text_cast_string_literal(expr: &Expr) -> bool {
+    match expr {
+        Expr::Nested(inner) => text_cast_string_literal(inner),
+        Expr::Cast {
+            expr,
+            data_type,
+            format: None,
+            ..
+        } if matches!(data_type, DataType::Text) => {
+            matches!(&**expr, Expr::Value(value) if matches!(value.value, Value::SingleQuotedString(_)))
+        }
+        _ => false,
+    }
+}
+
+fn nonnegative_i64_literal(expr: &Expr) -> bool {
+    match expr {
+        Expr::Nested(inner) => nonnegative_i64_literal(inner),
+        Expr::Value(value) => match &value.value {
+            Value::Number(number, _) => {
+                number.bytes().all(|b| b.is_ascii_digit()) && number.parse::<i64>().is_ok()
+            }
+            _ => false,
+        },
+        _ => false,
+    }
+}
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum InStorageClass {
     Numeric,
@@ -824,9 +854,18 @@ impl Rewrite<'_> {
                 // A column, CAST or derived expression cannot be assumed to
                 // share this property; those retain the guarded comparator.
                 let no_affinity = no_affinity(left) && no_affinity(right);
+                let text_integer_affinity = self.dialect != super::SqlDialect::NativeV1
+                    && ((text_cast_string_literal(left) && nonnegative_i64_literal(right))
+                        || (nonnegative_i64_literal(left) && text_cast_string_literal(right)));
                 self.expr(left, depth + 1)?;
                 self.expr(right, depth + 1)?;
                 let name = match op {
+                    BinaryOperator::Eq if text_integer_affinity => "mdd_text_integer_eq",
+                    BinaryOperator::NotEq if text_integer_affinity => "mdd_text_integer_ne",
+                    BinaryOperator::Gt if text_integer_affinity => "mdd_text_integer_gt",
+                    BinaryOperator::GtEq if text_integer_affinity => "mdd_text_integer_ge",
+                    BinaryOperator::Lt if text_integer_affinity => "mdd_text_integer_lt",
+                    BinaryOperator::LtEq if text_integer_affinity => "mdd_text_integer_le",
                     BinaryOperator::Eq if no_affinity => "mdd_literal_eq",
                     BinaryOperator::NotEq if no_affinity => "mdd_literal_ne",
                     BinaryOperator::Gt if no_affinity => "mdd_literal_gt",

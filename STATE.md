@@ -118,6 +118,8 @@ MDD-005 A2 查询转换候选位于 benchmarks/a2_compact_adapter.py，涵盖sha
 
 2026-10-30 功能推进（统一验证待后续执行）：MDD-026 新增按 FieldSymbol 跨输入出现次数查询编码字段引用的懒索引、精确复验、独立标量扫描和失败重试；局部 field_symbol_indexes_preserve_sites_and_source_occurrences 通过，不推断运行时解析。MDD-034 实体来源标识在固定 JSON writer 路径按 UTF-8 边界分段，单次扫描最多约1024字节；局部 long_entity_text_is_chunked_without_changing_json 通过，其他序列化器与完整取消/性能资格未验证。MDD-031 旧方言新增无数值前缀文本/字节的零转换，逐单元检查预算和取消；数字、符号及小数点前缀仍显式未实现，Native 不变；相关三个局部测试通过，旧版 DTO 与完整数值语义未验证。依用户要求，完整工作区、跨平台、独立 oracle 及正式资格验证均留待统一执行，三项任务保持 in_progress。
 
+2026-10-30 后续功能候选（统一验证待后续）：MDD-026 新增跨出现次数的UTF-16字符串编码引用站点查询与标量路径，孤立代理项等一项局部测试通过，未推断原始MUTF-8字节相等或运行时值。MDD-031 两个旧方言增加直接字符串字面量CAST AS TEXT与非负i64字面量比较，局部测试通过并保留白名单失败记录 artifacts/mdd-031-audit/direct-text-affinity-20261030/；Native、列、CTE、VARCHAR/CHAR、浮点及动态表达式未扩大。A2候选增加只在明确output_too_large、相同dataset未关闭且continuation guard允许时缩小页面的重试，最终分支仅语法检查，真实producer验证not_run。完整工作区、跨平台、独立oracle和资格统一留待后续，任务状态不变。
+
 MDD-031 SQL桥仍进行中：受限虚表、会话预算绑定、U64真值、USING和子串路径有本机测试；独立真值18例及固定A0/A1子串16例通过，合成Q15结果与SQLite一致。真实完整corpus、legacy适配及生产工作区内存绑定尚未验收。检查点862b3dd的 Windows 离线测试161项、0失败/跳过，工作区严格Clippy通过，命令记录在 artifacts/integration/20261029/workspace-tests/ 与 workspace-clippy/。
 
 后续 SQL 结果驻留预算修复在 Windows 工作区重新运行165项测试、0失败/跳过及严格Clippy；零行 schema 的零预算错误、结果持有与释放独立复现。该计量是保守逻辑额度，SQLite内部分配、provider/调用方副本、传输缓冲及租约自身元数据仍需单独准入，不能称 RSS 硬上限。证据 artifacts/mdd-031-audit/result-memory-probe/after-fix.json、artifacts/integration/20261029/workspace-tests-result-budget/record.json。

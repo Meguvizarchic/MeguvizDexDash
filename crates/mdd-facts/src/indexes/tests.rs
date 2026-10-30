@@ -396,6 +396,88 @@ fn field_symbol_indexes_preserve_sites_and_source_occurrences() {
 }
 
 #[test]
+fn string_utf16_reference_index_preserves_nonscalar_sites_and_occurrences() {
+    let data = setup("references/generated/nonscalar-string-035.dex", 2);
+    let refs = data
+        .definitions
+        .iter()
+        .zip(&data.codes)
+        .map(|(definition, code)| {
+            ReferenceFacts::build(definition.clone(), code.clone(), ReferenceLimits::default())
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
+    let views = refs
+        .iter()
+        .map(|r| FactView::unbuilt(&r.source().dex_occurrence_id).with_references(r))
+        .collect::<Vec<_>>();
+    let mut expected = Vec::new();
+    for r in &refs {
+        for string in r.definitions().metadata().strings() {
+            if string.data.text.utf16_units == [0xd800] {
+                let target = r
+                    .target_id(TargetKind::String, string.data.string_idx)
+                    .unwrap();
+                expected.extend(r.find_target_scalar(&target).unwrap().sites);
+            }
+        }
+    }
+    assert!(!expected.is_empty());
+    let index = SnapshotFactIndex::new(scope(&data), &views, IndexLimits::default()).unwrap();
+    let indexed = index.references_to_string_utf16(&[0xd800]).unwrap();
+    let scalar = index.references_to_string_utf16_scalar(&[0xd800]).unwrap();
+    assert_eq!(indexed.sites, expected);
+    assert_eq!(scalar.sites, expected);
+    assert!(indexed.sites.iter().any(
+        |s| s.caller_method_definition.dex_occurrence_id == refs[0].source().dex_occurrence_id
+    ));
+    assert!(indexed.sites.iter().any(
+        |s| s.caller_method_definition.dex_occurrence_id == refs[1].source().dex_occurrence_id
+    ));
+    assert_eq!(indexed.coverage.facts, Completeness::Complete);
+    assert!(
+        index
+            .references_to_string_utf16(&[0xd801])
+            .unwrap()
+            .absence_proven_within_selected_encoded_scope
+    );
+
+    let limited = SnapshotFactIndex::new(
+        scope(&data),
+        &views,
+        IndexLimits {
+            max_entries: 0,
+            ..IndexLimits::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        limited
+            .references_to_string_utf16(&[0xd800])
+            .unwrap_err()
+            .code,
+        ErrorCode::QuotaExceeded
+    );
+    assert_eq!(
+        limited
+            .references_to_string_utf16_scalar(&[0xd800])
+            .unwrap()
+            .sites,
+        expected
+    );
+    assert_eq!(limited.audits().unwrap()[0].phase, lazy::IndexPhase::Failed);
+    let partial =
+        SnapshotFactIndex::new(scope(&data), &[views[0].clone()], IndexLimits::default()).unwrap();
+    assert_eq!(
+        partial
+            .references_to_string_utf16(&[0xd800])
+            .unwrap_err()
+            .code,
+        ErrorCode::IncompleteFacts
+    );
+}
+
+#[test]
 fn explicit_subset_negative_proof_and_foreign_generation_are_bounded() {
     let data = setup("generated/strings-mutf8-035.dex", 2);
     let selected =

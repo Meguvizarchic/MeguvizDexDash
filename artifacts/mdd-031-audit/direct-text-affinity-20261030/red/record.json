@@ -1,0 +1,19 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "mdd-sql",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "1",
+    "literal_mixed_class_comparisons_preserve_sqlite_rank_without_guessing_affinity",
+    "--",
+    "--nocapture"
+  ],
+  "exit_code": 101,
+  "stdout_sha256": "292d2613f302b1f7a24165f6e4fe68f0bdb4b1790d0255b8b63b9fcb592557a7",
+  "stderr_sha256": "5ae791e3f42e870af2c1526ffc7de48652b26b3ef1606d0e2cdf2fe6dbb2e6f1",
+  "scope": "targeted development red; no qualification"
+}
