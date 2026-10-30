@@ -27,6 +27,8 @@ A2已实测A1原生MCP的12工具与query compact参数，未打开数据集；�
 
 消费者检查查询身份、覆盖范围和结果 schema 字段是否存在，并拒绝重复事实层；这些字段存在并不证明 scope manifest 与实际输入匹配，实际来源绑定仍需独立验证。限定自检见 `artifacts/mdd-005/result-identity-20261030/`。
 
+覆盖问题与警告按结果契约检查必需字段、可选身份和数据类型；畸形或阻断性诊断不能作为完整输出，合成检查见 `artifacts/mdd-005/diagnostic-contract-20261030/`。此检查不证明诊断内容已覆盖所有真实错误。
+
 当前 `ordered`／`bag` 读取器要求有序列描述中的 ordinal 从零连续、type 非空，并要求每行是与列数一致的数组；形状检查不验证单元格类型、语义或来源。局部反例见 `artifacts/mdd-005/row-shape-20261030/`，真实工作负载的 schema 和完整性仍需单独冻结验证。
 
 `mdd-canonical-json-v1` 使用 UTF-8 严格 JSON、对象键按 Unicode 标量排序、无空白、数组保持次序。NULL、bool、整数、文本类型分明；拒绝浮点隐式编码、孤立代理和超 i64/u64 整数。原始位型、bytes和DEX文本必须先由稳定DTO标签编码。bag模式仅排序完整 typed row，重复行保留；ordered模式不排序。该保守codec是基准工具范围，不代替引擎未来的值codec。

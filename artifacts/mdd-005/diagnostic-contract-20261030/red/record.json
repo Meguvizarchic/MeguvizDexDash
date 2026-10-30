@@ -1,0 +1,6 @@
+{
+  "source_sha256": "C3B3C8B191446BE710445B7684504B9E229F087EA110C6294324E04AD3F303ED",
+  "exit_code": 1,
+  "command": "python -O benchmarks/run-existing-baselines.py --self-test",
+  "scope": "synthetic diagnostic shape"
+}

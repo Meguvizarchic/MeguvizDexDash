@@ -1,0 +1,7 @@
+{
+  "source_before": "6F5992A0381A6D4C9168047711D5CB214FED35A78E314D9E5CFDB0B7EFD90E2C",
+  "scope": "synthetic diagnostic schema; no workload qualification",
+  "exit_code": 0,
+  "command": "python -O benchmarks/run-existing-baselines.py --self-test",
+  "source_after": "6F5992A0381A6D4C9168047711D5CB214FED35A78E314D9E5CFDB0B7EFD90E2C"
+}

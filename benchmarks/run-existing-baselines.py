@@ -91,6 +91,25 @@ def decimal(value):
     return int(value)
 
 
+def valid_issue(issue):
+    if not isinstance(issue, dict) or set(issue) - {
+            'layer', 'reason', 'blocking', 'entity_id', 'member_id', 'range', 'details'}:
+        return False
+    if (not isinstance(issue.get('layer'), str) or not issue['layer']
+            or not isinstance(issue.get('reason'), str) or not issue['reason']
+            or type(issue.get('blocking')) is not bool):
+        return False
+    for key in ('entity_id', 'member_id'):
+        value = issue.get(key)
+        if value is not None and (not isinstance(value, str) or not value):
+            return False
+    if issue.get('range') is not None and not isinstance(issue['range'], dict):
+        return False
+    if 'details' in issue and not isinstance(issue['details'], dict):
+        return False
+    return True
+
+
 def consume(output, expected_inputs, expected_request, required_layers):
     if output["schema_version"] != "mdd.benchmark-output.v1":
         raise ValueError("driver output schema mismatch")
@@ -124,11 +143,12 @@ def consume(output, expected_inputs, expected_request, required_layers):
         raise ValueError("required fact scope differs")
     issues = coverage["issues"]
     if (not isinstance(issues, list) or any(
-            not isinstance(issue, dict) or issue.get("blocking") is not False
-            or not isinstance(issue.get("layer"), str) or not issue["layer"]
-            or not isinstance(issue.get("reason"), str) or not issue["reason"]
-            for issue in issues)):
+            not valid_issue(issue) or issue["blocking"] is not False for issue in issues)):
         raise ValueError("blocking or unclassified coverage issue")
+    warnings = result["warnings"]
+    if (not isinstance(warnings, list) or any(
+            not valid_issue(issue) or issue["blocking"] for issue in warnings)):
+        raise ValueError("invalid or blocking result warning")
     response = result["response"]
     if not isinstance(response.get("schema_id"), str) or not response["schema_id"]:
         raise ValueError("missing response schema")
@@ -356,6 +376,30 @@ class ContractTests(unittest.TestCase):
         item = self.fixture()
         item['result']['coverage']['issues'] = [
             {'blocking': False, 'layer': 'structure', 'reason': 'informational'}]
+        self.assertTrue(self.consume(item)['complete_output'])
+
+    def test_invalid_diagnostics_are_rejected(self):
+        malformed = [None, {}, {'layer': 'x', 'reason': 'y', 'blocking': 0},
+                     {'layer': 'x', 'reason': 'y', 'blocking': False, 'entity_id': ''},
+                     {'layer': 'x', 'reason': 'y', 'blocking': False, 'details': []},
+                     {'layer': 'x', 'reason': 'y', 'blocking': False, 'unexpected': 'x'}]
+        for issue in malformed:
+            for axis in ('warnings', 'coverage'):
+                item = self.fixture()
+                if axis == 'warnings': item['result']['warnings'] = [issue]
+                else: item['result']['coverage']['issues'] = [issue]
+                with self.subTest(axis=axis, issue=issue), self.assertRaises(ValueError):
+                    self.consume(item)
+        item = self.fixture()
+        item['result']['warnings'] = 'not-an-array'
+        with self.assertRaises(ValueError): self.consume(item)
+        item = self.fixture()
+        item['result']['warnings'] = [{'layer': 'structure', 'reason': 'incomplete',
+                                      'blocking': True}]
+        with self.assertRaises(ValueError): self.consume(item)
+        item = self.fixture()
+        item['result']['warnings'] = [{'layer': 'structure', 'reason': 'diagnostic',
+                                      'blocking': False, 'entity_id': None, 'details': {}}]
         self.assertTrue(self.consume(item)['complete_output'])
 
     def test_scope_binding(self):

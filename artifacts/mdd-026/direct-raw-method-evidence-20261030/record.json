@@ -1,0 +1,37 @@
+{
+  "source_before": {
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "tests/fixtures/references/generated/shared-code-035.dex": "22EB2D4020F172334A99F5C75538AF5F2B3E80673ADB11803B368CC68AAEC0AB",
+    "tests/fixtures/generated/structured-035.dex": "108CF907D330B823C6E32D38EAAB8F23709FE493F52537688BBD09BA3E271605",
+    "tests/fixtures/definitions/generated/zero-insns-present.dex": "A7F71AFA39B5981A897F0777F2266D9790D37F6EF08E5AEA56215349E8F487B6",
+    "crates/mdd-facts/src/raw_fingerprints.rs": "38598A24CC66BB6CA83255F02ADC49F08B699B7BB18D85FD6B8C35834F52BCDE",
+    "tests/fixtures/raw_fingerprints/expected.json": "00EB3467500B20629D3F60113D4965DFCF3350F7D63A1838A89E83AAA4EED5BD"
+  },
+  "source_after": {
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "tests/fixtures/references/generated/shared-code-035.dex": "22EB2D4020F172334A99F5C75538AF5F2B3E80673ADB11803B368CC68AAEC0AB",
+    "tests/fixtures/generated/structured-035.dex": "108CF907D330B823C6E32D38EAAB8F23709FE493F52537688BBD09BA3E271605",
+    "tests/fixtures/definitions/generated/zero-insns-present.dex": "A7F71AFA39B5981A897F0777F2266D9790D37F6EF08E5AEA56215349E8F487B6",
+    "crates/mdd-facts/src/raw_fingerprints.rs": "38598A24CC66BB6CA83255F02ADC49F08B699B7BB18D85FD6B8C35834F52BCDE",
+    "tests/fixtures/raw_fingerprints/expected.json": "00EB3467500B20629D3F60113D4965DFCF3350F7D63A1838A89E83AAA4EED5BD"
+  },
+  "command_template": "cargo test -p mdd-facts --locked --offline --jobs 1 FILTER -- --nocapture",
+  "scope": "selected synthetic raw evidence; no full facts or profile qualification",
+  "runs": [
+    {
+      "one_pass": true,
+      "filter": "present_empty_insns_has_empty_digest_not_absent_body",
+      "exit_code": 0
+    },
+    {
+      "one_pass": true,
+      "filter": "raw_evidence_keeps_occurrences_shared_bodies_and_unique_definitions",
+      "exit_code": 0
+    },
+    {
+      "one_pass": true,
+      "filter": "raw_body_bytes_and_explicit_order_match_handwritten_python_digests",
+      "exit_code": 0
+    }
+  ]
+}

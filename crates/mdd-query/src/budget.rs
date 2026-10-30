@@ -1050,7 +1050,7 @@ impl<T> BoundedSender<T> {
             .0
             .state
             .lock()
-            .map_err(|_| fault("queue mutex poisoned"))?;
+            .map_err(|_| self.0.bound_query_failure(fault("queue mutex poisoned")))?;
         if queue.bound_producer_active
             || queue.bound_sends_in_flight != 0
             || queue.receiver_closed
@@ -1060,10 +1060,10 @@ impl<T> BoundedSender<T> {
         {
             return Err(invalid("bound queue is not available for a producer"));
         }
-        let delivery = tracker
-            .state
-            .lock()
-            .map_err(|_| fault("delivery tracking mutex poisoned"))?;
+        let delivery = tracker.state.lock().map_err(|_| {
+            self.0
+                .bound_query_failure(fault("delivery tracking mutex poisoned"))
+        })?;
         if delivery.sent != 0
             || delivery.acknowledged != 0
             || delivery.end_seen

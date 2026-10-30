@@ -1,0 +1,6 @@
+{
+  "exit_code": 1,
+  "scope": "synthetic blocking warning",
+  "command": "python -O benchmarks/run-existing-baselines.py --self-test",
+  "source_sha256": "63EB14DEA181AD71CB8385C1C8076B703D459A4C4DE30B1484AC2554B096FADF"
+}

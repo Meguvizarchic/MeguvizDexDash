@@ -276,7 +276,10 @@ impl RawCodeEvidence {
     pub fn scope(&self) -> &str {
         &self.scope
     }
-    pub fn raw_method_body(&self, method: &EntityRef) -> MddResult<Option<&[u8]>> {
+    /// Resolve one definition's existing byte evidence within this DEX occurrence.
+    /// A missing definition is an error; native/abstract and present-empty
+    /// bodies retain their distinct kind, range, and digest information.
+    pub fn method_evidence(&self, method: &EntityRef) -> MddResult<&MethodByteEvidence> {
         if method.snapshot_id != self.source.snapshot_id
             || method.dex_occurrence_id != self.source.dex_occurrence_id
             || method.kind != EntityKind::MethodDefinition
@@ -287,8 +290,7 @@ impl RawCodeEvidence {
                 "method identity belongs to another source or entity kind",
             ));
         }
-        let record = self
-            .method_index
+        self.method_index
             .get(&method.local_index)
             .and_then(|ordinal| self.methods.get(*ordinal))
             .ok_or_else(|| {
@@ -297,8 +299,10 @@ impl RawCodeEvidence {
                     "raw.code",
                     "method definition is not in the validated scope",
                 )
-            })?;
-        record
+            })
+    }
+    pub fn raw_method_body(&self, method: &EntityRef) -> MddResult<Option<&[u8]>> {
+        self.method_evidence(method)?
             .insns_range
             .as_ref()
             .map(|range| checked(&self.bytes, range))
@@ -670,6 +674,10 @@ mod tests {
             evidence.raw_method_body(&empty.method).unwrap(),
             Some(&[][..])
         );
+        let direct = evidence.method_evidence(&empty.method).unwrap();
+        assert_eq!(direct.body_kind, RawBodyKind::Present);
+        assert_eq!(direct.insns_range.as_ref().unwrap().byte_length.0, 0);
+        assert_eq!(direct.sha256, empty.sha256);
     }
 
     #[test]
@@ -712,6 +720,20 @@ mod tests {
             right.source().dex_occurrence_id
         );
         for (a, b) in left.methods().iter().zip(right.methods()) {
+            let record = left.method_evidence(&a.method).unwrap();
+            assert_eq!(record.method, a.method);
+            assert_eq!(record.body_kind, a.body_kind);
+            assert_eq!(record.sha256, a.sha256);
+            assert_eq!(
+                left.method_evidence(&b.method).err().unwrap().code,
+                ErrorCode::InvalidArgument
+            );
+            let mut reference = a.method.clone();
+            reference.kind = EntityKind::MethodReference;
+            assert_eq!(
+                left.method_evidence(&reference).err().unwrap().code,
+                ErrorCode::InvalidArgument
+            );
             assert_eq!(a.method.local_index, b.method.local_index);
             assert_ne!(a.method.dex_occurrence_id, b.method.dex_occurrence_id);
             assert_eq!(a.body_kind, b.body_kind);

@@ -1,0 +1,7 @@
+{
+  "source_before": "3BD1986522274F834031BEA933D083A6E244B5002E298DAACBA2533BE4621031",
+  "scope": "synthetic diagnostic schema and blocking warning; no workload qualification",
+  "command": "python -O benchmarks/run-existing-baselines.py --self-test",
+  "exit_code": 0,
+  "source_after": "3BD1986522274F834031BEA933D083A6E244B5002E298DAACBA2533BE4621031"
+}

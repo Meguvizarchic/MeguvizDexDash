@@ -1,0 +1,10 @@
+{
+  "source_before": {
+    "crates/mdd-query/src/budget/tests.rs": "F50B10A90F1A9F6EFE314DA5F327B89EBFCB43A8528628539E0A5BF740965A73",
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "crates/mdd-query/src/budget.rs": "FC13E0A702A5930AB2252F103FA7341E45CECA8D3DF573975B036D92ADC8B589"
+  },
+  "command": "cargo test -p mdd-query --locked --offline --jobs 1 poisoned_producer_claim_preserves_internal_fault -- --nocapture",
+  "scope": "injected tracker poison, no full worker qualification",
+  "exit_code": 101
+}

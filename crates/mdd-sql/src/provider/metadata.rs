@@ -1031,6 +1031,195 @@ impl SqlFactProvider for CombinedSqlProvider {
     }
 }
 
+/// Physical code items for explicit complete DEX occurrence scopes. This does
+/// not establish method ownership, inferred dispatch, or legacy compatibility.
+pub struct CodeSqlProvider {
+    binding: SqlBinding,
+    occurrences: Vec<Arc<mdd_facts::code::CodeFacts>>,
+}
+impl CodeSqlProvider {
+    pub fn new(
+        occurrences: Vec<Arc<mdd_facts::code::CodeFacts>>,
+        epoch: DecimalU64,
+    ) -> MddResult<Self> {
+        let snapshot = occurrences
+            .first()
+            .ok_or_else(|| invalid("CODE_SCOPE_MUST_BE_EXPLICIT"))?
+            .source()
+            .snapshot_id
+            .clone();
+        let mut seen = BTreeSet::new();
+        for facts in &occurrences {
+            if facts.source().snapshot_id != snapshot
+                || !seen.insert(&facts.source().dex_occurrence_id)
+            {
+                return Err(invalid("CODE_PROVIDER_SOURCE"));
+            }
+            if facts.scope() != "complete-declared-code-map-v1"
+                || facts.code_layout_coverage() != Completeness::Complete
+                || facts.items().len() != facts.declared_map_code_item_count() as usize
+            {
+                return Err(MddError::new(
+                    ErrorCode::IncompleteFacts,
+                    "sql.code",
+                    "complete physical code item map is required",
+                ));
+            }
+        }
+        Ok(Self {
+            binding: SqlBinding {
+                provider_identity: opaque_id("sql-code-provider")?,
+                snapshot_id: snapshot,
+                catalog_epoch: epoch,
+            },
+            occurrences,
+        })
+    }
+}
+struct CodeCursor {
+    provider: Arc<CodeSqlProvider>,
+    occurrence: usize,
+    ordinal: usize,
+    bytes: bool,
+    control: SqlControl,
+}
+// The cell limit and work counter do not reserve the owned Vec, SQLite's
+// copies, allocator overhead, or RSS. Those require separate admission.
+fn code_bytes(value: &[u8], control: &SqlControl) -> MddResult<SqlValue> {
+    let len = u64::try_from(value.len()).map_err(|_| quota("CODE_SQL_CELL_OVERFLOW"))?;
+    if len > control.inner.limits.max_cell_bytes {
+        return Err(quota("CODE_SQL_CELL_BYTES"));
+    }
+    control.work(len)?;
+    let mut result = Vec::new();
+    result
+        .try_reserve_exact(value.len())
+        .map_err(|_| quota("CODE_SQL_ALLOCATION"))?;
+    for chunk in value.chunks(4096) {
+        control.checkpoint(1, false)?;
+        result.extend_from_slice(chunk);
+    }
+    Ok(SqlValue::Bytes(result))
+}
+impl SqlFactCursor for CodeCursor {
+    fn next_row(&mut self) -> MddResult<Option<SqlRow>> {
+        while let Some(facts) = self.provider.occurrences.get(self.occurrence) {
+            self.control.checkpoint(1, false)?;
+            if let Some(item) = facts.items().get(self.ordinal) {
+                self.control.work(128)?;
+                let code = item.data();
+                let occurrence = scalar_text(&facts.source().dex_occurrence_id, &self.control)?;
+                let row = if self.bytes {
+                    vec![
+                        occurrence,
+                        SqlValue::U64(code.raw_range.byte_offset),
+                        code_bytes(facts.raw_insns(self.ordinal)?, &self.control)?,
+                        code_bytes(facts.raw_code_item(self.ordinal)?, &self.control)?,
+                    ]
+                } else {
+                    let u = |n| SqlValue::U64(DecimalU64(n));
+                    vec![
+                        occurrence,
+                        scalar_text(item.code_item_id(), &self.control)?,
+                        SqlValue::U64(code.raw_range.byte_offset),
+                        SqlValue::U64(code.raw_range.byte_length),
+                        SqlValue::U64(code.insns_range.byte_offset),
+                        SqlValue::U64(code.insns_range.byte_length),
+                        u(u64::from(code.registers_size)),
+                        u(u64::from(code.ins_size)),
+                        u(u64::from(code.outs_size)),
+                        u(u64::from(code.insns_size_code_units)),
+                        u(code.tries.len() as u64),
+                        code.debug_info_byte_offset
+                            .map_or(SqlValue::Null, SqlValue::U64),
+                    ]
+                };
+                self.ordinal += 1;
+                return Ok(Some(row));
+            }
+            self.occurrence += 1;
+            self.ordinal = 0;
+        }
+        Ok(None)
+    }
+}
+impl SqlFactProvider for CodeSqlProvider {
+    fn binding(&self) -> &SqlBinding {
+        &self.binding
+    }
+    fn relations(&self) -> MddResult<Vec<SqlRelation>> {
+        let count = self
+            .occurrences
+            .iter()
+            .try_fold(0u64, |n, f| {
+                n.checked_add(u64::try_from(f.items().len()).ok()?)
+            })
+            .ok_or_else(|| quota("CODE_SQL_ROWS_OVERFLOW"))?;
+        let metadata = [
+            ("dex_occurrence_id", SqlType::Text, false),
+            ("code_item_id", SqlType::Text, false),
+            ("code_byte_offset", SqlType::U64, false),
+            ("code_byte_length", SqlType::U64, false),
+            ("insns_byte_offset", SqlType::U64, false),
+            ("insns_byte_length", SqlType::U64, false),
+            ("registers_size", SqlType::U64, false),
+            ("ins_size", SqlType::U64, false),
+            ("outs_size", SqlType::U64, false),
+            ("insns_size_code_units", SqlType::U64, false),
+            ("tries_count", SqlType::U64, false),
+            ("debug_info_byte_offset", SqlType::U64, true),
+        ];
+        let bytes = [
+            ("dex_occurrence_id", SqlType::Text, false),
+            ("code_byte_offset", SqlType::U64, false),
+            ("insns_raw", SqlType::Bytes, false),
+            ("code_item_raw", SqlType::Bytes, false),
+        ];
+        let relation = |name: &str, cols: &[(&str, SqlType, bool)]| SqlRelation {
+            name: name.into(),
+            columns: cols
+                .iter()
+                .map(|(name, data_type, nullable)| SqlColumn {
+                    id: (*name).into(),
+                    name: (*name).into(),
+                    data_type: *data_type,
+                    nullable: *nullable,
+                })
+                .collect(),
+            required_layers: vec![FactLayer::CodeLayout],
+            estimated_rows: Some(DecimalU64(count)),
+        };
+        Ok(vec![
+            relation("native_code_items", &metadata),
+            relation("native_code_bytes", &bytes),
+        ])
+    }
+    fn require_relation(&self, relation: &str) -> MddResult<()> {
+        if relation.eq_ignore_ascii_case("native_code_items")
+            || relation.eq_ignore_ascii_case("native_code_bytes")
+        {
+            Ok(())
+        } else {
+            Err(invalid("UNKNOWN_CODE_RELATION"))
+        }
+    }
+    fn open_cursor(
+        self: Arc<Self>,
+        relation: &str,
+        control: SqlControl,
+    ) -> MddResult<Box<dyn SqlFactCursor>> {
+        self.require_relation(relation)?;
+        let bytes = relation.eq_ignore_ascii_case("native_code_bytes");
+        Ok(Box::new(CodeCursor {
+            provider: self,
+            occurrence: 0,
+            ordinal: 0,
+            bytes,
+            control,
+        }))
+    }
+}
+
 /// Encoded reference sites for an explicit, complete set of DEX occurrences.
 /// This does not infer runtime dispatch or legacy method-call rows.
 pub struct ReferenceSqlProvider {
@@ -1219,6 +1408,85 @@ mod tests {
         archive::{ArchiveInventory, ArchiveLimits, InventoryPolicy},
         snapshot::{CaptureLimits, InputKind, InputSpec, Snapshot},
     };
+    #[test]
+    fn native_code_items_preserve_physical_bytes_and_scope() {
+        use mdd_dex::instructions::CodeLimits;
+        use mdd_facts::code::CodeFacts;
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/references/generated/shared-code-035.dex");
+        let input = InputSpec {
+            path,
+            kind: InputKind::RawDex,
+            expected_sha256: None,
+        };
+        let snapshot =
+            Snapshot::capture(&[input.clone(), input], CaptureLimits::default()).unwrap();
+        let mut codes = Vec::new();
+        for source in snapshot.sources() {
+            let inventory = ArchiveInventory::build(
+                source,
+                InventoryPolicy::default(),
+                ArchiveLimits::default(),
+            )
+            .unwrap();
+            codes.push(Arc::new(
+                CodeFacts::build_all_code_items(&snapshot, &inventory, 0, CodeLimits::default())
+                    .unwrap(),
+            ));
+        }
+        let expected: usize = codes.iter().map(|c| c.items().len()).sum();
+        assert!(expected > 0);
+        let provider = Arc::new(CodeSqlProvider::new(codes.clone(), DecimalU64(1)).unwrap());
+        let bridge = SqlBridge::new(provider, SqlDialect::NativeV1, SqlLimits::default()).unwrap();
+        let result = bridge.query("SELECT dex_occurrence_id,code_byte_offset,insns_raw,code_item_raw FROM native_code_bytes").unwrap();
+        assert_eq!(result.rows().len(), expected);
+        for (facts, rows) in codes
+            .iter()
+            .zip(result.rows().chunks(codes[0].items().len()))
+        {
+            for (index, row) in rows.iter().enumerate() {
+                assert!(
+                    matches!(&row[0], SqlValue::Text(text) if text.strict_utf8().unwrap() == facts.source().dex_occurrence_id)
+                );
+                assert!(
+                    matches!(&row[1], SqlValue::U64(offset) if *offset == facts.items()[index].data().raw_range.byte_offset)
+                );
+                assert!(
+                    matches!(&row[2], SqlValue::Bytes(raw) if raw == facts.raw_insns(index).unwrap())
+                );
+                assert!(
+                    matches!(&row[3], SqlValue::Bytes(raw) if raw == facts.raw_code_item(index).unwrap())
+                );
+            }
+        }
+        assert!(
+            CodeSqlProvider::new(vec![codes[0].clone(), codes[0].clone()], DecimalU64(1)).is_err()
+        );
+        let inventory = ArchiveInventory::build(
+            &snapshot.sources()[0],
+            InventoryPolicy::default(),
+            ArchiveLimits::default(),
+        )
+        .unwrap();
+        let partial =
+            CodeFacts::build_offsets(&snapshot, &inventory, 0, &[], CodeLimits::default()).unwrap();
+        let error = match CodeSqlProvider::new(vec![Arc::new(partial)], DecimalU64(1)) {
+            Err(error) => error,
+            Ok(_) => panic!("partial code admitted"),
+        };
+        assert_eq!(error.code, ErrorCode::IncompleteFacts);
+        let low = SqlControl::new(
+            SqlLimits {
+                max_cell_bytes: 2,
+                ..SqlLimits::default()
+            },
+            None,
+        );
+        assert_eq!(
+            code_bytes(&[1, 2, 3], &low).unwrap_err().code,
+            ErrorCode::QuotaExceeded
+        );
+    }
     #[test]
     fn combined_reference_sites_join_only_matching_occurrences() {
         use mdd_dex::{definitions::DefinitionLimits, instructions::CodeLimits};
