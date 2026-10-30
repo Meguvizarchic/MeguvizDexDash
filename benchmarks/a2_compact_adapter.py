@@ -22,6 +22,37 @@ class CompactAdapterError(RuntimeError):
         self.producer_detail = producer_detail
 
 
+class OrderTerm:
+    """One discovered raw projected-input column and a fixed sort direction."""
+
+    __slots__ = ('column', 'descending')
+
+    def __init__(self, column: str, descending: bool = False):
+        self.column = column
+        self.descending = descending
+
+
+def _quote_identifier(name: str) -> str:
+    return '"' + name.replace('"', '""') + '"'
+
+
+def _append_outer_order(statement: str, columns: tuple[str, ...], terms) -> str:
+    """Build syntax only; this function does not prove ordering equivalence."""
+    if not isinstance(terms, (list, tuple)) or not terms or len(terms) > len(columns):
+        raise CompactAdapterError("explicit ordering terms are empty or invalid")
+    seen = set()
+    output = []
+    for term in terms:
+        if (type(term) is not OrderTerm or not isinstance(term.column, str)
+                or type(term.descending) is not bool or term.column not in columns
+                or term.column in seen):
+            raise CompactAdapterError("explicit ordering term is invalid or not a discovered column")
+        seen.add(term.column)
+        output.append('hostlab_rows.' + _quote_identifier(term.column)
+                      + (' DESC' if term.descending else ' ASC'))
+    return statement + ' ORDER BY ' + ','.join(output)
+
+
 class CompactRowsAdapter:
     """One exclusive, already-open DexSQL 0.1.1 dataset; no concurrent use.
 
@@ -39,12 +70,15 @@ class CompactRowsAdapter:
                  verify_snapshot_binding: Callable[[str], None],
                  verify_ordering: Callable[[str, str], None],
                  continuation_reason: Callable[[str], str | None], timeout: float = 900,
+                 ordering_terms: Callable[[str, tuple[str, ...]], list[OrderTerm]] | None = None,
                  producer_timeout_ms: int = 5000):
         if not isinstance(dataset_id, str) or not dataset_id:
             raise ValueError("dataset identity is required")
         if not all(callable(check) for check in (verify_source, verify_snapshot_binding,
                                                  verify_ordering, continuation_reason)):
             raise ValueError("source, producer snapshot, order and continuation checks are required")
+        if ordering_terms is not None and not callable(ordering_terms):
+            raise ValueError("ordering terms must be supplied by a callable")
         if not isinstance(timeout, (int, float)) or isinstance(timeout, bool) or not 0 < timeout < float("inf"):
             raise ValueError("a finite positive deadline is required")
         if type(producer_timeout_ms) is not int or not 1 <= producer_timeout_ms <= (1 << 64) - 1:
@@ -52,6 +86,7 @@ class CompactRowsAdapter:
         self._client, self._dataset = client, dataset_id
         self._verify_source, self._continuation_reason = verify_source, continuation_reason
         self._verify_snapshot_binding, self._verify_ordering = verify_snapshot_binding, verify_ordering
+        self._ordering_terms = ordering_terms
         self._producer_timeout_ms = producer_timeout_ms
         self._deadline = time.monotonic() + timeout
         self._lock = asyncio.Lock()
@@ -154,11 +189,12 @@ class CompactRowsAdapter:
             "SELECT * FROM (" + source_sql + ") AS hostlab_shape LIMIT 0", 0, 1, max_page_bytes)
         if not names or shape_rows or shape_total != 0 or shape_next is not None:
             raise CompactAdapterError("invalid HostLab shape result")
-        def identifier(name):
-            return '"' + name.replace('"', '""') + '"'
-        projections = ["CASE WHEN " + identifier(name) + " IS NULL THEN 'N' ELSE hex(CAST("
-                       + identifier(name) + " AS TEXT)) END AS " + identifier(name) for name in names]
+        projections = ["CASE WHEN " + _quote_identifier(name) + " IS NULL THEN 'N' ELSE hex(CAST("
+                       + _quote_identifier(name) + " AS TEXT)) END AS " + _quote_identifier(name) for name in names]
         statement = "SELECT " + ",".join(projections) + " FROM (" + source_sql + ") AS hostlab_rows"
+        if self._ordering_terms is not None:
+            terms = self._ordering_terms(source_sql, tuple(names))
+            statement = _append_outer_order(statement, tuple(names), terms)
         if len(statement.encode("utf-8")) > 256 * 1024:
             raise CompactAdapterError("projected SQL exceeds HostLab byte budget")
         self._verify_ordering(source_sql, statement)

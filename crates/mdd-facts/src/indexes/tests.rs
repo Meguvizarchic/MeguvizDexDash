@@ -825,6 +825,124 @@ fn method_handle_index_keeps_exact_kind_target_and_occurrence_sites() {
 }
 
 #[test]
+fn callsite_encoded_byte_key_keeps_same_content_and_all_occurrence_sites() {
+    let data = setup("references/generated/poly-custom-038.dex", 2);
+    let refs = data
+        .definitions
+        .iter()
+        .zip(&data.codes)
+        .map(|(definition, code)| {
+            ReferenceFacts::build(definition.clone(), code.clone(), ReferenceLimits::default())
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
+    let views = refs
+        .iter()
+        .map(|r| FactView::unbuilt(&r.source().dex_occurrence_id).with_references(r))
+        .collect::<Vec<_>>();
+    let index = SnapshotFactIndex::new(scope(&data), &views, IndexLimits::default()).unwrap();
+    let target = refs[0].target_id(TargetKind::CallSite, 0).unwrap();
+    let key = index.call_site_encoded_key(&target).unwrap();
+    let section = refs[0].call_site_metadata().unwrap();
+    let binding = &section.call_site_arrays[0];
+    let array = &section.arrays[binding.encoded_array_index as usize];
+    let start = array.encoded_range.byte_offset.0 as usize;
+    let end = start + array.encoded_range.byte_length.0 as usize;
+    assert_eq!(
+        key.encoded_array(),
+        &refs[0].definitions().bytes()[start..end]
+    );
+    assert_eq!(key.encoded_array()[0], 3); // fixture has bootstrap, name and proto, no extras
+    assert_eq!(key.dex_content_id(), refs[0].source().content_id);
+    let result = index.references_to_call_site_encoded_key(&key).unwrap();
+    assert_eq!(
+        result
+            .sites
+            .iter()
+            .map(|s| s.code_unit_pc)
+            .collect::<Vec<_>>(),
+        vec![34, 37, 34, 37]
+    );
+    assert!(
+        result
+            .sites
+            .iter()
+            .all(|site| site.operand_kind == TargetKind::CallSite)
+    );
+    assert_ne!(
+        result.sites[0].caller_method_definition.dex_occurrence_id,
+        result.sites[2].caller_method_definition.dex_occurrence_id
+    );
+    assert_eq!(
+        index
+            .references_to_call_site_encoded_key_scalar(&key)
+            .unwrap()
+            .sites,
+        result.sites
+    );
+    assert_eq!(
+        result.runtime_resolution,
+        "same_dex_content_and_encoded_array_bytes_only;dynamic_target_not_inferred"
+    );
+    let mut changed = key.clone();
+    changed.encoded_array.push(0x1e);
+    assert!(
+        index
+            .references_to_call_site_encoded_key(&changed)
+            .unwrap()
+            .absence_proven_within_selected_encoded_scope
+    );
+    let mut foreign_content = key.clone();
+    foreign_content.dex_content_id = "different-dex-content".into();
+    assert!(
+        index
+            .references_to_call_site_encoded_key(&foreign_content)
+            .unwrap()
+            .absence_proven_within_selected_encoded_scope
+    );
+    let mut foreign_key = key.clone();
+    foreign_key.snapshot_id = "foreign-snapshot".into();
+    assert_eq!(
+        index
+            .references_to_call_site_encoded_key(&foreign_key)
+            .unwrap_err()
+            .code,
+        ErrorCode::InvalidArgument
+    );
+    let mut foreign_target = target.clone();
+    foreign_target.snapshot_id = "foreign-snapshot".into();
+    assert_eq!(
+        index
+            .call_site_encoded_key(&foreign_target)
+            .unwrap_err()
+            .code,
+        ErrorCode::InvalidArgument
+    );
+    let limited = SnapshotFactIndex::new(
+        scope(&data),
+        &views,
+        IndexLimits {
+            max_entries: 0,
+            ..IndexLimits::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        limited
+            .references_to_call_site_encoded_key(&key)
+            .unwrap_err()
+            .code,
+        ErrorCode::QuotaExceeded
+    );
+    let partial =
+        SnapshotFactIndex::new(scope(&data), &[views[0].clone()], IndexLimits::default()).unwrap();
+    assert_eq!(
+        partial.call_site_encoded_key(&target).unwrap_err().code,
+        ErrorCode::IncompleteFacts
+    );
+}
+
+#[test]
 fn explicit_subset_negative_proof_and_foreign_generation_are_bounded() {
     let data = setup("generated/strings-mutf8-035.dex", 2);
     let selected =

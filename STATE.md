@@ -126,6 +126,8 @@ MDD-005 A2 查询转换候选位于 benchmarks/a2_compact_adapter.py，涵盖sha
 
 2026-10-30 持续功能推进续（全量验证后续统一执行）：MDD-026 方法句柄跨来源候选按完整句柄kind及FieldSymbol/MethodSymbol精确键返回实际编码operand站点，039字段/方法句柄、重复来源、无句柄引用和缺层/预算等一项局部测试通过；不推断实际调用、字段访问或运行时解析。MDD-031 两个旧方言对当前无歧义基础表I64/U64列的IN/NOT IN支持规范十进制i64字符串字面量；局部覆盖NULL、负数、未知列和Native边界，非规范文本、越界、浮点、参数、派生表/CTE仍保守未实现，最终A0/A1对照not_run。MDD-005 A2同步桥新增完成迭代后的有序DTO消费回执，区分NULL/空值、重复与顺序；零行schema未知、未消费不发回执，局部合成检查通过。回执不证明producer快照、总序或完整审计，编码开销需单独性能归因。
 
+2026-10-30 继续功能候选（全量验证后续统一执行）：MDD-026 动态调用点新增同一快照、同DEX内容身份与完整原始encoded_array字节键查询，保留所有来源出现与编码引用站点，不声称不同DEX语义相等或推断运行时目标；局部fixture仅含前三个必需元素，合法附加参数、浮点和独立oracle未验证。MDD-031 旧方言对直接INTEGER CAST字符串字面量与规范i64文本字面量补充IN/NOT IN及=/<>限定候选；局部测试通过，首次编译因并行facts中间态失败，稳定后重跑通过；旧DTO uint64与候选i64仍不同，完整A0/A1差分未运行。A2 compact外层可选排序只接收shape中存在的列及固定方向，并引用原值；局部合成客户端/SQLite检查通过，最终语义等价、确定总序和producer快照仍须独立证明，额外排序成本需单独归因。各任务及profile仍未准入。
+
 MDD-031 SQL桥仍进行中：受限虚表、会话预算绑定、U64真值、USING和子串路径有本机测试；独立真值18例及固定A0/A1子串16例通过，合成Q15结果与SQLite一致。真实完整corpus、legacy适配及生产工作区内存绑定尚未验收。检查点862b3dd的 Windows 离线测试161项、0失败/跳过，工作区严格Clippy通过，命令记录在 artifacts/integration/20261029/workspace-tests/ 与 workspace-clippy/。
 
 后续 SQL 结果驻留预算修复在 Windows 工作区重新运行165项测试、0失败/跳过及严格Clippy；零行 schema 的零预算错误、结果持有与释放独立复现。该计量是保守逻辑额度，SQLite内部分配、provider/调用方副本、传输缓冲及租约自身元数据仍需单独准入，不能称 RSS 硬上限。证据 artifacts/mdd-031-audit/result-memory-probe/after-fix.json、artifacts/integration/20261029/workspace-tests-result-budget/record.json。

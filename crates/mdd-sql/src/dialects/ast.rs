@@ -81,6 +81,36 @@ fn nonnegative_i64_literal(expr: &Expr) -> bool {
         _ => false,
     }
 }
+fn integer_cast_string_literal(expr: &Expr) -> bool {
+    match expr {
+        Expr::Nested(inner) => integer_cast_string_literal(inner),
+        Expr::Cast {
+            expr,
+            data_type: DataType::Integer(None),
+            format: None,
+            ..
+        } => {
+            matches!(&**expr, Expr::Value(value) if matches!(value.value, Value::SingleQuotedString(_)))
+        }
+        _ => false,
+    }
+}
+fn canonical_i64_text_literal(expr: &Expr) -> Option<i64> {
+    let Expr::Value(value) = expr else {
+        return None;
+    };
+    let Value::SingleQuotedString(text) = &value.value else {
+        return None;
+    };
+    if text.is_empty() || text.len() > 20 || !text.is_ascii() {
+        return None;
+    }
+    let value = text.parse::<i64>().ok()?;
+    (value.to_string() == *text).then_some(value)
+}
+fn replace_with_i64_literal(expr: &mut Expr, value: i64) {
+    *expr = Expr::Value(Value::Number(value.to_string(), false).into());
+}
 fn direct_text_integer_affinity(dialect: super::SqlDialect, left: &Expr, right: &Expr) -> bool {
     dialect != super::SqlDialect::NativeV1
         && ((text_cast_string_literal(left) && nonnegative_i64_literal(right))
@@ -378,30 +408,17 @@ impl Rewrite<'_> {
     }
     fn legacy_numeric_in_literals(&self, left: &Expr, list: &mut [Expr]) -> bool {
         if self.dialect == super::SqlDialect::NativeV1
-            || !matches!(
+            || !(matches!(
                 self.in_column_type(left),
                 Some(crate::values::SqlType::I64 | crate::values::SqlType::U64)
-            )
+            ) || integer_cast_string_literal(left))
         {
             return false;
-        }
-        fn integer_text(expr: &Expr) -> Option<i64> {
-            let Expr::Value(value) = expr else {
-                return None;
-            };
-            let Value::SingleQuotedString(text) = &value.value else {
-                return None;
-            };
-            if text.is_empty() || text.len() > 20 || !text.is_ascii() {
-                return None;
-            }
-            let value = text.parse::<i64>().ok()?;
-            (value.to_string() == *text).then_some(value)
         }
         let values: Option<Vec<Option<i64>>> = list
             .iter()
             .map(|item| {
-                if let Some(value) = integer_text(item) {
+                if let Some(value) = canonical_i64_text_literal(item) {
                     Some(Some(value))
                 } else if matches!(
                     literal_in_class(item),
@@ -419,7 +436,7 @@ impl Rewrite<'_> {
         }
         for (item, value) in list.iter_mut().zip(values) {
             if let Some(value) = value {
-                *item = Expr::Value(Value::Number(value.to_string(), false).into());
+                replace_with_i64_literal(item, value);
             }
         }
         true
@@ -909,6 +926,19 @@ impl Rewrite<'_> {
                 // share this property; those retain the guarded comparator.
                 let no_affinity = no_affinity(left) && no_affinity(right);
                 let text_integer_affinity = direct_text_integer_affinity(self.dialect, left, right);
+                if self.dialect != super::SqlDialect::NativeV1
+                    && matches!(op, BinaryOperator::Eq | BinaryOperator::NotEq)
+                {
+                    if integer_cast_string_literal(left) {
+                        if let Some(value) = canonical_i64_text_literal(right) {
+                            replace_with_i64_literal(right, value);
+                        }
+                    } else if integer_cast_string_literal(right) {
+                        if let Some(value) = canonical_i64_text_literal(left) {
+                            replace_with_i64_literal(left, value);
+                        }
+                    }
+                }
                 self.expr(left, depth + 1)?;
                 self.expr(right, depth + 1)?;
                 let name = match op {

@@ -181,6 +181,25 @@ pub enum MethodHandleSymbol {
         target: MethodSymbol,
     },
 }
+/// Exact bytes of one validated call-site array, bound to its complete DEX content.
+/// This key deliberately does not assert semantic equality between different DEX files.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct CallSiteEncodedKey {
+    snapshot_id: String,
+    dex_content_id: String,
+    encoded_array: Vec<u8>,
+}
+impl CallSiteEncodedKey {
+    pub fn snapshot_id(&self) -> &str {
+        &self.snapshot_id
+    }
+    pub fn dex_content_id(&self) -> &str {
+        &self.dex_content_id
+    }
+    pub fn encoded_array(&self) -> &[u8] {
+        &self.encoded_array
+    }
+}
 struct MethodHandleIndex {
     symbols: BTreeMap<MethodHandleSymbol, Vec<Atom>>,
 }
@@ -355,6 +374,46 @@ fn handle_metadata(facts: &ReferenceFacts) -> MddResult<&[MethodHandleTarget]> {
     }
     Ok(&[])
 }
+fn call_site_array_bytes(facts: &ReferenceFacts, local: u32) -> MddResult<&[u8]> {
+    let missing = || {
+        MddError::new(
+            ErrorCode::IncompleteFacts,
+            "facts.index",
+            "call-site encoded arrays are not built",
+        )
+    };
+    let broken = || {
+        MddError::new(
+            ErrorCode::InternalFault,
+            "facts.index",
+            "validated call-site encoded array is inconsistent",
+        )
+    };
+    let section = facts.call_site_metadata().ok_or_else(missing)?;
+    let binding = section
+        .call_site_arrays
+        .get(local as usize)
+        .filter(|v| v.call_site_idx == local)
+        .ok_or_else(broken)?;
+    let array = section
+        .arrays
+        .get(binding.encoded_array_index as usize)
+        .ok_or_else(broken)?;
+    if array.byte_offset != binding.encoded_array_byte_offset
+        || array.encoded_range.byte_offset.0 != u64::from(array.byte_offset)
+        || array.elements.len() < 3
+    {
+        return Err(broken());
+    }
+    let start = usize::try_from(array.encoded_range.byte_offset.0).map_err(|_| broken())?;
+    let length = usize::try_from(array.encoded_range.byte_length.0).map_err(|_| broken())?;
+    let end = start.checked_add(length).ok_or_else(broken)?;
+    facts
+        .definitions()
+        .bytes()
+        .get(start..end)
+        .ok_or_else(broken)
+}
 #[derive(Clone, Copy)]
 enum ReferenceResultKind {
     Method,
@@ -363,6 +422,7 @@ enum ReferenceResultKind {
     Type,
     Prototype,
     MethodHandle,
+    CallSiteBytes,
 }
 #[derive(Clone, Debug, Serialize)]
 pub struct IndexMatches {
@@ -1338,6 +1398,7 @@ impl<'a> SnapshotFactIndex<'a> {
                 (false, ReferenceResultKind::Type) => Some(self.type_references.audit()?),
                 (false, ReferenceResultKind::Prototype) => Some(self.prototype_references.audit()?),
                 (false, ReferenceResultKind::MethodHandle) => Some(self.method_handles.audit()?),
+                (false, ReferenceResultKind::CallSiteBytes) => None,
             },
             access_path: match (scalar, kind) {
                 (true, ReferenceResultKind::Method) => {
@@ -1370,6 +1431,12 @@ impl<'a> SnapshotFactIndex<'a> {
                 (false, ReferenceResultKind::MethodHandle) => {
                     "method_handle_symbol_candidates_then_exact_ref_and_existing_postings"
                 }
+                (true, ReferenceResultKind::CallSiteBytes) => {
+                    "same_dex_content_callsite_bytes_then_scalar_sites"
+                }
+                (false, ReferenceResultKind::CallSiteBytes) => {
+                    "same_dex_content_callsite_bytes_then_existing_postings"
+                }
             }
             .into(),
             candidate_reference_count: candidates,
@@ -1394,11 +1461,189 @@ impl<'a> SnapshotFactIndex<'a> {
                 ReferenceResultKind::MethodHandle => {
                     "encoded_method_handle_operands_only;no_implied_call_or_field_access"
                 }
+                ReferenceResultKind::CallSiteBytes => {
+                    "same_dex_content_and_encoded_array_bytes_only;dynamic_target_not_inferred"
+                }
             },
             sites,
             coverage,
         })
     }
+    /// Capture full call-site encoded-array bytes with the validated DEX content identity.
+    /// The key is a byte identity within identical DEX content, not cross-DEX semantic equality.
+    pub fn call_site_encoded_key(
+        &self,
+        target: &ReferenceTargetId,
+    ) -> MddResult<CallSiteEncodedKey> {
+        self.require(FactLayer::References)?;
+        if target.snapshot_id != self.scope.snapshot_id() || target.kind != TargetKind::CallSite {
+            return Err(MddError::new(
+                ErrorCode::InvalidArgument,
+                "facts.index",
+                "foreign snapshot or non-call-site target",
+            ));
+        }
+        let view = *self
+            .by_occurrence
+            .get(&target.dex_occurrence_id)
+            .ok_or_else(|| {
+                MddError::new(
+                    ErrorCode::InvalidArgument,
+                    "facts.index",
+                    "reference target outside selected occurrences",
+                )
+            })?;
+        let facts = self.views[view as usize].references.ok_or_else(|| {
+            MddError::new(
+                ErrorCode::IncompleteFacts,
+                "facts.index",
+                "references missing",
+            )
+        })?;
+        if facts.target_id(TargetKind::CallSite, target.local_index)? != *target {
+            return Err(MddError::new(
+                ErrorCode::InvalidArgument,
+                "facts.index",
+                "foreign call-site target",
+            ));
+        }
+        let bytes = call_site_array_bytes(facts, target.local_index)?;
+        let needed = u64::try_from(bytes.len())
+            .ok()
+            .and_then(|n| n.checked_add(facts.source().content_id.len() as u64))
+            .and_then(|n| n.checked_add(facts.source().snapshot_id.len() as u64))
+            .ok_or_else(|| quota("INDEX_RESULT_BYTE_BUDGET"))?;
+        if needed > self.limits.max_result_bytes {
+            return Err(quota("INDEX_RESULT_BYTE_BUDGET"));
+        }
+        let mut encoded_array = Vec::new();
+        encoded_array
+            .try_reserve_exact(bytes.len())
+            .map_err(|_| quota("INDEX_RESULT_ALLOCATION"))?;
+        encoded_array.extend_from_slice(bytes);
+        Ok(CallSiteEncodedKey {
+            snapshot_id: facts.source().snapshot_id.clone(),
+            dex_content_id: facts.source().content_id.clone(),
+            encoded_array,
+        })
+    }
+    /// Search complete encoded operands with the same DEX content and full array bytes.
+    /// The source-local references within the byte array are never equated across different DEX contents.
+    pub fn references_to_call_site_encoded_key(
+        &self,
+        key: &CallSiteEncodedKey,
+    ) -> MddResult<ReferenceIndexMatches> {
+        self.references_to_call_site_encoded(key, false)
+    }
+    pub fn references_to_call_site_encoded_key_scalar(
+        &self,
+        key: &CallSiteEncodedKey,
+    ) -> MddResult<ReferenceIndexMatches> {
+        self.references_to_call_site_encoded(key, true)
+    }
+    fn references_to_call_site_encoded(
+        &self,
+        key: &CallSiteEncodedKey,
+        scalar: bool,
+    ) -> MddResult<ReferenceIndexMatches> {
+        if key.snapshot_id != self.scope.snapshot_id() {
+            return Err(MddError::new(
+                ErrorCode::InvalidArgument,
+                "facts.index",
+                "call-site key belongs to a different snapshot",
+            ));
+        }
+        let coverage = self.require(FactLayer::References)?;
+        if u64::try_from(key.encoded_array.len()).map_or(true, |n| n > self.limits.max_result_bytes)
+        {
+            return Err(quota("INDEX_PREDICATE_BUDGET"));
+        }
+        let mut scan = Budget::new(self.limits);
+        scan.charge(0, 0)?;
+        let mut result = Vec::new();
+        let mut result_bytes = 0u64;
+        let mut candidates = 0u64;
+        for entry in &self.views {
+            let facts = entry.references.ok_or_else(|| {
+                MddError::new(
+                    ErrorCode::IncompleteFacts,
+                    "facts.index",
+                    "references missing",
+                )
+            })?;
+            if facts.source().content_id != key.dex_content_id {
+                continue;
+            }
+            let Some(section) = facts.call_site_metadata() else {
+                if facts
+                    .sites()
+                    .iter()
+                    .any(|site| site.target_kind == TargetKind::CallSite)
+                {
+                    return Err(MddError::new(
+                        ErrorCode::IncompleteFacts,
+                        "facts.index",
+                        "call-site operand metadata missing",
+                    ));
+                }
+                continue;
+            };
+            for binding in &section.call_site_arrays {
+                scan.charge(1, 0)?;
+                candidates = candidates
+                    .checked_add(1)
+                    .ok_or_else(|| quota("INDEX_ENTRY_BUDGET"))?;
+                let bytes = call_site_array_bytes(facts, binding.call_site_idx)?;
+                if bytes.len() != key.encoded_array.len() {
+                    continue;
+                }
+                let mut equal = true;
+                for (a, b) in bytes.chunks(4096).zip(key.encoded_array.chunks(4096)) {
+                    scan.charge(0, a.len() as u64)?;
+                    if a != b {
+                        equal = false;
+                        break;
+                    }
+                }
+                if !equal {
+                    continue;
+                }
+                let target = facts.target_id(TargetKind::CallSite, binding.call_site_idx)?;
+                let matches = if scalar {
+                    facts.find_target_scalar(&target)?
+                } else {
+                    facts.find_target_indexed(&target)?
+                };
+                if result
+                    .len()
+                    .checked_add(matches.sites.len())
+                    .and_then(|n| u64::try_from(n).ok())
+                    .is_none_or(|n| n > self.limits.max_result_entries)
+                {
+                    return Err(quota("INDEX_RESULT_ENTRY_BUDGET"));
+                }
+                self.check_site_budget(&matches.sites)?;
+                result_bytes = result_bytes
+                    .checked_add(Self::site_bytes(&matches.sites)?)
+                    .ok_or_else(|| quota("INDEX_RESULT_BYTE_BUDGET"))?;
+                if result_bytes > self.limits.max_result_bytes {
+                    return Err(quota("INDEX_RESULT_BYTE_BUDGET"));
+                }
+                result
+                    .try_reserve(matches.sites.len())
+                    .map_err(|_| quota("INDEX_RESULT_ALLOCATION"))?;
+                result.extend(matches.sites);
+            }
+        }
+        self.reference_result(
+            result,
+            candidates,
+            scalar,
+            ReferenceResultKind::CallSiteBytes,
+            coverage,
+        )
+    }
+
     /// Find encoded method-handle operand sites by handle kind and complete target symbol.
     /// Handle constants do not imply a call, field access, or runtime resolution.
     pub fn references_to_method_handle_symbol(

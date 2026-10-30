@@ -4,6 +4,8 @@
 
 调用者必须提供四项检查：固定来源身份、生产者 dataset 与不可变来源代次的绑定、**投影查询**跨重执行时包含同值并列情况的确定总序、冻结 HostLab 的 continuation guard。单纯对输入路径做 SHA 检查不能证明生产者已经绑定该快照；原查询文本包含 `ORDER BY` 也不能证明外层投影顺序。当前仓库未提供这些检查的已验收生产实现，因而此候选不能用于签署审计完成或 A2 资格。
 
+可选的 `ordering_terms` 回调可按每次查询及实际 shape 列名返回 `OrderTerm` 列表，生成外层 `ORDER BY hostlab_rows."列名" ASC|DESC`；只接受发现的列，拒绝重复项及 SQL 片段，并引用原始列值而非排序 HEX。生成排序语法不证明与原查询等价或包含同值并列的确定总序，现有 `verify_ordering` 仍必须独立确认。外层排序可能改变执行计划及成本，后续完整 B0/A2 测量须分别记录。
+
 固定 A1 二进制和合成 structured-035.dex 曾在旧候选接口上完成每页两行的七行传输，并与标准 MCP DTO 相等；证据为 `artifacts/mdd-005/a2-adapter-development-20261030/probe6-run/stdout.txt` 和 `probe6-admission.json`。此前超时和页面大小配置错误的真实记录原样保留。该观测发生在新增快照和顺序证明要求之前，不验证当前接口、跨代一致性、完整 20 组 HostLab 审计或性能。
 
 受限范围：A1 offset 加 limit 不得超过 100000；请求上限、源检查成本、调用方及 MCP 解码副本的内存未覆盖整体 RSS。该候选未连接 HostLab 原生同步 session，未解决进程生命周期、完整 inventory、marker 调度和大于 offset 上限的查询。保留旧后端和报告身份，直到后续统一验证与显式授权完成。
