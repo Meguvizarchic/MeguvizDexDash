@@ -1,0 +1,38 @@
+{
+  "python": "fixed baseline venv 3.12.14",
+  "source_after": {
+    "tests/fixtures/generated/structured-035.dex": "108CF907D330B823C6E32D38EAAB8F23709FE493F52537688BBD09BA3E271605",
+    "benchmarks/a2_windows_input_pin.py": "8888DAE85191FA1A401571B7EECC77399F7B9DCA8748EBCA01E9B3041BEF69EA",
+    "artifacts/mdd-005/a2-windows-input-pin-20261030/probe.py": "24A5321B1550DF72F7470D58EA3BA514E6855747D5BCB4A651E66C2E16229304",
+    "artifacts/mdd-005/a2-compact-terminal-20261030/a1_probe.py": "70B76BD952B99BD831D681DB064C17147407FAB787759CF934C7EE9092E76B94",
+    "benchmarks/a2_input_inventory.py": "0D9C887B08E402E907B0EE5C50777D3D590B5917F0EB9CDB165FBD8CCD650ECA",
+    "artifacts/mdd-005/a2-windows-input-pin-20261030/a1_probe.py": "5743DD896C901AC06DCE6BB06C9229D2317A38C858D9375D38DEE73857D6AFD7"
+  },
+  "source_before": {
+    "tests/fixtures/generated/structured-035.dex": "108CF907D330B823C6E32D38EAAB8F23709FE493F52537688BBD09BA3E271605",
+    "benchmarks/a2_windows_input_pin.py": "8888DAE85191FA1A401571B7EECC77399F7B9DCA8748EBCA01E9B3041BEF69EA",
+    "artifacts/mdd-005/a2-windows-input-pin-20261030/probe.py": "24A5321B1550DF72F7470D58EA3BA514E6855747D5BCB4A651E66C2E16229304",
+    "artifacts/mdd-005/a2-compact-terminal-20261030/a1_probe.py": "70B76BD952B99BD831D681DB064C17147407FAB787759CF934C7EE9092E76B94",
+    "benchmarks/a2_input_inventory.py": "0D9C887B08E402E907B0EE5C50777D3D590B5917F0EB9CDB165FBD8CCD650ECA",
+    "artifacts/mdd-005/a2-windows-input-pin-20261030/a1_probe.py": "5743DD896C901AC06DCE6BB06C9229D2317A38C858D9375D38DEE73857D6AFD7"
+  },
+  "scope": "synthetic Windows sharing and A1; injected errors, mocked generation/order, no snapshot or A2 qualification",
+  "runs": [
+    {
+      "exit_code": 0,
+      "arguments": [
+        "-B",
+        "-O",
+        "artifacts/mdd-005/a2-windows-input-pin-20261030/probe.py"
+      ]
+    },
+    {
+      "exit_code": 0,
+      "arguments": [
+        "-B",
+        "-O",
+        "artifacts/mdd-005/a2-windows-input-pin-20261030/a1_probe.py"
+      ]
+    }
+  ]
+}

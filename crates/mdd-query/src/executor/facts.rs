@@ -244,6 +244,14 @@ fn schema(relation: &str) -> MddResult<RelationSchema> {
             ],
             FactLayer::Metadata,
         ),
+        "prototype_parameters" => (
+            vec![
+                column("prototype", Entity, false),
+                column("ordinal", U64, false),
+                column("parameter_type", Entity, false),
+            ],
+            FactLayer::Metadata,
+        ),
         "classes" => (
             vec![
                 column("entity", Entity, false),
@@ -363,6 +371,23 @@ fn rows<'a>(
                     Value::U64(DecimalU64(v.parameter_types.len() as u64)),
                 ])
             })));
+        }
+        "prototype_parameters" => {
+            return Ok(Box::new(metadata.prototypes().iter().flat_map(
+                |prototype| {
+                    prototype
+                        .parameter_types
+                        .iter()
+                        .enumerate()
+                        .map(move |(ordinal, parameter)| {
+                            Ok(vec![
+                                Value::Entity(prototype.entity.clone()),
+                                Value::U64(DecimalU64(ordinal as u64)),
+                                Value::Entity(parameter.clone()),
+                            ])
+                        })
+                },
+            )));
         }
         _ => (),
     }

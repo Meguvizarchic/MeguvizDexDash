@@ -1,0 +1,9 @@
+{
+  "scope": "synthetic file; close failure explicitly injected",
+  "source_sha256": {
+    "benchmarks/a2_windows_input_pin.py": "3BFE7B191A57FB2166B64FE094442BDB0C2077C590F03A4AA28A0334364D5782",
+    "artifacts/mdd-005/a2-windows-input-pin-20261030/probe.py": "46BD352F8EF9EF5A941D97F0E76BA0A2F0A8BCFA99D05D4560F27CEB32F28FB9"
+  },
+  "command": "python -B -O artifacts/mdd-005/a2-windows-input-pin-20261030/probe.py",
+  "exit_code": 1
+}

@@ -280,6 +280,67 @@ fn read_literal(
     )
 }
 #[test]
+fn native_prototype_parameters_preserve_occurrence_and_ordinal() {
+    let catalog = native("definitions-038.dex", false);
+    let metadata_only = NativeCatalog::new(
+        catalog.snapshot_id().into(),
+        catalog.catalog_epoch(),
+        catalog
+            .occurrences
+            .iter()
+            .map(|o| OccurrenceFacts {
+                metadata: o.metadata.clone(),
+                definitions: None,
+                code: None,
+            })
+            .collect(),
+    )
+    .unwrap();
+    let plan = prepare(
+        query(
+            Node::Scan {
+                relation: "prototype_parameters".into(),
+            },
+            metadata_only.snapshot_id(),
+            metadata_only.catalog_epoch(),
+        ),
+        &metadata_only,
+    )
+    .unwrap();
+    assert_eq!(
+        plan.required_layers(),
+        &BTreeSet::from([FactLayer::Metadata])
+    );
+    let rows = execute(
+        &plan,
+        &metadata_only,
+        ExecutionMode::Streaming,
+        &mut Control::new(ExecutionLimits::default()),
+    )
+    .unwrap();
+    let expected: Vec<Row> = metadata_only
+        .occurrences
+        .iter()
+        .flat_map(|o| {
+            o.metadata.prototypes().iter().flat_map(|p| {
+                p.parameter_types.iter().enumerate().map(|(i, ty)| {
+                    vec![
+                        Value::Entity(p.entity.clone()),
+                        Value::U64(DecimalU64(i as u64)),
+                        Value::Entity(ty.clone()),
+                    ]
+                })
+            })
+        })
+        .collect();
+    assert!(!expected.is_empty());
+    assert_eq!(rows.rows(), expected.as_slice());
+    let midpoint = expected.len() / 2;
+    assert_eq!(expected.len() % 2, 0);
+    assert_ne!(expected[0][0], expected[midpoint][0]);
+}
+
+#[test]
 fn native_facts_duplicate_occurrences_and_bound_raw_code() {
     let catalog = native("definitions-038.dex", true);
     let plan = prepare(

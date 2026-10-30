@@ -913,6 +913,7 @@ pub struct CombinedSqlProvider {
     definitions: Arc<DefinitionSqlProvider>,
     references: Option<Arc<ReferenceSqlProvider>>,
     code: Option<Arc<CodeSqlProvider>>,
+    annotations: Option<Arc<AnnotationSqlProvider>>,
 }
 impl CombinedSqlProvider {
     pub fn new(
@@ -947,6 +948,7 @@ impl CombinedSqlProvider {
             definitions,
             references: None,
             code: None,
+            annotations: None,
         })
     }
 
@@ -1010,6 +1012,34 @@ impl CombinedSqlProvider {
         self.code = Some(code);
         Ok(self)
     }
+
+    /// Bind encoded annotation facts for exactly the same selected sources.
+    pub fn with_annotations(mut self, annotations: Arc<AnnotationSqlProvider>) -> MddResult<Self> {
+        if self.annotations.is_some() {
+            return Err(invalid("COMBINED_PROVIDER_ANNOTATIONS_ALREADY_BOUND"));
+        }
+        if self.binding.snapshot_id != annotations.binding.snapshot_id
+            || self.binding.catalog_epoch != annotations.binding.catalog_epoch
+        {
+            return Err(invalid("COMBINED_PROVIDER_GENERATION"));
+        }
+        let expected: BTreeSet<_> = self
+            .metadata
+            .occurrences
+            .iter()
+            .map(|f| &f.source().dex_occurrence_id)
+            .collect();
+        let actual: BTreeSet<_> = annotations
+            .occurrences
+            .iter()
+            .map(|f| &f.source().dex_occurrence_id)
+            .collect();
+        if expected != actual {
+            return Err(invalid("COMBINED_PROVIDER_SCOPE"));
+        }
+        self.annotations = Some(annotations);
+        Ok(self)
+    }
 }
 impl SqlFactProvider for CombinedSqlProvider {
     fn binding(&self) -> &SqlBinding {
@@ -1024,6 +1054,9 @@ impl SqlFactProvider for CombinedSqlProvider {
         if let Some(code) = &self.code {
             relations.extend(code.relations()?);
         }
+        if let Some(annotations) = &self.annotations {
+            relations.extend(annotations.relations()?);
+        }
         let mut names = BTreeSet::new();
         if relations
             .iter()
@@ -1036,6 +1069,11 @@ impl SqlFactProvider for CombinedSqlProvider {
     fn require_relation(&self, relation: &str) -> MddResult<()> {
         if MetadataRelation::parse(relation).is_ok() {
             self.metadata.require_relation(relation)
+        } else if AnnotationRelation::parse(relation).is_some() {
+            self.annotations
+                .as_ref()
+                .ok_or_else(|| invalid("UNKNOWN_ANNOTATION_RELATION"))?
+                .require_relation(relation)
         } else if relation.eq_ignore_ascii_case("native_code_items")
             || relation.eq_ignore_ascii_case("native_code_bytes")
         {
@@ -1059,6 +1097,13 @@ impl SqlFactProvider for CombinedSqlProvider {
     ) -> MddResult<Box<dyn SqlFactCursor>> {
         if MetadataRelation::parse(relation).is_ok() {
             Arc::clone(&self.metadata).open_cursor(relation, control)
+        } else if AnnotationRelation::parse(relation).is_some() {
+            Arc::clone(
+                self.annotations
+                    .as_ref()
+                    .ok_or_else(|| invalid("UNKNOWN_ANNOTATION_RELATION"))?,
+            )
+            .open_cursor(relation, control)
         } else if relation.eq_ignore_ascii_case("native_code_items")
             || relation.eq_ignore_ascii_case("native_code_bytes")
         {
@@ -1078,6 +1123,294 @@ impl SqlFactProvider for CombinedSqlProvider {
         } else {
             Arc::clone(&self.definitions).open_cursor(relation, control)
         }
+    }
+}
+
+/// Source-bound encoded annotation facts. Encoded parameter slots do not by
+/// themselves establish complete prototype-position coverage.
+pub struct AnnotationSqlProvider {
+    binding: SqlBinding,
+    occurrences: Vec<Arc<mdd_facts::annotations::AnnotationFacts>>,
+}
+impl AnnotationSqlProvider {
+    pub fn new(
+        occurrences: Vec<Arc<mdd_facts::annotations::AnnotationFacts>>,
+        epoch: DecimalU64,
+    ) -> MddResult<Self> {
+        let snapshot = occurrences
+            .first()
+            .ok_or_else(|| invalid("ANNOTATION_SCOPE_MUST_BE_EXPLICIT"))?
+            .source()
+            .snapshot_id
+            .clone();
+        let mut seen = BTreeSet::new();
+        for facts in &occurrences {
+            if facts.source().snapshot_id != snapshot
+                || !seen.insert(&facts.source().dex_occurrence_id)
+            {
+                return Err(invalid("ANNOTATION_PROVIDER_SOURCE"));
+            }
+            if facts.annotation_coverage() != Completeness::Complete
+                || facts.definitions().definition_coverage() != Completeness::Complete
+                || facts.definitions().metadata().metadata_coverage() != Completeness::Complete
+            {
+                return Err(MddError::new(
+                    ErrorCode::IncompleteFacts,
+                    "sql.annotations",
+                    "complete selected annotation facts are required",
+                ));
+            }
+        }
+        Ok(Self {
+            binding: SqlBinding {
+                provider_identity: opaque_id("sql-annotation-provider")?,
+                snapshot_id: snapshot,
+                catalog_epoch: epoch,
+            },
+            occurrences,
+        })
+    }
+}
+#[derive(Clone, Copy)]
+enum AnnotationRelation {
+    Items,
+    Values,
+    Owners,
+}
+impl AnnotationRelation {
+    fn parse(name: &str) -> Option<Self> {
+        if name.eq_ignore_ascii_case("native_annotation_items") {
+            Some(Self::Items)
+        } else if name.eq_ignore_ascii_case("native_encoded_value_nodes") {
+            Some(Self::Values)
+        } else if name.eq_ignore_ascii_case("native_annotation_owners") {
+            Some(Self::Owners)
+        } else {
+            None
+        }
+    }
+}
+struct AnnotationCursor {
+    provider: Arc<AnnotationSqlProvider>,
+    relation: AnnotationRelation,
+    occurrence: usize,
+    ordinal: usize,
+    control: SqlControl,
+}
+impl SqlFactCursor for AnnotationCursor {
+    fn next_row(&mut self) -> MddResult<Option<SqlRow>> {
+        use mdd_dex::annotations::AnnotationOwnerKind;
+        let u = |v: u64| SqlValue::U64(DecimalU64(v));
+        let optional = |v: Option<u32>| v.map_or(SqlValue::Null, |n| u(n.into()));
+        while let Some(facts) = self.provider.occurrences.get(self.occurrence) {
+            self.control.checkpoint(1, false)?;
+            let data = facts.data();
+            let occurrence = || scalar_text(&facts.source().dex_occurrence_id, &self.control);
+            let row = match self.relation {
+                AnnotationRelation::Items => {
+                    let Some(item) = data.annotation_items.get(self.ordinal) else {
+                        self.occurrence += 1;
+                        self.ordinal = 0;
+                        continue;
+                    };
+                    self.control.work(96)?;
+                    vec![
+                        occurrence()?,
+                        u(item.byte_offset.into()),
+                        u(item.visibility.into()),
+                        u(item.type_idx.into()),
+                        u(u64::try_from(item.elements.len())
+                            .map_err(|_| quota("ANNOTATION_SQL_ROWS_OVERFLOW"))?),
+                        SqlValue::U64(item.encoded_range.byte_length),
+                    ]
+                }
+                AnnotationRelation::Values => {
+                    let Some(value) = data.values.get(self.ordinal) else {
+                        self.occurrence += 1;
+                        self.ordinal = 0;
+                        continue;
+                    };
+                    self.control.work(160)?;
+                    let integer = value
+                        .value_i64
+                        .as_ref()
+                        .map(|v| scalar_text(v, &self.control))
+                        .transpose()?
+                        .unwrap_or(SqlValue::Null);
+                    vec![
+                        occurrence()?,
+                        u(value.node_id.into()),
+                        optional(value.annotation_byte_offset),
+                        u(value.depth.into()),
+                        u(value.ordinal.into()),
+                        optional(value.name_idx),
+                        scalar_text(value.kind.as_str(), &self.control)?,
+                        u(value.value_arg.into()),
+                        SqlValue::U64(value.encoded_range.byte_offset),
+                        SqlValue::U64(value.encoded_range.byte_length),
+                        optional(value.value_index),
+                        integer,
+                        value.float_bits.map_or(SqlValue::Null, SqlValue::U64),
+                        value
+                            .float_bit_width
+                            .map_or(SqlValue::Null, |width| u(width.into())),
+                    ]
+                }
+                AnnotationRelation::Owners => {
+                    let Some(owner) = data.owner_bindings.get(self.ordinal) else {
+                        self.occurrence += 1;
+                        self.ordinal = 0;
+                        continue;
+                    };
+                    self.control.work(112)?;
+                    let kind = match owner.kind {
+                        AnnotationOwnerKind::Class => "class",
+                        AnnotationOwnerKind::Field => "field",
+                        AnnotationOwnerKind::Method => "method",
+                        AnnotationOwnerKind::Parameter => "parameter",
+                    };
+                    vec![
+                        occurrence()?,
+                        u(owner.class_def_idx.into()),
+                        u(owner.class_idx.into()),
+                        scalar_text(kind, &self.control)?,
+                        u(owner.local_index.into()),
+                        optional(owner.parameter_ordinal),
+                        optional(owner.annotation_set_offset),
+                        optional(owner.prototype_parameter_count),
+                        owner
+                            .parameter_position_in_prototype
+                            .map_or(SqlValue::Null, SqlValue::Bool),
+                    ]
+                }
+            };
+            self.ordinal += 1;
+            return Ok(Some(row));
+        }
+        Ok(None)
+    }
+}
+impl SqlFactProvider for AnnotationSqlProvider {
+    fn binding(&self) -> &SqlBinding {
+        &self.binding
+    }
+    fn relations(&self) -> MddResult<Vec<SqlRelation>> {
+        let specifications: [(&str, &[(&str, SqlType, bool)], AnnotationRelation); 3] = [
+            (
+                "native_annotation_items",
+                &[
+                    ("dex_occurrence_id", SqlType::Text, false),
+                    ("annotation_byte_offset", SqlType::U64, false),
+                    ("visibility", SqlType::U64, false),
+                    ("type_idx", SqlType::U64, false),
+                    ("element_count", SqlType::U64, false),
+                    ("encoded_byte_length", SqlType::U64, false),
+                ],
+                AnnotationRelation::Items,
+            ),
+            (
+                "native_encoded_value_nodes",
+                &[
+                    ("dex_occurrence_id", SqlType::Text, false),
+                    ("node_id", SqlType::U64, false),
+                    ("annotation_byte_offset", SqlType::U64, true),
+                    ("depth", SqlType::U64, false),
+                    ("ordinal", SqlType::U64, false),
+                    ("name_idx", SqlType::U64, true),
+                    ("kind", SqlType::Text, false),
+                    ("value_arg", SqlType::U64, false),
+                    ("value_byte_offset", SqlType::U64, false),
+                    ("value_byte_length", SqlType::U64, false),
+                    ("value_index", SqlType::U64, true),
+                    ("value_i64", SqlType::Text, true),
+                    ("float_bits", SqlType::U64, true),
+                    ("float_bit_width", SqlType::U64, true),
+                ],
+                AnnotationRelation::Values,
+            ),
+            (
+                "native_annotation_owners",
+                &[
+                    ("dex_occurrence_id", SqlType::Text, false),
+                    ("class_def_idx", SqlType::U64, false),
+                    ("class_type_idx", SqlType::U64, false),
+                    ("kind", SqlType::Text, false),
+                    ("local_index", SqlType::U64, false),
+                    ("parameter_ordinal", SqlType::U64, true),
+                    ("annotation_set_offset", SqlType::U64, true),
+                    ("prototype_parameter_count", SqlType::U64, true),
+                    ("parameter_position_in_prototype", SqlType::Bool, true),
+                ],
+                AnnotationRelation::Owners,
+            ),
+        ];
+        specifications
+            .into_iter()
+            .map(|(name, cols, relation)| {
+                let count = self
+                    .occurrences
+                    .iter()
+                    .try_fold(0u64, |total, facts| {
+                        let data = facts.data();
+                        let n = match relation {
+                            AnnotationRelation::Items => data.annotation_items.len(),
+                            AnnotationRelation::Values => data.values.len(),
+                            AnnotationRelation::Owners => data.owner_bindings.len(),
+                        };
+                        total.checked_add(u64::try_from(n).ok()?)
+                    })
+                    .ok_or_else(|| quota("ANNOTATION_SQL_ROWS_OVERFLOW"))?;
+                Ok(SqlRelation {
+                    name: name.into(),
+                    columns: cols
+                        .iter()
+                        .map(|(name, data_type, nullable)| SqlColumn {
+                            id: (*name).into(),
+                            name: (*name).into(),
+                            data_type: *data_type,
+                            nullable: *nullable,
+                        })
+                        .collect(),
+                    required_layers: vec![
+                        FactLayer::Metadata,
+                        FactLayer::Structure,
+                        FactLayer::Annotations,
+                    ],
+                    estimated_rows: Some(DecimalU64(count)),
+                })
+            })
+            .collect()
+    }
+    fn require_relation(&self, relation: &str) -> MddResult<()> {
+        if AnnotationRelation::parse(relation).is_none() {
+            return Err(invalid("UNKNOWN_ANNOTATION_RELATION"));
+        }
+        for facts in &self.occurrences {
+            if facts.annotation_coverage() != Completeness::Complete {
+                return Err(MddError::new(
+                    ErrorCode::IncompleteFacts,
+                    "sql.annotations",
+                    "annotation facts are incomplete",
+                ));
+            }
+        }
+        Ok(())
+    }
+    fn open_cursor(
+        self: Arc<Self>,
+        relation: &str,
+        control: SqlControl,
+    ) -> MddResult<Box<dyn SqlFactCursor>> {
+        self.require_relation(relation)?;
+        let relation = AnnotationRelation::parse(relation)
+            .ok_or_else(|| invalid("UNKNOWN_ANNOTATION_RELATION"))?;
+        Ok(Box::new(AnnotationCursor {
+            provider: self,
+            relation,
+            occurrence: 0,
+            ordinal: 0,
+            control,
+        }))
     }
 }
 
@@ -1458,6 +1791,178 @@ mod tests {
         archive::{ArchiveInventory, ArchiveLimits, InventoryPolicy},
         snapshot::{CaptureLimits, InputKind, InputSpec, Snapshot},
     };
+    #[test]
+    fn native_annotations_preserve_occurrences_values_and_owner_slots() {
+        use mdd_dex::{annotations::AnnotationLimits, definitions::DefinitionLimits};
+        use mdd_facts::{annotations::AnnotationFacts, definitions::DefinitionFacts};
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/annotations/generated/annotations-038.dex");
+        let input = InputSpec {
+            path,
+            kind: InputKind::RawDex,
+            expected_sha256: None,
+        };
+        let snapshot =
+            Snapshot::capture(&[input.clone(), input], CaptureLimits::default()).unwrap();
+        let mut metas = Vec::new();
+        let mut defs = Vec::new();
+        let mut facts = Vec::new();
+        for source in snapshot.sources() {
+            let inventory = ArchiveInventory::build(
+                source,
+                InventoryPolicy::default(),
+                ArchiveLimits::default(),
+            )
+            .unwrap();
+            let meta =
+                MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default()).unwrap();
+            let definition =
+                DefinitionFacts::build(meta.clone(), DefinitionLimits::default()).unwrap();
+            facts.push(Arc::new(
+                AnnotationFacts::build(definition.clone(), AnnotationLimits::default()).unwrap(),
+            ));
+            metas.push(Arc::new(meta));
+            defs.push(Arc::new(definition));
+        }
+        let annotations =
+            Arc::new(AnnotationSqlProvider::new(facts.clone(), DecimalU64(4)).unwrap());
+        let make_combined = || {
+            CombinedSqlProvider::new(
+                Arc::new(MetadataSqlProvider::new(metas.clone(), DecimalU64(4)).unwrap()),
+                Arc::new(DefinitionSqlProvider::new(defs.clone(), DecimalU64(4)).unwrap()),
+            )
+            .unwrap()
+        };
+        let provider = Arc::new(
+            make_combined()
+                .with_annotations(annotations.clone())
+                .unwrap(),
+        );
+        let bridge = SqlBridge::new(provider, SqlDialect::NativeV1, SqlLimits::default()).unwrap();
+        for (table, expected) in [
+            (
+                "native_annotation_items",
+                facts
+                    .iter()
+                    .map(|f| f.data().annotation_items.len())
+                    .sum::<usize>(),
+            ),
+            (
+                "native_encoded_value_nodes",
+                facts.iter().map(|f| f.data().values.len()).sum::<usize>(),
+            ),
+            (
+                "native_annotation_owners",
+                facts
+                    .iter()
+                    .map(|f| f.data().owner_bindings.len())
+                    .sum::<usize>(),
+            ),
+        ] {
+            let result = bridge.query(&format!("SELECT * FROM {table}")).unwrap();
+            assert_eq!(result.rows().len(), expected, "{table}");
+        }
+        let values = bridge.query("SELECT dex_occurrence_id,node_id,annotation_byte_offset,float_bits,float_bit_width FROM native_encoded_value_nodes").unwrap();
+        let mut observed = BTreeSet::new();
+        for row in values.rows() {
+            let SqlValue::Text(source) = &row[0] else {
+                panic!("source type")
+            };
+            let SqlValue::U64(node) = row[1] else {
+                panic!("node type")
+            };
+            let selected = facts
+                .iter()
+                .find(|f| f.source().dex_occurrence_id == source.strict_utf8().unwrap())
+                .unwrap();
+            let expected = &selected.data().values[node.0 as usize];
+            assert_eq!(
+                row[2],
+                expected
+                    .annotation_byte_offset
+                    .map_or(SqlValue::Null, |v| SqlValue::U64(DecimalU64(v.into())))
+            );
+            assert_eq!(
+                row[3],
+                expected.float_bits.map_or(SqlValue::Null, SqlValue::U64)
+            );
+            assert_eq!(
+                row[4],
+                expected
+                    .float_bit_width
+                    .map_or(SqlValue::Null, |v| SqlValue::U64(DecimalU64(v.into())))
+            );
+            assert!(observed.insert((source.strict_utf8().unwrap(), node.0)));
+        }
+        let owners = bridge.query("SELECT dex_occurrence_id,kind,local_index,parameter_ordinal,annotation_set_offset,parameter_position_in_prototype FROM native_annotation_owners").unwrap();
+        assert!(!owners.rows().is_empty());
+        assert!(owners.rows().iter().any(|row| row[3] != SqlValue::Null));
+        let mut actual_owners = owners
+            .rows()
+            .iter()
+            .map(|row| {
+                let SqlValue::Text(source) = &row[0] else {
+                    panic!("owner source type")
+                };
+                let SqlValue::Text(kind) = &row[1] else {
+                    panic!("owner kind type")
+                };
+                let SqlValue::U64(index) = row[2] else {
+                    panic!("owner index type")
+                };
+                let numeric = |v: &SqlValue| match v {
+                    SqlValue::Null => None,
+                    SqlValue::U64(n) => Some(n.0),
+                    _ => panic!("owner optional type"),
+                };
+                let position = match &row[5] {
+                    SqlValue::Null => None,
+                    SqlValue::Bool(v) => Some(*v),
+                    SqlValue::I64(v) if v.0 == 0 || v.0 == 1 => Some(v.0 == 1),
+                    _ => panic!("owner position type"),
+                };
+                (
+                    source.strict_utf8().unwrap(),
+                    kind.strict_utf8().unwrap(),
+                    index.0,
+                    numeric(&row[3]),
+                    numeric(&row[4]),
+                    position,
+                )
+            })
+            .collect::<Vec<_>>();
+        let mut expected_owners = Vec::new();
+        for fact in &facts {
+            for owner in &fact.data().owner_bindings {
+                let kind = match owner.kind {
+                    mdd_dex::annotations::AnnotationOwnerKind::Class => "class",
+                    mdd_dex::annotations::AnnotationOwnerKind::Field => "field",
+                    mdd_dex::annotations::AnnotationOwnerKind::Method => "method",
+                    mdd_dex::annotations::AnnotationOwnerKind::Parameter => "parameter",
+                };
+                expected_owners.push((
+                    fact.source().dex_occurrence_id.clone(),
+                    kind.to_string(),
+                    owner.local_index.into(),
+                    owner.parameter_ordinal.map(u64::from),
+                    owner.annotation_set_offset.map(u64::from),
+                    owner.parameter_position_in_prototype,
+                ));
+            }
+        }
+        actual_owners.sort();
+        expected_owners.sort();
+        assert_eq!(actual_owners, expected_owners);
+        let partial =
+            Arc::new(AnnotationSqlProvider::new(vec![facts[0].clone()], DecimalU64(4)).unwrap());
+        assert!(make_combined().with_annotations(partial).is_err());
+        assert!(
+            AnnotationSqlProvider::new(vec![facts[0].clone(), facts[0].clone()], DecimalU64(4))
+                .is_err()
+        );
+        let wrong_epoch = Arc::new(AnnotationSqlProvider::new(facts, DecimalU64(5)).unwrap());
+        assert!(make_combined().with_annotations(wrong_epoch).is_err());
+    }
     #[test]
     fn combined_references_and_code_preserve_shared_owners_and_occurrences() {
         use mdd_dex::{definitions::DefinitionLimits, instructions::CodeLimits};

@@ -1,0 +1,23 @@
+...E..
+======================================================================
+ERROR: test_falsey_body_error_remains_first_on_close_failure (__main__.Checks.test_falsey_body_error_remains_first_on_close_failure)
+----------------------------------------------------------------------
+OSError: [WinError 0] 操作成功完成。
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "D:\MeguvisDexDash\artifacts\mdd-005\a2-windows-input-pin-20261030\probe.py", line 98, in test_falsey_body_error_remains_first_on_close_failure
+    with pin:
+         ^^^
+  File "D:\MeguvisDexDash\benchmarks\a2_windows_input_pin.py", line 85, in __exit__
+    self.close()
+    ~~~~~~~~~~^^
+  File "D:\MeguvisDexDash\benchmarks\a2_windows_input_pin.py", line 74, in close
+    raise InputPinError('input pin close failed') from ctypes.WinError(ctypes.get_last_error())
+a2_windows_input_pin.InputPinError: input pin close failed
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.024s
+
+FAILED (errors=1)

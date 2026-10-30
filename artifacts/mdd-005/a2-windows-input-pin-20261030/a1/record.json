@@ -1,0 +1,19 @@
+{
+  "command": "baseline-venv python -B -O artifacts/mdd-005/a2-windows-input-pin-20261030/a1_probe.py",
+  "scope": "synthetic locked copy and fixed A1; mocked generation/order, no A2 qualification",
+  "source_after": {
+    "artifacts/mdd-005/a2-windows-input-pin-20261030/a1_probe.py": "5743DD896C901AC06DCE6BB06C9229D2317A38C858D9375D38DEE73857D6AFD7",
+    "artifacts/mdd-005/a2-compact-terminal-20261030/a1_probe.py": "70B76BD952B99BD831D681DB064C17147407FAB787759CF934C7EE9092E76B94",
+    "tests/fixtures/generated/structured-035.dex": "108CF907D330B823C6E32D38EAAB8F23709FE493F52537688BBD09BA3E271605",
+    "benchmarks/a2_windows_input_pin.py": "3BFE7B191A57FB2166B64FE094442BDB0C2077C590F03A4AA28A0334364D5782",
+    "benchmarks/a2_input_inventory.py": "0D9C887B08E402E907B0EE5C50777D3D590B5917F0EB9CDB165FBD8CCD650ECA"
+  },
+  "exit_code": 0,
+  "source_before": {
+    "artifacts/mdd-005/a2-windows-input-pin-20261030/a1_probe.py": "5743DD896C901AC06DCE6BB06C9229D2317A38C858D9375D38DEE73857D6AFD7",
+    "artifacts/mdd-005/a2-compact-terminal-20261030/a1_probe.py": "70B76BD952B99BD831D681DB064C17147407FAB787759CF934C7EE9092E76B94",
+    "tests/fixtures/generated/structured-035.dex": "108CF907D330B823C6E32D38EAAB8F23709FE493F52537688BBD09BA3E271605",
+    "benchmarks/a2_windows_input_pin.py": "3BFE7B191A57FB2166B64FE094442BDB0C2077C590F03A4AA28A0334364D5782",
+    "benchmarks/a2_input_inventory.py": "0D9C887B08E402E907B0EE5C50777D3D590B5917F0EB9CDB165FBD8CCD650ECA"
+  }
+}

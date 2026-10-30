@@ -1,0 +1,9 @@
+{
+  "source_sha256": {
+    "artifacts/mdd-005/a2-windows-input-pin-20261030/probe.py": "CD21235EEADF27031709BC20782125AFEC795B796A857B9564A64C41F8108260",
+    "benchmarks/a2_windows_input_pin.py": "97789BEB4B13A28708BD42F544AE315AC254E5E4FEEB21DE5AF93FD32D493754"
+  },
+  "scope": "injected close failure and falsey body error",
+  "command": "python -B -O artifacts/mdd-005/a2-windows-input-pin-20261030/probe.py",
+  "exit_code": 1
+}

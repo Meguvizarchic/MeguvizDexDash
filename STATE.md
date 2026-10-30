@@ -188,6 +188,8 @@ MDD-034 终态跟踪锁中毒的受控反例显示接收End和获取回执返回
 
 MDD-031 既有组合provider的引用、方法定义和代码字节三方JOIN新增双来源定向对照，两种绑定顺序1项通过，见 artifacts/mdd-031-audit/combined-three-layer-20261030/run1/record.json；夹具的共享方法体有既有证据，本测试自身未断言两个caller共享同一偏移。对照来自现有事实，并非独立DEX oracle，未证明A0/A1或profile，且本次未新增生产SQL实现。
 
+2026-10-30 目标持续功能（统一验证延后）：MDD-026 SelectedScope 可将所选DEX出现与已验证metadata/头部按范围顺序配对，检查snapshot、来源及内容等身份；双来源、子范围、partial等1项局部检查见 artifacts/mdd-026/scoped-metadata-rows-20261030/run1/record.json，不授予旧dex_files、池编号或全快照资格。MDD-030 类型化NativeCatalog新增prototype_parameters关系，仅需metadata，保留原型实体、ordinal和类型实体；双来源1项见 artifacts/mdd-030/prototype-parameter-ir-20261030/run1/record.json，对照同一事实实现，未独立验证同一原型内重复参数。MDD-031 新增同范围注解provider并可接入组合查询，提供物理item、encoded value node、owner/parameter slot及精确float bits；双来源、NULL、位型、owner及范围拒绝1项见 artifacts/mdd-031-audit/native-annotation-provider-20261030/final/record.json，同一事实对照非独立oracle，set-entry/ref-list及完整参数位置、旧表、SQLite/RSS仍未准入。MDD-005 Windows读共享锁候选在受锁前后核对输入，合成测试观察写入/重命名拒绝、已有写句柄阻断、注入关闭错误重试与首错保留；固定A1受锁合成副本7行4页，见 artifacts/mdd-005/a2-windows-input-pin-20261030/final3/record.json。进入阶段校验和关闭同时失败时须预先持有对象以重试，否则句柄可能保留至进程退出；现有可写映射、特权操作和生产者快照/总序未证明，候选未接入A2。全量、跨平台及性能资格未验证，用户既有A2未暂存工作保留。
+
 MDD-031 SQL桥仍进行中：受限虚表、会话预算绑定、U64真值、USING和子串路径有本机测试；独立真值18例及固定A0/A1子串16例通过，合成Q15结果与SQLite一致。真实完整corpus、legacy适配及生产工作区内存绑定尚未验收。检查点862b3dd的 Windows 离线测试161项、0失败/跳过，工作区严格Clippy通过，命令记录在 artifacts/integration/20261029/workspace-tests/ 与 workspace-clippy/。
 
 后续 SQL 结果驻留预算修复在 Windows 工作区重新运行165项测试、0失败/跳过及严格Clippy；零行 schema 的零预算错误、结果持有与释放独立复现。该计量是保守逻辑额度，SQLite内部分配、provider/调用方副本、传输缓冲及租约自身元数据仍需单独准入，不能称 RSS 硬上限。证据 artifacts/mdd-031-audit/result-memory-probe/after-fix.json、artifacts/integration/20261029/workspace-tests-result-budget/record.json。

@@ -1,0 +1,17 @@
+{
+  "exit_code": 0,
+  "source_before": {
+    "benchmarks/a2_input_inventory.py": "0D9C887B08E402E907B0EE5C50777D3D590B5917F0EB9CDB165FBD8CCD650ECA",
+    "artifacts/mdd-005/a2-windows-input-pin-20261030/probe.py": "19E1373F08472925D230233913861A9F22BE105D9FF167295D2C4D4FDAB32534",
+    "tests/fixtures/generated/structured-035.dex": "108CF907D330B823C6E32D38EAAB8F23709FE493F52537688BBD09BA3E271605",
+    "benchmarks/a2_windows_input_pin.py": "3BFE7B191A57FB2166B64FE094442BDB0C2077C590F03A4AA28A0334364D5782"
+  },
+  "source_after": {
+    "benchmarks/a2_input_inventory.py": "0D9C887B08E402E907B0EE5C50777D3D590B5917F0EB9CDB165FBD8CCD650ECA",
+    "artifacts/mdd-005/a2-windows-input-pin-20261030/probe.py": "19E1373F08472925D230233913861A9F22BE105D9FF167295D2C4D4FDAB32534",
+    "tests/fixtures/generated/structured-035.dex": "108CF907D330B823C6E32D38EAAB8F23709FE493F52537688BBD09BA3E271605",
+    "benchmarks/a2_windows_input_pin.py": "3BFE7B191A57FB2166B64FE094442BDB0C2077C590F03A4AA28A0334364D5782"
+  },
+  "scope": "Windows synthetic file sharing; no producer snapshot or A2 qualification",
+  "command": "python -B -O artifacts/mdd-005/a2-windows-input-pin-20261030/probe.py"
+}

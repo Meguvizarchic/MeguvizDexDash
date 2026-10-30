@@ -1,0 +1,21 @@
+{
+  "source_before": {
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "tests/fixtures/definitions/generated/definitions-038.dex": "89ABDD6279E9E3CF2074D83561C4180690EF77167BAE70B2AEA7A276AAE81C01",
+    "crates/mdd-facts/src/indexes/scope.rs": "AE7D5B13238EDD8E773A9EAECE5DE362D28BA6DCBF59EF93C45107D2F9475286",
+    "crates/mdd-query/src/executor/facts.rs": "1CE4CA9A57DBF52DA1F29F730E8CC25AEDBC80D29C0871EB52AA14EBFB241AD1",
+    "crates/mdd-facts/src/metadata.rs": "E5FAFA598807CC23D011570E7411EE53E1129391362C08B5CEF5A38AFE040357",
+    "crates/mdd-query/src/executor/tests.rs": "5D7325C69D006E81559B0EEAD1FE0E9C3C01E9010A9BA21FBE0F2C5F81F32132"
+  },
+  "scope": "selected dual occurrence metadata fixture; no full profile or HostLab qualification",
+  "exit_code": 0,
+  "command": "cargo test -p mdd-query --locked --offline --jobs 1 native_prototype_parameters_preserve_occurrence_and_ordinal -- --nocapture",
+  "source_after": {
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "tests/fixtures/definitions/generated/definitions-038.dex": "89ABDD6279E9E3CF2074D83561C4180690EF77167BAE70B2AEA7A276AAE81C01",
+    "crates/mdd-facts/src/indexes/scope.rs": "AE7D5B13238EDD8E773A9EAECE5DE362D28BA6DCBF59EF93C45107D2F9475286",
+    "crates/mdd-query/src/executor/facts.rs": "1CE4CA9A57DBF52DA1F29F730E8CC25AEDBC80D29C0871EB52AA14EBFB241AD1",
+    "crates/mdd-facts/src/metadata.rs": "E5FAFA598807CC23D011570E7411EE53E1129391362C08B5CEF5A38AFE040357",
+    "crates/mdd-query/src/executor/tests.rs": "5D7325C69D006E81559B0EEAD1FE0E9C3C01E9010A9BA21FBE0F2C5F81F32132"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "source_after": {
+    "crates/mdd-facts/src/annotations.rs": "99925C5EEA819EB22AFE248402797B59FD32AB66E1044BE8402D47A929725D17",
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "crates/mdd-sql/src/provider/metadata.rs": "721E77FC128FFDB79A03D48F085E0CAD3576C35B51EE8175431B51FEDC7854EE",
+    "crates/mdd-dex/src/annotations.rs": "59599C8ECA5D765DCDE214657CDB36359E1B55A2F60E48936FE45E036A4B470D",
+    "tests/fixtures/annotations/generated/annotations-038.dex": "65380A8B23601E17339379BE211E417D8B4C8383B686B6D173F800656B985360"
+  },
+  "scope": "synthetic selected annotation sources; same-facts comparison; no HostLab qualification",
+  "exit_code": 0,
+  "source_before": {
+    "crates/mdd-facts/src/annotations.rs": "99925C5EEA819EB22AFE248402797B59FD32AB66E1044BE8402D47A929725D17",
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "crates/mdd-sql/src/provider/metadata.rs": "721E77FC128FFDB79A03D48F085E0CAD3576C35B51EE8175431B51FEDC7854EE",
+    "crates/mdd-dex/src/annotations.rs": "59599C8ECA5D765DCDE214657CDB36359E1B55A2F60E48936FE45E036A4B470D",
+    "tests/fixtures/annotations/generated/annotations-038.dex": "65380A8B23601E17339379BE211E417D8B4C8383B686B6D173F800656B985360"
+  },
+  "command": "cargo test -p mdd-sql --locked --offline --jobs 1 native_annotations_preserve_occurrences_values_and_owner_slots -- --nocapture"
+}

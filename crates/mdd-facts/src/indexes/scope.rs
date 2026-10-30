@@ -1,8 +1,9 @@
+use crate::MetadataFacts;
 use mdd_input::{
     archive::{ArchiveInventory, DexSelection},
     snapshot::Snapshot,
 };
-use mdd_types::{DecimalU64, ErrorCode, MddError, MddResult, content_id};
+use mdd_types::{Completeness, DecimalU64, ErrorCode, MddError, MddResult, content_id};
 use serde::Serialize;
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -14,6 +15,121 @@ pub struct SelectedDex {
     pub content_id: String,
     pub file_id: u32,
     pub detected_version: String,
+}
+
+#[cfg(test)]
+mod metadata_rows_tests {
+    use super::*;
+    use mdd_dex::strings::StringLimits;
+    use mdd_input::{
+        archive::{ArchiveLimits, InventoryPolicy},
+        snapshot::{CaptureLimits, InputKind, InputSpec},
+    };
+    use std::path::PathBuf;
+
+    #[test]
+    fn selected_metadata_rows_preserve_occurrences_and_scope() {
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/definitions/generated/definitions-035.dex");
+        let input = InputSpec {
+            path,
+            kind: InputKind::RawDex,
+            expected_sha256: None,
+        };
+        let snapshot =
+            Snapshot::capture(&[input.clone(), input.clone()], CaptureLimits::default()).unwrap();
+        let inventories: Vec<_> = snapshot
+            .sources()
+            .iter()
+            .map(|source| {
+                ArchiveInventory::build(
+                    source,
+                    InventoryPolicy::default(),
+                    ArchiveLimits::default(),
+                )
+                .unwrap()
+            })
+            .collect();
+        let facts: Vec<_> = inventories
+            .iter()
+            .map(|inventory| {
+                MetadataFacts::build(&snapshot, inventory, 0, StringLimits::default()).unwrap()
+            })
+            .collect();
+        let scope = SelectedScope::from_inventories(&snapshot, &[&inventories[0], &inventories[1]])
+            .unwrap();
+        let rows = scope.metadata_rows(&[&facts[1], &facts[0]], 2).unwrap();
+        assert_eq!(rows.len(), 2);
+        assert_eq!((rows[0].0.file_id, rows[1].0.file_id), (0, 1));
+        assert_ne!(
+            rows[0].1.source().dex_occurrence_id,
+            rows[1].1.source().dex_occurrence_id
+        );
+        assert_eq!(
+            rows[0].1.source().physical_dex_id,
+            rows[1].1.source().physical_dex_id
+        );
+        assert_eq!(
+            rows[0].1.string_pool().string_pool_id,
+            rows[1].1.string_pool().string_pool_id
+        );
+        assert_eq!(rows[0].1.header().file_size, rows[1].1.header().file_size);
+        assert!(scope.covers_all_captured_sources());
+        assert_eq!(
+            scope
+                .metadata_rows(&[&facts[0], &facts[1]], 1)
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::QuotaExceeded
+        );
+        assert_eq!(
+            scope.metadata_rows(&[&facts[0]], 2).err().unwrap().code,
+            ErrorCode::IncompleteFacts
+        );
+        assert_eq!(
+            scope
+                .metadata_rows(&[&facts[0], &facts[0]], 2)
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InvalidArgument
+        );
+        let sub = SelectedScope::from_inventories(&snapshot, &[&inventories[0]]).unwrap();
+        assert!(!sub.covers_all_captured_sources());
+        assert_eq!(sub.metadata_rows(&[&facts[0]], 1).unwrap().len(), 1);
+        assert_eq!(
+            sub.metadata_rows(&[&facts[0], &facts[1]], 2)
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InvalidArgument
+        );
+        let pending = SelectedScope::pending(&snapshot);
+        assert_eq!(
+            pending.metadata_rows(&[], 2).err().unwrap().code,
+            ErrorCode::IncompleteFacts
+        );
+        let mut partial = facts[0].clone();
+        partial.metadata_coverage = Completeness::Partial;
+        assert_eq!(
+            sub.metadata_rows(&[&partial], 1).err().unwrap().code,
+            ErrorCode::IncompleteFacts
+        );
+        let other = Snapshot::capture(&[input], CaptureLimits::default()).unwrap();
+        let foreign_inventory = ArchiveInventory::build(
+            &other.sources()[0],
+            InventoryPolicy::default(),
+            ArchiveLimits::default(),
+        )
+        .unwrap();
+        let foreign =
+            MetadataFacts::build(&other, &foreign_inventory, 0, StringLimits::default()).unwrap();
+        assert_eq!(
+            sub.metadata_rows(&[&foreign], 1).err().unwrap().code,
+            ErrorCode::InvalidArgument
+        );
+    }
 }
 #[derive(Clone, Debug, Serialize)]
 pub struct SelectedInput {
@@ -215,5 +331,82 @@ impl SelectedScope {
     }
     pub fn retained_blob_leases(&self) -> usize {
         self.leases.len()
+    }
+
+    /// Pair the selected DEX roster with complete validated metadata in scope order.
+    /// Each tuple retains the scope's file coordinate and the source-bound header;
+    /// the scope itself exposes whether all captured sources were selected. This is
+    /// not an admitted legacy `dex_files` or string-pool numbering projection.
+    /// `max_entries` limits both supplied and selected entries, not CPU or RSS.
+    pub fn metadata_rows<'a>(
+        &'a self,
+        facts: &[&'a MetadataFacts],
+        max_entries: u64,
+    ) -> MddResult<Vec<(&'a SelectedDex, &'a MetadataFacts)>> {
+        if !self.roster_complete {
+            return Err(MddError::new(
+                ErrorCode::IncompleteFacts,
+                "facts.scope_metadata",
+                "selected DEX roster is incomplete",
+            ));
+        }
+        let quota = || {
+            MddError::new(
+                ErrorCode::QuotaExceeded,
+                "facts.scope_metadata",
+                "metadata entry budget exceeded",
+            )
+        };
+        if u64::try_from(self.dexes.len()).map_err(|_| quota())? > max_entries
+            || u64::try_from(facts.len()).map_err(|_| quota())? > max_entries
+        {
+            return Err(quota());
+        }
+        let mut by_occurrence = BTreeMap::new();
+        for fact in facts {
+            let source = fact.source();
+            if source.snapshot_id != self.snapshot_id
+                || by_occurrence
+                    .insert(source.dex_occurrence_id.as_str(), *fact)
+                    .is_some()
+            {
+                return Err(error("metadata snapshot mismatch or duplicate occurrence"));
+            }
+        }
+        let mut rows = Vec::new();
+        rows.try_reserve_exact(self.dexes.len())
+            .map_err(|_| quota())?;
+        for (index, dex) in self.dexes.iter().enumerate() {
+            let fact = by_occurrence
+                .remove(dex.dex_occurrence_id.as_str())
+                .ok_or_else(|| {
+                    MddError::new(
+                        ErrorCode::IncompleteFacts,
+                        "facts.scope_metadata",
+                        "selected DEX metadata missing",
+                    )
+                })?;
+            if fact.metadata_coverage() != Completeness::Complete {
+                return Err(MddError::new(
+                    ErrorCode::IncompleteFacts,
+                    "facts.scope_metadata",
+                    "selected DEX metadata is incomplete",
+                ));
+            }
+            let source = fact.source();
+            if usize::try_from(dex.file_id).ok() != Some(index)
+                || source.source_occurrence_id != dex.source_occurrence_id
+                || source.member_id != dex.member_id
+                || source.content_id != dex.content_id
+                || fact.header().version != dex.detected_version
+            {
+                return Err(error("metadata and selected DEX identities differ"));
+            }
+            rows.push((dex, fact));
+        }
+        if !by_occurrence.is_empty() {
+            return Err(error("metadata occurrence outside selected scope"));
+        }
+        Ok(rows)
     }
 }
