@@ -1,0 +1,11 @@
+   Compiling mdd-facts v0.1.0-dev (D:\MeguvisDexDash\crates\mdd-facts)
+   Compiling mdd-query v0.1.0-dev (D:\MeguvisDexDash\crates\mdd-query)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 11.41s
+     Running unittests src\lib.rs (target\debug\deps\mdd_query-82579f4092cfd058.exe)
+
+thread 'executor::runtime_tests::queue_receive_deadline_keeps_original_terminal_after_receiver_drop' (39400) panicked at crates\mdd-query\src\executor\runtime_tests.rs:172:5:
+assertion `left == right` failed
+  left: Cancelled
+ right: DeadlineExceeded
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p mdd-query --lib`

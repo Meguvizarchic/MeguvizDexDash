@@ -1,0 +1,63 @@
+{
+  "schema_version": "mdd.structured-completeness-observation.v1",
+  "historical_git_ref": "6e6cdf4",
+  "old_sha256": "fe1750a9a09d57db8493637321f028620e1a800479bd24b88f0aa4e5ebf68a1e",
+  "current_sha256": "e4e95113e8648ef763ba4aa82832d0369d9cef488605d23cd8acd85ce12c2e5d",
+  "observations": {
+    "structured_missing": {
+      "old": {
+        "kind": "accepted",
+        "result": {
+          "canonical_sha256": "3cc59d074674575fc6f77a49db6895d96e373de63981e6efc732cac1af78cda1",
+          "canonical_bytes": 475,
+          "complete_output": true,
+          "comparison_mode": "structured"
+        }
+      },
+      "current": {
+        "kind": "rejected",
+        "message": "structured output completeness verifier is not implemented"
+      }
+    },
+    "string_rows": {
+      "old": {
+        "kind": "accepted",
+        "result": {
+          "canonical_sha256": "9268852142979a23f5be154e33bc9a41ec50ec8d9eb386537bbb9086c44f5881",
+          "canonical_bytes": 483,
+          "complete_output": true,
+          "comparison_mode": "ordered"
+        }
+      },
+      "current": {
+        "kind": "rejected",
+        "message": "materialized rows must be a list"
+      }
+    },
+    "boolean_fallback": {
+      "old": {
+        "kind": "accepted",
+        "result": {
+          "canonical_sha256": "55f2bf7c6b26907e753844ef6928f53bd4c8294679b2a888527d69cae59a3556",
+          "canonical_bytes": 481,
+          "complete_output": true,
+          "comparison_mode": "ordered"
+        }
+      },
+      "current": {
+        "kind": "rejected",
+        "message": "fallback cannot qualify a replacement"
+      }
+    }
+  },
+  "complete_zero": {
+    "kind": "accepted",
+    "result": {
+      "canonical_sha256": "55f2bf7c6b26907e753844ef6928f53bd4c8294679b2a888527d69cae59a3556",
+      "canonical_bytes": 481,
+      "complete_output": true,
+      "comparison_mode": "ordered"
+    }
+  },
+  "scope": "synthetic driver; no structured verifier or benchmark qualification"
+}

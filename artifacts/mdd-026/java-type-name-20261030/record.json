@@ -1,0 +1,29 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "mdd-facts",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "1",
+    "java_type_names_are_bounded_and_bound_to_occurrences",
+    "--",
+    "--nocapture"
+  ],
+  "started_utc": "2026-10-30T07:58:26.535145+00:00",
+  "finished_utc": "2026-10-30T07:58:35.017122+00:00",
+  "elapsed_seconds": 8.485000000000582,
+  "exit_code": 0,
+  "timed_out": false,
+  "source_sha256": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "crates/mdd-facts/src/metadata.rs": "e5fafa598807cc23d011570e7411ee53e1129391362c08b5cef5a38afe040357",
+    "crates/mdd-dex/src/types.rs": "799fd8591ee0318b4e192fe14ff329d4b9c2c07003c6f57befad3cc7c5d73a64"
+  },
+  "source_unchanged": true,
+  "stdout_sha256": "f022355c0d9ab4af6cb41c32b6d734012783ab335eb8efc0f111d741b11a267d",
+  "stderr_sha256": "a526cc18b38f71b2d3cff54318bfe0a128fee27226de88daa779f29aa9cba47c",
+  "scope": "targeted local development test; no profile or independent qualification"
+}

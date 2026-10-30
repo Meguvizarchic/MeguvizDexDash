@@ -160,6 +160,41 @@ fn runtime_budget_rejects_different_session_or_worker_ancestry() {
 }
 
 #[test]
+fn queue_receive_deadline_keeps_original_terminal_after_receiver_drop() {
+    let limits = BudgetLimits::default().deadlines(0, 60_000).unwrap();
+    let f = setup_with_rows(limits, 0);
+    let (_sender, mut receiver) =
+        bounded_channel::<Row>(f.runtime.pool().clone(), Some(f.cancel.clone()), 1).unwrap();
+    let error = receiver.receive().err().unwrap();
+    assert_eq!(error.code, ErrorCode::DeadlineExceeded);
+    drop(receiver);
+    let terminal = f.cancel.status().unwrap().error.unwrap();
+    assert_eq!(terminal.code, ErrorCode::DeadlineExceeded);
+    assert_eq!(terminal.stage, error.stage);
+    assert_eq!(terminal.details, error.details);
+}
+
+#[test]
+fn queue_deadline_cannot_replace_prior_cancel_or_worker_loss() {
+    for worker_lost in [false, true] {
+        let limits = BudgetLimits::default().deadlines(0, 60_000).unwrap();
+        let f = setup_with_rows(limits, 0);
+        let (_sender, mut receiver) =
+            bounded_channel::<Row>(f.runtime.pool().clone(), Some(f.cancel.clone()), 1).unwrap();
+        let original = if worker_lost {
+            f.lifecycle.worker_lost("controlled loss").unwrap();
+            ErrorCode::WorkerLost
+        } else {
+            f.cancel.cancel().unwrap();
+            ErrorCode::Cancelled
+        };
+        assert_eq!(receiver.receive().err().unwrap().code, original);
+        drop(receiver);
+        assert_eq!(f.cancel.status().unwrap().error.unwrap().code, original);
+    }
+}
+
+#[test]
 fn concurrent_execution_claims_have_exactly_one_winner() {
     let fixture = setup(BudgetLimits::default());
     let barrier = Arc::new(std::sync::Barrier::new(3));

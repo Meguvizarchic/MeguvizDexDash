@@ -96,7 +96,7 @@ def consume(output, expected_inputs, expected_request, required_layers):
         raise ValueError("driver output schema mismatch")
     if output["input_manifest"] != expected_inputs or output["request_key"] != expected_request:
         raise ValueError("driver input/request binding mismatch")
-    if output["fallback_count"] != 0:
+    if type(output["fallback_count"]) is not int or output["fallback_count"] != 0:
         raise ValueError("fallback cannot qualify a replacement")
     result = output["result"]
     if result["schema_version"] != "mdd.result.v1" or result["operation_status"] != "ok":
@@ -121,8 +121,15 @@ def consume(output, expected_inputs, expected_request, required_layers):
     mode = output["comparison_mode"]
     if mode not in ("ordered", "bag", "structured"):
         raise ValueError("unqualified comparison mode")
+    if mode == "structured":
+        # An arbitrary nested DTO does not expose how many result rows or pages
+        # were actually consumed. A workload-specific verifier is required
+        # before it can be admitted as a complete benchmark output.
+        raise ValueError("structured output completeness verifier is not implemented")
     data = output["final_dto"]
     if mode in ("ordered", "bag"):
+        if not isinstance(data, dict) or not isinstance(data.get("rows"), list):
+            raise ValueError("materialized rows must be a list")
         rows = data["rows"]
         if len(rows) != int(response["total_rows"]):
             raise ValueError("not all rows materialized")
@@ -299,6 +306,8 @@ class ContractTests(unittest.TestCase):
     def test_no_fallback(self):
         item = self.fixture(); item["fallback_count"] = 1
         with self.assertRaises(ValueError): self.consume(item)
+        item["fallback_count"] = False
+        with self.assertRaises(ValueError): self.consume(item)
 
     def test_input_binding(self):
         item = self.fixture(); item["input_manifest"] = ["other-occurrence"]
@@ -311,6 +320,17 @@ class ContractTests(unittest.TestCase):
     def test_row_count(self):
         item = self.fixture(); item["final_dto"]["rows"] = [["unreported"]]
         with self.assertRaises(ValueError): self.consume(item)
+        item["result"]["response"].update(emitted_rows="2", total_rows="2")
+        item["final_dto"]["rows"] = "ab"
+        with self.assertRaisesRegex(ValueError, "rows must be a list"):
+            self.consume(item)
+
+    def test_structured_output_without_verifier_is_not_complete(self):
+        item = self.fixture(); item["comparison_mode"] = "structured"
+        item["result"]["response"].update(emitted_rows="2", total_rows="2")
+        item["final_dto"] = {}
+        with self.assertRaisesRegex(ValueError, "completeness verifier"):
+            self.consume(item)
 
     def test_bag_keeps_duplicates(self):
         left = self.fixture(); left["comparison_mode"] = "bag"

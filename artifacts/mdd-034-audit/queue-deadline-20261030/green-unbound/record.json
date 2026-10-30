@@ -1,0 +1,26 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "mdd-query",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "1",
+    "unbound_queue_deadline_remains_a_deadline",
+    "--",
+    "--nocapture"
+  ],
+  "exit_code": 0,
+  "source_sha256": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "crates/mdd-query/src/budget.rs": "1e40fda1cf9ceef706d2a90238c8b8b1eea404aa916d1f98c3e0b8ae56d07324",
+    "crates/mdd-query/src/budget/tests.rs": "e8cdd69039c2344173445db360e2fa193790211ac9ed0220a3d3381d62a03770",
+    "crates/mdd-query/src/executor/runtime_tests.rs": "7af3fc42699a423bf3abdc6baa4b0a390170a259155d0f313c18ede3b7530064"
+  },
+  "source_unchanged": true,
+  "stdout_sha256": "84b132919657a2f158af63f0f439f3926ebbb5f78a6fb8857e9c775d5aaea5b3",
+  "stderr_sha256": "338bfb0587f5c5073abf01cd500631a76291a9c0c94e76580118e05f3108a3a8",
+  "scope": "targeted local check; no full qualification"
+}

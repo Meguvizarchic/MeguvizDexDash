@@ -129,6 +129,38 @@ fn direct_text_integer_affinity(dialect: super::SqlDialect, left: &Expr, right: 
         && ((text_cast_string_literal(left) && nonnegative_i64_literal(right))
             || (nonnegative_i64_literal(left) && text_cast_string_literal(right)))
 }
+// A deliberately narrow affinity source: a CTE with one directly cast text
+// literal and no input relation. Unproved projections remain guarded.
+fn single_literal_text_cte_column(cte: &Cte) -> Option<String> {
+    if cte.query.with.is_some() || cte.query.order_by.is_some() || cte.query.limit_clause.is_some()
+    {
+        return None;
+    }
+    let SetExpr::Select(select) = cte.query.body.as_ref() else {
+        return None;
+    };
+    if !select.from.is_empty()
+        || select.selection.is_some()
+        || select.having.is_some()
+        || select.distinct.is_some()
+        || !matches!(&select.group_by, GroupByExpr::Expressions(values, modifiers)
+            if values.is_empty() && modifiers.is_empty())
+        || select.projection.len() != 1
+    {
+        return None;
+    }
+    let SelectItem::ExprWithAlias { expr, alias } = &select.projection[0] else {
+        return None;
+    };
+    if !text_cast_string_literal(expr) {
+        return None;
+    }
+    match cte.alias.columns.as_slice() {
+        [] => Some(alias.value.to_ascii_lowercase()),
+        [column] => Some(column.name.value.to_ascii_lowercase()),
+        _ => None,
+    }
+}
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum InStorageClass {
     Numeric,
@@ -283,6 +315,8 @@ pub(crate) fn adapt(
         cte_names: BTreeSet::new(),
         in_scopes: Vec::new(),
         cte_definitions: Vec::new(),
+        cte_literal_text_columns: BTreeMap::new(),
+        cte_literal_text_scopes: Vec::new(),
         schemas,
         schema_types,
         cte_columns: BTreeMap::new(),
@@ -354,6 +388,8 @@ struct Rewrite<'a> {
     cte_names: BTreeSet<String>,
     in_scopes: Vec<Option<InScope>>,
     cte_definitions: Vec<Vec<Dependency>>,
+    cte_literal_text_columns: BTreeMap<usize, String>,
+    cte_literal_text_scopes: Vec<Option<(String, String)>>,
     schemas: BTreeMap<String, Vec<String>>,
     schema_types: BTreeMap<String, BTreeMap<String, crate::values::SqlType>>,
     cte_columns: BTreeMap<usize, Vec<String>>,
@@ -366,6 +402,46 @@ struct InScope {
     tables: BTreeMap<String, BTreeMap<String, crate::values::SqlType>>,
 }
 impl Rewrite<'_> {
+    fn single_cte_literal_text_scope(&self, select: &Select) -> Option<(String, String)> {
+        if select.from.len() != 1 || !select.from[0].joins.is_empty() {
+            return None;
+        }
+        let TableFactor::Table { name, alias, .. } = &select.from[0].relation else {
+            return None;
+        };
+        if name.0.len() != 1
+            || alias
+                .as_ref()
+                .is_some_and(|alias| !alias.columns.is_empty())
+        {
+            return None;
+        }
+        let name = name.0[0].as_ident()?.value.to_ascii_lowercase();
+        let id = self
+            .cte_scopes
+            .iter()
+            .rev()
+            .find_map(|scope| scope.get(&name))?;
+        let column = self.cte_literal_text_columns.get(id)?.clone();
+        let qualifier = alias
+            .as_ref()
+            .map_or(name, |alias| alias.name.value.to_ascii_lowercase());
+        Some((qualifier, column))
+    }
+    fn current_cte_literal_text_column(&self, expr: &Expr) -> bool {
+        let Some(Some((qualifier, column))) = self.cte_literal_text_scopes.last() else {
+            return false;
+        };
+        match expr {
+            Expr::Nested(inner) => self.current_cte_literal_text_column(inner),
+            Expr::Identifier(id) => id.value.eq_ignore_ascii_case(column),
+            Expr::CompoundIdentifier(ids) if ids.len() == 2 => {
+                ids[0].value.eq_ignore_ascii_case(qualifier)
+                    && ids[1].value.eq_ignore_ascii_case(column)
+            }
+            _ => false,
+        }
+    }
     fn base_in_scope(&self, select: &Select) -> Option<InScope> {
         if select.from.is_empty() {
             return None;
@@ -610,7 +686,11 @@ impl Rewrite<'_> {
                 }
                 let id =
                     self.cte_scopes.last().unwrap()[&cte.alias.name.value.to_ascii_lowercase()];
+                let literal_text_column = single_literal_text_cte_column(cte);
                 self.cte_definitions[id] = self.query(&mut cte.query, depth + 1)?;
+                if let Some(column) = literal_text_column {
+                    self.cte_literal_text_columns.insert(id, column);
+                }
                 if let Ok(names) = self.output_names(&cte.query.body) {
                     self.cte_columns.insert(
                         id,
@@ -719,6 +799,8 @@ impl Rewrite<'_> {
                 }
                 let in_scope = self.base_in_scope(select);
                 self.in_scopes.push(in_scope);
+                let literal_text_scope = self.single_cte_literal_text_scope(select);
+                self.cte_literal_text_scopes.push(literal_text_scope);
                 for table in &mut select.from {
                     self.table(&mut table.relation, depth + 1)?;
                     for (join_index, join) in table.joins.iter_mut().enumerate() {
@@ -834,6 +916,7 @@ impl Rewrite<'_> {
                 }
                 select.group_by = GroupByExpr::Expressions(grouping, Vec::new());
                 self.in_scopes.pop();
+                self.cte_literal_text_scopes.pop();
             }
             SetExpr::Query(query) => {
                 let dependencies = self.query(query, depth + 1)?;
@@ -1031,7 +1114,12 @@ impl Rewrite<'_> {
                 // A column, CAST or derived expression cannot be assumed to
                 // share this property; those retain the guarded comparator.
                 let no_affinity = no_affinity(left) && no_affinity(right);
-                let text_integer_affinity = direct_text_integer_affinity(self.dialect, left, right);
+                let text_integer_affinity = direct_text_integer_affinity(self.dialect, left, right)
+                    || (self.dialect != super::SqlDialect::NativeV1
+                        && ((self.current_cte_literal_text_column(left)
+                            && nonnegative_i64_literal(right))
+                            || (nonnegative_i64_literal(left)
+                                && self.current_cte_literal_text_column(right))));
                 let numeric_cast_text_equality = self.dialect != super::SqlDialect::NativeV1
                     && matches!(op, BinaryOperator::Eq)
                     && ((text_cast_nonnegative_i64_literal(left)

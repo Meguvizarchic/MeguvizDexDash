@@ -181,6 +181,16 @@ fn absolute_soft_hard_deadlines_and_large_json_limits_are_explicit() {
 }
 
 #[test]
+fn unbound_queue_deadline_remains_a_deadline() {
+    let (_, _, _, query) = tree(BudgetLimits::default().deadlines(0, 60_000).unwrap());
+    let (_sender, mut receiver) = bounded_channel::<u8>(query, None, 1).unwrap();
+    assert_eq!(
+        receiver.receive().err().unwrap().code,
+        ErrorCode::DeadlineExceeded
+    );
+}
+
+#[test]
 fn owner_and_zero_byte_reservation_metadata_caps_are_actual_quota_errors() {
     let global = BudgetPool::global("owners".into(), BudgetLimits::default()).unwrap();
     let worker = global

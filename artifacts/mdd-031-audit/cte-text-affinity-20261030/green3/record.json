@@ -1,0 +1,27 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "mdd-sql",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "1",
+    "legacy_direct_cte_text_literal_preserves_affinity",
+    "--",
+    "--nocapture"
+  ],
+  "started_utc": "2026-10-30T08:02:08.351485+00:00",
+  "elapsed_seconds": 5.29700000000048,
+  "exit_code": 0,
+  "source_sha256": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "crates/mdd-sql/src/bridge.rs": "7d16b985c1082d0166654f3fdc889af939d94e32202a31217bda38d124631836",
+    "crates/mdd-sql/src/dialects/ast.rs": "985fe6d3244c58d97bbe5cdfe74835cb2de24ca71359a9a084d9f77fa518daa6"
+  },
+  "source_unchanged": true,
+  "stdout_sha256": "81ba203450e0b8a2a9b5cea45cdc6080cb66e16a82632c84b1db833237810002",
+  "stderr_sha256": "0ad8e47d0d314417207a9ef57b0d1c0f6bfe54c773c80b5d804a642aaa139f4f",
+  "scope": "targeted local development check; no qualification"
+}

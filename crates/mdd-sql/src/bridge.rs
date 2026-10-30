@@ -1619,6 +1619,56 @@ mod tests {
         );
     }
     #[test]
+    fn legacy_direct_cte_text_literal_preserves_affinity() {
+        let (provider, native) = bridge();
+        for dialect in [SqlDialect::DexSql010, SqlDialect::DexSql011] {
+            let bridge = SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+            for (sql, expected) in [
+                (
+                    "WITH t AS (SELECT CAST('1' AS TEXT) AS x) SELECT x=1 FROM t",
+                    1,
+                ),
+                (
+                    "WITH t AS (SELECT CAST('10' AS TEXT) AS x) SELECT t.x>2 FROM t",
+                    0,
+                ),
+                (
+                    "WITH t(y) AS (SELECT CAST('1' AS TEXT) AS x) SELECT 1=y FROM t",
+                    1,
+                ),
+                (
+                    "WITH t AS (SELECT CAST('1' AS TEXT) AS x) SELECT x<>1 FROM t",
+                    0,
+                ),
+            ] {
+                let rows = bridge.query(sql).unwrap().rows;
+                assert_eq!(
+                    rows,
+                    vec![vec![SqlValue::I64(mdd_query::ir::Signed64(expected))]],
+                    "{dialect:?}: {sql}"
+                );
+            }
+            for sql in [
+                "WITH t AS (SELECT CAST('1' AS TEXT) AS x, 2 AS y) SELECT x=1 FROM t",
+                "WITH t AS (SELECT CAST('1' AS TEXT) AS x) SELECT x=1 FROM (SELECT x FROM t) d",
+                "WITH t AS (SELECT CAST('1' AS TEXT) AS x) SELECT x=1.0 FROM t",
+            ] {
+                assert_eq!(
+                    bridge.query(sql).unwrap_err().code,
+                    ErrorCode::UnsupportedQuery,
+                    "{dialect:?}: {sql}"
+                );
+            }
+        }
+        assert_eq!(
+            native
+                .query("WITH t AS (SELECT CAST('1' AS TEXT) AS x) SELECT x=1 FROM t")
+                .unwrap_err()
+                .code,
+            ErrorCode::UnsupportedQuery
+        );
+    }
+    #[test]
     fn literal_mixed_class_comparisons_preserve_sqlite_rank_without_guessing_affinity() {
         let (provider, _) = bridge();
         let cases = [
@@ -1682,14 +1732,14 @@ mod tests {
                     );
                 }
             }
-            assert_eq!(
-                bridge
-                    .query("WITH t AS (SELECT CAST('1' AS TEXT) AS x) SELECT x=1 FROM t")
-                    .unwrap_err()
-                    .code,
-                ErrorCode::UnsupportedQuery
-            );
             if dialect == SqlDialect::NativeV1 {
+                assert_eq!(
+                    bridge
+                        .query("WITH t AS (SELECT CAST('1' AS TEXT) AS x) SELECT x=1 FROM t")
+                        .unwrap_err()
+                        .code,
+                    ErrorCode::UnsupportedQuery
+                );
                 assert_eq!(
                     bridge.query("SELECT 1+'a'").unwrap_err().code,
                     ErrorCode::InvalidArgument
@@ -1702,6 +1752,13 @@ mod tests {
                     ErrorCode::InvalidArgument
                 );
             } else {
+                assert_eq!(
+                    bridge
+                        .query("WITH t AS (SELECT CAST('1' AS TEXT) AS x) SELECT x=1 FROM t")
+                        .unwrap()
+                        .rows()[0][0],
+                    SqlValue::I64(mdd_query::ir::Signed64(1))
+                );
                 assert_eq!(
                     bridge.query("SELECT 1+'a'").unwrap().rows()[0][0],
                     SqlValue::I64(mdd_query::ir::Signed64(1))

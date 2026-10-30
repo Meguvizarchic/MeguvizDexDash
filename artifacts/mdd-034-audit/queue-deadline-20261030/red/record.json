@@ -1,0 +1,25 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "mdd-query",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "1",
+    "queue_receive_deadline_keeps_original_terminal_after_receiver_drop",
+    "--",
+    "--nocapture"
+  ],
+  "exit_code": 101,
+  "source_sha256": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "crates/mdd-query/src/budget.rs": "b556aad8ef44c7d920dba16476a331076a83e38f6985bbdece8cb1237627f3b5",
+    "crates/mdd-query/src/executor/runtime_tests.rs": "1c605a987cc0d23b272ebe068f2d0adca89561d4ba6adc83c2d5c60df1af2161"
+  },
+  "source_unchanged": true,
+  "stdout_sha256": "aaccc8ac07c1105aaa148f5e9600d34bf8cb458367659dfca40182c794a3b014",
+  "stderr_sha256": "c5113f37421f041141e4a7622ebc224a952e835e9b5b3ee3f0e90735ebe05a1c",
+  "scope": "targeted local red check; no full qualification"
+}

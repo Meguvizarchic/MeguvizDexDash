@@ -874,7 +874,15 @@ pub fn bounded_channel<T>(
 }
 impl<T> Channel<T> {
     fn checkpoint(&self) -> MddResult<()> {
-        self.pool.checkpoint()?;
+        if let Err(error) = self.pool.checkpoint() {
+            return match &self.cancel {
+                Some(cancel) => match cancel.fail(error.clone()) {
+                    Ok(status) => Err(status.error.unwrap_or(error)),
+                    Err(failure) => Err(failure),
+                },
+                None => Err(error),
+            };
+        }
         if let Some(cancel) = &self.cancel {
             cancel.checkpoint()?;
         }
