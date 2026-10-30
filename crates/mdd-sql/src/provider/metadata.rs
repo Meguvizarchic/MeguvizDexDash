@@ -587,5 +587,123 @@ mod tests {
             .unwrap();
         let error = cursor.next_row().unwrap_err();
         assert_eq!(error.code, ErrorCode::QuotaExceeded, "{error:?}");
+        drop(cursor);
+        // Actual bridge must also preserve the quota error under the same
+        // one-byte cell limit, rather than fail during virtual-table declaration.
+        let limited = SqlBridge::new(
+            provider,
+            SqlDialect::NativeV1,
+            SqlLimits {
+                max_cell_bytes: 1,
+                ..SqlLimits::default()
+            },
+        )
+        .unwrap();
+        let error = limited
+            .query("SELECT descriptor FROM native_types")
+            .unwrap_err();
+        assert_eq!(error.code, ErrorCode::QuotaExceeded, "{error:?}");
+    }
+
+    #[test]
+    fn schema_only_prepare_reuses_eponymous_connection_after_restoring_cell_limit() {
+        use crate::virtual_tables::{self, Source, TEST_CONNECTS, TEST_OPENS};
+        use rusqlite::{
+            Connection,
+            hooks::{AuthAction, AuthContext, Authorization},
+            limits::Limit,
+        };
+
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/definitions/generated/definitions-035.dex");
+        let snapshot = Snapshot::capture(
+            &[InputSpec {
+                path,
+                kind: InputKind::RawDex,
+                expected_sha256: None,
+            }],
+            CaptureLimits::default(),
+        )
+        .unwrap();
+        let inventory = ArchiveInventory::build(
+            &snapshot.sources()[0],
+            InventoryPolicy::default(),
+            ArchiveLimits::default(),
+        )
+        .unwrap();
+        let facts = Arc::new(
+            MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default()).unwrap(),
+        );
+        let provider = Arc::new(MetadataSqlProvider::new(vec![facts], DecimalU64(0)).unwrap());
+        let relation = provider
+            .relations()
+            .unwrap()
+            .into_iter()
+            .find(|r| r.name == "native_types")
+            .unwrap();
+        let binding = provider.binding().clone();
+        let control = SqlControl::new(
+            SqlLimits {
+                max_cell_bytes: 1,
+                ..SqlLimits::default()
+            },
+            None,
+        );
+        let db = Connection::open_in_memory().unwrap();
+        db.set_limit(Limit::SQLITE_LIMIT_ATTACHED, 0).unwrap();
+        virtual_tables::register(
+            &db,
+            Arc::new(Source {
+                provider,
+                relation,
+                binding,
+                control: control.clone(),
+            }),
+        )
+        .unwrap();
+        db.authorizer(Some(|ctx: AuthContext<'_>| match ctx.action {
+            AuthAction::Select => Authorization::Allow,
+            AuthAction::Read { table_name, .. }
+                if table_name.eq_ignore_ascii_case("native_types") =>
+            {
+                Authorization::Allow
+            }
+            _ => Authorization::Deny,
+        }))
+        .unwrap();
+        TEST_CONNECTS.with(|count| count.set(0));
+        TEST_OPENS.with(|count| count.set(0));
+        let warmup = db
+            .prepare("SELECT * FROM \"native_types\" LIMIT 0")
+            .unwrap();
+        assert!(warmup.readonly());
+        drop(warmup);
+        assert_eq!(TEST_CONNECTS.with(|count| count.get()), 1);
+        assert_eq!(TEST_OPENS.with(|count| count.get()), 0);
+        db.set_limit(Limit::SQLITE_LIMIT_LENGTH, 65).unwrap();
+        assert_eq!(db.limit(Limit::SQLITE_LIMIT_LENGTH).unwrap(), 65);
+        let mut statement = db.prepare("SELECT descriptor FROM native_types").unwrap();
+        assert!(statement.readonly());
+        assert_eq!(
+            TEST_CONNECTS.with(|count| count.get()),
+            1,
+            "SQLite reconnected the virtual table"
+        );
+        assert_eq!(TEST_OPENS.with(|count| count.get()), 0);
+        let mut rows = statement.query([]).unwrap();
+        assert!(
+            rows.next().is_err(),
+            "one-byte value budget unexpectedly returned a row"
+        );
+        assert_eq!(control.error().unwrap().code, ErrorCode::QuotaExceeded);
+        assert_eq!(db.limit(Limit::SQLITE_LIMIT_LENGTH).unwrap(), 65);
+        assert!(TEST_OPENS.with(|count| count.get()) > 0);
+        drop(rows);
+        drop(statement);
+        assert!(db.prepare("SELECT name FROM sqlite_master").is_err());
+        assert!(
+            db.execute("ATTACH DATABASE ':memory:' AS other", [])
+                .is_err()
+        );
     }
 }

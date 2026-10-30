@@ -1,0 +1,23 @@
+{
+  "scope": "targeted local query and receipt only",
+  "source_before": {
+    "crates/mdd-query/src/executor.rs": "D7471CF3990FCD8E87E0609056890D1630799F7A71A53402C9C583581C0E6AAF",
+    "crates/mdd-query/src/executor/runtime_tests.rs": "D5AC999A5A313D86839FD11706501E6CCB17E9B268C053CE531423936C4D0C12",
+    "crates/mdd-types/src/result.rs": "A59007204E928527DA43A1855D3CB08C40385EC674F55A6090063156AB19C184"
+  },
+  "commands": [
+    {
+      "exit_code": 0,
+      "test": "late_delivery_failures_return_coverage_and_computation_envelope"
+    },
+    {
+      "exit_code": 0,
+      "test": "failed_receipt_cleanup_does_not_overwrite_prior_details"
+    }
+  ],
+  "source_after": {
+    "crates/mdd-query/src/executor.rs": "D7471CF3990FCD8E87E0609056890D1630799F7A71A53402C9C583581C0E6AAF",
+    "crates/mdd-query/src/executor/runtime_tests.rs": "D5AC999A5A313D86839FD11706501E6CCB17E9B268C053CE531423936C4D0C12",
+    "crates/mdd-types/src/result.rs": "A59007204E928527DA43A1855D3CB08C40385EC674F55A6090063156AB19C184"
+  }
+}

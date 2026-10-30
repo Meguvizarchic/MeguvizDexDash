@@ -1,0 +1,5 @@
+{
+  "command": "cargo test -p mdd-types --locked --offline --jobs 1 failure_terminal_preserves_existing_error_details -- --nocapture",
+  "exit_code": 101,
+  "source_sha256": "1B2F4451B9681E0DB6454EF7804B72E0BE93077BD0EE7CB101E036F632A31B30"
+}

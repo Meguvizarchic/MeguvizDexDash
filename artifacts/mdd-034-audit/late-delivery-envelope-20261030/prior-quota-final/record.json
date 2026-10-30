@@ -1,0 +1,33 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "mdd-query",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "1",
+    "inconsistent_count_",
+    "--",
+    "--nocapture"
+  ],
+  "started_utc": "2026-10-30T09:32:28.284740+00:00",
+  "finished_utc": "2026-10-30T09:32:31.504245+00:00",
+  "exit_code": 0,
+  "two_tests_passed": true,
+  "source_sha256": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "crates/mdd-query/src/executor.rs": "76bf662b7095e87b2e77d4609cef73c644cfe557ed289715b41c2b522cbe559e",
+    "crates/mdd-query/src/executor/runtime_tests.rs": "a7245fe515670cb0c0d4ee8e0564648aae4aad3c7ef89454380a1fe7a1c04034",
+    "crates/mdd-query/src/budget.rs": "9a93a0c99e0209820e16a8fb5b10c2114b5da52d77b82695c1c3f2097cb8947d",
+    "crates/mdd-session/src/lib.rs": "b9d5f682b903fa68951a1fd1acd2761e75b59773023bb98df637a3021d6cc92f",
+    "crates/mdd-session/src/cancellation.rs": "657d7087b991d73b8dcefd27f51706168b6c54a75f3ac1906718b6f159d10fd7",
+    "crates/mdd-types/src/result.rs": "fe4e5c0631f0bfd4eea98dab9425351310e7cf06db8f64db2880d7a63c128b81",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  },
+  "source_unchanged": true,
+  "stdout_sha256": "3edad07e7e2c4c2f3047ad3f478bfaaeb22f66110d6458ff35e8c421367cebcc",
+  "stderr_sha256": "572a128c1f6b3653fcc520928bdb88d98df2babddeb48664f8cf0cbd69f71161",
+  "scope": "targeted test-only terminal count inconsistency; not natural input or full qualification"
+}

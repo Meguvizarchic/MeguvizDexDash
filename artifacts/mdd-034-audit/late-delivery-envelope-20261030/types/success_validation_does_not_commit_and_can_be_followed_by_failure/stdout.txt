@@ -1,0 +1,6 @@
+
+running 1 test
+test result::tests::success_validation_does_not_commit_and_can_be_followed_by_failure ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 8 filtered out; finished in 0.00s
+

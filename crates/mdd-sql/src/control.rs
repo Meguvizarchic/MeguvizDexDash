@@ -21,6 +21,9 @@ pub struct SqlLimits {
     pub max_result_rows: u64,
     pub max_cell_bytes: u64,
     pub max_result_bytes: u64,
+    /// Maximum aggregate generated virtual-table schema bytes for preconnection.
+    /// This is a logical bound and does not cover SQLite allocator/RSS.
+    pub max_vtab_schema_bytes: u64,
 }
 impl Default for SqlLimits {
     fn default() -> Self {
@@ -35,6 +38,7 @@ impl Default for SqlLimits {
             max_result_rows: 100_000,
             max_cell_bytes: 1024 * 1024,
             max_result_bytes: 64 * 1024 * 1024,
+            max_vtab_schema_bytes: 2 * 1024 * 1024,
         }
     }
 }
@@ -51,6 +55,7 @@ impl SqlLimits {
             max_result_rows: self.max_result_rows.min(other.max_result_rows),
             max_cell_bytes: self.max_cell_bytes.min(other.max_cell_bytes),
             max_result_bytes: self.max_result_bytes.min(other.max_result_bytes),
+            max_vtab_schema_bytes: self.max_vtab_schema_bytes.min(other.max_vtab_schema_bytes),
         }
     }
 }

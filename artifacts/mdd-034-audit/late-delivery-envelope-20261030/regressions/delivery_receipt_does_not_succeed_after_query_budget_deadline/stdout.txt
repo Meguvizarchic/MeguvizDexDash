@@ -1,0 +1,6 @@
+
+running 1 test
+test executor::runtime_tests::delivery_receipt_does_not_succeed_after_query_budget_deadline ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 74 filtered out; finished in 0.25s
+

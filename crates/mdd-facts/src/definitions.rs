@@ -929,6 +929,9 @@ pub struct ClassMatch<'a> {
     pub facts: &'a DefinitionFacts,
     pub class: &'a ClassDefinition,
 }
+/// Resolution only within the complete `DefinitionFacts` explicitly supplied by the caller.
+/// `Missing` does not establish that any unprovided input or DEX occurrence lacks the class.
+/// Use `SnapshotFactIndex::classes_exact` for selected-scope and coverage evidence.
 pub enum ClassResolution<'a> {
     Missing,
     Unique(ClassMatch<'a>),
@@ -938,16 +941,41 @@ pub fn resolve_class<'a>(
     facts: &'a [DefinitionFacts],
     descriptor: &str,
 ) -> MddResult<ClassResolution<'a>> {
-    if let Some(first) = facts.first()
-        && facts
-            .iter()
-            .any(|f| f.metadata.source.snapshot_id != first.metadata.source.snapshot_id)
+    let first = facts.first().ok_or_else(|| {
+        MddError::new(
+            ErrorCode::IncompleteFacts,
+            "facts.definitions",
+            "no definition facts were provided",
+        )
+    })?;
+    if facts
+        .iter()
+        .any(|f| f.metadata.source.snapshot_id != first.metadata.source.snapshot_id)
     {
         return Err(MddError::new(
             ErrorCode::InvalidArgument,
             "facts.definitions",
             "a definition lookup cannot combine different snapshots",
         ));
+    }
+    let mut occurrences = std::collections::BTreeSet::new();
+    for entry in facts {
+        if entry.metadata.metadata_coverage() != Completeness::Complete
+            || entry.definition_coverage != Completeness::Complete
+        {
+            return Err(MddError::new(
+                ErrorCode::IncompleteFacts,
+                "facts.definitions",
+                "provided definition or metadata facts are incomplete",
+            ));
+        }
+        if !occurrences.insert(&entry.metadata.source.dex_occurrence_id) {
+            return Err(MddError::new(
+                ErrorCode::InvalidArgument,
+                "facts.definitions",
+                "the same DEX occurrence was provided more than once",
+            ));
+        }
     }
     let mut matches: Vec<_> = facts
         .iter()
@@ -1457,6 +1485,38 @@ mod tests {
                 .code,
             ErrorCode::IncompleteFacts
         );
+    }
+
+    #[test]
+    fn class_lookup_rejects_unbuilt_partial_and_duplicate_occurrences() {
+        let error = match resolve_class(&[], "Lfixture/Base;") {
+            Err(error) => error,
+            _ => panic!("unprovided facts must not prove absence"),
+        };
+        assert_eq!(error.code, ErrorCode::IncompleteFacts);
+
+        let facts = build_two();
+        let mut partial = facts[0].clone();
+        partial.definition_coverage = Completeness::Partial;
+        let error = match resolve_class(&[partial], "Lfixture/Base;") {
+            Err(error) => error,
+            _ => panic!("partial definitions must not prove a class result"),
+        };
+        assert_eq!(error.code, ErrorCode::IncompleteFacts);
+        let duplicate = vec![facts[0].clone(), facts[0].clone()];
+        let error = match resolve_class(&duplicate, "Lfixture/Base;") {
+            Err(error) => error,
+            _ => panic!("one occurrence must not be counted twice"),
+        };
+        assert_eq!(error.code, ErrorCode::InvalidArgument);
+        assert!(matches!(
+            resolve_class(&facts[..1], "Lfixture/Absent;").unwrap(),
+            ClassResolution::Missing
+        ));
+        assert!(matches!(
+            resolve_class(&facts, "Lfixture/Base;").unwrap(),
+            ClassResolution::Ambiguous(ref matches) if matches.len() == 2
+        ));
     }
 
     #[test]

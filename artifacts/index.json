@@ -8358,6 +8358,41 @@
       "sha256": "f69723671a746710191ca6525a5d04b43b4eb221dd40ec12890d144d66d9729a"
     },
     {
+      "path": "artifacts/mdd-026/class-scope-20261030/legacy/record.json",
+      "bytes": 6832,
+      "sha256": "55abf041dc25f585fa1d2d00387771d129faa9686e5bec0e45028e737aece427"
+    },
+    {
+      "path": "artifacts/mdd-026/class-scope-20261030/legacy/stderr.txt",
+      "bytes": 229,
+      "sha256": "1b0cded9cb6c046e44a70e1c89f124e6369cd3688722640b86dae2d00408a3a8"
+    },
+    {
+      "path": "artifacts/mdd-026/class-scope-20261030/legacy/stdout.txt",
+      "bytes": 208,
+      "sha256": "2d635a6c8dfaa41d5a5f30a1d6bf58df07b43c2a91b27444a416a4776cd7e3bc"
+    },
+    {
+      "path": "artifacts/mdd-026/class-scope-20261030/run_target.py",
+      "bytes": 2772,
+      "sha256": "457df287439a61fffc95632609f4f300249f2b9b308c81b4e4bc156368445bd2"
+    },
+    {
+      "path": "artifacts/mdd-026/class-scope-20261030/scoped/record.json",
+      "bytes": 6831,
+      "sha256": "df70f94ef531cb24c70f81163e9f172dedf184a94468b130a73dd5bb1caf400d"
+    },
+    {
+      "path": "artifacts/mdd-026/class-scope-20261030/scoped/stderr.txt",
+      "bytes": 158,
+      "sha256": "5745d6232945eb1d1e301ff0802529ec8c6d790a6a9f02c2b48531aca860414e"
+    },
+    {
+      "path": "artifacts/mdd-026/class-scope-20261030/scoped/stdout.txt",
+      "bytes": 203,
+      "sha256": "1492e7680bc63a414f6d6e62c69d1ceeec917789908b36c2a0a04a85bd570dfe"
+    },
+    {
       "path": "artifacts/mdd-026/class-source-audit/20261028T174100079609Z/generate/record.json",
       "bytes": 341,
       "sha256": "274d55fd55cfd3a37da2f2c42c2551c317d523956afc4c0b9bd7fcf76fbd4503"
@@ -22683,6 +22718,81 @@
       "sha256": "03b154374eeb72ac1dc33315afeff87aca142d97749c88cb8cf382f295b4e920"
     },
     {
+      "path": "artifacts/mdd-031-audit/vtab-prewarm-20261030/candidate/1.stderr.txt",
+      "bytes": 223,
+      "sha256": "31f6fb3abd9f41da975495c3841bd69249c1031ec04910857e034a2a733abc03"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/vtab-prewarm-20261030/candidate/1.stdout.txt",
+      "bytes": 570,
+      "sha256": "dfa94d7d99d422859cbc9e2a7bb0a2355b42a1bb76fee80ef4f304ebda7794b3"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/vtab-prewarm-20261030/candidate/2.stderr.txt",
+      "bytes": 156,
+      "sha256": "d7ca7cafe5a3d75afe30b1d973453f53745f2e5564d26287e7fb6dea82f13170"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/vtab-prewarm-20261030/candidate/2.stdout.txt",
+      "bytes": 212,
+      "sha256": "1ad93cfd46126e776f70c639f970959b9be422c9a1581760708f74330c84fc5f"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/vtab-prewarm-20261030/candidate/3.stderr.txt",
+      "bytes": 156,
+      "sha256": "df09dff11ae27f0db2d663f88c70b7d21f46fbd792f35862d56d58b22ba503ea"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/vtab-prewarm-20261030/candidate/3.stdout.txt",
+      "bytes": 209,
+      "sha256": "95e0912ff9a56fc0befa2f8e7cba0e8f45797cc8b6dcc58e828cd235a1830d8b"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/vtab-prewarm-20261030/candidate/record.json",
+      "bytes": 20903,
+      "sha256": "73970201a869100b23488554aefe7b1073dc89bd7706ae2498acbc7beed181b8"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/vtab-prewarm-20261030/probe/record.json",
+      "bytes": 10667,
+      "sha256": "6bc498d03748a8f984939fdfb4d12debe1a194e657da15caa0f636de00f41ba1"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/vtab-prewarm-20261030/probe/stderr.txt",
+      "bytes": 295,
+      "sha256": "84d27c7a791f1eb824ac55bdc9f8ba49dd813d78c2fdfb240701e58bf34c8bd3"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/vtab-prewarm-20261030/probe/stdout.txt",
+      "bytes": 228,
+      "sha256": "361d996d1691503d841faa83722f7348a2a87f2618fb96c66d8893344b1f99f3"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/vtab-prewarm-20261030/probe2/record.json",
+      "bytes": 10667,
+      "sha256": "776dc052298049d882687e4db49ece9751d30be2b2423df5872cfa4b8b4c7412"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/vtab-prewarm-20261030/probe2/stderr.txt",
+      "bytes": 294,
+      "sha256": "ce3d4c19971b30c21940b9e47f38e17164dbbfe0b5df0242d057d8a6049d01b1"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/vtab-prewarm-20261030/probe2/stdout.txt",
+      "bytes": 228,
+      "sha256": "361d996d1691503d841faa83722f7348a2a87f2618fb96c66d8893344b1f99f3"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/vtab-prewarm-20261030/run_probe.py",
+      "bytes": 2479,
+      "sha256": "a7a6bf7cde41c06106050ffc83aeb3edd7014416982abc974191fc3d25c77e81"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/vtab-prewarm-20261030/run_probe2.py",
+      "bytes": 415,
+      "sha256": "f84102610257675a28bb2ddc5579fbd28997e2dd75945bf8b836b3befebf80a7"
+    },
+    {
       "path": "artifacts/mdd-031/a0-literals/observations.json",
       "bytes": 12458,
       "sha256": "0b018b3db34e36dbd68fbee4b402cd8d7c182f9bff73a851b68c73108a42e32e"
@@ -29238,6 +29348,331 @@
       "sha256": "2f93325d5703627c64bbcbeb75d2ce54f208c824da0eb2b84e33b17845022794"
     },
     {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/cleanup-detail/record.json",
+      "bytes": 8411,
+      "sha256": "54e250a9af4e8116a4c4e81244d62082c601172934b8534660ad5af94b12cf6c"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/cleanup-detail/stderr.txt",
+      "bytes": 1082,
+      "sha256": "1df7cc2ba3cb0d9bb1002827b8adee72e088a9a5160fe5da004eeb23fc925375"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/cleanup-detail/stdout.txt",
+      "bytes": 206,
+      "sha256": "a40080c8e61e9f096964aaf6d0788fd996b011a5c9fb979e323847a4f99be51e"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/cleanup-final/output.txt",
+      "bytes": 1677,
+      "sha256": "2c933c82857b55d5f1be55f4b8ad651d19408b3fd35e4a2d72f5926af33b04ef"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/cleanup-final/record.json",
+      "bytes": 524,
+      "sha256": "d3ccff6c6727336defe6516eba84f5f2d65318a9fd5490d3dcd82d422554f238"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/conflict-final/record.json",
+      "bytes": 8415,
+      "sha256": "ebc1a59dec192f82708a4abdc36c3fb4d00679f9db712df4ac423b4f39866f55"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/conflict-final/stderr.txt",
+      "bytes": 754,
+      "sha256": "ee0118350aa4eabd34c9acd721f44ff5baed346e5692882cb171068ec391ac16"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/conflict-final/stdout.txt",
+      "bytes": 322,
+      "sha256": "3edad07e7e2c4c2f3047ad3f478bfaaeb22f66110d6458ff35e8c421367cebcc"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/detail-green/output.txt",
+      "bytes": 427,
+      "sha256": "1b197c69be312106084d359e5ea618c7c5613147f426e0212f3536c16dc25c75"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/detail-green/record.json",
+      "bytes": 246,
+      "sha256": "d468b1e2b340aa5dba2cc6017e78397155d92a5b0b7c5c827b39fcb52317225d"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/detail-red/output.txt",
+      "bytes": 897,
+      "sha256": "052d11f10f8402ac070892a602d4c4ab9cf0fafbfbf8491632aa0b6143b0bfd0"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/detail-red/record.json",
+      "bytes": 248,
+      "sha256": "b937fa6715d9a641aa69cfa71a3e506ba3ebe8074894ac505c3be3d0fcfdad59"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/final-late/record.json",
+      "bytes": 8424,
+      "sha256": "5b4eab73edb00196dacbd014330b4011b74a9b497c1ec0f6e6df938552efe411"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/final-late/stderr.txt",
+      "bytes": 1011,
+      "sha256": "ec8642f81eb43e2dc6e9f299f807d4793b99e641424f712d565da413dd205697"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/final-late/stdout.txt",
+      "bytes": 214,
+      "sha256": "fd71bad4bc087801faf025cca330295c7e31149f0b3610e4e2a033fe9921eaa8"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/final-source/failed_receipt_cleanup_does_not_overwrite_prior_details.txt",
+      "bytes": 372,
+      "sha256": "8d8800e547269c31de766bad8bc11fd1821cb02a452b7abdffb19851196d463b"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/final-source/late_delivery_failures_return_coverage_and_computation_envelope.txt",
+      "bytes": 452,
+      "sha256": "eeb62bc5ce8fe8dea2efc0060cc75b3157f448c503e3d889cab5b58421bf3a78"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/final-source/record.json",
+      "bytes": 1041,
+      "sha256": "b0b14b9a5c148d974a5a81c06b6d8252e29e060aa3464130b792bdb1bdb67084"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/green/record.json",
+      "bytes": 2456,
+      "sha256": "cb2516b251448e81420f0d08afaa459365e17af8d1a99040bca48a2dc195e39f"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/green/stderr.txt",
+      "bytes": 584,
+      "sha256": "5cf1c82a794a6bb84da72ebf728aeb3f1eadbecee3600232e30a5a2676412dba"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/green/stdout.txt",
+      "bytes": 214,
+      "sha256": "575c79d4370f77d9c3ae9fde1fbc80e1be04ea4d65048a7e975bfc3e7d7e16a3"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/prior-quota-final/record.json",
+      "bytes": 1565,
+      "sha256": "f6c673da049ceeb16b626be911a4ac3ec215376a648a5a183c7ed82af1fc3b10"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/prior-quota-final/stderr.txt",
+      "bytes": 229,
+      "sha256": "572a128c1f6b3653fcc520928bdb88d98df2babddeb48664f8cf0cbd69f71161"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/prior-quota-final/stdout.txt",
+      "bytes": 322,
+      "sha256": "3edad07e7e2c4c2f3047ad3f478bfaaeb22f66110d6458ff35e8c421367cebcc"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/red/record.json",
+      "bytes": 2458,
+      "sha256": "fb8c2f9f7cc00d50a8d65d3942dcf0ced51fac4903cbaa5881847dacc83b7d60"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/red/stderr.txt",
+      "bytes": 1317,
+      "sha256": "a42d294ae4889c8360667ac783b21011649711fb44305b27c58bd834767bfcf2"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/red/stdout.txt",
+      "bytes": 337,
+      "sha256": "03ab835326a11b0486fae3db6904db5b387269ad7b8b887fff4b7c06c025e5eb"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/regressions/delivery_receipt_does_not_succeed_after_query_budget_deadline/record.json",
+      "bytes": 1568,
+      "sha256": "c7257ef7a029f0ed1d64b4192945800609d246713fabf92f4b9b059706060296"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/regressions/delivery_receipt_does_not_succeed_after_query_budget_deadline/stderr.txt",
+      "bytes": 158,
+      "sha256": "2ee3b7f9afc418698b0c49ba27f2406658d2e628287cbcc7d68afbb60f4f374b"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/regressions/delivery_receipt_does_not_succeed_after_query_budget_deadline/stdout.txt",
+      "bytes": 212,
+      "sha256": "30bba6ca7327fc677515dbb8ffba061679ce2f349760475737a33e1c24d84d83"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/regressions/delivery_receipt_preserves_existing_failure_after_budget_deadline/record.json",
+      "bytes": 1572,
+      "sha256": "cc92a85835b239987dc11818c1b1aa7669935cc7c2774744c658e0863002104c"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/regressions/delivery_receipt_preserves_existing_failure_after_budget_deadline/stderr.txt",
+      "bytes": 158,
+      "sha256": "3c6792e79852f421ce504df33cffbf8b913df152868d1d187a336d06c6e3fd7b"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/regressions/delivery_receipt_preserves_existing_failure_after_budget_deadline/stdout.txt",
+      "bytes": 216,
+      "sha256": "afb5926d27341f45453c9f76d468360805aadabbf02e74fc2f9d114663a88865"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/regressions/error_receipt_requires_every_original_error_field/record.json",
+      "bytes": 1556,
+      "sha256": "6238ec9838129aac314e0bfcf1bc2120dedfe928fb73ea872699ddd1512289b1"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/regressions/error_receipt_requires_every_original_error_field/stderr.txt",
+      "bytes": 158,
+      "sha256": "3c6792e79852f421ce504df33cffbf8b913df152868d1d187a336d06c6e3fd7b"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/regressions/error_receipt_requires_every_original_error_field/stdout.txt",
+      "bytes": 200,
+      "sha256": "ffa0b402c6fefbabad64c88bbfd63cfc8bfc3e21d9651add8c22c29afc480b4b"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/regressions/execute_into_zero_row_still_requires_end_and_receipt/record.json",
+      "bytes": 1559,
+      "sha256": "75ba1d73dbaa0ea3e7d4d771f3afc95f75f334aa8c26fb4bcab1b06c004e9888"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/regressions/execute_into_zero_row_still_requires_end_and_receipt/stderr.txt",
+      "bytes": 158,
+      "sha256": "df0d02a8b0057c2e2f73f5f70c566325b945a3a894f67b4976b3e153d8619571"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/regressions/execute_into_zero_row_still_requires_end_and_receipt/stdout.txt",
+      "bytes": 203,
+      "sha256": "b01237ae5e74471d387e6efe43bf06e264a62e0ae18c2bc9bbedb950909a4318"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/regressions/failed_receipt_cleanup_preserves_producer_error_after_query_release/record.json",
+      "bytes": 1574,
+      "sha256": "6524164cb70a9406d14a2f9d45810ad9a865c65a5ca5c755cf401ee9330ca9ff"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/regressions/failed_receipt_cleanup_preserves_producer_error_after_query_release/stderr.txt",
+      "bytes": 158,
+      "sha256": "fdb8e89b143bdd5669e789805abb0392a3d4827a0ccdc5a59535c511fcbf22f7"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/regressions/failed_receipt_cleanup_preserves_producer_error_after_query_release/stdout.txt",
+      "bytes": 218,
+      "sha256": "50aab004e2e5db545c8a391f3c37a07dce3e1ba8bcecab85a50292ea0de4a5a0"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/regressions/inconsistent_terminal_count_never_fabricates_an_envelope/record.json",
+      "bytes": 1563,
+      "sha256": "8c933d4d50258edc79ea5dd12b4654f0c8e02424afba51ec5f155eb9fe03b484"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/regressions/inconsistent_terminal_count_never_fabricates_an_envelope/stderr.txt",
+      "bytes": 158,
+      "sha256": "d363d87f0e98192d6d25c6d7d861f0182560b3372092c2b22088bb00da1c9b7a"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/regressions/inconsistent_terminal_count_never_fabricates_an_envelope/stdout.txt",
+      "bytes": 207,
+      "sha256": "3c4132aed6b13c8d036b45ee4a090b0b9912a3686bb5408d72ade97c391a2463"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/regressions/nonpristine_terminal_is_rejected_before_queue_claim/record.json",
+      "bytes": 1558,
+      "sha256": "b5bb821ab8ef7a27995b84ee8f5608bfa384b3e41de2ceceaad1e2ef0c08113e"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/regressions/nonpristine_terminal_is_rejected_before_queue_claim/stderr.txt",
+      "bytes": 158,
+      "sha256": "ae5b4809c18591cfd08054f3e3f8a589916f16929e960ea27417abf00d0cc330"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/regressions/nonpristine_terminal_is_rejected_before_queue_claim/stdout.txt",
+      "bytes": 202,
+      "sha256": "c2acc00bf85100cc4c379e9ce4c309db06e8c738e22b24aa9a662a05e6dab1f6"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/regressions/queued_rows_are_not_delivery_without_consumer_acknowledgement/record.json",
+      "bytes": 1568,
+      "sha256": "458383a8d874f0312a674ae447c0661f6baf350013193f49b24af4127690afe3"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/regressions/queued_rows_are_not_delivery_without_consumer_acknowledgement/stderr.txt",
+      "bytes": 158,
+      "sha256": "8d128e798769dce0e7b2b14862c06c660e9976aa5fbf99b8b8dcb2c6dae9bb40"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/regressions/queued_rows_are_not_delivery_without_consumer_acknowledgement/stdout.txt",
+      "bytes": 212,
+      "sha256": "5bebbb3451c4d1796153d738ba02e0a664ffad3e1b269e906050bff7fedea5aa"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/regressions/receipt_cannot_confirm_another_query/record.json",
+      "bytes": 1543,
+      "sha256": "e464382b59107d87a0656930b3b790ab7801532432fbe4987367bc063125fbe7"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/regressions/receipt_cannot_confirm_another_query/stderr.txt",
+      "bytes": 158,
+      "sha256": "1a021754b5daf14464c0be816a8ccd75c7e15e158e6f41cec5154e2bf546ebf5"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/regressions/receipt_cannot_confirm_another_query/stdout.txt",
+      "bytes": 187,
+      "sha256": "f7670c5bafe390e160ad19a08aa428cb721a0a8afeb3da9c6dee585fa6c0664c"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/regressions/worker_loss_and_cancel_before_final_receipt_are_not_success/record.json",
+      "bytes": 1566,
+      "sha256": "7e7e67259887644e3485bed4a5c7e55ea39384dbd2b1715d18d3208a3b2b377d"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/regressions/worker_loss_and_cancel_before_final_receipt_are_not_success/stderr.txt",
+      "bytes": 158,
+      "sha256": "ecd4744f6bf75d35124a43314b1c163b7d5815ec44b727399ccc6fd30a136784"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/regressions/worker_loss_and_cancel_before_final_receipt_are_not_success/stdout.txt",
+      "bytes": 210,
+      "sha256": "abb2b26e7ed7eb60d512916565ff6b3e03fc84c65e7811c17ef6d80a71ae96d5"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/run_regressions.py",
+      "bytes": 3017,
+      "sha256": "3f7cf17084b4ff4f742b7e6b85547c7efd07291c291510d6d36126ee3e93c241"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/run_target.py",
+      "bytes": 2331,
+      "sha256": "9f847600ac7d32a7459852fa9fa4c6df49a570a67876e49ce73596018f66a392"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/types/pristine_builder_rejects_even_a_recorded_zero_row_batch/record.json",
+      "bytes": 960,
+      "sha256": "366f4d853cec33b803281987ac24e5f4be4200ebc50f96de31573e30fc153d79"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/types/pristine_builder_rejects_even_a_recorded_zero_row_batch/stderr.txt",
+      "bytes": 229,
+      "sha256": "40e769b9c8bf2ab96915037df816bc9e370b6933f4eb5e5131a1553d7931089f"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/types/pristine_builder_rejects_even_a_recorded_zero_row_batch/stdout.txt",
+      "bytes": 195,
+      "sha256": "9357969bbd7cf4f595b101bb3256d0c80e72775caaee23e847eb868c19313467"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/types/success_validation_does_not_commit_and_can_be_followed_by_failure/record.json",
+      "bytes": 970,
+      "sha256": "fcda33ac7837487c2ea834df680616e66f6629bba34da4e621ecf5c55e274280"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/types/success_validation_does_not_commit_and_can_be_followed_by_failure/stderr.txt",
+      "bytes": 158,
+      "sha256": "b9d60db54aded85b2d9a0a4bfcde4384ac656840ba5f7159ccec367bf5c8a9fa"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/late-delivery-envelope-20261030/types/success_validation_does_not_commit_and_can_be_followed_by_failure/stdout.txt",
+      "bytes": 205,
+      "sha256": "839d88854f72cb6402907e5a805a0084fb7d9ec1b38c4ab667be582bb169e3c6"
+    },
+    {
       "path": "artifacts/mdd-034-audit/long-entity-steps-20261029/probe.rs",
       "bytes": 5658,
       "sha256": "9ec0948bca71736f7d4d2dc7f2bccfd60546aac7cd7b36a0324a0997e92d539c"
@@ -29351,6 +29786,41 @@
       "path": "artifacts/mdd-034-audit/long-entity-steps-20261029/runs/20261030T014930199186Z/probe/supervisor.json",
       "bytes": 893,
       "sha256": "17fcfa21749942cde2b3e2cdb9569cd18cccfff49b8affc82ed6fdc4cb28a20b"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/nonpristine-terminal-20261030/green/record.json",
+      "bytes": 2444,
+      "sha256": "0ee610b1386915734a19f2b75989e31a55daee6422b2f212883c5acad9a633d9"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/nonpristine-terminal-20261030/green/stderr.txt",
+      "bytes": 584,
+      "sha256": "6d62c2cf3d2105cb837d67a5943f49e26f0c70e034b7e804e2eeb27173b31363"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/nonpristine-terminal-20261030/green/stdout.txt",
+      "bytes": 202,
+      "sha256": "a6f3ada7ddfc1454d4a3bc4617ec4ff5a29c9d4c456174363de094a347a8559d"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/nonpristine-terminal-20261030/red/record.json",
+      "bytes": 2446,
+      "sha256": "3b0fb7e1ea7846b02abe82ae6c1ac46e9f052d66d0198d13aa2a623664842b6a"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/nonpristine-terminal-20261030/red/stderr.txt",
+      "bytes": 1076,
+      "sha256": "863cb37158ac2e3148ec567b48d919a6ec4d8b27ef29b01bbfa60bebabb991f0"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/nonpristine-terminal-20261030/red/stdout.txt",
+      "bytes": 313,
+      "sha256": "09ea48283d5d70cc5bd25fab9d127c3aa90d75977fe57e4ce0b5ca2ad8d9c29e"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/nonpristine-terminal-20261030/run_target.py",
+      "bytes": 2310,
+      "sha256": "8117af3c81cbeaf32229c2e8a20ddb6551c5dab2aa351d4c954b02a56e293342"
     },
     {
       "path": "artifacts/mdd-034-audit/prequeue-resident-20261030/probe.rs",

@@ -1,0 +1,9 @@
+{
+  "sources": {
+    "crates/mdd-query/src/executor.rs": "287CB1EEBB0AF0F0821E7BCFEC4D7BC6549FB52E103183FB333F73654F71E44D",
+    "crates/mdd-query/src/executor/runtime_tests.rs": "D5AC999A5A313D86839FD11706501E6CCB17E9B268C053CE531423936C4D0C12",
+    "crates/mdd-types/src/result.rs": "A59007204E928527DA43A1855D3CB08C40385EC674F55A6090063156AB19C184"
+  },
+  "exit_code": 0,
+  "command": "cargo test -p mdd-query --locked --offline --jobs 1 failed_receipt_cleanup_does_not_overwrite_prior_details -- --nocapture"
+}

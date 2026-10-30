@@ -1,0 +1,21 @@
+   Compiling mdd-types v0.1.0-dev (D:\MeguvisDexDash\crates\mdd-types)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.87s
+     Running unittests src\lib.rs (target\debug\deps\mdd_types-674dda7073209242.exe)
+
+running 1 test
+
+thread 'result::tests::failure_terminal_preserves_existing_error_details' (20616) panicked at crates\mdd-types\src\result.rs:476:13:
+assertion `left == right` failed
+  left: Some(String("2"))
+ right: Some(String("original"))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test result::tests::failure_terminal_preserves_existing_error_details ... FAILED
+
+failures:
+
+failures:
+    result::tests::failure_terminal_preserves_existing_error_details
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p mdd-types --lib`

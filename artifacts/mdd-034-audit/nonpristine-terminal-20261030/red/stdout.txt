@@ -1,0 +1,11 @@
+
+running 1 test
+test executor::runtime_tests::nonpristine_terminal_is_rejected_before_queue_claim ... FAILED
+
+failures:
+
+failures:
+    executor::runtime_tests::nonpristine_terminal_is_rejected_before_queue_claim
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 71 filtered out; finished in 0.00s
+

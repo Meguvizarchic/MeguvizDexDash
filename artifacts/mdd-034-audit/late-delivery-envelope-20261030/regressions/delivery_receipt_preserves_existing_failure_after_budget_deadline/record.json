@@ -1,0 +1,33 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "mdd-query",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "1",
+    "delivery_receipt_preserves_existing_failure_after_budget_deadline",
+    "--",
+    "--nocapture"
+  ],
+  "started_utc": "2026-10-30T09:29:22.199015+00:00",
+  "finished_utc": "2026-10-30T09:29:22.977864+00:00",
+  "exit_code": 0,
+  "one_test_passed": true,
+  "source_sha256": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "crates/mdd-query/src/executor.rs": "f56ea94c469c7eed79a236db38fc1b996f0763c1211ef9767ef82d394f44f41b",
+    "crates/mdd-query/src/executor/runtime_tests.rs": "ac0256ba52c9ddbb52a15185c69da2f9a17ab8d8f7931f04c8b8b792af355907",
+    "crates/mdd-query/src/budget.rs": "9a93a0c99e0209820e16a8fb5b10c2114b5da52d77b82695c1c3f2097cb8947d",
+    "crates/mdd-session/src/lib.rs": "b9d5f682b903fa68951a1fd1acd2761e75b59773023bb98df637a3021d6cc92f",
+    "crates/mdd-session/src/cancellation.rs": "657d7087b991d73b8dcefd27f51706168b6c54a75f3ac1906718b6f159d10fd7",
+    "crates/mdd-types/src/result.rs": "fe4e5c0631f0bfd4eea98dab9425351310e7cf06db8f64db2880d7a63c128b81",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  },
+  "source_unchanged": true,
+  "stdout_sha256": "afb5926d27341f45453c9f76d468360805aadabbf02e74fc2f9d114663a88865",
+  "stderr_sha256": "3c6792e79852f421ce504df33cffbf8b913df152868d1d187a336d06c6e3fd7b",
+  "scope": "targeted local query/queue; not full qualification"
+}

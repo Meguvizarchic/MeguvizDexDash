@@ -155,6 +155,77 @@ fn utf16_raw_candidates_match_scalar_and_hand_oracle_without_occurrence_dedup() 
 }
 
 #[test]
+fn exact_class_lookup_exposes_scope_and_rejects_unbuilt_coverage() {
+    let data = setup("references/generated/defined-field-035.dex", 2);
+    let views = data
+        .definitions
+        .iter()
+        .map(|facts| {
+            FactView::unbuilt(&facts.metadata().source().dex_occurrence_id).with_definitions(facts)
+        })
+        .collect::<Vec<_>>();
+    let full_scope = scope(&data);
+    let descriptor = data.definitions[0].definitions().classes[0]
+        .descriptor
+        .encode_utf16()
+        .collect::<Vec<_>>();
+    let index = SnapshotFactIndex::new(full_scope.clone(), &views, IndexLimits::default()).unwrap();
+    let indexed = index.classes_exact(&descriptor).unwrap();
+    let scalar = index.classes_exact_scalar(&descriptor).unwrap();
+    assert_eq!(indexed.entities, scalar.entities);
+    assert_eq!(indexed.entities.len(), 2);
+    assert_ne!(
+        indexed.entities[0].dex_occurrence_id,
+        indexed.entities[1].dex_occurrence_id
+    );
+    assert_eq!(indexed.snapshot_id, data.snapshot.manifest().snapshot_id);
+    assert_eq!(indexed.scope_id, full_scope.scope_id());
+    assert_eq!(indexed.coverage.input, Completeness::Complete);
+    assert_eq!(indexed.coverage.facts, Completeness::Complete);
+    assert!(indexed.covers_all_captured_sources);
+    assert!(!indexed.coverage.profile_admitted);
+
+    let selected =
+        SelectedScope::from_inventories(&data.snapshot, &[&data.inventories[0]]).unwrap();
+    let subset =
+        SnapshotFactIndex::new(selected.clone(), &views[..1], IndexLimits::default()).unwrap();
+    let absent = subset
+        .classes_exact(&"Lmissing/Absent;".encode_utf16().collect::<Vec<_>>())
+        .unwrap();
+    assert!(absent.absence_proven_within_selected_scope);
+    assert!(!absent.covers_all_captured_sources);
+    assert_eq!(absent.scope_id, selected.scope_id());
+    assert_ne!(absent.scope_id, full_scope.scope_id());
+
+    let missing = [FactView::unbuilt(
+        data.definitions[0]
+            .metadata()
+            .source()
+            .dex_occurrence_id
+            .clone(),
+    )];
+    let missing_index = SnapshotFactIndex::new(selected, &missing, IndexLimits::default()).unwrap();
+    assert_eq!(
+        missing_index.classes_exact(&descriptor).unwrap_err().code,
+        ErrorCode::IncompleteFacts
+    );
+    let pending = SnapshotFactIndex::new(
+        SelectedScope::pending(&data.snapshot),
+        &[],
+        IndexLimits::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        pending.classes_exact(&descriptor).unwrap_err().code,
+        ErrorCode::IncompleteFacts
+    );
+    assert_eq!(
+        index.classes_exact(&vec![0; 1_000_001]).unwrap_err().code,
+        ErrorCode::QuotaExceeded
+    );
+}
+
+#[test]
 fn definitions_owners_and_encoded_reference_symbols_preserve_distinct_sites() {
     let data = setup("references/generated/defined-field-035.dex", 2);
     let refs = data

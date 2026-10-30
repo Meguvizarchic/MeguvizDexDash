@@ -952,6 +952,30 @@ impl<'a> SnapshotFactIndex<'a> {
                 .collect(),
         })
     }
+    /// Exact class descriptor lookup tied to the selected snapshot and coverage.
+    /// Empty matches only prove absence within the complete selected scope;
+    /// `covers_all_captured_sources` separately states whether it covers all inputs.
+    pub fn classes_exact(&self, descriptor: &[u16]) -> MddResult<IndexMatches> {
+        let predicate = Self::class_exact_predicate(descriptor)?;
+        self.definition_names(DefinitionKind::Class, &predicate)
+    }
+    /// Independent scalar path for the same selected-scope class lookup.
+    pub fn classes_exact_scalar(&self, descriptor: &[u16]) -> MddResult<IndexMatches> {
+        let predicate = Self::class_exact_predicate(descriptor)?;
+        self.definition_names_scalar(DefinitionKind::Class, &predicate)
+    }
+    fn class_exact_predicate(descriptor: &[u16]) -> MddResult<Utf16Predicate> {
+        if descriptor.len() > 1_000_000 {
+            return Err(quota("INDEX_PREDICATE_BUDGET"));
+        }
+        let mut units = Vec::new();
+        units
+            .try_reserve_exact(descriptor.len())
+            .map_err(|_| quota("INDEX_PREDICATE_ALLOCATION"))?;
+        units.extend_from_slice(descriptor);
+        Ok(Utf16Predicate::Equal(units))
+    }
+
     pub fn definition_names(
         &self,
         kind: DefinitionKind,

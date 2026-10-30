@@ -1,0 +1,10 @@
+
+running 5 tests
+test bridge::tests::schema_prewarm_cap_and_cancellation_leave_original_length ... ok
+test bridge::tests::schema_prewarm_failure_restores_original_length_without_opening_facts ... ok
+test bridge::tests::schema_prewarm_preserves_limits_and_never_opens_facts ... ok
+test provider::metadata::tests::schema_only_prepare_reuses_eponymous_connection_after_restoring_cell_limit ... ok
+test runtime_tests::zero_rows_still_reserve_result_schema_and_identity ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 101 filtered out; finished in 0.02s
+

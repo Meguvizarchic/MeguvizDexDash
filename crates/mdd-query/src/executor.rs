@@ -1550,6 +1550,64 @@ impl Drop for PendingDelivery {
 }
 
 impl QueueDeliveryReceipt {
+    fn with_consumed_count(error: MddError, count: u64) -> MddError {
+        let value = count.to_string();
+        match error.details.get("actual_consumed_rows") {
+            None => return error.detail("actual_consumed_rows", value),
+            Some(existing) if existing.as_str() == Some(value.as_str()) => return error,
+            Some(_) => (),
+        }
+        // A prior error may already use our conventional detail name. Never
+        // overwrite it: at most details.len()+1 checked candidates are needed.
+        // If arithmetic cannot be represented, preserve the original error
+        // without claiming the additional observation was recorded. This is
+        // not a claim that the allocator can recover from process OOM.
+        let Some(attempts) = error.details.len().checked_add(1) else {
+            return error;
+        };
+        for ordinal in 0..attempts {
+            let name = format!("receipt_actual_consumed_rows_{ordinal}");
+            if !error.details.contains_key(&name) {
+                return error.detail(name, value);
+            }
+        }
+        error
+    }
+
+    fn with_cleanup_error(error: MddError, cleanup: &MddError) -> MddError {
+        let value = format!("{cleanup:?}");
+        match error.details.get("receipt_cleanup_error") {
+            None => return error.detail("receipt_cleanup_error", value),
+            Some(existing) if existing.as_str() == Some(value.as_str()) => return error,
+            Some(_) => (),
+        }
+        let Some(attempts) = error.details.len().checked_add(1) else {
+            return error;
+        };
+        for ordinal in 0..attempts {
+            let name = format!("receipt_cleanup_error_{ordinal}");
+            if !error.details.contains_key(&name) {
+                return error.detail(name, value);
+            }
+        }
+        error
+    }
+
+    fn finish_late_failure(
+        &mut self,
+        pending: &mut PendingDelivery,
+        terminal: &mut mdd_types::result::TerminalBuilder,
+        error: MddError,
+    ) -> MddResult<mdd_types::ResultEnvelope> {
+        let first = pending.runtime.stop(error);
+        if let Err(cleanup) = self.finish_failed() {
+            return Err(Self::with_cleanup_error(first, &cleanup));
+        }
+        let envelope = terminal.fail(first, pending.dropped, None)?;
+        pending.completed = true;
+        Ok(envelope)
+    }
+
     /// The consumer receives the final envelope only after all packets, explicit End, and the
     /// lifecycle cursor have been confirmed for this exact queue and query.
     pub fn finish(
@@ -1565,13 +1623,7 @@ impl QueueDeliveryReceipt {
             return Err(invalid("DELIVERY_RECEIPT_QUEUE_OR_QUERY_MISMATCH"));
         }
         let delivery_deadline = if pending.error.is_none() {
-            Some(
-                pending
-                    .runtime
-                    .pool()
-                    .delivery_deadline()
-                    .map_err(|error| pending.runtime.stop(error))?,
-            )
+            Some(pending.runtime.pool().delivery_deadline())
         } else {
             None
         };
@@ -1580,18 +1632,43 @@ impl QueueDeliveryReceipt {
             .take()
             .ok_or_else(|| invalid("DELIVERY_ALREADY_FINALIZED"))?;
         if pending.produced != 0 {
-            terminal.record_batch(0, pending.produced)?;
+            if let Err(error) = terminal.record_batch(0, pending.produced) {
+                // The builder rejected this count. Do not manufacture an
+                // envelope whose emitted count would omit consumed packets.
+                let first = pending
+                    .runtime
+                    .stop(error.detail("actual_consumed_rows", pending.produced.to_string()));
+                let first = Self::with_consumed_count(first, pending.produced);
+                return match self.finish_failed() {
+                    Ok(()) => Err(first),
+                    Err(cleanup) => Err(Self::with_cleanup_error(first, &cleanup)),
+                };
+            }
         }
         if let Some(error) = pending.error.take() {
-            self.finish_failed()?;
+            if let Err(cleanup) = self.finish_failed() {
+                // This error was recorded by the producer before the End.
+                // The query may already have been explicitly released, so a
+                // fresh lifecycle lookup must not replace its original cause.
+                return Err(Self::with_cleanup_error(error, &cleanup));
+            }
             let envelope = terminal.fail(error, pending.dropped, None)?;
             pending.completed = true;
             return Ok(envelope);
         }
-        let envelope = terminal.succeed(None)?;
-        if let Err(error) = self.finish_cursor_with_budget(delivery_deadline.as_ref().unwrap()) {
-            return Err(pending.runtime.stop(error));
+        let deadline = match delivery_deadline.unwrap() {
+            Ok(deadline) => deadline,
+            Err(error) => return self.finish_late_failure(pending, &mut terminal, error),
+        };
+        if let Err(error) = terminal.validate_success() {
+            return self.finish_late_failure(pending, &mut terminal, error);
         }
+        if let Err(error) = self.finish_cursor_with_budget(&deadline) {
+            return self.finish_late_failure(pending, &mut terminal, error);
+        }
+        // validate_success used the same immutable builder and data=None before
+        // the atomic lifecycle commit; no successful envelope is exposed early.
+        let envelope = terminal.succeed(None)?;
         pending.completed = true;
         Ok(envelope)
     }
@@ -1618,6 +1695,9 @@ pub fn execute_into(
         .ok_or_else(|| invalid("DELIVERY_REQUIRES_QUERY_RUNTIME"))?;
     if !sender.matches_runtime(&runtime) {
         return Err(invalid("DELIVERY_QUEUE_RUNTIME_MISMATCH"));
+    }
+    if !terminal.is_pristine() {
+        return Err(invalid("TERMINAL_NOT_FRESH"));
     }
     let binding = prepared.runtime_binding()?;
     let identity = terminal.identity();

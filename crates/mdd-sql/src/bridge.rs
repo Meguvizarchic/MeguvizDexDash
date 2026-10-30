@@ -184,6 +184,266 @@ fn result_metadata_bytes(
     }
     Ok(bytes)
 }
+
+/// Only bounds the temporary Rust schema/warmup buffers; SQLite's internal
+/// schema allocations and allocator overhead are not part of this lease.
+struct SchemaBounds {
+    ddl: u64,
+    warmup: u64,
+    workspace: u64,
+}
+fn quoted_identifier_bytes(value: &str, control: &SqlControl, cap: u64) -> MddResult<u64> {
+    let bytes = u64::try_from(value.len()).map_err(|_| quota("VTAB_SCHEMA_SIZE_OVERFLOW"))?;
+    if value.is_empty() {
+        return Err(invalid("INVALID_SQL_IDENTIFIER"));
+    }
+    if bytes > cap {
+        return Err(quota("VTAB_SCHEMA_BYTE_BUDGET"));
+    }
+    let mut quoted = bytes
+        .checked_add(2)
+        .ok_or_else(|| quota("VTAB_SCHEMA_SIZE_OVERFLOW"))?;
+    for chunk in value.as_bytes().chunks(4096) {
+        control.checkpoint(chunk.len() as u64, false)?;
+        if chunk.contains(&0) {
+            return Err(invalid("INVALID_SQL_IDENTIFIER"));
+        }
+        let extra = chunk.iter().filter(|byte| **byte == b'"').count() as u64;
+        quoted = quoted
+            .checked_add(extra)
+            .ok_or_else(|| quota("VTAB_SCHEMA_SIZE_OVERFLOW"))?;
+        if quoted > cap {
+            return Err(quota("VTAB_SCHEMA_BYTE_BUDGET"));
+        }
+    }
+    Ok(quoted)
+}
+fn schema_bounds(
+    relation: &SqlRelation,
+    control: &SqlControl,
+    cap: u64,
+) -> MddResult<SchemaBounds> {
+    let name = quoted_identifier_bytes(&relation.name, control, cap)?;
+    let warmup = ("SELECT * FROM ".len() as u64)
+        .checked_add(name)
+        .and_then(|n| n.checked_add(" LIMIT 0".len() as u64))
+        .ok_or_else(|| quota("VTAB_SCHEMA_SIZE_OVERFLOW"))?;
+    let mut ddl = ("CREATE TABLE x(".len() + 1) as u64;
+    for (index, column) in relation.columns.iter().enumerate() {
+        control.checkpoint(1, false)?;
+        let quoted = quoted_identifier_bytes(&column.name, control, cap)?;
+        let kind = match column.data_type {
+            crate::values::SqlType::Bool | crate::values::SqlType::I64 => 7,
+            _ => 4,
+        };
+        ddl = ddl
+            .checked_add(quoted)
+            .and_then(|n| n.checked_add(1 + kind + u64::from(index != 0)))
+            .ok_or_else(|| quota("VTAB_SCHEMA_SIZE_OVERFLOW"))?;
+        if ddl > cap {
+            return Err(quota("VTAB_SCHEMA_BYTE_BUDGET"));
+        }
+    }
+    let slots = u64::try_from(relation.columns.len())
+        .ok()
+        .and_then(|n| n.checked_mul(std::mem::size_of::<String>() as u64))
+        .ok_or_else(|| quota("VTAB_SCHEMA_SIZE_OVERFLOW"))?;
+    // xConnect temporarily owns per-column strings, joined/schema strings and
+    // the warmup statement. This is a conservative logical Rust-buffer bound.
+    let workspace = ddl
+        .checked_mul(3)
+        .and_then(|n| n.checked_add(slots))
+        .and_then(|n| n.checked_add(warmup))
+        .and_then(|n| n.checked_add(128))
+        .ok_or_else(|| quota("VTAB_SCHEMA_SIZE_OVERFLOW"))?;
+    Ok(SchemaBounds {
+        ddl,
+        warmup,
+        workspace,
+    })
+}
+
+struct RestoreSqliteLength<'a> {
+    db: &'a Connection,
+    original: i32,
+    restored: bool,
+}
+impl RestoreSqliteLength<'_> {
+    fn restore(&mut self) -> MddResult<()> {
+        self.db
+            .set_limit(Limit::SQLITE_LIMIT_LENGTH, self.original)
+            .map_err(sqlite_error)?;
+        if self
+            .db
+            .limit(Limit::SQLITE_LIMIT_LENGTH)
+            .map_err(sqlite_error)?
+            != self.original
+        {
+            return Err(MddError::new(
+                ErrorCode::InternalFault,
+                "sql.schema",
+                "SQLite length limit restoration mismatch",
+            ));
+        }
+        self.restored = true;
+        Ok(())
+    }
+}
+impl Drop for RestoreSqliteLength<'_> {
+    fn drop(&mut self) {
+        if !self.restored {
+            // Emergency unwind safeguard; ordinary return paths report restoration errors.
+            let _ = self.db.set_limit(Limit::SQLITE_LIMIT_LENGTH, self.original);
+        }
+    }
+}
+
+// Preserve the original lifecycle failure while reporting any failure to
+// restore SQLite's value limit on the returned error. The recorded first error
+// remains unchanged, and an existing restoration detail is never overwritten.
+fn fail_preserving_restore_detail(control: &SqlControl, error: MddError) -> MddError {
+    let restore = error.details.get("sqlite_length_restore_error").cloned();
+    let first = control.fail(error);
+    match restore {
+        Some(detail) if !first.details.contains_key("sqlite_length_restore_error") => {
+            first.detail("sqlite_length_restore_error", detail)
+        }
+        _ => first,
+    }
+}
+
+fn find_required_relation<'a>(
+    prepared: &'a PreparedSql,
+    required: &str,
+    control: &SqlControl,
+) -> MddResult<&'a SqlRelation> {
+    for relation in &prepared.relations {
+        control.checkpoint(1, false)?;
+        if relation.name.len() == required.len() {
+            let bytes =
+                u64::try_from(required.len()).map_err(|_| quota("VTAB_SCHEMA_SIZE_OVERFLOW"))?;
+            control.checkpoint(bytes, false)?;
+            if relation.name.eq_ignore_ascii_case(required) {
+                return Ok(relation);
+            }
+        }
+    }
+    Err(invalid("REQUIRED_RELATION_MISSING"))
+}
+
+fn preconnect_required_schemas(
+    db: &Connection,
+    prepared: &PreparedSql,
+    control: &SqlControl,
+) -> MddResult<()> {
+    let original = db.limit(Limit::SQLITE_LIMIT_LENGTH).map_err(sqlite_error)?;
+    let sql_limit = u64::try_from(
+        db.limit(Limit::SQLITE_LIMIT_SQL_LENGTH)
+            .map_err(sqlite_error)?,
+    )
+    .map_err(|_| invalid("INVALID_SQLITE_SQL_LIMIT"))?;
+    let cap = control.inner.limits.max_vtab_schema_bytes.min(sql_limit);
+    // The isolated preconnect is useful only when a higher bounded limit can
+    // be used. Do not assume DDL byte length predicts SQLite parser workspace.
+    if cap <= original as u64 {
+        return Ok(());
+    }
+    let mut total = 0u64;
+    let mut work = 0u64;
+    let mut max_workspace = 0u64;
+    for required in &prepared.required_relations {
+        control.checkpoint(1, false)?;
+        let relation = find_required_relation(prepared, required, control)?;
+        let bounds = schema_bounds(relation, control, cap)?;
+        total = total
+            .checked_add(bounds.ddl)
+            .and_then(|n| n.checked_add(bounds.warmup))
+            .ok_or_else(|| quota("VTAB_SCHEMA_SIZE_OVERFLOW"))?;
+        if total > cap || bounds.warmup > sql_limit {
+            return Err(quota("VTAB_SCHEMA_BYTE_BUDGET"));
+        }
+        work = work
+            .checked_add(bounds.workspace)
+            .ok_or_else(|| quota("VTAB_SCHEMA_SIZE_OVERFLOW"))?;
+        max_workspace = max_workspace.max(bounds.workspace);
+    }
+    if max_workspace == 0 {
+        return Ok(());
+    }
+    control.work(work)?;
+    let _workspace = control
+        .runtime()
+        .map(|runtime| {
+            runtime
+                .pool()
+                .reserve(
+                    mdd_query::budget::Resource::QueryWorkspaceBytes,
+                    max_workspace,
+                )
+                .map_err(|error| control.fail(error))
+        })
+        .transpose()?;
+    let mut restore = RestoreSqliteLength {
+        db,
+        original,
+        restored: false,
+    };
+    let result = (|| {
+        let raised = i32::try_from(cap).map_err(|_| quota("VTAB_SCHEMA_SIZE_OVERFLOW"))?;
+        db.set_limit(Limit::SQLITE_LIMIT_LENGTH, raised)
+            .map_err(sqlite_error)?;
+        if db.limit(Limit::SQLITE_LIMIT_LENGTH).map_err(sqlite_error)? < raised {
+            return Err(quota("VTAB_SCHEMA_SQLITE_LIMIT"));
+        }
+        for required in &prepared.required_relations {
+            control.checkpoint(1, false)?;
+            let relation = find_required_relation(prepared, required, control)?;
+            let bounds = schema_bounds(relation, control, cap)?;
+            let capacity =
+                usize::try_from(bounds.warmup).map_err(|_| quota("VTAB_SCHEMA_SIZE_OVERFLOW"))?;
+            let mut sql = String::new();
+            sql.try_reserve_exact(capacity)
+                .map_err(|_| quota("VTAB_SCHEMA_ALLOCATION"))?;
+            sql.push_str("SELECT * FROM \"");
+            for ch in relation.name.chars() {
+                control.checkpoint(1, false)?;
+                if ch == '"' {
+                    sql.push('"');
+                }
+                sql.push(ch);
+            }
+            sql.push_str("\" LIMIT 0");
+            if sql.len() != capacity {
+                return Err(invalid("VTAB_SCHEMA_LENGTH_CHANGED"));
+            }
+            let statement = db
+                .prepare(&sql)
+                .map_err(|error| control.error().unwrap_or_else(|| sqlite_error(error)))?;
+            if !statement.readonly() {
+                return Err(invalid("VTAB_SCHEMA_NOT_READONLY"));
+            }
+            // Deliberately do not step: no xOpen, cursor, or provider fact scan.
+            drop(statement);
+        }
+        Ok(())
+    })();
+    // Resolve the original control error before adding restoration details;
+    // otherwise a later control lookup could discard those details.
+    let result = result.map_err(|error| control.error().unwrap_or(error));
+    let restored = restore.restore();
+    match (result, restored) {
+        (Ok(()), Ok(())) => Ok(()),
+        (Err(error), Ok(())) => Err(error),
+        (Ok(()), Err(error)) => Err(error),
+        (Err(error), Err(restore_error)) => {
+            if error.details.contains_key("sqlite_length_restore_error") {
+                Err(error)
+            } else {
+                Err(error.detail("sqlite_length_restore_error", restore_error.to_string()))
+            }
+        }
+    }
+}
 #[derive(Debug, Serialize)]
 pub struct OptimizerPolicy {
     pub omit: bool,
@@ -377,7 +637,7 @@ impl SqlBridge {
         }
         let result = self
             .execute_inner(prepared, control.clone())
-            .map_err(|error| control.fail(error))?;
+            .map_err(|error| fail_preserving_restore_detail(&control, error))?;
         if let Some(runtime) = control.runtime() {
             runtime.cancellation().mark_computed()?;
             if let Some(error) = runtime.cancellation().status()?.error {
@@ -532,6 +792,11 @@ impl SqlBridge {
         let progress = control.clone();
         db.progress_handler(1, Some(move || progress.checkpoint(1, false).is_err()))
             .map_err(sqlite_error)?;
+        // A tiny data-cell limit must not prevent SQLite from declaring an
+        // already-admitted relation's schema. Only generated metadata-only
+        // statements run here; the original length limit is restored before
+        // preparing any user statement.
+        preconnect_required_schemas(&db, prepared, &control)?;
         let result = (|| {
             let mut statement = db.prepare(&prepared.adapted_sql).map_err(sqlite_error)?;
             if !statement.readonly() {
@@ -815,6 +1080,165 @@ mod tests {
             SqlBridge::new(provider.clone(), SqlDialect::NativeV1, SqlLimits::default()).unwrap();
         (provider, bridge)
     }
+    fn schema_test_connection(prepared: &PreparedSql, control: &SqlControl) -> Connection {
+        let db = Connection::open_in_memory().unwrap();
+        db.set_limit(Limit::SQLITE_LIMIT_ATTACHED, 0).unwrap();
+        db.set_limit(Limit::SQLITE_LIMIT_LENGTH, 65).unwrap();
+        for relation in &prepared.relations {
+            virtual_tables::register(
+                &db,
+                Arc::new(Source {
+                    provider: Arc::clone(&prepared.provider),
+                    relation: relation.clone(),
+                    binding: prepared.binding.clone(),
+                    control: control.clone(),
+                }),
+            )
+            .unwrap();
+        }
+        db.authorizer(Some(|ctx: AuthContext<'_>| match ctx.action {
+            AuthAction::Select => Authorization::Allow,
+            AuthAction::Read { table_name, .. }
+                if table_name.eq_ignore_ascii_case("facts")
+                    || table_name.eq_ignore_ascii_case("vals") =>
+            {
+                Authorization::Allow
+            }
+            _ => Authorization::Deny,
+        }))
+        .unwrap();
+        db
+    }
+
+    #[test]
+    fn schema_prewarm_preserves_limits_and_never_opens_facts() {
+        use crate::virtual_tables::{TEST_CONNECTS, TEST_OPENS};
+        let (provider, bridge) = bridge();
+        let mut prepared = bridge.prepare("SELECT id FROM facts").unwrap();
+        let mut unused = prepared.relations[0].clone();
+        unused.name = "unused".into();
+        prepared.relations.push(unused);
+        let control = SqlControl::new(SqlLimits::default(), None);
+        let db = schema_test_connection(&prepared, &control);
+        TEST_CONNECTS.with(|count| count.set(0));
+        TEST_OPENS.with(|count| count.set(0));
+        preconnect_required_schemas(&db, &prepared, &control).unwrap();
+        assert_eq!(db.limit(Limit::SQLITE_LIMIT_LENGTH).unwrap(), 65);
+        assert_eq!(TEST_CONNECTS.with(|count| count.get()), 1);
+        assert_eq!(TEST_OPENS.with(|count| count.get()), 0);
+        assert_eq!(provider.opens.load(Ordering::SeqCst), 0);
+        assert!(db.prepare("SELECT name FROM sqlite_master").is_err());
+        assert!(
+            db.execute("ATTACH DATABASE ':memory:' AS extra", [])
+                .is_err()
+        );
+        assert!(db.execute("DELETE FROM facts", []).is_err());
+    }
+
+    #[test]
+    fn schema_prewarm_failure_restores_original_length_without_opening_facts() {
+        use crate::virtual_tables::{TEST_CONNECTS, TEST_OPENS};
+        let provider = Arc::new(RowsProvider {
+            binding: SqlBinding {
+                provider_identity: "wide".into(),
+                snapshot_id: "wide-snapshot".into(),
+                catalog_epoch: DecimalU64(0),
+            },
+            rows: vec![],
+            columns: (0..2001)
+                .map(|i| SqlColumn {
+                    id: format!("c{i}"),
+                    name: format!("c{i}"),
+                    data_type: SqlType::I64,
+                    nullable: false,
+                })
+                .collect(),
+        });
+        let bridge = SqlBridge::new(provider, SqlDialect::NativeV1, SqlLimits::default()).unwrap();
+        let prepared = bridge.prepare("SELECT c0 FROM vals").unwrap();
+        let control = SqlControl::new(SqlLimits::default(), None);
+        let db = schema_test_connection(&prepared, &control);
+        TEST_CONNECTS.with(|count| count.set(0));
+        TEST_OPENS.with(|count| count.set(0));
+        let error = preconnect_required_schemas(&db, &prepared, &control).unwrap_err();
+        assert!(
+            error.message.contains("constructor") || error.message.contains("columns"),
+            "{error:?}"
+        );
+        assert_eq!(TEST_CONNECTS.with(|count| count.get()), 1);
+        assert_eq!(TEST_OPENS.with(|count| count.get()), 0);
+        assert_eq!(db.limit(Limit::SQLITE_LIMIT_LENGTH).unwrap(), 65);
+        assert!(db.prepare("SELECT name FROM sqlite_master").is_err());
+        assert!(
+            db.execute("ATTACH DATABASE ':memory:' AS extra", [])
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn schema_prewarm_cap_and_cancellation_leave_original_length() {
+        use crate::virtual_tables::{TEST_CONNECTS, TEST_OPENS};
+        let (_, bridge) = bridge();
+        let prepared = bridge.prepare("SELECT id FROM facts").unwrap();
+        for (limits, cancelled, expected) in [
+            (
+                SqlLimits {
+                    max_vtab_schema_bytes: 66,
+                    ..SqlLimits::default()
+                },
+                false,
+                ErrorCode::QuotaExceeded,
+            ),
+            (SqlLimits::default(), true, ErrorCode::Cancelled),
+        ] {
+            let control = SqlControl::new(limits, None);
+            let db = schema_test_connection(&prepared, &control);
+            if cancelled {
+                control.cancel().unwrap();
+            }
+            TEST_CONNECTS.with(|count| count.set(0));
+            TEST_OPENS.with(|count| count.set(0));
+            assert_eq!(
+                preconnect_required_schemas(&db, &prepared, &control)
+                    .unwrap_err()
+                    .code,
+                expected
+            );
+            assert_eq!(db.limit(Limit::SQLITE_LIMIT_LENGTH).unwrap(), 65);
+            assert_eq!(TEST_CONNECTS.with(|count| count.get()), 0);
+            assert_eq!(TEST_OPENS.with(|count| count.get()), 0);
+        }
+    }
+
+    #[test]
+    fn reported_restore_failure_preserves_first_error_and_existing_details() {
+        let control = SqlControl::new(SqlLimits::default(), None);
+        let first =
+            MddError::new(ErrorCode::Cancelled, "first", "cancelled").detail("origin", "kept");
+        control.fail(first.clone());
+        // Inject only the secondary reporting error; this does not simulate a SQLite restoration.
+        let returned = fail_preserving_restore_detail(
+            &control,
+            MddError::new(ErrorCode::InternalFault, "later", "later error")
+                .detail("sqlite_length_restore_error", "restore failed"),
+        );
+        assert_eq!(returned.code, first.code);
+        assert_eq!(returned.stage, first.stage);
+        assert_eq!(returned.message, first.message);
+        assert_eq!(returned.details.get("origin"), first.details.get("origin"));
+        assert_eq!(
+            returned.details["sqlite_length_restore_error"],
+            "restore failed"
+        );
+        assert!(
+            !control
+                .error()
+                .unwrap()
+                .details
+                .contains_key("sqlite_length_restore_error")
+        );
+    }
+
     #[test]
     fn not_between_keeps_both_comparisons_inside_not() {
         let (provider, _) = bridge();

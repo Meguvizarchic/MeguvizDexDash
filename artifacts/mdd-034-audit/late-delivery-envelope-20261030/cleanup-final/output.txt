@@ -1,0 +1,33 @@
+   Compiling mdd-types v0.1.0-dev (D:\MeguvisDexDash\crates\mdd-types)
+   Compiling mdd-input v0.1.0-dev (D:\MeguvisDexDash\crates\mdd-input)
+   Compiling mdd-dex v0.1.0-dev (D:\MeguvisDexDash\crates\mdd-dex)
+   Compiling mdd-facts v0.1.0-dev (D:\MeguvisDexDash\crates\mdd-facts)
+   Compiling mdd-session v0.1.0-dev (D:\MeguvisDexDash\crates\mdd-session)
+   Compiling mdd-query v0.1.0-dev (D:\MeguvisDexDash\crates\mdd-query)
+warning: variable does not need to be mutable
+    --> crates\mdd-query\src\executor.rs:1553:28
+     |
+1553 |     fn with_consumed_count(mut error: MddError, count: u64) -> MddError {
+     |                            ----^^^^^
+     |                            |
+     |                            help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+    --> crates\mdd-query\src\executor.rs:1577:27
+     |
+1577 |     fn with_cleanup_error(mut error: MddError, cleanup: &MddError) -> MddError {
+     |                           ----^^^^^
+     |                           |
+     |                           help: remove this `mut`
+
+warning: `mdd-query` (lib test) generated 2 warnings (run `cargo fix --lib -p mdd-query --tests` to apply 2 suggestions)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 13.52s
+     Running unittests src\lib.rs (target\debug\deps\mdd_query-82579f4092cfd058.exe)
+
+running 1 test
+test executor::runtime_tests::failed_receipt_cleanup_does_not_overwrite_prior_details ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 77 filtered out; finished in 0.00s
+

@@ -1,0 +1,27 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "mdd-types",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "1",
+    "success_validation_does_not_commit_and_can_be_followed_by_failure",
+    "--",
+    "--nocapture"
+  ],
+  "started_utc": "2026-10-30T09:29:56.460490+00:00",
+  "finished_utc": "2026-10-30T09:29:56.877841+00:00",
+  "exit_code": 0,
+  "source_sha256": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "crates/mdd-types/src/result.rs": "fe4e5c0631f0bfd4eea98dab9425351310e7cf06db8f64db2880d7a63c128b81",
+    "crates/mdd-types/src/lib.rs": "12b8b0bdd6d2eb549548880e2730c0837902bf6dc31a5508489f4d87a158437c"
+  },
+  "source_unchanged": true,
+  "stdout_sha256": "839d88854f72cb6402907e5a805a0084fb7d9ec1b38c4ab667be582bb169e3c6",
+  "stderr_sha256": "b9d60db54aded85b2d9a0a4bfcde4384ac656840ba5f7159ccec367bf5c8a9fa",
+  "scope": "targeted builder invariant; no full qualification"
+}

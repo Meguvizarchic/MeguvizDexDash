@@ -1,0 +1,9 @@
+   Compiling mdd-facts v0.1.0-dev (D:\MeguvisDexDash\crates\mdd-facts)
+   Compiling mdd-query v0.1.0-dev (D:\MeguvisDexDash\crates\mdd-query)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 8.54s
+     Running unittests src\lib.rs (target\debug\deps\mdd_query-82579f4092cfd058.exe)
+
+thread 'executor::runtime_tests::nonpristine_terminal_is_rejected_before_queue_claim' (45488) panicked at crates\mdd-query\src\executor\runtime_tests.rs:297:17:
+zero_batch: execute accepted; receipt=MddError { code: InvalidArgument, stage: "result.terminal", message: "out-of-order or duplicate batch sequence", retryable: false, details: {} }; lifecycle=QueryStatus { phase: Failed, execution_complete: true, delivery_complete: false, catalog_epoch: DecimalU64(0), error: Some(MddError { code: WorkerLost, stage: "query.delivery", message: "producer dropped pending delivery before consumer confirmation", retryable: false, details: {} }) }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p mdd-query --lib`

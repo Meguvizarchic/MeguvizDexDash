@@ -1,0 +1,5 @@
+{
+  "source_sha256": "A59007204E928527DA43A1855D3CB08C40385EC674F55A6090063156AB19C184",
+  "exit_code": 0,
+  "command": "cargo test -p mdd-types --locked --offline --jobs 1 failure_terminal_preserves_existing_error_details -- --nocapture"
+}

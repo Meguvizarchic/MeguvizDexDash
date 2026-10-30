@@ -1,0 +1,42 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "mdd-query",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "1",
+    "nonpristine_terminal_is_rejected_before_queue_claim",
+    "--",
+    "--nocapture"
+  ],
+  "started_utc": "2026-10-30T09:19:21.027475+00:00",
+  "finished_utc": "2026-10-30T09:19:27.504428+00:00",
+  "exit_code": 0,
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "crates/mdd-query/src/executor.rs": "e0f472ad9169c02da50459b0920e375c66d2b1b561c65c2eeaf9cd8c0813d853",
+    "crates/mdd-query/src/executor/runtime_tests.rs": "a8db14da71cfc7f40b3a309743518aa142b310659b2946773bb1dcffac53b1f9",
+    "crates/mdd-query/src/budget.rs": "9a93a0c99e0209820e16a8fb5b10c2114b5da52d77b82695c1c3f2097cb8947d",
+    "crates/mdd-session/src/lib.rs": "b9d5f682b903fa68951a1fd1acd2761e75b59773023bb98df637a3021d6cc92f",
+    "crates/mdd-session/src/cancellation.rs": "657d7087b991d73b8dcefd27f51706168b6c54a75f3ac1906718b6f159d10fd7",
+    "crates/mdd-types/src/result.rs": "0a78f026d6346bcb57d66d05591b9abb955c74c1fa07d6c5ae6ad3c10e4a6265",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  },
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "crates/mdd-query/src/executor.rs": "e0f472ad9169c02da50459b0920e375c66d2b1b561c65c2eeaf9cd8c0813d853",
+    "crates/mdd-query/src/executor/runtime_tests.rs": "a8db14da71cfc7f40b3a309743518aa142b310659b2946773bb1dcffac53b1f9",
+    "crates/mdd-query/src/budget.rs": "9a93a0c99e0209820e16a8fb5b10c2114b5da52d77b82695c1c3f2097cb8947d",
+    "crates/mdd-session/src/lib.rs": "b9d5f682b903fa68951a1fd1acd2761e75b59773023bb98df637a3021d6cc92f",
+    "crates/mdd-session/src/cancellation.rs": "657d7087b991d73b8dcefd27f51706168b6c54a75f3ac1906718b6f159d10fd7",
+    "crates/mdd-types/src/result.rs": "0a78f026d6346bcb57d66d05591b9abb955c74c1fa07d6c5ae6ad3c10e4a6265",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  },
+  "source_unchanged": true,
+  "stdout_sha256": "a6f3ada7ddfc1454d4a3bc4617ec4ff5a29c9d4c456174363de094a347a8559d",
+  "stderr_sha256": "6d62c2cf3d2105cb837d67a5943f49e26f0c70e034b7e804e2eeb27173b31363",
+  "scope": "targeted local actual query/queue; no profile or full qualification"
+}

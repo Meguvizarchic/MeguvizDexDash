@@ -249,6 +249,82 @@ fn terminal(f: &Fixture) -> TerminalBuilder {
 }
 
 #[test]
+fn nonpristine_terminal_is_rejected_before_queue_claim() {
+    for mutation in ["zero_batch", "nonzero_batch", "computed", "failed"] {
+        let f = setup_with_rows(BudgetLimits::default(), 1);
+        let (sender, mut receiver) =
+            bounded_channel(f.runtime.pool().clone(), Some(f.cancel.clone()), 2).unwrap();
+        let mut builder = terminal(&f);
+        match mutation {
+            "zero_batch" => builder.record_batch(0, 0).unwrap(),
+            "nonzero_batch" => builder.record_batch(0, 1).unwrap(),
+            "computed" => builder.computation_complete(0).unwrap(),
+            "failed" => {
+                builder
+                    .fail(
+                        MddError::new(ErrorCode::InternalFault, "test", "already terminal"),
+                        false,
+                        None,
+                    )
+                    .unwrap();
+            }
+            _ => unreachable!(),
+        }
+        let result = execute_into(
+            &f.prepared,
+            &f.source,
+            ExecutionMode::Streaming,
+            &mut Control::new(ExecutionLimits::default()).with_runtime(f.runtime.clone()),
+            builder,
+            &sender,
+        );
+        match result {
+            Err(error) => {
+                assert_eq!(error.code, ErrorCode::InvalidArgument, "{mutation}");
+                assert_eq!(error.message, "TERMINAL_NOT_FRESH", "{mutation}");
+            }
+            Ok(mut pending) => {
+                // Capture the actual old behavior rather than treating an accepted
+                // nonfresh builder as a harmless test-only state.
+                if let QueueEvent::Data(packet) = receiver.receive().unwrap() {
+                    packet.acknowledge().unwrap();
+                }
+                let _ = receiver.receive().unwrap();
+                let mut receipt = receiver.into_delivery_receipt().unwrap();
+                let error = receipt.finish(&mut pending).unwrap_err();
+                drop(pending);
+                let status = f.cancel.status().unwrap();
+                panic!("{mutation}: execute accepted; receipt={error:?}; lifecycle={status:?}");
+            }
+        }
+        let status = f.cancel.status().unwrap();
+        assert!(
+            status.error.is_none(),
+            "{mutation}: preflight poisoned the query"
+        );
+        let mut pending = execute_into(
+            &f.prepared,
+            &f.source,
+            ExecutionMode::Streaming,
+            &mut Control::new(ExecutionLimits::default()).with_runtime(f.runtime.clone()),
+            terminal(&f),
+            &sender,
+        )
+        .unwrap();
+        let QueueEvent::Data(packet) = receiver.receive().unwrap() else {
+            panic!("{mutation}: fresh query lost its row")
+        };
+        packet.acknowledge().unwrap();
+        assert!(matches!(
+            receiver.receive().unwrap(),
+            QueueEvent::End(Ok(()))
+        ));
+        let mut receipt = receiver.into_delivery_receipt().unwrap();
+        assert!(receipt.finish(&mut pending).unwrap().is_complete_result());
+    }
+}
+
+#[test]
 fn queue_consumer_receives_original_required_facts_failure_end() {
     struct FailedSource<'a>(&'a MemoryCatalog);
     impl FactSource for FailedSource<'_> {
@@ -1987,14 +2063,309 @@ fn delivery_receipt_does_not_succeed_after_query_budget_deadline() {
         assert!(wait_started.elapsed() < std::time::Duration::from_secs(3));
         std::thread::sleep(std::time::Duration::from_millis(2));
     }
-    let error = receipt.finish(&mut pending).unwrap_err();
+    let envelope = receipt.finish(&mut pending).unwrap();
+    let error = envelope.error.as_ref().expect("missing deadline terminal");
     assert_eq!(error.code, ErrorCode::DeadlineExceeded);
     assert_eq!(error.stage, "budget");
     assert_eq!(error.details["budget"], "soft_deadline_ms");
+    assert!(envelope.execution.complete);
+    assert!(!envelope.is_complete_result());
     let status = f.cancel.status().unwrap();
     assert!(status.execution_complete);
     assert!(!status.delivery_complete);
     assert_eq!(status.error.unwrap().code, ErrorCode::DeadlineExceeded);
+}
+
+#[test]
+fn late_delivery_failures_return_coverage_and_computation_envelope() {
+    for scenario in ["budget", "cancel", "worker_lost"] {
+        let limits = if scenario == "budget" {
+            BudgetLimits::default().deadlines(250, 5000).unwrap()
+        } else {
+            BudgetLimits::default()
+        };
+        let f = setup_with_rows(limits, 1);
+        let (sender, mut receiver) =
+            bounded_channel(f.runtime.pool().clone(), Some(f.cancel.clone()), 2).unwrap();
+        let mut pending = execute_into(
+            &f.prepared,
+            &f.source,
+            ExecutionMode::Streaming,
+            &mut Control::new(ExecutionLimits::default()).with_runtime(f.runtime.clone()),
+            terminal(&f),
+            &sender,
+        )
+        .unwrap();
+        let QueueEvent::Data(packet) = receiver.receive().unwrap() else {
+            panic!("{scenario}: missing row")
+        };
+        packet.acknowledge().unwrap();
+        assert!(matches!(
+            receiver.receive().unwrap(),
+            QueueEvent::End(Ok(()))
+        ));
+        let mut receipt = receiver.into_delivery_receipt().unwrap();
+        let (expected_code, expected_stage) = match scenario {
+            "budget" => {
+                let started = std::time::Instant::now();
+                loop {
+                    if let Err(error) = f.runtime.pool().checkpoint() {
+                        assert_eq!(error.code, ErrorCode::DeadlineExceeded);
+                        break;
+                    }
+                    assert!(started.elapsed() < std::time::Duration::from_secs(3));
+                    std::thread::sleep(std::time::Duration::from_millis(2));
+                }
+                (ErrorCode::DeadlineExceeded, "budget")
+            }
+            "cancel" => {
+                f.cancel.cancel().unwrap();
+                (ErrorCode::Cancelled, "lifecycle")
+            }
+            "worker_lost" => {
+                f.lifecycle.worker_lost("late worker loss").unwrap();
+                (ErrorCode::WorkerLost, "worker")
+            }
+            _ => unreachable!(),
+        };
+        let envelope = receipt.finish(&mut pending).unwrap_or_else(|error| {
+            panic!("{scenario}: late failure lost its result envelope: {error:?}")
+        });
+        let error = envelope.error.as_ref().expect("missing failure terminal");
+        assert_eq!(error.code, expected_code, "{scenario}");
+        assert_eq!(error.stage, expected_stage, "{scenario}");
+        assert_eq!(
+            envelope.coverage.input,
+            Completeness::Complete,
+            "{scenario}"
+        );
+        assert_eq!(
+            envelope.coverage.facts,
+            Completeness::Complete,
+            "{scenario}"
+        );
+        assert!(envelope.execution.complete, "{scenario}");
+        assert_eq!(envelope.response.emitted_rows.0, 1, "{scenario}");
+        assert_eq!(envelope.response.total_rows.unwrap().0, 1, "{scenario}");
+        assert!(!envelope.is_complete_result(), "{scenario}");
+        let status = f.cancel.status().unwrap();
+        assert!(status.execution_complete, "{scenario}");
+        assert!(!status.delivery_complete, "{scenario}");
+        assert_eq!(status.error.unwrap().code, expected_code, "{scenario}");
+    }
+}
+
+#[test]
+fn failed_receipt_cleanup_preserves_producer_error_after_query_release() {
+    let f = setup_with_rows(BudgetLimits::default(), 1);
+    let (sender, mut receiver) =
+        bounded_channel(f.runtime.pool().clone(), Some(f.cancel.clone()), 2).unwrap();
+    let mut pending = execute_into(
+        &f.prepared,
+        &f.source,
+        ExecutionMode::Streaming,
+        &mut Control::new(ExecutionLimits {
+            max_output_rows: 0,
+            ..ExecutionLimits::default()
+        })
+        .with_runtime(f.runtime.clone()),
+        terminal(&f),
+        &sender,
+    )
+    .unwrap();
+    let QueueEvent::End(end) = receiver.receive().unwrap() else {
+        panic!("quota failure did not produce End")
+    };
+    assert_eq!(end.unwrap_err().code, ErrorCode::QuotaExceeded);
+    let mut receipt = receiver.into_delivery_receipt().unwrap();
+    f.lifecycle.release_query(f.cancel.query_handle()).unwrap();
+    let error = receipt.finish(&mut pending).unwrap_err();
+    assert_eq!(error.code, ErrorCode::QuotaExceeded);
+    assert!(error.details.contains_key("receipt_cleanup_error"));
+    assert!(!pending.completed);
+}
+
+#[test]
+fn failed_receipt_cleanup_does_not_overwrite_prior_details() {
+    let f = setup_with_rows(BudgetLimits::default(), 1);
+    let (sender, mut receiver) =
+        bounded_channel(f.runtime.pool().clone(), Some(f.cancel.clone()), 2).unwrap();
+    let mut control = Control::new(ExecutionLimits::default())
+        .with_runtime(f.runtime.clone())
+        .with_hook(|point| {
+            if point.phase == "output_row" {
+                return Err(
+                    MddError::new(ErrorCode::QuotaExceeded, "test.prior", "prior quota")
+                        .detail("receipt_cleanup_error", "original")
+                        .detail("receipt_cleanup_error_0", "collision"),
+                );
+            }
+            Ok(())
+        });
+    let mut pending = execute_into(
+        &f.prepared,
+        &f.source,
+        ExecutionMode::Streaming,
+        &mut control,
+        terminal(&f),
+        &sender,
+    )
+    .unwrap();
+    let QueueEvent::End(end) = receiver.receive().unwrap() else {
+        panic!("quota failure did not produce End")
+    };
+    let prior = end.unwrap_err();
+    let mut receipt = receiver.into_delivery_receipt().unwrap();
+    f.lifecycle.release_query(f.cancel.query_handle()).unwrap();
+    let error = receipt.finish(&mut pending).unwrap_err();
+    assert_eq!(error.code, prior.code);
+    assert_eq!(error.stage, prior.stage);
+    assert_eq!(error.message, prior.message);
+    for (name, value) in &prior.details {
+        assert_eq!(error.details.get(name), Some(value));
+    }
+    assert!(error.details["receipt_cleanup_error_1"].is_string());
+    assert!(!pending.completed);
+}
+
+#[test]
+fn inconsistent_terminal_count_never_fabricates_an_envelope() {
+    let f = setup_with_rows(BudgetLimits::default(), 1);
+    let (sender, mut receiver) =
+        bounded_channel(f.runtime.pool().clone(), Some(f.cancel.clone()), 2).unwrap();
+    let mut pending = execute_into(
+        &f.prepared,
+        &f.source,
+        ExecutionMode::Streaming,
+        &mut Control::new(ExecutionLimits::default()).with_runtime(f.runtime.clone()),
+        terminal(&f),
+        &sender,
+    )
+    .unwrap();
+    let QueueEvent::Data(packet) = receiver.receive().unwrap() else {
+        panic!("missing row")
+    };
+    packet.acknowledge().unwrap();
+    assert!(matches!(
+        receiver.receive().unwrap(),
+        QueueEvent::End(Ok(()))
+    ));
+    let mut receipt = receiver.into_delivery_receipt().unwrap();
+    // Test-only corruption models an internal exact-count inconsistency.
+    let mut inconsistent = terminal(&f);
+    inconsistent.computation_complete(0).unwrap();
+    pending.terminal = Some(inconsistent);
+    let error = receipt.finish(&mut pending).unwrap_err();
+    assert_eq!(error.code, ErrorCode::InvalidArgument);
+    assert_eq!(error.details["actual_consumed_rows"], "1");
+    let status = f.cancel.status().unwrap();
+    assert_eq!(
+        status.error.as_ref().unwrap().details["actual_consumed_rows"],
+        "1"
+    );
+    assert!(!status.delivery_complete);
+    assert!(!pending.completed);
+}
+
+#[test]
+fn inconsistent_count_preserves_prior_quota_and_reports_consumed_rows() {
+    let f = setup_with_rows(BudgetLimits::default(), 2);
+    let (sender, mut receiver) =
+        bounded_channel(f.runtime.pool().clone(), Some(f.cancel.clone()), 2).unwrap();
+    let mut pending = execute_into(
+        &f.prepared,
+        &f.source,
+        ExecutionMode::Streaming,
+        &mut Control::new(ExecutionLimits {
+            max_output_rows: 1,
+            ..ExecutionLimits::default()
+        })
+        .with_runtime(f.runtime.clone()),
+        terminal(&f),
+        &sender,
+    )
+    .unwrap();
+    let QueueEvent::Data(packet) = receiver.receive().unwrap() else {
+        panic!("missing acknowledged prefix")
+    };
+    packet.acknowledge().unwrap();
+    let QueueEvent::End(end) = receiver.receive().unwrap() else {
+        panic!("missing quota End")
+    };
+    let prior = end.unwrap_err();
+    assert_eq!(prior.code, ErrorCode::QuotaExceeded);
+    let mut receipt = receiver.into_delivery_receipt().unwrap();
+    // Test-only corruption models a builder whose total contradicts consumed rows.
+    let mut inconsistent = terminal(&f);
+    inconsistent.computation_complete(0).unwrap();
+    pending.terminal = Some(inconsistent);
+    let error = receipt.finish(&mut pending).unwrap_err();
+    assert_eq!(error.code, prior.code);
+    assert_eq!(error.stage, prior.stage);
+    assert_eq!(error.message, prior.message);
+    for (name, value) in &prior.details {
+        assert_eq!(error.details.get(name), Some(value));
+    }
+    assert_eq!(error.details["actual_consumed_rows"], "1");
+    assert_eq!(f.cancel.status().unwrap().error.unwrap().code, prior.code);
+    assert!(!pending.completed);
+}
+
+#[test]
+fn inconsistent_count_does_not_overwrite_existing_first_error_details() {
+    let f = setup_with_rows(BudgetLimits::default(), 2);
+    let (sender, mut receiver) =
+        bounded_channel(f.runtime.pool().clone(), Some(f.cancel.clone()), 2).unwrap();
+    let mut output_rows = 0;
+    let mut control = Control::new(ExecutionLimits::default())
+        .with_runtime(f.runtime.clone())
+        .with_hook(move |checkpoint| {
+            if checkpoint.phase == "output_row" {
+                output_rows += 1;
+                if output_rows == 2 {
+                    return Err(MddError::new(
+                        ErrorCode::QuotaExceeded,
+                        "test.prior",
+                        "prior quota",
+                    )
+                    .detail("actual_consumed_rows", "original-detail")
+                    .detail("receipt_actual_consumed_rows_0", "prior-collision"));
+                }
+            }
+            Ok(())
+        });
+    let mut pending = execute_into(
+        &f.prepared,
+        &f.source,
+        ExecutionMode::Streaming,
+        &mut control,
+        terminal(&f),
+        &sender,
+    )
+    .unwrap();
+    let QueueEvent::Data(packet) = receiver.receive().unwrap() else {
+        panic!("missing acknowledged prefix")
+    };
+    packet.acknowledge().unwrap();
+    let QueueEvent::End(end) = receiver.receive().unwrap() else {
+        panic!("missing prior error End")
+    };
+    let prior = end.unwrap_err();
+    assert_eq!(prior.details["actual_consumed_rows"], "original-detail");
+    let mut receipt = receiver.into_delivery_receipt().unwrap();
+    // Test-only corruption models a builder whose total contradicts consumed rows.
+    let mut inconsistent = terminal(&f);
+    inconsistent.computation_complete(0).unwrap();
+    pending.terminal = Some(inconsistent);
+    let error = receipt.finish(&mut pending).unwrap_err();
+    assert_eq!(error.code, prior.code);
+    assert_eq!(error.stage, prior.stage);
+    assert_eq!(error.message, prior.message);
+    for (name, value) in &prior.details {
+        assert_eq!(error.details.get(name), Some(value));
+    }
+    assert_eq!(error.details["receipt_actual_consumed_rows_1"], "1");
+    assert!(!pending.completed);
 }
 
 #[test]
@@ -2079,7 +2450,9 @@ fn worker_loss_and_cancel_before_final_receipt_are_not_success() {
     ));
     let mut receipt = receiver.into_delivery_receipt().unwrap();
     f.cancel.cancel().unwrap();
-    assert!(receipt.finish(&mut pending).is_err());
+    let envelope = receipt.finish(&mut pending).unwrap();
+    assert_eq!(envelope.error.as_ref().unwrap().code, ErrorCode::Cancelled);
+    assert!(!envelope.is_complete_result());
     assert_eq!(
         f.cancel.status().unwrap().error.unwrap().code,
         ErrorCode::Cancelled

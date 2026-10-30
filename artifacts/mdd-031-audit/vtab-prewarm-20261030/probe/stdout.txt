@@ -1,0 +1,6 @@
+
+running 1 test
+test provider::metadata::tests::schema_only_prepare_reuses_eponymous_connection_after_restoring_cell_limit ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 101 filtered out; finished in 0.00s
+

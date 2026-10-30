@@ -1,0 +1,27 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "mdd-types",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "1",
+    "pristine_builder_rejects_even_a_recorded_zero_row_batch",
+    "--",
+    "--nocapture"
+  ],
+  "started_utc": "2026-10-30T09:29:53.447133+00:00",
+  "finished_utc": "2026-10-30T09:29:56.459490+00:00",
+  "exit_code": 0,
+  "source_sha256": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "crates/mdd-types/src/result.rs": "fe4e5c0631f0bfd4eea98dab9425351310e7cf06db8f64db2880d7a63c128b81",
+    "crates/mdd-types/src/lib.rs": "12b8b0bdd6d2eb549548880e2730c0837902bf6dc31a5508489f4d87a158437c"
+  },
+  "source_unchanged": true,
+  "stdout_sha256": "9357969bbd7cf4f595b101bb3256d0c80e72775caaee23e847eb868c19313467",
+  "stderr_sha256": "40e769b9c8bf2ab96915037df816bc9e370b6933f4eb5e5131a1553d7931089f",
+  "scope": "targeted builder invariant; no full qualification"
+}

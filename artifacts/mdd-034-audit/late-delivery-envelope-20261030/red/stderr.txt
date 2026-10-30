@@ -1,0 +1,13 @@
+   Compiling mdd-types v0.1.0-dev (D:\MeguvisDexDash\crates\mdd-types)
+   Compiling mdd-input v0.1.0-dev (D:\MeguvisDexDash\crates\mdd-input)
+   Compiling mdd-dex v0.1.0-dev (D:\MeguvisDexDash\crates\mdd-dex)
+   Compiling mdd-facts v0.1.0-dev (D:\MeguvisDexDash\crates\mdd-facts)
+   Compiling mdd-session v0.1.0-dev (D:\MeguvisDexDash\crates\mdd-session)
+   Compiling mdd-query v0.1.0-dev (D:\MeguvisDexDash\crates\mdd-query)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.91s
+     Running unittests src\lib.rs (target\debug\deps\mdd_query-82579f4092cfd058.exe)
+
+thread 'executor::runtime_tests::late_delivery_failures_return_coverage_and_computation_envelope' (37484) panicked at crates\mdd-query\src\executor\runtime_tests.rs:2129:13:
+budget: late failure lost its result envelope: MddError { code: DeadlineExceeded, stage: "budget", message: "query deadline reached", retryable: false, details: {"budget": String("soft_deadline_ms"), "deadline_kind": String("soft"), "limit": String("249"), "observed": String("250"), "owner": String("query-348ccb7c0f4ecdb8d5f23f8ce9af407a5e3e378f38eab4e2878b0ea0751899b7"), "supervisor_termination_required": Bool(false)} }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p mdd-query --lib`
