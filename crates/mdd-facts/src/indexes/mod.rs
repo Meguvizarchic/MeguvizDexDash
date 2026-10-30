@@ -13,7 +13,7 @@ use crate::{
     },
 };
 use lazy::{IndexAudit, LazyIndex};
-use mdd_dex::annotations::{EncodedKind, MethodHandleTarget};
+use mdd_dex::annotations::{AnnotationOwnerBinding, EncodedKind, MethodHandleTarget};
 use mdd_types::{ErrorCode, MddError, MddResult};
 pub use scope::{
     OccurrencePoolCoordinate, ScopedPoolCoordinates, SelectedDex, SelectedInput, SelectedScope,
@@ -207,6 +207,47 @@ struct MethodHandleIndex {
 }
 struct CallerSiteIndex {
     sites: BTreeMap<Atom, Vec<u32>>,
+}
+#[derive(Clone, Copy, Debug)]
+struct AnnotationOwnerAtom {
+    view: u32,
+    owner: u32,
+    item: u32,
+    set: u32,
+    ordinal: u32,
+}
+struct AnnotationTypeIndex {
+    owners: BTreeMap<Vec<u16>, Vec<AnnotationOwnerAtom>>,
+}
+/// An encoded owner-to-annotation occurrence, not an inferred runtime annotation.
+#[derive(Clone, Debug, Serialize)]
+pub struct AnnotationOwnerMatch {
+    pub dex_occurrence_id: String,
+    pub annotation_byte_offset: u32,
+    pub annotation_set_byte_offset: u32,
+    pub set_ordinal: u32,
+    pub owner: AnnotationOwnerBinding,
+}
+#[derive(Clone, Debug, Serialize)]
+pub struct AnnotationOwnerMatches {
+    pub snapshot_id: String,
+    pub scope_id: String,
+    pub index_attempt: Option<IndexAudit>,
+    pub access_path: &'static str,
+    pub candidate_count: u64,
+    pub matches: Vec<AnnotationOwnerMatch>,
+    /// No matching encoded owner association was found in the selected scope.
+    /// This does not assert complete prototype parameter positions or runtime annotations.
+    pub absence_proven_within_selected_scope: bool,
+    pub covers_all_captured_sources: bool,
+    pub coverage: CoverageReport,
+}
+fn annotation_inconsistent() -> MddError {
+    MddError::new(
+        ErrorCode::InternalFault,
+        "facts.annotation_index",
+        "validated annotation owner facts are inconsistent",
+    )
 }
 enum HandleTargetRef<'a> {
     Field {
@@ -470,6 +511,7 @@ pub struct SnapshotFactIndex<'a> {
     prototype_references: LazyIndex<PrototypeReferenceIndex>,
     method_handles: LazyIndex<MethodHandleIndex>,
     caller_sites: LazyIndex<CallerSiteIndex>,
+    annotation_types: LazyIndex<AnnotationTypeIndex>,
 }
 
 impl<'a> SnapshotFactIndex<'a> {
@@ -532,6 +574,11 @@ impl<'a> SnapshotFactIndex<'a> {
                 "encoded-caller-site-candidates-v1",
                 limits.max_build_attempts,
             )?,
+            annotation_types: LazyIndex::new(
+                scope.scope_id(),
+                "annotation-type-owner-candidates-v1",
+                limits.max_build_attempts,
+            )?,
             scope,
             views: ordered,
             by_occurrence,
@@ -555,6 +602,7 @@ impl<'a> SnapshotFactIndex<'a> {
             self.prototype_references.audit()?,
             self.method_handles.audit()?,
             self.caller_sites.audit()?,
+            self.annotation_types.audit()?,
         ])
     }
     fn require(&self, layer: FactLayer) -> MddResult<CoverageReport> {
@@ -1303,6 +1351,261 @@ impl<'a> SnapshotFactIndex<'a> {
     pub fn retry_definition_index(&self) -> MddResult<IndexAudit> {
         self.definitions.retry_failed(|| self.build_definitions())?;
         self.definitions.audit()
+    }
+    fn annotation_descriptor(&self, atom: AnnotationOwnerAtom) -> MddResult<&[u16]> {
+        let view = self
+            .views
+            .get(atom.view as usize)
+            .ok_or_else(annotation_inconsistent)?;
+        let facts = view.annotations.ok_or_else(annotation_inconsistent)?;
+        let item = facts
+            .data()
+            .annotation_items
+            .get(atom.item as usize)
+            .ok_or_else(annotation_inconsistent)?;
+        let metadata = facts.definitions().metadata();
+        let ty = metadata
+            .types()
+            .get(item.type_idx as usize)
+            .ok_or_else(annotation_inconsistent)?;
+        if ty.entity.local_index != item.type_idx {
+            return Err(annotation_inconsistent());
+        }
+        let text = metadata
+            .strings()
+            .get(ty.descriptor_string.local_index as usize)
+            .ok_or_else(annotation_inconsistent)?;
+        if text.entity != ty.descriptor_string {
+            return Err(annotation_inconsistent());
+        }
+        Ok(&text.data.text.utf16_units)
+    }
+
+    // Logical visit/temporary-map limits only; neither allocator RSS nor CPU time is bounded.
+    fn walk_annotation_owners(
+        &self,
+        budget: &mut Budget,
+        mut visit: impl FnMut(AnnotationOwnerAtom, &mut Budget) -> MddResult<()>,
+    ) -> MddResult<()> {
+        budget.charge(0, 0)?;
+        for (view_id, view) in self.views.iter().enumerate() {
+            let facts = view.annotations.ok_or_else(|| {
+                MddError::new(
+                    ErrorCode::IncompleteFacts,
+                    "facts.index",
+                    "annotations not built",
+                )
+            })?;
+            let data = facts.data();
+            let view_id = u32::try_from(view_id).map_err(|_| quota("INDEX_ENTRY_BUDGET"))?;
+            let mut sets = BTreeMap::new();
+            for (index, item) in data.sets.iter().enumerate() {
+                budget.charge(1, 48)?;
+                let index = u32::try_from(index).map_err(|_| quota("INDEX_ENTRY_BUDGET"))?;
+                if item.encoded_range.byte_offset.0 != u64::from(item.byte_offset)
+                    || sets.insert(item.byte_offset, index).is_some()
+                {
+                    return Err(annotation_inconsistent());
+                }
+            }
+            let mut items = BTreeMap::new();
+            for (index, item) in data.annotation_items.iter().enumerate() {
+                budget.charge(1, 48)?;
+                let index = u32::try_from(index).map_err(|_| quota("INDEX_ENTRY_BUDGET"))?;
+                if item.encoded_range.byte_offset.0 != u64::from(item.byte_offset)
+                    || items.insert(item.byte_offset, index).is_some()
+                {
+                    return Err(annotation_inconsistent());
+                }
+            }
+            for (owner_id, owner) in data.owner_bindings.iter().enumerate() {
+                budget.charge(1, 0)?;
+                let Some(offset) = owner.annotation_set_offset else {
+                    continue;
+                };
+                let set_index = *sets.get(&offset).ok_or_else(annotation_inconsistent)?;
+                let set = data
+                    .sets
+                    .get(set_index as usize)
+                    .ok_or_else(annotation_inconsistent)?;
+                let owner_id = u32::try_from(owner_id).map_err(|_| quota("INDEX_ENTRY_BUDGET"))?;
+                for (ordinal, offset) in set.annotation_offsets.iter().enumerate() {
+                    budget.charge(1, 0)?;
+                    let atom = AnnotationOwnerAtom {
+                        view: view_id,
+                        owner: owner_id,
+                        item: *items.get(offset).ok_or_else(annotation_inconsistent)?,
+                        set: set_index,
+                        ordinal: u32::try_from(ordinal).map_err(|_| quota("INDEX_ENTRY_BUDGET"))?,
+                    };
+                    visit(atom, budget)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn build_annotation_types(&self) -> MddResult<AnnotationTypeIndex> {
+        self.require(FactLayer::Annotations)?;
+        let mut index = AnnotationTypeIndex {
+            owners: BTreeMap::new(),
+        };
+        let mut budget = Budget::new(self.limits);
+        self.walk_annotation_owners(&mut budget, |atom, budget| {
+            let key = self.annotation_descriptor(atom)?;
+            if !index.owners.contains_key(key) {
+                let bytes = u64::try_from(key.len())
+                    .ok()
+                    .and_then(|n| n.checked_mul(2))
+                    .and_then(|n| n.checked_add(64))
+                    .ok_or_else(|| quota("INDEX_BYTE_BUDGET"))?;
+                budget.charge(0, bytes)?;
+            }
+            budget.charge(1, std::mem::size_of::<AnnotationOwnerAtom>() as u64)?;
+            if let Some(postings) = index.owners.get_mut(key) {
+                postings
+                    .try_reserve(1)
+                    .map_err(|_| quota("INDEX_ALLOCATION"))?;
+                postings.push(atom);
+            } else {
+                index.owners.insert(key.to_vec(), vec![atom]);
+            }
+            Ok(())
+        })?;
+        Ok(index)
+    }
+
+    fn annotation_owner_match(&self, atom: AnnotationOwnerAtom) -> MddResult<AnnotationOwnerMatch> {
+        let view = self
+            .views
+            .get(atom.view as usize)
+            .ok_or_else(annotation_inconsistent)?;
+        let facts = view.annotations.ok_or_else(annotation_inconsistent)?;
+        let data = facts.data();
+        let owner = data
+            .owner_bindings
+            .get(atom.owner as usize)
+            .ok_or_else(annotation_inconsistent)?;
+        let item = data
+            .annotation_items
+            .get(atom.item as usize)
+            .ok_or_else(annotation_inconsistent)?;
+        let offset = owner
+            .annotation_set_offset
+            .ok_or_else(annotation_inconsistent)?;
+        // Recheck every posting, including ordinal and physical identity, against immutable facts.
+        let set = data
+            .sets
+            .get(atom.set as usize)
+            .ok_or_else(annotation_inconsistent)?;
+        if set.byte_offset != offset
+            || set.annotation_offsets.get(atom.ordinal as usize) != Some(&item.byte_offset)
+        {
+            return Err(annotation_inconsistent());
+        }
+        Ok(AnnotationOwnerMatch {
+            dex_occurrence_id: view.occurrence().to_owned(),
+            annotation_byte_offset: item.byte_offset,
+            annotation_set_byte_offset: offset,
+            set_ordinal: atom.ordinal,
+            owner: owner.clone(),
+        })
+    }
+
+    fn annotation_owner_result(
+        &self,
+        descriptor: &[u16],
+        scalar: bool,
+    ) -> MddResult<AnnotationOwnerMatches> {
+        if descriptor.len() > 1_000_000 {
+            return Err(quota("INDEX_PREDICATE_BUDGET"));
+        }
+        let coverage = self.require(FactLayer::Annotations)?;
+        let mut matches = Vec::new();
+        let mut bytes = 0u64;
+        let mut candidates = 0u64;
+        let mut append = |atom: AnnotationOwnerAtom| -> MddResult<()> {
+            candidates = candidates
+                .checked_add(1)
+                .ok_or_else(|| quota("INDEX_RESULT_BUDGET"))?;
+            if self.annotation_descriptor(atom)? != descriptor {
+                return Ok(());
+            }
+            let view = self
+                .views
+                .get(atom.view as usize)
+                .ok_or_else(annotation_inconsistent)?;
+            let cost = u64::try_from(view.occurrence().len())
+                .ok()
+                .and_then(|v| v.checked_add(std::mem::size_of::<AnnotationOwnerMatch>() as u64))
+                .ok_or_else(|| quota("INDEX_RESULT_BYTE_BUDGET"))?;
+            bytes = bytes
+                .checked_add(cost)
+                .ok_or_else(|| quota("INDEX_RESULT_BYTE_BUDGET"))?;
+            if matches.len() as u64 >= self.limits.max_result_entries
+                || bytes > self.limits.max_result_bytes
+            {
+                return Err(quota("INDEX_RESULT_BUDGET"));
+            }
+            matches
+                .try_reserve(1)
+                .map_err(|_| quota("INDEX_RESULT_ALLOCATION"))?;
+            matches.push(self.annotation_owner_match(atom)?);
+            Ok(())
+        };
+        if scalar {
+            let mut budget = Budget::new(self.limits);
+            self.walk_annotation_owners(&mut budget, |atom, _| append(atom))?;
+        } else {
+            let index = self
+                .annotation_types
+                .get_or_build(|| self.build_annotation_types())?;
+            let mut budget = Budget::new(self.limits);
+            budget.charge(0, 0)?;
+            if let Some(atoms) = index.owners.get(descriptor) {
+                for atom in atoms {
+                    budget.charge(1, 0)?;
+                    append(*atom)?;
+                }
+            }
+        }
+        Ok(AnnotationOwnerMatches {
+            snapshot_id: self.scope.snapshot_id().into(),
+            scope_id: self.scope.scope_id().into(),
+            index_attempt: if scalar {
+                None
+            } else {
+                Some(self.annotation_types.audit()?)
+            },
+            access_path: if scalar {
+                "scalar_annotation_owner_scan"
+            } else {
+                "annotation_type_candidates_then_exact"
+            },
+            candidate_count: candidates,
+            absence_proven_within_selected_scope: matches.is_empty(),
+            covers_all_captured_sources: self.scope.covers_all_captured_sources(),
+            matches,
+            coverage,
+        })
+    }
+    /// Exact UTF-16 type descriptor, over encoded owner occurrences only.
+    pub fn annotation_owners_by_type(
+        &self,
+        descriptor: &[u16],
+    ) -> MddResult<AnnotationOwnerMatches> {
+        self.annotation_owner_result(descriptor, false)
+    }
+    pub fn annotation_owners_by_type_scalar(
+        &self,
+        descriptor: &[u16],
+    ) -> MddResult<AnnotationOwnerMatches> {
+        self.annotation_owner_result(descriptor, true)
+    }
+    pub fn retry_annotation_type_index(&self) -> MddResult<IndexAudit> {
+        self.annotation_types
+            .retry_failed(|| self.build_annotation_types())?;
+        self.annotation_types.audit()
     }
     pub fn retry_reference_symbol_index(&self) -> MddResult<IndexAudit> {
         self.reference_symbols

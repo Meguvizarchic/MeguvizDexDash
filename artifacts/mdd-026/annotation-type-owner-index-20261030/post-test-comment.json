@@ -1,0 +1,10 @@
+{
+  "schema_version": "mdd.post-test-change.v1",
+  "recorded_utc": "2026-10-30T13:53:30.316226+00:00",
+  "test_record": "run1/record.json",
+  "file": "crates/mdd-facts/src/indexes/mod.rs",
+  "test_source_sha256": "7b99eb5ec2be0176030061889f83fcb1d05206f4d09f4b894e82d7a46fe53a1c",
+  "current_source_sha256": "4d02d5375908d59ce3b5d6d7a5db3cd1d7954a0892e94aefffd90d4fd34795e8",
+  "change": "Two documentation comment lines clarify that absence is restricted to encoded owner associations in the selected scope and does not assert complete prototype parameter positions or runtime annotations. No executable code changed.",
+  "test_after_comment": "not_run"
+}

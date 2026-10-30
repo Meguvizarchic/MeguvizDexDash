@@ -4638,14 +4638,29 @@
       "sha256": "213e0951d674c01263261e042036720bab29928fabccc5297cd19c7d17bf7e8d"
     },
     {
+      "path": "artifacts/mdd-005/scope-verifier-20261030/cross-run3/record.json",
+      "bytes": 2394,
+      "sha256": "8170c3adb2e98c322959586ea1014979e89c3043233767c6549029e53467d811"
+    },
+    {
+      "path": "artifacts/mdd-005/scope-verifier-20261030/cross-run3/rust.stderr",
+      "bytes": 292,
+      "sha256": "11f741b819fb86f7bf11eadd50e5496d4df0267e04676345ce42839822942b80"
+    },
+    {
+      "path": "artifacts/mdd-005/scope-verifier-20261030/cross-run3/rust.stdout",
+      "bytes": 2790,
+      "sha256": "3dd997b2b19e7badf8f5c07438ae492091547960c2119deada9ca2b3293f8fdb"
+    },
+    {
       "path": "artifacts/mdd-005/scope-verifier-20261030/cross_check.py",
-      "bytes": 4808,
-      "sha256": "366711dcf41a948deb5c99eaceb0a5ddf7cbfa3a746410675a58080d82849905"
+      "bytes": 5443,
+      "sha256": "9ecf7318da2d7b66c0b531e65a566288897fbfc7a657cd51e00c4eb7af51d249"
     },
     {
       "path": "artifacts/mdd-005/scope-verifier-20261030/probe.py",
-      "bytes": 4210,
-      "sha256": "8501a6f83e81b5d0b38213b472d07802a82c9192d2a63f708775d6430dbdeedb"
+      "bytes": 5549,
+      "sha256": "3fb5b16f90c7db73c888076dfbc5d83ab523884ec0b71423f2737381771882cd"
     },
     {
       "path": "artifacts/mdd-005/scope-verifier-20261030/python-final/output.txt",
@@ -4673,6 +4688,36 @@
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     {
+      "path": "artifacts/mdd-005/scope-verifier-20261030/python-final3/record.json",
+      "bytes": 1095,
+      "sha256": "6e9b68e08eb4c9e489898fcb6394a03d733e2e6aac8c75d8790b465d88fac80b"
+    },
+    {
+      "path": "artifacts/mdd-005/scope-verifier-20261030/python-final3/stderr.txt",
+      "bytes": 109,
+      "sha256": "e1936176d1302be627fcf3d0dd34188030a90fc8a0c0347d68716eb5320ece0e"
+    },
+    {
+      "path": "artifacts/mdd-005/scope-verifier-20261030/python-final3/stdout.txt",
+      "bytes": 82,
+      "sha256": "88fe6712c06373dfe7d19f95665cd3911ce55059a02df216750e9f054ac1d864"
+    },
+    {
+      "path": "artifacts/mdd-005/scope-verifier-20261030/python-final4/record.json",
+      "bytes": 1095,
+      "sha256": "38732e029b884b8d5980e0a768eba11aaed546515e260325b393f945557f7933"
+    },
+    {
+      "path": "artifacts/mdd-005/scope-verifier-20261030/python-final4/stderr.txt",
+      "bytes": 109,
+      "sha256": "08124153c60525393b678757862485fbc55ab87d08abe416edb1c38893a02e58"
+    },
+    {
+      "path": "artifacts/mdd-005/scope-verifier-20261030/python-final4/stdout.txt",
+      "bytes": 82,
+      "sha256": "88fe6712c06373dfe7d19f95665cd3911ce55059a02df216750e9f054ac1d864"
+    },
+    {
       "path": "artifacts/mdd-005/scope-verifier-20261030/python/output.txt",
       "bytes": 106,
       "sha256": "8ee4669655aaed29bbc70e28a8ef25f73d1ebe2b002448e637699b5a2cbcaa41"
@@ -4681,6 +4726,11 @@
       "path": "artifacts/mdd-005/scope-verifier-20261030/python/record.json",
       "bytes": 682,
       "sha256": "1299b2757fb3a7527f6bbaa16b9e80c0f5698ab710dcec028c9449ae73c5669a"
+    },
+    {
+      "path": "artifacts/mdd-005/scope-verifier-20261030/redaction-next.json",
+      "bytes": 585,
+      "sha256": "465cec4b00739f43f5b561a143f1ae9811d1b4a2059254908f5957d39e8d94a3"
     },
     {
       "path": "artifacts/mdd-005/scope-verifier-20261030/redaction.json",
@@ -9091,6 +9141,26 @@
       "path": "artifacts/mdd-026/annotation-owner-view-20261030/run2/record.json",
       "bytes": 1455,
       "sha256": "c345bdf0f90be07dc94cb134c8dfcc9d01c9888fa199b203733662b1b56c039a"
+    },
+    {
+      "path": "artifacts/mdd-026/annotation-type-owner-index-20261030/post-test-comment.json",
+      "bytes": 667,
+      "sha256": "6c59d4af23fd6d4251cf6713e42d4b0e2d32251f7e1d5a959479c71ffc31365e"
+    },
+    {
+      "path": "artifacts/mdd-026/annotation-type-owner-index-20261030/run1/record.json",
+      "bytes": 4206,
+      "sha256": "9a8ae39445da7a18a103ef4ac71bd25daddc2e9685a7096e3a770bfb41bb7b2f"
+    },
+    {
+      "path": "artifacts/mdd-026/annotation-type-owner-index-20261030/run1/stderr.txt",
+      "bytes": 430,
+      "sha256": "566503e3fc83e521cdab77f2be63c18d810e0074db18207cba9b4c94c3d3d552"
+    },
+    {
+      "path": "artifacts/mdd-026/annotation-type-owner-index-20261030/run1/stdout.txt",
+      "bytes": 442,
+      "sha256": "4485e6e32cebe3c5fc53f4b954b970629a913d39b2b654b8b65ce2e6f98b6a54"
     },
     {
       "path": "artifacts/mdd-026/borrowed-method-calls-20261030/run1/output.txt",
@@ -22721,6 +22791,26 @@
       "path": "artifacts/mdd-031-audit/native-annotation-sets-20261030/run1/record.json",
       "bytes": 2279,
       "sha256": "2315bbf1eb4fe75e4a3f761620c4b84d79f4b79c3baf5a97cfe13ff705d7b76c"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/native-class-details-20261030/run.py",
+      "bytes": 1880,
+      "sha256": "d41c4f06c14568927d338a483ca689d1afced827471af14114de4b3712faf0bf"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/native-class-details-20261030/run1/record.json",
+      "bytes": 2439,
+      "sha256": "17ac9c92729a0b1281b3cfcea6158c0bca92a9531c98411c45641760b58c0b19"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/native-class-details-20261030/run1/stderr.txt",
+      "bytes": 348,
+      "sha256": "e0ce4497468e8f846432cad339b7d0b4570a2a4c45e1257caea1d1705758bb1e"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/native-class-details-20261030/run1/stdout.txt",
+      "bytes": 218,
+      "sha256": "8d2ef47355dab86be95aeb2639e05b4754dcfa15621baf936f25af3d4ad81853"
     },
     {
       "path": "artifacts/mdd-031-audit/native-classes-20261030/integrated/output.txt",

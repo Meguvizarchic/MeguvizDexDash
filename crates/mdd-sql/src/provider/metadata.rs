@@ -524,6 +524,7 @@ impl DefinitionSqlProvider {
 #[derive(Clone, Copy)]
 enum DefinitionRelation {
     Classes,
+    ClassDetails,
     Interfaces,
     MethodReferences,
     MethodDefinitions,
@@ -534,6 +535,8 @@ impl DefinitionRelation {
     fn parse(name: &str) -> MddResult<Self> {
         if name.eq_ignore_ascii_case("native_classes") {
             Ok(Self::Classes)
+        } else if name.eq_ignore_ascii_case("native_class_definition_details") {
+            Ok(Self::ClassDetails)
         } else if name.eq_ignore_ascii_case("native_class_interfaces") {
             Ok(Self::Interfaces)
         } else if name.eq_ignore_ascii_case("native_method_references") {
@@ -612,6 +615,34 @@ impl SqlFactCursor for DefinitionCursor {
             let metadata = facts.metadata();
             let source = metadata.source();
             let row = match self.relation {
+                DefinitionRelation::ClassDetails => {
+                    let Some(class) = facts.definitions().classes.get(self.ordinal) else {
+                        self.occurrence += 1;
+                        self.ordinal = 0;
+                        continue;
+                    };
+                    self.control.work(160)?;
+                    let range = class.class_data_range.as_ref();
+                    vec![
+                        scalar_text(&source.dex_occurrence_id, &self.control)?,
+                        SqlValue::U64(DecimalU64(class.class_def_idx.into())),
+                        SqlValue::U64(DecimalU64(class.access_flags.into())),
+                        class
+                            .annotations_byte_offset
+                            .map_or(SqlValue::Null, SqlValue::U64),
+                        class
+                            .static_values_byte_offset
+                            .map_or(SqlValue::Null, SqlValue::U64),
+                        range.map_or(SqlValue::Null, |r| SqlValue::U64(r.byte_offset)),
+                        range.map_or(SqlValue::Null, |r| SqlValue::U64(r.byte_length)),
+                        SqlValue::U64(DecimalU64(class.static_fields_count.into())),
+                        SqlValue::U64(DecimalU64(class.instance_fields_count.into())),
+                        SqlValue::U64(DecimalU64(class.direct_methods_count.into())),
+                        SqlValue::U64(DecimalU64(class.virtual_methods_count.into())),
+                        SqlValue::U64(class.encoded_range.byte_offset),
+                        SqlValue::U64(class.encoded_range.byte_length),
+                    ]
+                }
                 DefinitionRelation::Classes => {
                     let Some(class) = facts.definitions().classes.get(self.ordinal) else {
                         self.occurrence += 1;
@@ -829,6 +860,27 @@ impl SqlFactProvider for DefinitionSqlProvider {
             estimated_rows: Some(DecimalU64(count)),
         };
         Ok(vec![
+            // These are the offsets declared by class_def. A present annotation
+            // or static-values offset is not proof of a validated item start.
+            relation(
+                "native_class_definition_details",
+                &[
+                    ("dex_occurrence_id", SqlType::Text, false),
+                    ("class_def_idx", SqlType::U64, false),
+                    ("access_flags", SqlType::U64, false),
+                    ("annotations_offset", SqlType::U64, true),
+                    ("static_values_offset", SqlType::U64, true),
+                    ("class_data_offset", SqlType::U64, true),
+                    ("class_data_length", SqlType::U64, true),
+                    ("static_fields_count", SqlType::U64, false),
+                    ("instance_fields_count", SqlType::U64, false),
+                    ("direct_methods_count", SqlType::U64, false),
+                    ("virtual_methods_count", SqlType::U64, false),
+                    ("encoded_offset", SqlType::U64, false),
+                    ("encoded_length", SqlType::U64, false),
+                ],
+                classes,
+            ),
             relation(
                 "native_classes",
                 &[
@@ -3833,6 +3885,114 @@ mod tests {
                 .code,
             ErrorCode::QuotaExceeded
         );
+    }
+    #[test]
+    fn native_class_definition_details_preserve_raw_offsets_and_sources() {
+        use mdd_dex::definitions::DefinitionLimits;
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/definitions/generated");
+        let inputs = [
+            "definitions-035.dex",
+            "definitions-035.dex",
+            "nullable-root-class.dex",
+            "empty-class-data.dex",
+        ]
+        .map(|name| InputSpec {
+            path: root.join(name),
+            kind: InputKind::RawDex,
+            expected_sha256: None,
+        });
+        let snapshot = Snapshot::capture(&inputs, CaptureLimits::default()).unwrap();
+        let mut occurrences = Vec::new();
+        for source in snapshot.sources() {
+            let inventory = ArchiveInventory::build(
+                source,
+                InventoryPolicy::default(),
+                ArchiveLimits::default(),
+            )
+            .unwrap();
+            let metadata =
+                MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default()).unwrap();
+            occurrences.push(Arc::new(
+                DefinitionFacts::build(metadata, DefinitionLimits::default()).unwrap(),
+            ));
+        }
+        let bridge = SqlBridge::new(
+            Arc::new(DefinitionSqlProvider::new(occurrences.clone(), DecimalU64(0)).unwrap()),
+            SqlDialect::NativeV1,
+            SqlLimits::default(),
+        )
+        .unwrap();
+        let result = bridge.query("SELECT dex_occurrence_id,class_def_idx,access_flags,annotations_offset,static_values_offset,class_data_offset,class_data_length,static_fields_count,instance_fields_count,direct_methods_count,virtual_methods_count,encoded_offset,encoded_length FROM native_class_definition_details").unwrap();
+        let expected_count: usize = occurrences
+            .iter()
+            .map(|facts| facts.definitions().classes.len())
+            .sum();
+        assert_eq!(result.rows().len(), expected_count);
+        let u64_value = |v: u64| SqlValue::U64(DecimalU64(v));
+        let mut saw_absent_data = false;
+        let mut saw_empty_data = false;
+        for (facts, input) in occurrences.iter().zip(&inputs) {
+            let bytes = std::fs::read(&input.path).unwrap();
+            let read_u32 =
+                |offset: usize| u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap());
+            let class_defs_offset = read_u32(0x64) as usize;
+            let source = &facts.metadata().source().dex_occurrence_id;
+            for class in &facts.definitions().classes {
+                let row = result.rows().iter().find(|row| {
+                    matches!(&row[0], SqlValue::Text(text) if text.strict_utf8().unwrap() == *source)
+                        && row[1] == u64_value(class.class_def_idx.into())
+                }).unwrap();
+                let at = class_defs_offset + class.class_def_idx as usize * 32;
+                let nullable_offset = |value: u32| {
+                    if value == 0 {
+                        SqlValue::Null
+                    } else {
+                        u64_value(value.into())
+                    }
+                };
+                assert_eq!(row[2], u64_value(read_u32(at + 4).into()));
+                assert_eq!(row[3], nullable_offset(read_u32(at + 20)));
+                assert_eq!(row[4], nullable_offset(read_u32(at + 28)));
+                let data_offset = read_u32(at + 24);
+                assert_eq!(row[5], nullable_offset(data_offset));
+                assert_eq!(row[11], u64_value(at as u64));
+                assert_eq!(row[12], u64_value(32));
+                let mut counts = [0u32; 4];
+                if data_offset != 0 {
+                    let mut cursor = data_offset as usize;
+                    for count in &mut counts {
+                        let mut terminated = false;
+                        for shift in (0..35).step_by(7) {
+                            let byte = bytes[cursor];
+                            cursor += 1;
+                            *count |= u32::from(byte & 0x7f) << shift;
+                            if byte & 0x80 == 0 {
+                                terminated = true;
+                                break;
+                            }
+                        }
+                        assert!(terminated);
+                    }
+                    assert_eq!(
+                        row[6],
+                        SqlValue::U64(class.class_data_range.as_ref().unwrap().byte_length)
+                    );
+                    saw_empty_data |= counts == [0; 4];
+                } else {
+                    assert_eq!(row[6], SqlValue::Null);
+                    saw_absent_data = true;
+                }
+                for (i, count) in counts.into_iter().enumerate() {
+                    assert_eq!(row[7 + i], u64_value(count.into()));
+                }
+            }
+        }
+        assert_ne!(
+            occurrences[0].metadata().source().dex_occurrence_id,
+            occurrences[1].metadata().source().dex_occurrence_id
+        );
+        assert!(saw_absent_data && saw_empty_data);
     }
     #[test]
     fn native_class_relations_preserve_sources_nulls_and_interfaces() {

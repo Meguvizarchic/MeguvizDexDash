@@ -4,6 +4,9 @@ import json
 from pathlib import Path
 import sys
 import unittest
+from unittest.mock import patch
+import subprocess
+import cross_check
 from cross_check import output_directory
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -77,6 +80,26 @@ class Checks(unittest.TestCase):
             with self.subTest(label=label), self.assertRaises(ValueError):
                 output_directory(label)
         self.assertEqual(output_directory('run-2').parent, Path(__file__).resolve().parent)
+
+    def test_export_start_failure_and_timeout_are_recorded(self):
+        failures = (OSError('synthetic launch failure'),
+                    subprocess.TimeoutExpired(['cargo'], 300, output=b'partial', stderr=b'late'))
+        for failure in failures:
+            with self.subTest(failure=type(failure).__name__), \
+                 patch.object(sys, 'argv', ['cross_check.py', 'synthetic']), \
+                 patch.object(cross_check.subprocess, 'run', side_effect=failure), \
+                 patch.object(Path, 'mkdir'), patch.object(Path, 'write_bytes') as binary, \
+                 patch.object(Path, 'write_text') as record:
+                with self.assertRaises(type(failure)):
+                    cross_check.main()
+                payload = json.loads(record.call_args.args[0])
+                self.assertEqual(payload['status'], 'failed')
+                self.assertIsNone(payload['exit_code'])
+                self.assertIn(type(failure).__name__, payload['error'])
+                self.assertEqual(binary.call_count, 2)
+                if isinstance(failure, subprocess.TimeoutExpired):
+                    self.assertEqual(binary.call_args_list[0].args[0], b'partial')
+                    self.assertEqual(binary.call_args_list[1].args[0], b'late')
 
 
 if __name__ == '__main__':

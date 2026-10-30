@@ -1,0 +1,8 @@
+{
+  "scope": "Workspace path replaced in stderr; unchanged originals retained in ignored artifacts/local/evidence-raw-20261030b.",
+  "raw_sha256": {
+    "artifacts/mdd-005/scope-verifier-20261030/cross-run3/rust.stderr": "aa4e95e6f83eb5bd521d2fdc35d032ad0ca1cafc72c0fe064a7ceb952220a076",
+    "artifacts/mdd-026/annotation-type-owner-index-20261030/run1/stderr.txt": "1557d45081000704aa6fd274b5feacfc060d491d886d4bcf57c2fd70577fa0f3",
+    "artifacts/mdd-031-audit/native-class-details-20261030/run1/stderr.txt": "c2a036748537658980ee5f6682113277ea5f6642323fda6e1d9ec0abfdc8618d"
+  }
+}

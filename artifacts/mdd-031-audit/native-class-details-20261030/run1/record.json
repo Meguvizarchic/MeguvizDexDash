@@ -1,0 +1,39 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "mdd-sql",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "1",
+    "native_class_definition_details_preserve_raw_offsets_and_sources",
+    "--",
+    "--nocapture"
+  ],
+  "started_utc": "2026-10-30T13:53:42.102161+00:00",
+  "ended_utc": "2026-10-30T13:54:07.310643+00:00",
+  "exit_code": 0,
+  "source_before_sha256": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "crates/mdd-sql/src/provider/metadata.rs": "15fe0a4bb55579905538ad9e801cf59810355136c784fdcb9f794b9ebb1e76b3",
+    "crates/mdd-sql/src/dialects/ast.rs": "af076a42f09029c0849cb8b332afcf1e88aad3df74af7188677a4a5a6fccf729",
+    "crates/mdd-facts/src/definitions.rs": "7a2ac801d7ebc89647888f501493ec9629d95b176125a09abddb239e489ac40a",
+    "crates/mdd-dex/src/definitions.rs": "ccebdce7db90d5ba87bb02e69446b27d4920c5bb3671f9208f7e93e130c259a3",
+    "tests/fixtures/definitions/generated/definitions-035.dex": "4e8f9e8deedf44c8793e10d99f2614e0bed705dcac617c0d74137e7b2bd459cc",
+    "tests/fixtures/definitions/generated/nullable-root-class.dex": "cb9f9d5265e6caa4d6935edeca9ab6fc15cc43de3a165746836183c5e02ccc70",
+    "tests/fixtures/definitions/generated/empty-class-data.dex": "2768791b0eaf032422ec02244cd238d4248efb1b213ef887443df3c835c3a0ca"
+  },
+  "source_after_sha256": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "crates/mdd-sql/src/provider/metadata.rs": "15fe0a4bb55579905538ad9e801cf59810355136c784fdcb9f794b9ebb1e76b3",
+    "crates/mdd-sql/src/dialects/ast.rs": "af076a42f09029c0849cb8b332afcf1e88aad3df74af7188677a4a5a6fccf729",
+    "crates/mdd-facts/src/definitions.rs": "7a2ac801d7ebc89647888f501493ec9629d95b176125a09abddb239e489ac40a",
+    "crates/mdd-dex/src/definitions.rs": "ccebdce7db90d5ba87bb02e69446b27d4920c5bb3671f9208f7e93e130c259a3",
+    "tests/fixtures/definitions/generated/definitions-035.dex": "4e8f9e8deedf44c8793e10d99f2614e0bed705dcac617c0d74137e7b2bd459cc",
+    "tests/fixtures/definitions/generated/nullable-root-class.dex": "cb9f9d5265e6caa4d6935edeca9ab6fc15cc43de3a165746836183c5e02ccc70",
+    "tests/fixtures/definitions/generated/empty-class-data.dex": "2768791b0eaf032422ec02244cd238d4248efb1b213ef887443df3c835c3a0ca"
+  },
+  "scope": "one SQL provider test; selected source and fixture identities only, not complete workspace or qualification"
+}

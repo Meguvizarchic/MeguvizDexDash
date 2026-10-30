@@ -91,6 +91,102 @@ fn error(code: ErrorCode, tag: &str) -> MddError {
 }
 
 #[test]
+fn annotation_type_owner_index_preserves_source_owners_and_rejects_incomplete() {
+    let data = setup("annotations/generated/annotations-038.dex", 2);
+    let annotations = data
+        .definitions
+        .iter()
+        .map(|d| AnnotationFacts::build(d.clone(), AnnotationLimits::default()).unwrap())
+        .collect::<Vec<_>>();
+    let views = annotations
+        .iter()
+        .map(|a| FactView::unbuilt(&a.source().dex_occurrence_id).with_annotations(a))
+        .collect::<Vec<_>>();
+    let selected = scope(&data);
+    let index = SnapshotFactIndex::new(selected.clone(), &views, IndexLimits::default()).unwrap();
+    let descriptor = "Ldalvik/annotation/Signature;"
+        .encode_utf16()
+        .collect::<Vec<_>>();
+    let indexed = index.annotation_owners_by_type(&descriptor).unwrap();
+    let scalar = index.annotation_owners_by_type_scalar(&descriptor).unwrap();
+    assert_eq!(
+        serde_json::to_value(&indexed.matches).unwrap(),
+        serde_json::to_value(&scalar.matches).unwrap()
+    );
+    assert_eq!(indexed.matches.len(), 8);
+    assert_ne!(
+        indexed.matches[0].dex_occurrence_id,
+        indexed.matches[4].dex_occurrence_id
+    );
+    for (occurrence, facts) in annotations.iter().enumerate() {
+        let actual = &indexed.matches[occurrence * 4..occurrence * 4 + 4];
+        // Independent saved fixture oracle has one item shared by two field owners.
+        let mut offsets = actual
+            .iter()
+            .map(|row| row.annotation_byte_offset)
+            .collect::<Vec<_>>();
+        offsets.sort_unstable();
+        assert_eq!(offsets, [1000, 1120, 1120, 1132]);
+        for signature in facts.signatures() {
+            assert!(actual.iter().any(|row| row.annotation_byte_offset
+                == signature.annotation.annotation_byte_offset
+                && row.owner.kind == signature.owner.kind
+                && row.owner.local_index == signature.owner.reference.local_index));
+        }
+    }
+    let absent = index.annotation_owners_by_type(&[0xd800]).unwrap();
+    assert!(absent.matches.is_empty());
+    assert!(absent.absence_proven_within_selected_scope);
+    assert!(!absent.coverage.profile_admitted);
+    let incomplete =
+        SnapshotFactIndex::new(selected.clone(), &views[..1], IndexLimits::default()).unwrap();
+    assert_eq!(
+        incomplete
+            .annotation_owners_by_type(&descriptor)
+            .unwrap_err()
+            .code,
+        ErrorCode::IncompleteFacts
+    );
+    let zero = SnapshotFactIndex::new(
+        selected.clone(),
+        &views,
+        IndexLimits {
+            max_entries: 0,
+            ..IndexLimits::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        zero.annotation_owners_by_type(&descriptor)
+            .unwrap_err()
+            .code,
+        ErrorCode::QuotaExceeded
+    );
+    assert_eq!(
+        zero.annotation_owners_by_type_scalar(&descriptor)
+            .unwrap_err()
+            .code,
+        ErrorCode::QuotaExceeded
+    );
+    let no_results = SnapshotFactIndex::new(
+        selected,
+        &views,
+        IndexLimits {
+            max_result_entries: 0,
+            ..IndexLimits::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        no_results
+            .annotation_owners_by_type(&descriptor)
+            .unwrap_err()
+            .code,
+        ErrorCode::QuotaExceeded
+    );
+}
+
+#[test]
 fn utf16_raw_candidates_match_scalar_and_hand_oracle_without_occurrence_dedup() {
     let data = setup("generated/strings-mutf8-035.dex", 2);
     let views = data

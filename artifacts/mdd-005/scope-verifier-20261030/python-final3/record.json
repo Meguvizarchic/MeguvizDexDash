@@ -1,0 +1,17 @@
+{
+  "scope": "synthetic framing, safe output label and injected launch failures; roster trust external",
+  "source_after": {
+    "artifacts/mdd-005/scope-verifier-20261030/probe.py": "3fb5b16f90c7db73c888076dfbc5d83ab523884ec0b71423f2737381771882cd",
+    "artifacts/mdd-005/scope-verifier-20261030/cross_check.py": "f185c061b91b5d59e14623f8a135e16d5029122ebc1dfdd81b5508f55c03b113",
+    "benchmarks/scope_commitment.py": "b23341b4dc884e1b5364949d2bad33606814cfd64389617f55e3151587cbfe1c"
+  },
+  "source_before": {
+    "artifacts/mdd-005/scope-verifier-20261030/probe.py": "3fb5b16f90c7db73c888076dfbc5d83ab523884ec0b71423f2737381771882cd",
+    "artifacts/mdd-005/scope-verifier-20261030/cross_check.py": "f185c061b91b5d59e14623f8a135e16d5029122ebc1dfdd81b5508f55c03b113",
+    "benchmarks/scope_commitment.py": "b23341b4dc884e1b5364949d2bad33606814cfd64389617f55e3151587cbfe1c"
+  },
+  "exit_code": 0,
+  "command": "python -B -O artifacts/mdd-005/scope-verifier-20261030/probe.py",
+  "started_utc": "2026-10-30T13:52:50.4182738Z",
+  "finished_utc": "2026-10-30T13:52:51.1893673Z"
+}

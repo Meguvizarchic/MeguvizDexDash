@@ -48,16 +48,27 @@ def main():
              'tests/fixtures/generated/multidex-stored.apk']
     before = {name: sha(ROOT / name) for name in files}
     command = ['cargo', 'run', '-p', 'mdd-facts', '--example', 'scope_commitment_export',
-               '--locked', '--offline', '--jobs', '1', '--', str(fixture), str(fixture)]
+               '--locked', '--offline', '--jobs', '1', '--',
+               fixture.relative_to(ROOT).as_posix(), fixture.relative_to(ROOT).as_posix()]
     started = datetime.now(timezone.utc).isoformat()
-    result = subprocess.run(command, cwd=ROOT, capture_output=True, timeout=300)
-    (destination / 'rust.stdout').write_bytes(result.stdout)
-    (destination / 'rust.stderr').write_bytes(result.stderr)
     summary = {'command': command, 'started_utc': started,
-               'exit_code': result.returncode, 'source_before': before,
-               'source_after': {name: sha(ROOT / name) for name in files},
+               'exit_code': None, 'source_before': before,
                'scope': 'two synthetic APK occurrences; Rust snapshot ID observed, not independently authenticated'}
     try:
+        try:
+            result = subprocess.run(command, cwd=ROOT, capture_output=True, timeout=300)
+        except subprocess.TimeoutExpired as error:
+            (destination / 'rust.stdout').write_bytes(error.stdout or b'')
+            (destination / 'rust.stderr').write_bytes(error.stderr or b'')
+            raise
+        except OSError:
+            (destination / 'rust.stdout').write_bytes(b'')
+            (destination / 'rust.stderr').write_bytes(b'')
+            raise
+        (destination / 'rust.stdout').write_bytes(result.stdout)
+        (destination / 'rust.stderr').write_bytes(result.stderr)
+        summary['exit_code'] = result.returncode
+        summary['source_after'] = {name: sha(ROOT / name) for name in files}
         require(result.returncode == 0, 'Rust scope exporter failed')
         require(summary['source_before'] == summary['source_after'], 'listed source changed')
         result_json = json.loads(result.stdout)
@@ -88,9 +99,11 @@ def main():
         summary.update(status='failed', error=repr(error))
         raise
     finally:
+        if 'source_after' not in summary:
+            summary['source_after'] = {name: sha(ROOT / name) for name in files}
         summary['finished_utc'] = datetime.now(timezone.utc).isoformat()
         (destination / 'record.json').write_text(json.dumps(summary, indent=2) + '\n', encoding='utf-8')
-        print(json.dumps({'status': summary['status'], 'exit_code': result.returncode}))
+        print(json.dumps({'status': summary['status'], 'exit_code': summary['exit_code']}))
 
 
 def sha_bytes(data):
