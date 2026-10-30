@@ -1,0 +1,15 @@
+{
+  "scope": "fixed A1 synthetic fixture; mocked source generation and order; no A2 qualification",
+  "exit_code": 0,
+  "source_before": {
+    "tests/fixtures/generated/structured-035.dex": "108CF907D330B823C6E32D38EAAB8F23709FE493F52537688BBD09BA3E271605",
+    "artifacts/mdd-005/a2-compact-terminal-20261030/a1_probe.py": "70B76BD952B99BD831D681DB064C17147407FAB787759CF934C7EE9092E76B94",
+    "benchmarks/a2_mcp_transport.py": "0E9FCFDADAC7549F6E9925245643B06AFFB1EAE271005F0EF0BBA30ACBE1C058"
+  },
+  "source_after": {
+    "tests/fixtures/generated/structured-035.dex": "108CF907D330B823C6E32D38EAAB8F23709FE493F52537688BBD09BA3E271605",
+    "artifacts/mdd-005/a2-compact-terminal-20261030/a1_probe.py": "70B76BD952B99BD831D681DB064C17147407FAB787759CF934C7EE9092E76B94",
+    "benchmarks/a2_mcp_transport.py": "0E9FCFDADAC7549F6E9925245643B06AFFB1EAE271005F0EF0BBA30ACBE1C058"
+  },
+  "command": "baseline-venv python -B -O artifacts/mdd-005/a2-compact-terminal-20261030/a1_probe.py"
+}

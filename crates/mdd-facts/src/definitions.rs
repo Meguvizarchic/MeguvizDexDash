@@ -3,7 +3,8 @@ use crate::metadata::{EntityKind, EntityRef, MetadataFacts, MetadataSource, Type
 use mdd_dex::{
     definitions::{
         ClassDefinition, DefinitionLimits, DefinitionMetadata, DexDefinitions, FieldDefinition,
-        FieldReference, InterfaceDefinition, MethodDefinition, MethodReference, read_definitions,
+        FieldKind, FieldReference, InterfaceDefinition, MethodDefinition, MethodKind,
+        MethodReference, read_definitions,
     },
     strings::DexString,
     types::{DexPrototype, DexType},
@@ -101,7 +102,115 @@ pub struct ClassFactView<'a> {
 pub struct ClassFactViews<'a> {
     facts: &'a DefinitionFacts,
 }
+/// Direct encoded member definitions, not inherited members or all references.
+pub struct ClassMemberFacts<'a> {
+    pub source: &'a MetadataSource,
+    pub class: &'a ClassDefinition,
+    pub fields: &'a [FieldDefinition],
+    pub methods: &'a [MethodDefinition],
+}
 impl<'a> ClassFactViews<'a> {
+    /// Resolve class-owned definitions from the complete source, retaining
+    /// encoded order and kind/ordinal. The limit bounds the total input member
+    /// entries, not individual visits, CPU steps, allocation, or RSS.
+    pub fn members(
+        &self,
+        entity: &EntityRef,
+        max_member_entries: u64,
+    ) -> MddResult<ClassMemberFacts<'a>> {
+        let class = self.get(entity)?.definition;
+        let fields = &self.facts.definitions.field_definitions;
+        let methods = &self.facts.definitions.method_definitions;
+        let count = u64::try_from(fields.len())
+            .ok()
+            .and_then(|n| {
+                u64::try_from(methods.len())
+                    .ok()
+                    .and_then(|m| n.checked_add(m))
+            })
+            .ok_or_else(|| {
+                MddError::new(
+                    ErrorCode::QuotaExceeded,
+                    "facts.class_members",
+                    "member count budget overflow",
+                )
+            })?;
+        if count > max_member_entries {
+            return Err(MddError::new(
+                ErrorCode::QuotaExceeded,
+                "facts.class_members",
+                "member count budget exceeded",
+            ));
+        }
+        let broken = || {
+            MddError::new(
+                ErrorCode::InternalFault,
+                "facts.class_members",
+                "validated member ordering or ownership is inconsistent",
+            )
+        };
+        if fields
+            .windows(2)
+            .any(|w| w[0].class_def_idx > w[1].class_def_idx)
+            || methods
+                .windows(2)
+                .any(|w| w[0].class_def_idx > w[1].class_def_idx)
+        {
+            return Err(broken());
+        }
+        let f0 = fields.partition_point(|f| f.class_def_idx < class.class_def_idx);
+        let f1 = fields.partition_point(|f| f.class_def_idx <= class.class_def_idx);
+        let m0 = methods.partition_point(|m| m.class_def_idx < class.class_def_idx);
+        let m1 = methods.partition_point(|m| m.class_def_idx <= class.class_def_idx);
+        let (selected_fields, selected_methods) = (&fields[f0..f1], &methods[m0..m1]);
+        if selected_fields
+            .iter()
+            .any(|f| f.class_idx != class.class_idx)
+            || selected_methods
+                .iter()
+                .any(|m| m.class_idx != class.class_idx)
+            || u64::try_from(selected_fields.len()).ok()
+                != Some(
+                    u64::from(class.static_fields_count) + u64::from(class.instance_fields_count),
+                )
+            || u64::try_from(selected_methods.len()).ok()
+                != Some(
+                    u64::from(class.direct_methods_count) + u64::from(class.virtual_methods_count),
+                )
+        {
+            return Err(broken());
+        }
+        for (i, field) in selected_fields.iter().enumerate() {
+            let pos = u64::try_from(i).map_err(|_| broken())?;
+            let static_count = u64::from(class.static_fields_count);
+            let (kind, ordinal) = if pos < static_count {
+                (FieldKind::Static, pos)
+            } else {
+                (FieldKind::Instance, pos - static_count)
+            };
+            if field.kind != kind || u64::from(field.ordinal) != ordinal {
+                return Err(broken());
+            }
+        }
+        for (i, method) in selected_methods.iter().enumerate() {
+            let pos = u64::try_from(i).map_err(|_| broken())?;
+            let direct_count = u64::from(class.direct_methods_count);
+            let (kind, ordinal) = if pos < direct_count {
+                (MethodKind::Direct, pos)
+            } else {
+                (MethodKind::Virtual, pos - direct_count)
+            };
+            if method.kind != kind || u64::from(method.ordinal) != ordinal {
+                return Err(broken());
+            }
+        }
+        Ok(ClassMemberFacts {
+            source: self.facts.metadata.source(),
+            class,
+            fields: selected_fields,
+            methods: selected_methods,
+        })
+    }
     /// Resolve a class definition within this exact snapshot and DEX occurrence.
     /// The local index is a class_def index, not a type index.
     pub fn get(&self, entity: &EntityRef) -> MddResult<ClassFactView<'a>> {
@@ -1475,6 +1584,85 @@ mod tests {
             .map(|value| value.unwrap().type_fact.data.descriptor.as_str())
             .collect::<Vec<_>>();
         assert_eq!(values, ["Ljava/util/List;", "I"]);
+    }
+    #[test]
+    fn class_members_preserve_direct_owners_order_and_limits() {
+        let facts = build_two();
+        for fact in &facts {
+            let view = fact.class_fact_views(ClassViewLimits::default()).unwrap();
+            let scanned = (fact.definitions.field_definitions.len()
+                + fact.definitions.method_definitions.len()) as u64;
+            for row in view.iter() {
+                let class = row.unwrap().definition;
+                let id = fact
+                    .entity(EntityKind::ClassDefinition, class.class_def_idx)
+                    .unwrap();
+                let members = view.members(&id, scanned).unwrap();
+                let expected_fields: Vec<_> = fact
+                    .definitions
+                    .field_definitions
+                    .iter()
+                    .filter(|v| v.class_def_idx == class.class_def_idx)
+                    .map(|v| (v.field_idx, v.kind, v.ordinal))
+                    .collect();
+                let expected_methods: Vec<_> = fact
+                    .definitions
+                    .method_definitions
+                    .iter()
+                    .filter(|v| v.class_def_idx == class.class_def_idx)
+                    .map(|v| (v.method_idx, v.kind, v.ordinal))
+                    .collect();
+                assert_eq!(
+                    members
+                        .fields
+                        .iter()
+                        .map(|v| (v.field_idx, v.kind, v.ordinal))
+                        .collect::<Vec<_>>(),
+                    expected_fields
+                );
+                assert_eq!(
+                    members
+                        .methods
+                        .iter()
+                        .map(|v| (v.method_idx, v.kind, v.ordinal))
+                        .collect::<Vec<_>>(),
+                    expected_methods
+                );
+                assert_eq!(
+                    members.source.dex_occurrence_id,
+                    fact.metadata.source().dex_occurrence_id
+                );
+                if scanned > 0 {
+                    assert_eq!(
+                        view.members(&id, scanned - 1).err().unwrap().code,
+                        ErrorCode::QuotaExceeded
+                    );
+                }
+                let foreign = EntityRef {
+                    dex_occurrence_id: "foreign".into(),
+                    ..id
+                };
+                assert_eq!(
+                    view.members(&foreign, scanned).err().unwrap().code,
+                    ErrorCode::InvalidArgument
+                );
+            }
+        }
+        let mut invalid = facts[0].clone();
+        invalid.definitions.field_definitions[0].ordinal += 1;
+        let id = invalid
+            .entity(
+                EntityKind::ClassDefinition,
+                invalid.definitions.field_definitions[0].class_def_idx,
+            )
+            .unwrap();
+        let view = invalid
+            .class_fact_views(ClassViewLimits::default())
+            .unwrap();
+        assert_eq!(
+            view.members(&id, u64::MAX).err().unwrap().code,
+            ErrorCode::InternalFault
+        );
     }
     #[test]
     fn direct_class_lookup_preserves_identity_and_interfaces() {

@@ -1,0 +1,13 @@
+{
+  "source_before": {
+    "artifacts/mdd-005/a2-mcp-finite-number-20261030/probe.py": "0C504D3A8457F028A15258679EAB052241E58AE09F6BD7386D1001B37AC60B43",
+    "benchmarks/a2_mcp_transport.py": "0E9FCFDADAC7549F6E9925245643B06AFFB1EAE271005F0EF0BBA30ACBE1C058"
+  },
+  "source_after": {
+    "artifacts/mdd-005/a2-mcp-finite-number-20261030/probe.py": "0C504D3A8457F028A15258679EAB052241E58AE09F6BD7386D1001B37AC60B43",
+    "benchmarks/a2_mcp_transport.py": "0E9FCFDADAC7549F6E9925245643B06AFFB1EAE271005F0EF0BBA30ACBE1C058"
+  },
+  "scope": "synthetic JSON frame, no A2 qualification",
+  "exit_code": 0,
+  "command": "baseline-venv python -B -O artifacts/mdd-005/a2-mcp-finite-number-20261030/probe.py"
+}

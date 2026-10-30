@@ -3,6 +3,120 @@ use std::sync::mpsc;
 use std::thread;
 
 #[test]
+fn poisoned_bound_queue_io_preserves_first_fault() {
+    use mdd_input::snapshot::{CaptureLimits, InputKind, InputSpec, Snapshot};
+    use mdd_session::{Lifecycle, QueryBinding, ResourceLimits};
+    for mode in [
+        "receive",
+        "finish",
+        "receipt",
+        "clone",
+        "clone_overflow",
+        "prior_cancel",
+    ] {
+        let limits = ResourceLimits::default();
+        let lifecycle = Lifecycle::new(limits).unwrap();
+        let snapshot = Snapshot::capture(
+            &[InputSpec {
+                path: std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                    .join("../../tests/fixtures/generated/minimal-035.dex"),
+                kind: InputKind::RawDex,
+                expected_sha256: None,
+            }],
+            CaptureLimits::default(),
+        )
+        .unwrap();
+        let snapshot = lifecycle.register_snapshot(Arc::new(snapshot)).unwrap();
+        let session = lifecycle.open_session(&snapshot, limits).unwrap();
+        let query = lifecycle
+            .prepare_query(
+                &session,
+                QueryBinding {
+                    request_key: "queue-poison".into(),
+                    schema_id: "rows".into(),
+                    semantic_version: "v1".into(),
+                },
+                limits,
+            )
+            .unwrap();
+        lifecycle.start_query(&session, &query, 1).unwrap();
+        let cancel = lifecycle.cancellation_token(&query).unwrap();
+        let pool = BudgetPool::global("g".into(), BudgetLimits::default())
+            .unwrap()
+            .child(
+                cancel.worker_owner_id().unwrap(),
+                BudgetScope::Worker,
+                BudgetLimits::default(),
+            )
+            .unwrap()
+            .child(
+                session.id().into(),
+                BudgetScope::Session,
+                BudgetLimits::default(),
+            )
+            .unwrap()
+            .child(
+                query.id().into(),
+                BudgetScope::Query,
+                BudgetLimits::default(),
+            )
+            .unwrap();
+        let (sender, mut receiver) = bounded_channel::<u8>(pool, Some(cancel.clone()), 1).unwrap();
+        if mode == "prior_cancel" {
+            cancel.cancel().unwrap();
+        }
+        if mode == "receipt" {
+            sender.finish(Ok(())).unwrap();
+            assert!(matches!(
+                receiver.receive().unwrap(),
+                QueueEvent::End(Ok(()))
+            ));
+        }
+        if mode == "clone_overflow" {
+            sender.0.state.lock().unwrap().senders = usize::MAX;
+        } else {
+            assert!(
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    let _guard = sender.0.state.lock().unwrap();
+                    panic!("injected queue mutex poison");
+                }))
+                .is_err()
+            );
+        }
+        let returned = match mode {
+            "finish" => {
+                let error = sender.finish(Ok(())).unwrap_err();
+                drop(receiver);
+                error
+            }
+            "clone" | "clone_overflow" => {
+                let error = sender.try_clone().err().unwrap();
+                drop(receiver);
+                error
+            }
+            "receipt" => receiver.into_delivery_receipt().err().unwrap(),
+            _ => {
+                let error = receiver.receive().err().unwrap();
+                drop(receiver);
+                error
+            }
+        };
+        let first = cancel.status().unwrap().error.unwrap();
+        assert_eq!(
+            returned.code,
+            if mode == "prior_cancel" {
+                ErrorCode::Cancelled
+            } else {
+                ErrorCode::InternalFault
+            }
+        );
+        assert_eq!(first.code, returned.code);
+        assert_eq!(first.stage, returned.stage);
+        assert_eq!(first.message, returned.message);
+    }
+}
+
+#[test]
 fn poisoned_producer_claim_preserves_internal_fault() {
     use mdd_input::snapshot::{CaptureLimits, InputKind, InputSpec, Snapshot};
     use mdd_session::{Lifecycle, QueryBinding, ResourceLimits};

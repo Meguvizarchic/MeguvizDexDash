@@ -912,6 +912,7 @@ pub struct CombinedSqlProvider {
     metadata: Arc<MetadataSqlProvider>,
     definitions: Arc<DefinitionSqlProvider>,
     references: Option<Arc<ReferenceSqlProvider>>,
+    code: Option<Arc<CodeSqlProvider>>,
 }
 impl CombinedSqlProvider {
     pub fn new(
@@ -945,6 +946,7 @@ impl CombinedSqlProvider {
             metadata,
             definitions,
             references: None,
+            code: None,
         })
     }
 
@@ -979,6 +981,35 @@ impl CombinedSqlProvider {
         self.references = Some(references);
         Ok(self)
     }
+
+    /// Attach complete physical code items for the same selected occurrences.
+    /// Physical items do not by themselves establish method ownership.
+    pub fn with_code(mut self, code: Arc<CodeSqlProvider>) -> MddResult<Self> {
+        if self.code.is_some() {
+            return Err(invalid("COMBINED_PROVIDER_CODE_ALREADY_BOUND"));
+        }
+        if self.binding.snapshot_id != code.binding.snapshot_id
+            || self.binding.catalog_epoch != code.binding.catalog_epoch
+        {
+            return Err(invalid("COMBINED_PROVIDER_GENERATION"));
+        }
+        let metadata_sources: BTreeSet<_> = self
+            .metadata
+            .occurrences
+            .iter()
+            .map(|facts| &facts.source().dex_occurrence_id)
+            .collect();
+        let code_sources: BTreeSet<_> = code
+            .occurrences
+            .iter()
+            .map(|facts| &facts.source().dex_occurrence_id)
+            .collect();
+        if metadata_sources != code_sources {
+            return Err(invalid("COMBINED_PROVIDER_SCOPE"));
+        }
+        self.code = Some(code);
+        Ok(self)
+    }
 }
 impl SqlFactProvider for CombinedSqlProvider {
     fn binding(&self) -> &SqlBinding {
@@ -989,6 +1020,9 @@ impl SqlFactProvider for CombinedSqlProvider {
         relations.extend(self.definitions.relations()?);
         if let Some(references) = &self.references {
             relations.extend(references.relations()?);
+        }
+        if let Some(code) = &self.code {
+            relations.extend(code.relations()?);
         }
         let mut names = BTreeSet::new();
         if relations
@@ -1002,6 +1036,13 @@ impl SqlFactProvider for CombinedSqlProvider {
     fn require_relation(&self, relation: &str) -> MddResult<()> {
         if MetadataRelation::parse(relation).is_ok() {
             self.metadata.require_relation(relation)
+        } else if relation.eq_ignore_ascii_case("native_code_items")
+            || relation.eq_ignore_ascii_case("native_code_bytes")
+        {
+            self.code
+                .as_ref()
+                .ok_or_else(|| invalid("UNKNOWN_CODE_RELATION"))?
+                .require_relation(relation)
         } else if relation.eq_ignore_ascii_case("native_reference_sites") {
             self.references
                 .as_ref()
@@ -1018,6 +1059,15 @@ impl SqlFactProvider for CombinedSqlProvider {
     ) -> MddResult<Box<dyn SqlFactCursor>> {
         if MetadataRelation::parse(relation).is_ok() {
             Arc::clone(&self.metadata).open_cursor(relation, control)
+        } else if relation.eq_ignore_ascii_case("native_code_items")
+            || relation.eq_ignore_ascii_case("native_code_bytes")
+        {
+            Arc::clone(
+                self.code
+                    .as_ref()
+                    .ok_or_else(|| invalid("UNKNOWN_CODE_RELATION"))?,
+            )
+            .open_cursor(relation, control)
         } else if relation.eq_ignore_ascii_case("native_reference_sites") {
             Arc::clone(
                 self.references
@@ -1408,6 +1458,140 @@ mod tests {
         archive::{ArchiveInventory, ArchiveLimits, InventoryPolicy},
         snapshot::{CaptureLimits, InputKind, InputSpec, Snapshot},
     };
+    #[test]
+    fn combined_code_items_require_same_scope_and_keep_shared_owners() {
+        use mdd_dex::{definitions::DefinitionLimits, instructions::CodeLimits};
+        use mdd_facts::code::CodeFacts;
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/references/generated/shared-code-035.dex");
+        let input = InputSpec {
+            path,
+            kind: InputKind::RawDex,
+            expected_sha256: None,
+        };
+        let snapshot =
+            Snapshot::capture(&[input.clone(), input.clone()], CaptureLimits::default()).unwrap();
+        let (mut metas, mut defs, mut codes) = (Vec::new(), Vec::new(), Vec::new());
+        for source in snapshot.sources() {
+            let inventory = ArchiveInventory::build(
+                source,
+                InventoryPolicy::default(),
+                ArchiveLimits::default(),
+            )
+            .unwrap();
+            let metadata =
+                MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default()).unwrap();
+            defs.push(Arc::new(
+                DefinitionFacts::build(metadata.clone(), DefinitionLimits::default()).unwrap(),
+            ));
+            metas.push(Arc::new(metadata));
+            codes.push(Arc::new(
+                CodeFacts::build_all_code_items(&snapshot, &inventory, 0, CodeLimits::default())
+                    .unwrap(),
+            ));
+        }
+        let base = || {
+            CombinedSqlProvider::new(
+                Arc::new(MetadataSqlProvider::new(metas.clone(), DecimalU64(7)).unwrap()),
+                Arc::new(DefinitionSqlProvider::new(defs.clone(), DecimalU64(7)).unwrap()),
+            )
+            .unwrap()
+        };
+        let partial =
+            Arc::new(CodeSqlProvider::new(vec![codes[0].clone()], DecimalU64(7)).unwrap());
+        assert_eq!(
+            base().with_code(partial).err().unwrap().code,
+            ErrorCode::InvalidArgument
+        );
+        let wrong_epoch = Arc::new(CodeSqlProvider::new(codes.clone(), DecimalU64(8)).unwrap());
+        assert_eq!(
+            base().with_code(wrong_epoch).err().unwrap().code,
+            ErrorCode::InvalidArgument
+        );
+        let other = Snapshot::capture(&[input], CaptureLimits::default()).unwrap();
+        let inv = ArchiveInventory::build(
+            &other.sources()[0],
+            InventoryPolicy::default(),
+            ArchiveLimits::default(),
+        )
+        .unwrap();
+        let foreign = Arc::new(
+            CodeSqlProvider::new(
+                vec![Arc::new(
+                    CodeFacts::build_all_code_items(&other, &inv, 0, CodeLimits::default())
+                        .unwrap(),
+                )],
+                DecimalU64(7),
+            )
+            .unwrap(),
+        );
+        assert_eq!(
+            base().with_code(foreign).err().unwrap().code,
+            ErrorCode::InvalidArgument
+        );
+        let code = Arc::new(CodeSqlProvider::new(codes.clone(), DecimalU64(7)).unwrap());
+        assert_eq!(
+            base()
+                .with_code(code.clone())
+                .unwrap()
+                .with_code(code.clone())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InvalidArgument
+        );
+        let bridge = SqlBridge::new(
+            Arc::new(base().with_code(code).unwrap()),
+            SqlDialect::NativeV1,
+            SqlLimits::default(),
+        )
+        .unwrap();
+        let result = bridge.query("SELECT m.dex_occurrence_id,m.method_idx,c.code_byte_offset,b.insns_raw FROM native_method_definitions m JOIN native_code_items c ON m.dex_occurrence_id=c.dex_occurrence_id AND m.code_byte_offset=c.code_byte_offset JOIN native_code_bytes b ON c.dex_occurrence_id=b.dex_occurrence_id AND c.code_byte_offset=b.code_byte_offset").unwrap();
+        let mut expected = Vec::new();
+        for (definitions, facts) in defs.iter().zip(&codes) {
+            for method in &definitions.definitions().method_definitions {
+                if let mdd_dex::definitions::MethodBody::Present {
+                    code_byte_offset, ..
+                } = method.body
+                {
+                    let ordinal = facts
+                        .items()
+                        .iter()
+                        .position(|item| item.data().raw_range.byte_offset == code_byte_offset)
+                        .unwrap();
+                    expected.push((
+                        facts.source().dex_occurrence_id.clone(),
+                        u64::from(method.method_idx),
+                        code_byte_offset.0,
+                        facts.raw_insns(ordinal).unwrap().to_vec(),
+                    ));
+                }
+            }
+        }
+        let actual: Vec<_> = result
+            .rows()
+            .iter()
+            .map(|row| match (&row[0], &row[1], &row[2], &row[3]) {
+                (
+                    SqlValue::Text(source),
+                    SqlValue::U64(method),
+                    SqlValue::U64(offset),
+                    SqlValue::Bytes(bytes),
+                ) => (
+                    source.strict_utf8().unwrap(),
+                    method.0,
+                    offset.0,
+                    bytes.clone(),
+                ),
+                _ => panic!("unexpected joined row"),
+            })
+            .collect();
+        let mut actual = actual;
+        actual.sort();
+        expected.sort();
+        assert!(!expected.is_empty());
+        assert_eq!(actual, expected);
+    }
     #[test]
     fn native_code_items_preserve_physical_bytes_and_scope() {
         use mdd_dex::instructions::CodeLimits;

@@ -17,6 +17,7 @@ import asyncio
 from dataclasses import dataclass
 from importlib import metadata
 import json
+import math
 
 import anyio
 import mcp_types as types
@@ -45,10 +46,18 @@ def _invalid_constant(_):
     raise ValueError('non-finite JSON constant')
 
 
+def _finite_float(text):
+    value = float(text)
+    if not math.isfinite(value):
+        raise ValueError('JSON number exceeds finite floating-point range')
+    return value
+
+
 def _check_json(raw):
     """Require one strict UTF-8 JSON object before the SDK's model validation."""
     text = raw.decode('utf-8', 'strict')
-    value = json.loads(text, object_pairs_hook=_unique_object, parse_constant=_invalid_constant)
+    value = json.loads(text, object_pairs_hook=_unique_object,
+                       parse_constant=_invalid_constant, parse_float=_finite_float)
     if not isinstance(value, dict):
         raise ValueError('JSON-RPC frame must be an object')
     return text

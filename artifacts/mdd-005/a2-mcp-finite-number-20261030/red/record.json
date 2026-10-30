@@ -1,0 +1,9 @@
+{
+  "command": "baseline-venv python -B -O artifacts/mdd-005/a2-mcp-finite-number-20261030/probe.py",
+  "source_sha256": {
+    "benchmarks/a2_mcp_transport.py": "E36E4ADBAD2815096859766BC03513B7BD62D61F4FA203B921F2E711D5BF630F",
+    "artifacts/mdd-005/a2-mcp-finite-number-20261030/probe.py": "0C504D3A8457F028A15258679EAB052241E58AE09F6BD7386D1001B37AC60B43"
+  },
+  "exit_code": 1,
+  "scope": "synthetic JSON frame"
+}

@@ -1124,11 +1124,11 @@ impl<T> BoundedSender<T> {
             .0
             .state
             .lock()
-            .map_err(|_| fault("queue mutex poisoned"))?;
+            .map_err(|_| self.0.bound_query_failure(fault("queue mutex poisoned")))?;
         state.senders = state
             .senders
             .checked_add(1)
-            .ok_or_else(|| fault("sender count overflow"))?;
+            .ok_or_else(|| self.0.bound_query_failure(fault("sender count overflow")))?;
         Ok(Self(Arc::clone(&self.0)))
     }
     pub fn send(&self, payload: T, bytes: u64) -> MddResult<()> {
@@ -1306,7 +1306,7 @@ impl<T> BoundedSender<T> {
             .0
             .state
             .lock()
-            .map_err(|_| fault("queue mutex poisoned"))?;
+            .map_err(|_| self.0.bound_query_failure(fault("queue mutex poisoned")))?;
         if state.terminal.is_some() || state.end_delivered {
             drop(state);
             return Err(self.0.protocol_fault(invalid("duplicate queue terminal")));
@@ -1380,7 +1380,7 @@ impl<T> BoundedReceiver<T> {
                 .0
                 .state
                 .lock()
-                .map_err(|_| fault("queue mutex poisoned"))?;
+                .map_err(|_| self.0.bound_query_failure(fault("queue mutex poisoned")))?;
             if let Some(entry) = state.entries.pop_front() {
                 self.0.changed.notify_all();
                 return Ok(QueueEvent::Data(entry.packet));
@@ -1418,12 +1418,12 @@ impl<T> BoundedReceiver<T> {
                 .0
                 .state
                 .lock()
-                .map_err(|_| fault("queue mutex poisoned"))?;
+                .map_err(|_| self.0.bound_query_failure(fault("queue mutex poisoned")))?;
             drop(
                 self.0
                     .changed
                     .wait_timeout(state, Duration::from_millis(5))
-                    .map_err(|_| fault("queue mutex poisoned"))?,
+                    .map_err(|_| self.0.bound_query_failure(fault("queue mutex poisoned")))?,
             );
         }
     }
@@ -1470,7 +1470,7 @@ impl<T> BoundedReceiver<T> {
                 .0
                 .state
                 .lock()
-                .map_err(|_| fault("queue mutex poisoned"))?;
+                .map_err(|_| self.0.bound_query_failure(fault("queue mutex poisoned")))?;
             let state = tracker.state.lock().map_err(|_| {
                 self.0
                     .bound_query_failure(fault("delivery tracking mutex poisoned"))

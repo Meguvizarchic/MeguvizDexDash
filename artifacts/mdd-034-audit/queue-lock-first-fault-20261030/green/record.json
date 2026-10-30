@@ -1,0 +1,31 @@
+{
+  "source_after": {
+    "crates/mdd-query/src/budget/tests.rs": "DFC0F5DC120988E2E27930648D77CBD8E4290342287C45A40698B6FF29FBF37A",
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "crates/mdd-query/src/budget.rs": "25CC6817190328FFE8A7DEAAE0EF372EE7E83E99646112620D7D140D55B12FD7"
+  },
+  "command_template": "cargo test -p mdd-query --locked --offline --jobs 1 FILTER -- --nocapture",
+  "scope": "injected queue mutex failure; not full concurrency or worker",
+  "runs": [
+    {
+      "filter": "poisoned_bound_queue_io_preserves_first_fault",
+      "one_pass": true,
+      "exit_code": 0
+    },
+    {
+      "filter": "poisoned_terminal_tracking_preserves_first_fault",
+      "one_pass": true,
+      "exit_code": 0
+    },
+    {
+      "filter": "poisoned_producer_claim_preserves_internal_fault",
+      "one_pass": true,
+      "exit_code": 0
+    }
+  ],
+  "source_before": {
+    "crates/mdd-query/src/budget/tests.rs": "DFC0F5DC120988E2E27930648D77CBD8E4290342287C45A40698B6FF29FBF37A",
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "crates/mdd-query/src/budget.rs": "25CC6817190328FFE8A7DEAAE0EF372EE7E83E99646112620D7D140D55B12FD7"
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "test_sha256": "50BCCAD8E7816FDE6A760FF0F1691DAE611A9519B306135C9DE8D3DFEBD5E36A",
+  "exit_code": 101,
+  "scope": "injected queue clone failure",
+  "command": "cargo test -p mdd-query --locked --offline --jobs 1 poisoned_bound_queue_io_preserves_first_fault -- --nocapture"
+}

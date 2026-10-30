@@ -1,0 +1,23 @@
+{
+  "source_after": {
+    "tests/fixtures/references/generated/shared-code-035.dex": "22EB2D4020F172334A99F5C75538AF5F2B3E80673ADB11803B368CC68AAEC0AB",
+    "crates/mdd-facts/src/code.rs": "CC2F104EB4AA806CCE2E5B9244BE0A9E3E9F3095ABEF899BE17DAD40AB9C95EC",
+    "crates/mdd-facts/src/raw_fingerprints.rs": "38598A24CC66BB6CA83255F02ADC49F08B699B7BB18D85FD6B8C35834F52BCDE",
+    "crates/mdd-query/src/budget.rs": "5ABC2FF015EB6FBB4EA3F7C78809AE80209BF47175646766539F18835D887E00",
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "crates/mdd-sql/src/provider/metadata.rs": "BE993B39262B18DCB0BE4B0AF45B16464212361BA463A6317D461F425E870A19",
+    "crates/mdd-facts/src/definitions.rs": "7A2AC801D7EBC89647888F501493EC9629D95B176125A09ABDDB239E489AC40A"
+  },
+  "scope": "final combined sources, synthetic physical code join; only listed hashes, no qualification",
+  "source_before": {
+    "tests/fixtures/references/generated/shared-code-035.dex": "22EB2D4020F172334A99F5C75538AF5F2B3E80673ADB11803B368CC68AAEC0AB",
+    "crates/mdd-facts/src/code.rs": "CC2F104EB4AA806CCE2E5B9244BE0A9E3E9F3095ABEF899BE17DAD40AB9C95EC",
+    "crates/mdd-facts/src/raw_fingerprints.rs": "38598A24CC66BB6CA83255F02ADC49F08B699B7BB18D85FD6B8C35834F52BCDE",
+    "crates/mdd-query/src/budget.rs": "5ABC2FF015EB6FBB4EA3F7C78809AE80209BF47175646766539F18835D887E00",
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "crates/mdd-sql/src/provider/metadata.rs": "BE993B39262B18DCB0BE4B0AF45B16464212361BA463A6317D461F425E870A19",
+    "crates/mdd-facts/src/definitions.rs": "7A2AC801D7EBC89647888F501493EC9629D95B176125A09ABDDB239E489AC40A"
+  },
+  "exit_code": 0,
+  "command": "cargo test -p mdd-sql --locked --offline --jobs 1 combined_code_items_require_same_scope_and_keep_shared_owners -- --nocapture"
+}
