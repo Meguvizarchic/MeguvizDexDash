@@ -1,0 +1,9 @@
+{
+  "command": "python -B -O artifacts/mdd-005/a2-lifecycle-source-20261030/probe.py",
+  "scope": "synthetic lifecycle source checks",
+  "exit_code": 1,
+  "source_sha256": {
+    "benchmarks/a2_dataset_lifecycle.py": "7715A0579E9DC78931C8A08C1D20F19D2D6FC2261120F0C4D300A86CE192E685",
+    "artifacts/mdd-005/a2-lifecycle-source-20261030/probe.py": "81C33C3F36FE222B545DD928262B145CC52A29107C3071BF117A243EAF94B840"
+  }
+}

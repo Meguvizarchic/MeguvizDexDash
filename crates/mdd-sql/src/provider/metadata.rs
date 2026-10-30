@@ -51,6 +51,7 @@ struct MetadataCursor {
 #[derive(Clone, Copy)]
 enum MetadataRelation {
     DexOccurrences,
+    StringPools,
     Strings,
     Types,
     Prototypes,
@@ -60,6 +61,8 @@ impl MetadataRelation {
     fn parse(name: &str) -> MddResult<Self> {
         if name.eq_ignore_ascii_case("native_dex_occurrences") {
             Ok(Self::DexOccurrences)
+        } else if name.eq_ignore_ascii_case("native_string_pools") {
+            Ok(Self::StringPools)
         } else if name.eq_ignore_ascii_case("native_strings") {
             Ok(Self::Strings)
         } else if name.eq_ignore_ascii_case("native_types") {
@@ -180,6 +183,22 @@ impl SqlFactCursor for MetadataCursor {
                             scalar_text(&source.member_id, &self.control)?,
                             scalar_text(&source.source_occurrence_id, &self.control)?,
                             scalar_text(&source.content_id, &self.control)?,
+                        ];
+                        self.ordinal = 1;
+                        return Ok(Some(row));
+                    }
+                }
+                MetadataRelation::StringPools => {
+                    if self.ordinal == 0 {
+                        let pool = facts.string_pool();
+                        self.control.work(96)?;
+                        let row = vec![
+                            scalar_text(&pool.dex_occurrence_id, &self.control)?,
+                            scalar_text(&pool.string_pool_id, &self.control)?,
+                            scalar_text(&pool.physical_dex_id, &self.control)?,
+                            scalar_text(&pool.content_id, &self.control)?,
+                            SqlValue::U64(pool.string_ids_byte_offset),
+                            SqlValue::U64(DecimalU64(u64::from(pool.string_count))),
                         ];
                         self.ordinal = 1;
                         return Ok(Some(row));
@@ -360,6 +379,21 @@ impl SqlFactProvider for MetadataSqlProvider {
             })
             .ok_or_else(|| quota("METADATA_SQL_ROWS_OVERFLOW"))?;
         Ok(vec![
+            relation(
+                "native_string_pools",
+                &[
+                    ("dex_occurrence_id", SqlType::Text, false),
+                    ("string_pool_id", SqlType::Text, false),
+                    ("physical_dex_id", SqlType::Text, false),
+                    ("content_id", SqlType::Text, false),
+                    ("string_ids_byte_offset", SqlType::U64, false),
+                    ("string_count", SqlType::U64, false),
+                ],
+                Some(
+                    u64::try_from(self.occurrences.len())
+                        .map_err(|_| quota("METADATA_SQL_ROWS_OVERFLOW"))?,
+                ),
+            ),
             relation(
                 "native_dex_occurrences",
                 &[
@@ -2871,6 +2905,88 @@ mod tests {
             sources[0].source().dex_occurrence_id,
             sources[1].source().dex_occurrence_id
         );
+    }
+    #[test]
+    fn native_string_pools_bind_each_occurrence_without_cross_source_duplication() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/definitions/generated/definitions-035.dex");
+        let input = InputSpec {
+            path,
+            kind: InputKind::RawDex,
+            expected_sha256: None,
+        };
+        let snapshot =
+            Snapshot::capture(&[input.clone(), input], CaptureLimits::default()).unwrap();
+        let mut facts = Vec::new();
+        for source in snapshot.sources() {
+            let inventory = ArchiveInventory::build(
+                source,
+                InventoryPolicy::default(),
+                ArchiveLimits::default(),
+            )
+            .unwrap();
+            facts.push(Arc::new(
+                MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default()).unwrap(),
+            ));
+        }
+        assert_ne!(
+            facts[0].source().dex_occurrence_id,
+            facts[1].source().dex_occurrence_id
+        );
+        assert_eq!(
+            facts[0].string_pool().string_pool_id,
+            facts[1].string_pool().string_pool_id
+        );
+        let provider = Arc::new(MetadataSqlProvider::new(facts.clone(), DecimalU64(0)).unwrap());
+        let bridge = SqlBridge::new(provider, SqlDialect::NativeV1, SqlLimits::default()).unwrap();
+        let pools = bridge.query("SELECT dex_occurrence_id,string_pool_id,physical_dex_id,content_id,string_ids_byte_offset,string_count FROM native_string_pools").unwrap();
+        assert_eq!(pools.rows().len(), facts.len());
+        for (row, fact) in pools.rows().iter().zip(&facts) {
+            let pool = fact.string_pool();
+            for (index, expected) in [
+                (0, &pool.dex_occurrence_id),
+                (1, &pool.string_pool_id),
+                (2, &pool.physical_dex_id),
+                (3, &pool.content_id),
+            ] {
+                assert!(
+                    matches!(&row[index], SqlValue::Text(text) if text.strict_utf8().unwrap() == *expected)
+                );
+            }
+            assert_eq!(row[4], SqlValue::U64(pool.string_ids_byte_offset));
+            assert_eq!(
+                row[5],
+                SqlValue::U64(DecimalU64(u64::from(pool.string_count)))
+            );
+        }
+        let joined = bridge.query("SELECT p.dex_occurrence_id,p.string_pool_id,s.string_idx FROM native_string_pools p JOIN native_strings s ON p.dex_occurrence_id=s.dex_occurrence_id AND p.string_pool_id=s.string_pool_id").unwrap();
+        let mut expected = BTreeSet::new();
+        for fact in &facts {
+            for string in fact.strings() {
+                expected.insert((
+                    fact.source().dex_occurrence_id.clone(),
+                    string.string_pool_id.clone(),
+                    u64::from(string.data.string_idx),
+                ));
+            }
+        }
+        let actual: BTreeSet<_> = joined
+            .rows()
+            .iter()
+            .map(|row| {
+                let text = |index| match &row[index] {
+                    SqlValue::Text(value) => value.strict_utf8().unwrap(),
+                    _ => panic!("unexpected identity"),
+                };
+                let index = match &row[2] {
+                    SqlValue::U64(value) => value.0,
+                    _ => panic!("unexpected index"),
+                };
+                (text(0), text(1), index)
+            })
+            .collect();
+        assert_eq!(joined.rows().len(), expected.len());
+        assert_eq!(actual, expected);
     }
     #[test]
     fn native_dex_occurrences_preserve_source_identities() {

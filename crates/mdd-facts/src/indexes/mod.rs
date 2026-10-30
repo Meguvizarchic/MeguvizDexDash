@@ -15,7 +15,9 @@ use crate::{
 use lazy::{IndexAudit, LazyIndex};
 use mdd_dex::annotations::{EncodedKind, MethodHandleTarget};
 use mdd_types::{ErrorCode, MddError, MddResult};
-pub use scope::{SelectedDex, SelectedInput, SelectedScope};
+pub use scope::{
+    OccurrencePoolCoordinate, ScopedPoolCoordinates, SelectedDex, SelectedInput, SelectedScope,
+};
 use serde::Serialize;
 use std::{
     collections::{BTreeMap, BTreeSet},

@@ -281,6 +281,111 @@ fn read_literal(
     )
 }
 #[test]
+fn native_class_method_members_preserve_occurrence_and_kind_ordinal() {
+    let catalog = native("definitions-038.dex", false);
+    let plan = prepare(
+        query(
+            Node::Scan {
+                relation: "class_method_members".into(),
+            },
+            catalog.snapshot_id(),
+            catalog.catalog_epoch(),
+        ),
+        &catalog,
+    )
+    .unwrap();
+    assert_eq!(
+        plan.required_layers(),
+        &BTreeSet::from([FactLayer::Structure])
+    );
+    let result = execute(
+        &plan,
+        &catalog,
+        ExecutionMode::Streaming,
+        &mut Control::new(ExecutionLimits::default()),
+    )
+    .unwrap();
+    let expected: Vec<Row> = catalog
+        .occurrences
+        .iter()
+        .flat_map(|occurrence| {
+            let source = occurrence.metadata.source();
+            occurrence
+                .definitions
+                .as_ref()
+                .unwrap()
+                .definitions()
+                .method_definitions
+                .iter()
+                .map(move |method| {
+                    vec![
+                        Value::Entity(EntityRef {
+                            snapshot_id: source.snapshot_id.clone(),
+                            dex_occurrence_id: source.dex_occurrence_id.clone(),
+                            kind: EntityKind::ClassDefinition,
+                            local_index: method.class_def_idx,
+                        }),
+                        Value::Entity(EntityRef {
+                            snapshot_id: source.snapshot_id.clone(),
+                            dex_occurrence_id: source.dex_occurrence_id.clone(),
+                            kind: EntityKind::MethodDefinition,
+                            local_index: method.method_idx,
+                        }),
+                        Value::text(method.kind.as_str()),
+                        Value::U64(DecimalU64(u64::from(method.ordinal))),
+                    ]
+                })
+        })
+        .collect();
+    assert!(!expected.is_empty());
+    assert_eq!(result.rows(), expected.as_slice());
+    let midpoint = expected.len() / 2;
+    assert_eq!(expected.len() % 2, 0);
+    assert_ne!(expected[0][0], expected[midpoint][0]);
+    assert!(
+        catalog.occurrences[0]
+            .definitions
+            .as_ref()
+            .unwrap()
+            .definitions()
+            .method_definitions
+            .iter()
+            .any(|v| v.kind.as_str() == "direct")
+    );
+    assert!(
+        catalog.occurrences[0]
+            .definitions
+            .as_ref()
+            .unwrap()
+            .definitions()
+            .method_definitions
+            .iter()
+            .any(|v| v.kind.as_str() == "virtual")
+    );
+    let metadata_only = NativeCatalog::new(
+        catalog.snapshot_id().into(),
+        catalog.catalog_epoch(),
+        vec![OccurrenceFacts {
+            metadata: catalog.occurrences[0].metadata.clone(),
+            definitions: None,
+            code: None,
+        }],
+    )
+    .unwrap();
+    let absent = prepare(
+        query(
+            Node::Scan {
+                relation: "class_method_members".into(),
+            },
+            metadata_only.snapshot_id(),
+            metadata_only.catalog_epoch(),
+        ),
+        &metadata_only,
+    );
+    assert_eq!(absent.err().unwrap().code, ErrorCode::IncompleteFacts);
+}
+
+#[test]
 fn native_prototype_parameters_preserve_occurrence_and_ordinal() {
     let catalog = native("definitions-038.dex", false);
     let metadata_only = NativeCatalog::new(

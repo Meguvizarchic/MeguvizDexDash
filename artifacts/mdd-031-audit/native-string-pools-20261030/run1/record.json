@@ -1,0 +1,21 @@
+{
+  "exit_code": 0,
+  "source_after": {
+    "crates/mdd-facts/src/indexes/scope.rs": "510462FBFC1D5D25A784982200DF160E8F23AD0BB24E9D8491C189B526E01A9B",
+    "crates/mdd-sql/src/provider/metadata.rs": "158CE83A5DE7805E7EACF3D7C782BE751FE4776B1C1C606D223F659F152A3DAB",
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "tests/fixtures/definitions/generated/definitions-035.dex": "4E8F9E8DEEDF44C8793E10D99F2614E0BED705DCAC617C0D74137E7B2BD459CC",
+    "crates/mdd-facts/src/metadata.rs": "E5FAFA598807CC23D011570E7411EE53E1129391362C08B5CEF5A38AFE040357",
+    "crates/mdd-query/src/executor/facts.rs": "8F77E472968002724DDC166EE5F1817C1664E2DF70DEFDC1633D0ED95D65302B"
+  },
+  "source_before": {
+    "crates/mdd-facts/src/indexes/scope.rs": "510462FBFC1D5D25A784982200DF160E8F23AD0BB24E9D8491C189B526E01A9B",
+    "crates/mdd-sql/src/provider/metadata.rs": "158CE83A5DE7805E7EACF3D7C782BE751FE4776B1C1C606D223F659F152A3DAB",
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "tests/fixtures/definitions/generated/definitions-035.dex": "4E8F9E8DEEDF44C8793E10D99F2614E0BED705DCAC617C0D74137E7B2BD459CC",
+    "crates/mdd-facts/src/metadata.rs": "E5FAFA598807CC23D011570E7411EE53E1129391362C08B5CEF5A38AFE040357",
+    "crates/mdd-query/src/executor/facts.rs": "8F77E472968002724DDC166EE5F1817C1664E2DF70DEFDC1633D0ED95D65302B"
+  },
+  "scope": "synthetic two occurrences; physical pool identity not legacy numeric pool qualification",
+  "command": "cargo test -p mdd-sql --locked --offline --jobs 1 native_string_pools_bind_each_occurrence_without_cross_source_duplication -- --nocapture"
+}

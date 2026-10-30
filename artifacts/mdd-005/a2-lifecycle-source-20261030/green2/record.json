@@ -1,0 +1,38 @@
+{
+  "runs": [
+    {
+      "exit_code": 0,
+      "arguments": [
+        "-B",
+        "-O",
+        "artifacts/mdd-005/a2-lifecycle-source-20261030/probe.py"
+      ]
+    },
+    {
+      "exit_code": 0,
+      "arguments": [
+        "-B",
+        "-O",
+        "artifacts/mdd-005/a2-dataset-lifecycle-20261030/probe2.py"
+      ]
+    }
+  ],
+  "source_before": {
+    "artifacts/mdd-005/a2-lifecycle-source-20261030/probe.py": "31ED307C4A14ADB94F79BF579961576743DC59E88C058AAFB26DF5A0AA7E318F",
+    "benchmarks/a2_dataset_open.py": "33EBD713D204C2F739255193050F3F4F328B0DD20747D211621FF0786EEAA19C",
+    "benchmarks/a2_dataset_lifecycle.py": "188ABC1988E21228BD2230EE0764B96AD45AD6B69F558B267AA34C897B0147FF",
+    "artifacts/mdd-005/a2-dataset-lifecycle-20261030/probe2.py": "B32F84F212F5278F2E7CB4E291CEF2E65F8C0B310BA683C28D4593F9F15ED96A",
+    "benchmarks/a2_windows_input_pin.py": "2EAA1C78672FC24825D3A988DC8FA05DAE395860D21B84AB508E104CD8C2EFD3",
+    "benchmarks/a2_dataset_close.py": "4D2CB8756D38BEFB101AFE9C020D93E8A4757CB376F473CEE4CE4A39B83636E5"
+  },
+  "scope": "synthetic client and owned pin, failure injection; no snapshot or A2 qualification",
+  "python": "fixed baseline venv 3.12.14",
+  "source_after": {
+    "artifacts/mdd-005/a2-lifecycle-source-20261030/probe.py": "31ED307C4A14ADB94F79BF579961576743DC59E88C058AAFB26DF5A0AA7E318F",
+    "benchmarks/a2_dataset_open.py": "33EBD713D204C2F739255193050F3F4F328B0DD20747D211621FF0786EEAA19C",
+    "benchmarks/a2_dataset_lifecycle.py": "188ABC1988E21228BD2230EE0764B96AD45AD6B69F558B267AA34C897B0147FF",
+    "artifacts/mdd-005/a2-dataset-lifecycle-20261030/probe2.py": "B32F84F212F5278F2E7CB4E291CEF2E65F8C0B310BA683C28D4593F9F15ED96A",
+    "benchmarks/a2_windows_input_pin.py": "2EAA1C78672FC24825D3A988DC8FA05DAE395860D21B84AB508E104CD8C2EFD3",
+    "benchmarks/a2_dataset_close.py": "4D2CB8756D38BEFB101AFE9C020D93E8A4757CB376F473CEE4CE4A39B83636E5"
+  }
+}

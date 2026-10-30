@@ -44,6 +44,7 @@ class A1DatasetLifecycle:
                 or not math.isfinite(close_call_seconds) or close_call_seconds <= 0):
             raise ValueError('a finite positive close deadline is required')
         self._client = client
+        self._source = source
         self._remaining = remaining_seconds
         self._opener = A1ExclusiveDatasetOpener(client, source,
                                                 remaining_seconds=remaining_seconds,
@@ -54,6 +55,7 @@ class A1DatasetLifecycle:
         self._state = 'new'
         self.opened = None
         self.close_confirmed = False
+        self.source_confirmed = False
         self.abort_confirmed = False
 
     async def _abort(self):
@@ -69,6 +71,16 @@ class A1DatasetLifecycle:
             await self._abort()
         except BaseException as error:
             primary.add_note('owned transport shutdown was not confirmed: ' + str(error))
+
+    def _verify_source(self):
+        def check_deadline():
+            remaining = self._remaining()
+            if (not isinstance(remaining, (int, float)) or isinstance(remaining, bool)
+                    or not math.isfinite(remaining) or remaining <= 0):
+                raise TimeoutError('shared deadline expired during source verification')
+        check_deadline()
+        self._source.verify_source()
+        check_deadline()
 
     async def __aenter__(self):
         if self._state != 'new':
@@ -99,12 +111,16 @@ class A1DatasetLifecycle:
             await self._abort_preserving(error)
             return False
         try:
+            self._verify_source()
             if await self._closer.close() is not True:
                 raise DatasetLifecycleError('dataset close was not confirmed')
+            # Closing is a separate observation from source revalidation.
+            self.close_confirmed = True
+            self._verify_source()
+            self.source_confirmed = True
         except BaseException as close_error:
             self._state = 'failed'
             await self._abort_preserving(close_error)
             raise
-        self.close_confirmed = True
         self._state = 'closed'
         return False

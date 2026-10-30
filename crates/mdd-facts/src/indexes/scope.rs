@@ -17,6 +17,20 @@ pub struct SelectedDex {
     pub detected_version: String,
 }
 
+/// A scope-local occurrence coordinate and its validated physical string pool.
+/// The ordinal is scoped to this selection and never replaces physical identity.
+pub struct OccurrencePoolCoordinate<'a> {
+    pub dex: &'a SelectedDex,
+    pub occurrence_pool_ordinal: u32,
+    pub physical_pool: &'a crate::metadata::StringPoolIdentity,
+}
+
+/// Candidate one-selected-DEX-per-pool numbering; not a legacy profile admission.
+pub struct ScopedPoolCoordinates<'a> {
+    pub scope: &'a SelectedScope,
+    pub rows: Vec<OccurrencePoolCoordinate<'a>>,
+}
+
 #[cfg(test)]
 mod metadata_rows_tests {
     use super::*;
@@ -26,6 +40,128 @@ mod metadata_rows_tests {
         snapshot::{CaptureLimits, InputKind, InputSpec},
     };
     use std::path::PathBuf;
+
+    #[test]
+    fn pool_coordinates_preserve_occurrences_and_match_saved_a0_sample() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let saved_bytes = std::fs::read(
+            root.join("artifacts/mdd-026/cross-dex-audit/20261028T164250980578Z/result.json"),
+        )
+        .unwrap();
+        assert_eq!(
+            mdd_types::sha256(&saved_bytes),
+            "0f3f4f46764973908fad5e6c540ee0b804ed023ec43278464d26318c38ea92e3"
+        );
+        let saved: serde_json::Value = serde_json::from_slice(&saved_bytes).unwrap();
+        let classic = root.join("tests/fixtures/references/generated/classic-035.dex");
+        let shared = root.join("tests/fixtures/references/generated/shared-code-035.dex");
+        assert_eq!(
+            mdd_types::sha256(&std::fs::read(&classic).unwrap()),
+            "076dcc64b96b8369327e7ee6e5c05c864ef3bde26c746b6318ee12c52c654dc8"
+        );
+        assert_eq!(
+            mdd_types::sha256(&std::fs::read(&shared).unwrap()),
+            "22eb2d4020f172334a99f5c75538af5f2b3e80673adb11803b368cc68aaec0ab"
+        );
+        for (name, second, same_physical) in [
+            ("duplicate-raw-input", classic.clone(), true),
+            ("two-distinct-raw", shared, false),
+        ] {
+            let inputs = [classic.clone(), second].map(|path| InputSpec {
+                path,
+                kind: InputKind::RawDex,
+                expected_sha256: None,
+            });
+            let snapshot = Snapshot::capture(&inputs, CaptureLimits::default()).unwrap();
+            let inventories: Vec<_> = snapshot
+                .sources()
+                .iter()
+                .map(|source| {
+                    ArchiveInventory::build(
+                        source,
+                        InventoryPolicy::default(),
+                        ArchiveLimits::default(),
+                    )
+                    .unwrap()
+                })
+                .collect();
+            let facts: Vec<_> = inventories
+                .iter()
+                .map(|inventory| {
+                    MetadataFacts::build(&snapshot, inventory, 0, StringLimits::default()).unwrap()
+                })
+                .collect();
+            let scope =
+                SelectedScope::from_inventories(&snapshot, &[&inventories[0], &inventories[1]])
+                    .unwrap();
+            let result = scope
+                .occurrence_pool_coordinates(&[&facts[1], &facts[0]], 2)
+                .unwrap();
+            assert_eq!(result.scope.scope_id(), scope.scope_id());
+            assert!(result.scope.covers_all_captured_sources());
+            assert_eq!(result.rows.len(), 2);
+            assert_ne!(
+                result.rows[0].dex.dex_occurrence_id,
+                result.rows[1].dex.dex_occurrence_id
+            );
+            assert_eq!(
+                result.rows[0].physical_pool.string_pool_id
+                    == result.rows[1].physical_pool.string_pool_id,
+                same_physical
+            );
+            let expected = saved["cases"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|case| case["case"] == name)
+                .unwrap();
+            let expected = expected["a0_dex_rows"].as_array().unwrap();
+            for (ordinal, row) in result.rows.iter().enumerate() {
+                assert_eq!(
+                    row.dex.file_id.to_string(),
+                    expected[ordinal]["file_id"].as_str().unwrap()
+                );
+                assert_eq!(
+                    row.occurrence_pool_ordinal.to_string(),
+                    expected[ordinal]["string_pool_id"].as_str().unwrap()
+                );
+                assert_eq!(
+                    row.physical_pool.dex_occurrence_id,
+                    row.dex.dex_occurrence_id
+                );
+            }
+            assert_eq!(
+                scope
+                    .occurrence_pool_coordinates(&[&facts[0]], 2)
+                    .err()
+                    .unwrap()
+                    .code,
+                ErrorCode::IncompleteFacts
+            );
+            assert_eq!(
+                scope
+                    .occurrence_pool_coordinates(&[&facts[0], &facts[1]], 1)
+                    .err()
+                    .unwrap()
+                    .code,
+                ErrorCode::QuotaExceeded
+            );
+            let mut invalid = facts[0].clone();
+            invalid.string_pool.dex_occurrence_id = "wrong".into();
+            assert_eq!(
+                scope
+                    .occurrence_pool_coordinates(&[&invalid, &facts[1]], 2)
+                    .err()
+                    .unwrap()
+                    .code,
+                ErrorCode::InternalFault
+            );
+            let sub = SelectedScope::from_inventories(&snapshot, &[&inventories[1]]).unwrap();
+            let sub_rows = sub.occurrence_pool_coordinates(&[&facts[1]], 1).unwrap();
+            assert!(!sub_rows.scope.covers_all_captured_sources());
+            assert_eq!(sub_rows.rows[0].occurrence_pool_ordinal, 0);
+        }
+    }
 
     #[test]
     fn selected_metadata_rows_preserve_occurrences_and_scope() {
@@ -408,5 +544,46 @@ impl SelectedScope {
             return Err(error("metadata occurrence outside selected scope"));
         }
         Ok(rows)
+    }
+
+    /// Assign one scope-local pool ordinal per selected DEX occurrence, even
+    /// when byte-identical occurrences share a physical pool. This candidate
+    /// requires complete selected metadata and carries the originating scope;
+    /// it does not establish legacy numbering for all DEX formats or inputs.
+    /// `max_entries` bounds logical row counts, not allocation overhead or CPU.
+    pub fn occurrence_pool_coordinates<'a>(
+        &'a self,
+        facts: &[&'a MetadataFacts],
+        max_entries: u64,
+    ) -> MddResult<ScopedPoolCoordinates<'a>> {
+        let metadata = self.metadata_rows(facts, max_entries)?;
+        let mut rows = Vec::new();
+        rows.try_reserve_exact(metadata.len()).map_err(|_| {
+            MddError::new(
+                ErrorCode::QuotaExceeded,
+                "facts.scope_pool",
+                "pool row allocation failed",
+            )
+        })?;
+        for (dex, fact) in metadata {
+            let pool = fact.string_pool();
+            let source = fact.source();
+            if pool.dex_occurrence_id != source.dex_occurrence_id
+                || pool.physical_dex_id != source.physical_dex_id
+                || pool.content_id != source.content_id
+            {
+                return Err(MddError::new(
+                    ErrorCode::InternalFault,
+                    "facts.scope_pool",
+                    "validated string pool identity differs from source",
+                ));
+            }
+            rows.push(OccurrencePoolCoordinate {
+                dex,
+                occurrence_pool_ordinal: dex.file_id,
+                physical_pool: pool,
+            });
+        }
+        Ok(ScopedPoolCoordinates { scope: self, rows })
     }
 }

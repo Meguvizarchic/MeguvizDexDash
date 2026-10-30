@@ -315,6 +315,15 @@ fn schema(relation: &str) -> MddResult<RelationSchema> {
             ],
             FactLayer::Structure,
         ),
+        "class_method_members" => (
+            vec![
+                column("class_definition", Entity, false),
+                column("method_definition", Entity, false),
+                column("kind", Utf16, false),
+                column("ordinal", U64, false),
+            ],
+            FactLayer::Structure,
+        ),
         "code_items" => (
             vec![
                 column("dex_occurrence_id", Utf16, false),
@@ -495,6 +504,14 @@ fn rows<'a>(
                 number(v.access_flags),
                 Value::text(v.kind.as_str()),
                 Value::text(v.body.state()),
+            ])
+        })),
+        "class_method_members" => Box::new(definitions.method_definitions.iter().map(|v| {
+            Ok(vec![
+                entity(source, EntityKind::ClassDefinition, v.class_def_idx),
+                entity(source, EntityKind::MethodDefinition, v.method_idx),
+                Value::text(v.kind.as_str()),
+                number(v.ordinal),
             ])
         })),
         _ => return Err(invalid("UNKNOWN_RELATION")),

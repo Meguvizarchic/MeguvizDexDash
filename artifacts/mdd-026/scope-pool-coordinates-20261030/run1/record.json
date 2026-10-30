@@ -1,0 +1,25 @@
+{
+  "source_after": {
+    "crates/mdd-facts/src/metadata.rs": "E5FAFA598807CC23D011570E7411EE53E1129391362C08B5CEF5A38AFE040357",
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "artifacts/mdd-026/cross-dex-audit/20261028T164250980578Z/result.json": "0F3F4F46764973908FAD5E6C540EE0B804ED023EC43278464D26318C38EA92E3",
+    "crates/mdd-input/src/snapshot/mod.rs": "7B5B2AFD099609C2787A960E93CC6E104E0E7CE508A2D6C1820A3EA63FCF93A0",
+    "crates/mdd-input/src/archive/mod.rs": "8B950285850F05925D18E4876F176CB64583879BD24309A3B5BB97A31C339428",
+    "tests/fixtures/references/generated/shared-code-035.dex": "22EB2D4020F172334A99F5C75538AF5F2B3E80673ADB11803B368CC68AAEC0AB",
+    "crates/mdd-facts/src/indexes/scope.rs": "A43FDC81C67264CA8FC70F167CAAC07270A1B8C9D6463DDE70D3D67A22D00268",
+    "tests/fixtures/references/generated/classic-035.dex": "076DCC64B96B8369327E7EE6E5C05C864EF3BDE26C746B6318EE12C52C654DC8"
+  },
+  "scope": "two retained A0 synthetic raw-DEX cases; no 041, APK, full legacy or HostLab qualification",
+  "source_before": {
+    "crates/mdd-facts/src/metadata.rs": "E5FAFA598807CC23D011570E7411EE53E1129391362C08B5CEF5A38AFE040357",
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "artifacts/mdd-026/cross-dex-audit/20261028T164250980578Z/result.json": "0F3F4F46764973908FAD5E6C540EE0B804ED023EC43278464D26318C38EA92E3",
+    "crates/mdd-input/src/snapshot/mod.rs": "7B5B2AFD099609C2787A960E93CC6E104E0E7CE508A2D6C1820A3EA63FCF93A0",
+    "crates/mdd-input/src/archive/mod.rs": "8B950285850F05925D18E4876F176CB64583879BD24309A3B5BB97A31C339428",
+    "tests/fixtures/references/generated/shared-code-035.dex": "22EB2D4020F172334A99F5C75538AF5F2B3E80673ADB11803B368CC68AAEC0AB",
+    "crates/mdd-facts/src/indexes/scope.rs": "A43FDC81C67264CA8FC70F167CAAC07270A1B8C9D6463DDE70D3D67A22D00268",
+    "tests/fixtures/references/generated/classic-035.dex": "076DCC64B96B8369327E7EE6E5C05C864EF3BDE26C746B6318EE12C52C654DC8"
+  },
+  "exit_code": 0,
+  "command": "cargo test -p mdd-facts --locked --offline --jobs 1 pool_coordinates_preserve_occurrences_and_match_saved_a0_sample -- --nocapture"
+}
