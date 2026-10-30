@@ -1,0 +1,40 @@
+{
+  "command_template": "cargo test -p mdd-sql --locked --offline --jobs 1 FILTER -- --nocapture",
+  "runs": [
+    {
+      "filter": "annotation_sets_and_ref_lists_preserve_physical_entries_and_empty_headers",
+      "exit_code": 0,
+      "one_test_passed": true
+    },
+    {
+      "filter": "native_annotations_preserve_occurrences_values_and_owner_slots",
+      "exit_code": 0,
+      "one_test_passed": true
+    }
+  ],
+  "scope": "selected synthetic SQL bridge; raw bytes oracle for set/list counts and offsets, start identity via parser; owner/parameter bindings same-facts, no legacy/profile qualification",
+  "source_after": {
+    "tests/fixtures/annotations/generated/bad-parameter-arity.dex": "DAC87EB4842227104F1A7B3F215EB1FDC452422273C54020DE89E88939CEEA4F",
+    "crates/mdd-sql/src/provider/metadata.rs": "0A8FAFA468388944B7C42CD93850E3A8A2CCD2A34ADBE5303E5133EC0F9F4F7C",
+    "tests/fixtures/annotations/generated/valid-orphan-empty-set.dex": "5B45B0738170E25913FCFA5FAE083894E3A2B1F1F7DA23CE67EB5CDCB214882B",
+    "tests/fixtures/annotations/generated/valid-orphan-empty-ref-list.dex": "A32C1B4BC16628B8D873564FDDD2261FA3944263407ADD7F2F6ED0A28D0E0B45",
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "crates/mdd-facts/src/annotations.rs": "290B6C7F86C2DD3F427D6FC791CE677769A5E861226A3EE1137136B77F2A2DAC",
+    "crates/mdd-query/src/budget.rs": "E0A29C0E9DE3BC08050A7061EE7795307B31A5494412714D48C9AE44E9462EAE",
+    "crates/mdd-dex/src/annotations.rs": "59599C8ECA5D765DCDE214657CDB36359E1B55A2F60E48936FE45E036A4B470D",
+    "tests/fixtures/annotations/generated/annotations-038.dex": "65380A8B23601E17339379BE211E417D8B4C8383B686B6D173F800656B985360",
+    "crates/mdd-query/src/executor/facts.rs": "06213FA046AADA2DC18AA7018842F458CFAE5D093B73257E8B0DB0633D1AC04B"
+  },
+  "source_before": {
+    "tests/fixtures/annotations/generated/bad-parameter-arity.dex": "DAC87EB4842227104F1A7B3F215EB1FDC452422273C54020DE89E88939CEEA4F",
+    "crates/mdd-sql/src/provider/metadata.rs": "0A8FAFA468388944B7C42CD93850E3A8A2CCD2A34ADBE5303E5133EC0F9F4F7C",
+    "tests/fixtures/annotations/generated/valid-orphan-empty-set.dex": "5B45B0738170E25913FCFA5FAE083894E3A2B1F1F7DA23CE67EB5CDCB214882B",
+    "tests/fixtures/annotations/generated/valid-orphan-empty-ref-list.dex": "A32C1B4BC16628B8D873564FDDD2261FA3944263407ADD7F2F6ED0A28D0E0B45",
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "crates/mdd-facts/src/annotations.rs": "290B6C7F86C2DD3F427D6FC791CE677769A5E861226A3EE1137136B77F2A2DAC",
+    "crates/mdd-query/src/budget.rs": "E0A29C0E9DE3BC08050A7061EE7795307B31A5494412714D48C9AE44E9462EAE",
+    "crates/mdd-dex/src/annotations.rs": "59599C8ECA5D765DCDE214657CDB36359E1B55A2F60E48936FE45E036A4B470D",
+    "tests/fixtures/annotations/generated/annotations-038.dex": "65380A8B23601E17339379BE211E417D8B4C8383B686B6D173F800656B985360",
+    "crates/mdd-query/src/executor/facts.rs": "06213FA046AADA2DC18AA7018842F458CFAE5D093B73257E8B0DB0633D1AC04B"
+  }
+}

@@ -33,6 +33,7 @@ class WindowsInputPin:
                 getattr(source, 'verify_source', None)):
             raise ValueError('a previously pinned input inventory is required')
         self._source = source
+        self._path = source.path
         self._kernel = ctypes.WinDLL('kernel32', use_last_error=True)
         self._kernel.CreateFileW.argtypes = [ctypes.c_wchar_p, ctypes.c_uint32,
             ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p]
@@ -46,7 +47,7 @@ class WindowsInputPin:
         if self._state != 'new':
             raise InputPinError('input pin is not reusable')
         # GENERIC_READ, FILE_SHARE_READ only, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL.
-        handle = self._kernel.CreateFileW(str(self._source.path), 0x80000000, 1,
+        handle = self._kernel.CreateFileW(str(self._path), 0x80000000, 1,
                                           None, 3, 0x80, None)
         if handle == ctypes.c_void_p(-1).value:
             self._state = 'failed'
@@ -54,7 +55,7 @@ class WindowsInputPin:
         self._handle = handle
         self._state = 'held'
         try:
-            self._source.verify_source()
+            self.verify()
         except BaseException as error:
             try:
                 self.close()
@@ -63,10 +64,33 @@ class WindowsInputPin:
             raise
         return self
 
+    @property
+    def path(self):
+        """The input path fixed when the pin was constructed."""
+        return self._path
+
     def verify(self):
         if self._state != 'held':
             raise InputPinError('input pin is not held')
+        if self._source.path != self._path:
+            raise InputPinError('input path changed while pin was held')
         self._source.verify_source()
+        if self._source.path != self._path:
+            raise InputPinError('input path changed during verification')
+
+    def verify_source(self):
+        """Source callback for the existing A1 dataset opener."""
+        self.verify()
+
+    def verify_inventory(self, source, files):
+        """Delegate the original physical inventory check while the pin is held."""
+        check = getattr(self._source, 'verify_inventory', None)
+        if not callable(check):
+            raise InputPinError('source inventory check is unavailable')
+        self.verify()
+        result = check(source, files)
+        self.verify()
+        return result
 
     def close(self):
         if self._handle is None:

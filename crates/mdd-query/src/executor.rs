@@ -266,6 +266,7 @@ fn expr_layers(
                 return Err(invalid("CODE_DEFINITION_REQUIRED"));
             }
             layers.insert(FactLayer::CodeLayout);
+            layers.insert(FactLayer::Structure);
             expr_layers(entity, layers, source, depth + 1)?;
         }
     }

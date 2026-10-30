@@ -1,0 +1,19 @@
+{
+  "source_before": {
+    "benchmarks/a2_input_inventory.py": "0D9C887B08E402E907B0EE5C50777D3D590B5917F0EB9CDB165FBD8CCD650ECA",
+    "benchmarks/a2_dataset_close.py": "4D2CB8756D38BEFB101AFE9C020D93E8A4757CB376F473CEE4CE4A39B83636E5",
+    "benchmarks/a2_windows_input_pin.py": "2EAA1C78672FC24825D3A988DC8FA05DAE395860D21B84AB508E104CD8C2EFD3",
+    "artifacts/mdd-005/a2-windows-input-pin-20261030/probe.py": "8E8C8BBD6522201E190F9D22C01D4BA63145B5399DD765F95492FCB81F37F345",
+    "benchmarks/a2_dataset_open.py": "33EBD713D204C2F739255193050F3F4F328B0DD20747D211621FF0786EEAA19C"
+  },
+  "source_after": {
+    "benchmarks/a2_input_inventory.py": "0D9C887B08E402E907B0EE5C50777D3D590B5917F0EB9CDB165FBD8CCD650ECA",
+    "benchmarks/a2_dataset_close.py": "4D2CB8756D38BEFB101AFE9C020D93E8A4757CB376F473CEE4CE4A39B83636E5",
+    "benchmarks/a2_windows_input_pin.py": "2EAA1C78672FC24825D3A988DC8FA05DAE395860D21B84AB508E104CD8C2EFD3",
+    "artifacts/mdd-005/a2-windows-input-pin-20261030/probe.py": "8E8C8BBD6522201E190F9D22C01D4BA63145B5399DD765F95492FCB81F37F345",
+    "benchmarks/a2_dataset_open.py": "33EBD713D204C2F739255193050F3F4F328B0DD20747D211621FF0786EEAA19C"
+  },
+  "command": "baseline-venv python -B -O artifacts/mdd-005/a2-windows-input-pin-20261030/probe.py",
+  "scope": "synthetic input and fake A1 lifecycle; no producer snapshot or A2 qualification",
+  "exit_code": 0
+}

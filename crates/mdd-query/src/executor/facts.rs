@@ -315,6 +315,23 @@ fn schema(relation: &str) -> MddResult<RelationSchema> {
             ],
             FactLayer::Structure,
         ),
+        "code_items" => (
+            vec![
+                column("dex_occurrence_id", Utf16, false),
+                column("code_item_id", Utf16, false),
+                column("physical_dex_id", Utf16, false),
+                column("code_offset", U64, false),
+                column("code_length", U64, false),
+                column("insns_offset", U64, false),
+                column("insns_length", U64, false),
+                column("registers_size", U64, false),
+                column("ins_size", U64, false),
+                column("outs_size", U64, false),
+                column("insns_size_code_units", U64, false),
+                column("debug_info_offset", U64, true),
+            ],
+            FactLayer::CodeLayout,
+        ),
         _ => return Err(invalid("UNKNOWN_RELATION")),
     };
     Ok(RelationSchema {
@@ -388,6 +405,29 @@ fn rows<'a>(
                         })
                 },
             )));
+        }
+        "code_items" => {
+            let code = o
+                .code
+                .as_ref()
+                .ok_or_else(|| incomplete(FactLayer::CodeLayout))?;
+            return Ok(Box::new(code.items().iter().map(|item| {
+                let value = item.data();
+                Ok(vec![
+                    Value::text(&source.dex_occurrence_id),
+                    Value::text(item.code_item_id()),
+                    Value::text(&source.physical_dex_id),
+                    Value::U64(value.raw_range.byte_offset),
+                    Value::U64(value.raw_range.byte_length),
+                    Value::U64(value.insns_range.byte_offset),
+                    Value::U64(value.insns_range.byte_length),
+                    number(u32::from(value.registers_size)),
+                    number(u32::from(value.ins_size)),
+                    number(u32::from(value.outs_size)),
+                    number(value.insns_size_code_units),
+                    value.debug_info_byte_offset.map_or(Value::Null, Value::U64),
+                ])
+            })));
         }
         _ => (),
     }
@@ -502,11 +542,7 @@ impl FactSource for NativeCatalog {
                 FactLayer::Metadata => (),
                 FactLayer::Structure
                     if self.occurrences.iter().all(|v| v.definitions.is_some()) => {}
-                FactLayer::CodeLayout
-                    if self
-                        .occurrences
-                        .iter()
-                        .all(|v| v.definitions.is_some() && v.code.is_some()) => {}
+                FactLayer::CodeLayout if self.occurrences.iter().all(|v| v.code.is_some()) => {}
                 _ => return Err(incomplete(*layer)),
             }
         }

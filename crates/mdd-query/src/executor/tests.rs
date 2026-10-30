@@ -272,6 +272,7 @@ fn read_literal(
         catalog,
     )?;
     assert!(plan.required_layers().contains(&FactLayer::CodeLayout));
+    assert!(plan.required_layers().contains(&FactLayer::Structure));
     execute(
         &plan,
         catalog,
@@ -338,6 +339,169 @@ fn native_prototype_parameters_preserve_occurrence_and_ordinal() {
     let midpoint = expected.len() / 2;
     assert_eq!(expected.len() % 2, 0);
     assert_ne!(expected[0][0], expected[midpoint][0]);
+}
+
+#[test]
+fn native_code_items_do_not_require_method_definitions() {
+    let complete = native("definitions-038.dex", true);
+    let code_only = NativeCatalog::new(
+        complete.snapshot_id().into(),
+        complete.catalog_epoch(),
+        complete
+            .occurrences
+            .iter()
+            .map(|item| OccurrenceFacts {
+                metadata: item.metadata.clone(),
+                definitions: None,
+                code: item.code.clone(),
+            })
+            .collect(),
+    )
+    .unwrap();
+    let plan = prepare(
+        query(
+            Node::Scan {
+                relation: "code_items".into(),
+            },
+            code_only.snapshot_id(),
+            code_only.catalog_epoch(),
+        ),
+        &code_only,
+    )
+    .unwrap();
+    let output = execute(
+        &plan,
+        &code_only,
+        ExecutionMode::Streaming,
+        &mut Control::new(ExecutionLimits::default()),
+    )
+    .unwrap();
+    assert!(!output.rows().is_empty());
+    let definitions = prepare(
+        query(
+            Node::Scan {
+                relation: "method_definitions".into(),
+            },
+            code_only.snapshot_id(),
+            code_only.catalog_epoch(),
+        ),
+        &code_only,
+    );
+    assert_eq!(definitions.err().unwrap().code, ErrorCode::IncompleteFacts);
+    let original = &complete.occurrences[0];
+    let method_idx = original
+        .definitions
+        .as_ref()
+        .unwrap()
+        .definitions()
+        .method_definitions
+        .first()
+        .unwrap()
+        .method_idx;
+    let method = EntityRef {
+        snapshot_id: complete.snapshot_id().into(),
+        dex_occurrence_id: original.metadata.source().dex_occurrence_id.clone(),
+        kind: EntityKind::MethodDefinition,
+        local_index: method_idx,
+    };
+    let projected = Node::Project {
+        input: Box::new(Node::Scan {
+            relation: "code_items".into(),
+        }),
+        columns: vec![Projection {
+            column: col("body", DataType::Bytes, true),
+            expression: Expr::ReadCodeBytes {
+                entity: Box::new(Expr::Literal {
+                    value: Value::Entity(method),
+                }),
+                byte_offset: DecimalU64(0),
+                byte_length: None,
+            },
+        }],
+    };
+    let failure = prepare(
+        query(
+            projected,
+            code_only.snapshot_id(),
+            code_only.catalog_epoch(),
+        ),
+        &code_only,
+    );
+    assert_eq!(failure.err().unwrap().code, ErrorCode::IncompleteFacts);
+}
+
+#[test]
+fn native_code_items_preserve_physical_identity_and_occurrences() {
+    let catalog = native("definitions-038.dex", true);
+    let plan = prepare(
+        query(
+            Node::Scan {
+                relation: "code_items".into(),
+            },
+            catalog.snapshot_id(),
+            catalog.catalog_epoch(),
+        ),
+        &catalog,
+    )
+    .unwrap();
+    assert!(plan.required_layers().contains(&FactLayer::CodeLayout));
+    let actual = execute(
+        &plan,
+        &catalog,
+        ExecutionMode::Streaming,
+        &mut Control::new(ExecutionLimits::default()),
+    )
+    .unwrap();
+    let expected: Vec<Row> = catalog
+        .occurrences
+        .iter()
+        .flat_map(|occurrence| {
+            let source = occurrence.metadata.source();
+            occurrence
+                .code
+                .as_ref()
+                .unwrap()
+                .items()
+                .iter()
+                .map(move |item| {
+                    let code = item.data();
+                    vec![
+                        Value::text(&source.dex_occurrence_id),
+                        Value::text(item.code_item_id()),
+                        Value::text(&source.physical_dex_id),
+                        Value::U64(code.raw_range.byte_offset),
+                        Value::U64(code.raw_range.byte_length),
+                        Value::U64(code.insns_range.byte_offset),
+                        Value::U64(code.insns_range.byte_length),
+                        Value::U64(DecimalU64(u64::from(code.registers_size))),
+                        Value::U64(DecimalU64(u64::from(code.ins_size))),
+                        Value::U64(DecimalU64(u64::from(code.outs_size))),
+                        Value::U64(DecimalU64(u64::from(code.insns_size_code_units))),
+                        code.debug_info_byte_offset.map_or(Value::Null, Value::U64),
+                    ]
+                })
+        })
+        .collect();
+    assert!(!expected.is_empty());
+    assert_eq!(actual.rows(), expected.as_slice());
+    let middle = expected.len() / 2;
+    assert_ne!(expected[0][0], expected[middle][0]);
+    assert_ne!(expected[0][1], expected[middle][1]);
+    assert_eq!(expected[0][2], expected[middle][2]);
+    let incomplete = native("definitions-038.dex", false);
+    let err = prepare(
+        query(
+            Node::Scan {
+                relation: "code_items".into(),
+            },
+            incomplete.snapshot_id(),
+            incomplete.catalog_epoch(),
+        ),
+        &incomplete,
+    )
+    .err()
+    .unwrap();
+    assert_eq!(err.code, ErrorCode::IncompleteFacts);
 }
 
 #[test]

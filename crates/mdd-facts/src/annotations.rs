@@ -21,6 +21,35 @@ pub struct AnnotationRef {
     pub dex_occurrence_id: String,
     pub annotation_byte_offset: u32,
 }
+
+/// Physical collection identity; set items and set-reference lists are distinct.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AnnotationCollectionKind {
+    Set,
+    SetRefList,
+}
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct AnnotationCollectionRef {
+    pub snapshot_id: String,
+    pub dex_occurrence_id: String,
+    pub byte_offset: u32,
+    pub kind: AnnotationCollectionKind,
+}
+/// Borrowed physical collection and its exact bytes; no owner or parameter
+/// position semantics are inferred from a reference-list slot.
+pub enum AnnotationCollectionView<'a> {
+    Set {
+        source: &'a MetadataSource,
+        item: &'a AnnotationSet,
+        raw_encoded: &'a [u8],
+    },
+    SetRefList {
+        source: &'a MetadataSource,
+        item: &'a AnnotationSetRefList,
+        raw_encoded: &'a [u8],
+    },
+}
 #[derive(Clone, Debug, Serialize)]
 pub struct AnnotationOwnerRef {
     pub kind: AnnotationOwnerKind,
@@ -508,6 +537,127 @@ impl AnnotationFacts {
     }
     pub fn source(&self) -> &MetadataSource {
         self.definitions.metadata.source()
+    }
+    /// Resolve a physically validated collection start in this exact occurrence.
+    /// Limits bound the selected kind's physical item count and selected slot
+    /// count, not bytes scanned, CPU, allocation or RSS. Empty and orphan
+    /// physical collections remain valid; `None` slots are preserved.
+    pub fn collection_by_ref(
+        &self,
+        reference: &AnnotationCollectionRef,
+        max_physical_items: u64,
+        max_slots: u64,
+    ) -> MddResult<AnnotationCollectionView<'_>> {
+        let source = self.source();
+        if reference.snapshot_id != source.snapshot_id
+            || reference.dex_occurrence_id != source.dex_occurrence_id
+        {
+            return Err(MddError::new(
+                ErrorCode::InvalidArgument,
+                "facts.annotation_collections",
+                "collection belongs to another snapshot or occurrence",
+            ));
+        }
+        if self.annotation_coverage != Completeness::Complete
+            || self.definitions.definition_coverage() != Completeness::Complete
+            || self.definitions.metadata().metadata_coverage() != Completeness::Complete
+        {
+            return Err(MddError::new(
+                ErrorCode::IncompleteFacts,
+                "facts.annotation_collections",
+                "complete metadata, definitions and annotations are required",
+            ));
+        }
+        let quota = || {
+            MddError::new(
+                ErrorCode::QuotaExceeded,
+                "facts.annotation_collections",
+                "collection entry budget exceeded",
+            )
+        };
+        let invalid = || {
+            MddError::new(
+                ErrorCode::InvalidArgument,
+                "facts.annotation_collections",
+                "collection offset is not a physical item start",
+            )
+        };
+        let broken = || {
+            MddError::new(
+                ErrorCode::InternalFault,
+                "facts.annotation_collections",
+                "validated collection is inconsistent",
+            )
+        };
+        let raw = |offset: u32, length: u64, start: u64| -> MddResult<&[u8]> {
+            if start != u64::from(offset) {
+                return Err(broken());
+            }
+            let end = start.checked_add(length).ok_or_else(broken)?;
+            let begin = usize::try_from(start).map_err(|_| broken())?;
+            let end = usize::try_from(end).map_err(|_| broken())?;
+            self.bytes().get(begin..end).ok_or_else(broken)
+        };
+        match reference.kind {
+            AnnotationCollectionKind::Set => {
+                if u64::try_from(self.data.sets.len()).map_err(|_| quota())? > max_physical_items {
+                    return Err(quota());
+                }
+                let mut found = self
+                    .data
+                    .sets
+                    .iter()
+                    .filter(|v| v.byte_offset == reference.byte_offset);
+                let item = found.next().ok_or_else(invalid)?;
+                if found.next().is_some() {
+                    return Err(broken());
+                }
+                if u64::try_from(item.annotation_offsets.len()).map_err(|_| quota())? > max_slots {
+                    return Err(quota());
+                }
+                let raw_encoded = raw(
+                    item.byte_offset,
+                    item.encoded_range.byte_length.0,
+                    item.encoded_range.byte_offset.0,
+                )?;
+                Ok(AnnotationCollectionView::Set {
+                    source,
+                    item,
+                    raw_encoded,
+                })
+            }
+            AnnotationCollectionKind::SetRefList => {
+                if u64::try_from(self.data.ref_lists.len()).map_err(|_| quota())?
+                    > max_physical_items
+                {
+                    return Err(quota());
+                }
+                let mut found = self
+                    .data
+                    .ref_lists
+                    .iter()
+                    .filter(|v| v.byte_offset == reference.byte_offset);
+                let item = found.next().ok_or_else(invalid)?;
+                if found.next().is_some() {
+                    return Err(broken());
+                }
+                if u64::try_from(item.annotation_set_offsets.len()).map_err(|_| quota())?
+                    > max_slots
+                {
+                    return Err(quota());
+                }
+                let raw_encoded = raw(
+                    item.byte_offset,
+                    item.encoded_range.byte_length.0,
+                    item.encoded_range.byte_offset.0,
+                )?;
+                Ok(AnnotationCollectionView::SetRefList {
+                    source,
+                    item,
+                    raw_encoded,
+                })
+            }
+        }
     }
     /// Reverse lookup of one validated physical item across encoded owners in
     /// this DEX occurrence. An empty result proves only that this item has no
@@ -1188,6 +1338,201 @@ mod tests {
         let definitions = DefinitionFacts::build(metadata, DefinitionLimits::default()).unwrap();
         AnnotationFacts::build(definitions, AnnotationLimits::default()).unwrap()
     }
+    #[test]
+    fn physical_collection_views_preserve_bytes_nulls_and_scope() {
+        let facts = build("tests/fixtures/annotations/generated/annotations-038.dex");
+        let make = |kind, byte_offset| AnnotationCollectionRef {
+            snapshot_id: facts.source().snapshot_id.clone(),
+            dex_occurrence_id: facts.source().dex_occurrence_id.clone(),
+            byte_offset,
+            kind,
+        };
+        for set in &facts.data.sets {
+            let reference = make(AnnotationCollectionKind::Set, set.byte_offset);
+            let AnnotationCollectionView::Set {
+                source,
+                item,
+                raw_encoded,
+            } = facts
+                .collection_by_ref(
+                    &reference,
+                    facts.data.sets.len() as u64,
+                    set.annotation_offsets.len() as u64,
+                )
+                .unwrap()
+            else {
+                panic!("unexpected collection kind")
+            };
+            assert_eq!(source.dex_occurrence_id, facts.source().dex_occurrence_id);
+            assert_eq!(raw_encoded.len(), 4 + item.annotation_offsets.len() * 4);
+            assert_eq!(
+                u32::from_le_bytes(raw_encoded[..4].try_into().unwrap()) as usize,
+                item.annotation_offsets.len()
+            );
+            for (slot, expected) in raw_encoded[4..]
+                .chunks_exact(4)
+                .zip(&item.annotation_offsets)
+            {
+                assert_eq!(u32::from_le_bytes(slot.try_into().unwrap()), *expected);
+            }
+        }
+        let mut saw_null = false;
+        for list in &facts.data.ref_lists {
+            let reference = make(AnnotationCollectionKind::SetRefList, list.byte_offset);
+            let AnnotationCollectionView::SetRefList {
+                item, raw_encoded, ..
+            } = facts
+                .collection_by_ref(
+                    &reference,
+                    facts.data.ref_lists.len() as u64,
+                    list.annotation_set_offsets.len() as u64,
+                )
+                .unwrap()
+            else {
+                panic!("unexpected collection kind")
+            };
+            assert_eq!(raw_encoded.len(), 4 + item.annotation_set_offsets.len() * 4);
+            assert_eq!(
+                u32::from_le_bytes(raw_encoded[..4].try_into().unwrap()) as usize,
+                item.annotation_set_offsets.len()
+            );
+            for (slot, expected) in raw_encoded[4..]
+                .chunks_exact(4)
+                .zip(&item.annotation_set_offsets)
+            {
+                let raw = u32::from_le_bytes(slot.try_into().unwrap());
+                assert_eq!((raw != 0).then_some(raw), *expected);
+                saw_null |= expected.is_none();
+            }
+        }
+        assert!(saw_null, "fixture must contain an encoded null slot");
+        let nonempty_set = facts
+            .data
+            .sets
+            .iter()
+            .find(|v| !v.annotation_offsets.is_empty())
+            .unwrap();
+        let set_limited = make(AnnotationCollectionKind::Set, nonempty_set.byte_offset);
+        assert_eq!(
+            facts
+                .collection_by_ref(
+                    &set_limited,
+                    u64::MAX,
+                    nonempty_set.annotation_offsets.len() as u64 - 1
+                )
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::QuotaExceeded
+        );
+        let nonempty_list = facts
+            .data
+            .ref_lists
+            .iter()
+            .find(|v| !v.annotation_set_offsets.is_empty())
+            .unwrap();
+        let list_limited = make(
+            AnnotationCollectionKind::SetRefList,
+            nonempty_list.byte_offset,
+        );
+        assert_eq!(
+            facts
+                .collection_by_ref(
+                    &list_limited,
+                    u64::MAX,
+                    nonempty_list.annotation_set_offsets.len() as u64 - 1
+                )
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::QuotaExceeded
+        );
+        let orphan = build("tests/fixtures/annotations/generated/valid-orphan-empty-set.dex");
+        let empty = orphan
+            .data
+            .sets
+            .iter()
+            .find(|set| {
+                set.annotation_offsets.is_empty()
+                    && !orphan
+                        .data
+                        .owner_bindings
+                        .iter()
+                        .any(|owner| owner.annotation_set_offset == Some(set.byte_offset))
+            })
+            .expect("fixture must include an unowned empty set");
+        let orphan_ref = AnnotationCollectionRef {
+            snapshot_id: orphan.source().snapshot_id.clone(),
+            dex_occurrence_id: orphan.source().dex_occurrence_id.clone(),
+            byte_offset: empty.byte_offset,
+            kind: AnnotationCollectionKind::Set,
+        };
+        let AnnotationCollectionView::Set {
+            item, raw_encoded, ..
+        } = orphan
+            .collection_by_ref(&orphan_ref, orphan.data.sets.len() as u64, 0)
+            .unwrap()
+        else {
+            panic!("unexpected orphan collection kind")
+        };
+        assert!(item.annotation_offsets.is_empty());
+        assert_eq!(raw_encoded, [0, 0, 0, 0]);
+        let set = &facts.data.sets[0];
+        let reference = make(AnnotationCollectionKind::Set, set.byte_offset);
+        assert_eq!(
+            facts
+                .collection_by_ref(&reference, 0, u64::MAX)
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::QuotaExceeded
+        );
+        let foreign = AnnotationCollectionRef {
+            snapshot_id: "other".into(),
+            ..reference.clone()
+        };
+        assert_eq!(
+            facts
+                .collection_by_ref(&foreign, u64::MAX, u64::MAX)
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InvalidArgument
+        );
+        let fake = AnnotationCollectionRef {
+            byte_offset: set.byte_offset + 1,
+            ..reference.clone()
+        };
+        assert_eq!(
+            facts
+                .collection_by_ref(&fake, u64::MAX, u64::MAX)
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InvalidArgument
+        );
+        let mut partial = facts.clone();
+        partial.annotation_coverage = Completeness::Partial;
+        assert_eq!(
+            partial
+                .collection_by_ref(&reference, u64::MAX, u64::MAX)
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::IncompleteFacts
+        );
+        let mut duplicate = facts.clone();
+        duplicate.data.sets.push(set.clone());
+        assert_eq!(
+            duplicate
+                .collection_by_ref(&reference, u64::MAX, u64::MAX)
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InternalFault
+        );
+    }
+
     #[test]
     fn annotation_owner_view_preserves_shared_sets_slots_and_scope() {
         let facts = build("tests/fixtures/annotations/generated/annotations-038.dex");

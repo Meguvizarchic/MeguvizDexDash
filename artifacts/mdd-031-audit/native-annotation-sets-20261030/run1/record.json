@@ -1,0 +1,25 @@
+{
+  "command": "cargo test -p mdd-sql --locked --offline --jobs 1 annotation_sets_and_ref_lists_preserve_physical_entries_and_empty_headers -- --nocapture",
+  "source_before": {
+    "crates/mdd-facts/src/annotations.rs": "E7A4CCE9AC202F98B3E93AEC7F47F10214303F19593CEA9F07833B1247579035",
+    "crates/mdd-sql/src/provider/metadata.rs": "A8AB9A49C7085C9E8FD3930BF39A84ADA73C2F513F32A92CCD466A2D4F1B8F91",
+    "crates/mdd-dex/src/annotations.rs": "59599C8ECA5D765DCDE214657CDB36359E1B55A2F60E48936FE45E036A4B470D",
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "tests/fixtures/annotations/generated/annotations-038.dex": "65380A8B23601E17339379BE211E417D8B4C8383B686B6D173F800656B985360",
+    "tests/fixtures/annotations/generated/bad-parameter-arity.dex": "DAC87EB4842227104F1A7B3F215EB1FDC452422273C54020DE89E88939CEEA4F",
+    "tests/fixtures/annotations/generated/valid-orphan-empty-ref-list.dex": "A32C1B4BC16628B8D873564FDDD2261FA3944263407ADD7F2F6ED0A28D0E0B45",
+    "tests/fixtures/annotations/generated/valid-orphan-empty-set.dex": "5B45B0738170E25913FCFA5FAE083894E3A2B1F1F7DA23CE67EB5CDCB214882B"
+  },
+  "exit_code": 0,
+  "source_after": {
+    "crates/mdd-facts/src/annotations.rs": "E7A4CCE9AC202F98B3E93AEC7F47F10214303F19593CEA9F07833B1247579035",
+    "crates/mdd-sql/src/provider/metadata.rs": "A8AB9A49C7085C9E8FD3930BF39A84ADA73C2F513F32A92CCD466A2D4F1B8F91",
+    "crates/mdd-dex/src/annotations.rs": "59599C8ECA5D765DCDE214657CDB36359E1B55A2F60E48936FE45E036A4B470D",
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "tests/fixtures/annotations/generated/annotations-038.dex": "65380A8B23601E17339379BE211E417D8B4C8383B686B6D173F800656B985360",
+    "tests/fixtures/annotations/generated/bad-parameter-arity.dex": "DAC87EB4842227104F1A7B3F215EB1FDC452422273C54020DE89E88939CEEA4F",
+    "tests/fixtures/annotations/generated/valid-orphan-empty-ref-list.dex": "A32C1B4BC16628B8D873564FDDD2261FA3944263407ADD7F2F6ED0A28D0E0B45",
+    "tests/fixtures/annotations/generated/valid-orphan-empty-set.dex": "5B45B0738170E25913FCFA5FAE083894E3A2B1F1F7DA23CE67EB5CDCB214882B"
+  },
+  "scope": "local same-facts synthetic SQL bridge; no legacy/profile qualification"
+}

@@ -1176,6 +1176,11 @@ enum AnnotationRelation {
     Items,
     Values,
     Owners,
+    Sets,
+    SetEntries,
+    RefLists,
+    RefEntries,
+    ParameterLists,
 }
 impl AnnotationRelation {
     fn parse(name: &str) -> Option<Self> {
@@ -1185,6 +1190,16 @@ impl AnnotationRelation {
             Some(Self::Values)
         } else if name.eq_ignore_ascii_case("native_annotation_owners") {
             Some(Self::Owners)
+        } else if name.eq_ignore_ascii_case("native_annotation_sets") {
+            Some(Self::Sets)
+        } else if name.eq_ignore_ascii_case("native_annotation_set_entries") {
+            Some(Self::SetEntries)
+        } else if name.eq_ignore_ascii_case("native_annotation_ref_lists") {
+            Some(Self::RefLists)
+        } else if name.eq_ignore_ascii_case("native_annotation_ref_entries") {
+            Some(Self::RefEntries)
+        } else if name.eq_ignore_ascii_case("native_annotation_parameter_lists") {
+            Some(Self::ParameterLists)
         } else {
             None
         }
@@ -1195,6 +1210,7 @@ struct AnnotationCursor {
     relation: AnnotationRelation,
     occurrence: usize,
     ordinal: usize,
+    entry_ordinal: usize,
     control: SqlControl,
 }
 impl SqlFactCursor for AnnotationCursor {
@@ -1206,6 +1222,63 @@ impl SqlFactCursor for AnnotationCursor {
             self.control.checkpoint(1, false)?;
             let data = facts.data();
             let occurrence = || scalar_text(&facts.source().dex_occurrence_id, &self.control);
+            // Nested physical relationships use an independent cursor per set/list.
+            // Empty containers produce no entry rows but retain their header rows.
+            if matches!(
+                self.relation,
+                AnnotationRelation::SetEntries | AnnotationRelation::RefEntries
+            ) {
+                let (offset, length, entry) = match self.relation {
+                    AnnotationRelation::SetEntries => match data.sets.get(self.ordinal) {
+                        Some(set) => (
+                            set.byte_offset,
+                            set.annotation_offsets.len(),
+                            set.annotation_offsets
+                                .get(self.entry_ordinal)
+                                .copied()
+                                .map(Some),
+                        ),
+                        None => {
+                            self.occurrence += 1;
+                            self.ordinal = 0;
+                            self.entry_ordinal = 0;
+                            continue;
+                        }
+                    },
+                    AnnotationRelation::RefEntries => match data.ref_lists.get(self.ordinal) {
+                        Some(list) => (
+                            list.byte_offset,
+                            list.annotation_set_offsets.len(),
+                            list.annotation_set_offsets.get(self.entry_ordinal).copied(),
+                        ),
+                        None => {
+                            self.occurrence += 1;
+                            self.ordinal = 0;
+                            self.entry_ordinal = 0;
+                            continue;
+                        }
+                    },
+                    _ => unreachable!(),
+                };
+                if self.entry_ordinal >= length {
+                    self.ordinal += 1;
+                    self.entry_ordinal = 0;
+                    continue;
+                }
+                let entry = entry.ok_or_else(|| {
+                    MddError::new(
+                        ErrorCode::InternalFault,
+                        "sql.annotations",
+                        "validated annotation entry missing",
+                    )
+                })?;
+                let ordinal = u64::try_from(self.entry_ordinal)
+                    .map_err(|_| quota("ANNOTATION_SQL_ROWS_OVERFLOW"))?;
+                self.control.work(64)?;
+                let row = vec![occurrence()?, u(offset.into()), u(ordinal), optional(entry)];
+                self.entry_ordinal += 1;
+                return Ok(Some(row));
+            }
             let row = match self.relation {
                 AnnotationRelation::Items => {
                     let Some(item) = data.annotation_items.get(self.ordinal) else {
@@ -1283,6 +1356,60 @@ impl SqlFactCursor for AnnotationCursor {
                             .map_or(SqlValue::Null, SqlValue::Bool),
                     ]
                 }
+                AnnotationRelation::Sets => {
+                    let Some(set) = data.sets.get(self.ordinal) else {
+                        self.occurrence += 1;
+                        self.ordinal = 0;
+                        continue;
+                    };
+                    self.control.work(64)?;
+                    vec![
+                        occurrence()?,
+                        u(set.byte_offset.into()),
+                        u(u64::try_from(set.annotation_offsets.len())
+                            .map_err(|_| quota("ANNOTATION_SQL_ROWS_OVERFLOW"))?),
+                        SqlValue::U64(set.encoded_range.byte_length),
+                    ]
+                }
+                AnnotationRelation::RefLists => {
+                    let Some(list) = data.ref_lists.get(self.ordinal) else {
+                        self.occurrence += 1;
+                        self.ordinal = 0;
+                        continue;
+                    };
+                    self.control.work(64)?;
+                    vec![
+                        occurrence()?,
+                        u(list.byte_offset.into()),
+                        u(u64::try_from(list.annotation_set_offsets.len())
+                            .map_err(|_| quota("ANNOTATION_SQL_ROWS_OVERFLOW"))?),
+                        SqlValue::U64(list.encoded_range.byte_length),
+                    ]
+                }
+                AnnotationRelation::ParameterLists => {
+                    let Some(list) = data.parameter_lists.get(self.ordinal) else {
+                        self.occurrence += 1;
+                        self.ordinal = 0;
+                        continue;
+                    };
+                    self.control.work(96)?;
+                    let coverage = match list.prototype_position_coverage {
+                        Completeness::Complete => "complete",
+                        Completeness::Partial => "partial",
+                        Completeness::Unknown => "unknown",
+                    };
+                    vec![
+                        occurrence()?,
+                        u(list.class_def_idx.into()),
+                        u(list.method_idx.into()),
+                        u(list.ref_list_byte_offset.into()),
+                        u(list.encoded_slot_count.into()),
+                        u(list.prototype_parameter_count.into()),
+                        SqlValue::Bool(list.encoded_slots_complete),
+                        scalar_text(coverage, &self.control)?,
+                    ]
+                }
+                AnnotationRelation::SetEntries | AnnotationRelation::RefEntries => unreachable!(),
             };
             self.ordinal += 1;
             return Ok(Some(row));
@@ -1295,7 +1422,7 @@ impl SqlFactProvider for AnnotationSqlProvider {
         &self.binding
     }
     fn relations(&self) -> MddResult<Vec<SqlRelation>> {
-        let specifications: [(&str, &[(&str, SqlType, bool)], AnnotationRelation); 3] = [
+        let specifications: [(&str, &[(&str, SqlType, bool)], AnnotationRelation); 8] = [
             (
                 "native_annotation_items",
                 &[
@@ -1343,6 +1470,60 @@ impl SqlFactProvider for AnnotationSqlProvider {
                 ],
                 AnnotationRelation::Owners,
             ),
+            (
+                "native_annotation_sets",
+                &[
+                    ("dex_occurrence_id", SqlType::Text, false),
+                    ("set_byte_offset", SqlType::U64, false),
+                    ("entry_count", SqlType::U64, false),
+                    ("encoded_byte_length", SqlType::U64, false),
+                ],
+                AnnotationRelation::Sets,
+            ),
+            (
+                "native_annotation_set_entries",
+                &[
+                    ("dex_occurrence_id", SqlType::Text, false),
+                    ("set_byte_offset", SqlType::U64, false),
+                    ("ordinal", SqlType::U64, false),
+                    ("annotation_byte_offset", SqlType::U64, false),
+                ],
+                AnnotationRelation::SetEntries,
+            ),
+            (
+                "native_annotation_ref_lists",
+                &[
+                    ("dex_occurrence_id", SqlType::Text, false),
+                    ("ref_list_byte_offset", SqlType::U64, false),
+                    ("entry_count", SqlType::U64, false),
+                    ("encoded_byte_length", SqlType::U64, false),
+                ],
+                AnnotationRelation::RefLists,
+            ),
+            (
+                "native_annotation_ref_entries",
+                &[
+                    ("dex_occurrence_id", SqlType::Text, false),
+                    ("ref_list_byte_offset", SqlType::U64, false),
+                    ("ordinal", SqlType::U64, false),
+                    ("set_byte_offset", SqlType::U64, true),
+                ],
+                AnnotationRelation::RefEntries,
+            ),
+            (
+                "native_annotation_parameter_lists",
+                &[
+                    ("dex_occurrence_id", SqlType::Text, false),
+                    ("class_def_idx", SqlType::U64, false),
+                    ("method_idx", SqlType::U64, false),
+                    ("ref_list_byte_offset", SqlType::U64, false),
+                    ("encoded_slot_count", SqlType::U64, false),
+                    ("prototype_parameter_count", SqlType::U64, false),
+                    ("encoded_slots_complete", SqlType::Bool, false),
+                    ("prototype_position_coverage", SqlType::Text, false),
+                ],
+                AnnotationRelation::ParameterLists,
+            ),
         ];
         specifications
             .into_iter()
@@ -1356,6 +1537,19 @@ impl SqlFactProvider for AnnotationSqlProvider {
                             AnnotationRelation::Items => data.annotation_items.len(),
                             AnnotationRelation::Values => data.values.len(),
                             AnnotationRelation::Owners => data.owner_bindings.len(),
+                            AnnotationRelation::Sets => data.sets.len(),
+                            AnnotationRelation::RefLists => data.ref_lists.len(),
+                            AnnotationRelation::ParameterLists => data.parameter_lists.len(),
+                            AnnotationRelation::SetEntries => {
+                                data.sets.iter().try_fold(0usize, |n, s| {
+                                    n.checked_add(s.annotation_offsets.len())
+                                })?
+                            }
+                            AnnotationRelation::RefEntries => {
+                                data.ref_lists.iter().try_fold(0usize, |n, l| {
+                                    n.checked_add(l.annotation_set_offsets.len())
+                                })?
+                            }
                         };
                         total.checked_add(u64::try_from(n).ok()?)
                     })
@@ -1409,6 +1603,7 @@ impl SqlFactProvider for AnnotationSqlProvider {
             relation,
             occurrence: 0,
             ordinal: 0,
+            entry_ordinal: 0,
             control,
         }))
     }
@@ -1791,6 +1986,161 @@ mod tests {
         archive::{ArchiveInventory, ArchiveLimits, InventoryPolicy},
         snapshot::{CaptureLimits, InputKind, InputSpec, Snapshot},
     };
+    #[test]
+    fn annotation_sets_and_ref_lists_preserve_physical_entries_and_empty_headers() {
+        use mdd_dex::{annotations::AnnotationLimits, definitions::DefinitionLimits};
+        use mdd_facts::{annotations::AnnotationFacts, definitions::DefinitionFacts};
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/annotations/generated");
+        let specs = [
+            "annotations-038.dex",
+            "annotations-038.dex",
+            "valid-orphan-empty-set.dex",
+            "valid-orphan-empty-ref-list.dex",
+            "bad-parameter-arity.dex",
+        ]
+        .into_iter()
+        .map(|name| InputSpec {
+            path: root.join(name),
+            kind: InputKind::RawDex,
+            expected_sha256: None,
+        })
+        .collect::<Vec<_>>();
+        let snapshot = Snapshot::capture(&specs, CaptureLimits::default()).unwrap();
+        let mut facts = Vec::new();
+        for source in snapshot.sources() {
+            let inventory = ArchiveInventory::build(
+                source,
+                InventoryPolicy::default(),
+                ArchiveLimits::default(),
+            )
+            .unwrap();
+            let metadata =
+                MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default()).unwrap();
+            let defs = DefinitionFacts::build(metadata, DefinitionLimits::default()).unwrap();
+            facts.push(Arc::new(
+                AnnotationFacts::build(defs, AnnotationLimits::default()).unwrap(),
+            ));
+        }
+        let provider = Arc::new(AnnotationSqlProvider::new(facts.clone(), DecimalU64(0)).unwrap());
+        let bridge = SqlBridge::new(provider, SqlDialect::NativeV1, SqlLimits::default()).unwrap();
+        let mut expected: [Vec<Vec<String>>; 5] = Default::default();
+        for (fact, spec) in facts.iter().zip(&specs) {
+            // Independent raw little-endian decode of the physical containers;
+            // start-offset validation remains the parser's separate responsibility.
+            let bytes = std::fs::read(&spec.path).unwrap();
+            let read_u32 = |offset: usize| -> u32 {
+                u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap())
+            };
+            let source = &fact.source().dex_occurrence_id;
+            for set in &fact.data().sets {
+                let start = set.byte_offset as usize;
+                assert_eq!(read_u32(start) as usize, set.annotation_offsets.len());
+                for (ordinal, value) in set.annotation_offsets.iter().enumerate() {
+                    assert_eq!(read_u32(start + 4 + ordinal * 4), *value);
+                }
+                expected[0].push(vec![
+                    source.clone(),
+                    set.byte_offset.to_string(),
+                    set.annotation_offsets.len().to_string(),
+                    set.encoded_range.byte_length.0.to_string(),
+                ]);
+                for (ordinal, offset) in set.annotation_offsets.iter().enumerate() {
+                    expected[1].push(vec![
+                        source.clone(),
+                        set.byte_offset.to_string(),
+                        ordinal.to_string(),
+                        offset.to_string(),
+                    ]);
+                }
+            }
+            for list in &fact.data().ref_lists {
+                let start = list.byte_offset as usize;
+                assert_eq!(read_u32(start) as usize, list.annotation_set_offsets.len());
+                for (ordinal, value) in list.annotation_set_offsets.iter().enumerate() {
+                    assert_eq!(read_u32(start + 4 + ordinal * 4), value.unwrap_or(0));
+                }
+                expected[2].push(vec![
+                    source.clone(),
+                    list.byte_offset.to_string(),
+                    list.annotation_set_offsets.len().to_string(),
+                    list.encoded_range.byte_length.0.to_string(),
+                ]);
+                for (ordinal, offset) in list.annotation_set_offsets.iter().enumerate() {
+                    expected[3].push(vec![
+                        source.clone(),
+                        list.byte_offset.to_string(),
+                        ordinal.to_string(),
+                        offset.map_or("<NULL>".to_owned(), |v| v.to_string()),
+                    ]);
+                }
+            }
+            for list in &fact.data().parameter_lists {
+                let coverage = match list.prototype_position_coverage {
+                    Completeness::Complete => "complete",
+                    Completeness::Partial => "partial",
+                    Completeness::Unknown => "unknown",
+                };
+                expected[4].push(vec![
+                    source.clone(),
+                    list.class_def_idx.to_string(),
+                    list.method_idx.to_string(),
+                    list.ref_list_byte_offset.to_string(),
+                    list.encoded_slot_count.to_string(),
+                    list.prototype_parameter_count.to_string(),
+                    u8::from(list.encoded_slots_complete).to_string(),
+                    coverage.into(),
+                ]);
+            }
+        }
+        assert!(
+            expected[0].iter().any(|r| r[2] == "0"),
+            "physical empty set fixture missing"
+        );
+        assert!(
+            expected[2].iter().any(|r| r[2] == "0"),
+            "physical empty ref-list fixture missing"
+        );
+        assert!(
+            expected[3].iter().any(|r| r[3] == "<NULL>"),
+            "encoded null slot fixture missing"
+        );
+        assert!(
+            expected[4].iter().any(|r| r[7] != "complete"),
+            "unknown parameter coverage fixture missing"
+        );
+        for (index, name) in [
+            "native_annotation_sets",
+            "native_annotation_set_entries",
+            "native_annotation_ref_lists",
+            "native_annotation_ref_entries",
+            "native_annotation_parameter_lists",
+        ]
+        .iter()
+        .enumerate()
+        {
+            let result = bridge.query(&format!("SELECT * FROM {name}")).unwrap();
+            let mut actual = result
+                .rows()
+                .iter()
+                .map(|row| {
+                    row.iter()
+                        .map(|value| match value {
+                            SqlValue::Null => "<NULL>".to_owned(),
+                            SqlValue::U64(n) => n.0.to_string(),
+                            SqlValue::I64(n) => n.0.to_string(),
+                            SqlValue::Bool(v) => u8::from(*v).to_string(),
+                            SqlValue::Text(text) => text.strict_utf8().unwrap(),
+                            other => panic!("unexpected cell: {other:?}"),
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .collect::<Vec<_>>();
+            actual.sort();
+            expected[index].sort();
+            assert_eq!(actual, expected[index], "{name}");
+        }
+    }
     #[test]
     fn native_annotations_preserve_occurrences_values_and_owner_slots() {
         use mdd_dex::{annotations::AnnotationLimits, definitions::DefinitionLimits};
