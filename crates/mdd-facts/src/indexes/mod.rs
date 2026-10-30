@@ -8,9 +8,12 @@ mod views;
 use crate::{
     coverage::{CoverageLedger, CoverageReport, CoverageRequest, FactLayer},
     metadata::{EntityKind, EntityRef},
-    references::{FieldSymbol, MethodSymbol, ReferenceMatches, ReferenceTargetId, TargetKind},
+    references::{
+        FieldSymbol, MethodSymbol, ReferenceFacts, ReferenceMatches, ReferenceTargetId, TargetKind,
+    },
 };
 use lazy::{IndexAudit, LazyIndex};
+use mdd_dex::annotations::{EncodedKind, MethodHandleTarget};
 use mdd_types::{ErrorCode, MddError, MddResult};
 pub use scope::{SelectedDex, SelectedInput, SelectedScope};
 use serde::Serialize;
@@ -163,12 +166,203 @@ struct FieldReferenceSymbolIndex {
 struct TypeReferenceIndex {
     descriptors: BTreeMap<String, Vec<Atom>>,
 }
+struct PrototypeReferenceIndex {
+    descriptors: BTreeMap<String, Vec<Atom>>,
+}
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Serialize)]
+#[serde(tag = "target_kind", rename_all = "snake_case")]
+pub enum MethodHandleSymbol {
+    Field {
+        handle_kind: u16,
+        target: FieldSymbol,
+    },
+    Method {
+        handle_kind: u16,
+        target: MethodSymbol,
+    },
+}
+struct MethodHandleIndex {
+    symbols: BTreeMap<MethodHandleSymbol, Vec<Atom>>,
+}
+enum HandleTargetRef<'a> {
+    Field {
+        kind: u16,
+        owner: &'a str,
+        name: &'a str,
+        field_type: &'a str,
+    },
+    Method {
+        kind: u16,
+        owner: &'a str,
+        name: &'a str,
+        prototype: &'a str,
+    },
+}
+impl HandleTargetRef<'_> {
+    fn bytes(&self) -> MddResult<u64> {
+        let (owner, name, signature) = match self {
+            Self::Field {
+                owner,
+                name,
+                field_type,
+                ..
+            } => (*owner, *name, *field_type),
+            Self::Method {
+                owner,
+                name,
+                prototype,
+                ..
+            } => (*owner, *name, *prototype),
+        };
+        owner
+            .len()
+            .checked_add(name.len())
+            .and_then(|n| n.checked_add(signature.len()))
+            .and_then(|n| n.checked_add(80))
+            .and_then(|n| u64::try_from(n).ok())
+            .ok_or_else(|| quota("INDEX_BYTE_BUDGET"))
+    }
+    fn owned(&self) -> MethodHandleSymbol {
+        match self {
+            Self::Field {
+                kind,
+                owner,
+                name,
+                field_type,
+            } => MethodHandleSymbol::Field {
+                handle_kind: *kind,
+                target: FieldSymbol {
+                    owner: (*owner).into(),
+                    name: (*name).into(),
+                    field_type: (*field_type).into(),
+                },
+            },
+            Self::Method {
+                kind,
+                owner,
+                name,
+                prototype,
+            } => MethodHandleSymbol::Method {
+                handle_kind: *kind,
+                target: MethodSymbol {
+                    owner: (*owner).into(),
+                    name: (*name).into(),
+                    prototype: (*prototype).into(),
+                },
+            },
+        }
+    }
+    fn matches(&self, other: &MethodHandleSymbol) -> bool {
+        match (self, other) {
+            (
+                Self::Field {
+                    kind,
+                    owner,
+                    name,
+                    field_type,
+                },
+                MethodHandleSymbol::Field {
+                    handle_kind,
+                    target,
+                },
+            ) => {
+                kind == handle_kind
+                    && *owner == target.owner
+                    && *name == target.name
+                    && *field_type == target.field_type
+            }
+            (
+                Self::Method {
+                    kind,
+                    owner,
+                    name,
+                    prototype,
+                },
+                MethodHandleSymbol::Method {
+                    handle_kind,
+                    target,
+                },
+            ) => {
+                kind == handle_kind
+                    && *owner == target.owner
+                    && *name == target.name
+                    && *prototype == target.prototype
+            }
+            _ => false,
+        }
+    }
+}
+fn handle_target<'a>(
+    facts: &'a ReferenceFacts,
+    handle: &MethodHandleTarget,
+) -> MddResult<HandleTargetRef<'a>> {
+    let definitions = facts.definitions().definitions();
+    let malformed = || {
+        MddError::new(
+            ErrorCode::InternalFault,
+            "facts.index",
+            "validated method handle target missing or inconsistent",
+        )
+    };
+    match handle.target_kind {
+        EncodedKind::Field if handle.handle_kind <= 3 => {
+            let field = definitions
+                .field_references
+                .get(handle.target_index as usize)
+                .ok_or_else(malformed)?;
+            Ok(HandleTargetRef::Field {
+                kind: handle.handle_kind,
+                owner: &field.class_descriptor,
+                name: &field.field_name,
+                field_type: &field.type_descriptor,
+            })
+        }
+        EncodedKind::Method if (4..=8).contains(&handle.handle_kind) => {
+            let method = definitions
+                .method_references
+                .get(handle.target_index as usize)
+                .ok_or_else(malformed)?;
+            let proto = facts
+                .definitions()
+                .metadata()
+                .prototypes()
+                .get(method.proto_idx as usize)
+                .ok_or_else(malformed)?;
+            Ok(HandleTargetRef::Method {
+                kind: handle.handle_kind,
+                owner: &method.class_descriptor,
+                name: &method.method_name,
+                prototype: &proto.data.descriptor,
+            })
+        }
+        _ => Err(malformed()),
+    }
+}
+fn handle_metadata(facts: &ReferenceFacts) -> MddResult<&[MethodHandleTarget]> {
+    if let Some(handles) = facts.method_handle_metadata() {
+        return Ok(handles);
+    }
+    if facts
+        .sites()
+        .iter()
+        .any(|site| site.target_kind == TargetKind::MethodHandle)
+    {
+        return Err(MddError::new(
+            ErrorCode::IncompleteFacts,
+            "facts.index",
+            "method handle operands lack metadata",
+        ));
+    }
+    Ok(&[])
+}
 #[derive(Clone, Copy)]
 enum ReferenceResultKind {
     Method,
     Field,
     String,
     Type,
+    Prototype,
+    MethodHandle,
 }
 #[derive(Clone, Debug, Serialize)]
 pub struct IndexMatches {
@@ -207,6 +401,8 @@ pub struct SnapshotFactIndex<'a> {
     reference_symbols: LazyIndex<ReferenceSymbolIndex>,
     field_reference_symbols: LazyIndex<FieldReferenceSymbolIndex>,
     type_references: LazyIndex<TypeReferenceIndex>,
+    prototype_references: LazyIndex<PrototypeReferenceIndex>,
+    method_handles: LazyIndex<MethodHandleIndex>,
 }
 
 impl<'a> SnapshotFactIndex<'a> {
@@ -254,6 +450,16 @@ impl<'a> SnapshotFactIndex<'a> {
                 "encoded-type-reference-descriptor-candidates-v1",
                 limits.max_build_attempts,
             )?,
+            prototype_references: LazyIndex::new(
+                scope.scope_id(),
+                "encoded-prototype-reference-descriptor-candidates-v1",
+                limits.max_build_attempts,
+            )?,
+            method_handles: LazyIndex::new(
+                scope.scope_id(),
+                "encoded-method-handle-symbol-candidates-v1",
+                limits.max_build_attempts,
+            )?,
             scope,
             views: ordered,
             by_occurrence,
@@ -274,6 +480,8 @@ impl<'a> SnapshotFactIndex<'a> {
             self.reference_symbols.audit()?,
             self.field_reference_symbols.audit()?,
             self.type_references.audit()?,
+            self.prototype_references.audit()?,
+            self.method_handles.audit()?,
         ])
     }
     fn require(&self, layer: FactLayer) -> MddResult<CoverageReport> {
@@ -850,6 +1058,88 @@ impl<'a> SnapshotFactIndex<'a> {
             .retry_failed(|| self.build_type_references())?;
         self.type_references.audit()
     }
+    pub fn retry_prototype_reference_index(&self) -> MddResult<IndexAudit> {
+        self.prototype_references
+            .retry_failed(|| self.build_prototype_references())?;
+        self.prototype_references.audit()
+    }
+    pub fn retry_method_handle_index(&self) -> MddResult<IndexAudit> {
+        self.method_handles
+            .retry_failed(|| self.build_method_handles())?;
+        self.method_handles.audit()
+    }
+    fn build_method_handles(&self) -> MddResult<MethodHandleIndex> {
+        self.require(FactLayer::References)?;
+        let mut index = MethodHandleIndex {
+            symbols: BTreeMap::new(),
+        };
+        let mut budget = Budget::new(self.limits);
+        budget.charge(0, 0)?;
+        for (view, entry) in self.views.iter().enumerate() {
+            let facts = entry.references.ok_or_else(|| {
+                MddError::new(
+                    ErrorCode::IncompleteFacts,
+                    "facts.index",
+                    "references missing",
+                )
+            })?;
+            let view = u32::try_from(view).map_err(|_| quota("INDEX_ENTRY_BUDGET"))?;
+            for handle in handle_metadata(facts)? {
+                let target = handle_target(facts, handle)?;
+                budget.charge(1, target.bytes()?)?;
+                index.symbols.entry(target.owned()).or_default().push(Atom {
+                    view,
+                    local: handle.method_handle_idx,
+                });
+            }
+        }
+        Ok(index)
+    }
+    fn build_prototype_references(&self) -> MddResult<PrototypeReferenceIndex> {
+        self.require(FactLayer::Metadata)?;
+        let mut index = PrototypeReferenceIndex {
+            descriptors: BTreeMap::new(),
+        };
+        let mut budget = Budget::new(self.limits);
+        budget.charge(0, 0)?;
+        for (view, entry) in self.views.iter().enumerate() {
+            let metadata = entry.metadata.ok_or_else(|| {
+                MddError::new(
+                    ErrorCode::IncompleteFacts,
+                    "facts.index",
+                    "metadata missing",
+                )
+            })?;
+            let view = u32::try_from(view).map_err(|_| quota("INDEX_ENTRY_BUDGET"))?;
+            for prototype in metadata.prototypes() {
+                let descriptor = &prototype.data.descriptor;
+                let key_bytes = if index.descriptors.contains_key(descriptor) {
+                    0
+                } else {
+                    u64::try_from(descriptor.len())
+                        .ok()
+                        .and_then(|n| n.checked_add(64))
+                        .ok_or_else(|| quota("INDEX_BYTE_BUDGET"))?
+                };
+                budget.charge(
+                    1,
+                    key_bytes
+                        .checked_add(16)
+                        .ok_or_else(|| quota("INDEX_BYTE_BUDGET"))?,
+                )?;
+                let atom = Atom {
+                    view,
+                    local: prototype.data.proto_idx,
+                };
+                if let Some(atoms) = index.descriptors.get_mut(descriptor) {
+                    atoms.push(atom);
+                } else {
+                    index.descriptors.insert(descriptor.clone(), vec![atom]);
+                }
+            }
+        }
+        Ok(index)
+    }
     fn build_type_references(&self) -> MddResult<TypeReferenceIndex> {
         self.require(FactLayer::Metadata)?;
         let mut index = TypeReferenceIndex {
@@ -1046,6 +1336,8 @@ impl<'a> SnapshotFactIndex<'a> {
                 (false, ReferenceResultKind::Field) => Some(self.field_reference_symbols.audit()?),
                 (false, ReferenceResultKind::String) => Some(self.strings.audit()?),
                 (false, ReferenceResultKind::Type) => Some(self.type_references.audit()?),
+                (false, ReferenceResultKind::Prototype) => Some(self.prototype_references.audit()?),
+                (false, ReferenceResultKind::MethodHandle) => Some(self.method_handles.audit()?),
             },
             access_path: match (scalar, kind) {
                 (true, ReferenceResultKind::Method) => {
@@ -1066,6 +1358,18 @@ impl<'a> SnapshotFactIndex<'a> {
                 (false, ReferenceResultKind::Type) => {
                     "type_descriptor_candidates_then_exact_ref_and_existing_postings"
                 }
+                (true, ReferenceResultKind::Prototype) => {
+                    "scalar_prototype_descriptors_then_scalar_sites"
+                }
+                (false, ReferenceResultKind::Prototype) => {
+                    "prototype_descriptor_candidates_then_exact_ref_and_existing_postings"
+                }
+                (true, ReferenceResultKind::MethodHandle) => {
+                    "scalar_method_handles_then_scalar_sites"
+                }
+                (false, ReferenceResultKind::MethodHandle) => {
+                    "method_handle_symbol_candidates_then_exact_ref_and_existing_postings"
+                }
             }
             .into(),
             candidate_reference_count: candidates,
@@ -1084,11 +1388,173 @@ impl<'a> SnapshotFactIndex<'a> {
                 ReferenceResultKind::Type => {
                     "encoded_type_operands_only;runtime_resolution_not_inferred"
                 }
+                ReferenceResultKind::Prototype => {
+                    "encoded_prototype_operands_only;runtime_dispatch_not_inferred"
+                }
+                ReferenceResultKind::MethodHandle => {
+                    "encoded_method_handle_operands_only;no_implied_call_or_field_access"
+                }
             },
             sites,
             coverage,
         })
     }
+    /// Find encoded method-handle operand sites by handle kind and complete target symbol.
+    /// Handle constants do not imply a call, field access, or runtime resolution.
+    pub fn references_to_method_handle_symbol(
+        &self,
+        symbol: &MethodHandleSymbol,
+    ) -> MddResult<ReferenceIndexMatches> {
+        self.references_to_method_handle(symbol, false)
+    }
+    /// Scan immutable method-handle metadata and operand facts without the candidate index.
+    pub fn references_to_method_handle_symbol_scalar(
+        &self,
+        symbol: &MethodHandleSymbol,
+    ) -> MddResult<ReferenceIndexMatches> {
+        self.references_to_method_handle(symbol, true)
+    }
+    fn references_to_method_handle(
+        &self,
+        symbol: &MethodHandleSymbol,
+        scalar: bool,
+    ) -> MddResult<ReferenceIndexMatches> {
+        let (kind, size, is_field) = match symbol {
+            MethodHandleSymbol::Field {
+                handle_kind,
+                target,
+            } => (
+                *handle_kind,
+                target
+                    .owner
+                    .len()
+                    .saturating_add(target.name.len())
+                    .saturating_add(target.field_type.len()),
+                true,
+            ),
+            MethodHandleSymbol::Method {
+                handle_kind,
+                target,
+            } => (
+                *handle_kind,
+                target
+                    .owner
+                    .len()
+                    .saturating_add(target.name.len())
+                    .saturating_add(target.prototype.len()),
+                false,
+            ),
+        };
+        if size > 16 * 1024 * 1024 {
+            return Err(quota("INDEX_PREDICATE_BUDGET"));
+        }
+        if (is_field && kind > 3) || (!is_field && !(4..=8).contains(&kind)) {
+            return Err(MddError::new(
+                ErrorCode::InvalidArgument,
+                "facts.index",
+                "invalid method-handle kind for target",
+            ));
+        }
+        let coverage = self.require(FactLayer::References)?;
+        // Metadata may legitimately be unbuilt when there are no handle operands;
+        // a missing table in the presence of an operand remains an error.
+        for entry in &self.views {
+            let facts = entry.references.ok_or_else(|| {
+                MddError::new(
+                    ErrorCode::IncompleteFacts,
+                    "facts.index",
+                    "references missing",
+                )
+            })?;
+            handle_metadata(facts)?;
+        }
+        let index = if scalar {
+            None
+        } else {
+            Some(
+                self.method_handles
+                    .get_or_build(|| self.build_method_handles())?,
+            )
+        };
+        let candidates: Box<dyn Iterator<Item = Atom> + '_> = if let Some(index) = &index {
+            Box::new(index.symbols.get(symbol).into_iter().flatten().copied())
+        } else {
+            Box::new(self.views.iter().enumerate().flat_map(|(view, entry)| {
+                entry.references.into_iter().flat_map(move |facts| {
+                    facts
+                        .method_handle_metadata()
+                        .into_iter()
+                        .flatten()
+                        .map(move |handle| Atom {
+                            view: view as u32,
+                            local: handle.method_handle_idx,
+                        })
+                })
+            }))
+        };
+        let mut result = Vec::new();
+        let mut result_bytes = 0u64;
+        let mut candidate_count = 0u64;
+        for candidate in candidates {
+            candidate_count = candidate_count
+                .checked_add(1)
+                .ok_or_else(|| quota("INDEX_ENTRY_BUDGET"))?;
+            let facts = self.views[candidate.view as usize]
+                .references
+                .ok_or_else(|| {
+                    MddError::new(
+                        ErrorCode::IncompleteFacts,
+                        "facts.index",
+                        "references missing",
+                    )
+                })?;
+            let handle = handle_metadata(facts)?
+                .get(candidate.local as usize)
+                .ok_or_else(|| {
+                    MddError::new(
+                        ErrorCode::InternalFault,
+                        "facts.index",
+                        "method-handle candidate missing",
+                    )
+                })?;
+            if !handle_target(facts, handle)?.matches(symbol) {
+                continue;
+            }
+            let target = facts.target_id(TargetKind::MethodHandle, candidate.local)?;
+            let matches = if scalar {
+                facts.find_target_scalar(&target)?
+            } else {
+                facts.find_target_indexed(&target)?
+            };
+            if result
+                .len()
+                .checked_add(matches.sites.len())
+                .and_then(|v| u64::try_from(v).ok())
+                .is_none_or(|count| count > self.limits.max_result_entries)
+            {
+                return Err(quota("INDEX_RESULT_ENTRY_BUDGET"));
+            }
+            self.check_site_budget(&matches.sites)?;
+            result_bytes = result_bytes
+                .checked_add(Self::site_bytes(&matches.sites)?)
+                .ok_or_else(|| quota("INDEX_RESULT_BYTE_BUDGET"))?;
+            if result_bytes > self.limits.max_result_bytes {
+                return Err(quota("INDEX_RESULT_BYTE_BUDGET"));
+            }
+            result
+                .try_reserve(matches.sites.len())
+                .map_err(|_| quota("INDEX_RESULT_ALLOCATION"))?;
+            result.extend(matches.sites);
+        }
+        self.reference_result(
+            result,
+            candidate_count,
+            scalar,
+            ReferenceResultKind::MethodHandle,
+            coverage,
+        )
+    }
+
     /// Search exact encoded type operands by DEX descriptor across selected occurrences.
     /// This does not infer runtime class resolution, inheritance, or assignability.
     pub fn references_to_type_descriptor(
@@ -1192,6 +1658,113 @@ impl<'a> SnapshotFactIndex<'a> {
             candidate_count,
             scalar,
             ReferenceResultKind::Type,
+            coverage,
+        )
+    }
+
+    /// Search exact encoded prototype operands by DEX descriptor across selected occurrences.
+    /// This does not infer runtime dispatch or call resolution.
+    pub fn references_to_prototype_descriptor(
+        &self,
+        descriptor: &str,
+    ) -> MddResult<ReferenceIndexMatches> {
+        self.references_to_prototype(descriptor, false)
+    }
+    /// Full metadata and encoded-site scan independent of the lazy prototype index.
+    pub fn references_to_prototype_descriptor_scalar(
+        &self,
+        descriptor: &str,
+    ) -> MddResult<ReferenceIndexMatches> {
+        self.references_to_prototype(descriptor, true)
+    }
+    fn references_to_prototype(
+        &self,
+        descriptor: &str,
+        scalar: bool,
+    ) -> MddResult<ReferenceIndexMatches> {
+        if descriptor.len() > 16 * 1024 * 1024 {
+            return Err(quota("INDEX_PREDICATE_BUDGET"));
+        }
+        let coverage = self.require(FactLayer::References)?;
+        self.require(FactLayer::Metadata)?;
+        let index = if scalar {
+            None
+        } else {
+            Some(
+                self.prototype_references
+                    .get_or_build(|| self.build_prototype_references())?,
+            )
+        };
+        let candidates: Box<dyn Iterator<Item = Atom> + '_> = if let Some(index) = &index {
+            Box::new(
+                index
+                    .descriptors
+                    .get(descriptor)
+                    .into_iter()
+                    .flatten()
+                    .copied(),
+            )
+        } else {
+            Box::new(self.views.iter().enumerate().flat_map(|(view, entry)| {
+                entry.metadata.into_iter().flat_map(move |metadata| {
+                    metadata.prototypes().iter().map(move |prototype| Atom {
+                        view: view as u32,
+                        local: prototype.data.proto_idx,
+                    })
+                })
+            }))
+        };
+        let mut result = Vec::new();
+        let mut result_bytes = 0u64;
+        let mut candidate_count = 0u64;
+        for candidate in candidates {
+            candidate_count = candidate_count
+                .checked_add(1)
+                .ok_or_else(|| quota("INDEX_ENTRY_BUDGET"))?;
+            let refs = self.views[candidate.view as usize]
+                .references
+                .ok_or_else(|| {
+                    MddError::new(
+                        ErrorCode::IncompleteFacts,
+                        "facts.index",
+                        "references missing",
+                    )
+                })?;
+            let prototype = &refs.definitions().metadata().prototypes()[candidate.local as usize];
+            if prototype.data.descriptor != descriptor {
+                continue;
+            }
+            let target = refs.target_id(TargetKind::Prototype, candidate.local)?;
+            let matches = if scalar {
+                refs.find_target_scalar(&target)?
+            } else {
+                refs.find_target_indexed(&target)?
+            };
+            if result
+                .len()
+                .checked_add(matches.sites.len())
+                .and_then(|v| u64::try_from(v).ok())
+                .is_none_or(|count| count > self.limits.max_result_entries)
+            {
+                return Err(quota("INDEX_RESULT_ENTRY_BUDGET"));
+            }
+            self.check_site_budget(&matches.sites)?;
+            result_bytes = result_bytes
+                .checked_add(Self::site_bytes(&matches.sites)?)
+                .ok_or_else(|| quota("INDEX_RESULT_BYTE_BUDGET"))?;
+            if result_bytes > self.limits.max_result_bytes {
+                return Err(quota("INDEX_RESULT_BYTE_BUDGET"));
+            }
+            result
+                .try_reserve(matches.sites.len())
+                .map_err(|_| quota("INDEX_RESULT_ALLOCATION"))?;
+            result.extend(matches.sites);
+        }
+        self.reference_result(
+            result,
+            candidate_count,
+            scalar,
+            ReferenceResultKind::Prototype,
             coverage,
         )
     }

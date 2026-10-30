@@ -579,6 +579,252 @@ fn type_descriptor_reference_index_preserves_exact_sites_and_occurrences() {
 }
 
 #[test]
+fn prototype_descriptor_reference_index_preserves_encoded_sites_and_occurrences() {
+    for (fixture, expected_pc) in [
+        ("references/generated/poly-custom-038.dex", &[26, 30][..]),
+        ("references/generated/handles-039.dex", &[28][..]),
+    ] {
+        let data = setup(fixture, 2);
+        let refs = data
+            .definitions
+            .iter()
+            .zip(&data.codes)
+            .map(|(definition, code)| {
+                ReferenceFacts::build(definition.clone(), code.clone(), ReferenceLimits::default())
+                    .unwrap()
+            })
+            .collect::<Vec<_>>();
+        let views = refs
+            .iter()
+            .map(|r| FactView::unbuilt(&r.source().dex_occurrence_id).with_references(r))
+            .collect::<Vec<_>>();
+        let sites = refs[0]
+            .sites()
+            .iter()
+            .filter(|site| site.target_kind == TargetKind::Prototype)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            sites
+                .iter()
+                .map(|site| site.code_unit_pc)
+                .collect::<Vec<_>>(),
+            expected_pc
+        );
+        let descriptor = refs[0].definitions().metadata().prototypes()
+            [sites[0].target_local_index as usize]
+            .data
+            .descriptor
+            .clone();
+        let mut expected = Vec::new();
+        for r in &refs {
+            for prototype in r.definitions().metadata().prototypes() {
+                if prototype.data.descriptor == descriptor {
+                    let target = r
+                        .target_id(TargetKind::Prototype, prototype.data.proto_idx)
+                        .unwrap();
+                    expected.extend(r.find_target_scalar(&target).unwrap().sites);
+                }
+            }
+        }
+        let index = SnapshotFactIndex::new(scope(&data), &views, IndexLimits::default()).unwrap();
+        let indexed = index
+            .references_to_prototype_descriptor(&descriptor)
+            .unwrap();
+        assert_eq!(indexed.sites, expected);
+        assert_eq!(
+            index
+                .references_to_prototype_descriptor_scalar(&descriptor)
+                .unwrap()
+                .sites,
+            expected
+        );
+        assert_eq!(indexed.sites.len(), expected_pc.len() * 2);
+        assert!(
+            indexed
+                .sites
+                .iter()
+                .any(|s| s.caller_method_definition.dex_occurrence_id
+                    == refs[0].source().dex_occurrence_id)
+        );
+        assert!(
+            indexed
+                .sites
+                .iter()
+                .any(|s| s.caller_method_definition.dex_occurrence_id
+                    == refs[1].source().dex_occurrence_id)
+        );
+        assert_eq!(indexed.coverage.facts, Completeness::Complete);
+        assert!(
+            index
+                .references_to_prototype_descriptor("(Lmissing;)V")
+                .unwrap()
+                .absence_proven_within_selected_encoded_scope
+        );
+        assert_eq!(
+            indexed.runtime_resolution,
+            "encoded_prototype_operands_only;runtime_dispatch_not_inferred"
+        );
+        let limited = SnapshotFactIndex::new(
+            scope(&data),
+            &views,
+            IndexLimits {
+                max_entries: 0,
+                ..IndexLimits::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            limited
+                .references_to_prototype_descriptor(&descriptor)
+                .unwrap_err()
+                .code,
+            ErrorCode::QuotaExceeded
+        );
+        assert_eq!(
+            limited
+                .references_to_prototype_descriptor_scalar(&descriptor)
+                .unwrap()
+                .sites,
+            expected
+        );
+        assert_eq!(limited.audits().unwrap()[5].phase, lazy::IndexPhase::Failed);
+        assert_eq!(
+            limited.retry_prototype_reference_index().unwrap_err().code,
+            ErrorCode::QuotaExceeded
+        );
+        let partial =
+            SnapshotFactIndex::new(scope(&data), &[views[0].clone()], IndexLimits::default())
+                .unwrap();
+        assert_eq!(
+            partial
+                .references_to_prototype_descriptor(&descriptor)
+                .unwrap_err()
+                .code,
+            ErrorCode::IncompleteFacts
+        );
+    }
+}
+
+#[test]
+fn method_handle_index_keeps_exact_kind_target_and_occurrence_sites() {
+    let data = setup("references/generated/handles-039.dex", 2);
+    let refs = data
+        .definitions
+        .iter()
+        .zip(&data.codes)
+        .map(|(definition, code)| {
+            ReferenceFacts::build(definition.clone(), code.clone(), ReferenceLimits::default())
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
+    let views = refs
+        .iter()
+        .map(|r| FactView::unbuilt(&r.source().dex_occurrence_id).with_references(r))
+        .collect::<Vec<_>>();
+    let handles = refs[0].method_handle_metadata().unwrap();
+    assert_eq!(handles.len(), 2);
+    let index = SnapshotFactIndex::new(scope(&data), &views, IndexLimits::default()).unwrap();
+    for handle in handles {
+        let symbol = handle_target(&refs[0], handle).unwrap().owned();
+        let expected_pc = match symbol {
+            MethodHandleSymbol::Method { .. } => 24,
+            MethodHandleSymbol::Field { .. } => 26,
+        };
+        let actual = index.references_to_method_handle_symbol(&symbol).unwrap();
+        assert_eq!(actual.sites.len(), 2);
+        assert!(
+            actual
+                .sites
+                .iter()
+                .all(|site| site.code_unit_pc == expected_pc
+                    && site.operand_kind == TargetKind::MethodHandle)
+        );
+        assert_ne!(
+            actual.sites[0].caller_method_definition.dex_occurrence_id,
+            actual.sites[1].caller_method_definition.dex_occurrence_id
+        );
+        assert_eq!(
+            index
+                .references_to_method_handle_symbol_scalar(&symbol)
+                .unwrap()
+                .sites,
+            actual.sites
+        );
+        assert_eq!(
+            actual.runtime_resolution,
+            "encoded_method_handle_operands_only;no_implied_call_or_field_access"
+        );
+        let mut different_kind = symbol.clone();
+        match &mut different_kind {
+            MethodHandleSymbol::Field { handle_kind, .. } => *handle_kind = (*handle_kind + 1) % 4,
+            MethodHandleSymbol::Method { handle_kind, .. } => {
+                *handle_kind = 4 + ((*handle_kind - 4 + 1) % 5)
+            }
+        }
+        assert!(
+            index
+                .references_to_method_handle_symbol(&different_kind)
+                .unwrap()
+                .absence_proven_within_selected_encoded_scope
+        );
+        let limited = SnapshotFactIndex::new(
+            scope(&data),
+            &views,
+            IndexLimits {
+                max_entries: 0,
+                ..IndexLimits::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            limited
+                .references_to_method_handle_symbol(&symbol)
+                .unwrap_err()
+                .code,
+            ErrorCode::QuotaExceeded
+        );
+        assert_eq!(
+            limited
+                .references_to_method_handle_symbol_scalar(&symbol)
+                .unwrap()
+                .sites,
+            actual.sites
+        );
+        assert_eq!(
+            limited.retry_method_handle_index().unwrap_err().code,
+            ErrorCode::QuotaExceeded
+        );
+        let partial =
+            SnapshotFactIndex::new(scope(&data), &[views[0].clone()], IndexLimits::default())
+                .unwrap();
+        assert_eq!(
+            partial
+                .references_to_method_handle_symbol(&symbol)
+                .unwrap_err()
+                .code,
+            ErrorCode::IncompleteFacts
+        );
+    }
+    let ordinary = setup("references/generated/classic-035.dex", 1);
+    let facts = ReferenceFacts::build(
+        ordinary.definitions[0].clone(),
+        ordinary.codes[0].clone(),
+        ReferenceLimits::default(),
+    )
+    .unwrap();
+    assert!(facts.method_handle_metadata().is_none());
+    let view = FactView::unbuilt(&facts.source().dex_occurrence_id).with_references(&facts);
+    let empty = SnapshotFactIndex::new(scope(&ordinary), &[view], IndexLimits::default()).unwrap();
+    let symbol = handle_target(&refs[0], &handles[0]).unwrap().owned();
+    assert!(
+        empty
+            .references_to_method_handle_symbol(&symbol)
+            .unwrap()
+            .absence_proven_within_selected_encoded_scope
+    );
+}
+
+#[test]
 fn explicit_subset_negative_proof_and_foreign_generation_are_bounded() {
     let data = setup("generated/strings-mutf8-035.dex", 2);
     let selected =

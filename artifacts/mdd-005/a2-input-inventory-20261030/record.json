@@ -1,0 +1,19 @@
+{
+  "status": "passed_scoped_synthetic_check",
+  "source_sha256": "0d9c887b08e402e907b0ee5c50777d3d590b5917f0eb9cdb165fbd8ccd650eca",
+  "reference_sha256": "8f40845d1328cae8a06dd29830c5e636d962da3cc72194e16904f6fb23030a64",
+  "synthetic_archive_sha256": "a901116ae3ef0ea0ac3a55dd5d249b92bdc4832799d21383e3d8de14dc9ea9f1",
+  "checks": [
+    "fixed_inventory_match",
+    "logical_suffix_match",
+    "missing_member",
+    "invalid_file_id",
+    "duplicate_member",
+    "entry_budget",
+    "dex_byte_budget",
+    "raw_dex_archive_not_claimed",
+    "source_mutated",
+    "wrong_sha"
+  ],
+  "scope": "local synthetic input inventory only; no producer snapshot, A2 or performance qualification"
+}

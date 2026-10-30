@@ -122,6 +122,10 @@ MDD-005 A2 查询转换候选位于 benchmarks/a2_compact_adapter.py，涵盖sha
 
 2026-10-30 第三批功能候选（统一验证待后续）：MDD-026 增加精确类型描述符跨出现次数的编码operand站点索引及标量路径，一项局部测试通过，不推断运行时解析/继承。MDD-031 增加严格完整ASCII有符号i64文本的旧方言算术候选，逐单元计步并用checked运算，小数/指数/尾部非空白、浮点混合及溢出仍未实现；两项局部测试通过，A0/A1现有54项为CAST而非算术证据，故算术等价未验证，记录 artifacts/mdd-031-audit/legacy-integer-text-candidate-20261030/。MDD-005 新增 benchmarks/a2_hostlab_session.py 同步桥候选，要求外部producer快照/总序、真实inventory、可确认close及进程树abort；仅py_compile通过，未接真实HostLab与未消费/取消完整验证。先物化查询改变管线重叠，后续性能归因须单列；统一验证和各任务资格均未完成。
 
+2026-10-30 持续功能推进（全量验证后续统一执行）：MDD-026 增加按原型描述符跨输入出现查询编码Prototype operand站点的懒索引、精确复验和标量路径，038/039及重复出现等一项局部测试通过，不推断运行时分派。MDD-031 对无亲和性的字面量BETWEEN/NOT BETWEEN、简单CASE使用已有存储类型比较，并将旧方言直接TEXT CAST字面量对非负i64字面量的限定规则扩至上述结构；两个局部测试通过，A0/A1对照、跨平台及全量not_run。MDD-005 新增 benchmarks/a2_input_inventory.py 完整SHA与物理DEX清单候选，合成输入十项局部检查与固定HostLab清单规则对照通过，记录 artifacts/mdd-005/a2-input-inventory-20261030/record.json；文件观测不证明producer不可变快照、041逻辑完整性或SQL总序。任务和profile均未签发。
+
+2026-10-30 持续功能推进续（全量验证后续统一执行）：MDD-026 方法句柄跨来源候选按完整句柄kind及FieldSymbol/MethodSymbol精确键返回实际编码operand站点，039字段/方法句柄、重复来源、无句柄引用和缺层/预算等一项局部测试通过；不推断实际调用、字段访问或运行时解析。MDD-031 两个旧方言对当前无歧义基础表I64/U64列的IN/NOT IN支持规范十进制i64字符串字面量；局部覆盖NULL、负数、未知列和Native边界，非规范文本、越界、浮点、参数、派生表/CTE仍保守未实现，最终A0/A1对照not_run。MDD-005 A2同步桥新增完成迭代后的有序DTO消费回执，区分NULL/空值、重复与顺序；零行schema未知、未消费不发回执，局部合成检查通过。回执不证明producer快照、总序或完整审计，编码开销需单独性能归因。
+
 MDD-031 SQL桥仍进行中：受限虚表、会话预算绑定、U64真值、USING和子串路径有本机测试；独立真值18例及固定A0/A1子串16例通过，合成Q15结果与SQLite一致。真实完整corpus、legacy适配及生产工作区内存绑定尚未验收。检查点862b3dd的 Windows 离线测试161项、0失败/跳过，工作区严格Clippy通过，命令记录在 artifacts/integration/20261029/workspace-tests/ 与 workspace-clippy/。
 
 后续 SQL 结果驻留预算修复在 Windows 工作区重新运行165项测试、0失败/跳过及严格Clippy；零行 schema 的零预算错误、结果持有与释放独立复现。该计量是保守逻辑额度，SQLite内部分配、provider/调用方副本、传输缓冲及租约自身元数据仍需单独准入，不能称 RSS 硬上限。证据 artifacts/mdd-031-audit/result-memory-probe/after-fix.json、artifacts/integration/20261029/workspace-tests-result-budget/record.json。

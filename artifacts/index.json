@@ -2893,6 +2893,16 @@
       "sha256": "518f11430eda69530dbb6923370f6fa9330316c7ab9de99bd9fb9c070769b17f"
     },
     {
+      "path": "artifacts/mdd-005/a2-input-inventory-20261030/probe.py",
+      "bytes": 4570,
+      "sha256": "856fc5f98a2ba4c6b03cc7a14590b1ad1b2417682b520d75c08f8e3bf4c5b37c"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-input-inventory-20261030/record.json",
+      "bytes": 690,
+      "sha256": "154b03a9244c00addf7b4b39884148a5a0b464dd9bc164afd5c489fa1b82cc40"
+    },
+    {
       "path": "artifacts/mdd-005/baseline-qualification.json",
       "bytes": 970,
       "sha256": "0896c05a07b0774986e88e4b77aa37b54ddd8fecbbdf6c57f38ee93f915099cc"

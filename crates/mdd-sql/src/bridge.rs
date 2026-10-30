@@ -861,6 +861,128 @@ mod tests {
     }
 
     #[test]
+    fn literal_between_and_simple_case_preserve_storage_class_rules() {
+        let (provider, _) = bridge();
+        let sqlite = rusqlite::Connection::open_in_memory().unwrap();
+        let cases = [
+            "SELECT 2 BETWEEN '1' AND 'z'",
+            "SELECT 2 NOT BETWEEN '1' AND 'z'",
+            "SELECT '2' BETWEEN 1 AND 'z'",
+            "SELECT 2 BETWEEN NULL AND 'z'",
+            "SELECT 2 NOT BETWEEN NULL AND 'z'",
+            "SELECT CASE 2 WHEN '2' THEN 1 WHEN 2 THEN 3 ELSE 4 END",
+            "SELECT CASE 'a' WHEN 1 THEN 0 WHEN 'a' THEN 2 ELSE 3 END",
+            "SELECT CASE NULL WHEN NULL THEN 1 ELSE 4 END",
+        ];
+        for dialect in [
+            SqlDialect::NativeV1,
+            SqlDialect::DexSql010,
+            SqlDialect::DexSql011,
+        ] {
+            let bridge = SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+            for sql in cases {
+                let expected: Option<i64> = sqlite.query_row(sql, [], |row| row.get(0)).unwrap();
+                let result = bridge.query(sql).unwrap();
+                let actual = match &result.rows()[0][0] {
+                    SqlValue::Null => None,
+                    SqlValue::I64(value) => Some(value.0),
+                    SqlValue::U64(value) => Some(i64::try_from(value.0).unwrap()),
+                    other => panic!("unexpected result {other:?}"),
+                };
+                assert_eq!(actual, expected, "{dialect:?}: {sql}");
+            }
+        }
+    }
+
+    #[test]
+    fn legacy_integer_column_in_accepts_canonical_decimal_text_only() {
+        use mdd_query::ir::Signed64;
+        let (provider, native) = bridge();
+        for dialect in [SqlDialect::DexSql010, SqlDialect::DexSql011] {
+            let bridge = SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+            let result = bridge.query("SELECT id IN ('1'), id NOT IN ('1'), id IN ('1',NULL), id NOT IN ('2',NULL), id IN ('-1') FROM facts WHERE id=1").unwrap();
+            assert_eq!(
+                result.rows()[0],
+                vec![
+                    SqlValue::I64(Signed64(1)),
+                    SqlValue::I64(Signed64(0)),
+                    SqlValue::I64(Signed64(1)),
+                    SqlValue::Null,
+                    SqlValue::I64(Signed64(0)),
+                ]
+            );
+            for sql in [
+                "SELECT id IN ('01') FROM facts",
+                "SELECT id IN ('+1') FROM facts",
+                "SELECT id IN ('9223372036854775808') FROM facts",
+                "SELECT id IN ('1.0') FROM facts",
+                "WITH x AS (SELECT '1' AS id) SELECT id IN ('1') FROM x",
+            ] {
+                assert_eq!(
+                    bridge.query(sql).unwrap_err().code,
+                    ErrorCode::UnsupportedQuery,
+                    "{sql}"
+                );
+            }
+            assert_eq!(
+                bridge
+                    .query("SELECT missing IN ('1') FROM facts")
+                    .unwrap_err()
+                    .code,
+                ErrorCode::InvalidArgument
+            );
+            assert_eq!(
+                bridge.query("SELECT 1 IN ('1')").unwrap().rows()[0][0],
+                SqlValue::I64(Signed64(0))
+            );
+        }
+        assert_eq!(
+            native
+                .query("SELECT id IN ('1') FROM facts")
+                .unwrap_err()
+                .code,
+            ErrorCode::UnsupportedQuery
+        );
+    }
+
+    #[test]
+    fn legacy_literal_text_affinity_in_between_and_simple_case() {
+        let (provider, native) = bridge();
+        let sqlite = rusqlite::Connection::open_in_memory().unwrap();
+        let cases = [
+            "SELECT CAST('10' AS TEXT) BETWEEN 1 AND 2",
+            "SELECT CAST('10' AS TEXT) NOT BETWEEN 1 AND 2",
+            "SELECT 1 BETWEEN CAST('1' AS TEXT) AND 3",
+            "SELECT 2 BETWEEN 1 AND CAST('10' AS TEXT)",
+            "SELECT CASE CAST('1' AS TEXT) WHEN 1 THEN 8 ELSE 9 END",
+            "SELECT CASE 1 WHEN CAST('1' AS TEXT) THEN 8 ELSE 9 END",
+            "SELECT CASE CAST('01' AS TEXT) WHEN 1 THEN 8 ELSE 9 END",
+        ];
+        for dialect in [SqlDialect::DexSql010, SqlDialect::DexSql011] {
+            let bridge = SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+            for sql in cases {
+                let expected: i64 = sqlite.query_row(sql, [], |row| row.get(0)).unwrap();
+                let result = bridge.query(sql).unwrap();
+                let actual = match &result.rows()[0][0] {
+                    SqlValue::I64(value) => value.0,
+                    SqlValue::U64(value) => i64::try_from(value.0).unwrap(),
+                    other => panic!("unexpected result {other:?}"),
+                };
+                assert_eq!(actual, expected, "{dialect:?}: {sql}");
+            }
+        }
+        for sql in [
+            "SELECT CAST('10' AS TEXT) BETWEEN 1 AND 2",
+            "SELECT CASE CAST('1' AS TEXT) WHEN 1 THEN 8 ELSE 9 END",
+        ] {
+            assert_eq!(
+                native.query(sql).unwrap_err().code,
+                ErrorCode::UnsupportedQuery
+            );
+        }
+    }
+
+    #[test]
     fn min_max_multi_argument_scalar_does_not_become_aggregate() {
         let (_, bridge) = bridge();
         let value = bridge

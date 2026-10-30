@@ -81,6 +81,11 @@ fn nonnegative_i64_literal(expr: &Expr) -> bool {
         _ => false,
     }
 }
+fn direct_text_integer_affinity(dialect: super::SqlDialect, left: &Expr, right: &Expr) -> bool {
+    dialect != super::SqlDialect::NativeV1
+        && ((text_cast_string_literal(left) && nonnegative_i64_literal(right))
+            || (nonnegative_i64_literal(left) && text_cast_string_literal(right)))
+}
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum InStorageClass {
     Numeric,
@@ -316,14 +321,11 @@ impl Rewrite<'_> {
         }
         Some(InScope { tables })
     }
-    fn safe_in_affinity(&self, left: &Expr, list: &[Expr]) -> bool {
-        if list.is_empty() || no_affinity(left) {
-            return true;
-        }
+    fn in_column_type(&self, left: &Expr) -> Option<crate::values::SqlType> {
         // Never infer a column type from a global same-name schema. Derived
         // tables and CTEs may shadow a name with different affinity.
         let Some(Some(scope)) = self.in_scopes.last() else {
-            return false;
+            return None;
         };
         let mut left = left;
         while let Expr::Nested(inner) = left {
@@ -336,25 +338,29 @@ impl Rewrite<'_> {
                     .tables
                     .values()
                     .filter_map(|columns| columns.get(&name));
-                let Some(data_type) = matches.next() else {
-                    return false;
-                };
+                let data_type = matches.next()?;
                 if matches.next().is_some() {
-                    return false;
+                    return None;
                 }
                 data_type
             }
             Expr::CompoundIdentifier(ids) if ids.len() == 2 => {
-                let Some(data_type) = scope
+                let data_type = scope
                     .tables
                     .get(&ids[0].value.to_ascii_lowercase())
-                    .and_then(|columns| columns.get(&ids[1].value.to_ascii_lowercase()))
-                else {
-                    return false;
-                };
+                    .and_then(|columns| columns.get(&ids[1].value.to_ascii_lowercase()))?;
                 data_type
             }
-            _ => return false,
+            _ => return None,
+        };
+        Some(*data_type)
+    }
+    fn safe_in_affinity(&self, left: &Expr, list: &[Expr]) -> bool {
+        if list.is_empty() || no_affinity(left) {
+            return true;
+        }
+        let Some(data_type) = self.in_column_type(left) else {
+            return false;
         };
         let class = match data_type {
             crate::values::SqlType::Bool
@@ -369,6 +375,54 @@ impl Rewrite<'_> {
             Some(Some(candidate)) => candidate == class,
             None => false,
         })
+    }
+    fn legacy_numeric_in_literals(&self, left: &Expr, list: &mut [Expr]) -> bool {
+        if self.dialect == super::SqlDialect::NativeV1
+            || !matches!(
+                self.in_column_type(left),
+                Some(crate::values::SqlType::I64 | crate::values::SqlType::U64)
+            )
+        {
+            return false;
+        }
+        fn integer_text(expr: &Expr) -> Option<i64> {
+            let Expr::Value(value) = expr else {
+                return None;
+            };
+            let Value::SingleQuotedString(text) = &value.value else {
+                return None;
+            };
+            if text.is_empty() || text.len() > 20 || !text.is_ascii() {
+                return None;
+            }
+            let value = text.parse::<i64>().ok()?;
+            (value.to_string() == *text).then_some(value)
+        }
+        let values: Option<Vec<Option<i64>>> = list
+            .iter()
+            .map(|item| {
+                if let Some(value) = integer_text(item) {
+                    Some(Some(value))
+                } else if matches!(
+                    literal_in_class(item),
+                    Some(None) | Some(Some(InStorageClass::Numeric))
+                ) {
+                    Some(None)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        let Some(values) = values else { return false };
+        if !values.iter().any(Option::is_some) {
+            return false;
+        }
+        for (item, value) in list.iter_mut().zip(values) {
+            if let Some(value) = value {
+                *item = Expr::Value(Value::Number(value.to_string(), false).into());
+            }
+        }
+        true
     }
     fn visit(&mut self, depth: usize) -> MddResult<()> {
         self.nodes = self
@@ -854,9 +908,7 @@ impl Rewrite<'_> {
                 // A column, CAST or derived expression cannot be assumed to
                 // share this property; those retain the guarded comparator.
                 let no_affinity = no_affinity(left) && no_affinity(right);
-                let text_integer_affinity = self.dialect != super::SqlDialect::NativeV1
-                    && ((text_cast_string_literal(left) && nonnegative_i64_literal(right))
-                        || (nonnegative_i64_literal(left) && text_cast_string_literal(right)));
+                let text_integer_affinity = direct_text_integer_affinity(self.dialect, left, right);
                 self.expr(left, depth + 1)?;
                 self.expr(right, depth + 1)?;
                 let name = match op {
@@ -965,7 +1017,9 @@ impl Rewrite<'_> {
             Expr::InList {
                 expr: child, list, ..
             } => {
-                if !self.safe_in_affinity(child, list) {
+                if !self.safe_in_affinity(child, list)
+                    && !self.legacy_numeric_in_literals(child, list)
+                {
                     return Err(unsupported("IN_LEFT_AFFINITY_NOT_IMPLEMENTED")
                         .detail("confirm_sqlite_syntax", true));
                 }
@@ -982,14 +1036,36 @@ impl Rewrite<'_> {
                 high,
                 negated,
             } => {
+                let low_no_affinity = no_affinity(child) && no_affinity(low);
+                let high_no_affinity = no_affinity(child) && no_affinity(high);
+                let low_text_integer = direct_text_integer_affinity(self.dialect, child, low);
+                let high_text_integer = direct_text_integer_affinity(self.dialect, child, high);
                 self.expr(child, depth + 1)?;
                 self.expr(low, depth + 1)?;
                 self.expr(high, depth + 1)?;
                 // Repeating a value expression is safe only for this deterministic
                 // admitted expression subset. Volatile functions are rejected.
                 let value = take(child);
-                let lower = call("mdd_ge", vec![value.clone(), take(low)]);
-                let upper = call("mdd_le", vec![value, take(high)]);
+                let lower = call(
+                    if low_text_integer {
+                        "mdd_text_integer_ge"
+                    } else if low_no_affinity {
+                        "mdd_literal_ge"
+                    } else {
+                        "mdd_ge"
+                    },
+                    vec![value.clone(), take(low)],
+                );
+                let upper = call(
+                    if high_text_integer {
+                        "mdd_text_integer_le"
+                    } else if high_no_affinity {
+                        "mdd_literal_le"
+                    } else {
+                        "mdd_le"
+                    },
+                    vec![value, take(high)],
+                );
                 let both = Expr::BinaryOp {
                     left: Box::new(lower),
                     op: BinaryOperator::And,
@@ -1011,6 +1087,17 @@ impl Rewrite<'_> {
                 else_result,
                 ..
             } => {
+                let comparison_kinds: Vec<(bool, bool)> = conditions
+                    .iter()
+                    .map(|condition| {
+                        let literal = operand.as_ref().is_some_and(|value| no_affinity(value))
+                            && no_affinity(&condition.condition);
+                        let text_integer = operand.as_ref().is_some_and(|value| {
+                            direct_text_integer_affinity(self.dialect, value, &condition.condition)
+                        });
+                        (literal, text_integer)
+                    })
+                    .collect();
                 if let Some(value) = operand {
                     self.expr(value, depth + 1)?;
                 }
@@ -1019,9 +1106,17 @@ impl Rewrite<'_> {
                     self.expr(&mut condition.result, depth + 1)?;
                 }
                 if let Some(value) = operand.take() {
-                    for condition in conditions.iter_mut() {
+                    for (condition, (no_affinity, text_integer)) in
+                        conditions.iter_mut().zip(comparison_kinds)
+                    {
                         condition.condition = call(
-                            "mdd_eq",
+                            if text_integer {
+                                "mdd_text_integer_eq"
+                            } else if no_affinity {
+                                "mdd_literal_eq"
+                            } else {
+                                "mdd_eq"
+                            },
                             vec![(*value).clone(), take(&mut condition.condition)],
                         );
                     }

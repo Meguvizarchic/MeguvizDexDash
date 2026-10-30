@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import asyncio
 from concurrent.futures import CancelledError, TimeoutError as FutureTimeout
+from dataclasses import dataclass
+import hashlib
 from pathlib import Path
 import threading
 import time
@@ -17,6 +19,64 @@ from typing import Callable
 
 class HostlabSessionError(RuntimeError):
     """The adapter session cannot safely deliver a complete HostLab result."""
+
+
+@dataclass(frozen=True)
+class DeliveredQuery:
+    """A fully consumed ordered DTO, not a snapshot or audit certificate."""
+
+    sql_sha256: str
+    row_count: int
+    columns: tuple[str, ...] | None
+    rows_sha256: str
+
+
+class _DeliveryDigest:
+    """Length-framed UTF-8 values preserve NULL, order and repeated rows."""
+
+    def __init__(self, sql):
+        self.sql_sha256 = hashlib.sha256(sql.encode('utf-8')).hexdigest()
+        self.columns = None
+        self.count = 0
+        self.digest = hashlib.sha256(b'mdd-a2-hostlab-delivered-rows-v1\0')
+
+    @staticmethod
+    def _text(digest, text):
+        encoded = text.encode('utf-8', 'strict')
+        digest.update(len(encoded).to_bytes(8, 'big'))
+        digest.update(encoded)
+
+    def prepare(self, row):
+        if not isinstance(row, dict):
+            raise HostlabSessionError('delivered row is not a DTO object')
+        columns = tuple(row.keys())
+        if any(not isinstance(name, str) for name in columns):
+            raise HostlabSessionError('delivered row has a non-text column')
+        if self.columns is not None and columns != self.columns:
+            raise HostlabSessionError('delivered row column identity changed')
+        next_digest = self.digest.copy()
+        if self.columns is None:
+            next_digest.update(b'S')
+            next_digest.update(len(columns).to_bytes(8, 'big'))
+            for name in columns:
+                self._text(next_digest, name)
+        next_digest.update(b'R')
+        for value in row.values():
+            if value is None:
+                next_digest.update(b'N')
+            elif isinstance(value, str):
+                next_digest.update(b'T')
+                self._text(next_digest, value)
+            else:
+                raise HostlabSessionError('delivered cell is neither text nor NULL')
+        return columns, next_digest
+
+    def acknowledge(self, prepared):
+        self.columns, self.digest = prepared
+        self.count += 1
+
+    def receipt(self):
+        return DeliveredQuery(self.sql_sha256, self.count, self.columns, self.digest.hexdigest())
 
 
 class HostlabCompactSession:
@@ -54,6 +114,12 @@ class HostlabCompactSession:
         self._active = 0
         self.files = {}
         self.queries = 0
+        self._deliveries = []
+
+    @property
+    def deliveries(self):
+        """Only rows whose complete producer result and consumer iteration finished."""
+        return tuple(self._deliveries)
 
     def _check_thread(self, *, allow_stopped=False):
         if threading.get_ident() != self._thread:
@@ -133,12 +199,21 @@ class HostlabCompactSession:
         self._active += 1
         exhausted = False
         try:
+            digest = _DeliveryDigest(sql)
             records = self._wait(self._adapter.rows(sql, page_size=page_size,
                                                     max_rows=max_rows, max_bytes=max_bytes))
+            if not isinstance(records, list):
+                raise HostlabSessionError("compact adapter did not return complete rows")
             for record in records:
                 if self._closed or self._failed:
                     raise HostlabSessionError("compact session closed before row consumption")
+                prepared = digest.prepare(record)
                 yield record
+                # Only a consumer that advances past this row acknowledges it.
+                # The digest was prepared before yielding, so caller mutation
+                # does not alter what the producer actually delivered.
+                digest.acknowledge(prepared)
+            self._deliveries.append(digest.receipt())
             exhausted = True
             self.queries += 1
         finally:
