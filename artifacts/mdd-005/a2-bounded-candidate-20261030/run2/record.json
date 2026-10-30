@@ -1,0 +1,28 @@
+{
+  "command": [
+    "artifacts/local/baseline-venv/Scripts/python.exe",
+    "-B",
+    "-O",
+    "artifacts/mdd-005/a2-bounded-candidate-20261030/probe.py"
+  ],
+  "started_utc": "2026-10-30T06:34:05.932676+00:00",
+  "finished_utc": "2026-10-30T06:34:08.290964+00:00",
+  "elapsed_seconds": 2.358999999999469,
+  "exit_code": 0,
+  "timed_out": false,
+  "source_sha256": {
+    "benchmarks/a2_bounded_candidate.py": "8f9a450b1c7e5acfa5085ff2866609a2b7541afe8f4cb782fcbfebac142b2729",
+    "benchmarks/a2_compact_adapter.py": "4c95148c41e2bf4bce5f86c453ac37a7e4bf27355b07dc5572656911919a0436",
+    "benchmarks/a2_dataset_lifecycle.py": "7715a0579e9dc78931c8a08c1d20f19d2d6fc2261120f0c4d300a86ce192e685",
+    "benchmarks/a2_dataset_open.py": "905588eee22ceb64ac23d987d874f02e5f87bc558810fb03d1a6d35b0c97c810",
+    "benchmarks/a2_dataset_close.py": "311b1d22ddf2ee9cf6cd56231817b79c9edaec6f45b81dfd0142486c7d5d105a",
+    "benchmarks/a2_mcp_transport.py": "e36e4adbad2815096859766bc03513b7bd62d61f4fa203b921f2e711d5bf630f",
+    "benchmarks/a2_windows_pipe_owner.py": "fa9eaef5a63a841ff969e6acb4a751bbd04fa37ef7c61f98657820b4acb0fbe7",
+    "benchmarks/a2_windows_job_owner.py": "2384f8f74707adfbedc903184e6c24a5c042da34795481e1daf612b7f436d916",
+    "artifacts/mdd-005/a2-bounded-candidate-20261030/probe.py": "14b8bddea7d82d2ced781743d67f8a5cf65b6a7ecbe05c087497034903907296"
+  },
+  "source_unchanged": true,
+  "stdout_sha256": "caef39f44c847947de9a4d18f93ac4e950cc0679bd0040ec4614cb54f335a4fd",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "scope": "fixed A1 and synthetic fixture with simulated caller assertions; no real snapshot/order/inventory proof, full audit or A2 qualification"
+}

@@ -41,3 +41,9 @@ stdout 累计上限只统计经 `read()` 消费的字节，不证明 child 的�
 SDK 正常关闭会取消其读任务；调用方可在自行确认无需再发送后声明 `expect_session_shutdown()`，但该声明仅为关闭意图，不能证明查询结果或页面已完整消费。此时底层 owner 可能记录预期的 reader `CancelledError`，不代表应用查询成功或失败。其他取消、部分帧、EOF 和错误保持失败；SDK 可能以 connection-closed 唤醒等待请求，原始传输失败另保存在 `transport.failure`，不得据此静默 fallback。SDK 序列化、JSON 解码、系统管道缓冲与 allocator/RSS 不在逻辑帧额度内，启动前同步身份扫描也不受 Job watchdog 全程约束。
 
 该传输只能证明局部消息交换与自身 Job 清理，不能证明 producer 输入快照、查询总序、未消费页面、完整 HostLab 审计或 A2／性能资格；全量与跨平台验证仍未执行。
+
+`a2_bounded_candidate.py` 是 A1 数据集的实验性异步组合：使用同一个已创建的自有 Job、固定 MCP SDK 与 A1 dataset 生命周期；构造时要求调用方提供 snapshot、投影总序和 inventory 校验回调，且每项必须返回 `True`。这些返回值只是调用方断言，不是引擎验证的证明；固定 A1 尚未提供 producer generation/hash，不能因此准入。调用方继续负责创建 owner 及其启动前外部监督，该组件不启动进程，也不自动接入完整 HostLab 工作流。
+
+`rows()` 在被调用时即登记单个查询租约；未开始、部分消费、取消、worker 丢失或消费错误不能产生完成回执，也不能让会话正常退出。只有遍历到真实迭代终态才生成单查询消费回执；零行也保留本查询的实测 schema。回执及会话正常退出均不表示完整审计成功，`qualified` 是只读恒 `False`。该路径先物化页面并计算摘要，相关 CPU、内存及生产者／消费者重叠变化须在后续测量中单独归因。
+
+`artifacts/mdd-005/a2-bounded-candidate-20261030/run2/record.json` 是固定 A1 与合成 DEX 的局部观察，覆盖完整／零行、未启动、部分消费、拒绝模拟 snapshot 断言、asyncio／AnyIO 取消及自有 worker 丢失。测试中的 snapshot、排序和 inventory 回调均为明确标注的模拟断言，并非实际证明；真实 producer 代次、逻辑 DEX 完整性、总序、完整 HostLab、跨平台与 A2／性能资格均未验证。

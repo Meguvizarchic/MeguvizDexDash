@@ -203,6 +203,9 @@ impl CallSiteEncodedKey {
 struct MethodHandleIndex {
     symbols: BTreeMap<MethodHandleSymbol, Vec<Atom>>,
 }
+struct CallerSiteIndex {
+    sites: BTreeMap<Atom, Vec<u32>>,
+}
 enum HandleTargetRef<'a> {
     Field {
         kind: u16,
@@ -423,6 +426,7 @@ enum ReferenceResultKind {
     Prototype,
     MethodHandle,
     CallSiteBytes,
+    Caller,
 }
 #[derive(Clone, Debug, Serialize)]
 pub struct IndexMatches {
@@ -463,6 +467,7 @@ pub struct SnapshotFactIndex<'a> {
     type_references: LazyIndex<TypeReferenceIndex>,
     prototype_references: LazyIndex<PrototypeReferenceIndex>,
     method_handles: LazyIndex<MethodHandleIndex>,
+    caller_sites: LazyIndex<CallerSiteIndex>,
 }
 
 impl<'a> SnapshotFactIndex<'a> {
@@ -520,6 +525,11 @@ impl<'a> SnapshotFactIndex<'a> {
                 "encoded-method-handle-symbol-candidates-v1",
                 limits.max_build_attempts,
             )?,
+            caller_sites: LazyIndex::new(
+                scope.scope_id(),
+                "encoded-caller-site-candidates-v1",
+                limits.max_build_attempts,
+            )?,
             scope,
             views: ordered,
             by_occurrence,
@@ -542,6 +552,7 @@ impl<'a> SnapshotFactIndex<'a> {
             self.type_references.audit()?,
             self.prototype_references.audit()?,
             self.method_handles.audit()?,
+            self.caller_sites.audit()?,
         ])
     }
     fn require(&self, layer: FactLayer) -> MddResult<CoverageReport> {
@@ -1294,6 +1305,55 @@ impl<'a> SnapshotFactIndex<'a> {
             .retry_failed(|| self.build_method_handles())?;
         self.method_handles.audit()
     }
+    pub fn retry_caller_site_index(&self) -> MddResult<IndexAudit> {
+        self.caller_sites
+            .retry_failed(|| self.build_caller_sites())?;
+        self.caller_sites.audit()
+    }
+    fn build_caller_sites(&self) -> MddResult<CallerSiteIndex> {
+        self.require(FactLayer::References)?;
+        let mut index = CallerSiteIndex {
+            sites: BTreeMap::new(),
+        };
+        let mut budget = Budget::new(self.limits);
+        budget.charge(0, 0)?;
+        for (view, entry) in self.views.iter().enumerate() {
+            let facts = entry.references.ok_or_else(|| {
+                MddError::new(
+                    ErrorCode::IncompleteFacts,
+                    "facts.index",
+                    "references missing",
+                )
+            })?;
+            let view = u32::try_from(view).map_err(|_| quota("INDEX_ENTRY_BUDGET"))?;
+            for (ordinal, site) in facts.sites().iter().enumerate() {
+                let ordinal = u32::try_from(ordinal).map_err(|_| quota("INDEX_ENTRY_BUDGET"))?;
+                if site.site_ordinal != ordinal {
+                    return Err(MddError::new(
+                        ErrorCode::InternalFault,
+                        "facts.index",
+                        "validated reference site ordinal is inconsistent",
+                    ));
+                }
+                let key = Atom {
+                    view,
+                    local: site.caller_method_idx,
+                };
+                let key_bytes = if index.sites.contains_key(&key) {
+                    0
+                } else {
+                    64
+                };
+                budget.charge(1, key_bytes + 8)?;
+                let postings = index.sites.entry(key).or_default();
+                postings
+                    .try_reserve(1)
+                    .map_err(|_| quota("INDEX_ALLOCATION"))?;
+                postings.push(ordinal);
+            }
+        }
+        Ok(index)
+    }
     fn build_method_handles(&self) -> MddResult<MethodHandleIndex> {
         self.require(FactLayer::References)?;
         let mut index = MethodHandleIndex {
@@ -1565,6 +1625,7 @@ impl<'a> SnapshotFactIndex<'a> {
                 (false, ReferenceResultKind::Prototype) => Some(self.prototype_references.audit()?),
                 (false, ReferenceResultKind::MethodHandle) => Some(self.method_handles.audit()?),
                 (false, ReferenceResultKind::CallSiteBytes) => None,
+                (false, ReferenceResultKind::Caller) => Some(self.caller_sites.audit()?),
             },
             access_path: match (scalar, kind) {
                 (true, ReferenceResultKind::Method) => {
@@ -1603,6 +1664,10 @@ impl<'a> SnapshotFactIndex<'a> {
                 (false, ReferenceResultKind::CallSiteBytes) => {
                     "same_dex_content_callsite_bytes_then_existing_postings"
                 }
+                (true, ReferenceResultKind::Caller) => "scalar_caller_and_encoded_sites",
+                (false, ReferenceResultKind::Caller) => {
+                    "caller_candidates_then_exact_encoded_sites"
+                }
             }
             .into(),
             candidate_reference_count: candidates,
@@ -1630,10 +1695,167 @@ impl<'a> SnapshotFactIndex<'a> {
                 ReferenceResultKind::CallSiteBytes => {
                     "same_dex_content_and_encoded_array_bytes_only;dynamic_target_not_inferred"
                 }
+                ReferenceResultKind::Caller => {
+                    "encoded_operands_only;runtime_resolution_not_inferred"
+                }
             },
             sites,
             coverage,
         })
+    }
+    /// Find encoded operand sites in one same-occurrence method definition.
+    /// A method operand remains an encoded reference, not inferred runtime dispatch.
+    pub fn references_from_method(
+        &self,
+        caller: &EntityRef,
+        kind: Option<TargetKind>,
+    ) -> MddResult<ReferenceIndexMatches> {
+        self.references_from_method_impl(caller, kind, false)
+    }
+    /// Full scalar site scan, independent of the caller index.
+    pub fn references_from_method_scalar(
+        &self,
+        caller: &EntityRef,
+        kind: Option<TargetKind>,
+    ) -> MddResult<ReferenceIndexMatches> {
+        self.references_from_method_impl(caller, kind, true)
+    }
+    fn references_from_method_impl(
+        &self,
+        caller: &EntityRef,
+        kind: Option<TargetKind>,
+        scalar: bool,
+    ) -> MddResult<ReferenceIndexMatches> {
+        if caller.snapshot_id != self.scope.snapshot_id()
+            || caller.kind != EntityKind::MethodDefinition
+        {
+            return Err(MddError::new(
+                ErrorCode::InvalidArgument,
+                "facts.index",
+                "caller is a foreign snapshot or not a method definition",
+            ));
+        }
+        let coverage = self.require(FactLayer::References)?;
+        let view = *self
+            .by_occurrence
+            .get(&caller.dex_occurrence_id)
+            .ok_or_else(|| {
+                MddError::new(
+                    ErrorCode::InvalidArgument,
+                    "facts.index",
+                    "caller outside selected occurrences",
+                )
+            })?;
+        let facts = self.views[view as usize].references.ok_or_else(|| {
+            MddError::new(
+                ErrorCode::IncompleteFacts,
+                "facts.index",
+                "references missing",
+            )
+        })?;
+        if facts.source().snapshot_id != caller.snapshot_id
+            || facts.source().dex_occurrence_id != caller.dex_occurrence_id
+        {
+            return Err(MddError::new(
+                ErrorCode::InvalidArgument,
+                "facts.index",
+                "foreign caller identity",
+            ));
+        }
+        let mut scan = Budget::new(self.limits);
+        scan.charge(0, 0)?;
+        let mut found = false;
+        for definition in &facts.definitions().definitions().method_definitions {
+            scan.charge(1, 0)?;
+            if definition.method_idx == caller.local_index {
+                found = true;
+                break;
+            }
+        }
+        if !found {
+            return Err(MddError::new(
+                ErrorCode::InvalidArgument,
+                "facts.index",
+                "method definition does not exist in this occurrence",
+            ));
+        }
+        let index = if scalar {
+            None
+        } else {
+            Some(
+                self.caller_sites
+                    .get_or_build(|| self.build_caller_sites())?,
+            )
+        };
+        let candidates: Box<dyn Iterator<Item = u32> + '_> = if let Some(index) = &index {
+            Box::new(
+                index
+                    .sites
+                    .get(&Atom {
+                        view,
+                        local: caller.local_index,
+                    })
+                    .into_iter()
+                    .flatten()
+                    .copied(),
+            )
+        } else {
+            Box::new((0..facts.sites().len()).map(|ordinal| ordinal as u32))
+        };
+        let mut result = Vec::new();
+        let mut result_bytes = 0u64;
+        let mut candidate_count = 0u64;
+        for ordinal in candidates {
+            scan.charge(1, 0)?;
+            candidate_count = candidate_count
+                .checked_add(1)
+                .ok_or_else(|| quota("INDEX_ENTRY_BUDGET"))?;
+            let site = facts
+                .sites()
+                .get(ordinal as usize)
+                .filter(|site| site.site_ordinal == ordinal)
+                .ok_or_else(|| {
+                    MddError::new(
+                        ErrorCode::InternalFault,
+                        "facts.index",
+                        "caller candidate site missing",
+                    )
+                })?;
+            if site.caller_method_idx != caller.local_index
+                || kind.is_some_and(|kind| site.target_kind != kind)
+            {
+                continue;
+            }
+            let cost = std::mem::size_of::<crate::references::ReferenceSiteId>()
+                .checked_add(caller.snapshot_id.len())
+                .and_then(|size| size.checked_add(caller.dex_occurrence_id.len()))
+                .and_then(|size| u64::try_from(size).ok())
+                .ok_or_else(|| quota("INDEX_RESULT_BYTE_BUDGET"))?;
+            result_bytes = result_bytes
+                .checked_add(cost)
+                .ok_or_else(|| quota("INDEX_RESULT_BYTE_BUDGET"))?;
+            if result.len() as u64 >= self.limits.max_result_entries
+                || result_bytes > self.limits.max_result_bytes
+            {
+                return Err(quota("INDEX_RESULT_BUDGET"));
+            }
+            result
+                .try_reserve(1)
+                .map_err(|_| quota("INDEX_RESULT_ALLOCATION"))?;
+            result.push(crate::references::ReferenceSiteId {
+                caller_method_definition: caller.clone(),
+                code_unit_pc: site.code_unit_pc,
+                operand_ordinal: site.operand_ordinal,
+                operand_kind: site.target_kind,
+            });
+        }
+        self.reference_result(
+            result,
+            candidate_count,
+            scalar,
+            ReferenceResultKind::Caller,
+            coverage,
+        )
     }
     /// Capture full call-site encoded-array bytes with the validated DEX content identity.
     /// The key is a byte identity within identical DEX content, not cross-DEX semantic equality.

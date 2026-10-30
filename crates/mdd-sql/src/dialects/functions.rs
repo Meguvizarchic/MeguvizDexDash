@@ -102,8 +102,21 @@ fn encoded_text(text: &SqlText, dialect: SqlDialect, control: &SqlControl) -> Md
     Ok(out)
 }
 fn decoded_text(bytes: &[u8], dialect: SqlDialect, control: &SqlControl) -> MddResult<SqlText> {
+    decoded_text_with_capacity(bytes, dialect, control, None)
+}
+fn decoded_text_with_capacity(
+    bytes: &[u8],
+    dialect: SqlDialect,
+    control: &SqlControl,
+    capacity: Option<usize>,
+) -> MddResult<SqlText> {
     control.checkpoint(1, false)?;
     let mut units = Vec::new();
+    if let Some(capacity) = capacity {
+        units
+            .try_reserve_exact(capacity)
+            .map_err(|_| control.fail(quota("TEXT_DECODE_ALLOCATION")))?;
+    }
     let mut at = 0;
     while at < bytes.len() {
         control.checkpoint(1, false)?;
@@ -1029,6 +1042,84 @@ fn legacy_concat(
     ))
 }
 
+/// Construct a case-converted text and its SQLite carrier under one logical lease.
+/// Argument carriers, SQLite's own copies and allocator overhead are not covered.
+fn ascii_case_unit(name: &str, value: u16) -> u16 {
+    if name == "mdd_lower" && (65..=90).contains(&value) {
+        value + 32
+    } else if name == "mdd_upper" && (97..=122).contains(&value) {
+        value - 32
+    } else {
+        value
+    }
+}
+fn case_text_with_lease(
+    name: &str,
+    value: &SqlValue,
+    control: &SqlControl,
+) -> MddResult<(SqlValue, Option<Reservation>)> {
+    control.checkpoint(1, false)?;
+    let count = match value {
+        SqlValue::Text(text) => text.utf16.len(),
+        SqlValue::DexMutf8 {
+            utf16_code_units, ..
+        } => usize::try_from(utf16_code_units.0)
+            .map_err(|_| control.fail(quota("CASE_TEXT_SIZE_OVERFLOW")))?,
+        _ => return Err(invalid("CASE_TEXT_TYPE")),
+    };
+    let bytes = u64::try_from(count)
+        .ok()
+        .and_then(|n| n.checked_mul(2))
+        .ok_or_else(|| control.fail(quota("CASE_TEXT_SIZE_OVERFLOW")))?;
+    if bytes > control.inner.limits.max_cell_bytes {
+        return Err(control.fail(quota("CASE_TEXT_CELL_BYTES")));
+    }
+    // One UTF-16 result plus its tagged SQLite carrier coexist through ToSql.
+    let workspace = bytes
+        .checked_mul(2)
+        .and_then(|n| n.checked_add(b"\0MDDTEXT1".len() as u64))
+        .ok_or_else(|| control.fail(quota("CASE_TEXT_WORKSPACE_OVERFLOW")))?;
+    let lease = control
+        .runtime()
+        .map(|runtime| {
+            runtime
+                .pool()
+                .reserve(mdd_query::budget::Resource::QueryWorkspaceBytes, workspace)
+                .map_err(|error| control.fail(error))
+        })
+        .transpose()?;
+    let text = match value {
+        SqlValue::Text(source) => {
+            let mut units = Vec::new();
+            units
+                .try_reserve_exact(count)
+                .map_err(|_| control.fail(quota("CASE_TEXT_ALLOCATION")))?;
+            for &unit in &source.utf16 {
+                control.checkpoint(1, false)?;
+                units.push(ascii_case_unit(name, unit));
+            }
+            SqlText {
+                utf16: units,
+                original_mutf8: None,
+            }
+        }
+        SqlValue::DexMutf8 { bytes, .. } => {
+            let mut text =
+                decoded_text_with_capacity(bytes, SqlDialect::DexSql010, control, Some(count))?;
+            if text.utf16.len() != count {
+                return Err(invalid("DEX_MUTF8_UNIT_COUNT_MISMATCH"));
+            }
+            for unit in &mut text.utf16 {
+                control.checkpoint(1, false)?;
+                *unit = ascii_case_unit(name, *unit);
+            }
+            text
+        }
+        _ => return Err(invalid("CASE_TEXT_TYPE")),
+    };
+    Ok((SqlValue::Text(text), lease))
+}
+
 fn scalar(
     name: &str,
     args: &[SqlValue],
@@ -1428,11 +1519,16 @@ pub(crate) fn register(
             } else {
                 None
             };
-            let (value, concat_workspace) = if name == "mdd_concat"
+            let (value, result_workspace) = if name == "mdd_concat"
                 && dialect != SqlDialect::NativeV1
                 && !values.contains(&SqlValue::Null)
             {
                 legacy_concat(&values, &control).map_err(|e| failure(&control, e))?
+            } else if matches!(name, "mdd_lower" | "mdd_upper")
+                && matches!(&values[0], SqlValue::Text(_) | SqlValue::DexMutf8 { .. })
+            {
+                case_text_with_lease(name, &values[0], &control)
+                    .map_err(|e| failure(&control, e))?
             } else {
                 (
                     scalar(name, &values, dialect, &control).map_err(|e| failure(&control, e))?,
@@ -1444,7 +1540,7 @@ pub(crate) fn register(
                 .map_err(|e| failure(&control, e))?;
             Ok(SqlCellWithKeyLease {
                 value,
-                _workspace: key_workspace.or(concat_workspace),
+                _workspace: key_workspace.or(result_workspace),
             })
         })?;
     }

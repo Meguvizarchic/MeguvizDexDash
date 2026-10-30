@@ -1,0 +1,37 @@
+[
+  {
+    "available_bytes": "16547225600",
+    "minimum_bytes": "3221225472",
+    "admitted": true
+  },
+  {
+    "available_bytes": "16546598912",
+    "minimum_bytes": "3221225472",
+    "admitted": true
+  },
+  {
+    "available_bytes": "16528777216",
+    "minimum_bytes": "3221225472",
+    "admitted": true
+  },
+  {
+    "available_bytes": "16523579392",
+    "minimum_bytes": "3221225472",
+    "admitted": true
+  },
+  {
+    "available_bytes": "16514785280",
+    "minimum_bytes": "3221225472",
+    "admitted": true
+  },
+  {
+    "available_bytes": "16507998208",
+    "minimum_bytes": "3221225472",
+    "admitted": true
+  },
+  {
+    "available_bytes": "16342315008",
+    "minimum_bytes": "3221225472",
+    "admitted": true
+  }
+]

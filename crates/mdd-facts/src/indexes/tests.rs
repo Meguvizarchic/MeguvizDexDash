@@ -298,6 +298,163 @@ fn definitions_owners_and_encoded_reference_symbols_preserve_distinct_sites() {
 }
 
 #[test]
+fn caller_site_index_rechecks_occurrence_kind_duplicates_and_coverage() {
+    let data = setup("references/generated/shared-code-035.dex", 2);
+    let refs = data
+        .definitions
+        .iter()
+        .zip(&data.codes)
+        .map(|(definition, code)| {
+            ReferenceFacts::build(definition.clone(), code.clone(), ReferenceLimits::default())
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
+    let views = refs
+        .iter()
+        .map(|facts| FactView::unbuilt(&facts.source().dex_occurrence_id).with_references(facts))
+        .collect::<Vec<_>>();
+    let index = SnapshotFactIndex::new(scope(&data), &views, IndexLimits::default()).unwrap();
+    for (source, facts) in refs.iter().enumerate() {
+        for method in &data.definitions[source].definitions().method_definitions {
+            let caller = data.definitions[source]
+                .entity(EntityKind::MethodDefinition, method.method_idx)
+                .unwrap();
+            for kind in [
+                None,
+                Some(TargetKind::String),
+                Some(TargetKind::Method),
+                Some(TargetKind::Field),
+                Some(TargetKind::Type),
+            ] {
+                let indexed = index.references_from_method(&caller, kind).unwrap();
+                let scalar = index.references_from_method_scalar(&caller, kind).unwrap();
+                let expected = facts
+                    .sites()
+                    .iter()
+                    .filter(|site| {
+                        site.caller_method_idx == caller.local_index
+                            && kind.is_none_or(|kind| site.target_kind == kind)
+                    })
+                    .map(|site| facts.site_id(site.site_ordinal).unwrap())
+                    .collect::<Vec<_>>();
+                assert_eq!(indexed.sites, expected);
+                assert_eq!(scalar.sites, expected);
+                assert_eq!(
+                    indexed.absence_proven_within_selected_encoded_scope,
+                    expected.is_empty()
+                );
+                assert!(
+                    indexed
+                        .sites
+                        .iter()
+                        .all(|site| site.caller_method_definition == caller)
+                );
+            }
+        }
+    }
+    let caller = data.definitions[0]
+        .definitions()
+        .method_definitions
+        .iter()
+        .find(|method| {
+            refs[0]
+                .sites()
+                .iter()
+                .any(|site| site.caller_method_idx == method.method_idx)
+        })
+        .map(|method| {
+            data.definitions[0]
+                .entity(EntityKind::MethodDefinition, method.method_idx)
+                .unwrap()
+        })
+        .unwrap();
+    let indexed = index.references_from_method(&caller, None).unwrap();
+    let scalar = index.references_from_method_scalar(&caller, None).unwrap();
+    assert!(indexed.candidate_reference_count < scalar.candidate_reference_count);
+    assert_eq!(
+        indexed.index_attempt.as_ref().unwrap().phase,
+        lazy::IndexPhase::Ready
+    );
+    assert_eq!(indexed.index_attempt.as_ref().unwrap().attempts.len(), 1);
+
+    let mut bad = caller.clone();
+    bad.snapshot_id = "foreign".into();
+    assert_eq!(
+        index.references_from_method(&bad, None).unwrap_err().code,
+        ErrorCode::InvalidArgument
+    );
+    bad = caller.clone();
+    bad.dex_occurrence_id = "foreign".into();
+    assert_eq!(
+        index.references_from_method(&bad, None).unwrap_err().code,
+        ErrorCode::InvalidArgument
+    );
+    bad = caller.clone();
+    bad.kind = EntityKind::MethodReference;
+    assert_eq!(
+        index.references_from_method(&bad, None).unwrap_err().code,
+        ErrorCode::InvalidArgument
+    );
+
+    let limited = SnapshotFactIndex::new(
+        scope(&data),
+        &views,
+        IndexLimits {
+            max_entries: data.definitions[0].definitions().method_definitions.len() as u64,
+            ..IndexLimits::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        limited
+            .references_from_method(&caller, None)
+            .unwrap_err()
+            .code,
+        ErrorCode::QuotaExceeded
+    );
+    assert_eq!(
+        limited.retry_caller_site_index().unwrap_err().code,
+        ErrorCode::QuotaExceeded
+    );
+    let audit = limited
+        .audits()
+        .unwrap()
+        .into_iter()
+        .find(|audit| audit.index_name == "encoded-caller-site-candidates-v1")
+        .unwrap();
+    assert_eq!(audit.phase, lazy::IndexPhase::Failed);
+    assert_eq!(audit.attempts.len(), 2);
+    for limits in [
+        IndexLimits {
+            max_result_entries: 0,
+            ..IndexLimits::default()
+        },
+        IndexLimits {
+            max_result_bytes: 0,
+            ..IndexLimits::default()
+        },
+    ] {
+        let limited = SnapshotFactIndex::new(scope(&data), &views, limits).unwrap();
+        assert_eq!(
+            limited
+                .references_from_method(&caller, None)
+                .unwrap_err()
+                .code,
+            ErrorCode::QuotaExceeded
+        );
+    }
+    let partial =
+        SnapshotFactIndex::new(scope(&data), &views[..1], IndexLimits::default()).unwrap();
+    assert_eq!(
+        partial
+            .references_from_method(&caller, None)
+            .unwrap_err()
+            .code,
+        ErrorCode::IncompleteFacts
+    );
+}
+
+#[test]
 fn field_symbol_indexes_preserve_sites_and_source_occurrences() {
     let data = setup("references/generated/defined-field-035.dex", 2);
     let refs = data

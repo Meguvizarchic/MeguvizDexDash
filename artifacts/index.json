@@ -2893,6 +2893,61 @@
       "sha256": "518f11430eda69530dbb6923370f6fa9330316c7ab9de99bd9fb9c070769b17f"
     },
     {
+      "path": "artifacts/mdd-005/a2-bounded-candidate-20261030/admission-run2.json",
+      "bytes": 869,
+      "sha256": "405604e561466f82ca962e0bc94489d6f5769a3b04d98dea61454479eba76e21"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-bounded-candidate-20261030/admission.json",
+      "bytes": 761,
+      "sha256": "dce7ac0957fb365e72dff5255e4d6e240ced6f0465d5ddacf1c5b7c66b6be289"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-bounded-candidate-20261030/probe-before-run1.py",
+      "bytes": 10689,
+      "sha256": "eddd97347525af7861519445a8ee1c4f6ad312439360d8fe3510342389bcd7fa"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-bounded-candidate-20261030/probe.py",
+      "bytes": 12357,
+      "sha256": "14b8bddea7d82d2ced781743d67f8a5cf65b6a7ecbe05c087497034903907296"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-bounded-candidate-20261030/run1/record.json",
+      "bytes": 1724,
+      "sha256": "655fca074bc80f784d10165f653e9c0aaf929922da4ed8c0cd7191ccb2e826af"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-bounded-candidate-20261030/run1/stderr.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-bounded-candidate-20261030/run1/stdout.txt",
+      "bytes": 502,
+      "sha256": "1649c380d098120f452a02c3d7c15de6e2f37d2eb01ca759d6b93674896ff4ce"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-bounded-candidate-20261030/run2/record.json",
+      "bytes": 1724,
+      "sha256": "9d93165f799ced7345487f09d5af044cb541156b54b53cd985cc18a8d55d3301"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-bounded-candidate-20261030/run2/stderr.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-bounded-candidate-20261030/run2/stdout.txt",
+      "bytes": 539,
+      "sha256": "caef39f44c847947de9a4d18f93ac4e950cc0679bd0040ec4614cb54f335a4fd"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-bounded-candidate-20261030/source-before-run1.py",
+      "bytes": 13858,
+      "sha256": "943cd2bf7c45c5ea3cdf0edfd541b2e9d6877fdbdeef975fb635922013cd8ceb"
+    },
+    {
       "path": "artifacts/mdd-005/a2-dataset-close-20261030/a1-close-observation.json",
       "bytes": 845,
       "sha256": "bf04d2b6abdaacd77e9ba0410c9dfae42ba44f315618d88a9c25168c5d5f0b60"
@@ -16691,6 +16746,36 @@
       "path": "artifacts/mdd-031-audit/case-budget-independent-20261029/verify.py",
       "bytes": 7538,
       "sha256": "1cd44b10bc7d367e746b6f79446163129926b5109c802e3cf9221e408603bed4"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/case-output-workspace-20261030/cancel/stderr.txt",
+      "bytes": 156,
+      "sha256": "d7ca7cafe5a3d75afe30b1d973453f53745f2e5564d26287e7fb6dea82f13170"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/case-output-workspace-20261030/cancel/stdout.txt",
+      "bytes": 191,
+      "sha256": "2f49001a6ac663cf0e275202edd07dd4bd5548a0401845d3a72ff1f49208e655"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/case-output-workspace-20261030/quota/stderr.txt",
+      "bytes": 366,
+      "sha256": "3795760dc5d308eda82c63e0bc5520769552e32119f35bda89d77c32532f7437"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/case-output-workspace-20261030/quota/stdout.txt",
+      "bytes": 198,
+      "sha256": "403d3154536e930997ee665559864165f67110aaeb453335d7627d41a325cd2d"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/case-output-workspace-20261030/semantics/stderr.txt",
+      "bytes": 156,
+      "sha256": "d7ca7cafe5a3d75afe30b1d973453f53745f2e5564d26287e7fb6dea82f13170"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/case-output-workspace-20261030/semantics/stdout.txt",
+      "bytes": 195,
+      "sha256": "136d6403b051edf8f288810fa9628500552312a5838c5e2114ff93fbd22ef590"
     },
     {
       "path": "artifacts/mdd-031-audit/cast-replay/Cargo.lock",

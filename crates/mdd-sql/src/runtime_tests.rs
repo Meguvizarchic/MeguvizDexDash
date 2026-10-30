@@ -1181,6 +1181,52 @@ fn case_conversion_long_text_respects_session_step_budget() {
 }
 
 #[test]
+fn case_conversion_reserves_output_workspace_before_scanning() {
+    use crate::values::SqlValue;
+    for dialect in [
+        SqlDialect::NativeV1,
+        SqlDialect::DexSql010,
+        SqlDialect::DexSql011,
+    ] {
+        for value in [
+            SqlValue::text(&"A".repeat(5000)),
+            SqlValue::DexMutf8 {
+                bytes: vec![b'A'; 5000],
+                utf16_code_units: DecimalU64(5000),
+            },
+        ] {
+            let (lifecycle, session, _, bridge) = setup_with_dialect(dialect);
+            let prepared = bridge
+                .prepare_with_parameters("SELECT lower(?) AS v", &[value])
+                .unwrap();
+            let limits = BudgetLimits::default().with(Resource::QueryWorkspaceBytes, 512);
+            let (runtime, token) = runtime(&lifecycle, &session, &prepared, limits);
+            let pool = runtime.pool().clone();
+            let bound = prepared.bind_runtime(&runtime).unwrap();
+            let error = bound
+                .execute(SqlControl::new(SqlLimits::default(), None).with_runtime(runtime))
+                .unwrap_err();
+            assert_eq!(error.code, ErrorCode::QuotaExceeded, "{dialect:?}");
+            assert_eq!(error.details["budget"], "query_workspace_bytes");
+            let usage = pool.usage().unwrap();
+            assert!(usage.used.get(&Resource::QuerySteps).map_or(0, |v| v.0) < 5000);
+            assert_eq!(
+                usage
+                    .used
+                    .get(&Resource::QueryWorkspaceBytes)
+                    .map_or(0, |v| v.0),
+                0
+            );
+            assert_eq!(
+                usage.used.get(&Resource::ResidentBytes).map_or(0, |v| v.0),
+                0
+            );
+            assert!(!token.status().unwrap().execution_complete);
+        }
+    }
+}
+
+#[test]
 fn case_conversion_preserves_empty_nul_and_unpaired_units() {
     use crate::values::{SqlText, SqlValue};
     for dialect in [
@@ -1274,6 +1320,18 @@ fn case_conversion_cancelled_during_scan_stays_failed() {
                 "{dialect:?} {name}"
             );
             assert!(!token.status().unwrap().execution_complete);
+            let usage = pool.usage().unwrap();
+            assert_eq!(
+                usage
+                    .used
+                    .get(&Resource::QueryWorkspaceBytes)
+                    .map_or(0, |v| v.0),
+                0
+            );
+            assert_eq!(
+                usage.used.get(&Resource::ResidentBytes).map_or(0, |v| v.0),
+                0
+            );
         }
     }
 }
