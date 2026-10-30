@@ -1,0 +1,25 @@
+{
+  "source_before": {
+    "crates/mdd-facts/src/references.rs": "FA961E60DA37C1CE7E90732E2AD82C0D684AF2645EAE6C18D6E99B95658B2E2C",
+    "crates/mdd-facts/src/definitions.rs": "A5870DB6627A67985266A81DA22CC194D341AEBA1A3B996BAEC6B38F38655804",
+    "crates/mdd-sql/src/provider/metadata.rs": "B8C7F0B527D3AC51019C3CE4A675F4CD4C99FCBC229103DD7CC17A769755E275",
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "crates/mdd-facts/src/coverage.rs": "49244043A9FF68C38B0BA69FB1140F70A7728145A4A9D192BCA82D6AA2B0EDA7",
+    "tests/fixtures/references/generated/poly-custom-038.dex": "25BC5A03641D31D87212A9A292D798E64C563E2666D03F579E7FC894AC8EE425",
+    "crates/mdd-facts/src/code.rs": "CC2F104EB4AA806CCE2E5B9244BE0A9E3E9F3095ABEF899BE17DAD40AB9C95EC",
+    "crates/mdd-query/src/budget.rs": "FC13E0A702A5930AB2252F103FA7341E45CECA8D3DF573975B036D92ADC8B589"
+  },
+  "source_after": {
+    "crates/mdd-facts/src/references.rs": "FA961E60DA37C1CE7E90732E2AD82C0D684AF2645EAE6C18D6E99B95658B2E2C",
+    "crates/mdd-facts/src/definitions.rs": "A5870DB6627A67985266A81DA22CC194D341AEBA1A3B996BAEC6B38F38655804",
+    "crates/mdd-sql/src/provider/metadata.rs": "B8C7F0B527D3AC51019C3CE4A675F4CD4C99FCBC229103DD7CC17A769755E275",
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "crates/mdd-facts/src/coverage.rs": "49244043A9FF68C38B0BA69FB1140F70A7728145A4A9D192BCA82D6AA2B0EDA7",
+    "tests/fixtures/references/generated/poly-custom-038.dex": "25BC5A03641D31D87212A9A292D798E64C563E2666D03F579E7FC894AC8EE425",
+    "crates/mdd-facts/src/code.rs": "CC2F104EB4AA806CCE2E5B9244BE0A9E3E9F3095ABEF899BE17DAD40AB9C95EC",
+    "crates/mdd-query/src/budget.rs": "FC13E0A702A5930AB2252F103FA7341E45CECA8D3DF573975B036D92ADC8B589"
+  },
+  "exit_code": 0,
+  "scope": "selected synthetic 2-occurrence bridge; no full fact or profile qualification",
+  "command": "cargo test -p mdd-sql --locked --offline --jobs 1 --lib combined_reference_sites_join_only_matching_occurrences -- --nocapture"
+}

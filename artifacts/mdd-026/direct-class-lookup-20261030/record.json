@@ -1,0 +1,15 @@
+{
+  "scope": "targeted class fixture, only listed source identities",
+  "source_after": {
+    "tests/fixtures/definitions/generated/definitions-035.dex": "4E8F9E8DEEDF44C8793E10D99F2614E0BED705DCAC617C0D74137E7B2BD459CC",
+    "crates/mdd-facts/src/definitions.rs": "A5870DB6627A67985266A81DA22CC194D341AEBA1A3B996BAEC6B38F38655804",
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089"
+  },
+  "command": "cargo test -p mdd-facts --locked --offline --jobs 1 direct_class_lookup_preserves_identity_and_interfaces -- --nocapture",
+  "exit_code": 0,
+  "source_before": {
+    "tests/fixtures/definitions/generated/definitions-035.dex": "4E8F9E8DEEDF44C8793E10D99F2614E0BED705DCAC617C0D74137E7B2BD459CC",
+    "crates/mdd-facts/src/definitions.rs": "A5870DB6627A67985266A81DA22CC194D341AEBA1A3B996BAEC6B38F38655804",
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089"
+  }
+}

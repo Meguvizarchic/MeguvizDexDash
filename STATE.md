@@ -176,6 +176,8 @@ MDD-034 消费确认内部故障补充：受控锁中毒红例中INTERNAL_FAULT�
 
 MDD-034 终态跟踪锁中毒的受控反例显示接收End和获取回执返回INTERNAL_FAULT但生命周期被清理改记CANCELLED；候选先登记首错，新测试及已有确认路径回归各1项通过，见 artifacts/mdd-034-audit/terminal-tracker-fault-20261030/green/record.json。锁故障为测试注入，非自然输入，生产worker与完整并发未验证。
 
+2026-10-30 目标持续功能（统一验证延后）：MDD-026 类事实视图新增完整同源实体直接查询，双来源、错误身份、来源文件和接口对照1项通过，见 artifacts/mdd-026/direct-class-lookup-20261030/record.json；另两测试二进制0项未计通过。覆盖报告在原始错误已有scope_id时不再覆盖该详情，受控红绿见 artifacts/mdd-026/coverage-error-detail-20261030/；首次修复误用仅测试依赖导致编译失败原样保留，后用既有接口通过1项，分配失败不承诺可恢复。MDD-031 引用位点provider可选接入组合provider，要求相同snapshot、epoch和所选出现、完整引用；双来源JOIN及范围/代次/快照/partial/重复绑定1项通过，见 artifacts/mdd-031-audit/combined-reference-provider-20261030/run1/record.json；未证明旧method_calls、全范围或profile。MDD-034 受控tracker锁故障在receipt.matches曾被清理改记CANCELLED，候选先登记真实首错；两项局部检查通过，见 artifacts/mdd-034-audit/receipt-match-fault-20261030/，反例由内部注入，其他依赖身份未完全固定。全量、跨平台和性能资格未验证；已有A2未暂存工作保留。
+
 MDD-031 SQL桥仍进行中：受限虚表、会话预算绑定、U64真值、USING和子串路径有本机测试；独立真值18例及固定A0/A1子串16例通过，合成Q15结果与SQLite一致。真实完整corpus、legacy适配及生产工作区内存绑定尚未验收。检查点862b3dd的 Windows 离线测试161项、0失败/跳过，工作区严格Clippy通过，命令记录在 artifacts/integration/20261029/workspace-tests/ 与 workspace-clippy/。
 
 后续 SQL 结果驻留预算修复在 Windows 工作区重新运行165项测试、0失败/跳过及严格Clippy；零行 schema 的零预算错误、结果持有与释放独立复现。该计量是保守逻辑额度，SQLite内部分配、provider/调用方副本、传输缓冲及租约自身元数据仍需单独准入，不能称 RSS 硬上限。证据 artifacts/mdd-031-audit/result-memory-probe/after-fix.json、artifacts/integration/20261029/workspace-tests-result-budget/record.json。

@@ -911,6 +911,7 @@ pub struct CombinedSqlProvider {
     binding: SqlBinding,
     metadata: Arc<MetadataSqlProvider>,
     definitions: Arc<DefinitionSqlProvider>,
+    references: Option<Arc<ReferenceSqlProvider>>,
 }
 impl CombinedSqlProvider {
     pub fn new(
@@ -943,7 +944,40 @@ impl CombinedSqlProvider {
             },
             metadata,
             definitions,
+            references: None,
         })
+    }
+
+    /// Attach complete encoded reference sites for precisely the same selected
+    /// occurrences and catalog generation. No legacy call-graph semantics are inferred.
+    pub fn with_references(mut self, references: Arc<ReferenceSqlProvider>) -> MddResult<Self> {
+        if self.references.is_some() {
+            return Err(invalid("COMBINED_PROVIDER_REFERENCES_ALREADY_BOUND"));
+        }
+        if self.binding.snapshot_id != references.binding.snapshot_id
+            || self.binding.catalog_epoch != references.binding.catalog_epoch
+        {
+            return Err(invalid("COMBINED_PROVIDER_GENERATION"));
+        }
+        let metadata_sources: BTreeSet<_> = self
+            .metadata
+            .occurrences
+            .iter()
+            .map(|facts| &facts.source().dex_occurrence_id)
+            .collect();
+        let reference_sources: BTreeSet<_> = references
+            .occurrences
+            .iter()
+            .map(|facts| &facts.source().dex_occurrence_id)
+            .collect();
+        if metadata_sources != reference_sources {
+            return Err(invalid("COMBINED_PROVIDER_SCOPE"));
+        }
+        for facts in &references.occurrences {
+            facts.require_complete()?;
+        }
+        self.references = Some(references);
+        Ok(self)
     }
 }
 impl SqlFactProvider for CombinedSqlProvider {
@@ -953,6 +987,9 @@ impl SqlFactProvider for CombinedSqlProvider {
     fn relations(&self) -> MddResult<Vec<SqlRelation>> {
         let mut relations = self.metadata.relations()?;
         relations.extend(self.definitions.relations()?);
+        if let Some(references) = &self.references {
+            relations.extend(references.relations()?);
+        }
         let mut names = BTreeSet::new();
         if relations
             .iter()
@@ -965,6 +1002,11 @@ impl SqlFactProvider for CombinedSqlProvider {
     fn require_relation(&self, relation: &str) -> MddResult<()> {
         if MetadataRelation::parse(relation).is_ok() {
             self.metadata.require_relation(relation)
+        } else if relation.eq_ignore_ascii_case("native_reference_sites") {
+            self.references
+                .as_ref()
+                .ok_or_else(|| invalid("UNKNOWN_REFERENCE_RELATION"))?
+                .require_relation(relation)
         } else {
             self.definitions.require_relation(relation)
         }
@@ -976,6 +1018,13 @@ impl SqlFactProvider for CombinedSqlProvider {
     ) -> MddResult<Box<dyn SqlFactCursor>> {
         if MetadataRelation::parse(relation).is_ok() {
             Arc::clone(&self.metadata).open_cursor(relation, control)
+        } else if relation.eq_ignore_ascii_case("native_reference_sites") {
+            Arc::clone(
+                self.references
+                    .as_ref()
+                    .ok_or_else(|| invalid("UNKNOWN_REFERENCE_RELATION"))?,
+            )
+            .open_cursor(relation, control)
         } else {
             Arc::clone(&self.definitions).open_cursor(relation, control)
         }
@@ -1170,6 +1219,151 @@ mod tests {
         archive::{ArchiveInventory, ArchiveLimits, InventoryPolicy},
         snapshot::{CaptureLimits, InputKind, InputSpec, Snapshot},
     };
+    #[test]
+    fn combined_reference_sites_join_only_matching_occurrences() {
+        use mdd_dex::{definitions::DefinitionLimits, instructions::CodeLimits};
+        use mdd_facts::{
+            code::CodeFacts,
+            references::{ReferenceFacts, ReferenceLimits},
+        };
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/references/generated/poly-custom-038.dex");
+        let spec = InputSpec {
+            path,
+            kind: InputKind::RawDex,
+            expected_sha256: None,
+        };
+        let snapshot =
+            Snapshot::capture(&[spec.clone(), spec.clone()], CaptureLimits::default()).unwrap();
+        let (mut metas, mut defs, mut refs) = (Vec::new(), Vec::new(), Vec::new());
+        for source in snapshot.sources() {
+            let inventory = ArchiveInventory::build(
+                source,
+                InventoryPolicy::default(),
+                ArchiveLimits::default(),
+            )
+            .unwrap();
+            let metadata =
+                MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default()).unwrap();
+            let definitions =
+                DefinitionFacts::build(metadata.clone(), DefinitionLimits::default()).unwrap();
+            let code =
+                CodeFacts::build_all_code_items(&snapshot, &inventory, 0, CodeLimits::default())
+                    .unwrap();
+            refs.push(Arc::new(
+                ReferenceFacts::build(definitions.clone(), code, ReferenceLimits::default())
+                    .unwrap(),
+            ));
+            defs.push(Arc::new(definitions));
+            metas.push(Arc::new(metadata));
+        }
+        let make_combined = || {
+            CombinedSqlProvider::new(
+                Arc::new(MetadataSqlProvider::new(metas.clone(), DecimalU64(7)).unwrap()),
+                Arc::new(DefinitionSqlProvider::new(defs.clone(), DecimalU64(7)).unwrap()),
+            )
+            .unwrap()
+        };
+        let partial =
+            Arc::new(ReferenceSqlProvider::new(vec![refs[0].clone()], DecimalU64(7)).unwrap());
+        assert_eq!(
+            make_combined().with_references(partial).err().unwrap().code,
+            ErrorCode::InvalidArgument
+        );
+        let first_inventory = ArchiveInventory::build(
+            &snapshot.sources()[0],
+            InventoryPolicy::default(),
+            ArchiveLimits::default(),
+        )
+        .unwrap();
+        let partial_code =
+            CodeFacts::build_offsets(&snapshot, &first_inventory, 0, &[], CodeLimits::default())
+                .unwrap();
+        let partial_refs = Arc::new(
+            ReferenceFacts::build((*defs[0]).clone(), partial_code, ReferenceLimits::default())
+                .unwrap(),
+        );
+        assert_eq!(
+            ReferenceSqlProvider::new(vec![partial_refs], DecimalU64(7))
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::IncompleteFacts
+        );
+        let foreign_epoch =
+            Arc::new(ReferenceSqlProvider::new(refs.clone(), DecimalU64(8)).unwrap());
+        assert_eq!(
+            make_combined()
+                .with_references(foreign_epoch)
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InvalidArgument
+        );
+        let other = Snapshot::capture(&[spec], CaptureLimits::default()).unwrap();
+        let other_inventory = ArchiveInventory::build(
+            &other.sources()[0],
+            InventoryPolicy::default(),
+            ArchiveLimits::default(),
+        )
+        .unwrap();
+        let other_meta =
+            MetadataFacts::build(&other, &other_inventory, 0, StringLimits::default()).unwrap();
+        let other_defs = DefinitionFacts::build(other_meta, DefinitionLimits::default()).unwrap();
+        let other_code =
+            CodeFacts::build_all_code_items(&other, &other_inventory, 0, CodeLimits::default())
+                .unwrap();
+        let other_refs = Arc::new(
+            ReferenceFacts::build(other_defs, other_code, ReferenceLimits::default()).unwrap(),
+        );
+        let other_provider =
+            Arc::new(ReferenceSqlProvider::new(vec![other_refs], DecimalU64(7)).unwrap());
+        assert_ne!(
+            other_provider.binding.snapshot_id,
+            snapshot.manifest().snapshot_id
+        );
+        assert_eq!(
+            make_combined()
+                .with_references(other_provider)
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InvalidArgument
+        );
+        let full = Arc::new(ReferenceSqlProvider::new(refs.clone(), DecimalU64(7)).unwrap());
+        let combined = make_combined().with_references(full.clone()).unwrap();
+        assert_eq!(
+            combined.with_references(full.clone()).err().unwrap().code,
+            ErrorCode::InvalidArgument
+        );
+        let combined = Arc::new(make_combined().with_references(full).unwrap());
+        let bridge = SqlBridge::new(combined, SqlDialect::NativeV1, SqlLimits::default()).unwrap();
+        let result = bridge.query("SELECT s.dex_occurrence_id,s.site_ordinal FROM native_reference_sites s JOIN native_method_references m ON s.dex_occurrence_id=m.dex_occurrence_id AND s.caller_method_idx=m.method_idx").unwrap();
+        let actual: BTreeSet<_> = result
+            .rows()
+            .iter()
+            .map(|row| match (&row[0], &row[1]) {
+                (SqlValue::Text(source), SqlValue::U64(ordinal)) => {
+                    (source.strict_utf8().unwrap(), ordinal.0)
+                }
+                _ => panic!("unexpected joined identity"),
+            })
+            .collect();
+        let expected: BTreeSet<_> = refs
+            .iter()
+            .flat_map(|facts| {
+                facts.sites().iter().map(move |site| {
+                    (
+                        facts.source().dex_occurrence_id.clone(),
+                        u64::from(site.site_ordinal),
+                    )
+                })
+            })
+            .collect();
+        assert!(!expected.is_empty());
+        assert_eq!(result.rows().len(), expected.len());
+        assert_eq!(actual, expected);
+    }
     #[test]
     fn native_reference_sites_keep_operand_and_occurrence_identity() {
         use mdd_dex::{definitions::DefinitionLimits, instructions::CodeLimits};

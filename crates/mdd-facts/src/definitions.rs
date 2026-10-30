@@ -102,54 +102,85 @@ pub struct ClassFactViews<'a> {
     facts: &'a DefinitionFacts,
 }
 impl<'a> ClassFactViews<'a> {
+    /// Resolve a class definition within this exact snapshot and DEX occurrence.
+    /// The local index is a class_def index, not a type index.
+    pub fn get(&self, entity: &EntityRef) -> MddResult<ClassFactView<'a>> {
+        let source = self.facts.metadata.source();
+        let invalid = || {
+            MddError::new(
+                ErrorCode::InvalidArgument,
+                "facts.classes",
+                "invalid or foreign class definition identity",
+            )
+        };
+        if entity.snapshot_id != source.snapshot_id
+            || entity.dex_occurrence_id != source.dex_occurrence_id
+            || entity.kind != EntityKind::ClassDefinition
+        {
+            return Err(invalid());
+        }
+        let class = self
+            .facts
+            .definitions
+            .classes
+            .get(entity.local_index as usize)
+            .filter(|class| class.class_def_idx == entity.local_index)
+            .ok_or_else(invalid)?;
+        self.view(class)
+    }
     /// Iterate DEX class_def order with directly declared interfaces in ordinal order.
     pub fn iter(&self) -> impl Iterator<Item = MddResult<ClassFactView<'a>>> + '_ {
+        self.facts
+            .definitions
+            .classes
+            .iter()
+            .map(move |class| self.view(class))
+    }
+    fn view(&self, class: &'a ClassDefinition) -> MddResult<ClassFactView<'a>> {
         let facts = self.facts;
-        facts.definitions.classes.iter().map(move |class| {
-            let type_at = |idx: u32| {
+        let type_at = |idx: u32| {
+            facts
+                .metadata
+                .types()
+                .get(idx as usize)
+                .map(|v| &v.data)
+                .ok_or_else(|| {
+                    MddError::new(
+                        ErrorCode::InternalFault,
+                        "facts.classes",
+                        "validated class type is missing",
+                    )
+                })
+        };
+        let class_type = type_at(class.class_idx)?;
+        let superclass = class.superclass_idx.map(type_at).transpose()?;
+        let source_file = class
+            .source_file_idx
+            .map(|idx| {
                 facts
                     .metadata
-                    .types()
+                    .strings()
                     .get(idx as usize)
                     .map(|v| &v.data)
                     .ok_or_else(|| {
                         MddError::new(
                             ErrorCode::InternalFault,
                             "facts.classes",
-                            "validated class type is missing",
+                            "validated source file is missing",
                         )
                     })
-            };
-            let class_type = type_at(class.class_idx)?;
-            let superclass = class.superclass_idx.map(type_at).transpose()?;
-            let source_file = class
-                .source_file_idx
-                .map(|idx| {
-                    facts
-                        .metadata
-                        .strings()
-                        .get(idx as usize)
-                        .map(|v| &v.data)
-                        .ok_or_else(|| {
-                            MddError::new(
-                                ErrorCode::InternalFault,
-                                "facts.classes",
-                                "validated source file is missing",
-                            )
-                        })
-                })
-                .transpose()?;
-            let all = &facts.definitions.interfaces;
-            let first = all.partition_point(|item| item.class_def_idx < class.class_def_idx);
-            let last = all.partition_point(|item| item.class_def_idx <= class.class_def_idx);
-            Ok(ClassFactView {
-                source: facts.metadata.source(),
-                definition: class,
-                class_type,
-                superclass,
-                source_file,
-                interfaces: &all[first..last],
             })
+            .transpose()?;
+        let all = &facts.definitions.interfaces;
+        let first = all.partition_point(|item| item.class_def_idx < class.class_def_idx);
+        let last = all.partition_point(|item| item.class_def_idx <= class.class_def_idx);
+        Ok(ClassFactView {
+            source: facts.metadata.source(),
+            definition: class,
+            class_type,
+            superclass,
+            source_file,
+            interfaces: &all[first..last],
         })
     }
 }
@@ -1444,6 +1475,70 @@ mod tests {
             .map(|value| value.unwrap().type_fact.data.descriptor.as_str())
             .collect::<Vec<_>>();
         assert_eq!(values, ["Ljava/util/List;", "I"]);
+    }
+    #[test]
+    fn direct_class_lookup_preserves_identity_and_interfaces() {
+        let facts = build_two();
+        for fact in &facts {
+            let view = fact.class_fact_views(ClassViewLimits::default()).unwrap();
+            for expected in view.iter() {
+                let expected = expected.unwrap();
+                let identity = fact
+                    .entity(
+                        EntityKind::ClassDefinition,
+                        expected.definition.class_def_idx,
+                    )
+                    .unwrap();
+                let actual = view.get(&identity).unwrap();
+                assert_eq!(
+                    actual.definition.class_def_idx,
+                    expected.definition.class_def_idx
+                );
+                assert_eq!(actual.class_type.descriptor, expected.class_type.descriptor);
+                assert_eq!(actual.interfaces.len(), expected.interfaces.len());
+                assert_eq!(
+                    actual.source_file.map(|v| &v.text.raw_mutf8),
+                    expected.source_file.map(|v| &v.text.raw_mutf8)
+                );
+                if actual.definition.descriptor == "Lfixture/Base;" {
+                    assert_eq!(actual.source_file.unwrap().text.raw_mutf8, b"Base.java");
+                    assert_eq!(actual.interfaces.len(), 1);
+                    assert_eq!(actual.interfaces[0].interface_descriptor, "Lfixture/I1;");
+                }
+                let wrong = EntityRef {
+                    dex_occurrence_id: "foreign".into(),
+                    ..identity.clone()
+                };
+                assert_eq!(
+                    view.get(&wrong).err().unwrap().code,
+                    ErrorCode::InvalidArgument
+                );
+                let wrong = EntityRef {
+                    snapshot_id: "foreign".into(),
+                    ..identity.clone()
+                };
+                assert_eq!(
+                    view.get(&wrong).err().unwrap().code,
+                    ErrorCode::InvalidArgument
+                );
+                let wrong = EntityRef {
+                    kind: EntityKind::Type,
+                    ..identity.clone()
+                };
+                assert_eq!(
+                    view.get(&wrong).err().unwrap().code,
+                    ErrorCode::InvalidArgument
+                );
+                let wrong = EntityRef {
+                    local_index: u32::MAX,
+                    ..identity
+                };
+                assert_eq!(
+                    view.get(&wrong).err().unwrap().code,
+                    ErrorCode::InvalidArgument
+                );
+            }
+        }
     }
     #[test]
     fn borrowed_class_views_preserve_occurrences_direct_interfaces_and_lossless_source() {

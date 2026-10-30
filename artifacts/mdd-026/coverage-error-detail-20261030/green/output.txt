@@ -1,0 +1,11 @@
+   Compiling mdd-facts v0.1.0-dev (D:\MeguvisDexDash\crates\mdd-facts)
+error[E0433]: cannot find module or crate `serde_json` in this scope
+   --> crates\mdd-facts\src\coverage.rs:102:25
+    |
+102 |             let scope = serde_json::Value::String(self.scope_id.clone());
+    |                         ^^^^^^^^^^ use of unresolved module or unlinked crate `serde_json`
+    |
+    = help: if you wanted to use a crate named `serde_json`, use `cargo add serde_json` to add it to your `Cargo.toml`
+
+For more information about this error, try `rustc --explain E0433`.
+error: could not compile `mdd-facts` (lib) due to 1 previous error

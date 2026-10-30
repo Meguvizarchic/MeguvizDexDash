@@ -1,0 +1,7 @@
+{
+  "source_before": "C4F16FCE74A6D705DFD86DFEB555032A1AF56A6D625FB5B6922D6E2FB32F9548",
+  "command": "cargo test -p mdd-facts --locked --offline --jobs 1 source_error_scope_detail_is_preserved -- --nocapture",
+  "exit_code": 101,
+  "source_after": "C4F16FCE74A6D705DFD86DFEB555032A1AF56A6D625FB5B6922D6E2FB32F9548",
+  "scope": "injected coverage error detail"
+}

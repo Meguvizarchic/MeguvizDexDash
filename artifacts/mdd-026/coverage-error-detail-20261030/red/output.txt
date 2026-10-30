@@ -1,0 +1,21 @@
+   Compiling mdd-facts v0.1.0-dev (D:\MeguvisDexDash\crates\mdd-facts)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 15.38s
+     Running unittests src\lib.rs (target\debug\deps\mdd_facts-f5fcaccb54dddfd1.exe)
+
+running 1 test
+
+thread 'coverage::error_detail_tests::source_error_scope_detail_is_preserved' (5948) panicked at crates\mdd-facts\src\coverage.rs:146:49:
+assertion `left == right` failed
+  left: Some(String("actual"))
+ right: Some(String("prior"))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test coverage::error_detail_tests::source_error_scope_detail_is_preserved ... FAILED
+
+failures:
+
+failures:
+    coverage::error_detail_tests::source_error_scope_detail_is_preserved
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 60 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p mdd-facts --lib`

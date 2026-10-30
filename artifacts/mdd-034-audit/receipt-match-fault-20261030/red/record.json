@@ -1,0 +1,15 @@
+{
+  "command": "cargo test -p mdd-query --locked --offline --jobs 1 poisoned_receipt_matching_preserves_internal_fault -- --nocapture",
+  "source_before": {
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "crates/mdd-query/src/budget/tests.rs": "00236719CA81B1206FC3581C326EFCB1465746E010565B2AF89324EF4916B9AD",
+    "crates/mdd-query/src/budget.rs": "6984B80A5872BBC94425EFBEFA463DAD888D5DB3894FCEF881F6EB3435CF1D42"
+  },
+  "source_after": {
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "crates/mdd-query/src/budget/tests.rs": "00236719CA81B1206FC3581C326EFCB1465746E010565B2AF89324EF4916B9AD",
+    "crates/mdd-query/src/budget.rs": "6984B80A5872BBC94425EFBEFA463DAD888D5DB3894FCEF881F6EB3435CF1D42"
+  },
+  "scope": "injected tracker poison, not natural input",
+  "exit_code": 101
+}

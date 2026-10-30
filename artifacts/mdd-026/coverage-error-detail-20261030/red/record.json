@@ -1,0 +1,6 @@
+{
+  "command": "cargo test -p mdd-facts --locked --offline --jobs 1 source_error_scope_detail_is_preserved -- --nocapture",
+  "source_sha256": "DD7885EA0EEE1C037B478A14FB12398AE5B97E60E4B6EE80F3AD1B98F9AF8609",
+  "scope": "injected coverage error detail",
+  "exit_code": 101
+}

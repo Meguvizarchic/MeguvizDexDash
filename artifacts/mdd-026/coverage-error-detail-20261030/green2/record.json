@@ -1,0 +1,7 @@
+{
+  "exit_code": 0,
+  "source_before": "49244043A9FF68C38B0BA69FB1140F70A7728145A4A9D192BCA82D6AA2B0EDA7",
+  "source_after": "49244043A9FF68C38B0BA69FB1140F70A7728145A4A9D192BCA82D6AA2B0EDA7",
+  "command": "cargo test -p mdd-facts --locked --offline --jobs 1 source_error_scope_detail_is_preserved -- --nocapture",
+  "scope": "injected coverage error detail"
+}

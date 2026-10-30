@@ -1504,11 +1504,13 @@ impl QueueDeliveryReceipt {
         let Some(other) = &sender.0.delivery else {
             return Ok(false);
         };
-        let state = self
-            .tracker
-            .state
-            .lock()
-            .map_err(|_| fault("delivery tracking mutex poisoned"))?;
+        let state = self.tracker.state.lock().map_err(|_| {
+            let error = fault("delivery tracking mutex poisoned");
+            match self.tracker.cancel.fail(error.clone()) {
+                Ok(status) => status.error.unwrap_or(error),
+                Err(failure) => failure,
+            }
+        })?;
         let same_error = match (state.end_error.as_ref(), error) {
             (None, None) => true,
             (Some(actual), Some(expected)) => {
