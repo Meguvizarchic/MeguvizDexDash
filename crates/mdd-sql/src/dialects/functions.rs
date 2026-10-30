@@ -176,7 +176,18 @@ fn int_float_cmp(integer: i128, float: f64) -> Ordering {
     };
     if negative { order.reverse() } else { order }
 }
-fn compare(left: &SqlValue, right: &SqlValue) -> MddResult<Ordering> {
+fn compare_units<T: Ord>(left: &[T], right: &[T], control: &SqlControl) -> MddResult<Ordering> {
+    for (a, b) in left.iter().zip(right) {
+        control.checkpoint(1, false)?;
+        let order = a.cmp(b);
+        if order != Ordering::Equal {
+            return Ok(order);
+        }
+    }
+    control.checkpoint(1, false)?;
+    Ok(left.len().cmp(&right.len()))
+}
+fn compare(left: &SqlValue, right: &SqlValue, control: &SqlControl) -> MddResult<Ordering> {
     if storage_class(left) != storage_class(right) {
         return Err(MddError::new(
             mdd_types::ErrorCode::UnsupportedQuery,
@@ -185,11 +196,13 @@ fn compare(left: &SqlValue, right: &SqlValue) -> MddResult<Ordering> {
         ));
     }
     if let (Some(left), Some(right)) = (left.bytes(), right.bytes()) {
-        return Ok(left.cmp(right));
+        return compare_units(left, right, control);
     }
     Ok(match (left, right) {
-        (SqlValue::Text(a), SqlValue::Text(b)) => a.utf16.cmp(&b.utf16),
-        (SqlValue::Bytes(a), SqlValue::Bytes(b)) => a.cmp(b),
+        (SqlValue::Text(a), SqlValue::Text(b)) => {
+            return compare_units(&a.utf16, &b.utf16, control);
+        }
+        (SqlValue::Bytes(a), SqlValue::Bytes(b)) => return compare_units(a, b, control),
         (SqlValue::F64(a), SqlValue::F64(b)) => {
             let (x, y) = (f64::from_bits(a.0), f64::from_bits(b.0));
             if x.is_nan() && y.is_nan() {
@@ -215,10 +228,10 @@ fn storage_class(value: &SqlValue) -> u8 {
         SqlValue::Bytes(_) | SqlValue::DexMutf8 { .. } => 3,
     }
 }
-fn compare_literal(left: &SqlValue, right: &SqlValue) -> MddResult<Ordering> {
+fn compare_literal(left: &SqlValue, right: &SqlValue, control: &SqlControl) -> MddResult<Ordering> {
     let order = storage_class(left).cmp(&storage_class(right));
     if order == Ordering::Equal {
-        compare(left, right)
+        compare(left, right, control)
     } else {
         Ok(order)
     }
@@ -1053,7 +1066,7 @@ fn scalar(
         if args[0] == SqlValue::Null {
             return Ok(SqlValue::Null);
         }
-        if args[1] != SqlValue::Null && compare(&args[0], &args[1])? == Ordering::Equal {
+        if args[1] != SqlValue::Null && compare(&args[0], &args[1], control)? == Ordering::Equal {
             return Ok(SqlValue::Null);
         }
         return Ok(args[0].clone());
@@ -1072,7 +1085,7 @@ fn scalar(
         let mut chosen = &args[0];
         for value in &args[1..] {
             control.checkpoint(1, false)?;
-            let order = compare_literal(value, chosen)?;
+            let order = compare_literal(value, chosen, control)?;
             if (name == "mdd_min_scalar" && order == Ordering::Less)
                 || (name == "mdd_max_scalar" && order == Ordering::Greater)
             {
@@ -1291,9 +1304,9 @@ fn scalar(
                     operator,
                 )
             } else if let Some(operator) = name.strip_prefix("mdd_literal_") {
-                (compare_literal(&args[0], &args[1])?, operator)
+                (compare_literal(&args[0], &args[1], control)?, operator)
             } else {
-                (compare(&args[0], &args[1])?, &name[4..])
+                (compare(&args[0], &args[1], control)?, &name[4..])
             };
             Ok(SqlValue::Bool(match operator {
                 "eq" => order == Ordering::Equal,
@@ -1464,7 +1477,8 @@ impl Aggregate<Option<SqlValue>, Cell> for AggregateValue {
                 *previous =
                     numeric(previous, &value, "add").map_err(|e| failure(&self.control, e))?;
             } else {
-                let order = compare(previous, &value).map_err(|e| failure(&self.control, e))?;
+                let order = compare(previous, &value, &self.control)
+                    .map_err(|e| failure(&self.control, e))?;
                 if (self.name == "mdd_min" && order == Ordering::Greater)
                     || (self.name == "mdd_max" && order == Ordering::Less)
                 {
@@ -1494,6 +1508,53 @@ mod like_budget_tests {
     use super::*;
     use crate::control::SqlLimits;
     use mdd_types::ErrorCode;
+
+    #[test]
+    fn text_and_bytes_comparisons_account_for_work() {
+        let control = SqlControl::new(SqlLimits::default(), None);
+        let text = |units| {
+            SqlValue::Text(SqlText {
+                utf16: units,
+                original_mutf8: None,
+            })
+        };
+        assert_eq!(
+            compare(&text(vec![0, 0xd800]), &text(vec![0, 0xdfff]), &control).unwrap(),
+            Ordering::Less
+        );
+        assert_eq!(
+            compare(
+                &SqlValue::Bytes(vec![0, 255]),
+                &SqlValue::Bytes(vec![0, 255, 0]),
+                &control
+            )
+            .unwrap(),
+            Ordering::Less
+        );
+        assert_eq!(
+            compare_literal(&SqlValue::Bytes(vec![1]), &text(vec![49]), &control).unwrap(),
+            Ordering::Greater
+        );
+        for value in [text(vec![65; 128]), SqlValue::Bytes(vec![65; 128])] {
+            let limited = SqlControl::new(
+                SqlLimits {
+                    max_steps: 8,
+                    ..SqlLimits::default()
+                },
+                None,
+            );
+            assert_eq!(
+                compare(&value, &value, &limited).unwrap_err().code,
+                ErrorCode::QuotaExceeded
+            );
+            let cancelled = SqlControl::new(SqlLimits::default(), None);
+            cancelled.cancel().unwrap();
+            assert_eq!(
+                compare(&value, &value, &cancelled).unwrap_err().code,
+                ErrorCode::Cancelled
+            );
+        }
+    }
 
     #[test]
     fn legacy_integer_text_candidate_is_strict_and_budgeted() {

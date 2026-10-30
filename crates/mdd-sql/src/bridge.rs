@@ -1687,6 +1687,44 @@ mod tests {
         );
     }
     #[test]
+    fn long_sql_comparisons_are_bounded_in_scalar_and_aggregate_paths() {
+        let (provider, _) = bridge();
+        for dialect in [
+            SqlDialect::NativeV1,
+            SqlDialect::DexSql010,
+            SqlDialect::DexSql011,
+        ] {
+            let bridge = SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+            for value in [
+                SqlValue::text(&"x".repeat(2000)),
+                SqlValue::Bytes(vec![b'x'; 2000]),
+            ] {
+                for sql in [
+                    "SELECT ? = ?",
+                    "SELECT NULLIF(?,?)",
+                    "SELECT min(?,?)",
+                    "SELECT min(v) FROM (SELECT ? AS v UNION ALL SELECT ? AS v)",
+                ] {
+                    let prepared = bridge
+                        .prepare_with_parameters(sql, &[value.clone(), value.clone()])
+                        .unwrap();
+                    let limits = SqlLimits {
+                        max_steps: 64,
+                        ..SqlLimits::default()
+                    };
+                    assert_eq!(
+                        prepared
+                            .execute(SqlControl::new(limits, None))
+                            .unwrap_err()
+                            .code,
+                        ErrorCode::QuotaExceeded,
+                        "{dialect:?}: {sql}"
+                    );
+                }
+            }
+        }
+    }
+    #[test]
     fn substring_retains_policy_units_and_bounded_negative_indices() {
         let (provider, native) = bridge();
         let expected = vec![

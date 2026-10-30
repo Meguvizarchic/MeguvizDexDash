@@ -1,0 +1,20 @@
+{
+  "command": [
+    ".venv/Scripts/python.exe",
+    "-B",
+    "-O",
+    "artifacts/mdd-005/a2-dataset-open-20261030/probe.py"
+  ],
+  "started_utc": "2026-10-30T04:25:36.182673+00:00",
+  "finished_utc": "2026-10-30T04:25:36.382897+00:00",
+  "exit_code": 0,
+  "source_sha256": {
+    "benchmarks/a2_dataset_open.py": "0c67df79ecd031f461f503c93549ddbc5fc5c54af0365c2eb74c7bbdbf80e5ea",
+    "benchmarks/a2_dataset_close.py": "311b1d22ddf2ee9cf6cd56231817b79c9edaec6f45b81dfd0142486c7d5d105a",
+    "artifacts/mdd-005/a2-dataset-open-20261030/probe.py": "73049c9a9cc2f695a8b6321d8b075e353037b6c231a67787ad178baa66b749ed"
+  },
+  "source_unchanged": true,
+  "stdout_sha256": "6aa704dc4dc05ac9035c6204ff876ada0ef1891dbaf1110c22410c32d5619661",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "scope": "synthetic client; no actual producer, snapshot, A2 or performance qualification"
+}

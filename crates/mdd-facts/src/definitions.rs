@@ -2,8 +2,8 @@
 use crate::metadata::{EntityKind, EntityRef, MetadataFacts, MetadataSource};
 use mdd_dex::{
     definitions::{
-        ClassDefinition, DefinitionLimits, DefinitionMetadata, DexDefinitions, MethodDefinition,
-        MethodReference, read_definitions,
+        ClassDefinition, DefinitionLimits, DefinitionMetadata, DexDefinitions, FieldDefinition,
+        FieldReference, InterfaceDefinition, MethodDefinition, MethodReference, read_definitions,
     },
     strings::DexString,
     types::{DexPrototype, DexType},
@@ -72,6 +72,88 @@ pub struct ClassInterfaceRow {
     pub interface_descriptor: String,
 }
 
+/// Logical iteration limits; the borrowed class view allocates no owner index.
+#[derive(Clone, Copy, Debug)]
+pub struct ClassViewLimits {
+    pub max_classes: u64,
+    pub max_interfaces: u64,
+}
+impl Default for ClassViewLimits {
+    fn default() -> Self {
+        Self {
+            max_classes: 4_000_000,
+            max_interfaces: 16_000_000,
+        }
+    }
+}
+
+/// Direct facts for one class definition in one immutable DEX occurrence.
+/// Absence of superclass or source file is the encoded NO_INDEX, not an unbuilt layer.
+/// Interface entries are direct declarations; no inheritance closure is inferred.
+pub struct ClassFactView<'a> {
+    pub source: &'a MetadataSource,
+    pub definition: &'a ClassDefinition,
+    pub class_type: &'a DexType,
+    pub superclass: Option<&'a DexType>,
+    pub source_file: Option<&'a DexString>,
+    pub interfaces: &'a [InterfaceDefinition],
+}
+pub struct ClassFactViews<'a> {
+    facts: &'a DefinitionFacts,
+}
+impl<'a> ClassFactViews<'a> {
+    /// Iterate DEX class_def order with directly declared interfaces in ordinal order.
+    pub fn iter(&self) -> impl Iterator<Item = MddResult<ClassFactView<'a>>> + '_ {
+        let facts = self.facts;
+        facts.definitions.classes.iter().map(move |class| {
+            let type_at = |idx: u32| {
+                facts
+                    .metadata
+                    .types()
+                    .get(idx as usize)
+                    .map(|v| &v.data)
+                    .ok_or_else(|| {
+                        MddError::new(
+                            ErrorCode::InternalFault,
+                            "facts.classes",
+                            "validated class type is missing",
+                        )
+                    })
+            };
+            let class_type = type_at(class.class_idx)?;
+            let superclass = class.superclass_idx.map(type_at).transpose()?;
+            let source_file = class
+                .source_file_idx
+                .map(|idx| {
+                    facts
+                        .metadata
+                        .strings()
+                        .get(idx as usize)
+                        .map(|v| &v.data)
+                        .ok_or_else(|| {
+                            MddError::new(
+                                ErrorCode::InternalFault,
+                                "facts.classes",
+                                "validated source file is missing",
+                            )
+                        })
+                })
+                .transpose()?;
+            let all = &facts.definitions.interfaces;
+            let first = all.partition_point(|item| item.class_def_idx < class.class_def_idx);
+            let last = all.partition_point(|item| item.class_def_idx <= class.class_def_idx);
+            Ok(ClassFactView {
+                source: facts.metadata.source(),
+                definition: class,
+                class_type,
+                superclass,
+                source_file,
+                interfaces: &all[first..last],
+            })
+        })
+    }
+}
+
 /// Limits for the borrowed method-reference-to-definition join, not a total RSS bound.
 #[derive(Clone, Copy, Debug)]
 pub struct MethodViewLimits {
@@ -99,6 +181,70 @@ pub struct MethodFactView<'a> {
 pub struct MethodFactViews<'a> {
     facts: &'a DefinitionFacts,
     definitions: Vec<&'a MethodDefinition>,
+}
+
+/// Limits for the borrowed field-reference-to-definition join, not a total RSS bound.
+#[derive(Clone, Copy, Debug)]
+pub struct FieldViewLimits {
+    pub max_definition_entries: u64,
+    pub max_index_bytes: u64,
+}
+impl Default for FieldViewLimits {
+    fn default() -> Self {
+        Self {
+            max_definition_entries: 4_000_000,
+            max_index_bytes: 256 * 1024 * 1024,
+        }
+    }
+}
+
+/// One field_id and its same-occurrence type and optional real definition.
+/// `definition == None` is reference-only within this complete definition layer.
+/// Initial values and annotations are not part of this view and are never filled as NULL.
+pub struct FieldFactView<'a> {
+    pub source: &'a MetadataSource,
+    pub reference: &'a FieldReference,
+    pub field_type: &'a DexType,
+    pub definition: Option<&'a FieldDefinition>,
+}
+pub struct FieldFactViews<'a> {
+    facts: &'a DefinitionFacts,
+    definitions: Vec<&'a FieldDefinition>,
+}
+impl<'a> FieldFactViews<'a> {
+    /// Iterate every encoded field reference in DEX field-id order without copying values.
+    pub fn iter(&self) -> impl Iterator<Item = MddResult<FieldFactView<'a>>> + '_ {
+        self.facts
+            .definitions
+            .field_references
+            .iter()
+            .map(|reference| {
+                let field_type = self
+                    .facts
+                    .metadata
+                    .types()
+                    .get(reference.type_idx as usize)
+                    .map(|item| &item.data)
+                    .ok_or_else(|| {
+                        MddError::new(
+                            ErrorCode::InternalFault,
+                            "facts.fields",
+                            "validated field type is missing",
+                        )
+                    })?;
+                let definition = self
+                    .definitions
+                    .binary_search_by_key(&reference.field_idx, |definition| definition.field_idx)
+                    .ok()
+                    .map(|index| self.definitions[index]);
+                Ok(FieldFactView {
+                    source: self.facts.metadata.source(),
+                    reference,
+                    field_type,
+                    definition,
+                })
+            })
+    }
 }
 impl<'a> MethodFactViews<'a> {
     /// Iterate every encoded method reference in DEX method-id order without copying values.
@@ -137,6 +283,165 @@ impl<'a> MethodFactViews<'a> {
 }
 
 impl DefinitionFacts {
+    /// Validate a direct borrowed class view without allocating or merging occurrences.
+    pub fn class_fact_views(&self, limits: ClassViewLimits) -> MddResult<ClassFactViews<'_>> {
+        if self.definition_coverage != Completeness::Complete
+            || self.metadata.metadata_coverage() != Completeness::Complete
+        {
+            return Err(MddError::new(
+                ErrorCode::IncompleteFacts,
+                "facts.classes",
+                "complete metadata and definitions are required",
+            ));
+        }
+        let classes = &self.definitions.classes;
+        let interfaces = &self.definitions.interfaces;
+        if u64::try_from(classes.len()).map_or(true, |n| n > limits.max_classes)
+            || u64::try_from(interfaces.len()).map_or(true, |n| n > limits.max_interfaces)
+        {
+            return Err(MddError::new(
+                ErrorCode::QuotaExceeded,
+                "facts.classes",
+                "class view row budget exceeded",
+            ));
+        }
+        let broken = || {
+            MddError::new(
+                ErrorCode::InternalFault,
+                "facts.classes",
+                "validated class data is inconsistent",
+            )
+        };
+        let mut cursor = 0usize;
+        for (index, class) in classes.iter().enumerate() {
+            if u32::try_from(index).ok() != Some(class.class_def_idx) {
+                return Err(broken());
+            }
+            let class_type = self
+                .metadata
+                .types()
+                .get(class.class_idx as usize)
+                .ok_or_else(broken)?;
+            if class_type.data.type_idx != class.class_idx
+                || class_type.data.descriptor != class.descriptor
+            {
+                return Err(broken());
+            }
+            match (class.superclass_idx, class.superclass_descriptor.as_ref()) {
+                (None, None) => (),
+                (Some(idx), Some(descriptor)) => {
+                    let actual = self.metadata.types().get(idx as usize).ok_or_else(broken)?;
+                    if actual.data.type_idx != idx || actual.data.descriptor != *descriptor {
+                        return Err(broken());
+                    }
+                }
+                _ => return Err(broken()),
+            }
+            match (class.source_file_idx, class.source_file.as_ref()) {
+                (None, None) => (),
+                (Some(idx), Some(text)) => {
+                    let actual = self
+                        .metadata
+                        .strings()
+                        .get(idx as usize)
+                        .ok_or_else(broken)?;
+                    if actual.data.string_idx != idx
+                        || !actual.data.text.equals_raw(text)
+                        || !actual.data.text.equals_utf16(text)
+                    {
+                        return Err(broken());
+                    }
+                }
+                _ => return Err(broken()),
+            }
+            let start = cursor;
+            while let Some(interface) = interfaces
+                .get(cursor)
+                .filter(|i| i.class_def_idx == class.class_def_idx)
+            {
+                if interface.class_idx != class.class_idx
+                    || u32::try_from(cursor - start).ok() != Some(interface.ordinal)
+                {
+                    return Err(broken());
+                }
+                let actual = self
+                    .metadata
+                    .types()
+                    .get(interface.interface_type_idx as usize)
+                    .ok_or_else(broken)?;
+                if actual.data.type_idx != interface.interface_type_idx
+                    || actual.data.descriptor != interface.interface_descriptor
+                {
+                    return Err(broken());
+                }
+                cursor += 1;
+            }
+        }
+        if cursor != interfaces.len() {
+            return Err(broken());
+        }
+        Ok(ClassFactViews { facts: self })
+    }
+    /// Build a bounded join for all field IDs in this immutable DEX occurrence.
+    pub fn field_fact_views(&self, limits: FieldViewLimits) -> MddResult<FieldFactViews<'_>> {
+        if self.definition_coverage != Completeness::Complete
+            || self.metadata.metadata_coverage() != Completeness::Complete
+        {
+            return Err(MddError::new(
+                ErrorCode::IncompleteFacts,
+                "facts.fields",
+                "complete metadata and definitions are required",
+            ));
+        }
+        let count = self.definitions.field_definitions.len();
+        let count_u64 = u64::try_from(count).map_err(|_| {
+            MddError::new(
+                ErrorCode::QuotaExceeded,
+                "facts.fields",
+                "field definition count overflow",
+            )
+        })?;
+        let bytes = count_u64
+            .checked_mul(std::mem::size_of::<&FieldDefinition>() as u64)
+            .ok_or_else(|| {
+                MddError::new(
+                    ErrorCode::QuotaExceeded,
+                    "facts.fields",
+                    "field join byte overflow",
+                )
+            })?;
+        if count_u64 > limits.max_definition_entries || bytes > limits.max_index_bytes {
+            return Err(MddError::new(
+                ErrorCode::QuotaExceeded,
+                "facts.fields",
+                "field join index budget exceeded",
+            ));
+        }
+        let mut definitions = Vec::new();
+        definitions.try_reserve_exact(count).map_err(|_| {
+            MddError::new(
+                ErrorCode::QuotaExceeded,
+                "facts.fields",
+                "field join allocation failed",
+            )
+        })?;
+        definitions.extend(self.definitions.field_definitions.iter());
+        definitions.sort_unstable_by_key(|definition| definition.field_idx);
+        if definitions
+            .windows(2)
+            .any(|pair| pair[0].field_idx == pair[1].field_idx)
+        {
+            return Err(MddError::new(
+                ErrorCode::InternalFault,
+                "facts.fields",
+                "duplicate field definition identity",
+            ));
+        }
+        Ok(FieldFactViews {
+            facts: self,
+            definitions,
+        })
+    }
     /// Build a bounded join for all method IDs in this immutable DEX occurrence.
     pub fn method_fact_views(&self, limits: MethodViewLimits) -> MddResult<MethodFactViews<'_>> {
         if self.definition_coverage != Completeness::Complete
@@ -496,8 +801,12 @@ mod tests {
     use serde_json::Value;
     use std::path::PathBuf;
     fn build_two() -> Vec<DefinitionFacts> {
+        build_named("definitions-035.dex")
+    }
+    fn build_named(name: &str) -> Vec<DefinitionFacts> {
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../tests/fixtures/definitions/generated/definitions-035.dex");
+            .join("../../tests/fixtures/definitions/generated")
+            .join(name);
         let input = InputSpec {
             path,
             kind: InputKind::RawDex,
@@ -523,6 +832,194 @@ mod tests {
                 .unwrap()
             })
             .collect()
+    }
+    #[test]
+    fn borrowed_class_views_preserve_occurrences_direct_interfaces_and_lossless_source() {
+        let facts = build_two();
+        for fact in &facts {
+            let view = fact.class_fact_views(ClassViewLimits::default()).unwrap();
+            let rows = view.iter().collect::<MddResult<Vec<_>>>().unwrap();
+            assert_eq!(rows.len(), fact.definitions().classes.len());
+            assert!(rows.iter().enumerate().all(|(index, row)| {
+                row.definition.class_def_idx as usize == index
+                    && row.source.dex_occurrence_id == fact.metadata().source().dex_occurrence_id
+                    && row.class_type.type_idx == row.definition.class_idx
+                    && row.class_type.descriptor == row.definition.descriptor
+            }));
+            let base = rows
+                .iter()
+                .find(|row| row.definition.descriptor == "Lfixture/Base;")
+                .unwrap();
+            assert_eq!(base.superclass.unwrap().descriptor, "Ljava/lang/Object;");
+            assert_eq!(
+                base.source_file.unwrap().text.strict_utf8().unwrap(),
+                "Base.java"
+            );
+            assert_eq!(base.interfaces.len(), 1);
+            assert_eq!(base.interfaces[0].ordinal, 0);
+            assert_eq!(base.interfaces[0].interface_descriptor, "Lfixture/I1;");
+            let child = rows
+                .iter()
+                .find(|row| row.definition.descriptor == "Lfixture/Child;")
+                .unwrap();
+            assert!(child.interfaces.is_empty());
+        }
+        assert_eq!(
+            facts[0].metadata().source().snapshot_id,
+            facts[1].metadata().source().snapshot_id
+        );
+        assert_ne!(
+            facts[0].metadata().source().dex_occurrence_id,
+            facts[1].metadata().source().dex_occurrence_id
+        );
+        let surrogate = build_named("source-file-surrogate.dex");
+        let view = surrogate[0]
+            .class_fact_views(ClassViewLimits::default())
+            .unwrap();
+        let base = view
+            .iter()
+            .find_map(|row| {
+                let row = row.unwrap();
+                (row.definition.descriptor == "Lfixture/Base;").then_some(row)
+            })
+            .unwrap();
+        assert_eq!(base.source_file.unwrap().text.utf16_units, [0xd800]);
+        assert_eq!(base.source_file.unwrap().text.raw_mutf8, [0xed, 0xa0, 0x80]);
+        let root = build_named("nullable-root-class.dex");
+        let view = root[0]
+            .class_fact_views(ClassViewLimits::default())
+            .unwrap();
+        let object = view
+            .iter()
+            .find_map(|row| {
+                let row = row.unwrap();
+                (row.definition.descriptor == "Ljava/lang/Object;").then_some(row)
+            })
+            .unwrap();
+        assert!(
+            object.superclass.is_none()
+                && object.source_file.is_none()
+                && object.interfaces.is_empty()
+        );
+        for limits in [
+            ClassViewLimits {
+                max_classes: 0,
+                ..ClassViewLimits::default()
+            },
+            ClassViewLimits {
+                max_interfaces: 0,
+                ..ClassViewLimits::default()
+            },
+        ] {
+            assert_eq!(
+                facts[0].class_fact_views(limits).err().unwrap().code,
+                ErrorCode::QuotaExceeded
+            );
+        }
+        let mut incomplete = facts[0].clone();
+        incomplete.definition_coverage = Completeness::Partial;
+        assert_eq!(
+            incomplete
+                .class_fact_views(ClassViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::IncompleteFacts
+        );
+        let mut malformed = facts[0].clone();
+        malformed.definitions.interfaces[0].ordinal = 1;
+        assert_eq!(
+            malformed
+                .class_fact_views(ClassViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InternalFault
+        );
+    }
+    #[test]
+    fn borrowed_field_views_distinguish_reference_static_and_instance() {
+        use mdd_dex::definitions::FieldKind;
+        let facts = build_two();
+        for fact in &facts {
+            let view = fact.field_fact_views(FieldViewLimits::default()).unwrap();
+            let rows = view.iter().collect::<MddResult<Vec<_>>>().unwrap();
+            assert_eq!(rows.len(), fact.definitions().field_references.len());
+            assert!(
+                rows.windows(2)
+                    .all(|r| r[0].reference.field_idx < r[1].reference.field_idx)
+            );
+            assert!(rows.iter().all(|r| {
+                r.source.dex_occurrence_id == fact.metadata().source().dex_occurrence_id
+                    && r.field_type.type_idx == r.reference.type_idx
+                    && r.field_type.descriptor == r.reference.type_descriptor
+            }));
+            let external = rows
+                .iter()
+                .find(|r| r.reference.field_name == "outside")
+                .unwrap();
+            assert!(external.definition.is_none());
+            let static_field = rows
+                .iter()
+                .find(|r| r.reference.field_name == "sValue")
+                .unwrap();
+            assert_eq!(static_field.definition.unwrap().kind, FieldKind::Static);
+            let instance = rows
+                .iter()
+                .find(|r| r.reference.field_name == "iValue")
+                .unwrap();
+            assert_eq!(instance.definition.unwrap().kind, FieldKind::Instance);
+            for row in rows.iter().filter_map(|r| r.definition.map(|d| (r, d))) {
+                assert_eq!(row.0.reference.field_idx, row.1.field_idx);
+                assert_eq!(row.0.reference.class_idx, row.1.class_idx);
+            }
+        }
+        assert_eq!(
+            facts[0].metadata().source().snapshot_id,
+            facts[1].metadata().source().snapshot_id
+        );
+        assert_ne!(
+            facts[0].metadata().source().dex_occurrence_id,
+            facts[1].metadata().source().dex_occurrence_id
+        );
+        for limits in [
+            FieldViewLimits {
+                max_definition_entries: 0,
+                ..FieldViewLimits::default()
+            },
+            FieldViewLimits {
+                max_index_bytes: 0,
+                ..FieldViewLimits::default()
+            },
+        ] {
+            assert_eq!(
+                facts[0].field_fact_views(limits).err().unwrap().code,
+                ErrorCode::QuotaExceeded
+            );
+        }
+        let mut incomplete = facts[0].clone();
+        incomplete.definition_coverage = Completeness::Partial;
+        assert_eq!(
+            incomplete
+                .field_fact_views(FieldViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::IncompleteFacts
+        );
+        let mut duplicate = facts[0].clone();
+        duplicate
+            .definitions
+            .field_definitions
+            .push(duplicate.definitions.field_definitions[0].clone());
+        assert_eq!(
+            duplicate
+                .field_fact_views(FieldViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InternalFault
+        );
     }
     #[test]
     fn borrowed_method_views_distinguish_reference_native_abstract_and_present() {
