@@ -94,7 +94,10 @@ def decimal(value):
 def consume(output, expected_inputs, expected_request, required_layers):
     if output["schema_version"] != "mdd.benchmark-output.v1":
         raise ValueError("driver output schema mismatch")
-    if output["input_manifest"] != expected_inputs or output["request_key"] != expected_request:
+    if (canonical(output["input_manifest"]) != canonical(expected_inputs)
+            or not isinstance(expected_request, str) or not expected_request
+            or not isinstance(output["request_key"], str)
+            or output["request_key"] != expected_request):
         raise ValueError("driver input/request binding mismatch")
     if type(output["fallback_count"]) is not int or output["fallback_count"] != 0:
         raise ValueError("fallback cannot qualify a replacement")
@@ -119,7 +122,12 @@ def consume(output, expected_inputs, expected_request, required_layers):
     if (not isinstance(layers, list) or any(not isinstance(x, str) or not x for x in layers)
             or len(layers) != len(set(layers)) or set(layers) != set(required_layers)):
         raise ValueError("required fact scope differs")
-    if any(issue.get("blocking") is not False for issue in coverage["issues"]):
+    issues = coverage["issues"]
+    if (not isinstance(issues, list) or any(
+            not isinstance(issue, dict) or issue.get("blocking") is not False
+            or not isinstance(issue.get("layer"), str) or not issue["layer"]
+            or not isinstance(issue.get("reason"), str) or not issue["reason"]
+            for issue in issues)):
         raise ValueError("blocking or unclassified coverage issue")
     response = result["response"]
     if not isinstance(response.get("schema_id"), str) or not response["schema_id"]:
@@ -325,6 +333,22 @@ class ContractTests(unittest.TestCase):
     def test_input_binding(self):
         item = self.fixture(); item["input_manifest"] = ["other-occurrence"]
         with self.assertRaises(ValueError): self.consume(item)
+
+    def test_input_binding_distinguishes_bool_and_integer(self):
+        item = self.fixture(); item['input_manifest'] = [{'ordinal': True}]
+        with self.assertRaises(ValueError):
+            consume(item, [{'ordinal': 1}], 'fixture-request', ['structure'])
+
+    def test_coverage_issues_require_typed_reason_and_layer(self):
+        for issue in ({'blocking': False}, {'blocking': False, 'layer': '', 'reason': 'x'},
+                      {'blocking': False, 'layer': 'structure', 'reason': 1}):
+            item = self.fixture(); item['result']['coverage']['issues'] = [issue]
+            with self.subTest(issue=issue), self.assertRaises(ValueError):
+                self.consume(item)
+        item = self.fixture()
+        item['result']['coverage']['issues'] = [
+            {'blocking': False, 'layer': 'structure', 'reason': 'informational'}]
+        self.assertTrue(self.consume(item)['complete_output'])
 
     def test_scope_binding(self):
         item = self.fixture(); item["result"]["coverage"]["required_layers"] = []

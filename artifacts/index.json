@@ -3818,6 +3818,26 @@
       "sha256": "6ca11287768bd921fe4145636abb94be1840c64fc693ccdb63f14540878a2ecd"
     },
     {
+      "path": "artifacts/mdd-005/input-coverage-integrity-20261030/green/output.txt",
+      "bytes": 1440,
+      "sha256": "eda5bfb5f3d7c240e0732e2bb60c01b828f349b1144b200b61b1efff4f20cdf2"
+    },
+    {
+      "path": "artifacts/mdd-005/input-coverage-integrity-20261030/green/record.json",
+      "bytes": 351,
+      "sha256": "46105a57b4b6745bf6202aa06175f3a5cb0a800f1436cf08201e2e40ddb7ab30"
+    },
+    {
+      "path": "artifacts/mdd-005/input-coverage-integrity-20261030/red/output.txt",
+      "bytes": 4606,
+      "sha256": "35e3dbc7b8019067a4f0173b84a704c2cad968e56329d1470d41062ff64e27b9"
+    },
+    {
+      "path": "artifacts/mdd-005/input-coverage-integrity-20261030/red/record.json",
+      "bytes": 237,
+      "sha256": "ade1e6a62e9d1defe3b6a81417bb630c055c145e6282ee91833c86387b7fc211"
+    },
+    {
       "path": "artifacts/mdd-005/preflight.json",
       "bytes": 537,
       "sha256": "48a708f9b9232f71efc18aa98006e1728e4b602cee4cbe0812dd7b53501247fd"
@@ -13108,6 +13128,16 @@
       "sha256": "0f3f4f46764973908fad5e6c540ee0b804ed023ec43278464d26318c38ea92e3"
     },
     {
+      "path": "artifacts/mdd-026/direct-member-lookup-20261030/output.txt",
+      "bytes": 887,
+      "sha256": "84dacdc8f36c8081ddd49b50339e7f31f69d51890f30a0657d3192d552ebfb2f"
+    },
+    {
+      "path": "artifacts/mdd-026/direct-member-lookup-20261030/record.json",
+      "bytes": 951,
+      "sha256": "d37c23f5b288e8d226b57c0ebd0cf2374183c2afee5d7518d036e54e846332fd"
+    },
+    {
       "path": "artifacts/mdd-026/dynamic-source-audit/20261029T012418079194Z/a0-method-calls/record.json",
       "bytes": 2080,
       "sha256": "47509c62dbc3de09f682b374dcfb7eee2defef96a1a173b4a2f465f19dda92e4"
@@ -21748,6 +21778,16 @@
       "sha256": "832865d36582723b9af43b87790295799f9971c794e0cadb5e06682428541cdf"
     },
     {
+      "path": "artifacts/mdd-031-audit/native-dex-occurrences-20261030/run1/output.txt",
+      "bytes": 507,
+      "sha256": "6a2d9c9dd34cebc9ad742baaeae9a87cb3774e861d50f00d84437a3fe07baa27"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/native-dex-occurrences-20261030/run1/record.json",
+      "bytes": 1227,
+      "sha256": "e9ecc676ea41d6c8f1a16ea91c2d607ae5a6670d2b023da0c18cf1b66c612ffc"
+    },
+    {
       "path": "artifacts/mdd-031-audit/native-member-relations-20261030/class-regression/output.txt",
       "bytes": 378,
       "sha256": "d50da4b4bdcd165a24099130aca35f96086a35b68a29e834d0efbfa5fa62676d"
@@ -28606,6 +28646,36 @@
       "path": "artifacts/mdd-033/preflight/verify_policy.py",
       "bytes": 9006,
       "sha256": "4e994889d3710e3b8b2672f1c46467826032d498b935f6873d0f0df134edbc7d"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/ack-internal-first-20261030/final/output.txt",
+      "bytes": 682,
+      "sha256": "696ea10fca8d79fd1bc22d35cdf22c54cf5c3bd733c2576fbffd1a0f674b4c23"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/ack-internal-first-20261030/final/record.json",
+      "bytes": 1376,
+      "sha256": "e5b0278ff8b6cb4f357ed89c2b078bba06fecf8e9b78b59ef0a3802f8fc1e46c"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/ack-internal-first-20261030/green/output.txt",
+      "bytes": 681,
+      "sha256": "6170113727ae9bde2b511e326e49750b121c7ee409501136c1b2166ea0b30b63"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/ack-internal-first-20261030/green/record.json",
+      "bytes": 1324,
+      "sha256": "29cb0606de0d7687fbbb2a31c682270fafaeda5fb2221fb3efb1252d0ed71553"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/ack-internal-first-20261030/red/output.txt",
+      "bytes": 1184,
+      "sha256": "fd73c5a3071f8603aa25b321dedc6854004d9bc7c2600dfc33978fe78213bd85"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/ack-internal-first-20261030/red/record.json",
+      "bytes": 288,
+      "sha256": "e8cc244ad91d29ad2bb64c5c33edea048aa2d6295a531dce807c231447ca7fff"
     },
     {
       "path": "artifacts/mdd-034-audit/atomic-release-fault-20261030/drop-green/all_budget_dimensions_restrict_atomically_and_resident_leases_release.txt",

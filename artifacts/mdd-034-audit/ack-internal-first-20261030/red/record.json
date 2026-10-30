@@ -1,0 +1,6 @@
+{
+  "scope": "injected mutex poisoning",
+  "exit_code": 101,
+  "budget_sha256": "561EC4E21B4C27CFED8E61823D38D0C3B2F48F83E23215C7A54C5976E598E5AC",
+  "command": "cargo test -p mdd-query --locked --offline --jobs 1 poisoned_acknowledgement_preserves_internal_fault -- --nocapture"
+}

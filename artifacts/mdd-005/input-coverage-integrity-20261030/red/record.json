@@ -1,0 +1,6 @@
+{
+  "scope": "local synthetic baseline consumer",
+  "exit_code": 1,
+  "source_sha256": "504BB6AC652BAB6D3140D984515F9E4B8CEA6B59D089CE3AB06D113546EC43A0",
+  "command": "python -O benchmarks/run-existing-baselines.py --self-test"
+}

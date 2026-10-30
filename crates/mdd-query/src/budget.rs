@@ -767,11 +767,16 @@ impl<T> Budgeted<T> {
             .acknowledgement
             .take()
             .ok_or_else(|| invalid("queue has no query-bound delivery tracking"))?;
-        let mut state = ack
-            .tracker
-            .state
-            .lock()
-            .map_err(|_| fault("delivery tracking mutex poisoned"))?;
+        let mut state = match ack.tracker.state.lock() {
+            Ok(state) => state,
+            Err(_) => {
+                let error = fault("delivery tracking mutex poisoned");
+                return Err(match ack.tracker.cancel.fail(error.clone()) {
+                    Ok(status) => status.error.unwrap_or(error),
+                    Err(failure) => failure,
+                });
+            }
+        };
         if state.abandoned || ack.sequence != state.acknowledged {
             state.abandoned = true;
             drop(state);
@@ -779,10 +784,15 @@ impl<T> Budgeted<T> {
             let _ = ack.tracker.cancel.fail(error.clone());
             return Err(error);
         }
-        state.acknowledged = state
-            .acknowledged
-            .checked_add(1)
-            .ok_or_else(|| fault("delivery acknowledgement overflow"))?;
+        let Some(next) = state.acknowledged.checked_add(1) else {
+            drop(state);
+            let error = fault("delivery acknowledgement overflow");
+            return Err(match ack.tracker.cancel.fail(error.clone()) {
+                Ok(status) => status.error.unwrap_or(error),
+                Err(failure) => failure,
+            });
+        };
+        state.acknowledged = next;
         ack.confirmed = true;
         Ok(())
     }

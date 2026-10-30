@@ -50,6 +50,7 @@ struct MetadataCursor {
 }
 #[derive(Clone, Copy)]
 enum MetadataRelation {
+    DexOccurrences,
     Strings,
     Types,
     Prototypes,
@@ -57,7 +58,9 @@ enum MetadataRelation {
 }
 impl MetadataRelation {
     fn parse(name: &str) -> MddResult<Self> {
-        if name.eq_ignore_ascii_case("native_strings") {
+        if name.eq_ignore_ascii_case("native_dex_occurrences") {
+            Ok(Self::DexOccurrences)
+        } else if name.eq_ignore_ascii_case("native_strings") {
             Ok(Self::Strings)
         } else if name.eq_ignore_ascii_case("native_types") {
             Ok(Self::Types)
@@ -166,6 +169,22 @@ impl SqlFactCursor for MetadataCursor {
         while let Some(facts) = self.provider.occurrences.get(self.occurrence) {
             self.control.checkpoint(1, false)?;
             match self.relation {
+                MetadataRelation::DexOccurrences => {
+                    if self.ordinal == 0 {
+                        let source = facts.source();
+                        self.control.work(96)?;
+                        let row = vec![
+                            scalar_text(&source.snapshot_id, &self.control)?,
+                            scalar_text(&source.dex_occurrence_id, &self.control)?,
+                            scalar_text(&source.physical_dex_id, &self.control)?,
+                            scalar_text(&source.member_id, &self.control)?,
+                            scalar_text(&source.source_occurrence_id, &self.control)?,
+                            scalar_text(&source.content_id, &self.control)?,
+                        ];
+                        self.ordinal = 1;
+                        return Ok(Some(row));
+                    }
+                }
                 MetadataRelation::Strings => {
                     if let Some(string) = facts.strings().get(self.ordinal) {
                         let text_bytes = (string.data.text.utf16_units.len() as u64)
@@ -341,6 +360,21 @@ impl SqlFactProvider for MetadataSqlProvider {
             })
             .ok_or_else(|| quota("METADATA_SQL_ROWS_OVERFLOW"))?;
         Ok(vec![
+            relation(
+                "native_dex_occurrences",
+                &[
+                    ("snapshot_id", SqlType::Text, false),
+                    ("dex_occurrence_id", SqlType::Text, false),
+                    ("physical_dex_id", SqlType::Text, false),
+                    ("member_id", SqlType::Text, false),
+                    ("source_occurrence_id", SqlType::Text, false),
+                    ("content_id", SqlType::Text, false),
+                ],
+                Some(
+                    u64::try_from(self.occurrences.len())
+                        .map_err(|_| quota("METADATA_SQL_ROWS_OVERFLOW"))?,
+                ),
+            ),
             relation(
                 "native_strings",
                 &[
@@ -957,6 +991,62 @@ mod tests {
         archive::{ArchiveInventory, ArchiveLimits, InventoryPolicy},
         snapshot::{CaptureLimits, InputKind, InputSpec, Snapshot},
     };
+    #[test]
+    fn native_dex_occurrences_preserve_source_identities() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/definitions/generated/definitions-035.dex");
+        let input = InputSpec {
+            path,
+            kind: InputKind::RawDex,
+            expected_sha256: None,
+        };
+        let snapshot =
+            Snapshot::capture(&[input.clone(), input], CaptureLimits::default()).unwrap();
+        let mut facts = Vec::new();
+        let mut expected = BTreeSet::new();
+        for source in snapshot.sources() {
+            let inventory = ArchiveInventory::build(
+                source,
+                InventoryPolicy::default(),
+                ArchiveLimits::default(),
+            )
+            .unwrap();
+            let metadata =
+                MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default()).unwrap();
+            let id = metadata.source();
+            expected.insert(vec![
+                id.snapshot_id.clone(),
+                id.dex_occurrence_id.clone(),
+                id.physical_dex_id.clone(),
+                id.member_id.clone(),
+                id.source_occurrence_id.clone(),
+                id.content_id.clone(),
+            ]);
+            facts.push(Arc::new(metadata));
+        }
+        assert_eq!(expected.len(), 2);
+        let provider = Arc::new(MetadataSqlProvider::new(facts, DecimalU64(0)).unwrap());
+        let bridge = SqlBridge::new(provider, SqlDialect::NativeV1, SqlLimits::default()).unwrap();
+        let rows = bridge.query("SELECT snapshot_id,dex_occurrence_id,physical_dex_id,member_id,source_occurrence_id,content_id FROM native_dex_occurrences").unwrap();
+        let actual = rows
+            .rows()
+            .iter()
+            .map(|row| {
+                row.iter()
+                    .map(|cell| match cell {
+                        SqlValue::Text(text) => text.strict_utf8().unwrap(),
+                        _ => panic!("unexpected source identity cell"),
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect::<BTreeSet<_>>();
+        assert_eq!(actual, expected);
+        let left = actual.iter().next().unwrap();
+        let right = actual.iter().nth(1).unwrap();
+        assert_ne!(left[1], right[1]);
+        assert_eq!(left[2], right[2]);
+        assert_eq!(left[5], right[5]);
+    }
     #[test]
     fn combined_metadata_definitions_join_same_occurrences() {
         use mdd_dex::definitions::DefinitionLimits;

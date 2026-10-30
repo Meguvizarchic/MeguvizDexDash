@@ -406,6 +406,62 @@ pub struct FieldFactViews<'a> {
     definitions: Vec<&'a FieldDefinition>,
 }
 impl<'a> FieldFactViews<'a> {
+    /// Resolve one exact same-occurrence field identity without scanning all references.
+    /// A definition identity must actually have a definition in the validated layer.
+    pub fn get(&self, entity: &EntityRef) -> MddResult<FieldFactView<'a>> {
+        let source = self.facts.metadata.source();
+        let invalid = || {
+            MddError::new(
+                ErrorCode::InvalidArgument,
+                "facts.fields",
+                "invalid or foreign field identity",
+            )
+        };
+        if entity.snapshot_id != source.snapshot_id
+            || entity.dex_occurrence_id != source.dex_occurrence_id
+            || !matches!(
+                entity.kind,
+                EntityKind::FieldReference | EntityKind::FieldDefinition
+            )
+        {
+            return Err(invalid());
+        }
+        let reference = self
+            .facts
+            .definitions
+            .field_references
+            .get(entity.local_index as usize)
+            .filter(|r| r.field_idx == entity.local_index)
+            .ok_or_else(invalid)?;
+        let definition = self
+            .definitions
+            .binary_search_by_key(&entity.local_index, |d| d.field_idx)
+            .ok()
+            .map(|index| self.definitions[index]);
+        if entity.kind == EntityKind::FieldDefinition && definition.is_none() {
+            return Err(invalid());
+        }
+        let field_type = self
+            .facts
+            .metadata
+            .types()
+            .get(reference.type_idx as usize)
+            .filter(|item| item.data.type_idx == reference.type_idx)
+            .map(|item| &item.data)
+            .ok_or_else(|| {
+                MddError::new(
+                    ErrorCode::InternalFault,
+                    "facts.fields",
+                    "validated field type is missing",
+                )
+            })?;
+        Ok(FieldFactView {
+            source,
+            reference,
+            field_type,
+            definition,
+        })
+    }
     /// Iterate every encoded field reference in DEX field-id order without copying values.
     pub fn iter(&self) -> impl Iterator<Item = MddResult<FieldFactView<'a>>> + '_ {
         self.facts
@@ -441,6 +497,61 @@ impl<'a> FieldFactViews<'a> {
     }
 }
 impl<'a> MethodFactViews<'a> {
+    /// Resolve one exact same-occurrence method reference or definition identity.
+    pub fn get(&self, entity: &EntityRef) -> MddResult<MethodFactView<'a>> {
+        let source = self.facts.metadata.source();
+        let invalid = || {
+            MddError::new(
+                ErrorCode::InvalidArgument,
+                "facts.methods",
+                "invalid or foreign method identity",
+            )
+        };
+        if entity.snapshot_id != source.snapshot_id
+            || entity.dex_occurrence_id != source.dex_occurrence_id
+            || !matches!(
+                entity.kind,
+                EntityKind::MethodReference | EntityKind::MethodDefinition
+            )
+        {
+            return Err(invalid());
+        }
+        let reference = self
+            .facts
+            .definitions
+            .method_references
+            .get(entity.local_index as usize)
+            .filter(|r| r.method_idx == entity.local_index)
+            .ok_or_else(invalid)?;
+        let definition = self
+            .definitions
+            .binary_search_by_key(&entity.local_index, |d| d.method_idx)
+            .ok()
+            .map(|index| self.definitions[index]);
+        if entity.kind == EntityKind::MethodDefinition && definition.is_none() {
+            return Err(invalid());
+        }
+        let prototype = self
+            .facts
+            .metadata
+            .prototypes()
+            .get(reference.proto_idx as usize)
+            .filter(|item| item.data.proto_idx == reference.proto_idx)
+            .map(|item| &item.data)
+            .ok_or_else(|| {
+                MddError::new(
+                    ErrorCode::InternalFault,
+                    "facts.methods",
+                    "validated method prototype is missing",
+                )
+            })?;
+        Ok(MethodFactView {
+            source,
+            reference,
+            prototype,
+            definition,
+        })
+    }
     /// Read prototype parameter types without requiring annotations or code.
     /// Definition identities must name an actual definition in this occurrence;
     /// reference identities may describe a reference-only method.
@@ -1436,6 +1547,89 @@ mod tests {
                 .unwrap()
                 .code,
             ErrorCode::InternalFault
+        );
+    }
+    #[test]
+    fn direct_member_lookup_matches_iteration_and_binds_occurrence() {
+        let facts = build_two();
+        for fact in &facts {
+            let fields = fact.field_fact_views(FieldViewLimits::default()).unwrap();
+            for row in fields.iter() {
+                let row = row.unwrap();
+                let id = fact
+                    .entity(EntityKind::FieldReference, row.reference.field_idx)
+                    .unwrap();
+                let found = fields.get(&id).unwrap();
+                assert_eq!(found.reference.field_idx, row.reference.field_idx);
+                assert_eq!(
+                    found.definition.map(|d| d.field_idx),
+                    row.definition.map(|d| d.field_idx)
+                );
+                let definition_id = EntityRef {
+                    kind: EntityKind::FieldDefinition,
+                    ..id.clone()
+                };
+                assert_eq!(fields.get(&definition_id).is_ok(), row.definition.is_some());
+                let foreign = EntityRef {
+                    dex_occurrence_id: "foreign".into(),
+                    ..id
+                };
+                assert_eq!(
+                    fields.get(&foreign).err().unwrap().code,
+                    ErrorCode::InvalidArgument
+                );
+            }
+            let methods = fact.method_fact_views(MethodViewLimits::default()).unwrap();
+            for row in methods.iter() {
+                let row = row.unwrap();
+                let id = fact
+                    .entity(EntityKind::MethodReference, row.reference.method_idx)
+                    .unwrap();
+                let found = methods.get(&id).unwrap();
+                assert_eq!(found.reference.method_idx, row.reference.method_idx);
+                assert_eq!(
+                    found.definition.map(|d| d.method_idx),
+                    row.definition.map(|d| d.method_idx)
+                );
+                let definition_id = EntityRef {
+                    kind: EntityKind::MethodDefinition,
+                    ..id.clone()
+                };
+                assert_eq!(
+                    methods.get(&definition_id).is_ok(),
+                    row.definition.is_some()
+                );
+                let foreign = EntityRef {
+                    snapshot_id: "foreign".into(),
+                    ..id
+                };
+                assert_eq!(
+                    methods.get(&foreign).err().unwrap().code,
+                    ErrorCode::InvalidArgument
+                );
+            }
+        }
+        let fields = facts[0]
+            .field_fact_views(FieldViewLimits::default())
+            .unwrap();
+        let wrong = EntityRef {
+            snapshot_id: facts[0].metadata.source.snapshot_id.clone(),
+            dex_occurrence_id: facts[0].metadata.source.dex_occurrence_id.clone(),
+            kind: EntityKind::MethodReference,
+            local_index: 0,
+        };
+        assert_eq!(
+            fields.get(&wrong).err().unwrap().code,
+            ErrorCode::InvalidArgument
+        );
+        let missing = EntityRef {
+            kind: EntityKind::FieldReference,
+            local_index: u32::MAX,
+            ..wrong
+        };
+        assert_eq!(
+            fields.get(&missing).err().unwrap().code,
+            ErrorCode::InvalidArgument
         );
     }
     #[test]

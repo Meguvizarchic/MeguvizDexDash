@@ -2,6 +2,83 @@ use super::*;
 use std::sync::mpsc;
 use std::thread;
 
+#[test]
+fn poisoned_acknowledgement_preserves_internal_fault() {
+    use mdd_input::snapshot::{CaptureLimits, InputKind, InputSpec, Snapshot};
+    use mdd_session::{Lifecycle, QueryBinding, ResourceLimits};
+    for mode in ["poison", "overflow"] {
+        let limits = ResourceLimits::default();
+        let lifecycle = Lifecycle::new(limits).unwrap();
+        let snapshot = Snapshot::capture(
+            &[InputSpec {
+                path: std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                    .join("../../tests/fixtures/generated/minimal-035.dex"),
+                kind: InputKind::RawDex,
+                expected_sha256: None,
+            }],
+            CaptureLimits::default(),
+        )
+        .unwrap();
+        let snapshot = lifecycle.register_snapshot(Arc::new(snapshot)).unwrap();
+        let session = lifecycle.open_session(&snapshot, limits).unwrap();
+        let query = lifecycle
+            .prepare_query(
+                &session,
+                QueryBinding {
+                    request_key: "ack-poison".into(),
+                    schema_id: "rows".into(),
+                    semantic_version: "v1".into(),
+                },
+                limits,
+            )
+            .unwrap();
+        lifecycle.start_query(&session, &query, 1).unwrap();
+        let cancel = lifecycle.cancellation_token(&query).unwrap();
+        let pool = BudgetPool::global("g".into(), BudgetLimits::default())
+            .unwrap()
+            .child(
+                cancel.worker_owner_id().unwrap(),
+                BudgetScope::Worker,
+                BudgetLimits::default(),
+            )
+            .unwrap()
+            .child(
+                session.id().into(),
+                BudgetScope::Session,
+                BudgetLimits::default(),
+            )
+            .unwrap()
+            .child(
+                query.id().into(),
+                BudgetScope::Query,
+                BudgetLimits::default(),
+            )
+            .unwrap();
+        let (sender, mut receiver) = bounded_channel::<u8>(pool, Some(cancel.clone()), 1).unwrap();
+        sender.send(7, 1).unwrap();
+        let QueueEvent::Data(mut packet) = receiver.receive().unwrap() else {
+            panic!("expected packet")
+        };
+        let tracker = Arc::clone(&packet.acknowledgement.as_ref().unwrap().tracker);
+        if mode == "poison" {
+            let poisoned = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let _guard = tracker.state.lock().unwrap();
+                panic!("injected tracker mutex poisoning");
+            }));
+            assert!(poisoned.is_err());
+        } else {
+            packet.acknowledgement.as_mut().unwrap().sequence = u64::MAX;
+            tracker.state.lock().unwrap().acknowledged = u64::MAX;
+        }
+        let returned = packet.acknowledge().unwrap_err();
+        assert_eq!(returned.code, ErrorCode::InternalFault);
+        let first = cancel.status().unwrap().error.unwrap();
+        assert_eq!(first.code, returned.code);
+        assert_eq!(first.stage, returned.stage);
+        assert_eq!(first.message, returned.message);
+    }
+}
+
 fn tree(limits: BudgetLimits) -> (BudgetPool, BudgetPool, BudgetPool, BudgetPool) {
     let global = BudgetPool::global("global".into(), limits.clone()).unwrap();
     let worker = global

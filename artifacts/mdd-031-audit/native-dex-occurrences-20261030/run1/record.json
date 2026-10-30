@@ -1,0 +1,18 @@
+{
+  "command": "cargo test -p mdd-sql --locked --offline --jobs 1 native_dex_occurrences_preserve_source_identities -- --nocapture",
+  "one_test_passed": true,
+  "source_before": {
+    "tests/fixtures/definitions/generated/definitions-035.dex": "4E8F9E8DEEDF44C8793E10D99F2614E0BED705DCAC617C0D74137E7B2BD459CC",
+    "crates/mdd-facts/src/metadata.rs": "E5FAFA598807CC23D011570E7411EE53E1129391362C08B5CEF5A38AFE040357",
+    "crates/mdd-sql/src/provider/metadata.rs": "F1C98A7542A70894D87BE9BF2AA3105492FF4AE467C792042879115B4935168F",
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089"
+  },
+  "scope": "two synthetic raw dex occurrences; no full snapshot, legacy or profile qualification",
+  "exit_code": 0,
+  "source_after": {
+    "tests/fixtures/definitions/generated/definitions-035.dex": "4E8F9E8DEEDF44C8793E10D99F2614E0BED705DCAC617C0D74137E7B2BD459CC",
+    "crates/mdd-facts/src/metadata.rs": "E5FAFA598807CC23D011570E7411EE53E1129391362C08B5CEF5A38AFE040357",
+    "crates/mdd-sql/src/provider/metadata.rs": "F1C98A7542A70894D87BE9BF2AA3105492FF4AE467C792042879115B4935168F",
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089"
+  }
+}
