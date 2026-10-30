@@ -1,0 +1,17 @@
+{
+  "command": "cargo test -p mdd-sql --locked --offline --jobs 1 combined_metadata_definitions_join_same_occurrences -- --nocapture",
+  "scope": "selected same snapshot synthetic provider composition, no full profile",
+  "source_before": {
+    "crates/mdd-facts/src/definitions.rs": "DA71F5E45710BB4F0A988C3512BC0ABBF66C0C0AFCFEF20BE2DD1629962A90BD",
+    "crates/mdd-sql/src/provider/metadata.rs": "4E3B7C009F2C91153108D867A0BD283BAFAADDE8A4AD1710D0861F0682830B0A",
+    "tests/fixtures/definitions/generated/definitions-035.dex": "4E8F9E8DEEDF44C8793E10D99F2614E0BED705DCAC617C0D74137E7B2BD459CC",
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089"
+  },
+  "source_after": {
+    "crates/mdd-facts/src/definitions.rs": "DA71F5E45710BB4F0A988C3512BC0ABBF66C0C0AFCFEF20BE2DD1629962A90BD",
+    "crates/mdd-sql/src/provider/metadata.rs": "4E3B7C009F2C91153108D867A0BD283BAFAADDE8A4AD1710D0861F0682830B0A",
+    "tests/fixtures/definitions/generated/definitions-035.dex": "4E8F9E8DEEDF44C8793E10D99F2614E0BED705DCAC617C0D74137E7B2BD459CC",
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089"
+  },
+  "exit_code": 0
+}

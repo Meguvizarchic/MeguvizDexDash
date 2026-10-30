@@ -1,0 +1,21 @@
+   Compiling mdd-query v0.1.0-dev (D:\MeguvisDexDash\crates\mdd-query)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.69s
+     Running unittests src\lib.rs (target\debug\deps\mdd_query-82579f4092cfd058.exe)
+
+running 1 test
+
+thread 'budget::tests::reservation_drop_preserves_prior_fault_when_count_underflows' (45528) panicked at crates\mdd-query\src\budget\tests.rs:67:5:
+assertion `left == right` failed
+  left: "budget"
+ right: "test.first"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test budget::tests::reservation_drop_preserves_prior_fault_when_count_underflows ... FAILED
+
+failures:
+
+failures:
+    budget::tests::reservation_drop_preserves_prior_fault_when_count_underflows
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 87 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p mdd-query --lib`

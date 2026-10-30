@@ -613,15 +613,26 @@ fn release(state: &mut State, pool: &BudgetPool, resource: Resource, amount: u64
     } else {
         vec![resource]
     };
+    let mut totals = Vec::new();
     for owner in BudgetPool::ancestors(state, &pool.owner) {
-        let node = state.nodes.get_mut(&owner).unwrap();
         for resource in &resources {
-            let used = node.used.get(resource).copied().unwrap_or(0);
-            let remaining = used
-                .checked_sub(amount)
-                .ok_or_else(|| fault("reservation accounting underflow"))?;
-            node.used.insert(*resource, remaining);
+            let used = state.nodes[&owner].used.get(resource).copied().unwrap_or(0);
+            let Some(remaining) = used.checked_sub(amount) else {
+                let error = state
+                    .fault
+                    .get_or_insert_with(|| fault("reservation accounting underflow"));
+                return Err(error.clone());
+            };
+            totals.push((owner.clone(), *resource, remaining));
         }
+    }
+    for (owner, resource, remaining) in totals {
+        state
+            .nodes
+            .get_mut(&owner)
+            .unwrap()
+            .used
+            .insert(resource, remaining);
     }
     Ok(())
 }
@@ -631,10 +642,12 @@ impl Drop for ReservationInner {
             if let Some(count) = state.live_reservations.checked_sub(1) {
                 state.live_reservations = count;
             } else {
-                state.fault = Some(fault("reservation metadata count underflow"));
+                state
+                    .fault
+                    .get_or_insert_with(|| fault("reservation metadata count underflow"));
             }
             if let Err(error) = release(&mut state, &self.pool, self.resource, self.amount) {
-                state.fault = Some(error);
+                state.fault.get_or_insert(error);
             }
             if let Some(key) = &self.shared_key
                 && state

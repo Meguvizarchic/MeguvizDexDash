@@ -1,0 +1,66 @@
+test_required_identity_and_scope_are_not_missing (baseline.ContractTests.test_required_identity_and_scope_are_not_missing) ... 
+  test_required_identity_and_scope_are_not_missing (baseline.ContractTests.test_required_identity_and_scope_are_not_missing) (path=['request_id']) ... FAIL
+  test_required_identity_and_scope_are_not_missing (baseline.ContractTests.test_required_identity_and_scope_are_not_missing) (path=['snapshot_id']) ... FAIL
+  test_required_identity_and_scope_are_not_missing (baseline.ContractTests.test_required_identity_and_scope_are_not_missing) (path=['query_id']) ... FAIL
+  test_required_identity_and_scope_are_not_missing (baseline.ContractTests.test_required_identity_and_scope_are_not_missing) (path=['coverage', 'scope_id']) ... FAIL
+  test_required_identity_and_scope_are_not_missing (baseline.ContractTests.test_required_identity_and_scope_are_not_missing) (path=['response', 'schema_id']) ... FAIL
+  test_required_identity_and_scope_are_not_missing (baseline.ContractTests.test_required_identity_and_scope_are_not_missing) (path=['coverage', 'required_layers']) ... FAIL
+
+======================================================================
+FAIL: test_required_identity_and_scope_are_not_missing (baseline.ContractTests.test_required_identity_and_scope_are_not_missing) (path=['request_id'])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\MeguvisDexDash\benchmarks/run-existing-baselines.py", line 330, in test_required_identity_and_scope_are_not_missing
+    with self.subTest(path=path), self.assertRaises(ValueError):
+                                  ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_required_identity_and_scope_are_not_missing (baseline.ContractTests.test_required_identity_and_scope_are_not_missing) (path=['snapshot_id'])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\MeguvisDexDash\benchmarks/run-existing-baselines.py", line 330, in test_required_identity_and_scope_are_not_missing
+    with self.subTest(path=path), self.assertRaises(ValueError):
+                                  ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_required_identity_and_scope_are_not_missing (baseline.ContractTests.test_required_identity_and_scope_are_not_missing) (path=['query_id'])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\MeguvisDexDash\benchmarks/run-existing-baselines.py", line 330, in test_required_identity_and_scope_are_not_missing
+    with self.subTest(path=path), self.assertRaises(ValueError):
+                                  ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_required_identity_and_scope_are_not_missing (baseline.ContractTests.test_required_identity_and_scope_are_not_missing) (path=['coverage', 'scope_id'])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\MeguvisDexDash\benchmarks/run-existing-baselines.py", line 330, in test_required_identity_and_scope_are_not_missing
+    with self.subTest(path=path), self.assertRaises(ValueError):
+                                  ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_required_identity_and_scope_are_not_missing (baseline.ContractTests.test_required_identity_and_scope_are_not_missing) (path=['response', 'schema_id'])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\MeguvisDexDash\benchmarks/run-existing-baselines.py", line 330, in test_required_identity_and_scope_are_not_missing
+    with self.subTest(path=path), self.assertRaises(ValueError):
+                                  ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_required_identity_and_scope_are_not_missing (baseline.ContractTests.test_required_identity_and_scope_are_not_missing) (path=['coverage', 'required_layers'])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\MeguvisDexDash\benchmarks/run-existing-baselines.py", line 330, in test_required_identity_and_scope_are_not_missing
+    with self.subTest(path=path), self.assertRaises(ValueError):
+                                  ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+----------------------------------------------------------------------
+Ran 1 test in 0.007s
+
+FAILED (failures=6)

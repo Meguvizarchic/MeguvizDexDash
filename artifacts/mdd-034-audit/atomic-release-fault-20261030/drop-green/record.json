@@ -1,0 +1,31 @@
+{
+  "source_before": {
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "crates/mdd-query/src/budget/tests.rs": "D95F4770BD92491B97B212D28A4BB086F8A2A51FAE8B2958ED65CB2458EF6451",
+    "crates/mdd-query/src/budget.rs": "561EC4E21B4C27CFED8E61823D38D0C3B2F48F83E23215C7A54C5976E598E5AC"
+  },
+  "command_template": "cargo test -p mdd-query --locked --offline --jobs 1 FILTER -- --nocapture",
+  "scope": "explicit injected accounting faults and normal regression; not full qualification",
+  "runs": [
+    {
+      "filter": "reservation_drop_preserves_prior_fault_when_count_underflows",
+      "passed": true,
+      "exit_code": 0
+    },
+    {
+      "filter": "release_underflow_leaves_all_accounting_unchanged",
+      "passed": true,
+      "exit_code": 0
+    },
+    {
+      "filter": "all_budget_dimensions_restrict_atomically_and_resident_leases_release",
+      "passed": true,
+      "exit_code": 0
+    }
+  ],
+  "source_after": {
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "crates/mdd-query/src/budget/tests.rs": "D95F4770BD92491B97B212D28A4BB086F8A2A51FAE8B2958ED65CB2458EF6451",
+    "crates/mdd-query/src/budget.rs": "561EC4E21B4C27CFED8E61823D38D0C3B2F48F83E23215C7A54C5976E598E5AC"
+  }
+}

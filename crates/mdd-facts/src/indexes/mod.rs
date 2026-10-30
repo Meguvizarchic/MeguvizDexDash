@@ -1039,27 +1039,7 @@ impl<'a> SnapshotFactIndex<'a> {
                     "definitions missing",
                 )
             })?;
-            let locals = match kind {
-                DefinitionKind::Class => facts
-                    .definitions()
-                    .classes
-                    .iter()
-                    .map(|item| item.class_def_idx)
-                    .collect::<Vec<_>>(),
-                DefinitionKind::Field => facts
-                    .definitions()
-                    .field_definitions
-                    .iter()
-                    .map(|item| item.field_idx)
-                    .collect(),
-                DefinitionKind::Method => facts
-                    .definitions()
-                    .method_definitions
-                    .iter()
-                    .map(|item| item.method_idx)
-                    .collect(),
-            };
-            for local in locals {
+            let mut visit = |local| -> MddResult<()> {
                 let atom = DefinitionAtom {
                     view: view as u32,
                     kind,
@@ -1070,6 +1050,24 @@ impl<'a> SnapshotFactIndex<'a> {
                     self.append_entity(&mut entities, &mut result_bytes, atom.view, || {
                         self.definition_entity(atom)
                     })?;
+                }
+                Ok(())
+            };
+            match kind {
+                DefinitionKind::Class => {
+                    for item in &facts.definitions().classes {
+                        visit(item.class_def_idx)?;
+                    }
+                }
+                DefinitionKind::Field => {
+                    for item in &facts.definitions().field_definitions {
+                        visit(item.field_idx)?;
+                    }
+                }
+                DefinitionKind::Method => {
+                    for item in &facts.definitions().method_definitions {
+                        visit(item.method_idx)?;
+                    }
                 }
             }
         }

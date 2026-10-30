@@ -20,6 +20,60 @@ fn used(pool: &BudgetPool, resource: Resource) -> u64 {
 }
 
 #[test]
+fn release_underflow_leaves_all_accounting_unchanged() {
+    let (_, _, _, query) = tree(BudgetLimits::default());
+    let mut state = query.state.lock().unwrap();
+    // Explicit fault injection: this inconsistent accounting is not claimed
+    // to arise from any normal producer input.
+    let node = state.nodes.get_mut(&query.owner).unwrap();
+    node.used.insert(Resource::QueryWorkspaceBytes, 5);
+    node.used.insert(Resource::ResidentBytes, 0);
+    let before: Vec<_> = BudgetPool::ancestors(&state, &query.owner)
+        .iter()
+        .map(|owner| state.nodes[owner].used.clone())
+        .collect();
+    assert_eq!(
+        release(&mut state, &query, Resource::QueryWorkspaceBytes, 1)
+            .unwrap_err()
+            .code,
+        ErrorCode::InternalFault
+    );
+    let after: Vec<_> = BudgetPool::ancestors(&state, &query.owner)
+        .iter()
+        .map(|owner| state.nodes[owner].used.clone())
+        .collect();
+    assert_eq!(before, after);
+    assert_eq!(state.fault.as_ref().unwrap().code, ErrorCode::InternalFault);
+    drop(state);
+    assert_eq!(query.usage().unwrap_err().code, ErrorCode::InternalFault);
+}
+
+#[test]
+fn reservation_drop_preserves_prior_fault_when_count_underflows() {
+    let (_, _, _, query) = tree(BudgetLimits::default());
+    let reservation = query.reserve(Resource::QueryWorkspaceBytes, 3).unwrap();
+    let prior = MddError::new(
+        ErrorCode::InternalFault,
+        "test.first",
+        "injected first fault",
+    )
+    .detail("origin", "prior");
+    {
+        let mut state = query.state.lock().unwrap();
+        // Explicit internal fault injection; not a naturally observed input.
+        state.live_reservations = 0;
+        state.fault = Some(prior.clone());
+    }
+    drop(reservation);
+    let state = query.state.lock().unwrap();
+    let actual = state.fault.as_ref().unwrap();
+    assert_eq!(actual.code, prior.code);
+    assert_eq!(actual.stage, prior.stage);
+    assert_eq!(actual.message, prior.message);
+    assert_eq!(actual.details, prior.details);
+}
+
+#[test]
 fn unbound_terminal_delivered_after_deadline_is_not_success() {
     for with_row in [false, true] {
         let limits = BudgetLimits::default().deadlines(150, 5000).unwrap();

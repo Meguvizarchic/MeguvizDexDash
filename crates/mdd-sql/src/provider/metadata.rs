@@ -871,6 +871,83 @@ impl SqlFactProvider for DefinitionSqlProvider {
     }
 }
 
+/// Combines already-built metadata and definitions without copying or ETL.
+/// Both sides must describe exactly the same selected DEX occurrences.
+pub struct CombinedSqlProvider {
+    binding: SqlBinding,
+    metadata: Arc<MetadataSqlProvider>,
+    definitions: Arc<DefinitionSqlProvider>,
+}
+impl CombinedSqlProvider {
+    pub fn new(
+        metadata: Arc<MetadataSqlProvider>,
+        definitions: Arc<DefinitionSqlProvider>,
+    ) -> MddResult<Self> {
+        if metadata.binding.snapshot_id != definitions.binding.snapshot_id
+            || metadata.binding.catalog_epoch != definitions.binding.catalog_epoch
+        {
+            return Err(invalid("COMBINED_PROVIDER_GENERATION"));
+        }
+        let metadata_sources: BTreeSet<_> = metadata
+            .occurrences
+            .iter()
+            .map(|f| &f.source().dex_occurrence_id)
+            .collect();
+        let definition_sources: BTreeSet<_> = definitions
+            .occurrences
+            .iter()
+            .map(|f| &f.metadata().source().dex_occurrence_id)
+            .collect();
+        if metadata_sources != definition_sources {
+            return Err(invalid("COMBINED_PROVIDER_SCOPE"));
+        }
+        Ok(Self {
+            binding: SqlBinding {
+                provider_identity: opaque_id("sql-combined-provider")?,
+                snapshot_id: metadata.binding.snapshot_id.clone(),
+                catalog_epoch: metadata.binding.catalog_epoch,
+            },
+            metadata,
+            definitions,
+        })
+    }
+}
+impl SqlFactProvider for CombinedSqlProvider {
+    fn binding(&self) -> &SqlBinding {
+        &self.binding
+    }
+    fn relations(&self) -> MddResult<Vec<SqlRelation>> {
+        let mut relations = self.metadata.relations()?;
+        relations.extend(self.definitions.relations()?);
+        let mut names = BTreeSet::new();
+        if relations
+            .iter()
+            .any(|r| !names.insert(r.name.to_ascii_lowercase()))
+        {
+            return Err(invalid("COMBINED_PROVIDER_DUPLICATE_RELATION"));
+        }
+        Ok(relations)
+    }
+    fn require_relation(&self, relation: &str) -> MddResult<()> {
+        if MetadataRelation::parse(relation).is_ok() {
+            self.metadata.require_relation(relation)
+        } else {
+            self.definitions.require_relation(relation)
+        }
+    }
+    fn open_cursor(
+        self: Arc<Self>,
+        relation: &str,
+        control: SqlControl,
+    ) -> MddResult<Box<dyn SqlFactCursor>> {
+        if MetadataRelation::parse(relation).is_ok() {
+            Arc::clone(&self.metadata).open_cursor(relation, control)
+        } else {
+            Arc::clone(&self.definitions).open_cursor(relation, control)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -880,6 +957,53 @@ mod tests {
         archive::{ArchiveInventory, ArchiveLimits, InventoryPolicy},
         snapshot::{CaptureLimits, InputKind, InputSpec, Snapshot},
     };
+    #[test]
+    fn combined_metadata_definitions_join_same_occurrences() {
+        use mdd_dex::definitions::DefinitionLimits;
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/definitions/generated/definitions-035.dex");
+        let input = InputSpec {
+            path,
+            kind: InputKind::RawDex,
+            expected_sha256: None,
+        };
+        let snapshot =
+            Snapshot::capture(&[input.clone(), input], CaptureLimits::default()).unwrap();
+        let mut metas = Vec::new();
+        let mut defs = Vec::new();
+        for source in snapshot.sources() {
+            let inventory = ArchiveInventory::build(
+                source,
+                InventoryPolicy::default(),
+                ArchiveLimits::default(),
+            )
+            .unwrap();
+            let meta =
+                MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default()).unwrap();
+            defs.push(Arc::new(
+                DefinitionFacts::build(meta.clone(), DefinitionLimits::default()).unwrap(),
+            ));
+            metas.push(Arc::new(meta));
+        }
+        let meta = Arc::new(MetadataSqlProvider::new(metas.clone(), DecimalU64(3)).unwrap());
+        let definitions =
+            Arc::new(DefinitionSqlProvider::new(defs.clone(), DecimalU64(3)).unwrap());
+        let combined = Arc::new(CombinedSqlProvider::new(meta, definitions).unwrap());
+        let bridge = SqlBridge::new(combined, SqlDialect::NativeV1, SqlLimits::default()).unwrap();
+        let result = bridge.query("SELECT r.dex_occurrence_id,r.method_idx,p.proto_idx FROM native_method_references r JOIN native_prototypes p ON r.dex_occurrence_id=p.dex_occurrence_id AND r.prototype_idx=p.proto_idx").unwrap();
+        let expected: usize = defs
+            .iter()
+            .map(|f| f.definitions().method_references.len())
+            .sum();
+        assert_eq!(result.rows().len(), expected);
+        let partial =
+            Arc::new(MetadataSqlProvider::new(vec![metas[0].clone()], DecimalU64(3)).unwrap());
+        let both = Arc::new(DefinitionSqlProvider::new(defs.clone(), DecimalU64(3)).unwrap());
+        assert!(CombinedSqlProvider::new(partial, both).is_err());
+        let mismatch = Arc::new(MetadataSqlProvider::new(metas, DecimalU64(4)).unwrap());
+        let both = Arc::new(DefinitionSqlProvider::new(defs, DecimalU64(3)).unwrap());
+        assert!(CombinedSqlProvider::new(mismatch, both).is_err());
+    }
     #[test]
     fn native_member_relations_keep_references_definitions_and_sources_distinct() {
         use mdd_dex::definitions::{DefinitionLimits, MethodBody};

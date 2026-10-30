@@ -101,16 +101,29 @@ def consume(output, expected_inputs, expected_request, required_layers):
     result = output["result"]
     if result["schema_version"] != "mdd.result.v1" or result["operation_status"] != "ok":
         raise ValueError("request failed")
+    for name in ("request_id", "operation", "profile"):
+        if not isinstance(result.get(name), str) or not result[name]:
+            raise ValueError("missing result identity: " + name)
+    if result["operation"] == "query":
+        for name in ("snapshot_id", "query_id"):
+            if not isinstance(result.get(name), str) or not result[name]:
+                raise ValueError("missing query identity: " + name)
     if result["error"] is not None or result["execution"]["complete"] is not True:
         raise ValueError("missing complete computation")
     coverage = result["coverage"]
+    if not isinstance(coverage.get("scope_id"), str) or not coverage["scope_id"]:
+        raise ValueError("missing coverage scope")
     if coverage["input"] != "complete" or coverage["facts"] != "complete":
         raise ValueError("incomplete input/facts")
-    if set(coverage["required_layers"]) != set(required_layers):
+    layers = coverage["required_layers"]
+    if (not isinstance(layers, list) or any(not isinstance(x, str) or not x for x in layers)
+            or len(layers) != len(set(layers)) or set(layers) != set(required_layers)):
         raise ValueError("required fact scope differs")
     if any(issue.get("blocking") is not False for issue in coverage["issues"]):
         raise ValueError("blocking or unclassified coverage issue")
     response = result["response"]
+    if not isinstance(response.get("schema_id"), str) or not response["schema_id"]:
+        raise ValueError("missing response schema")
     if response["truncated"] is not False or response["more_available"] is not False or response["next_cursor"] is not None:
         raise ValueError("output is truncated or pages remain")
     if response["total_rows_exact"] is not True:
@@ -316,6 +329,19 @@ class ContractTests(unittest.TestCase):
     def test_scope_binding(self):
         item = self.fixture(); item["result"]["coverage"]["required_layers"] = []
         with self.assertRaises(ValueError): self.consume(item)
+
+    def test_required_identity_and_scope_are_not_missing(self):
+        for path, value in ((['request_id'], ''), (['snapshot_id'], None),
+                            (['query_id'], None), (['coverage', 'scope_id'], ''),
+                            (['response', 'schema_id'], None),
+                            (['coverage', 'required_layers'], ['structure', 'structure'])):
+            item = self.fixture()
+            ref = item['result']
+            for key in path[:-1]:
+                ref = ref[key]
+            ref[path[-1]] = value
+            with self.subTest(path=path), self.assertRaises(ValueError):
+                self.consume(item)
 
     def test_row_count(self):
         item = self.fixture(); item["final_dto"]["rows"] = [["unreported"]]

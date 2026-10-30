@@ -1,0 +1,7 @@
+{
+  "source_after": "AB2BA0AF07FB33CB07C3B77FC7FDC7839730784D3F2C7F92C827C3BA1C3B9094",
+  "source_before": "AB2BA0AF07FB33CB07C3B77FC7FDC7839730784D3F2C7F92C827C3BA1C3B9094",
+  "scope": "local benchmark consumer self-tests; no workload qualification",
+  "exit_code": 0,
+  "command": "python -O benchmarks/run-existing-baselines.py --self-test"
+}

@@ -4153,6 +4153,26 @@
       "sha256": "7d09b5f48217c2444e5a86e796f69743126aba5d7683bddaf7c48df3aa3bea95"
     },
     {
+      "path": "artifacts/mdd-005/result-identity-20261030/green/output.txt",
+      "bytes": 1170,
+      "sha256": "148a70f86b2bb2455076afc38c1722d6648dc46a2fd1cf72d6282f3f0698199f"
+    },
+    {
+      "path": "artifacts/mdd-005/result-identity-20261030/green/record.json",
+      "bytes": 353,
+      "sha256": "6f363c4a138e3d2e2cee8767b376a4052fbf142a77ae74fe3a4336bf65827c4d"
+    },
+    {
+      "path": "artifacts/mdd-005/result-identity-20261030/red/output.txt",
+      "bytes": 5056,
+      "sha256": "327fbcb19dad1c45932d99096a7480044d80532c69222597936d072b9fc0d279"
+    },
+    {
+      "path": "artifacts/mdd-005/result-identity-20261030/red/record.json",
+      "bytes": 157,
+      "sha256": "8a60a382bdb3e1611b9305a0990a77d7af9861209ba4c7a64a3c2973c34235f6"
+    },
+    {
       "path": "artifacts/mdd-005/static-qualification-20261029.json",
       "bytes": 5065,
       "sha256": "0c0ef862e2332783679cc14b85fc19f5177d9742275688afee9e25ebb24752a4"
@@ -15843,6 +15863,16 @@
       "sha256": "290cd536fb371b2f967b806952d8e4168adcd9a69777fd453424f9b1375769f6"
     },
     {
+      "path": "artifacts/mdd-026/scalar-definition-stream-20261030/output.txt",
+      "bytes": 2064,
+      "sha256": "8ea8114bef2c60e675ad6712d1b14fb545552a1660de3a28733f10dc0190410f"
+    },
+    {
+      "path": "artifacts/mdd-026/scalar-definition-stream-20261030/record.json",
+      "bytes": 1221,
+      "sha256": "5a9e54a8e37287a662596d66ab9bff800dbad1c726a9c186439ee2deacde8137"
+    },
+    {
       "path": "artifacts/mdd-026/type-text-audit/20261028T170141878298Z/a0-strings-mutf8/record.json",
       "bytes": 818,
       "sha256": "7459c10b5e20e3f09ea530b6c31195eacfa986a179cfabb9aef96bfcb3d0ccc1"
@@ -17181,6 +17211,16 @@
       "path": "artifacts/mdd-031-audit/cast-replay/verify.py",
       "bytes": 4097,
       "sha256": "6699877191b2d071b37e626659f288cdfa6f380f124bfdee90f0123f99fd8dfa"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/combined-native-provider-20261030/run1/output.txt",
+      "bytes": 1012,
+      "sha256": "4b71d3aa2605110e9e40e1e2b42960d4e27aace1a0b47d13e3586e7d81cf30ed"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/combined-native-provider-20261030/run1/record.json",
+      "bytes": 1193,
+      "sha256": "7503aa7cf2c5fc12388e7ba74b0c3aaa5084424aadaf7e1432e5d7a88bd486a7"
     },
     {
       "path": "artifacts/mdd-031-audit/concat-budget-20261029/clippy/record.json",
@@ -28566,6 +28606,56 @@
       "path": "artifacts/mdd-033/preflight/verify_policy.py",
       "bytes": 9006,
       "sha256": "4e994889d3710e3b8b2672f1c46467826032d498b935f6873d0f0df134edbc7d"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/atomic-release-fault-20261030/drop-green/all_budget_dimensions_restrict_atomically_and_resident_leases_release.txt",
+      "bytes": 376,
+      "sha256": "c1deebb953511ae91c64fb9c970c4447425c44c1bfa825bef84c3e6fab775653"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/atomic-release-fault-20261030/drop-green/record.json",
+      "bytes": 1308,
+      "sha256": "f14cff343a5bbf1fbae2669402e843cd8b52006ec13b49ac89b98aeeb7564800"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/atomic-release-fault-20261030/drop-green/release_underflow_leaves_all_accounting_unchanged.txt",
+      "bytes": 356,
+      "sha256": "d8e155784219edeef13466dbf5995dbfbbd81460349127808532904bdfffdc70"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/atomic-release-fault-20261030/drop-green/reservation_drop_preserves_prior_fault_when_count_underflows.txt",
+      "bytes": 439,
+      "sha256": "303714dab08a72f693ebd15333888341a056661e06319805215440a4fc836b90"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/atomic-release-fault-20261030/drop-red/output.txt",
+      "bytes": 914,
+      "sha256": "154ea53fbf20cf161e10b05fc09291e94485ac0d2b607f956649457c54510216"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/atomic-release-fault-20261030/drop-red/record.json",
+      "bytes": 556,
+      "sha256": "56ef147daae0a0eb70f1f01c48d01d0ad6fbb9b233583530c184245b099889e2"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/atomic-release-fault-20261030/final/output.txt",
+      "bytes": 429,
+      "sha256": "febca985bdd3facb09b922bcc37b93b90df201edaefc414d02724da31b0bc869"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/atomic-release-fault-20261030/final/record.json",
+      "bytes": 967,
+      "sha256": "a2eafaa8e519e64831c3d31a0d02d7b3cb64816bd78ed3ef5fcb4e3131519ff5"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/atomic-release-fault-20261030/regression/output.txt",
+      "bytes": 376,
+      "sha256": "dd38c1332facbf6aeb377ba0f88fd898f65e94b14a00d065e8e0054a13447cf2"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/atomic-release-fault-20261030/regression/record.json",
+      "bytes": 935,
+      "sha256": "f7e34a90ba4d198fe6e2f9c5abd4b75b377346df034dcd07e2f6417d41fe909c"
     },
     {
       "path": "artifacts/mdd-034-audit/bound-send-quota-20261030/execute-regression/record.json",
