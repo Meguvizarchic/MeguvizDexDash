@@ -1,6 +1,6 @@
 use crate::MetadataFacts;
 use mdd_input::{
-    archive::{ArchiveInventory, DexSelection},
+    archive::{ArchiveInventory, DexCandidate, DexSelection},
     snapshot::Snapshot,
 };
 use mdd_types::{Completeness, DecimalU64, ErrorCode, MddError, MddResult, content_id};
@@ -40,6 +40,167 @@ mod metadata_rows_tests {
         snapshot::{CaptureLimits, InputKind, InputSpec},
     };
     use std::path::PathBuf;
+
+    #[test]
+    fn scope_inventory_metadata_binds_captured_member_and_occurrence() {
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/generated/multidex-stored.apk");
+        let input = InputSpec {
+            path,
+            kind: InputKind::Apk,
+            expected_sha256: None,
+        };
+        let snapshot =
+            Snapshot::capture(&[input.clone(), input.clone()], CaptureLimits::default()).unwrap();
+        let inventories: Vec<_> = snapshot
+            .sources()
+            .iter()
+            .map(|source| {
+                ArchiveInventory::build(
+                    source,
+                    InventoryPolicy::default(),
+                    ArchiveLimits::default(),
+                )
+                .unwrap()
+            })
+            .collect();
+        let facts: Vec<_> = inventories
+            .iter()
+            .flat_map(|inventory| {
+                (0..inventory.selected_dexes().len())
+                    .map(|n| {
+                        MetadataFacts::build(&snapshot, inventory, n, StringLimits::default())
+                            .unwrap()
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+        let scope = SelectedScope::from_inventories(&snapshot, &[&inventories[0], &inventories[1]])
+            .unwrap();
+        let fact_refs: Vec<_> = facts.iter().rev().collect();
+        let rows = scope
+            .inventory_metadata_rows(&[&inventories[1], &inventories[0]], &fact_refs, 4)
+            .unwrap();
+        assert_eq!(rows.len(), 4);
+        assert_eq!(
+            rows.iter()
+                .map(|(_, _, dex, _)| dex.blob.identity.raw_name.as_slice())
+                .collect::<Vec<_>>(),
+            vec![
+                b"classes.dex".as_slice(),
+                b"classes2.dex".as_slice(),
+                b"classes.dex".as_slice(),
+                b"classes2.dex".as_slice()
+            ]
+        );
+        for (index, (selected_input, selected, dex, fact)) in rows.iter().enumerate() {
+            assert_eq!(selected.file_id as usize, index);
+            assert_eq!(
+                selected_input.source_occurrence_id,
+                dex.blob.identity.source_occurrence_id
+            );
+            assert_eq!(selected.member_id, dex.blob.identity.member_id);
+            assert_eq!(selected.dex_occurrence_id, fact.source().dex_occurrence_id);
+            assert_eq!(dex.physical_dex_id, fact.source().physical_dex_id);
+        }
+        assert_ne!(rows[0].1.dex_occurrence_id, rows[2].1.dex_occurrence_id);
+        assert_eq!(rows[0].2.physical_dex_id, rows[2].2.physical_dex_id);
+        assert_eq!(
+            scope
+                .inventory_metadata_rows(&[&inventories[0]], &fact_refs, 4)
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::IncompleteFacts
+        );
+        assert_eq!(
+            scope
+                .inventory_metadata_rows(&[&inventories[0], &inventories[0]], &fact_refs, 4)
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InvalidArgument
+        );
+        assert_eq!(
+            scope
+                .inventory_metadata_rows(&[&inventories[0], &inventories[1]], &fact_refs, 3)
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::QuotaExceeded
+        );
+        let foreign = Snapshot::capture(&[input], CaptureLimits::default()).unwrap();
+        let foreign_inventory = ArchiveInventory::build(
+            &foreign.sources()[0],
+            InventoryPolicy::default(),
+            ArchiveLimits::default(),
+        )
+        .unwrap();
+        assert_eq!(
+            scope
+                .inventory_metadata_rows(&[&inventories[0], &foreign_inventory], &fact_refs, 4)
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InvalidArgument
+        );
+        let second_inventory = ArchiveInventory::build(
+            &snapshot.sources()[0],
+            InventoryPolicy::default(),
+            ArchiveLimits::default(),
+        )
+        .unwrap();
+        assert_eq!(
+            scope
+                .inventory_metadata_rows(&[&second_inventory, &inventories[1]], &fact_refs, 4)
+                .unwrap()
+                .len(),
+            4
+        );
+
+        // An input may select no DEX; the input roster still needs a bound
+        // before its index is built even though the DEX/metadata rosters are empty.
+        let empty = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/zip64/generated/empty.zip");
+        let spec = InputSpec {
+            path: empty,
+            kind: InputKind::Apk,
+            expected_sha256: None,
+        };
+        let empty_snapshot =
+            Snapshot::capture(&[spec.clone(), spec], CaptureLimits::default()).unwrap();
+        let policy = InventoryPolicy {
+            require_dex: false,
+            ..InventoryPolicy::default()
+        };
+        let empty_inventories: Vec<_> = empty_snapshot
+            .sources()
+            .iter()
+            .map(|source| {
+                ArchiveInventory::build(source, policy, ArchiveLimits::default()).unwrap()
+            })
+            .collect();
+        let empty_scope = SelectedScope::from_inventories(
+            &empty_snapshot,
+            &[&empty_inventories[0], &empty_inventories[1]],
+        )
+        .unwrap();
+        assert!(empty_scope.roster_complete());
+        assert_eq!(
+            empty_scope
+                .inventory_metadata_rows(&[&empty_inventories[0]], &[], 1)
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::QuotaExceeded
+        );
+        assert!(
+            empty_scope
+                .inventory_metadata_rows(&[&empty_inventories[0], &empty_inventories[1]], &[], 2)
+                .unwrap()
+                .is_empty()
+        );
+    }
 
     #[test]
     fn pool_coordinates_preserve_occurrences_and_match_saved_a0_sample() {
@@ -542,6 +703,126 @@ impl SelectedScope {
         }
         if !by_occurrence.is_empty() {
             return Err(error("metadata occurrence outside selected scope"));
+        }
+        Ok(rows)
+    }
+
+    /// Resolve selected inputs and logical DEX occurrences back to their captured
+    /// physical archive members and validated metadata. Rows follow scope order;
+    /// raw member names remain available without lossy text conversion. This
+    /// does not assign legacy paths, pool numbers, or whole-snapshot coverage.
+    /// `max_entries` bounds selected inputs, supplied inventories, candidate
+    /// DEXes, and result rows, not total allocation overhead, CPU, or RSS.
+    pub fn inventory_metadata_rows<'a>(
+        &'a self,
+        inventories: &[&'a ArchiveInventory],
+        facts: &[&'a MetadataFacts],
+        max_entries: u64,
+    ) -> MddResult<
+        Vec<(
+            &'a SelectedInput,
+            &'a SelectedDex,
+            &'a DexCandidate,
+            &'a MetadataFacts,
+        )>,
+    > {
+        let quota = || {
+            MddError::new(
+                ErrorCode::QuotaExceeded,
+                "facts.scope_inventory",
+                "scope inventory entry budget exceeded",
+            )
+        };
+        if u64::try_from(inventories.len()).map_err(|_| quota())? > max_entries
+            || u64::try_from(self.inputs.len()).map_err(|_| quota())? > max_entries
+        {
+            return Err(quota());
+        }
+        let metadata = self.metadata_rows(facts, max_entries)?;
+        let mut inputs = BTreeMap::new();
+        for input in &self.inputs {
+            if inputs
+                .insert(input.source_occurrence_id.as_str(), input)
+                .is_some()
+            {
+                return Err(error("duplicate selected input identity"));
+            }
+        }
+        let mut seen_inputs = BTreeMap::new();
+        let mut dexes = BTreeMap::new();
+        let mut count = 0u64;
+        for inventory in inventories {
+            let manifest = inventory.manifest();
+            let input = inputs
+                .get(manifest.source_occurrence_id.as_str())
+                .ok_or_else(|| error("inventory outside selected scope"))?;
+            if seen_inputs
+                .insert(manifest.source_occurrence_id.as_str(), ())
+                .is_some()
+                || manifest.source_content_id != input.content_id
+            {
+                return Err(error("duplicate or changed inventory identity"));
+            }
+            let policy = match manifest.selection {
+                DexSelection::TopLevelClasses => "top-level-classes-v1",
+                DexSelection::AllDexMembers => "all-dex-members-v1",
+                DexSelection::ResourcesOnly => "resources-only-v1",
+            };
+            if policy != input.selection_policy
+                || manifest.directory_complete != input.inventory_complete
+                || manifest.selected_dex_bytes_complete != input.selected_bytes_complete
+            {
+                return Err(error(
+                    "inventory selection or completeness differs from scope",
+                ));
+            }
+            for dex in inventory.selected_dexes() {
+                count = count.checked_add(1).ok_or_else(quota)?;
+                if count > max_entries {
+                    return Err(quota());
+                }
+                if dexes.insert(dex.dex_occurrence_id.as_str(), dex).is_some() {
+                    return Err(error("duplicate selected DEX occurrence"));
+                }
+            }
+        }
+        if seen_inputs.len() != inputs.len() {
+            return Err(MddError::new(
+                ErrorCode::IncompleteFacts,
+                "facts.scope_inventory",
+                "selected input inventory missing",
+            ));
+        }
+        let mut rows = Vec::new();
+        rows.try_reserve_exact(metadata.len())
+            .map_err(|_| quota())?;
+        for (selected, fact) in metadata {
+            let dex = dexes
+                .remove(selected.dex_occurrence_id.as_str())
+                .ok_or_else(|| {
+                    MddError::new(
+                        ErrorCode::IncompleteFacts,
+                        "facts.scope_inventory",
+                        "selected DEX inventory missing",
+                    )
+                })?;
+            let input = *inputs
+                .get(selected.source_occurrence_id.as_str())
+                .ok_or_else(|| error("selected DEX input missing"))?;
+            if dex.blob.identity.source_occurrence_id != input.source_occurrence_id
+                || dex.blob.identity.input_ordinal != input.input_ordinal
+                || dex.blob.identity.member_id != selected.member_id
+                || dex.blob.content_id != selected.content_id
+                || dex.physical_dex_id != fact.source().physical_dex_id
+                || dex.detected_version != selected.detected_version
+                || dex.logical_header_byte_offset != fact.header().header_range.byte_offset
+            {
+                return Err(error("DEX inventory and metadata identities differ"));
+            }
+            rows.push((input, selected, dex, fact));
+        }
+        if !dexes.is_empty() {
+            return Err(error("inventory DEX outside selected scope"));
         }
         Ok(rows)
     }

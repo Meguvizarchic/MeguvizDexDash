@@ -215,6 +215,28 @@ fn column(id: &str, ty: DataType, nullable: bool) -> Column {
 fn schema(relation: &str) -> MddResult<RelationSchema> {
     use DataType::*;
     let (columns, layer) = match relation {
+        "dex_occurrences" => (
+            vec![
+                column("snapshot_id", Utf16, false),
+                column("dex_occurrence_id", Utf16, false),
+                column("physical_dex_id", Utf16, false),
+                column("member_id", Utf16, false),
+                column("source_occurrence_id", Utf16, false),
+                column("content_id", Utf16, false),
+            ],
+            FactLayer::Metadata,
+        ),
+        "string_pools" => (
+            vec![
+                column("dex_occurrence_id", Utf16, false),
+                column("string_pool_id", Utf16, false),
+                column("physical_dex_id", Utf16, false),
+                column("content_id", Utf16, false),
+                column("string_ids_byte_offset", U64, false),
+                column("string_count", U64, false),
+            ],
+            FactLayer::Metadata,
+        ),
         "strings" => (
             vec![
                 column("entity", Entity, false),
@@ -366,6 +388,27 @@ fn rows<'a>(
     let metadata = &o.metadata;
     let source = metadata.source();
     match relation {
+        "dex_occurrences" => {
+            return Ok(Box::new(std::iter::once(Ok(vec![
+                Value::text(&source.snapshot_id),
+                Value::text(&source.dex_occurrence_id),
+                Value::text(&source.physical_dex_id),
+                Value::text(&source.member_id),
+                Value::text(&source.source_occurrence_id),
+                Value::text(&source.content_id),
+            ]))));
+        }
+        "string_pools" => {
+            let pool = metadata.string_pool();
+            return Ok(Box::new(std::iter::once(Ok(vec![
+                Value::text(&pool.dex_occurrence_id),
+                Value::text(&pool.string_pool_id),
+                Value::text(&pool.physical_dex_id),
+                Value::text(&pool.content_id),
+                Value::U64(pool.string_ids_byte_offset),
+                number(pool.string_count),
+            ]))));
+        }
         "strings" => {
             return Ok(Box::new(metadata.strings().iter().map(|v| {
                 Ok(vec![

@@ -281,6 +281,101 @@ fn read_literal(
     )
 }
 #[test]
+fn native_occurrence_and_pool_join_preserves_source_multiplicity() {
+    let catalog = native("definitions-038.dex", false);
+    let metadata_only = NativeCatalog::new(
+        catalog.snapshot_id().into(),
+        catalog.catalog_epoch(),
+        catalog
+            .occurrences
+            .iter()
+            .map(|o| OccurrenceFacts {
+                metadata: o.metadata.clone(),
+                definitions: None,
+                code: None,
+            })
+            .collect(),
+    )
+    .unwrap();
+    let node = Node::EquiJoin {
+        left: Box::new(Node::Scan {
+            relation: "string_pools".into(),
+        }),
+        right: Box::new(Node::Scan {
+            relation: "dex_occurrences".into(),
+        }),
+        left_keys: vec![0],
+        right_keys: vec![1],
+        kind: JoinKind::Inner,
+    };
+    let plan = prepare(
+        query(
+            node,
+            metadata_only.snapshot_id(),
+            metadata_only.catalog_epoch(),
+        ),
+        &metadata_only,
+    )
+    .unwrap();
+    assert_eq!(
+        plan.required_layers(),
+        &BTreeSet::from([FactLayer::Metadata])
+    );
+    let expected: Vec<Row> = metadata_only
+        .occurrences
+        .iter()
+        .map(|occurrence| {
+            let source = occurrence.metadata.source();
+            let pool = occurrence.metadata.string_pool();
+            vec![
+                Value::text(&pool.dex_occurrence_id),
+                Value::text(&pool.string_pool_id),
+                Value::text(&pool.physical_dex_id),
+                Value::text(&pool.content_id),
+                Value::U64(pool.string_ids_byte_offset),
+                Value::U64(DecimalU64(pool.string_count.into())),
+                Value::text(&source.snapshot_id),
+                Value::text(&source.dex_occurrence_id),
+                Value::text(&source.physical_dex_id),
+                Value::text(&source.member_id),
+                Value::text(&source.source_occurrence_id),
+                Value::text(&source.content_id),
+            ]
+        })
+        .collect();
+    assert_eq!(expected.len(), 2);
+    assert_ne!(expected[0][0], expected[1][0]);
+    assert_eq!(expected[0][1], expected[1][1]);
+    for mode in [
+        ExecutionMode::Streaming,
+        ExecutionMode::MaterializedReference,
+    ] {
+        let result = execute(
+            &plan,
+            &metadata_only,
+            mode,
+            &mut Control::new(ExecutionLimits::default()),
+        )
+        .unwrap();
+        let mut actual = result.rows().to_vec();
+        let mut wanted = expected.clone();
+        actual.sort();
+        wanted.sort();
+        assert_eq!(actual, wanted);
+        let limited = ExecutionLimits {
+            max_output_rows: 1,
+            ..ExecutionLimits::default()
+        };
+        assert_eq!(
+            execute(&plan, &metadata_only, mode, &mut Control::new(limited))
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::QuotaExceeded
+        );
+    }
+}
+#[test]
 fn native_class_method_members_preserve_occurrence_and_kind_ordinal() {
     let catalog = native("definitions-038.dex", false);
     let plan = prepare(

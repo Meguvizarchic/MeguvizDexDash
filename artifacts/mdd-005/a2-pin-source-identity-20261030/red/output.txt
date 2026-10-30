@@ -1,0 +1,14 @@
+E
+======================================================================
+ERROR: test_digest_stays_fixed_and_changed_identity_is_rejected (__main__.Checks.test_digest_stays_fixed_and_changed_identity_is_rejected)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\MeguvisDexDash\artifacts\mdd-005\a2-pin-source-identity-20261030\probe.py", line 24, in test_digest_stays_fixed_and_changed_identity_is_rejected
+    self.assertEqual(pin.sha256, expected)
+                     ^^^^^^^^^^
+AttributeError: 'WindowsInputPin' object has no attribute 'sha256'
+
+----------------------------------------------------------------------
+Ran 1 test in 0.004s
+
+FAILED (errors=1)

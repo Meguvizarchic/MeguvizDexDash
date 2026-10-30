@@ -1,0 +1,54 @@
+{
+  "scope": "synthetic source identity and fixed A1; generation/order mocked, no A2 qualification",
+  "python": "fixed baseline venv 3.12.14",
+  "runs": [
+    {
+      "exit_code": 0,
+      "arguments": [
+        "-B",
+        "-O",
+        "artifacts/mdd-005/a2-pin-source-identity-20261030/probe.py"
+      ]
+    },
+    {
+      "exit_code": 0,
+      "arguments": [
+        "-B",
+        "-O",
+        "artifacts/mdd-005/a2-pin-opener-20261030/probe.py"
+      ]
+    },
+    {
+      "exit_code": 0,
+      "arguments": [
+        "-B",
+        "-O",
+        "artifacts/mdd-005/a2-lifecycle-source-20261030/a1_probe.py"
+      ]
+    }
+  ],
+  "source_after": {
+    "benchmarks/a2_dataset_open.py": "33EBD713D204C2F739255193050F3F4F328B0DD20747D211621FF0786EEAA19C",
+    "benchmarks/a2_dataset_lifecycle.py": "9BE392A4E9691D76A684554FB821CABD9912E7DAB840397E0427F39E62AF4C32",
+    "tests/fixtures/generated/structured-035.dex": "108CF907D330B823C6E32D38EAAB8F23709FE493F52537688BBD09BA3E271605",
+    "benchmarks/a2_dataset_close.py": "4D2CB8756D38BEFB101AFE9C020D93E8A4757CB376F473CEE4CE4A39B83636E5",
+    "benchmarks/a2_input_inventory.py": "0D9C887B08E402E907B0EE5C50777D3D590B5917F0EB9CDB165FBD8CCD650ECA",
+    "artifacts/mdd-005/a2-compact-terminal-20261030/a1_probe.py": "70B76BD952B99BD831D681DB064C17147407FAB787759CF934C7EE9092E76B94",
+    "artifacts/mdd-005/a2-pin-source-identity-20261030/probe.py": "5223EBB007743AA0AB1C956366020FA13E5E9273ECFCD5E7000B6BA7D1A2EEA0",
+    "artifacts/mdd-005/a2-pin-opener-20261030/probe.py": "8E8C8BBD6522201E190F9D22C01D4BA63145B5399DD765F95492FCB81F37F345",
+    "artifacts/mdd-005/a2-lifecycle-source-20261030/a1_probe.py": "DDD60BD4049EB71BF3BAE13EDC0D7C30A4E7DCBE57B77919F7B1CD984849EF27",
+    "benchmarks/a2_windows_input_pin.py": "84830E93A59598465B89A42AC94C969A8F0B6CA24F0DB332A7E889CE6EDD987D"
+  },
+  "source_before": {
+    "benchmarks/a2_dataset_open.py": "33EBD713D204C2F739255193050F3F4F328B0DD20747D211621FF0786EEAA19C",
+    "benchmarks/a2_dataset_lifecycle.py": "9BE392A4E9691D76A684554FB821CABD9912E7DAB840397E0427F39E62AF4C32",
+    "tests/fixtures/generated/structured-035.dex": "108CF907D330B823C6E32D38EAAB8F23709FE493F52537688BBD09BA3E271605",
+    "benchmarks/a2_dataset_close.py": "4D2CB8756D38BEFB101AFE9C020D93E8A4757CB376F473CEE4CE4A39B83636E5",
+    "benchmarks/a2_input_inventory.py": "0D9C887B08E402E907B0EE5C50777D3D590B5917F0EB9CDB165FBD8CCD650ECA",
+    "artifacts/mdd-005/a2-compact-terminal-20261030/a1_probe.py": "70B76BD952B99BD831D681DB064C17147407FAB787759CF934C7EE9092E76B94",
+    "artifacts/mdd-005/a2-pin-source-identity-20261030/probe.py": "5223EBB007743AA0AB1C956366020FA13E5E9273ECFCD5E7000B6BA7D1A2EEA0",
+    "artifacts/mdd-005/a2-pin-opener-20261030/probe.py": "8E8C8BBD6522201E190F9D22C01D4BA63145B5399DD765F95492FCB81F37F345",
+    "artifacts/mdd-005/a2-lifecycle-source-20261030/a1_probe.py": "DDD60BD4049EB71BF3BAE13EDC0D7C30A4E7DCBE57B77919F7B1CD984849EF27",
+    "benchmarks/a2_windows_input_pin.py": "84830E93A59598465B89A42AC94C969A8F0B6CA24F0DB332A7E889CE6EDD987D"
+  }
+}

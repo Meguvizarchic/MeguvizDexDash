@@ -1215,6 +1215,9 @@ enum AnnotationRelation {
     RefLists,
     RefEntries,
     ParameterLists,
+    Directories,
+    DirectoryEntries,
+    DirectoryBindings,
 }
 impl AnnotationRelation {
     fn parse(name: &str) -> Option<Self> {
@@ -1234,6 +1237,12 @@ impl AnnotationRelation {
             Some(Self::RefEntries)
         } else if name.eq_ignore_ascii_case("native_annotation_parameter_lists") {
             Some(Self::ParameterLists)
+        } else if name.eq_ignore_ascii_case("native_annotation_directories") {
+            Some(Self::Directories)
+        } else if name.eq_ignore_ascii_case("native_annotation_directory_entries") {
+            Some(Self::DirectoryEntries)
+        } else if name.eq_ignore_ascii_case("native_annotation_directory_bindings") {
+            Some(Self::DirectoryBindings)
         } else {
             None
         }
@@ -1310,6 +1319,44 @@ impl SqlFactCursor for AnnotationCursor {
                     .map_err(|_| quota("ANNOTATION_SQL_ROWS_OVERFLOW"))?;
                 self.control.work(64)?;
                 let row = vec![occurrence()?, u(offset.into()), u(ordinal), optional(entry)];
+                self.entry_ordinal += 1;
+                return Ok(Some(row));
+            }
+            if matches!(self.relation, AnnotationRelation::DirectoryEntries) {
+                let Some(directory) = data.directories.get(self.ordinal) else {
+                    self.occurrence += 1;
+                    self.ordinal = 0;
+                    self.entry_ordinal = 0;
+                    continue;
+                };
+                let Some(entry) = directory.entries.get(self.entry_ordinal) else {
+                    self.ordinal += 1;
+                    self.entry_ordinal = 0;
+                    continue;
+                };
+                let kind = match entry.kind {
+                    AnnotationOwnerKind::Field => "field",
+                    AnnotationOwnerKind::Method => "method",
+                    AnnotationOwnerKind::Parameter => "parameter",
+                    AnnotationOwnerKind::Class => {
+                        return Err(MddError::new(
+                            ErrorCode::InternalFault,
+                            "sql.annotations",
+                            "invalid directory entry kind",
+                        ));
+                    }
+                };
+                let ordinal = u64::try_from(self.entry_ordinal)
+                    .map_err(|_| quota("ANNOTATION_SQL_ROWS_OVERFLOW"))?;
+                self.control.work(80)?;
+                let row = vec![
+                    occurrence()?,
+                    u(directory.byte_offset.into()),
+                    u(ordinal),
+                    scalar_text(kind, &self.control)?,
+                    u(entry.local_index.into()),
+                    u(entry.target_byte_offset.into()),
+                ];
                 self.entry_ordinal += 1;
                 return Ok(Some(row));
             }
@@ -1443,7 +1490,40 @@ impl SqlFactCursor for AnnotationCursor {
                         scalar_text(coverage, &self.control)?,
                     ]
                 }
-                AnnotationRelation::SetEntries | AnnotationRelation::RefEntries => unreachable!(),
+                AnnotationRelation::Directories => {
+                    let Some(directory) = data.directories.get(self.ordinal) else {
+                        self.occurrence += 1;
+                        self.ordinal = 0;
+                        continue;
+                    };
+                    self.control.work(88)?;
+                    vec![
+                        occurrence()?,
+                        u(directory.byte_offset.into()),
+                        optional(directory.class_annotation_set_offset),
+                        u(directory.fields_size.into()),
+                        u(directory.methods_size.into()),
+                        u(directory.parameters_size.into()),
+                        SqlValue::U64(directory.encoded_range.byte_length),
+                    ]
+                }
+                AnnotationRelation::DirectoryBindings => {
+                    let Some(binding) = data.directory_bindings.get(self.ordinal) else {
+                        self.occurrence += 1;
+                        self.ordinal = 0;
+                        continue;
+                    };
+                    self.control.work(64)?;
+                    vec![
+                        occurrence()?,
+                        u(binding.class_def_idx.into()),
+                        u(binding.class_idx.into()),
+                        u(binding.directory_byte_offset.into()),
+                    ]
+                }
+                AnnotationRelation::SetEntries
+                | AnnotationRelation::RefEntries
+                | AnnotationRelation::DirectoryEntries => unreachable!(),
             };
             self.ordinal += 1;
             return Ok(Some(row));
@@ -1456,7 +1536,7 @@ impl SqlFactProvider for AnnotationSqlProvider {
         &self.binding
     }
     fn relations(&self) -> MddResult<Vec<SqlRelation>> {
-        let specifications: [(&str, &[(&str, SqlType, bool)], AnnotationRelation); 8] = [
+        let specifications: [(&str, &[(&str, SqlType, bool)], AnnotationRelation); 11] = [
             (
                 "native_annotation_items",
                 &[
@@ -1558,6 +1638,41 @@ impl SqlFactProvider for AnnotationSqlProvider {
                 ],
                 AnnotationRelation::ParameterLists,
             ),
+            (
+                "native_annotation_directories",
+                &[
+                    ("dex_occurrence_id", SqlType::Text, false),
+                    ("directory_byte_offset", SqlType::U64, false),
+                    ("class_annotation_set_offset", SqlType::U64, true),
+                    ("fields_count", SqlType::U64, false),
+                    ("methods_count", SqlType::U64, false),
+                    ("parameters_count", SqlType::U64, false),
+                    ("encoded_byte_length", SqlType::U64, false),
+                ],
+                AnnotationRelation::Directories,
+            ),
+            (
+                "native_annotation_directory_entries",
+                &[
+                    ("dex_occurrence_id", SqlType::Text, false),
+                    ("directory_byte_offset", SqlType::U64, false),
+                    ("ordinal", SqlType::U64, false),
+                    ("kind", SqlType::Text, false),
+                    ("local_index", SqlType::U64, false),
+                    ("target_byte_offset", SqlType::U64, false),
+                ],
+                AnnotationRelation::DirectoryEntries,
+            ),
+            (
+                "native_annotation_directory_bindings",
+                &[
+                    ("dex_occurrence_id", SqlType::Text, false),
+                    ("class_def_idx", SqlType::U64, false),
+                    ("class_idx", SqlType::U64, false),
+                    ("directory_byte_offset", SqlType::U64, false),
+                ],
+                AnnotationRelation::DirectoryBindings,
+            ),
         ];
         specifications
             .into_iter()
@@ -1574,6 +1689,12 @@ impl SqlFactProvider for AnnotationSqlProvider {
                             AnnotationRelation::Sets => data.sets.len(),
                             AnnotationRelation::RefLists => data.ref_lists.len(),
                             AnnotationRelation::ParameterLists => data.parameter_lists.len(),
+                            AnnotationRelation::Directories => data.directories.len(),
+                            AnnotationRelation::DirectoryBindings => data.directory_bindings.len(),
+                            AnnotationRelation::DirectoryEntries => data
+                                .directories
+                                .iter()
+                                .try_fold(0usize, |n, d| n.checked_add(d.entries.len()))?,
                             AnnotationRelation::SetEntries => {
                                 data.sets.iter().try_fold(0usize, |n, s| {
                                     n.checked_add(s.annotation_offsets.len())
@@ -2020,6 +2141,145 @@ mod tests {
         archive::{ArchiveInventory, ArchiveLimits, InventoryPolicy},
         snapshot::{CaptureLimits, InputKind, InputSpec, Snapshot},
     };
+    #[test]
+    fn annotation_directories_preserve_physical_entries_and_shared_bindings() {
+        use mdd_dex::{annotations::AnnotationLimits, definitions::DefinitionLimits};
+        use mdd_facts::{annotations::AnnotationFacts, definitions::DefinitionFacts};
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/annotations/generated");
+        let specs = [
+            "annotations-038.dex",
+            "annotations-038.dex",
+            "valid-orphan-empty-directory.dex",
+            "valid-orphan-known-directory.dex",
+            "valid-shared-empty-directory.dex",
+        ]
+        .into_iter()
+        .map(|name| InputSpec {
+            path: root.join(name),
+            kind: InputKind::RawDex,
+            expected_sha256: None,
+        })
+        .collect::<Vec<_>>();
+        let snapshot = Snapshot::capture(&specs, CaptureLimits::default()).unwrap();
+        let mut facts = Vec::new();
+        for source in snapshot.sources() {
+            let inventory = ArchiveInventory::build(
+                source,
+                InventoryPolicy::default(),
+                ArchiveLimits::default(),
+            )
+            .unwrap();
+            let metadata =
+                MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default()).unwrap();
+            let definitions =
+                DefinitionFacts::build(metadata, DefinitionLimits::default()).unwrap();
+            facts.push(Arc::new(
+                AnnotationFacts::build(definitions, AnnotationLimits::default()).unwrap(),
+            ));
+        }
+        let bridge = SqlBridge::new(
+            Arc::new(AnnotationSqlProvider::new(facts.clone(), DecimalU64(0)).unwrap()),
+            SqlDialect::NativeV1,
+            SqlLimits::default(),
+        )
+        .unwrap();
+        let mut expected: [Vec<Vec<String>>; 3] = Default::default();
+        let mut shared = false;
+        for (fact, spec) in facts.iter().zip(&specs) {
+            let bytes = std::fs::read(&spec.path).unwrap();
+            let read = |at: usize| u32::from_le_bytes(bytes[at..at + 4].try_into().unwrap());
+            let source = &fact.source().dex_occurrence_id;
+            for directory in &fact.data().directories {
+                let at = directory.byte_offset as usize;
+                let class_offset = read(at);
+                let field = read(at + 4);
+                let method = read(at + 8);
+                let parameter = read(at + 12);
+                let count = field as usize + method as usize + parameter as usize;
+                assert_eq!(count, directory.entries.len());
+                let nullable = if class_offset == 0 {
+                    "<NULL>".into()
+                } else {
+                    class_offset.to_string()
+                };
+                expected[0].push(vec![
+                    source.clone(),
+                    directory.byte_offset.to_string(),
+                    nullable,
+                    field.to_string(),
+                    method.to_string(),
+                    parameter.to_string(),
+                    (16 + 8 * count).to_string(),
+                ]);
+                for i in 0..count {
+                    let kind = if i < field as usize {
+                        "field"
+                    } else if i < (field + method) as usize {
+                        "method"
+                    } else {
+                        "parameter"
+                    };
+                    expected[1].push(vec![
+                        source.clone(),
+                        directory.byte_offset.to_string(),
+                        i.to_string(),
+                        kind.into(),
+                        read(at + 16 + i * 8).to_string(),
+                        read(at + 20 + i * 8).to_string(),
+                    ]);
+                }
+            }
+            let class_count = read(0x60) as usize;
+            let class_offset = read(0x64) as usize;
+            let mut offsets = std::collections::BTreeMap::new();
+            for i in 0..class_count {
+                let at = class_offset + i * 32;
+                let directory = read(at + 20);
+                if directory != 0 {
+                    *offsets.entry(directory).or_insert(0usize) += 1;
+                    expected[2].push(vec![
+                        source.clone(),
+                        i.to_string(),
+                        read(at).to_string(),
+                        directory.to_string(),
+                    ]);
+                }
+            }
+            shared |= offsets.values().any(|count| *count > 1);
+        }
+        assert!(shared, "shared directory fixture not exercised");
+        assert!(expected[0].iter().any(|row| row[2] == "<NULL>"));
+        assert!(expected[1].iter().any(|row| row[3] == "parameter"));
+        for (i, name) in [
+            "native_annotation_directories",
+            "native_annotation_directory_entries",
+            "native_annotation_directory_bindings",
+        ]
+        .iter()
+        .enumerate()
+        {
+            let result = bridge.query(&format!("SELECT * FROM {name}")).unwrap();
+            let mut actual = result
+                .rows()
+                .iter()
+                .map(|row| {
+                    row.iter()
+                        .map(|value| match value {
+                            SqlValue::Null => "<NULL>".to_owned(),
+                            SqlValue::U64(n) => n.0.to_string(),
+                            SqlValue::I64(n) => n.0.to_string(),
+                            SqlValue::Text(v) => v.strict_utf8().unwrap(),
+                            other => panic!("unexpected value: {other:?}"),
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .collect::<Vec<_>>();
+            actual.sort();
+            expected[i].sort();
+            assert_eq!(actual, expected[i], "{name}");
+        }
+    }
     #[test]
     fn annotation_sets_and_ref_lists_preserve_physical_entries_and_empty_headers() {
         use mdd_dex::{annotations::AnnotationLimits, definitions::DefinitionLimits};

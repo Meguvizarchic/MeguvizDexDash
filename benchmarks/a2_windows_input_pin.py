@@ -34,6 +34,7 @@ class WindowsInputPin:
             raise ValueError('a previously pinned input inventory is required')
         self._source = source
         self._path = source.path
+        self._sha256 = getattr(source, 'sha256', None)
         self._kernel = ctypes.WinDLL('kernel32', use_last_error=True)
         self._kernel.CreateFileW.argtypes = [ctypes.c_wchar_p, ctypes.c_uint32,
             ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p]
@@ -69,14 +70,23 @@ class WindowsInputPin:
         """The input path fixed when the pin was constructed."""
         return self._path
 
+    @property
+    def sha256(self):
+        """The source digest fixed at construction, when one was supplied."""
+        if not isinstance(self._sha256, str):
+            raise InputPinError('source SHA-256 identity is unavailable')
+        return self._sha256
+
     def verify(self):
         if self._state != 'held':
             raise InputPinError('input pin is not held')
-        if self._source.path != self._path:
-            raise InputPinError('input path changed while pin was held')
+        if (self._source.path != self._path
+                or getattr(self._source, 'sha256', None) != self._sha256):
+            raise InputPinError('input identity changed while pin was held')
         self._source.verify_source()
-        if self._source.path != self._path:
-            raise InputPinError('input path changed during verification')
+        if (self._source.path != self._path
+                or getattr(self._source, 'sha256', None) != self._sha256):
+            raise InputPinError('input identity changed during verification')
 
     def verify_source(self):
         """Source callback for the existing A1 dataset opener."""

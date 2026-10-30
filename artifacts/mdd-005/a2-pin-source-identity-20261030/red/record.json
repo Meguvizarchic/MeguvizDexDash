@@ -1,0 +1,10 @@
+{
+  "scope": "synthetic pin source identity",
+  "command": "python -B -O artifacts/mdd-005/a2-pin-source-identity-20261030/probe.py",
+  "source_sha256": {
+    "benchmarks/a2_windows_input_pin.py": "2EAA1C78672FC24825D3A988DC8FA05DAE395860D21B84AB508E104CD8C2EFD3",
+    "artifacts/mdd-005/a2-pin-source-identity-20261030/probe.py": "5223EBB007743AA0AB1C956366020FA13E5E9273ECFCD5E7000B6BA7D1A2EEA0",
+    "benchmarks/a2_input_inventory.py": "0D9C887B08E402E907B0EE5C50777D3D590B5917F0EB9CDB165FBD8CCD650ECA"
+  },
+  "exit_code": 1
+}
