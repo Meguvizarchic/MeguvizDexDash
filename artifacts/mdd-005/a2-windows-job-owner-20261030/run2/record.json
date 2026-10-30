@@ -1,0 +1,20 @@
+{
+  "command": [
+    "artifacts/local/baseline-venv/Scripts/python.exe",
+    "-B",
+    "-O",
+    "artifacts/mdd-005/a2-windows-job-owner-20261030/probe2.py"
+  ],
+  "started_utc": "2026-10-30T04:45:28.236524+00:00",
+  "finished_utc": "2026-10-30T04:45:29.893292+00:00",
+  "exit_code": 0,
+  "timed_out": false,
+  "source_sha256": {
+    "benchmarks/a2_windows_job_owner.py": "e9112db5cf60d5768d5f7d738ac91ce5dfc0c595b70a4403f5cab84c58a20d55",
+    "artifacts/mdd-005/a2-windows-job-owner-20261030/probe2.py": "9fed778e49aea314d2d5c05d62abab6aa1e07996b693cad73349bc280959a4e8"
+  },
+  "source_unchanged": true,
+  "stdout_sha256": "cd23fe9b916ea9d9908adc942f401b92b95135885c1805d59dec16cc60b1a489",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "scope": "self-owned hidden short processes only; no MCP, snapshot, A2 or performance qualification"
+}

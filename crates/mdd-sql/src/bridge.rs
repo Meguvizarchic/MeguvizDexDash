@@ -30,6 +30,7 @@ pub struct PreparedSql {
     parameters: Vec<SqlValue>,
     ast_nodes: usize,
     required_relations: Vec<String>,
+    cte_names: BTreeSet<String>,
     required_layers: Vec<FactLayer>,
     relations: Vec<SqlRelation>,
     provider: Arc<dyn SqlFactProvider>,
@@ -334,6 +335,7 @@ impl SqlBridge {
             parameters: adapted.parameters,
             ast_nodes: adapted.nodes,
             required_relations: adapted.required_relations,
+            cte_names: adapted.cte_names,
             required_layers,
             relations,
             provider: Arc::clone(&self.provider),
@@ -452,11 +454,23 @@ impl SqlBridge {
             .iter()
             .map(|r| r.name.to_ascii_lowercase())
             .collect::<BTreeSet<_>>();
+        let ctes = prepared.cte_names.clone();
         db.authorizer(Some(move |context: AuthContext<'_>| match context.action {
             AuthAction::Select | AuthAction::Recursive => Authorization::Allow,
             AuthAction::Read { table_name, .. }
                 if names.contains(&table_name.to_ascii_lowercase()) =>
             {
+                Authorization::Allow
+            }
+            AuthAction::Read {
+                table_name,
+                column_name,
+            } if context.database_name.is_none()
+                && column_name.is_empty()
+                && ctes.contains(&table_name.to_ascii_lowercase()) =>
+            {
+                // SQLite has bound this to an in-memory CTE container. Actual
+                // database reads still require an admitted provider relation.
                 Authorization::Allow
             }
             AuthAction::Function { function_name }
@@ -1103,6 +1117,36 @@ mod tests {
                         .is_some(),
                     "{dialect:?}: {sql}"
                 );
+            }
+        }
+    }
+
+    #[test]
+    fn visible_cte_container_is_readable_without_authorizing_real_tables_or_writes() {
+        let (provider, _) = bridge();
+        for dialect in [
+            SqlDialect::NativeV1,
+            SqlDialect::DexSql010,
+            SqlDialect::DexSql011,
+        ] {
+            let bridge = SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+            for sql in [
+                "WITH d AS (SELECT 1 AS id) SELECT COUNT(*) AS n FROM d",
+                "WITH a AS (SELECT 1 AS id), d AS (SELECT id FROM a) SELECT COUNT(*) AS n FROM d",
+            ] {
+                assert_eq!(
+                    bridge.query(sql).unwrap().rows()[0][0],
+                    SqlValue::I64(mdd_query::ir::Signed64(1)),
+                    "{dialect:?}: {sql}"
+                );
+            }
+            for sql in [
+                "SELECT name FROM sqlite_master",
+                "SELECT name FROM main.sqlite_master",
+                "DELETE FROM facts",
+                "ATTACH DATABASE ':memory:' AS other",
+            ] {
+                assert!(bridge.query(sql).is_err(), "{dialect:?}: {sql}");
             }
         }
     }

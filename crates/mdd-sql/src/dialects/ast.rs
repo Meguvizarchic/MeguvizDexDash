@@ -15,6 +15,7 @@ pub(crate) struct Adapted {
     pub parameters: Vec<SqlValue>,
     pub nodes: usize,
     pub required_relations: Vec<String>,
+    pub cte_names: BTreeSet<String>,
     pub display_overrides: BTreeMap<String, String>,
 }
 #[derive(Clone)]
@@ -279,6 +280,7 @@ pub(crate) fn adapt(
         nodes: 0,
         dependencies: Vec::new(),
         cte_scopes: Vec::new(),
+        cte_names: BTreeSet::new(),
         in_scopes: Vec::new(),
         cte_definitions: Vec::new(),
         schemas,
@@ -307,6 +309,7 @@ pub(crate) fn adapt(
         parameters: rewrite.parameters,
         nodes: actual_nodes,
         required_relations,
+        cte_names: rewrite.cte_names,
         display_overrides: rewrite.display_overrides,
     })
 }
@@ -318,6 +321,7 @@ struct Rewrite<'a> {
     nodes: usize,
     dependencies: Vec<Dependency>,
     cte_scopes: Vec<BTreeMap<String, usize>>,
+    cte_names: BTreeSet<String>,
     in_scopes: Vec<Option<InScope>>,
     cte_definitions: Vec<Vec<Dependency>>,
     schemas: BTreeMap<String, Vec<String>>,
@@ -514,6 +518,8 @@ impl Rewrite<'_> {
             for cte in &with.cte_tables {
                 let id = self.cte_definitions.len();
                 self.cte_definitions.push(Vec::new());
+                self.cte_names
+                    .insert(cte.alias.name.value.to_ascii_lowercase());
                 if frame
                     .insert(cte.alias.name.value.to_ascii_lowercase(), id)
                     .is_some()

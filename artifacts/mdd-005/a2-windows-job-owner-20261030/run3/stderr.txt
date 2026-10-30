@@ -1,0 +1,19 @@
+Traceback (most recent call last):
+  File "D:\MeguvisDexDash\artifacts\mdd-005\a2-windows-job-owner-20261030\probe3.py", line 105, in main
+    WindowsJobOwner(executable, ['-c', 'import time;time.sleep(30)'],
+  File "D:\MeguvisDexDash\benchmarks\a2_windows_job_owner.py", line 151, in __init__
+    raise JobOwnerError('created child is not in its Job')
+a2_windows_job_owner.JobOwnerError: created child is not in its Job
+owned child termination was not confirmed: (5, 'TerminateProcess', '拒绝访问。')
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\MeguvisDexDash\artifacts\mdd-005\a2-windows-job-owner-20261030\probe3.py", line 168, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "D:\MeguvisDexDash\artifacts\mdd-005\a2-windows-job-owner-20261030\probe3.py", line 109, in main
+    require(all(observed_cleanup.values()), 'created child or Job cleanup was not observed')
+  File "D:\MeguvisDexDash\artifacts\mdd-005\a2-windows-job-owner-20261030\probe3.py", line 30, in require
+    raise RuntimeError(message)
+RuntimeError: created child or Job cleanup was not observed

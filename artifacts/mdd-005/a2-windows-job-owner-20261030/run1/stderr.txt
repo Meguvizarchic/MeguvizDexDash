@@ -1,0 +1,11 @@
+Traceback (most recent call last):
+  File "D:\MeguvisDexDash\artifacts\mdd-005\a2-windows-job-owner-20261030\probe.py", line 131, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "D:\MeguvisDexDash\artifacts\mdd-005\a2-windows-job-owner-20261030\probe.py", line 66, in main
+    with WindowsJobOwner(executable, ['-c', 'import sys;sys.exit(0)'],
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\MeguvisDexDash\benchmarks\a2_windows_job_owner.py", line 119, in __init__
+    self._job = win32job.CreateJobObject(None, None)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: None is not a valid string in this context

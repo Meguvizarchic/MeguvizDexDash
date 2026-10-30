@@ -4,8 +4,12 @@ use crate::{
     metadata::{EntityKind, EntityRef, MetadataSource},
 };
 use mdd_dex::annotations::{
-    AnnotationLimits, AnnotationOwnerBinding, AnnotationOwnerKind, DexAnnotations, EncodedKind,
-    ExactFloat, read_annotations,
+    AnnotationLimits, AnnotationOwnerBinding, AnnotationOwnerKind, AnnotationSetRefList,
+    DexAnnotations, EncodedKind, ExactFloat, read_annotations,
+};
+use mdd_dex::{
+    definitions::{MethodDefinition, MethodReference},
+    types::{DexPrototype, DexType},
 };
 use mdd_types::{Completeness, ErrorCode, MddError, MddResult, content_id};
 use serde::Serialize;
@@ -23,6 +27,102 @@ pub struct AnnotationOwnerRef {
     pub reference: EntityRef,
     pub definition: Option<EntityRef>,
     pub parameter_ordinal: Option<u32>,
+}
+
+/// Logical limits for a single method's borrowed parameter view, not an RSS bound.
+#[derive(Clone, Copy, Debug)]
+pub struct ParameterViewLimits {
+    pub max_scan_entries: u64,
+    pub max_parameters: u64,
+}
+impl Default for ParameterViewLimits {
+    fn default() -> Self {
+        Self {
+            max_scan_entries: 16_000_000,
+            max_parameters: 1_000_000,
+        }
+    }
+}
+
+/// Physical annotation encoding for one proven prototype position in this DEX occurrence.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ParameterAnnotationEncoding {
+    /// No parameter annotation list was encoded for this method in this occurrence.
+    NoEncodedList,
+    /// An encoded list explicitly contains the zero annotation-set offset.
+    ExplicitZeroSlot,
+    /// An encoded list names a validated physical annotation-set start.
+    SetOffset(u32),
+}
+pub struct ParameterFact<'a> {
+    pub ordinal: u32,
+    pub parameter_type: &'a DexType,
+    pub annotation_encoding: ParameterAnnotationEncoding,
+}
+/// Borrowed, same-occurrence parameter facts. No raw text encoding or inferred
+/// annotations in another DEX are implied by this view.
+pub struct MethodParameterFacts<'a> {
+    facts: &'a AnnotationFacts,
+    pub method_reference: &'a MethodReference,
+    pub definition: Option<&'a MethodDefinition>,
+    pub prototype: &'a DexPrototype,
+    pub encoded_list: Option<&'a AnnotationSetRefList>,
+}
+impl<'a> MethodParameterFacts<'a> {
+    pub fn source(&self) -> &'a MetadataSource {
+        self.facts.source()
+    }
+
+    /// Iterate proven prototype positions in their original order.
+    pub fn iter(&self) -> impl Iterator<Item = MddResult<ParameterFact<'a>>> + '_ {
+        let facts: &'a AnnotationFacts = self.facts;
+        let encoded_list = self.encoded_list;
+        self.prototype
+            .parameter_type_indices
+            .iter()
+            .enumerate()
+            .map(move |(ordinal, index)| {
+                let parameter_type = facts
+                    .definitions
+                    .metadata()
+                    .types()
+                    .get(*index as usize)
+                    .map(|fact| &fact.data)
+                    .ok_or_else(|| {
+                        MddError::new(
+                            ErrorCode::InternalFault,
+                            "facts.parameters",
+                            "validated parameter type is missing",
+                        )
+                    })?;
+                let annotation_encoding = match encoded_list {
+                    None => ParameterAnnotationEncoding::NoEncodedList,
+                    Some(list) => {
+                        match list.annotation_set_offsets.get(ordinal).ok_or_else(|| {
+                            MddError::new(
+                                ErrorCode::InternalFault,
+                                "facts.parameters",
+                                "validated parameter slot is missing",
+                            )
+                        })? {
+                            None => ParameterAnnotationEncoding::ExplicitZeroSlot,
+                            Some(offset) => ParameterAnnotationEncoding::SetOffset(*offset),
+                        }
+                    }
+                };
+                Ok(ParameterFact {
+                    ordinal: u32::try_from(ordinal).map_err(|_| {
+                        MddError::new(
+                            ErrorCode::QuotaExceeded,
+                            "facts.parameters",
+                            "parameter ordinal overflow",
+                        )
+                    })?,
+                    parameter_type,
+                    annotation_encoding,
+                })
+            })
+    }
 }
 #[derive(Clone, Debug, Serialize)]
 pub struct SignatureFact {
@@ -356,6 +456,177 @@ impl AnnotationFacts {
     pub fn source(&self) -> &MetadataSource {
         self.definitions.metadata.source()
     }
+    /// Bind one method to proven prototype positions and physical annotation slots.
+    /// A short or otherwise unmapped list is not padded and is reported incomplete.
+    pub fn method_parameter_facts(
+        &self,
+        method: &EntityRef,
+        limits: ParameterViewLimits,
+    ) -> MddResult<MethodParameterFacts<'_>> {
+        let source = self.source();
+        if method.snapshot_id != source.snapshot_id
+            || method.dex_occurrence_id != source.dex_occurrence_id
+            || !matches!(
+                method.kind,
+                EntityKind::MethodReference | EntityKind::MethodDefinition
+            )
+        {
+            return Err(MddError::new(
+                ErrorCode::InvalidArgument,
+                "facts.parameters",
+                "method is foreign or has the wrong identity kind",
+            ));
+        }
+        if self.annotation_coverage != Completeness::Complete
+            || self.definitions.definition_coverage() != Completeness::Complete
+            || self.definitions.metadata().metadata_coverage() != Completeness::Complete
+        {
+            return Err(MddError::new(
+                ErrorCode::IncompleteFacts,
+                "facts.parameters",
+                "complete metadata, definitions and annotations are required",
+            ));
+        }
+        let definitions = self.definitions.definitions();
+        let scan_count = [
+            definitions.method_definitions.len(),
+            self.data.parameter_lists.len(),
+            self.data.ref_lists.len(),
+        ]
+        .into_iter()
+        .try_fold(0u64, |total, len| {
+            u64::try_from(len)
+                .ok()
+                .and_then(|len| total.checked_add(len))
+        })
+        .ok_or_else(|| {
+            MddError::new(
+                ErrorCode::QuotaExceeded,
+                "facts.parameters",
+                "parameter view scan budget overflow",
+            )
+        })?;
+        if scan_count > limits.max_scan_entries {
+            return Err(MddError::new(
+                ErrorCode::QuotaExceeded,
+                "facts.parameters",
+                "parameter view scan budget exceeded",
+            ));
+        }
+        let broken = || {
+            MddError::new(
+                ErrorCode::InternalFault,
+                "facts.parameters",
+                "validated parameter facts are inconsistent",
+            )
+        };
+        let reference = definitions
+            .method_references
+            .get(method.local_index as usize)
+            .filter(|reference| reference.method_idx == method.local_index)
+            .ok_or_else(|| {
+                MddError::new(
+                    ErrorCode::InvalidArgument,
+                    "facts.parameters",
+                    "method reference does not exist in this occurrence",
+                )
+            })?;
+        let mut matches = definitions
+            .method_definitions
+            .iter()
+            .filter(|entry| entry.method_idx == method.local_index);
+        let definition = matches.next();
+        if matches.next().is_some() {
+            return Err(broken());
+        }
+        if method.kind == EntityKind::MethodDefinition && definition.is_none() {
+            return Err(MddError::new(
+                ErrorCode::InvalidArgument,
+                "facts.parameters",
+                "method definition does not exist in this occurrence",
+            ));
+        }
+        let prototype = self
+            .definitions
+            .metadata()
+            .prototypes()
+            .get(reference.proto_idx as usize)
+            .map(|fact| &fact.data)
+            .filter(|prototype| prototype.proto_idx == reference.proto_idx)
+            .ok_or_else(broken)?;
+        let count = u64::try_from(prototype.parameter_type_indices.len()).map_err(|_| {
+            MddError::new(
+                ErrorCode::QuotaExceeded,
+                "facts.parameters",
+                "parameter count overflow",
+            )
+        })?;
+        if count > limits.max_parameters || count > u64::from(u32::MAX) {
+            return Err(MddError::new(
+                ErrorCode::QuotaExceeded,
+                "facts.parameters",
+                "parameter count budget exceeded",
+            ));
+        }
+        for index in &prototype.parameter_type_indices {
+            if !self
+                .definitions
+                .metadata()
+                .types()
+                .get(*index as usize)
+                .is_some_and(|fact| fact.data.type_idx == *index)
+            {
+                return Err(broken());
+            }
+        }
+        let mut bindings = self
+            .data
+            .parameter_lists
+            .iter()
+            .filter(|binding| binding.method_idx == method.local_index);
+        let binding = bindings.next();
+        if bindings.next().is_some() {
+            return Err(broken());
+        }
+        let encoded_list = if let Some(binding) = binding {
+            if !binding.encoded_slots_complete
+                || binding.prototype_position_coverage != Completeness::Complete
+            {
+                return Err(MddError::new(
+                    ErrorCode::IncompleteFacts,
+                    "facts.parameters",
+                    "prototype positions for encoded annotation slots are not complete",
+                )
+                .detail("required_layer", "prototype_parameter_annotation_positions"));
+            }
+            if u64::from(binding.prototype_parameter_count) != count
+                || u64::from(binding.encoded_slot_count) != count
+            {
+                return Err(broken());
+            }
+            let mut lists = self
+                .data
+                .ref_lists
+                .iter()
+                .filter(|list| list.byte_offset == binding.ref_list_byte_offset);
+            let list = lists.next().ok_or_else(broken)?;
+            if lists.next().is_some()
+                || list.annotation_set_offsets.len() != prototype.parameter_type_indices.len()
+            {
+                return Err(broken());
+            }
+            Some(list)
+        } else {
+            None
+        };
+        Ok(MethodParameterFacts {
+            facts: self,
+            method_reference: reference,
+            definition,
+            prototype,
+            encoded_list,
+        })
+    }
     pub fn data(&self) -> &DexAnnotations {
         &self.data
     }
@@ -616,6 +887,196 @@ mod tests {
             MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default()).unwrap();
         let definitions = DefinitionFacts::build(metadata, DefinitionLimits::default()).unwrap();
         AnnotationFacts::build(definitions, AnnotationLimits::default()).unwrap()
+    }
+    #[test]
+    fn method_parameter_view_distinguishes_missing_list_zero_slot_and_unknown_position() {
+        let facts = build("tests/fixtures/annotations/generated/annotations-038.dex");
+        let reference = facts
+            .definitions()
+            .entity(EntityKind::MethodReference, 0)
+            .unwrap();
+        let definition = facts
+            .definitions()
+            .entity(EntityKind::MethodDefinition, 0)
+            .unwrap();
+        for method in [&reference, &definition] {
+            let view = facts
+                .method_parameter_facts(method, ParameterViewLimits::default())
+                .unwrap();
+            assert_eq!(view.source().snapshot_id, facts.source().snapshot_id);
+            assert_eq!(
+                view.source().dex_occurrence_id,
+                facts.source().dex_occurrence_id
+            );
+            assert_eq!(view.source().content_id, facts.source().content_id);
+            assert!(view.definition.is_some());
+            assert!(view.encoded_list.is_some());
+            let parameters = view.iter().collect::<MddResult<Vec<_>>>().unwrap();
+            assert_eq!(parameters.len(), 2);
+            assert_eq!(parameters[0].ordinal, 0);
+            assert_eq!(parameters[0].parameter_type.descriptor, "Ljava/util/List;");
+            assert!(
+                matches!(parameters[0].annotation_encoding, ParameterAnnotationEncoding::SetOffset(offset) if offset > 0)
+            );
+            assert_eq!(parameters[1].ordinal, 1);
+            assert_eq!(parameters[1].parameter_type.descriptor, "I");
+            assert_eq!(
+                parameters[1].annotation_encoding,
+                ParameterAnnotationEncoding::ExplicitZeroSlot
+            );
+        }
+        let no_list = build("tests/fixtures/definitions/generated/definitions-035.dex");
+        let external = no_list
+            .definitions()
+            .definitions()
+            .method_references
+            .iter()
+            .find(|method| method.method_name == "externalCall")
+            .unwrap();
+        let method = no_list
+            .definitions()
+            .entity(EntityKind::MethodReference, external.method_idx)
+            .unwrap();
+        let view = no_list
+            .method_parameter_facts(&method, ParameterViewLimits::default())
+            .unwrap();
+        assert!(view.definition.is_none());
+        assert!(view.encoded_list.is_none());
+        let parameters = view.iter().collect::<MddResult<Vec<_>>>().unwrap();
+        assert_eq!(parameters.len(), 1);
+        assert_eq!(
+            parameters[0].annotation_encoding,
+            ParameterAnnotationEncoding::NoEncodedList
+        );
+        let short = build("tests/fixtures/annotations/generated/bad-parameter-arity.dex");
+        let short_method = short
+            .definitions()
+            .entity(EntityKind::MethodReference, 0)
+            .unwrap();
+        let error = short
+            .method_parameter_facts(&short_method, ParameterViewLimits::default())
+            .err()
+            .unwrap();
+        assert_eq!(error.code, ErrorCode::IncompleteFacts);
+        assert_eq!(
+            error.details["required_layer"],
+            "prototype_parameter_annotation_positions"
+        );
+        for limits in [
+            ParameterViewLimits {
+                max_scan_entries: 0,
+                ..ParameterViewLimits::default()
+            },
+            ParameterViewLimits {
+                max_parameters: 0,
+                ..ParameterViewLimits::default()
+            },
+        ] {
+            assert_eq!(
+                facts
+                    .method_parameter_facts(&reference, limits)
+                    .err()
+                    .unwrap()
+                    .code,
+                ErrorCode::QuotaExceeded
+            );
+        }
+        let mut incomplete = facts.clone();
+        incomplete.annotation_coverage = Completeness::Unknown;
+        assert_eq!(
+            incomplete
+                .method_parameter_facts(&reference, ParameterViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::IncompleteFacts
+        );
+        let mut inconsistent = facts.clone();
+        inconsistent.data.parameter_lists[0].prototype_parameter_count += 1;
+        assert_eq!(
+            inconsistent
+                .method_parameter_facts(&reference, ParameterViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InternalFault
+        );
+        let other = build("tests/fixtures/annotations/generated/annotations-038.dex");
+        let foreign = other
+            .definitions()
+            .entity(EntityKind::MethodReference, 0)
+            .unwrap();
+        assert_eq!(
+            facts
+                .method_parameter_facts(&foreign, ParameterViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InvalidArgument
+        );
+        let wrong_kind = facts
+            .definitions()
+            .entity(EntityKind::FieldReference, 0)
+            .unwrap();
+        assert_eq!(
+            facts
+                .method_parameter_facts(&wrong_kind, ParameterViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InvalidArgument
+        );
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/annotations/generated/annotations-038.dex");
+        let input = InputSpec {
+            path,
+            kind: InputKind::RawDex,
+            expected_sha256: None,
+        };
+        let snapshot =
+            Snapshot::capture(&[input.clone(), input], CaptureLimits::default()).unwrap();
+        let repeated: Vec<_> = snapshot
+            .sources()
+            .iter()
+            .map(|source| {
+                let inventory = ArchiveInventory::build(
+                    source,
+                    InventoryPolicy::default(),
+                    ArchiveLimits::default(),
+                )
+                .unwrap();
+                let metadata =
+                    MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default())
+                        .unwrap();
+                let definitions =
+                    DefinitionFacts::build(metadata, DefinitionLimits::default()).unwrap();
+                AnnotationFacts::build(definitions, AnnotationLimits::default()).unwrap()
+            })
+            .collect();
+        assert_eq!(
+            repeated[0].source().snapshot_id,
+            repeated[1].source().snapshot_id
+        );
+        assert_eq!(
+            repeated[0].source().content_id,
+            repeated[1].source().content_id
+        );
+        assert_ne!(
+            repeated[0].source().dex_occurrence_id,
+            repeated[1].source().dex_occurrence_id
+        );
+        let other_occurrence = repeated[1]
+            .definitions()
+            .entity(EntityKind::MethodReference, 0)
+            .unwrap();
+        assert_eq!(
+            repeated[0]
+                .method_parameter_facts(&other_occurrence, ParameterViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InvalidArgument
+        );
     }
     fn canonical(rows: &serde_json::Value) -> Vec<String> {
         let mut values = rows

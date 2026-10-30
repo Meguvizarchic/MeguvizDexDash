@@ -136,6 +136,8 @@ MDD-005 A2 查询转换候选位于 benchmarks/a2_compact_adapter.py，涵盖sha
 
 2026-10-30 继续功能候选（统一验证延后）：MDD-026 新增同源method→code借用视图，绑定snapshot/occurrence/member/content并逐项核对真实物理code item起点和指令范围；区分reference-only、native、abstract、present及有体空指令，scoped缺项/partial明确失败，局部一项测试通过；旧opcode_count/hex、真实跨代和独立oracle未验证。MDD-031 对相关子查询IN按作用域由内向外解析可证明的基础表列，未知CTE/派生scope阻断推断、遮蔽/歧义/缺列保留真实绑定错误；局部首测发现合法CTE内部READ被预检误拒，后仅对当前AST可见CTE且database=None/column空的容器读取放行，局部测试及sqlite_master/DELETE/ATTACH拒绝检查通过。合成反例不证明真实HostLab corpus，A0/A1、独立安全及全量验证not_run。MDD-005 新增A1独占dataset生命周期组合，共享client/source/deadline，open/消费/close失败或取消要求owner确认中止；9项模拟客户端局部检查通过，记录 artifacts/mdd-005/a2-dataset-lifecycle-20261030/run2/record.json，不证明真实producer、快照、总序或A2资格。
 
+2026-10-30 持续功能候选（全量验证后续统一执行）：MDD-026 增加同快照和DEX出现内的方法参数借用视图，区分未编码列表、显式零槽、非零集合及短列表Unknown；注解未建或位置不完整返回INCOMPLETE_FACTS，局部一项测试通过，兼容文本映射和独立oracle未运行。MDD-031 已解析CTE名称随PreparedSql传递；执行authorizer只放行database=None、空列名且名称命中的SQLite内部CTE容器读取，局部红绿覆盖直接/嵌套CTE及系统表、写入、ATTACH拒绝，A0/A1、独立安全和全量not_run。MDD-005 增加Windows自有Job持有期候选：隐藏无继承子进程挂起创建，分配验证后恢复，取消/期限/关闭核验自有child及Job归零；首次Job参数错误和中间清理竞态失败保留，最终 run5 注入创建失败时实际直接终止访问拒绝保留，随后确认同一子进程退出和树空，见 artifacts/mdd-005/a2-windows-job-owner-20261030/run5/record.json。无MCP双向通道，不证明Linux、输入快照、完整A2或资源资格。
+
 MDD-031 SQL桥仍进行中：受限虚表、会话预算绑定、U64真值、USING和子串路径有本机测试；独立真值18例及固定A0/A1子串16例通过，合成Q15结果与SQLite一致。真实完整corpus、legacy适配及生产工作区内存绑定尚未验收。检查点862b3dd的 Windows 离线测试161项、0失败/跳过，工作区严格Clippy通过，命令记录在 artifacts/integration/20261029/workspace-tests/ 与 workspace-clippy/。
 
 后续 SQL 结果驻留预算修复在 Windows 工作区重新运行165项测试、0失败/跳过及严格Clippy；零行 schema 的零预算错误、结果持有与释放独立复现。该计量是保守逻辑额度，SQLite内部分配、provider/调用方副本、传输缓冲及租约自身元数据仍需单独准入，不能称 RSS 硬上限。证据 artifacts/mdd-031-audit/result-memory-probe/after-fix.json、artifacts/integration/20261029/workspace-tests-result-budget/record.json。
