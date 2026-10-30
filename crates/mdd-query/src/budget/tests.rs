@@ -3,6 +3,70 @@ use std::sync::mpsc;
 use std::thread;
 
 #[test]
+fn deadline_is_checked_while_budget_admission_lock_is_held() {
+    let pool = BudgetPool::global("deadline-atomic".into(), BudgetLimits::default()).unwrap();
+    let allocation = Arc::new(vec![1u8; 8]);
+    let existing = pool
+        .reserve_arc(&allocation, Resource::InputResidentBytes, 8)
+        .unwrap();
+    let before = pool.usage().unwrap().used;
+
+    // Hold the state lock across the point where admission waits; inject an
+    // expired soft deadline before it can enter. This tests the actual public
+    // admission path without relying on scheduler timings.
+    let mut state = pool.lock().unwrap();
+    let worker_pool = pool.clone();
+    let (ready_tx, ready_rx) = mpsc::channel();
+    let worker = thread::spawn(move || {
+        ready_tx.send(()).unwrap();
+        worker_pool.charge(Resource::QuerySteps, 1)
+    });
+    ready_rx.recv().unwrap();
+    let now = Instant::now();
+    let node = state.nodes.get_mut(&pool.owner).unwrap();
+    node.soft = now;
+    node.hard = now.checked_add(Duration::from_secs(1)).unwrap();
+    drop(state);
+    assert_eq!(
+        worker.join().unwrap().unwrap_err().code,
+        ErrorCode::DeadlineExceeded
+    );
+
+    assert_eq!(
+        pool.reserve(Resource::QueueBytes, 1).err().unwrap().code,
+        ErrorCode::DeadlineExceeded
+    );
+    assert_eq!(
+        pool.reserve_arc(&allocation, Resource::InputResidentBytes, 8)
+            .err()
+            .unwrap()
+            .code,
+        ErrorCode::DeadlineExceeded
+    );
+    assert_eq!(
+        pool.check_individual(Resource::MemberUncompressedBytes, 1)
+            .unwrap_err()
+            .code,
+        ErrorCode::DeadlineExceeded
+    );
+    assert_eq!(
+        pool.check_cumulative(Resource::OutputBytes, 1)
+            .unwrap_err()
+            .code,
+        ErrorCode::DeadlineExceeded
+    );
+    assert_eq!(pool.usage().unwrap().used, before);
+    drop(existing);
+    assert_eq!(
+        pool.usage()
+            .unwrap()
+            .used
+            .get(&Resource::InputResidentBytes),
+        Some(&DecimalU64(0))
+    );
+}
+
+#[test]
 fn remaining_physical_memory_respects_shared_resident_and_ancestors() {
     let limits = BudgetLimits::default()
         .with(Resource::ResidentBytes, 100)

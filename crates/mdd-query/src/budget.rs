@@ -328,8 +328,13 @@ impl BudgetPool {
     }
     pub fn checkpoint(&self) -> MddResult<()> {
         let state = self.lock()?;
+        self.checkpoint_locked(&state, Instant::now())
+    }
+    // Check the deadline under the same lock used by the operation that will
+    // consume or reserve a budget. The deadline is an admission instant, not a
+    // guarantee that work will complete before it expires.
+    fn checkpoint_locked(&self, state: &State, now: Instant) -> MddResult<()> {
         let node = &state.nodes[&self.owner];
-        let now = Instant::now();
         if now >= node.soft {
             let hard = now >= node.hard;
             return Err(MddError::new(
@@ -381,8 +386,9 @@ impl BudgetPool {
         Ok(self.lock()?.nodes[&self.owner].limits.limit(resource))
     }
     pub fn check_individual(&self, resource: Resource, bytes: u64) -> MddResult<()> {
-        self.checkpoint()?;
-        let limit = self.limit(resource)?;
+        let state = self.lock()?;
+        self.checkpoint_locked(&state, Instant::now())?;
+        let limit = state.nodes[&self.owner].limits.limit(resource);
         if bytes > limit {
             Err(exceeded(resource, limit, bytes, &self.owner))
         } else {
@@ -422,11 +428,11 @@ impl BudgetPool {
     /// Check one cumulative charge against all current ancestors without committing it.
     /// A subsequent charge still rechecks atomically because siblings may change usage.
     pub(crate) fn check_cumulative(&self, resource: Resource, amount: u64) -> MddResult<()> {
-        self.checkpoint()?;
+        let state = self.lock()?;
+        self.checkpoint_locked(&state, Instant::now())?;
         if resource.resident() || resource == Resource::MemberUncompressedBytes {
             return Err(invalid("resource requires reservation or per-member check"));
         }
-        let state = self.lock()?;
         for owner in Self::ancestors(&state, &self.owner) {
             let node = &state.nodes[&owner];
             let limit = node.limits.limit(resource);
@@ -495,11 +501,11 @@ impl BudgetPool {
         Ok(())
     }
     pub fn charge(&self, resource: Resource, amount: u64) -> MddResult<()> {
-        self.checkpoint()?;
+        let mut state = self.lock()?;
+        self.checkpoint_locked(&state, Instant::now())?;
         if resource.resident() || resource == Resource::MemberUncompressedBytes {
             return Err(invalid("resource requires reservation or per-member check"));
         }
-        let mut state = self.lock()?;
         Self::add(&mut state, &self.owner, resource, amount)
     }
     pub fn admit(&self, resource: Resource, maximum: u64) -> MddResult<Admission> {
@@ -534,11 +540,11 @@ impl BudgetPool {
         allocation: Option<String>,
         keeper: Option<Box<dyn KeepAlive>>,
     ) -> MddResult<Reservation> {
-        self.checkpoint()?;
+        let mut state = self.lock()?;
+        self.checkpoint_locked(&state, Instant::now())?;
         if !resource.resident() {
             return Err(invalid("resource is cumulative, not resident"));
         }
-        let mut state = self.lock()?;
         let shared_key = allocation.map(|key| (self.owner.clone(), key, resource));
         if let Some(key) = &shared_key
             && let Some(existing) = state.shared.get(key).and_then(|v| v.weak.upgrade())

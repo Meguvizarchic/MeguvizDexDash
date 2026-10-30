@@ -1,0 +1,39 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "mdd-query",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "1",
+    "deadline_is_checked_while_budget_admission_lock_is_held",
+    "--",
+    "--nocapture"
+  ],
+  "started_utc": "2026-10-30T14:07:32.111952+00:00",
+  "finished_utc": "2026-10-30T14:07:44.604501+00:00",
+  "exit_code": 0,
+  "source_before": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-query/Cargo.toml": "eb0e0c3d083ae0f3257a44519d9ffd1fa59bab82a332c1e20a16a7efb840d51d",
+    "crates/mdd-query/src/budget.rs": "fd77befe27ae69fbb80be602c7c1a5fa0e69b7d6c82edfffb148769d9e5984ed",
+    "crates/mdd-query/src/budget/tests.rs": "2dfe26ec4aabb865bc66e75b5faf2d09c9baa5c286b85b6c8241bda8686845fa",
+    "crates/mdd-session/src/cancellation.rs": "ebf6ef5fd3c84f1400297f459b9794d089e97cd497e5cb33883b70f12ca25cdc"
+  },
+  "source_after": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-query/Cargo.toml": "eb0e0c3d083ae0f3257a44519d9ffd1fa59bab82a332c1e20a16a7efb840d51d",
+    "crates/mdd-query/src/budget.rs": "fd77befe27ae69fbb80be602c7c1a5fa0e69b7d6c82edfffb148769d9e5984ed",
+    "crates/mdd-query/src/budget/tests.rs": "2dfe26ec4aabb865bc66e75b5faf2d09c9baa5c286b85b6c8241bda8686845fa",
+    "crates/mdd-session/src/cancellation.rs": "ebf6ef5fd3c84f1400297f459b9794d089e97cd497e5cb33883b70f12ca25cdc"
+  },
+  "stderr_raw_sha256": "ddd53b302d53ea527ac3faf24d7b647a9c63b92fe85b41a622ae49c19507e0e8",
+  "stderr_redaction": "workspace path replaced, original retained in ignored local evidence",
+  "scope": "one synthetic injected-deadline budget admission test; old race not independently reproduced, no real-time or full qualification"
+}

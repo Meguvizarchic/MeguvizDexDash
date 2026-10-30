@@ -160,6 +160,14 @@ pub struct MethodCallSite<'a> {
     pub caller: &'a MethodReference,
     pub callee: &'a MethodReference,
 }
+/// An encoded invoke-custom occurrence and its bootstrap metadata. The
+/// bootstrap target is not the dynamically resolved runtime callee.
+pub struct DynamicCallReferenceSite<'a> {
+    pub source: &'a MetadataSource,
+    pub site: &'a LocalReferenceSite,
+    pub caller: &'a MethodReference,
+    pub dynamic: &'a DynamicCallSite,
+}
 /// Bounds total site visits across both linear scans, not bytes or process RSS.
 #[derive(Clone, Copy, Debug)]
 pub struct NamedReferenceViewLimits {
@@ -920,6 +928,78 @@ impl ReferenceFacts {
     }
     pub fn dynamic_calls(&self) -> &[DynamicCallSite] {
         &self.dynamic_calls
+    }
+    /// Borrow every encoded invoke-custom occurrence in site order. This is
+    /// not a resolved call graph; the runtime target remains unknown. Scanning
+    /// is bounded by `sites.len() + 2 * dynamic_calls.len()` logical visits,
+    /// including the validation and returned iteration passes, not CPU or RSS.
+    pub fn dynamic_call_reference_sites(
+        &self,
+        limits: NamedReferenceViewLimits,
+    ) -> MddResult<impl Iterator<Item = MddResult<DynamicCallReferenceSite<'_>>> + '_> {
+        self.require_complete()?;
+        let dynamic_count = u64::try_from(self.dynamic_calls.len())
+            .map_err(|_| quota("DYNAMIC_CALL_SITE_RESULT_BUDGET"))?;
+        let visits = u64::try_from(self.sites.len())
+            .ok()
+            .and_then(|n| dynamic_count.checked_mul(2).and_then(|d| n.checked_add(d)))
+            .ok_or_else(|| quota("DYNAMIC_CALL_SITE_SCAN_BUDGET"))?;
+        if visits > limits.max_scanned_sites {
+            return Err(quota("DYNAMIC_CALL_SITE_SCAN_BUDGET"));
+        }
+        if dynamic_count > limits.max_result_sites {
+            return Err(quota("DYNAMIC_CALL_SITE_RESULT_BUDGET"));
+        }
+        let inconsistent = || {
+            MddError::new(
+                ErrorCode::InternalFault,
+                "facts.references.dynamic_calls",
+                "validated dynamic call identity is inconsistent",
+            )
+        };
+        let encoded_count = u64::try_from(
+            self.sites
+                .iter()
+                .filter(|site| site.target_kind == TargetKind::CallSite)
+                .count(),
+        )
+        .map_err(|_| inconsistent())?;
+        if encoded_count != dynamic_count
+            || self
+                .dynamic_calls
+                .windows(2)
+                .any(|pair| pair[0].site_ordinal >= pair[1].site_ordinal)
+        {
+            return Err(inconsistent());
+        }
+        Ok(self.dynamic_calls.iter().map(move |dynamic| {
+            let site = self
+                .sites
+                .get(dynamic.site_ordinal as usize)
+                .filter(|site| {
+                    site.site_ordinal == dynamic.site_ordinal
+                        && site.target_kind == TargetKind::CallSite
+                        && site.target_local_index == dynamic.call_site_idx
+                        && matches!(
+                            site.invoke_kind,
+                            Some(InvokeKind::Custom | InvokeKind::CustomRange)
+                        )
+                })
+                .ok_or_else(inconsistent)?;
+            let caller = self
+                .definitions
+                .definitions()
+                .method_references
+                .get(site.caller_method_idx as usize)
+                .filter(|caller| caller.method_idx == site.caller_method_idx)
+                .ok_or_else(inconsistent)?;
+            Ok(DynamicCallReferenceSite {
+                source: self.source(),
+                site,
+                caller,
+                dynamic,
+            })
+        }))
     }
     pub fn coverage(&self) -> &ReferenceCoverage {
         &self.coverage
@@ -2778,6 +2858,136 @@ mod tests {
         assert_eq!(handles.method_handle_metadata().unwrap().len(), 2);
         assert_eq!(handles.method_call_rows(0).unwrap().len(), 4);
         assert_eq!(handles.method_field_rows(0).unwrap().len(), 2);
+    }
+
+    #[test]
+    fn dynamic_call_reference_view_preserves_oracle_sites_and_sources() {
+        let data = setup("poly-custom-038", 2).unwrap();
+        let oracle: Value = serde_json::from_str(include_str!(
+            "../../../tests/fixtures/references/oracle-results.json"
+        ))
+        .unwrap();
+        let expected = oracle["results"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|row| {
+                row["path"]
+                    .as_str()
+                    .unwrap()
+                    .ends_with("/poly-custom-038.dex")
+            })
+            .unwrap()["dynamic_calls"]
+            .as_array()
+            .unwrap();
+        let mut occurrences = Vec::new();
+        for ordinal in 0..2 {
+            let facts = ReferenceFacts::build(
+                data.definitions[ordinal].clone(),
+                data.code[ordinal].clone(),
+                ReferenceLimits::default(),
+            )
+            .unwrap();
+            let visits = facts.sites().len() as u64 + 2 * facts.dynamic_calls().len() as u64;
+            let limits = NamedReferenceViewLimits {
+                max_scanned_sites: visits,
+                max_result_sites: expected.len() as u64,
+            };
+            let calls = facts
+                .dynamic_call_reference_sites(limits)
+                .unwrap()
+                .collect::<MddResult<Vec<_>>>()
+                .unwrap();
+            assert_eq!(calls.len(), expected.len());
+            for (call, row) in calls.iter().zip(expected) {
+                assert_eq!(
+                    u64::from(call.caller.method_idx),
+                    row["caller_method_idx"].as_u64().unwrap()
+                );
+                assert_eq!(
+                    u64::from(call.site.code_unit_pc),
+                    row["pc"].as_u64().unwrap()
+                );
+                assert_eq!(
+                    u64::from(call.dynamic.call_site_idx),
+                    row["call_site_idx"].as_u64().unwrap()
+                );
+                assert!(
+                    call.dynamic
+                        .runtime_target_status
+                        .contains(row["runtime_target"].as_str().unwrap())
+                );
+                assert_eq!(
+                    call.source.dex_occurrence_id,
+                    facts.source().dex_occurrence_id
+                );
+            }
+            assert_eq!(
+                facts
+                    .dynamic_call_reference_sites(NamedReferenceViewLimits {
+                        max_scanned_sites: visits - 1,
+                        ..limits
+                    })
+                    .err()
+                    .unwrap()
+                    .code,
+                ErrorCode::QuotaExceeded
+            );
+            assert_eq!(
+                facts
+                    .dynamic_call_reference_sites(NamedReferenceViewLimits {
+                        max_result_sites: 1,
+                        ..limits
+                    })
+                    .err()
+                    .unwrap()
+                    .code,
+                ErrorCode::QuotaExceeded
+            );
+            occurrences.push(facts.source().dex_occurrence_id.clone());
+            let mut partial = facts.clone();
+            partial.coverage.facts = Completeness::Partial;
+            assert_eq!(
+                partial
+                    .dynamic_call_reference_sites(limits)
+                    .err()
+                    .unwrap()
+                    .code,
+                ErrorCode::IncompleteFacts
+            );
+            let mut duplicate = facts.clone();
+            duplicate.dynamic_calls[1].site_ordinal = duplicate.dynamic_calls[0].site_ordinal;
+            assert_eq!(
+                duplicate
+                    .dynamic_call_reference_sites(limits)
+                    .err()
+                    .unwrap()
+                    .code,
+                ErrorCode::InternalFault
+            );
+            let mut broken = facts.clone();
+            broken.dynamic_calls[0].call_site_idx += 1;
+            assert_eq!(
+                broken
+                    .dynamic_call_reference_sites(limits)
+                    .unwrap()
+                    .next()
+                    .unwrap()
+                    .err()
+                    .unwrap()
+                    .code,
+                ErrorCode::InternalFault
+            );
+        }
+        assert_ne!(occurrences[0], occurrences[1]);
+        let ordinary = build("classic-035", ReferenceLimits::default()).unwrap();
+        assert_eq!(
+            ordinary
+                .dynamic_call_reference_sites(NamedReferenceViewLimits::default())
+                .unwrap()
+                .count(),
+            0
+        );
     }
 
     #[test]

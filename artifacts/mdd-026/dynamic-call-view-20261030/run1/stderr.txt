@@ -1,0 +1,5 @@
+   Compiling mdd-facts v0.1.0-dev (<workspace>\crates\mdd-facts)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 12.95s
+     Running unittests src\lib.rs (target\debug\deps\mdd_facts-f5fcaccb54dddfd1.exe)
+     Running tests\opcode_projection.rs (target\debug\deps\opcode_projection-660a6c1d51f9b61c.exe)
+     Running tests\parameter_descriptors.rs (target\debug\deps\parameter_descriptors-74aef1c8ca19de1d.exe)

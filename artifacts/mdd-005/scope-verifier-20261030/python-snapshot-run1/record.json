@@ -1,0 +1,19 @@
+{
+  "started_utc": "2026-10-30T14:07:21.8594146Z",
+  "source_after": {
+    "benchmarks/snapshot_commitment.py": "4c705bfdd4bae6deadd601283c9cff873becf7051f72686015956d0928dc6ebc",
+    "artifacts/mdd-005/scope-verifier-20261030/probe.py": "73ebb0f691f5005069b644c484bacb4ee3c8927d9ba6e40c1d65b89f4dc291d5",
+    "benchmarks/scope_commitment.py": "b23341b4dc884e1b5364949d2bad33606814cfd64389617f55e3151587cbfe1c",
+    "artifacts/mdd-005/scope-verifier-20261030/cross_check.py": "e7e5cdd21a350a44ab32f13455abdbea966748a273f041a210f1de4041425e4b"
+  },
+  "scope": "synthetic scope and snapshot framing; external identity trust not authenticated",
+  "exit_code": 0,
+  "source_before": {
+    "benchmarks/snapshot_commitment.py": "4c705bfdd4bae6deadd601283c9cff873becf7051f72686015956d0928dc6ebc",
+    "artifacts/mdd-005/scope-verifier-20261030/probe.py": "73ebb0f691f5005069b644c484bacb4ee3c8927d9ba6e40c1d65b89f4dc291d5",
+    "benchmarks/scope_commitment.py": "b23341b4dc884e1b5364949d2bad33606814cfd64389617f55e3151587cbfe1c",
+    "artifacts/mdd-005/scope-verifier-20261030/cross_check.py": "e7e5cdd21a350a44ab32f13455abdbea966748a273f041a210f1de4041425e4b"
+  },
+  "finished_utc": "2026-10-30T14:07:22.2472231Z",
+  "command": "python -B -O artifacts/mdd-005/scope-verifier-20261030/probe.py"
+}

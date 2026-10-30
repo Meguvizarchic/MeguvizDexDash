@@ -1,0 +1,49 @@
+{
+  "command": [
+    "cargo",
+    "run",
+    "-p",
+    "mdd-facts",
+    "--example",
+    "scope_commitment_export",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "1",
+    "--",
+    "tests/fixtures/generated/multidex-stored.apk",
+    "tests/fixtures/generated/multidex-stored.apk"
+  ],
+  "started_utc": "2026-10-30T14:08:55.003477+00:00",
+  "exit_code": 0,
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "crates/mdd-facts/examples/scope_commitment_export.rs": "6f32f917d8df76c4b5f979267f0dcf4db0d149f83cca548861130326d43ace30",
+    "crates/mdd-facts/src/indexes/scope.rs": "3fc13c036409a0abe526cb9a2da83f35f88f606a1b7f61d45bd3f38b689f84b3",
+    "crates/mdd-input/src/archive/mod.rs": "8b950285850f05925d18e4876f176cb64583879bd24309a3b5bb97a31c339428",
+    "crates/mdd-input/src/snapshot/mod.rs": "7b5b2afd099609c2787a960e93cc6e104e0e7ce508a2d6c1820a3ea63fcf93a0",
+    "benchmarks/snapshot_commitment.py": "035586b5c644699d62ed597ca9c926b3db8f3b2e87c915705058aac77c46bae5",
+    "benchmarks/scope_commitment.py": "b23341b4dc884e1b5364949d2bad33606814cfd64389617f55e3151587cbfe1c",
+    "artifacts/mdd-005/scope-verifier-20261030/cross_check.py": "e7e5cdd21a350a44ab32f13455abdbea966748a273f041a210f1de4041425e4b",
+    "tests/fixtures/generated/multidex-stored.apk": "6b88277747a49dfddcc91900c171ae6420449cc424d57ffd46f896891ad26098"
+  },
+  "scope": "two synthetic APK occurrences; Rust snapshot ID observed, not independently authenticated",
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "crates/mdd-facts/examples/scope_commitment_export.rs": "6f32f917d8df76c4b5f979267f0dcf4db0d149f83cca548861130326d43ace30",
+    "crates/mdd-facts/src/indexes/scope.rs": "3fc13c036409a0abe526cb9a2da83f35f88f606a1b7f61d45bd3f38b689f84b3",
+    "crates/mdd-input/src/archive/mod.rs": "8b950285850f05925d18e4876f176cb64583879bd24309a3b5bb97a31c339428",
+    "crates/mdd-input/src/snapshot/mod.rs": "7b5b2afd099609c2787a960e93cc6e104e0e7ce508a2d6c1820a3ea63fcf93a0",
+    "benchmarks/snapshot_commitment.py": "035586b5c644699d62ed597ca9c926b3db8f3b2e87c915705058aac77c46bae5",
+    "benchmarks/scope_commitment.py": "b23341b4dc884e1b5364949d2bad33606814cfd64389617f55e3151587cbfe1c",
+    "artifacts/mdd-005/scope-verifier-20261030/cross_check.py": "e7e5cdd21a350a44ab32f13455abdbea966748a273f041a210f1de4041425e4b",
+    "tests/fixtures/generated/multidex-stored.apk": "6b88277747a49dfddcc91900c171ae6420449cc424d57ffd46f896891ad26098"
+  },
+  "status": "passed",
+  "input_count": 2,
+  "dex_count": 4,
+  "snapshot_content_key": "sha256:173a90a8c63aa2123936c114533ea9e5492b6f03ca1971759340a13fa47fe703",
+  "preimage_sha256": "23a179ea5662db04addefbd40074ff115967c3cd3a51d43242c39eec3169dc80",
+  "negative_changed_input": "rejected",
+  "finished_utc": "2026-10-30T14:08:56.733455+00:00"
+}

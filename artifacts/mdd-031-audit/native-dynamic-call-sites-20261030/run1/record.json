@@ -1,0 +1,71 @@
+{
+  "started_utc": "2026-10-30T14:08:25.121256+00:00",
+  "source_before": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-sql/src/provider/metadata.rs": "68ada456fe8b6ca07846eebefbafad02aea4dfa1006fcf0f38b4d0bf247bed65",
+    "crates/mdd-sql/src/provider.rs": "27cdcc535265c054e4c470ab737cf5402abb9c734b2d5894a2b1cb439d0ace56",
+    "crates/mdd-sql/src/bridge.rs": "abbc35457966512c0035887022f8a6ff6bd13aaf21f95175b9de5c770ddadb32",
+    "crates/mdd-facts/src/references.rs": "51cc6630028bf2d14489320f3fce94c0970d096ea69512db6e0332dce075c254",
+    "crates/mdd-dex/src/instructions/mod.rs": "b2188ce78fb2846a1aa954483c4e71894c97ac3cf010b13cbeb8f01d0ce28456",
+    "tests/fixtures/references/generated/poly-custom-038.dex": "25bc5a03641d31d87212a9a292d798e64c563e2666d03f579e7fc894ac8ee425",
+    "tests/fixtures/references/oracle-results.json": "2a4decaf563592449229a9a494c804609b686fc8bbe4eb4cb21cf588db3070ad"
+  },
+  "runs": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-sql",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "native_reference_sites_keep_operand_and_occurrence_identity",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-10-30T14:08:25.125027+00:00",
+      "finished_utc": "2026-10-30T14:08:40.996427+00:00",
+      "exit_code": 0,
+      "raw_stderr_sha256": "ebdeac2282d1ce6887aaff137b12cad14096546be15a0e512b1e7d486fc8786a",
+      "stderr_redaction": "workspace path replaced, original retained locally"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-sql",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "combined_reference_sites_join_only_matching_occurrences",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-10-30T14:08:40.996612+00:00",
+      "finished_utc": "2026-10-30T14:08:41.382366+00:00",
+      "exit_code": 0,
+      "raw_stderr_sha256": "20eb71464b183dd23322b2c9190d0f70d02a6b64265bfbd4cb492ae2860a8c48",
+      "stderr_redaction": "workspace path replaced, original retained locally"
+    }
+  ],
+  "scope": "two local synthetic SQL tests; selected file hashes only; no profile or performance qualification",
+  "source_after": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-sql/src/provider/metadata.rs": "68ada456fe8b6ca07846eebefbafad02aea4dfa1006fcf0f38b4d0bf247bed65",
+    "crates/mdd-sql/src/provider.rs": "27cdcc535265c054e4c470ab737cf5402abb9c734b2d5894a2b1cb439d0ace56",
+    "crates/mdd-sql/src/bridge.rs": "abbc35457966512c0035887022f8a6ff6bd13aaf21f95175b9de5c770ddadb32",
+    "crates/mdd-facts/src/references.rs": "51cc6630028bf2d14489320f3fce94c0970d096ea69512db6e0332dce075c254",
+    "crates/mdd-dex/src/instructions/mod.rs": "b2188ce78fb2846a1aa954483c4e71894c97ac3cf010b13cbeb8f01d0ce28456",
+    "tests/fixtures/references/generated/poly-custom-038.dex": "25bc5a03641d31d87212a9a292d798e64c563e2666d03f579e7fc894ac8ee425",
+    "tests/fixtures/references/oracle-results.json": "2a4decaf563592449229a9a494c804609b686fc8bbe4eb4cb21cf588db3070ad"
+  },
+  "finished_utc": "2026-10-30T14:08:41.384260+00:00"
+}

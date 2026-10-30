@@ -2141,6 +2141,7 @@ pub struct ReferenceSqlProvider {
 fn is_reference_relation(name: &str) -> bool {
     name.eq_ignore_ascii_case("native_reference_sites")
         || name.eq_ignore_ascii_case("native_method_call_sites")
+        || name.eq_ignore_ascii_case("native_dynamic_call_sites")
 }
 impl ReferenceSqlProvider {
     pub fn new(
@@ -2178,6 +2179,71 @@ struct ReferenceCursor {
     ordinal: usize,
     method_calls_only: bool,
     control: SqlControl,
+}
+
+/// One row per encoded invoke-custom call-site operand; bootstrap metadata
+/// describes static input and is not the runtime dispatch target.
+struct DynamicReferenceCursor {
+    provider: Arc<ReferenceSqlProvider>,
+    occurrence: usize,
+    ordinal: usize,
+    control: SqlControl,
+}
+impl SqlFactCursor for DynamicReferenceCursor {
+    fn next_row(&mut self) -> MddResult<Option<SqlRow>> {
+        use mdd_dex::instructions::InvokeKind;
+        use mdd_facts::references::TargetKind;
+        while let Some(facts) = self.provider.occurrences.get(self.occurrence) {
+            self.control.checkpoint(1, false)?;
+            if let Some(call) = facts.dynamic_calls().get(self.ordinal) {
+                self.control.work(160)?;
+                let site = facts
+                    .sites()
+                    .get(call.site_ordinal as usize)
+                    .ok_or_else(|| {
+                        MddError::new(
+                            ErrorCode::InternalFault,
+                            "sql.references",
+                            "dynamic call site missing",
+                        )
+                    })?;
+                if site.site_ordinal != call.site_ordinal
+                    || site.target_kind != TargetKind::CallSite
+                    || site.target_local_index != call.call_site_idx
+                    || !matches!(
+                        site.invoke_kind.as_ref(),
+                        Some(InvokeKind::Custom | InvokeKind::CustomRange)
+                    )
+                {
+                    return Err(MddError::new(
+                        ErrorCode::InternalFault,
+                        "sql.references",
+                        "dynamic call site identity mismatch",
+                    ));
+                }
+                let number = |n: u32| SqlValue::U64(DecimalU64(u64::from(n)));
+                let row = vec![
+                    scalar_text(&facts.source().dex_occurrence_id, &self.control)?,
+                    number(call.site_ordinal),
+                    number(site.caller_method_idx),
+                    number(site.code_unit_pc),
+                    number(site.operand_ordinal),
+                    number(call.call_site_idx),
+                    number(call.bootstrap_method_handle_idx),
+                    scalar_text(call.bootstrap_target_kind.as_str(), &self.control)?,
+                    number(call.bootstrap_target_index),
+                    number(call.method_type_idx),
+                    number(call.name_string_idx),
+                    scalar_text(call.runtime_target_status, &self.control)?,
+                ];
+                self.ordinal += 1;
+                return Ok(Some(row));
+            }
+            self.occurrence += 1;
+            self.ordinal = 0;
+        }
+        Ok(None)
+    }
 }
 impl SqlFactCursor for ReferenceCursor {
     fn next_row(&mut self) -> MddResult<Option<SqlRow>> {
@@ -2298,9 +2364,49 @@ impl SqlFactProvider for ReferenceSqlProvider {
             estimated_rows: Some(DecimalU64(count)),
         };
         // The total site count is an upper bound for the filtered relation.
+        let dynamic_count = self
+            .occurrences
+            .iter()
+            .try_fold(0u64, |total, facts| {
+                total.checked_add(u64::try_from(facts.dynamic_calls().len()).ok()?)
+            })
+            .ok_or_else(|| quota("REFERENCE_SQL_ROWS_OVERFLOW"))?;
+        let dynamic_columns = [
+            ("dex_occurrence_id", SqlType::Text),
+            ("site_ordinal", SqlType::U64),
+            ("caller_method_idx", SqlType::U64),
+            ("code_unit_pc", SqlType::U64),
+            ("operand_ordinal", SqlType::U64),
+            ("call_site_idx", SqlType::U64),
+            ("bootstrap_method_handle_idx", SqlType::U64),
+            ("bootstrap_target_kind", SqlType::Text),
+            ("bootstrap_target_index", SqlType::U64),
+            ("method_type_idx", SqlType::U64),
+            ("name_string_idx", SqlType::U64),
+            ("runtime_target_status", SqlType::Text),
+        ];
         Ok(vec![
             make_relation("native_reference_sites", false),
             make_relation("native_method_call_sites", true),
+            SqlRelation {
+                name: "native_dynamic_call_sites".into(),
+                columns: dynamic_columns
+                    .iter()
+                    .map(|(name, data_type)| SqlColumn {
+                        id: (*name).into(),
+                        name: (*name).into(),
+                        data_type: *data_type,
+                        nullable: false,
+                    })
+                    .collect(),
+                required_layers: vec![
+                    FactLayer::Metadata,
+                    FactLayer::Structure,
+                    FactLayer::CodeLayout,
+                    FactLayer::References,
+                ],
+                estimated_rows: Some(DecimalU64(dynamic_count)),
+            },
         ])
     }
     fn require_relation(&self, relation: &str) -> MddResult<()> {
@@ -2318,6 +2424,14 @@ impl SqlFactProvider for ReferenceSqlProvider {
         control: SqlControl,
     ) -> MddResult<Box<dyn SqlFactCursor>> {
         self.require_relation(relation)?;
+        if relation.eq_ignore_ascii_case("native_dynamic_call_sites") {
+            return Ok(Box::new(DynamicReferenceCursor {
+                provider: self,
+                occurrence: 0,
+                ordinal: 0,
+                control,
+            }));
+        }
         Ok(Box::new(ReferenceCursor {
             provider: self,
             occurrence: 0,
@@ -3421,6 +3535,8 @@ mod tests {
         );
         let combined = Arc::new(make_combined().with_references(full).unwrap());
         let bridge = SqlBridge::new(combined, SqlDialect::NativeV1, SqlLimits::default()).unwrap();
+        let dynamic = bridge.query("SELECT d.dex_occurrence_id,d.site_ordinal FROM native_dynamic_call_sites d JOIN native_reference_sites r ON d.dex_occurrence_id=r.dex_occurrence_id AND d.site_ordinal=r.site_ordinal").unwrap();
+        assert_eq!(dynamic.rows().len(), 4);
         let call_rows = bridge
             .query("SELECT dex_occurrence_id,site_ordinal FROM native_method_call_sites")
             .unwrap();
@@ -3575,6 +3691,58 @@ mod tests {
             targets.sort_unstable();
             assert_eq!(targets, &[2, 4, 4, 4, 5, 5]);
         }
+        let dynamic = bridge.query("SELECT dex_occurrence_id,site_ordinal,caller_method_idx,code_unit_pc,operand_ordinal,call_site_idx,bootstrap_method_handle_idx,bootstrap_target_kind,bootstrap_target_index,method_type_idx,name_string_idx,runtime_target_status FROM native_dynamic_call_sites").unwrap();
+        assert_eq!(dynamic.rows().len(), 4);
+        let mut pcs = std::collections::BTreeMap::<String, Vec<u64>>::new();
+        for row in dynamic.rows() {
+            let SqlValue::Text(source) = &row[0] else {
+                panic!("missing source")
+            };
+            let source = source.strict_utf8().unwrap();
+            let facts = sources
+                .iter()
+                .find(|facts| facts.source().dex_occurrence_id == source)
+                .unwrap();
+            let SqlValue::U64(DecimalU64(site_ordinal)) = row[1] else {
+                panic!("missing ordinal")
+            };
+            let call = facts
+                .dynamic_calls()
+                .iter()
+                .find(|call| u64::from(call.site_ordinal) == site_ordinal)
+                .unwrap();
+            let site = &facts.sites()[call.site_ordinal as usize];
+            for (index, expected) in [
+                (2, site.caller_method_idx),
+                (3, site.code_unit_pc),
+                (4, site.operand_ordinal),
+                (5, call.call_site_idx),
+                (6, call.bootstrap_method_handle_idx),
+                (8, call.bootstrap_target_index),
+                (9, call.method_type_idx),
+                (10, call.name_string_idx),
+            ] {
+                assert_eq!(row[index], SqlValue::U64(DecimalU64(u64::from(expected))));
+            }
+            assert!(
+                matches!(&row[7], SqlValue::Text(value) if value.strict_utf8().unwrap() == call.bootstrap_target_kind.as_str())
+            );
+            assert!(
+                matches!(&row[11], SqlValue::Text(value) if value.strict_utf8().unwrap() == call.runtime_target_status)
+            );
+            assert_eq!(site.caller_method_idx, 0);
+            assert_eq!(call.call_site_idx, 0);
+            pcs.entry(source)
+                .or_default()
+                .push(u64::from(site.code_unit_pc));
+        }
+        assert_eq!(pcs.len(), 2);
+        for offsets in pcs.values_mut() {
+            offsets.sort_unstable();
+            assert_eq!(offsets, &[34, 37]); // retained independent fixture oracle
+        }
+        let joined = bridge.query("SELECT d.dex_occurrence_id,d.site_ordinal FROM native_dynamic_call_sites d JOIN native_reference_sites r ON d.dex_occurrence_id=r.dex_occurrence_id AND d.site_ordinal=r.site_ordinal").unwrap();
+        assert_eq!(joined.rows().len(), 4);
     }
     #[test]
     fn native_string_pools_bind_each_occurrence_without_cross_source_duplication() {

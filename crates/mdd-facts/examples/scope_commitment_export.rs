@@ -73,11 +73,23 @@ fn main() -> Result<(), Box<dyn Error>> {
         })
         .collect();
     let hex: String = preimage.iter().map(|byte| format!("{byte:02x}")).collect();
+    // The manifest is for identity comparison; do not export local input paths.
+    let mut manifest = serde_json::to_value(snapshot.manifest())?;
+    let sources = manifest
+        .get_mut("sources")
+        .and_then(|v| v.as_array_mut())
+        .ok_or("snapshot manifest sources are not an array")?;
+    for source in sources {
+        source
+            .as_object_mut()
+            .ok_or("snapshot source is not an object")?
+            .remove("origin_display");
+    }
     println!(
         "{}",
         serde_json::to_string(&json!({"snapshot_id": scope.snapshot_id(),
         "scope_id": scope.scope_id(), "scope_content_key": scope.scope_content_key(),
-        "preimage_hex": hex, "roster": roster}))?
+        "preimage_hex": hex, "roster": roster, "snapshot_manifest": manifest}))?
     );
     Ok(())
 }

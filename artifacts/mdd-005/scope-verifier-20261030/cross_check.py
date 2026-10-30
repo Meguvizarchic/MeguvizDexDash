@@ -15,6 +15,7 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / 'benchmarks'))
 from scope_commitment import ExpectedDex, ExpectedInput, verify_scope_preimage
+from snapshot_commitment import ExpectedSource, verify_snapshot_manifest
 
 
 def sha(path):
@@ -44,6 +45,7 @@ def main():
     fixture = ROOT / 'tests/fixtures/generated/multidex-stored.apk'
     files = ['Cargo.lock', 'crates/mdd-facts/examples/scope_commitment_export.rs',
              'crates/mdd-facts/src/indexes/scope.rs', 'crates/mdd-input/src/archive/mod.rs',
+             'crates/mdd-input/src/snapshot/mod.rs', 'benchmarks/snapshot_commitment.py',
              'benchmarks/scope_commitment.py', 'artifacts/mdd-005/scope-verifier-20261030/cross_check.py',
              'tests/fixtures/generated/multidex-stored.apk']
     before = {name: sha(ROOT / name) for name in files}
@@ -74,6 +76,11 @@ def main():
         result_json = json.loads(result.stdout)
         data = bytes.fromhex(result_json['preimage_hex'])
         archive_hash = 'sha256:' + sha(fixture)
+        expected_sources = (ExpectedSource(archive_hash, fixture.stat().st_size, 'apk-zip'),) * 2
+        snapshot = verify_snapshot_manifest(result_json['snapshot_manifest'],
+            expected_snapshot_id=result_json['snapshot_id'], expected_sources=expected_sources,
+            max_sources=2, max_input_bytes=fixture.stat().st_size * 2)
+        require(snapshot.source_count == 2, 'wrong snapshot source count')
         with zipfile.ZipFile(fixture) as archive:
             dexes = tuple(ExpectedDex('sha256:' + hashlib.sha256(archive.read(item)).hexdigest(),
                          ordinal, 0) for ordinal, item in enumerate(archive.infolist())
@@ -94,6 +101,7 @@ def main():
         else:
             raise RuntimeError('changed trusted input digest was accepted')
         summary.update(status='passed', input_count=2, dex_count=4,
+                       snapshot_content_key=snapshot.snapshot_content_key,
                        preimage_sha256=sha_bytes(data), negative_changed_input='rejected')
     except BaseException as error:
         summary.update(status='failed', error=repr(error))

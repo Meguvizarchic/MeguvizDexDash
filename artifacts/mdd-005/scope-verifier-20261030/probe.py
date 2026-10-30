@@ -12,6 +12,7 @@ from cross_check import output_directory
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / 'benchmarks'))
 from scope_commitment import ExpectedDex, ExpectedInput, verify_scope_preimage
+from snapshot_commitment import ExpectedSource, verify_snapshot_manifest
 
 
 def framed(value):
@@ -36,6 +37,33 @@ def fixture():
 
 
 class Checks(unittest.TestCase):
+    def test_snapshot_manifest_roster_identity_and_limits(self):
+        content = 'sha256:' + 'a' * 64
+        entries = (ExpectedSource(content, 12, 'raw-dex'),) * 2
+        key_data = json.dumps(['capture-owned-v1', [[content, 'raw-dex']] * 2],
+                              separators=(',', ':')).encode()
+        key = 'sha256:' + hashlib.sha256(key_data).hexdigest()
+        manifest = {'schema_version': 'mdd.snapshot.capture.v1', 'snapshot_id': 's',
+                    'snapshot_content_key': key, 'capture_policy': 'owned-captured-bytes-v1',
+                    'sources': [{'occurrence_id': f's:source:{i}', 'input_ordinal': str(i),
+                        'content_id': content, 'byte_length': '12', 'input_kind': 'raw-dex'}
+                        for i in range(2)], 'captured_input_bytes': '24', 'scope': 'test'}
+        args = dict(expected_snapshot_id='s', expected_sources=entries,
+                    max_sources=2, max_input_bytes=24)
+        observation = verify_snapshot_manifest(manifest, **args)
+        self.assertEqual((observation.source_count, observation.captured_input_bytes), (2, 24))
+        for altered in (dict(args, max_sources=1), dict(args, max_input_bytes=23),
+                        dict(args, expected_snapshot_id='other'),
+                        dict(args, expected_sources=(entries[0], ExpectedSource(content, 13, 'raw-dex')))):
+            with self.subTest(altered=altered), self.assertRaises(ValueError):
+                verify_snapshot_manifest(manifest, **altered)
+        for field, value in (('captured_input_bytes', '024'), ('snapshot_content_key', 'sha256:'+'0'*64)):
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                verify_snapshot_manifest(dict(manifest, **{field: value}), **args)
+        changed = dict(manifest, sources=list(reversed(manifest['sources'])))
+        with self.assertRaises(ValueError):
+            verify_snapshot_manifest(changed, **args)
+
     def test_expected_roster_and_hashes(self):
         data, args = fixture()
         result = verify_scope_preimage(data, **args)
