@@ -160,11 +160,15 @@ struct ReferenceSymbolIndex {
 struct FieldReferenceSymbolIndex {
     fields: BTreeMap<FieldSymbol, Vec<ReferenceAtom>>,
 }
+struct TypeReferenceIndex {
+    descriptors: BTreeMap<String, Vec<Atom>>,
+}
 #[derive(Clone, Copy)]
 enum ReferenceResultKind {
     Method,
     Field,
     String,
+    Type,
 }
 #[derive(Clone, Debug, Serialize)]
 pub struct IndexMatches {
@@ -202,6 +206,7 @@ pub struct SnapshotFactIndex<'a> {
     definitions: LazyIndex<DefinitionIndex>,
     reference_symbols: LazyIndex<ReferenceSymbolIndex>,
     field_reference_symbols: LazyIndex<FieldReferenceSymbolIndex>,
+    type_references: LazyIndex<TypeReferenceIndex>,
 }
 
 impl<'a> SnapshotFactIndex<'a> {
@@ -244,6 +249,11 @@ impl<'a> SnapshotFactIndex<'a> {
                 "encoded-field-reference-symbol-candidates-v1",
                 limits.max_build_attempts,
             )?,
+            type_references: LazyIndex::new(
+                scope.scope_id(),
+                "encoded-type-reference-descriptor-candidates-v1",
+                limits.max_build_attempts,
+            )?,
             scope,
             views: ordered,
             by_occurrence,
@@ -263,6 +273,7 @@ impl<'a> SnapshotFactIndex<'a> {
             self.definitions.audit()?,
             self.reference_symbols.audit()?,
             self.field_reference_symbols.audit()?,
+            self.type_references.audit()?,
         ])
     }
     fn require(&self, layer: FactLayer) -> MddResult<CoverageReport> {
@@ -834,6 +845,56 @@ impl<'a> SnapshotFactIndex<'a> {
             .retry_failed(|| self.build_field_reference_symbols())?;
         self.field_reference_symbols.audit()
     }
+    pub fn retry_type_reference_index(&self) -> MddResult<IndexAudit> {
+        self.type_references
+            .retry_failed(|| self.build_type_references())?;
+        self.type_references.audit()
+    }
+    fn build_type_references(&self) -> MddResult<TypeReferenceIndex> {
+        self.require(FactLayer::Metadata)?;
+        let mut index = TypeReferenceIndex {
+            descriptors: BTreeMap::new(),
+        };
+        let mut budget = Budget::new(self.limits);
+        budget.charge(0, 0)?;
+        for (view, entry) in self.views.iter().enumerate() {
+            let metadata = entry.metadata.ok_or_else(|| {
+                MddError::new(
+                    ErrorCode::IncompleteFacts,
+                    "facts.index",
+                    "metadata missing",
+                )
+            })?;
+            let view = u32::try_from(view).map_err(|_| quota("INDEX_ENTRY_BUDGET"))?;
+            for dex_type in metadata.types() {
+                let descriptor = &dex_type.data.descriptor;
+                let key_bytes = if index.descriptors.contains_key(descriptor) {
+                    0
+                } else {
+                    u64::try_from(descriptor.len())
+                        .ok()
+                        .and_then(|n| n.checked_add(64))
+                        .ok_or_else(|| quota("INDEX_BYTE_BUDGET"))?
+                };
+                budget.charge(
+                    1,
+                    key_bytes
+                        .checked_add(16)
+                        .ok_or_else(|| quota("INDEX_BYTE_BUDGET"))?,
+                )?;
+                let atom = Atom {
+                    view,
+                    local: dex_type.data.type_idx,
+                };
+                if let Some(atoms) = index.descriptors.get_mut(descriptor) {
+                    atoms.push(atom);
+                } else {
+                    index.descriptors.insert(descriptor.clone(), vec![atom]);
+                }
+            }
+        }
+        Ok(index)
+    }
     fn build_field_reference_symbols(&self) -> MddResult<FieldReferenceSymbolIndex> {
         self.require(FactLayer::Definitions)?;
         let mut index = FieldReferenceSymbolIndex {
@@ -984,6 +1045,7 @@ impl<'a> SnapshotFactIndex<'a> {
                 (false, ReferenceResultKind::Method) => Some(self.reference_symbols.audit()?),
                 (false, ReferenceResultKind::Field) => Some(self.field_reference_symbols.audit()?),
                 (false, ReferenceResultKind::String) => Some(self.strings.audit()?),
+                (false, ReferenceResultKind::Type) => Some(self.type_references.audit()?),
             },
             access_path: match (scalar, kind) {
                 (true, ReferenceResultKind::Method) => {
@@ -1000,6 +1062,10 @@ impl<'a> SnapshotFactIndex<'a> {
                 (false, ReferenceResultKind::String) => {
                     "utf16_string_candidates_then_exact_ref_and_existing_postings"
                 }
+                (true, ReferenceResultKind::Type) => "scalar_type_descriptors_then_scalar_sites",
+                (false, ReferenceResultKind::Type) => {
+                    "type_descriptor_candidates_then_exact_ref_and_existing_postings"
+                }
             }
             .into(),
             candidate_reference_count: candidates,
@@ -1015,11 +1081,121 @@ impl<'a> SnapshotFactIndex<'a> {
                 ReferenceResultKind::String => {
                     "encoded_string_operands_only;runtime_values_not_inferred"
                 }
+                ReferenceResultKind::Type => {
+                    "encoded_type_operands_only;runtime_resolution_not_inferred"
+                }
             },
             sites,
             coverage,
         })
     }
+    /// Search exact encoded type operands by DEX descriptor across selected occurrences.
+    /// This does not infer runtime class resolution, inheritance, or assignability.
+    pub fn references_to_type_descriptor(
+        &self,
+        descriptor: &str,
+    ) -> MddResult<ReferenceIndexMatches> {
+        self.references_to_type(descriptor, false)
+    }
+    /// Full metadata and encoded-site scan independent of the lazy type index.
+    pub fn references_to_type_descriptor_scalar(
+        &self,
+        descriptor: &str,
+    ) -> MddResult<ReferenceIndexMatches> {
+        self.references_to_type(descriptor, true)
+    }
+    fn references_to_type(
+        &self,
+        descriptor: &str,
+        scalar: bool,
+    ) -> MddResult<ReferenceIndexMatches> {
+        if descriptor.len() > 16 * 1024 * 1024 {
+            return Err(quota("INDEX_PREDICATE_BUDGET"));
+        }
+        let coverage = self.require(FactLayer::References)?;
+        self.require(FactLayer::Metadata)?;
+        let index = if scalar {
+            None
+        } else {
+            Some(
+                self.type_references
+                    .get_or_build(|| self.build_type_references())?,
+            )
+        };
+        let candidates: Box<dyn Iterator<Item = Atom> + '_> = if let Some(index) = &index {
+            Box::new(
+                index
+                    .descriptors
+                    .get(descriptor)
+                    .into_iter()
+                    .flatten()
+                    .copied(),
+            )
+        } else {
+            Box::new(self.views.iter().enumerate().flat_map(|(view, entry)| {
+                entry.metadata.into_iter().flat_map(move |metadata| {
+                    metadata.types().iter().map(move |dex_type| Atom {
+                        view: view as u32,
+                        local: dex_type.data.type_idx,
+                    })
+                })
+            }))
+        };
+        let mut result = Vec::new();
+        let mut result_bytes = 0u64;
+        let mut candidate_count = 0u64;
+        for candidate in candidates {
+            candidate_count = candidate_count
+                .checked_add(1)
+                .ok_or_else(|| quota("INDEX_ENTRY_BUDGET"))?;
+            let refs = self.views[candidate.view as usize]
+                .references
+                .ok_or_else(|| {
+                    MddError::new(
+                        ErrorCode::IncompleteFacts,
+                        "facts.index",
+                        "references missing",
+                    )
+                })?;
+            let dex_type = &refs.definitions().metadata().types()[candidate.local as usize];
+            if dex_type.data.descriptor != descriptor {
+                continue;
+            }
+            let target = refs.target_id(TargetKind::Type, candidate.local)?;
+            let matches = if scalar {
+                refs.find_target_scalar(&target)?
+            } else {
+                refs.find_target_indexed(&target)?
+            };
+            if result
+                .len()
+                .checked_add(matches.sites.len())
+                .and_then(|v| u64::try_from(v).ok())
+                .is_none_or(|count| count > self.limits.max_result_entries)
+            {
+                return Err(quota("INDEX_RESULT_ENTRY_BUDGET"));
+            }
+            self.check_site_budget(&matches.sites)?;
+            result_bytes = result_bytes
+                .checked_add(Self::site_bytes(&matches.sites)?)
+                .ok_or_else(|| quota("INDEX_RESULT_BYTE_BUDGET"))?;
+            if result_bytes > self.limits.max_result_bytes {
+                return Err(quota("INDEX_RESULT_BYTE_BUDGET"));
+            }
+            result
+                .try_reserve(matches.sites.len())
+                .map_err(|_| quota("INDEX_RESULT_ALLOCATION"))?;
+            result.extend(matches.sites);
+        }
+        self.reference_result(
+            result,
+            candidate_count,
+            scalar,
+            ReferenceResultKind::Type,
+            coverage,
+        )
+    }
+
     /// Search encoded string operand sites by exact UTF-16 code units across selected occurrences.
     /// Raw MUTF-8 byte equality is a separate predicate and is not implied by this query.
     pub fn references_to_string_utf16(&self, value: &[u16]) -> MddResult<ReferenceIndexMatches> {

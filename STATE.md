@@ -120,6 +120,8 @@ MDD-005 A2 查询转换候选位于 benchmarks/a2_compact_adapter.py，涵盖sha
 
 2026-10-30 后续功能候选（统一验证待后续）：MDD-026 新增跨出现次数的UTF-16字符串编码引用站点查询与标量路径，孤立代理项等一项局部测试通过，未推断原始MUTF-8字节相等或运行时值。MDD-031 两个旧方言增加直接字符串字面量CAST AS TEXT与非负i64字面量比较，局部测试通过并保留白名单失败记录 artifacts/mdd-031-audit/direct-text-affinity-20261030/；Native、列、CTE、VARCHAR/CHAR、浮点及动态表达式未扩大。A2候选增加只在明确output_too_large、相同dataset未关闭且continuation guard允许时缩小页面的重试，最终分支仅语法检查，真实producer验证not_run。完整工作区、跨平台、独立oracle和资格统一留待后续，任务状态不变。
 
+2026-10-30 第三批功能候选（统一验证待后续）：MDD-026 增加精确类型描述符跨出现次数的编码operand站点索引及标量路径，一项局部测试通过，不推断运行时解析/继承。MDD-031 增加严格完整ASCII有符号i64文本的旧方言算术候选，逐单元计步并用checked运算，小数/指数/尾部非空白、浮点混合及溢出仍未实现；两项局部测试通过，A0/A1现有54项为CAST而非算术证据，故算术等价未验证，记录 artifacts/mdd-031-audit/legacy-integer-text-candidate-20261030/。MDD-005 新增 benchmarks/a2_hostlab_session.py 同步桥候选，要求外部producer快照/总序、真实inventory、可确认close及进程树abort；仅py_compile通过，未接真实HostLab与未消费/取消完整验证。先物化查询改变管线重叠，后续性能归因须单列；统一验证和各任务资格均未完成。
+
 MDD-031 SQL桥仍进行中：受限虚表、会话预算绑定、U64真值、USING和子串路径有本机测试；独立真值18例及固定A0/A1子串16例通过，合成Q15结果与SQLite一致。真实完整corpus、legacy适配及生产工作区内存绑定尚未验收。检查点862b3dd的 Windows 离线测试161项、0失败/跳过，工作区严格Clippy通过，命令记录在 artifacts/integration/20261029/workspace-tests/ 与 workspace-clippy/。
 
 后续 SQL 结果驻留预算修复在 Windows 工作区重新运行165项测试、0失败/跳过及严格Clippy；零行 schema 的零预算错误、结果持有与释放独立复现。该计量是保守逻辑额度，SQLite内部分配、provider/调用方副本、传输缓冲及租约自身元数据仍需单独准入，不能称 RSS 硬上限。证据 artifacts/mdd-031-audit/result-memory-probe/after-fix.json、artifacts/integration/20261029/workspace-tests-result-budget/record.json。

@@ -1232,8 +1232,8 @@ mod tests {
                     SqlValue::I64(mdd_query::ir::Signed64(1))
                 );
                 assert_eq!(
-                    bridge.query("SELECT 1+'2'").unwrap_err().code,
-                    ErrorCode::UnsupportedQuery
+                    bridge.query("SELECT 1+'2'").unwrap().rows()[0][0],
+                    SqlValue::I64(mdd_query::ir::Signed64(3))
                 );
             }
         }
@@ -1262,6 +1262,40 @@ mod tests {
                 bridge.query("SELECT 1+'2.5'").unwrap_err().code,
                 ErrorCode::UnsupportedQuery
             );
+        }
+    }
+
+    #[test]
+    fn legacy_strict_integer_text_arithmetic_preserves_unimplemented_edges() {
+        let (provider, _) = bridge();
+        for dialect in [SqlDialect::DexSql010, SqlDialect::DexSql011] {
+            let bridge = SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+            let result = bridge
+                .query("SELECT 1+' +2 ', ' -5 '*2, X'33'+2, '4'/2, '3'%0")
+                .unwrap();
+            assert_eq!(
+                result.rows()[0],
+                vec![
+                    SqlValue::I64(mdd_query::ir::Signed64(3)),
+                    SqlValue::I64(mdd_query::ir::Signed64(-10)),
+                    SqlValue::I64(mdd_query::ir::Signed64(5)),
+                    SqlValue::I64(mdd_query::ir::Signed64(2)),
+                    SqlValue::Null,
+                ]
+            );
+            for sql in [
+                "SELECT 1+'2.5'",
+                "SELECT 1+'2x'",
+                "SELECT 1+'9223372036854775808'",
+                "SELECT 1+'9223372036854775807'",
+                "SELECT 1.0+'2'",
+            ] {
+                assert_eq!(
+                    bridge.query(sql).unwrap_err().code,
+                    ErrorCode::UnsupportedQuery,
+                    "{sql}"
+                );
+            }
         }
     }
     #[test]

@@ -459,43 +459,106 @@ fn numeric(left: &SqlValue, right: &SqlValue, operation: &str) -> MddResult<SqlV
     )
 }
 
-// Only the no-numeric-prefix case is admitted here. Numeric prefixes require
-// separate integer/real coercion and overflow evidence for the legacy dialects.
-fn legacy_no_numeric_prefix(
+fn legacy_integer_text_candidate(
     units: impl Iterator<Item = u16>,
     control: &SqlControl,
-) -> MddResult<bool> {
+) -> MddResult<(i64, bool)> {
     control.checkpoint(1, false)?;
+    let mut units = units.peekable();
+    while units
+        .peek()
+        .is_some_and(|unit| matches!(*unit, 9..=13 | 32))
+    {
+        control.checkpoint(1, false)?;
+        units.next();
+    }
+    let mut negative = false;
+    let mut signed = false;
+    if let Some(sign @ (43 | 45)) = units.peek().copied() {
+        control.checkpoint(1, false)?;
+        units.next();
+        signed = true;
+        negative = sign == 45;
+    }
+    if !units.peek().is_some_and(|unit| matches!(*unit, 48..=57)) {
+        if signed || units.peek() == Some(&46) {
+            return Err(legacy_numeric_unimplemented());
+        }
+        return Ok((0, false));
+    }
+    let limit = i64::MAX as u64 + u64::from(negative);
+    let mut magnitude = 0u64;
+    while let Some(unit @ 48..=57) = units.peek().copied() {
+        control.checkpoint(1, false)?;
+        units.next();
+        let digit = u64::from(unit - 48);
+        if magnitude > (limit - digit) / 10 {
+            return Err(legacy_numeric_unimplemented());
+        }
+        magnitude = magnitude * 10 + digit;
+    }
     for unit in units {
         control.checkpoint(1, false)?;
-        if matches!(unit, 9..=13 | 32) {
-            continue;
+        if !matches!(unit, 9..=13 | 32) {
+            return Err(legacy_numeric_unimplemented());
         }
-        return Ok(!matches!(unit, 43 | 45 | 46 | 48..=57));
     }
-    Ok(true)
+    let value = if negative && magnitude == i64::MAX as u64 + 1 {
+        i64::MIN
+    } else if negative {
+        -(magnitude as i64)
+    } else {
+        magnitude as i64
+    };
+    Ok((value, true))
+}
+
+fn legacy_numeric_unimplemented() -> MddError {
+    MddError::new(
+        mdd_types::ErrorCode::UnsupportedQuery,
+        "sql.numeric",
+        "LEGACY_TEXT_NUMERIC_COERCION_NOT_IMPLEMENTED",
+    )
 }
 
 fn legacy_numeric_operand<'a>(
     value: &'a SqlValue,
     control: &SqlControl,
-) -> MddResult<Cow<'a, SqlValue>> {
-    let no_prefix = match value {
-        SqlValue::Text(text) => legacy_no_numeric_prefix(text.utf16.iter().copied(), control)?,
+) -> MddResult<(Cow<'a, SqlValue>, bool)> {
+    let (number, exact_integer) = match value {
+        SqlValue::Text(text) => legacy_integer_text_candidate(text.utf16.iter().copied(), control)?,
         SqlValue::Bytes(bytes) | SqlValue::DexMutf8 { bytes, .. } => {
-            legacy_no_numeric_prefix(bytes.iter().copied().map(u16::from), control)?
+            legacy_integer_text_candidate(bytes.iter().copied().map(u16::from), control)?
         }
-        _ => return Ok(Cow::Borrowed(value)),
+        _ => return Ok((Cow::Borrowed(value), false)),
     };
-    if no_prefix {
-        Ok(Cow::Owned(SqlValue::I64(Signed64(0))))
-    } else {
-        Err(MddError::new(
-            mdd_types::ErrorCode::UnsupportedQuery,
-            "sql.numeric",
-            "LEGACY_TEXT_NUMERIC_COERCION_NOT_IMPLEMENTED",
-        ))
+    Ok((Cow::Owned(SqlValue::I64(Signed64(number))), exact_integer))
+}
+
+fn legacy_exact_integer_arithmetic(
+    left: &SqlValue,
+    right: &SqlValue,
+    operation: &str,
+) -> MddResult<SqlValue> {
+    let signed = |value: &SqlValue| match value {
+        SqlValue::I64(value) => Ok(value.0),
+        SqlValue::Bool(value) => Ok(i64::from(*value)),
+        _ => Err(legacy_numeric_unimplemented()),
+    };
+    let (left, right) = (signed(left)?, signed(right)?);
+    if right == 0 && matches!(operation, "div" | "mod") {
+        return Ok(SqlValue::Null);
     }
+    let value = match operation {
+        "add" => left.checked_add(right),
+        "sub" => left.checked_sub(right),
+        "mul" => left.checked_mul(right),
+        "div" => left.checked_div(right),
+        "mod" => left.checked_rem(right),
+        _ => return Err(invalid("NUMERIC_OPERATION")),
+    }
+    .ok_or_else(legacy_numeric_unimplemented)?;
+    Ok(SqlValue::I64(Signed64(value)))
 }
 /// SQLite's integer CAST consumes an ASCII decimal prefix and saturates at
 /// signed 64-bit bounds. Inspect units directly: no surrogate replacement or
@@ -1243,8 +1306,11 @@ fn scalar(
         }
         "mdd_add" | "mdd_sub" | "mdd_mul" | "mdd_div" | "mdd_mod" => {
             if dialect != SqlDialect::NativeV1 {
-                let left = legacy_numeric_operand(&args[0], control)?;
-                let right = legacy_numeric_operand(&args[1], control)?;
+                let (left, left_exact) = legacy_numeric_operand(&args[0], control)?;
+                let (right, right_exact) = legacy_numeric_operand(&args[1], control)?;
+                if left_exact || right_exact {
+                    return legacy_exact_integer_arithmetic(&left, &right, &name[4..]);
+                }
                 return numeric(&left, &right, &name[4..]);
             }
             numeric(&args[0], &args[1], &name[4..])
@@ -1430,16 +1496,37 @@ mod like_budget_tests {
     use mdd_types::ErrorCode;
 
     #[test]
-    fn legacy_non_numeric_prefix_is_zero_and_budgeted() {
+    fn legacy_integer_text_candidate_is_strict_and_budgeted() {
         for input in ["", " ", " \tword", "\0", "雪"] {
             let control = SqlControl::new(SqlLimits::default(), None);
             let value = SqlValue::text(input);
             assert_eq!(
-                legacy_numeric_operand(&value, &control).unwrap().as_ref(),
+                legacy_numeric_operand(&value, &control).unwrap().0.as_ref(),
                 &SqlValue::I64(Signed64(0))
             );
         }
-        for input in ["1", "+1", "-2", ".5"] {
+        for (input, expected) in [
+            ("1", 1),
+            ("+1", 1),
+            (" -2 ", -2),
+            ("-9223372036854775808", i64::MIN),
+            ("9223372036854775807", i64::MAX),
+        ] {
+            let control = SqlControl::new(SqlLimits::default(), None);
+            let value = SqlValue::text(input);
+            let (result, exact) = legacy_numeric_operand(&value, &control).unwrap();
+            assert!(exact);
+            assert_eq!(result.as_ref(), &SqlValue::I64(Signed64(expected)));
+        }
+        for input in [
+            ".5",
+            "1.0",
+            "1e2",
+            "2x",
+            "+",
+            "9223372036854775808",
+            "-9223372036854775809",
+        ] {
             let control = SqlControl::new(SqlLimits::default(), None);
             let value = SqlValue::text(input);
             assert_eq!(

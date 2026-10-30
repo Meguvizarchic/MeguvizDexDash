@@ -59,6 +59,17 @@ class CompactRowsAdapter:
         self.queries = 0
         self.oversize_retries = 0
 
+    def remaining_seconds(self) -> float:
+        """Time remaining in the adapter's shared monotonic deadline."""
+        return max(0.0, self._deadline - time.monotonic())
+
+    def verify_binding(self) -> None:
+        """Invoke the caller's source and producer-generation checks."""
+        self._verify_source()
+        self._verify_snapshot_binding(self._dataset)
+        if self.remaining_seconds() <= 0:
+            raise TimeoutError("A2 compact dataset deadline exhausted during source verification")
+
     async def _page(self, sql: str, offset: int, limit: int, max_bytes: int):
         self._verify_source()
         self._verify_snapshot_binding(self._dataset)

@@ -18988,6 +18988,36 @@
       "sha256": "15c5b41d5b65085e845f1531bb3ca7fbb7cad2765ffe18722f4bc2542787935a"
     },
     {
+      "path": "artifacts/mdd-031-audit/legacy-integer-text-candidate-20261030/bridge/record.json",
+      "bytes": 892,
+      "sha256": "56e81c7c352fd16dc7c4c775c40a40200f32b153a3b78ee10c5392a0bd8db345"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-integer-text-candidate-20261030/bridge/stderr.txt",
+      "bytes": 156,
+      "sha256": "36064f8546526ae69b22ef55a4185806982381e28e4d2d61a4c628f031a60e80"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-integer-text-candidate-20261030/bridge/stdout.txt",
+      "bytes": 208,
+      "sha256": "a2c1679ce7cfc4cd4734cdd365bd83b0b9c22de84a47b1434ebae280c903ce23"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-integer-text-candidate-20261030/unit/record.json",
+      "bytes": 877,
+      "sha256": "459fd5b719ae5d1ffc8a9bf98f5347c7b4aa79de5c372f872f7c0bda685b610e"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-integer-text-candidate-20261030/unit/stderr.txt",
+      "bytes": 366,
+      "sha256": "3c206bc3cdd8585783e129451857042ce169fff2ed7ac909d0f43b54efc9c062"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/legacy-integer-text-candidate-20261030/unit/stdout.txt",
+      "bytes": 218,
+      "sha256": "a815826958ba6262f7e207772cbc93432cfb356027fd74d0aea23282efa5eb96"
+    },
+    {
       "path": "artifacts/mdd-031-audit/length-budget-20261029/clippy/record.json",
       "bytes": 742,
       "sha256": "7ab981f79dfa703559177ca39b36f23b4a06077554ebe749d6a1b4693889c99c"

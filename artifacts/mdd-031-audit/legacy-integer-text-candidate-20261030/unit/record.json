@@ -1,0 +1,25 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "mdd-sql",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "1",
+    "legacy_integer_text_candidate_is_strict_and_budgeted",
+    "--",
+    "--nocapture"
+  ],
+  "exit_code": 0,
+  "source_sha256": {
+    "crates/mdd-sql/src/bridge.rs": "bb1f5112898189de42256fd88b5c3b32267004f6fa32ffd10b2d48af012ef399",
+    "crates/mdd-sql/src/dialects/functions.rs": "2df083968fdb191d8bcb491ab3ab3a3e53e30ca87df344c9051be477cc38c6c0",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089"
+  },
+  "source_unchanged": true,
+  "stdout_sha256": "a815826958ba6262f7e207772cbc93432cfb356027fd74d0aea23282efa5eb96",
+  "stderr_sha256": "3c206bc3cdd8585783e129451857042ce169fff2ed7ac909d0f43b54efc9c062",
+  "scope": "targeted local development check; A0/A1 arithmetic comparison not run"
+}
