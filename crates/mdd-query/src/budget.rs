@@ -780,6 +780,54 @@ pub struct Budgeted<T> {
     _memory: Reservation,
     acknowledgement: Option<PacketAcknowledgement>,
 }
+
+/// A queue-delivered owned byte batch and its shared query-workspace lease.
+/// Clones retain both the immutable batch and its logical reservation. Neither
+/// cloning nor reading the bytes confirms delivery.
+#[derive(Clone)]
+struct QueuedOwnedBatch {
+    batch: mdd_session::BatchHandle,
+    _resident: Reservation,
+    tracker: Arc<DeliveryTracker>,
+}
+/// A consumed batch retained independently of the query and its queue.
+#[derive(Clone)]
+pub struct RetainedOwnedBatch(QueuedOwnedBatch);
+impl RetainedOwnedBatch {
+    pub fn bytes(&self) -> &[u8] {
+        self.0.batch.bytes()
+    }
+    pub fn snapshot_id(&self) -> &str {
+        self.0.batch.snapshot_id()
+    }
+}
+
+impl Budgeted<QueuedOwnedBatch> {
+    /// Confirm a batch after the caller has consumed it and retain owned bytes.
+    /// The packet must originate from the same bound queue that created it.
+    fn acknowledge_owned_batch(self) -> MddResult<RetainedOwnedBatch> {
+        let ack = self
+            .acknowledgement
+            .as_ref()
+            .ok_or_else(|| invalid("queue has no query-bound delivery tracking"))?;
+        if !Arc::ptr_eq(&ack.tracker, &self.payload.tracker) {
+            let error = invalid("batch belongs to another delivery queue");
+            return Err(match ack.tracker.cancel.fail(error.clone()) {
+                Ok(status) => status.error.unwrap_or(error),
+                Err(failure) => failure,
+            });
+        }
+        if let Err(error) = self.payload.batch.acknowledge() {
+            return Err(match ack.tracker.cancel.fail(error.clone()) {
+                Ok(status) => status.error.unwrap_or(error),
+                Err(failure) => failure,
+            });
+        }
+        let retained = self.payload.clone();
+        self.acknowledge()?;
+        Ok(RetainedOwnedBatch(retained))
+    }
+}
 impl<T> Budgeted<T> {
     pub fn payload(&self) -> &T {
         &self.payload
@@ -895,6 +943,119 @@ pub struct BoundedReceiver<T>(Arc<Channel<T>>);
 pub enum QueueEvent<T> {
     Data(Budgeted<T>),
     End(MddResult<()>),
+}
+
+/// A bound byte-batch channel. Its private inner queue prevents sending a
+/// retained batch through a different generic queue and bypassing binding.
+pub struct OwnedBatchSender(BoundedSender<QueuedOwnedBatch>);
+pub struct OwnedBatchReceiver(BoundedReceiver<QueuedOwnedBatch>);
+pub struct OwnedBatchPacket(Budgeted<QueuedOwnedBatch>);
+pub struct OwnedBatchReceipt(QueueDeliveryReceipt);
+pub enum OwnedBatchEvent {
+    Data(OwnedBatchPacket),
+    End(MddResult<()>),
+}
+
+pub fn bounded_owned_batch_channel(
+    runtime: &RuntimeBudget,
+    capacity: usize,
+) -> MddResult<(OwnedBatchSender, OwnedBatchReceiver)> {
+    let (sender, receiver) = bounded_channel(
+        runtime.pool().clone(),
+        Some(runtime.cancellation().clone()),
+        capacity,
+    )?;
+    Ok((OwnedBatchSender(sender), OwnedBatchReceiver(receiver)))
+}
+
+impl OwnedBatchSender {
+    /// Send an immutable owned batch on this exact query-bound queue.
+    ///
+    /// The bytes are already allocated by the caller before this call. The
+    /// payload has one shared logical workspace reservation, while queue wire
+    /// bytes/items and the lifecycle's separate buffered limit are charged
+    /// independently. These limits are not allocator or RSS bounds.
+    pub fn send(&self, runtime: &RuntimeBudget, bytes: Box<[u8]>) -> MddResult<()> {
+        let sender = &self.0;
+        if !sender.matches_runtime(runtime) {
+            return Err(invalid("batch queue runtime mismatch"));
+        }
+        let size = u64::try_from(bytes.len()).map_err(|_| invalid("batch length overflow"))?;
+        let _send = match sender.begin_bound_send(None) {
+            Ok(guard) => guard,
+            Err(error) if error.code == ErrorCode::InvalidArgument => return Err(error),
+            Err(error) => return Err(sender.0.bound_send_failure(error)),
+        };
+        let result = (|| {
+            sender.0.pool.check_individual(Resource::QueueBytes, size)?;
+            let resident = sender.reserve_payload(size)?;
+            let batch = runtime
+                .cancellation()
+                .lifecycle()
+                .own_batch(runtime.cancellation().query_handle(), bytes)?;
+            let tracker = sender
+                .0
+                .delivery
+                .as_ref()
+                .ok_or_else(|| invalid("batch queue must be query-bound"))?
+                .clone();
+            // Payload bytes are already covered by `resident`; avoid charging
+            // them a second time in the generic packet's workspace lease.
+            let packet_lease = sender.reserve_payload(0)?;
+            sender.send_reserved_inner(
+                QueuedOwnedBatch {
+                    batch,
+                    _resident: resident,
+                    tracker,
+                },
+                size,
+                packet_lease,
+            )
+        })();
+        result.map_err(|error| sender.0.bound_send_failure(error))
+    }
+    pub fn finish(&self, result: MddResult<()>) -> MddResult<()> {
+        self.0.finish(result)
+    }
+    pub fn try_clone(&self) -> MddResult<Self> {
+        Ok(Self(self.0.try_clone()?))
+    }
+}
+impl OwnedBatchPacket {
+    pub fn bytes(&self) -> &[u8] {
+        self.0.payload.batch.bytes()
+    }
+    /// Confirm consumption of this packet and retain its immutable bytes.
+    pub fn acknowledge(self) -> MddResult<RetainedOwnedBatch> {
+        self.0.acknowledge_owned_batch()
+    }
+}
+impl OwnedBatchReceiver {
+    pub fn receive(&mut self) -> MddResult<OwnedBatchEvent> {
+        Ok(match self.0.receive()? {
+            QueueEvent::Data(packet) => OwnedBatchEvent::Data(OwnedBatchPacket(packet)),
+            QueueEvent::End(result) => OwnedBatchEvent::End(result),
+        })
+    }
+    pub fn into_delivery_receipt(self) -> MddResult<OwnedBatchReceipt> {
+        Ok(OwnedBatchReceipt(self.0.into_delivery_receipt()?))
+    }
+}
+impl OwnedBatchReceipt {
+    /// Complete lifecycle delivery only after the expected batch count and
+    /// successful End match this same queue, runtime and current deadline.
+    pub fn confirm(
+        &mut self,
+        sender: &OwnedBatchSender,
+        runtime: &RuntimeBudget,
+        expected_batches: u64,
+    ) -> MddResult<()> {
+        if !self.0.matches(&sender.0, runtime, expected_batches, None)? {
+            return Err(invalid("batch receipt queue, query or count mismatch"));
+        }
+        let deadline = runtime.pool().delivery_deadline()?;
+        self.0.finish_cursor_with_budget(&deadline)
+    }
 }
 pub fn bounded_channel<T>(
     pool: BudgetPool,

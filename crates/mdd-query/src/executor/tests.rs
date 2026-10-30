@@ -278,6 +278,145 @@ fn typed_method_call_query_preserves_oracle_sites_and_occurrences() {
 }
 
 #[test]
+fn typed_field_reference_query_preserves_oracle_sites_and_occurrences() {
+    let (native, references) = native_references_fixture("classic-035.dex");
+    let catalog = ReferenceCatalog::new(native, references).unwrap();
+    let descriptor = "Lfixture/External;->shared:Ljava/lang/String;";
+    let units = descriptor.encode_utf16().collect::<Vec<_>>();
+    let oracle: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../tests/fixtures/references/oracle-results.json"
+    ))
+    .unwrap();
+    let record = oracle["results"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|record| {
+            record["path"]
+                .as_str()
+                .is_some_and(|path| path.ends_with("/classic-035.dex"))
+        })
+        .unwrap();
+    let mut oracle_sites = record["sites"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|site| site["kind"] == "field" && site["index"] == 0)
+        .map(|site| {
+            (
+                site["pc"].as_u64().unwrap(),
+                site["opcode"].as_u64().unwrap(),
+            )
+        })
+        .collect::<Vec<_>>();
+    oracle_sites.sort_unstable();
+    assert_eq!(oracle_sites.len(), 2);
+    let plan = prepare(catalog.field_reference_query(&units).unwrap(), &catalog).unwrap();
+    assert!(plan.required_layers().contains(&FactLayer::References));
+    for mode in [
+        ExecutionMode::Streaming,
+        ExecutionMode::MaterializedReference,
+    ] {
+        let result = execute(
+            &plan,
+            &catalog,
+            mode,
+            &mut Control::new(ExecutionLimits::default()),
+        )
+        .unwrap();
+        assert_eq!(result.rows().len(), 4);
+        let mut by_source = BTreeMap::<String, Vec<(u64, u64)>>::new();
+        for row in result.rows() {
+            let (
+                Value::Entity(caller),
+                Value::Entity(field),
+                Value::Entity(owner),
+                Value::Entity(ty),
+            ) = (&row[2], &row[7], &row[8], &row[10])
+            else {
+                panic!("expected source-bound field identities");
+            };
+            assert_eq!(caller.kind, EntityKind::MethodDefinition);
+            assert_eq!(caller.local_index, 0);
+            assert_eq!(field.kind, EntityKind::FieldReference);
+            assert_eq!(field.local_index, 0);
+            assert_eq!(owner.kind, EntityKind::Type);
+            assert_eq!(ty.kind, EntityKind::Type);
+            for entity in [field, owner, ty] {
+                assert_eq!(caller.snapshot_id, entity.snapshot_id);
+                assert_eq!(caller.dex_occurrence_id, entity.dex_occurrence_id);
+            }
+            assert_eq!(row[0], Value::text(&caller.dex_occurrence_id));
+            assert_eq!(row[5], Value::U64(DecimalU64(0)));
+            assert_eq!(row[9], Value::text("shared"));
+            assert_eq!(row[11], Value::Utf16(units.clone()));
+            let (Value::U64(DecimalU64(pc)), Value::U64(DecimalU64(opcode))) = (&row[3], &row[6])
+            else {
+                panic!("expected encoded PC and opcode");
+            };
+            by_source
+                .entry(caller.dex_occurrence_id.clone())
+                .or_default()
+                .push((*pc, *opcode));
+        }
+        assert_eq!(by_source.len(), 2);
+        for pairs in by_source.values_mut() {
+            pairs.sort_unstable();
+            assert_eq!(pairs.as_slice(), oracle_sites.as_slice());
+        }
+        let missing = prepare(
+            catalog
+                .field_reference_query(&"Lmissing;->x:I".encode_utf16().collect::<Vec<_>>())
+                .unwrap(),
+            &catalog,
+        )
+        .unwrap();
+        assert!(
+            execute(
+                &missing,
+                &catalog,
+                mode,
+                &mut Control::new(ExecutionLimits::default()),
+            )
+            .unwrap()
+            .rows()
+            .is_empty()
+        );
+        let limits = ExecutionLimits {
+            max_output_rows: 1,
+            ..ExecutionLimits::default()
+        };
+        assert_eq!(
+            execute(&plan, &catalog, mode, &mut Control::new(limits))
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::QuotaExceeded
+        );
+    }
+    assert_eq!(
+        catalog
+            .field_reference_query(&vec![0; 1_000_001])
+            .unwrap_err()
+            .code,
+        ErrorCode::QuotaExceeded
+    );
+    let (mut incomplete, references) = native_references_fixture("classic-035.dex");
+    incomplete.occurrences[0].code = None;
+    let incomplete = ReferenceCatalog::new(incomplete, references).unwrap();
+    assert_eq!(
+        prepare(
+            incomplete.field_reference_query(&units).unwrap(),
+            &incomplete
+        )
+        .err()
+        .unwrap()
+        .code,
+        ErrorCode::IncompleteFacts
+    );
+}
+
+#[test]
 fn typed_reference_catalog_preserves_sites_and_joins_with_definitions() {
     let (native, mut references) = native_references();
     // A caller may provide facts in another order; output remains catalog ordered.

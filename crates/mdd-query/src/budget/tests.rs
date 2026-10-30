@@ -2,6 +2,211 @@ use super::*;
 use std::sync::mpsc;
 use std::thread;
 
+fn owned_queue_test_runtime(
+    limits: BudgetLimits,
+) -> (
+    mdd_session::Lifecycle,
+    mdd_session::SnapshotHandle,
+    mdd_session::SessionHandle,
+    mdd_session::QueryHandle,
+    RuntimeBudget,
+) {
+    use mdd_input::snapshot::{CaptureLimits, InputKind, InputSpec, Snapshot};
+    use mdd_session::{Lifecycle, QueryBinding, ResourceLimits};
+    let life = Lifecycle::new(ResourceLimits::default()).unwrap();
+    let snapshot = Snapshot::capture(
+        &[InputSpec {
+            path: std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../tests/fixtures/generated/minimal-035.dex"),
+            kind: InputKind::RawDex,
+            expected_sha256: None,
+        }],
+        CaptureLimits::default(),
+    )
+    .unwrap();
+    let snapshot = life.register_snapshot(Arc::new(snapshot)).unwrap();
+    let session = life
+        .open_session(&snapshot, ResourceLimits::default())
+        .unwrap();
+    let query = life
+        .prepare_query(
+            &session,
+            QueryBinding {
+                request_key: "owned-batch-queue".into(),
+                schema_id: "bytes-v1".into(),
+                semantic_version: "v1".into(),
+            },
+            ResourceLimits::default(),
+        )
+        .unwrap();
+    life.start_query(&session, &query, 1).unwrap();
+    let cancel = life.cancellation_token(&query).unwrap();
+    let pool = BudgetPool::global("owned-queue-global".into(), limits.clone())
+        .unwrap()
+        .child(
+            cancel.worker_owner_id().unwrap(),
+            BudgetScope::Worker,
+            limits.clone(),
+        )
+        .unwrap()
+        .child(session.id().into(), BudgetScope::Session, limits.clone())
+        .unwrap()
+        .child(query.id().into(), BudgetScope::Query, limits)
+        .unwrap();
+    let runtime = RuntimeBudget::new(pool, cancel).unwrap();
+    (life, snapshot, session, query, runtime)
+}
+
+#[test]
+fn owned_batch_queue_preserves_consumption_and_retained_budget() {
+    let limits = BudgetLimits::default()
+        .with(Resource::QueryWorkspaceBytes, 5)
+        .with(Resource::ResidentBytes, 5)
+        .with(Resource::QueueBytes, 5);
+    let (life, snapshot, session, query, runtime) = owned_queue_test_runtime(limits);
+    let (sender, mut receiver) = bounded_owned_batch_channel(&runtime, 1).unwrap();
+    sender.send(&runtime, Box::new([1, 2, 3, 4, 5])).unwrap();
+    assert_eq!(used(runtime.pool(), Resource::QueryWorkspaceBytes), 5);
+    assert_eq!(used(runtime.pool(), Resource::QueueBytes), 5);
+    let OwnedBatchEvent::Data(packet) = receiver.receive().unwrap() else {
+        panic!("expected batch")
+    };
+    assert_eq!(packet.bytes(), &[1, 2, 3, 4, 5]);
+    assert_eq!(used(runtime.pool(), Resource::QueueBytes), 0);
+    let retained = packet.acknowledge().unwrap();
+    let clone = retained.clone();
+    assert_eq!(used(runtime.pool(), Resource::QueryWorkspaceBytes), 5);
+    runtime.cancellation().mark_computed().unwrap();
+    sender.finish(Ok(())).unwrap();
+    assert!(matches!(
+        receiver.receive().unwrap(),
+        OwnedBatchEvent::End(Ok(()))
+    ));
+    let mut receipt = receiver.into_delivery_receipt().unwrap();
+    assert!(receipt.confirm(&sender, &runtime, 2).is_err());
+    receipt.confirm(&sender, &runtime, 1).unwrap();
+    assert!(life.query_status(&query).unwrap().delivery_complete);
+    life.release_query(&query).unwrap();
+    life.release_session(&session).unwrap();
+    life.release_snapshot(&snapshot).unwrap();
+    assert_eq!(retained.bytes(), &[1, 2, 3, 4, 5]);
+    drop(retained);
+    assert_eq!(used(runtime.pool(), Resource::QueryWorkspaceBytes), 5);
+    drop(clone);
+    assert_eq!(used(runtime.pool(), Resource::QueryWorkspaceBytes), 0);
+}
+
+#[test]
+fn owned_batch_queue_rejects_unconsumed_and_foreign_runtime() {
+    let (life, _, _, query, runtime) = owned_queue_test_runtime(BudgetLimits::default());
+    let (_, _, _, _, foreign) = owned_queue_test_runtime(BudgetLimits::default());
+    let (sender, mut receiver) = bounded_owned_batch_channel(&runtime, 1).unwrap();
+    assert_eq!(
+        sender.send(&foreign, Box::new([1])).unwrap_err().code,
+        ErrorCode::InvalidArgument
+    );
+    sender.send(&runtime, Box::new([1, 2])).unwrap();
+    let OwnedBatchEvent::Data(packet) = receiver.receive().unwrap() else {
+        panic!("expected batch")
+    };
+    drop(packet);
+    assert!(!life.query_status(&query).unwrap().delivery_complete);
+    assert_eq!(
+        sender.finish(Ok(())).unwrap_err().code,
+        ErrorCode::Cancelled
+    );
+    let OwnedBatchEvent::End(end) = receiver.receive().unwrap() else {
+        panic!("expected error end")
+    };
+    assert_eq!(end.unwrap_err().code, ErrorCode::Cancelled);
+    assert!(receiver.into_delivery_receipt().is_err());
+    assert_eq!(used(runtime.pool(), Resource::QueryWorkspaceBytes), 0);
+}
+
+#[test]
+fn owned_batch_queue_second_ack_failure_cannot_finish_delivery() {
+    let (life, _, _, query, runtime) = owned_queue_test_runtime(BudgetLimits::default());
+    let (sender, mut receiver) = bounded_owned_batch_channel(&runtime, 1).unwrap();
+    sender.send(&runtime, Box::new([1, 2])).unwrap();
+    let OwnedBatchEvent::Data(packet) = receiver.receive().unwrap() else {
+        panic!("expected batch")
+    };
+    // Controlled tracker corruption forces failure after the lifecycle batch
+    // ack but before the queue packet ack; no successful receipt may result.
+    let tracker = Arc::clone(&packet.0.acknowledgement.as_ref().unwrap().tracker);
+    tracker.state.lock().unwrap().acknowledged = 1;
+    assert_eq!(
+        packet.acknowledge().err().unwrap().code,
+        ErrorCode::InvalidArgument
+    );
+    let status = life.query_status(&query).unwrap();
+    assert!(!status.delivery_complete);
+    assert_eq!(status.error.unwrap().code, ErrorCode::InvalidArgument);
+    assert_eq!(
+        sender.finish(Ok(())).unwrap_err().code,
+        ErrorCode::InvalidArgument
+    );
+    assert!(matches!(
+        receiver.receive().unwrap(),
+        OwnedBatchEvent::End(Err(_))
+    ));
+    assert!(receiver.into_delivery_receipt().is_err());
+    assert_eq!(used(runtime.pool(), Resource::QueryWorkspaceBytes), 0);
+}
+
+#[test]
+fn owned_batch_queue_holds_backpressure_and_reports_worker_loss() {
+    let limits = BudgetLimits::default()
+        .with(Resource::QueueItems, 1)
+        .with(Resource::QueryWorkspaceBytes, 10)
+        .with(Resource::ResidentBytes, 10);
+    let (life, _, _, query, runtime) = owned_queue_test_runtime(limits);
+    let (sender, mut receiver) = bounded_owned_batch_channel(&runtime, 1).unwrap();
+    sender.send(&runtime, Box::new([1, 2, 3, 4, 5])).unwrap();
+    let worker_sender = sender.try_clone().unwrap();
+    let worker_runtime = runtime.clone();
+    let (done, finished) = mpsc::channel();
+    let worker = thread::spawn(move || {
+        done.send(worker_sender.send(&worker_runtime, Box::new([6, 7, 8, 9, 10])))
+            .unwrap();
+    });
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while used(runtime.pool(), Resource::QueryWorkspaceBytes) != 10 {
+        assert!(
+            Instant::now() < deadline,
+            "second sender did not reserve its payload"
+        );
+        thread::yield_now();
+    }
+    assert!(finished.try_recv().is_err());
+    let OwnedBatchEvent::Data(first) = receiver.receive().unwrap() else {
+        panic!("expected first")
+    };
+    let first = first.acknowledge().unwrap();
+    assert!(
+        finished
+            .recv_timeout(Duration::from_secs(5))
+            .unwrap()
+            .is_ok()
+    );
+    worker.join().unwrap();
+    let OwnedBatchEvent::Data(second) = receiver.receive().unwrap() else {
+        panic!("expected second")
+    };
+    life.worker_lost("injected worker loss").unwrap();
+    assert_eq!(
+        second.acknowledge().err().unwrap().code,
+        ErrorCode::WorkerLost
+    );
+    assert_eq!(
+        life.query_status(&query).unwrap().error.unwrap().code,
+        ErrorCode::WorkerLost
+    );
+    assert_eq!(first.bytes(), &[1, 2, 3, 4, 5]);
+    drop(first);
+    assert_eq!(used(runtime.pool(), Resource::QueryWorkspaceBytes), 0);
+}
+
 #[test]
 fn deadline_is_checked_while_budget_admission_lock_is_held() {
     let pool = BudgetPool::global("deadline-atomic".into(), BudgetLimits::default()).unwrap();

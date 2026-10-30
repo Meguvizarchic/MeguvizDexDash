@@ -348,6 +348,90 @@ impl ReferenceCatalog {
         })
     }
 
+    /// Query encoded field-reference sites by an exact UTF-16 descriptor.
+    /// Each source occurrence and operand site is retained. The opcode is the
+    /// encoded instruction, not a claim about runtime field access or dispatch.
+    /// This uses scan/filter/join, not an index, and does not promise row order
+    /// or a legacy HostLab table shape.
+    pub fn field_reference_query(&self, descriptor: &[u16]) -> MddResult<QueryIr> {
+        if descriptor.len() > 1_000_000 {
+            return Err(MddError::new(
+                ErrorCode::QuotaExceeded,
+                "query.facts",
+                "field descriptor predicate exceeds construction limit",
+            ));
+        }
+        let mut value = Vec::new();
+        value.try_reserve_exact(descriptor.len()).map_err(|_| {
+            MddError::new(
+                ErrorCode::QuotaExceeded,
+                "query.facts",
+                "field descriptor predicate allocation failed",
+            )
+        })?;
+        value.extend_from_slice(descriptor);
+        let sites = Node::Filter {
+            input: Box::new(Node::Scan {
+                relation: "reference_sites".into(),
+            }),
+            predicate: Predicate::Eq {
+                left: Expr::Column { ordinal: 6 },
+                right: Expr::Literal {
+                    value: Value::text("field"),
+                },
+            },
+        };
+        let joined = Node::EquiJoin {
+            left: Box::new(sites),
+            right: Box::new(Node::Scan {
+                relation: "fields".into(),
+            }),
+            left_keys: vec![8],
+            right_keys: vec![0],
+            kind: JoinKind::Inner,
+        };
+        let matched = Node::Filter {
+            input: Box::new(joined),
+            predicate: Predicate::Eq {
+                left: Expr::Column { ordinal: 16 },
+                right: Expr::Literal {
+                    value: Value::Utf16(value),
+                },
+            },
+        };
+        let columns = [
+            ("dex_occurrence_id", DataType::Utf16, 0),
+            ("site_ordinal", DataType::U64, 1),
+            ("caller", DataType::Entity, 2),
+            ("code_unit_pc", DataType::U64, 3),
+            ("instruction_ordinal", DataType::U64, 4),
+            ("operand_ordinal", DataType::U64, 5),
+            ("opcode", DataType::U64, 9),
+            ("field", DataType::Entity, 11),
+            ("field_owner", DataType::Entity, 13),
+            ("field_name", DataType::Utf16, 14),
+            ("field_type", DataType::Entity, 15),
+            ("field_descriptor", DataType::Utf16, 16),
+        ]
+        .into_iter()
+        .map(|(name, data_type, ordinal)| Projection {
+            column: column(name, data_type, false),
+            expression: Expr::Column { ordinal },
+        })
+        .collect();
+        Ok(QueryIr {
+            schema_version: IR_VERSION.into(),
+            text_semantics: TEXT_VERSION.into(),
+            snapshot_id: self.native.snapshot_id().to_owned(),
+            catalog_epoch: self.native.catalog_epoch(),
+            require_stable_order: false,
+            root: Node::Project {
+                input: Box::new(matched),
+                columns,
+            },
+        })
+    }
+
     /// Construct a typed exact-string reference query for this catalog.
     /// UTF-16 code units are compared without normalization or lossy decoding.
     /// Every encoded operand occurrence is retained; this is not an index
