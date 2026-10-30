@@ -1,0 +1,10 @@
+{
+  "source_sha256": {
+    "artifacts/mdd-005/a2-lifecycle-json-20261030/probe.py": "74E24421AEB421426BE8CA83FC38AFD120449B1B0CE8309F8BCBD30EB5B22BB3",
+    "benchmarks/a2_dataset_close.py": "311B1D22DDF2EE9CF6CD56231817B79C9EDAEC6F45B81DFD0142486C7D5D105A",
+    "benchmarks/a2_dataset_open.py": "905588EEE22CEB64AC23D987D874F02E5F87BC558810FB03D1A6D35B0C97C810"
+  },
+  "exit_code": 1,
+  "scope": "synthetic lifecycle protocol checks only",
+  "command": "python artifacts/mdd-005/a2-lifecycle-json-20261030/probe.py"
+}

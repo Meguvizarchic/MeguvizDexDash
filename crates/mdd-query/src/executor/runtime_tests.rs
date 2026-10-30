@@ -33,6 +33,14 @@ fn setup_with_rows(limits: BudgetLimits, rows: u64) -> Fixture {
     )
 }
 fn setup_with_schema(limits: BudgetLimits, data_type: DataType, rows: Vec<Row>) -> Fixture {
+    setup_with_schema_and_lifecycle(limits, data_type, rows, ResourceLimits::default())
+}
+fn setup_with_schema_and_lifecycle(
+    limits: BudgetLimits,
+    data_type: DataType,
+    rows: Vec<Row>,
+    lifecycle_limits: ResourceLimits,
+) -> Fixture {
     let snapshot = Arc::new(
         Snapshot::capture(
             &[InputSpec {
@@ -46,7 +54,7 @@ fn setup_with_schema(limits: BudgetLimits, data_type: DataType, rows: Vec<Row>) 
         .unwrap(),
     );
     let snapshot_id = snapshot.manifest().snapshot_id.clone();
-    let lifecycle = Lifecycle::new(ResourceLimits::default()).unwrap();
+    let lifecycle = Lifecycle::new(lifecycle_limits).unwrap();
     let handle = lifecycle.register_snapshot(snapshot).unwrap();
     let session = lifecycle
         .open_session(&handle, ResourceLimits::default())
@@ -119,6 +127,44 @@ fn setup_with_schema(limits: BudgetLimits, data_type: DataType, rows: Vec<Row>) 
         worker_budget: worker,
         session_budget,
     }
+}
+
+#[test]
+fn runtime_checkpoint_keeps_earlier_budget_deadline() {
+    let f = setup_with_schema_and_lifecycle(
+        BudgetLimits::default().deadlines(250, 5000).unwrap(),
+        DataType::U64,
+        vec![],
+        ResourceLimits {
+            deadline_ms: 900,
+            ..ResourceLimits::default()
+        },
+    );
+    std::thread::sleep(std::time::Duration::from_millis(1100));
+    let error = f.runtime.checkpoint().unwrap_err();
+    assert_eq!(error.code, ErrorCode::DeadlineExceeded);
+    assert_eq!(error.stage, "budget");
+    assert_eq!(error.details["budget"], "soft_deadline_ms");
+}
+
+#[test]
+fn queue_checkpoint_keeps_earlier_lifecycle_deadline() {
+    let f = setup_with_schema_and_lifecycle(
+        BudgetLimits::default().deadlines(900, 5000).unwrap(),
+        DataType::U64,
+        vec![],
+        ResourceLimits {
+            deadline_ms: 250,
+            ..ResourceLimits::default()
+        },
+    );
+    let (_sender, mut receiver) =
+        bounded_channel::<Row>(f.runtime.pool().clone(), Some(f.cancel.clone()), 1).unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(1100));
+    let error = receiver.receive().err().unwrap();
+    assert_eq!(error.code, ErrorCode::DeadlineExceeded);
+    assert_eq!(error.stage, "lifecycle");
+    assert_eq!(error.details["budget"], "deadline_ms");
 }
 
 #[test]

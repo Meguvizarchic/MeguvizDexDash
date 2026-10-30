@@ -35,6 +35,33 @@ def _invalid_constant(_):
     raise ValueError('non-finite JSON constant')
 
 
+def _json_identity(value):
+    """Compare JSON values without Python's bool/int equality or coercions."""
+    pending = [value]
+    seen = set()
+    while pending:
+        item = pending.pop()
+        kind = type(item)
+        if kind is dict:
+            if id(item) in seen:
+                continue
+            seen.add(id(item))
+            if any(type(key) is not str for key in item):
+                raise ValueError('non-text JSON key')
+            pending.extend(item.values())
+        elif kind is list:
+            if id(item) in seen:
+                continue
+            seen.add(id(item))
+            pending.extend(item)
+        elif kind not in (str, int, float, bool, type(None)):
+            raise ValueError('non-JSON value')
+    # json.dumps detects cycles and non-finite numbers. Its spelling also
+    # preserves the distinction between booleans, integers, and floats.
+    return json.dumps(value, ensure_ascii=True, sort_keys=True,
+                      separators=(',', ':'), allow_nan=False)
+
+
 def _payload(response, stage):
     """Accept a structured object, requiring textual copies to agree if present."""
     error = getattr(response, 'is_error', None)
@@ -54,13 +81,24 @@ def _payload(response, stage):
         try:
             parsed.append(json.loads(text, object_pairs_hook=_unique_object,
                                      parse_constant=_invalid_constant))
-        except (ValueError, TypeError) as error:
+        except (ValueError, TypeError, RecursionError) as error:
             raise DatasetCloseError(stage, 'malformed lifecycle JSON', producer_detail=detail) from error
     if structured is None:
         if len(parsed) != 1 or not isinstance(parsed[0], dict):
             raise DatasetCloseError(stage, 'missing lifecycle object', producer_detail=detail)
+        try:
+            _json_identity(parsed[0])
+        except (TypeError, ValueError, RecursionError) as error:
+            raise DatasetCloseError(stage, 'invalid lifecycle JSON value',
+                                    producer_detail=detail) from error
         return parsed[0]
-    if not isinstance(structured, dict) or any(item != structured for item in parsed):
+    try:
+        identity = _json_identity(structured) if type(structured) is dict else None
+        agrees = identity is not None and all(_json_identity(item) == identity for item in parsed)
+    except (TypeError, ValueError, RecursionError) as error:
+        raise DatasetCloseError(stage, 'invalid structured lifecycle object',
+                                producer_detail=detail) from error
+    if not agrees:
         raise DatasetCloseError(stage, 'lifecycle content disagrees with structured object',
                                 producer_detail=detail)
     return structured

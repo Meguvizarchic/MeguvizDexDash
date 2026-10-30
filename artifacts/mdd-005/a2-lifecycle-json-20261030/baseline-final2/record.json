@@ -1,0 +1,31 @@
+{
+  "scope": "synthetic lifecycle only, no A2 qualification",
+  "python": "Python 3.12.14",
+  "source_after": {
+    "benchmarks/a2_dataset_close.py": "4D2CB8756D38BEFB101AFE9C020D93E8A4757CB376F473CEE4CE4A39B83636E5",
+    "benchmarks/a2_dataset_open.py": "33EBD713D204C2F739255193050F3F4F328B0DD20747D211621FF0786EEAA19C",
+    "artifacts/mdd-005/a2-dataset-open-20261030/probe2.py": "926D4E17F73C1025B22DC88A3B4BBA93D88CB83C7839E1CC3457FCCB367E0B55",
+    "artifacts/mdd-005/a2-lifecycle-json-20261030/probe.py": "3F75C68B43B17D8DC63CD2A419F421C2B1BD554E76FC7BCEC05378E00F10BA40"
+  },
+  "source_before": {
+    "benchmarks/a2_dataset_close.py": "4D2CB8756D38BEFB101AFE9C020D93E8A4757CB376F473CEE4CE4A39B83636E5",
+    "benchmarks/a2_dataset_open.py": "33EBD713D204C2F739255193050F3F4F328B0DD20747D211621FF0786EEAA19C",
+    "artifacts/mdd-005/a2-dataset-open-20261030/probe2.py": "926D4E17F73C1025B22DC88A3B4BBA93D88CB83C7839E1CC3457FCCB367E0B55",
+    "artifacts/mdd-005/a2-lifecycle-json-20261030/probe.py": "3F75C68B43B17D8DC63CD2A419F421C2B1BD554E76FC7BCEC05378E00F10BA40"
+  },
+  "runs": [
+    {
+      "exit_code": 1,
+      "arguments": [
+        "-O",
+        "artifacts/mdd-005/a2-lifecycle-json-20261030/probe.py"
+      ]
+    },
+    {
+      "exit_code": 0,
+      "arguments": [
+        "artifacts/mdd-005/a2-dataset-open-20261030/probe2.py"
+      ]
+    }
+  ]
+}

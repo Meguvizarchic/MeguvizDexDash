@@ -1,0 +1,8 @@
+
+running 3 tests
+test budget::tests::unbound_queue_deadline_remains_a_deadline ... ok
+test executor::runtime_tests::queue_deadline_cannot_replace_prior_cancel_or_worker_loss ... ok
+test executor::runtime_tests::queue_deadline_has_explicit_error_end_and_no_complete_success ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 77 filtered out; finished in 0.00s
+

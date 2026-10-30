@@ -319,6 +319,7 @@ impl State {
             return self.checkpoint(query);
         }
         let lifecycle_deadline = entry.deadline;
+        let lifecycle_limit = entry.limits.deadline_ms;
         let now = Instant::now();
         if let Some(budget) = budget
             && budget.soft() < lifecycle_deadline
@@ -327,7 +328,18 @@ impl State {
             self.end_query(query.id(), error.clone());
             return Err(error);
         }
-        self.checkpoint(query)
+        if now >= lifecycle_deadline {
+            let error = MddError::new(
+                ErrorCode::DeadlineExceeded,
+                "lifecycle",
+                "query total deadline exceeded",
+            )
+            .detail("budget", "deadline_ms")
+            .detail("limit", lifecycle_limit.to_string());
+            self.end_query(query.id(), error.clone());
+            return Err(error);
+        }
+        self.ensure_worker()
     }
 }
 

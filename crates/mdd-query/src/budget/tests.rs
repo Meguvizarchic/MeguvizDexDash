@@ -18,6 +18,98 @@ fn tree(limits: BudgetLimits) -> (BudgetPool, BudgetPool, BudgetPool, BudgetPool
 fn used(pool: &BudgetPool, resource: Resource) -> u64 {
     pool.usage().unwrap().used.get(&resource).map_or(0, |v| v.0)
 }
+
+#[test]
+fn poisoned_budget_checkpoint_records_fault_and_preserves_prior_cancel() {
+    use mdd_input::snapshot::{CaptureLimits, InputKind, InputSpec, Snapshot};
+    use mdd_session::{Lifecycle, QueryBinding, ResourceLimits};
+    use std::path::PathBuf;
+
+    for via_queue in [false, true] {
+        for prior_cancel in [false, true] {
+            let limits = ResourceLimits::default();
+            let lifecycle = Lifecycle::new(limits).unwrap();
+            let snapshot = Snapshot::capture(
+                &[InputSpec {
+                    path: PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                        .join("../../tests/fixtures/generated/minimal-035.dex"),
+                    kind: InputKind::RawDex,
+                    expected_sha256: None,
+                }],
+                CaptureLimits::default(),
+            )
+            .unwrap();
+            let snapshot = lifecycle.register_snapshot(Arc::new(snapshot)).unwrap();
+            let session = lifecycle.open_session(&snapshot, limits).unwrap();
+            let query = lifecycle
+                .prepare_query(
+                    &session,
+                    QueryBinding {
+                        request_key: "poison-test".into(),
+                        schema_id: "rows".into(),
+                        semantic_version: "v1".into(),
+                    },
+                    limits,
+                )
+                .unwrap();
+            lifecycle.start_query(&session, &query, 1).unwrap();
+            let cancel = lifecycle.cancellation_token(&query).unwrap();
+            let pool = BudgetPool::global("g".into(), BudgetLimits::default())
+                .unwrap()
+                .child(
+                    cancel.worker_owner_id().unwrap(),
+                    BudgetScope::Worker,
+                    BudgetLimits::default(),
+                )
+                .unwrap()
+                .child(
+                    session.id().into(),
+                    BudgetScope::Session,
+                    BudgetLimits::default(),
+                )
+                .unwrap()
+                .child(
+                    query.id().into(),
+                    BudgetScope::Query,
+                    BudgetLimits::default(),
+                )
+                .unwrap();
+            let runtime = RuntimeBudget::new(pool.clone(), cancel.clone()).unwrap();
+            let (_sender, mut receiver) =
+                bounded_channel::<u8>(pool.clone(), Some(cancel.clone()), 1).unwrap();
+            if prior_cancel {
+                cancel.cancel().unwrap();
+            }
+            let poisoned = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let _guard = pool.state.lock().unwrap();
+                panic!("controlled budget mutex poisoning");
+            }));
+            assert!(poisoned.is_err());
+            let error = if via_queue {
+                receiver.receive().err().unwrap()
+            } else {
+                runtime.checkpoint().unwrap_err()
+            };
+            let expected = if prior_cancel {
+                ErrorCode::Cancelled
+            } else {
+                ErrorCode::InternalFault
+            };
+            assert_eq!(
+                error.code, expected,
+                "queue={via_queue} prior_cancel={prior_cancel}"
+            );
+            let first = cancel
+                .status()
+                .unwrap()
+                .error
+                .expect("missing lifecycle terminal");
+            assert_eq!(first.code, error.code);
+            assert_eq!(first.stage, error.stage);
+            assert_eq!(first.message, error.message);
+        }
+    }
+}
 #[test]
 fn all_budget_dimensions_restrict_atomically_and_resident_leases_release() {
     for resource in RESOURCES {

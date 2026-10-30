@@ -1,0 +1,31 @@
+{
+  "source_after": {
+    "benchmarks/a2_dataset_close.py": "4D505645A699920AAF9586CF8A22447BBD38C0DC45131F3B5FD6B69C6848C822",
+    "artifacts/mdd-005/a2-lifecycle-json-20261030/probe.py": "D045C0923A691AA72E9C128AA9A6B69421E62D71048ED6C7E6D16EFEBE088100",
+    "artifacts/mdd-005/a2-dataset-open-20261030/probe2.py": "926D4E17F73C1025B22DC88A3B4BBA93D88CB83C7839E1CC3457FCCB367E0B55",
+    "benchmarks/a2_dataset_open.py": "33EBD713D204C2F739255193050F3F4F328B0DD20747D211621FF0786EEAA19C"
+  },
+  "scope": "synthetic lifecycle protocol only",
+  "runs": [
+    {
+      "exit_code": 0,
+      "arguments": [
+        "-O",
+        "artifacts/mdd-005/a2-lifecycle-json-20261030/probe.py"
+      ]
+    },
+    {
+      "exit_code": 0,
+      "arguments": [
+        "artifacts/mdd-005/a2-dataset-open-20261030/probe2.py"
+      ]
+    }
+  ],
+  "source_before": {
+    "benchmarks/a2_dataset_close.py": "4D505645A699920AAF9586CF8A22447BBD38C0DC45131F3B5FD6B69C6848C822",
+    "artifacts/mdd-005/a2-lifecycle-json-20261030/probe.py": "D045C0923A691AA72E9C128AA9A6B69421E62D71048ED6C7E6D16EFEBE088100",
+    "artifacts/mdd-005/a2-dataset-open-20261030/probe2.py": "926D4E17F73C1025B22DC88A3B4BBA93D88CB83C7839E1CC3457FCCB367E0B55",
+    "benchmarks/a2_dataset_open.py": "33EBD713D204C2F739255193050F3F4F328B0DD20747D211621FF0786EEAA19C"
+  },
+  "python": "Python 3.13.15"
+}

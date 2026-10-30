@@ -4,7 +4,7 @@ use crate::{
     metadata::{EntityKind, EntityRef, MetadataSource},
 };
 use mdd_dex::annotations::{
-    AnnotationItem, AnnotationLimits, AnnotationOwnerBinding, AnnotationOwnerKind,
+    AnnotationItem, AnnotationLimits, AnnotationOwnerBinding, AnnotationOwnerKind, AnnotationSet,
     AnnotationSetRefList, DexAnnotations, EncodedKind, EncodedValue, ExactFloat, read_annotations,
 };
 use mdd_dex::{
@@ -53,6 +53,33 @@ pub struct AnnotationValueFact<'a> {
     pub annotation: &'a AnnotationItem,
     pub value: &'a EncodedValue,
     pub raw_encoded: &'a [u8],
+}
+
+/// Bounds for reverse physical annotation-owner lookup. They count logical
+/// visits and returned entries, not bytes, allocator overhead, or RSS.
+#[derive(Clone, Copy, Debug)]
+pub struct AnnotationOwnerViewLimits {
+    pub max_scanned_entries: u64,
+    pub max_matches: u64,
+}
+impl Default for AnnotationOwnerViewLimits {
+    fn default() -> Self {
+        Self {
+            max_scanned_entries: 32_000_000,
+            max_matches: 4_000_000,
+        }
+    }
+}
+
+/// One encoded owner/set/item occurrence within one DEX occurrence. Parameter
+/// ordinals are encoded slots; `owner.parameter_position_in_prototype` retains
+/// whether that slot is proven to correspond to a prototype position.
+pub struct AnnotationOwnerFact<'a> {
+    pub source: &'a MetadataSource,
+    pub owner: &'a AnnotationOwnerBinding,
+    pub set: &'a AnnotationSet,
+    pub annotation: &'a AnnotationItem,
+    pub set_ordinal: u32,
 }
 
 /// Logical limits for a single method's borrowed parameter view, not an RSS bound.
@@ -481,6 +508,115 @@ impl AnnotationFacts {
     }
     pub fn source(&self) -> &MetadataSource {
         self.definitions.metadata.source()
+    }
+    /// Reverse lookup of one validated physical item across encoded owners in
+    /// this DEX occurrence. An empty result proves only that this item has no
+    /// encoded owner in these complete facts, not absence from other inputs.
+    /// Orphan items and empty sets remain valid. Shared sets yield one result
+    /// per owner and per encoded item occurrence; no semantic inheritance or
+    /// prototype-position completeness is inferred.
+    pub fn annotation_owner_facts(
+        &self,
+        annotation: &AnnotationRef,
+        limits: AnnotationOwnerViewLimits,
+    ) -> MddResult<Vec<AnnotationOwnerFact<'_>>> {
+        let source = self.source();
+        if annotation.snapshot_id != source.snapshot_id
+            || annotation.dex_occurrence_id != source.dex_occurrence_id
+        {
+            return Err(MddError::new(
+                ErrorCode::InvalidArgument,
+                "facts.annotation_owners",
+                "annotation belongs to another snapshot or occurrence",
+            ));
+        }
+        if self.annotation_coverage != Completeness::Complete
+            || self.definitions.definition_coverage() != Completeness::Complete
+            || self.definitions.metadata().metadata_coverage() != Completeness::Complete
+        {
+            return Err(MddError::new(
+                ErrorCode::IncompleteFacts,
+                "facts.annotation_owners",
+                "complete metadata, definitions and annotations are required",
+            ));
+        }
+        let quota = || {
+            MddError::new(
+                ErrorCode::QuotaExceeded,
+                "facts.annotation_owners",
+                "annotation owner view budget exceeded",
+            )
+        };
+        let broken = || {
+            MddError::new(
+                ErrorCode::InternalFault,
+                "facts.annotation_owners",
+                "validated annotation owner facts are inconsistent",
+            )
+        };
+        let mut visits = 0u64;
+        let mut tick = || -> MddResult<()> {
+            visits = visits.checked_add(1).ok_or_else(quota)?;
+            if visits > limits.max_scanned_entries {
+                return Err(quota());
+            }
+            Ok(())
+        };
+        let mut item = None;
+        for candidate in &self.data.annotation_items {
+            tick()?;
+            if candidate.byte_offset == annotation.annotation_byte_offset {
+                if item.replace(candidate).is_some() {
+                    return Err(broken());
+                }
+            }
+        }
+        let item = item.ok_or_else(|| {
+            MddError::new(
+                ErrorCode::InvalidArgument,
+                "facts.annotation_owners",
+                "annotation offset is not a physical item start",
+            )
+        })?;
+        if item.encoded_range.byte_offset.0 != u64::from(item.byte_offset) {
+            return Err(broken());
+        }
+        let mut matches = Vec::new();
+        for owner in &self.data.owner_bindings {
+            tick()?;
+            let Some(offset) = owner.annotation_set_offset else {
+                continue;
+            };
+            let mut selected = None;
+            for set in &self.data.sets {
+                tick()?;
+                if set.byte_offset == offset && selected.replace(set).is_some() {
+                    return Err(broken());
+                }
+            }
+            let set = selected.ok_or_else(broken)?;
+            if set.encoded_range.byte_offset.0 != u64::from(set.byte_offset) {
+                return Err(broken());
+            }
+            for (ordinal, entry) in set.annotation_offsets.iter().enumerate() {
+                tick()?;
+                if *entry == item.byte_offset {
+                    if u64::try_from(matches.len()).map_err(|_| quota())? >= limits.max_matches {
+                        return Err(quota());
+                    }
+                    let set_ordinal = u32::try_from(ordinal).map_err(|_| quota())?;
+                    matches.try_reserve(1).map_err(|_| quota())?;
+                    matches.push(AnnotationOwnerFact {
+                        source,
+                        owner,
+                        set,
+                        annotation: item,
+                        set_ordinal,
+                    });
+                }
+            }
+        }
+        Ok(matches)
     }
     /// Iterate physical value nodes for one exact annotation item in parser order.
     /// The caller must consume the iterator and handle each error before calling
@@ -1022,11 +1158,11 @@ mod tests {
     use super::*;
     use crate::MetadataFacts;
     use mdd_dex::{definitions::DefinitionLimits, strings::StringLimits};
-    use mdd_types::DecimalU64;
     use mdd_input::{
         archive::{ArchiveInventory, ArchiveLimits, InventoryPolicy},
         snapshot::{CaptureLimits, InputKind, InputSpec, Snapshot},
     };
+    use mdd_types::DecimalU64;
     use std::path::PathBuf;
     fn build(path: &str) -> AnnotationFacts {
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -1051,6 +1187,230 @@ mod tests {
             MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default()).unwrap();
         let definitions = DefinitionFacts::build(metadata, DefinitionLimits::default()).unwrap();
         AnnotationFacts::build(definitions, AnnotationLimits::default()).unwrap()
+    }
+    #[test]
+    fn annotation_owner_view_preserves_shared_sets_slots_and_scope() {
+        let facts = build("tests/fixtures/annotations/generated/annotations-038.dex");
+        let reference = |offset| AnnotationRef {
+            snapshot_id: facts.source().snapshot_id.clone(),
+            dex_occurrence_id: facts.source().dex_occurrence_id.clone(),
+            annotation_byte_offset: offset,
+        };
+        // The independent fixture lists set 1164 for two distinct fields,
+        // both pointing to physical annotation 1120 at ordinal zero.
+        let fields = facts
+            .annotation_owner_facts(&reference(1120), AnnotationOwnerViewLimits::default())
+            .unwrap();
+        let got = fields
+            .iter()
+            .map(|fact| {
+                (
+                    fact.owner.kind,
+                    fact.owner.local_index,
+                    fact.set.byte_offset,
+                    fact.set_ordinal,
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            got,
+            vec![
+                (AnnotationOwnerKind::Field, 0, 1164, 0),
+                (AnnotationOwnerKind::Field, 1, 1164, 0)
+            ]
+        );
+        assert!(fields.iter().all(|fact| fact.source.dex_occurrence_id
+            == facts.source().dex_occurrence_id
+            && fact.annotation.byte_offset == 1120));
+
+        // 1012 occurs once in the class set and once in the parameter set;
+        // that parameter set is referenced by two methods at encoded slot 0.
+        let owners = facts
+            .annotation_owner_facts(&reference(1012), AnnotationOwnerViewLimits::default())
+            .unwrap();
+        let got = owners
+            .iter()
+            .map(|fact| {
+                (
+                    fact.owner.kind,
+                    fact.owner.local_index,
+                    fact.owner.parameter_ordinal,
+                    fact.set.byte_offset,
+                    fact.set_ordinal,
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(got.len(), 3);
+        assert_eq!(got[0].0, AnnotationOwnerKind::Class);
+        assert_eq!((got[0].3, got[0].4), (1152, 1));
+        assert_eq!(
+            got[1],
+            (AnnotationOwnerKind::Parameter, 0, Some(0), 1180, 0)
+        );
+        assert_eq!(
+            got[2],
+            (AnnotationOwnerKind::Parameter, 1, Some(0), 1180, 0)
+        );
+
+        let visits = facts.data.annotation_items.len() as u64
+            + facts.data.owner_bindings.len() as u64
+            + facts
+                .data
+                .owner_bindings
+                .iter()
+                .filter_map(|owner| owner.annotation_set_offset)
+                .map(|offset| {
+                    facts.data.sets.len() as u64
+                        + facts
+                            .data
+                            .sets
+                            .iter()
+                            .find(|set| set.byte_offset == offset)
+                            .unwrap()
+                            .annotation_offsets
+                            .len() as u64
+                })
+                .sum::<u64>();
+        assert_eq!(
+            facts
+                .annotation_owner_facts(
+                    &reference(1012),
+                    AnnotationOwnerViewLimits {
+                        max_scanned_entries: visits,
+                        max_matches: 3
+                    }
+                )
+                .unwrap()
+                .len(),
+            3
+        );
+        assert_eq!(
+            facts
+                .annotation_owner_facts(
+                    &reference(1012),
+                    AnnotationOwnerViewLimits {
+                        max_scanned_entries: visits - 1,
+                        max_matches: 3
+                    }
+                )
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::QuotaExceeded
+        );
+        assert_eq!(
+            facts
+                .annotation_owner_facts(
+                    &reference(1012),
+                    AnnotationOwnerViewLimits {
+                        max_scanned_entries: visits,
+                        max_matches: 2
+                    }
+                )
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::QuotaExceeded
+        );
+        assert_eq!(
+            facts
+                .annotation_owner_facts(&reference(1013), AnnotationOwnerViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InvalidArgument
+        );
+        let mut foreign = reference(1012);
+        foreign.dex_occurrence_id = "foreign".into();
+        assert_eq!(
+            facts
+                .annotation_owner_facts(&foreign, AnnotationOwnerViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InvalidArgument
+        );
+        let mut partial = facts.clone();
+        partial.annotation_coverage = Completeness::Partial;
+        assert_eq!(
+            partial
+                .annotation_owner_facts(&reference(1012), AnnotationOwnerViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::IncompleteFacts
+        );
+        // Injected inconsistent state must be an internal error, never empty success.
+        let mut broken = facts.clone();
+        broken.data.owner_bindings[0].annotation_set_offset = Some(u32::MAX);
+        assert_eq!(
+            broken
+                .annotation_owner_facts(&reference(1012), AnnotationOwnerViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InternalFault
+        );
+        let mut orphan = facts.clone();
+        orphan.data.owner_bindings.clear();
+        assert!(
+            orphan
+                .annotation_owner_facts(&reference(1012), AnnotationOwnerViewLimits::default())
+                .unwrap()
+                .is_empty()
+        );
+
+        // Two captured occurrences of the same physical bytes remain distinct.
+        let input = InputSpec {
+            path: PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../tests/fixtures/annotations/generated/annotations-038.dex"),
+            kind: InputKind::RawDex,
+            expected_sha256: None,
+        };
+        let snapshot =
+            Snapshot::capture(&[input.clone(), input], CaptureLimits::default()).unwrap();
+        let occurrences: Vec<_> = snapshot
+            .sources()
+            .iter()
+            .map(|source| {
+                let inventory = ArchiveInventory::build(
+                    source,
+                    InventoryPolicy::default(),
+                    ArchiveLimits::default(),
+                )
+                .unwrap();
+                let metadata =
+                    MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default())
+                        .unwrap();
+                let definitions =
+                    DefinitionFacts::build(metadata, DefinitionLimits::default()).unwrap();
+                AnnotationFacts::build(definitions, AnnotationLimits::default()).unwrap()
+            })
+            .collect();
+        assert_ne!(
+            occurrences[0].source().dex_occurrence_id,
+            occurrences[1].source().dex_occurrence_id
+        );
+        let from_second = AnnotationRef {
+            snapshot_id: snapshot.manifest().snapshot_id.clone(),
+            dex_occurrence_id: occurrences[1].source().dex_occurrence_id.clone(),
+            annotation_byte_offset: 1120,
+        };
+        assert_eq!(
+            occurrences[1]
+                .annotation_owner_facts(&from_second, AnnotationOwnerViewLimits::default())
+                .unwrap()
+                .len(),
+            2
+        );
+        assert_eq!(
+            occurrences[0]
+                .annotation_owner_facts(&from_second, AnnotationOwnerViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InvalidArgument
+        );
     }
     #[test]
     fn annotation_value_view_preserves_raw_nodes_scope_and_budgets() {

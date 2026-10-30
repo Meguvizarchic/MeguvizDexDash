@@ -1,0 +1,11 @@
+   Compiling mdd-query v0.1.0-dev (D:\MeguvisDexDash\crates\mdd-query)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.07s
+     Running unittests src\lib.rs (target\debug\deps\mdd_query-82579f4092cfd058.exe)
+
+thread 'budget::tests::poisoned_budget_checkpoint_records_fault_and_preserves_prior_cancel' (7536) panicked at crates\mdd-query\src\budget\tests.rs:55:17:
+controlled budget mutex poisoning
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'budget::tests::poisoned_budget_checkpoint_records_fault_and_preserves_prior_cancel' (7536) panicked at crates\mdd-query\src\budget\tests.rs:61:56:
+missing lifecycle terminal
+error: test failed, to rerun pass `-p mdd-query --lib`

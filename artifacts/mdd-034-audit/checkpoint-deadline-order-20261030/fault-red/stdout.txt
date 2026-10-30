@@ -1,0 +1,11 @@
+
+running 1 test
+test budget::tests::poisoned_budget_checkpoint_records_fault_and_preserves_prior_cancel ... FAILED
+
+failures:
+
+failures:
+    budget::tests::poisoned_budget_checkpoint_records_fault_and_preserves_prior_cancel
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 80 filtered out; finished in 0.00s
+

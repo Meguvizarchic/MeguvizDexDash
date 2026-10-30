@@ -725,8 +725,11 @@ impl RuntimeBudget {
         }
     }
     pub fn checkpoint(&self) -> MddResult<()> {
-        self.cancel.checkpoint()?;
-        self.pool.checkpoint().map_err(|error| self.stop(error))
+        let deadline = self
+            .pool
+            .delivery_deadline()
+            .map_err(|error| self.stop(error))?;
+        self.cancel.checkpoint_with_budget(&deadline)
     }
     pub fn charge(&self, resource: Resource, amount: u64) -> MddResult<()> {
         self.checkpoint()?;
@@ -898,19 +901,15 @@ pub fn bounded_channel<T>(
 }
 impl<T> Channel<T> {
     fn checkpoint(&self) -> MddResult<()> {
-        if let Err(error) = self.pool.checkpoint() {
-            return match &self.cancel {
-                Some(cancel) => match cancel.fail(error.clone()) {
-                    Ok(status) => Err(status.error.unwrap_or(error)),
-                    Err(failure) => Err(failure),
-                },
-                None => Err(error),
-            };
-        }
         if let Some(cancel) = &self.cancel {
-            cancel.checkpoint()?;
+            let deadline = self
+                .pool
+                .delivery_deadline()
+                .map_err(|error| self.bound_query_failure(error))?;
+            cancel.checkpoint_with_budget(&deadline)
+        } else {
+            self.pool.checkpoint()
         }
-        Ok(())
     }
     fn protocol_fault(&self, error: MddError) -> MddError {
         if let Some(tracker) = &self.delivery {

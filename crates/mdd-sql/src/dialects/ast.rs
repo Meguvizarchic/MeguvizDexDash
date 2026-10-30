@@ -1382,6 +1382,8 @@ impl Rewrite<'_> {
                             crate::values::SqlType::I64
                                 | crate::values::SqlType::U64
                                 | crate::values::SqlType::Text
+                                | crate::values::SqlType::Bytes
+                                | crate::values::SqlType::Bool
                         )
                     );
                 if !supported {

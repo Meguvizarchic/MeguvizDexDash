@@ -198,6 +198,26 @@ impl QueryCancellation {
         }
         Ok(())
     }
+    /// Check the immutable runtime budget and lifecycle deadline at one instant.
+    pub fn checkpoint_with_budget(&self, budget: &DeliveryBudgetDeadline) -> MddResult<()> {
+        if budget.owner() != self.query.id() {
+            return Err(MddError::new(
+                ErrorCode::InvalidArgument,
+                "cancel.checkpoint",
+                "budget belongs to another query",
+            ));
+        }
+        let mut state = self.lifecycle.lock()?;
+        state.checkpoint_delivery(&self.query, Some(budget))?;
+        if state.query(&self.query)?.status.phase != QueryPhase::Active {
+            return Err(MddError::new(
+                ErrorCode::InvalidArgument,
+                "cancel.checkpoint",
+                "query is not active",
+            ));
+        }
+        Ok(())
+    }
     pub fn cancel(&self) -> MddResult<QueryStatus> {
         self.lifecycle.cancel_query(&self.query)?;
         self.status()
@@ -537,6 +557,68 @@ mod tests {
             finished.checkpoint().unwrap_err().code,
             ErrorCode::InvalidArgument
         );
+    }
+    #[test]
+    fn checkpoint_with_budget_preserves_first_error_and_checks_owner() {
+        let (lifecycle, session) = runtime();
+        let result = query(&lifecycle, &session);
+        let now = Instant::now();
+        let expired = DeliveryBudgetDeadline::new(now, now, now, result.query.id().into()).unwrap();
+        let foreign = DeliveryBudgetDeadline::new(now, now, now, "foreign-query".into()).unwrap();
+        assert_eq!(
+            result.checkpoint_with_budget(&foreign).unwrap_err().code,
+            ErrorCode::InvalidArgument
+        );
+        result.cancel().unwrap();
+        let first = result.status().unwrap().error.unwrap();
+        let observed = result.checkpoint_with_budget(&expired).unwrap_err();
+        assert_eq!(observed.code, first.code);
+        assert_eq!(observed.stage, first.stage);
+        assert_eq!(observed.details, first.details);
+
+        let (lifecycle, session) = runtime();
+        let completed = query(&lifecycle, &session);
+        completed.mark_computed().unwrap();
+        completed.finish_delivery().unwrap();
+        let expired =
+            DeliveryBudgetDeadline::new(now, now, now, completed.query.id().into()).unwrap();
+        assert_eq!(
+            completed.checkpoint_with_budget(&expired).unwrap_err().code,
+            ErrorCode::InvalidArgument
+        );
+        assert!(completed.status().unwrap().delivery_complete);
+
+        let (lifecycle, session) = runtime();
+        let lost = query(&lifecycle, &session);
+        let expired = DeliveryBudgetDeadline::new(now, now, now, lost.query.id().into()).unwrap();
+        lifecycle.worker_lost("controlled loss").unwrap();
+        let error = lost.checkpoint_with_budget(&expired).unwrap_err();
+        assert_eq!(error.code, ErrorCode::WorkerLost);
+        assert_eq!(error.stage, "worker");
+    }
+    #[test]
+    fn checkpoint_with_budget_equal_deadline_uses_lifecycle() {
+        let (lifecycle, session) = runtime();
+        let result = query(&lifecycle, &session);
+        let deadline = Instant::now() - std::time::Duration::from_millis(10);
+        lifecycle
+            .lock()
+            .unwrap()
+            .queries
+            .get_mut(result.query.id())
+            .unwrap()
+            .deadline = deadline;
+        let witness = DeliveryBudgetDeadline::new(
+            deadline,
+            deadline,
+            Instant::now() + std::time::Duration::from_secs(1),
+            result.query.id().into(),
+        )
+        .unwrap();
+        let error = result.checkpoint_with_budget(&witness).unwrap_err();
+        assert_eq!(error.code, ErrorCode::DeadlineExceeded);
+        assert_eq!(error.stage, "lifecycle");
+        assert_eq!(error.details["budget"], "deadline_ms");
     }
     #[test]
     fn computed_spool_and_abandoned_cursor_never_become_delivery_success() {

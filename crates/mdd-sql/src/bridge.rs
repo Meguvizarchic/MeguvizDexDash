@@ -2907,6 +2907,132 @@ mod tests {
             );
         }
     }
+    #[test]
+    fn in_subquery_bytes_and_bool_match_sqlite_with_null_and_duplicates() {
+        use mdd_query::ir::Signed64;
+        let values: Vec<(Option<Vec<u8>>, Option<Vec<u8>>, Option<bool>, Option<bool>)> = vec![
+            (None, None, None, None),
+            (Some(vec![]), Some(vec![0]), Some(false), Some(true)),
+            (Some(vec![0]), Some(vec![]), Some(true), Some(false)),
+            (Some(vec![0]), Some(vec![0]), Some(true), Some(true)),
+            (
+                Some(vec![0xc0, 0x80]),
+                Some(vec![0xc0, 0x80]),
+                Some(false),
+                Some(false),
+            ),
+            (Some(vec![0xff]), None, None, Some(false)),
+        ];
+        let sqlite = rusqlite::Connection::open_in_memory().unwrap();
+        sqlite
+            .execute_batch("CREATE TABLE vals(id INTEGER,l BLOB,r BLOB,bl INTEGER,br INTEGER)")
+            .unwrap();
+        let columns = [
+            ("id", SqlType::I64),
+            ("l", SqlType::Bytes),
+            ("r", SqlType::Bytes),
+            ("bl", SqlType::Bool),
+            ("br", SqlType::Bool),
+        ]
+        .into_iter()
+        .map(|(name, data_type)| SqlColumn {
+            id: name.into(),
+            name: name.into(),
+            data_type,
+            nullable: name != "id",
+        })
+        .collect();
+        let mut rows = Vec::new();
+        for (id, (l, r, bl, br)) in values.iter().enumerate() {
+            sqlite
+                .execute(
+                    "INSERT INTO vals VALUES (?1,?2,?3,?4,?5)",
+                    rusqlite::params![id as i64, l, r, bl, br],
+                )
+                .unwrap();
+            let left = if id == 4 {
+                SqlValue::DexMutf8 {
+                    bytes: vec![0xc0, 0x80],
+                    utf16_code_units: DecimalU64(1),
+                }
+            } else {
+                l.clone().map_or(SqlValue::Null, SqlValue::Bytes)
+            };
+            rows.push(vec![
+                SqlValue::I64(Signed64(id as i64)),
+                left,
+                r.clone().map_or(SqlValue::Null, SqlValue::Bytes),
+                bl.map_or(SqlValue::Null, SqlValue::Bool),
+                br.map_or(SqlValue::Null, SqlValue::Bool),
+            ]);
+        }
+        let provider = Arc::new(RowsProvider {
+            binding: SqlBinding {
+                provider_identity: "in-bytes-bool".into(),
+                snapshot_id: "in-bytes-bool-snapshot".into(),
+                catalog_epoch: DecimalU64(0),
+            },
+            columns,
+            rows,
+        });
+        let queries = [
+            "SELECT id,l IN (SELECT r FROM vals),l NOT IN (SELECT r FROM vals) FROM vals ORDER BY id",
+            "SELECT id,bl IN (SELECT br FROM vals),bl NOT IN (SELECT br FROM vals) FROM vals ORDER BY id",
+            "SELECT id,l IN (SELECT r FROM vals LIMIT 0),bl NOT IN (SELECT br FROM vals LIMIT 0) FROM vals ORDER BY id",
+            "SELECT a.id,a.l IN (SELECT b.r FROM vals b WHERE b.id=a.id),a.bl IN (SELECT b.br FROM vals b WHERE b.id=a.id) FROM vals a ORDER BY a.id",
+            "SELECT a.id,a.l IN (SELECT b.r FROM vals b WHERE b.r IS NOT NULL),a.bl NOT IN (SELECT b.br FROM vals b WHERE b.br IS NOT NULL) FROM vals a ORDER BY a.id",
+        ];
+        for dialect in [
+            SqlDialect::NativeV1,
+            SqlDialect::DexSql010,
+            SqlDialect::DexSql011,
+        ] {
+            let bridge = SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+            for sql in queries {
+                let expected = sqlite
+                    .prepare(sql)
+                    .unwrap()
+                    .query_map([], |row| {
+                        (0..3)
+                            .map(|i| row.get::<_, Option<i64>>(i))
+                            .collect::<rusqlite::Result<Vec<_>>>()
+                    })
+                    .unwrap()
+                    .collect::<rusqlite::Result<Vec<_>>>()
+                    .unwrap();
+                let result = bridge.query(sql).unwrap();
+                let actual: Vec<Vec<Option<i64>>> = result
+                    .rows()
+                    .iter()
+                    .map(|row| {
+                        row.iter()
+                            .map(|cell| match cell {
+                                SqlValue::Null => None,
+                                SqlValue::I64(v) => Some(v.0),
+                                _ => panic!("unexpected cell: {cell:?}"),
+                            })
+                            .collect()
+                    })
+                    .collect();
+                assert_eq!(actual, expected, "{dialect:?}: {sql}");
+            }
+            assert_eq!(
+                bridge
+                    .query("SELECT l IN (SELECT br FROM vals) FROM vals")
+                    .unwrap_err()
+                    .code,
+                ErrorCode::UnsupportedQuery
+            );
+            assert_eq!(
+                bridge
+                    .query("SELECT l IN (SELECT missing FROM vals) FROM vals")
+                    .unwrap_err()
+                    .code,
+                ErrorCode::InvalidArgument
+            );
+        }
+    }
+
     fn numeric_bridge() -> SqlBridge {
         let unsigned = [
             1,

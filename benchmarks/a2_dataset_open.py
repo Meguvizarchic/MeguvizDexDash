@@ -13,9 +13,9 @@ from pathlib import Path
 from typing import Callable
 
 if __package__:
-    from .a2_dataset_close import DatasetCloseError, _payload
+    from .a2_dataset_close import DatasetCloseError, _json_identity, _payload
 else:
-    from a2_dataset_close import DatasetCloseError, _payload
+    from a2_dataset_close import DatasetCloseError, _json_identity, _payload
 
 
 class DatasetOpenError(RuntimeError):
@@ -136,7 +136,8 @@ class A1ExclusiveDatasetOpener:
             readback = await self._call('list_datasets', {})
             datasets, usage = readback.get('datasets'), readback.get('usage')
             if (not isinstance(datasets, list) or len(datasets) != 1
-                    or not isinstance(datasets[0], dict) or datasets[0] != opened
+                    or not isinstance(datasets[0], dict)
+                    or _json_identity(datasets[0]) != _json_identity(opened)
                     or type(readback.get('admitted_requests')) is not int
                     or readback['admitted_requests'] != 0
                     or type(readback.get('running_requests')) is not int

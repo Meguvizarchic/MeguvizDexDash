@@ -1,0 +1,7 @@
+
+running 2 tests
+test executor::runtime_tests::delivery_receipt_does_not_succeed_after_query_budget_deadline ... ok
+test executor::runtime_tests::delivery_receipt_preserves_existing_failure_after_budget_deadline ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 78 filtered out; finished in 0.50s
+

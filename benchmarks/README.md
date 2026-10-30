@@ -19,6 +19,8 @@ Windows Job监督已用微小父/孙进程实际验证：挂起创建、入Job�
 
 A2已实测A1原生MCP的12工具与query compact参数，未打开数据集；现有完整audit是CLI shape/hex/marker消费者，CLI无compact开关。完整MCP适配及20组结果等价尚未取得，A2不准入完整审计分母，不能只因存在compact就称最佳现成路径已验证。
 
+候选生命周期适配器对同时出现的文本和结构化回执按 JSON 类型逐项比对，打开后的列表回读也使用同样规则；布尔、整数和浮点数不能因 Python 相等规则而混同，非 JSON 值和非有限数字被拒绝。合成回归见 `artifacts/mdd-005/a2-lifecycle-json-20261030/`；该检查不建立真实生产者快照或 A2 资格，也不单独限制 JSON 解析时的内存。
+
 未来 driver 用参数数组执行，禁止 shell 字符串；其单个 `mdd.benchmark-output.v1` JSON 包含 `input_manifest`、稳定 `request_key`、`row_schema`、`comparison_mode`、`final_dto`、`fallback_count`、最终 `mdd.result.v1`。只有 input/facts complete、计算完成、全部交付、无截断/剩余cursor、零fallback及完全物化才可进入结果比较。输入manifest保留有序 occurrence，业务DTO与原始代码/资源指纹均不得删除。
 
 当前通用读取器尚无按工作负载核验嵌套 DTO 完整消费的实现，因此 `structured` 模式明确拒绝资格；不能仅凭响应中自报的行数证明 DTO 完整。`ordered`／`bag` 保持现有完整行数检查。此限制不改变最终验收，结构化验证器仍须后续实现。

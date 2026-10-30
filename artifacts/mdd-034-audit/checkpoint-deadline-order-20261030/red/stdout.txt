@@ -1,0 +1,13 @@
+
+running 2 tests
+test executor::runtime_tests::queue_checkpoint_keeps_earlier_lifecycle_deadline ... FAILED
+test executor::runtime_tests::runtime_checkpoint_keeps_earlier_budget_deadline ... FAILED
+
+failures:
+
+failures:
+    executor::runtime_tests::queue_checkpoint_keeps_earlier_lifecycle_deadline
+    executor::runtime_tests::runtime_checkpoint_keeps_earlier_budget_deadline
+
+test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 78 filtered out; finished in 2.20s
+

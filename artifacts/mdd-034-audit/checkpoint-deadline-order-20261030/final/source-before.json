@@ -1,0 +1,457 @@
+[
+  {
+    "Algorithm": "SHA256",
+    "Hash": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "Path": "D:\\MeguvisDexDash\\Cargo.lock"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "02880B4608D3DD392F2EF67D7BBB165C0F1FFA715409902C8D127E698472354A",
+    "Path": "D:\\MeguvisDexDash\\Cargo.toml"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "3717C0721CD810674630458F161E851153543314EDCAFF630CB5E9CF8F5173AB",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-cli\\build.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "D1A4695C0B92D17B435C165D864AB0E5070AFB47C8B84A4A17E2F076392F3010",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-cli\\Cargo.toml"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "CC50447B2FA0393477386099A1631647DF5B27041EFF76BC63ABE1E8F7E5CAB0",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-cli\\src\\main.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "945EDF6357DA9D15547F5789777F7D433F88ED3B92EC0DA6AF0C14C723D43F79",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-dex\\Cargo.toml"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "59599C8ECA5D765DCDE214657CDB36359E1B55A2F60E48936FE45E036A4B470D",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-dex\\src\\annotations.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "58C14936CCD64E63A0A8930468CEC210A331C5BEB77BEC3BA0684BB2B6631A3A",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-dex\\src\\checked_reader.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "CCEBDCE7DB90D5BA87BB02E69446B27D4920C5BB3671F9208F7E93E130C259A3",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-dex\\src\\definitions.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "7C16FEFBE4B2078A0B4C8E0F94F8B6E7E2DF362D45714E97A7888411E1EC32D0",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-dex\\src\\header.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "C513ACAB6698FB67B1556BD411EE56E5490F24526CEFCD4FA5853A18BDA9BCEA",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-dex\\src\\instructions\\debug.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "D339978B8D59FBFC563117E610F26AF9B09DC12ED174C3E28170A3916EAA1970",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-dex\\src\\instructions\\decode.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "B2188CE78FB2846A1AA954483C4E71894C97AC3CF010B13CBEB8F01D0CE28456",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-dex\\src\\instructions\\mod.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "A0D33BC5870E65F49B673E32A2F6182FFD9DBC3FC3DBAF1D7170DAAECA597CCA",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-dex\\src\\instructions\\opcodes.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "1B03D5F094B8C938BF9BB9661261CC1FFA8372D396681243803437095B48A5C2",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-dex\\src\\instructions\\tests.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "559CD342621B23683C4CD6FFB39D6D3C033C37D4DEAB60C33DFEFE1A9EA586FA",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-dex\\src\\lib.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "5ABAFC2942B4CE4501742C77F643530AAF92A589B7A59ABE4763F5853E2BFE96",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-dex\\src\\strings.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "799FD8591EE0318B4E192FE14FF329D4B9C2C07003C6F57BEFAD3CC7C5D73A64",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-dex\\src\\types.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "92FAB489949ECF2C0429CEEC0BA5F5FF1E054FF90879F4E2D31CF597131BB29C",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-facts\\Cargo.toml"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "3B918DBCD62422D84B89D514415B8B2FF996DF728414D916647BFE8EED82DD85",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-facts\\examples\\annotation_summary.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "3CC83BC72A5B789957FCE82A31A88FD33E0D7F53BA9DA4FADBC12EDFF5F90532",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-facts\\examples\\code_layout_summary.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "A831AB1053BA6F04757586B5CC2CF421DBB85E9779D7D78AC9E14A223CF3A805",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-facts\\examples\\definition_summary.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "11998040832AB17B2C94D7355A9349ED32D19324E26E329E137A9CEBF170BA16",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-facts\\examples\\manifest_summary.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "94D67765EA9690FBAE655C80FDFE2205CA47E20BF5878EEC3FAA3667B6992A53",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-facts\\examples\\metadata_summary.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "0D1A3FB4A4BAAF8922FA20435C948CD7F5F89091E1A1AA8D7D71E162699F8E4E",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-facts\\examples\\raw_evidence_summary.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "EF65BA9C404A66919CB25EAF0F17E623027B621ED80DD5E12DD22B9A5BE1C7A4",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-facts\\examples\\reference_summary.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "99925C5EEA819EB22AFE248402797B59FD32AB66E1044BE8402D47A929725D17",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-facts\\src\\annotations.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "927D70F722E4DFE78C5530DF4451A852A631D89C8587405B16F439A0EFF83250",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-facts\\src\\code.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "B1400866B7EADCB0D7C9A79481AF44F1C788AD5E8E9735B46E7226F103DF35BB",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-facts\\src\\coverage.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "871AA50FDFA9F2C0A6AC833C83880AE90F6F5B7280B6E30094D6D9C730679F7B",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-facts\\src\\definitions.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "45209EE1590465E696D243C9671CF307CEB0FB25651C6751271D300F75D61336",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-facts\\src\\indexes\\columns.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "64F00B432F6AD641376B57BDD3B9D94B52DA0131F445B1F5C8D51B7F39E0A862",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-facts\\src\\indexes\\lazy.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "67DF3477D71580948C678B23EDDF9E4232A1B21DEA4374B580D90291B46C156B",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-facts\\src\\indexes\\mod.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "95B5B8C704F5BF14576834B0F231381CA4775B4A15D5E7516D3F754FF260ED10",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-facts\\src\\indexes\\scope.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "FF6466A0DFC21801D80B28E1D00A320AB3F8A6076137C9EF9D211C178A8971CD",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-facts\\src\\indexes\\tests.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "9EDB1FA3AC471A6A7A48B30BA624009E9B5A5D099060B3718635C4955D03A2BA",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-facts\\src\\indexes\\views.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "393C9A5CACB2762FE493A55AA94C5C27FBB01B5FF652B361CC1F20E33B27B2D9",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-facts\\src\\lib.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "E5FAFA598807CC23D011570E7411EE53E1129391362C08B5CEF5A38AFE040357",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-facts\\src\\metadata.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "E0E0196A2C15959C33F15CFB4332CD3E7308379138CC82FAA37E4D4366E8578F",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-facts\\src\\raw_fingerprints.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "FA961E60DA37C1CE7E90732E2AD82C0D684AF2645EAE6C18D6E99B95658B2E2C",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-facts\\src\\references.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "22377188ABFACFCA571F5448014332E079D9BB2D969AFC4C42368EC28CDA8D8B",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-input\\Cargo.toml"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "BC26B26FCF7E47F929937E3FAB68CFEF86DEFBA086C3ACA49C86FBD40B10BF11",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-input\\src\\archive\\central.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "8B950285850F05925D18E4876F176CB64583879BD24309A3B5BB97A31C339428",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-input\\src\\archive\\mod.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "566E027E596F60926155FA1DD049DD3C14CB310B235BD530D35F3915984995F0",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-input\\src\\archive\\tests.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "AF80E13C98936C75683C5ACCE1E04B2B0052A393B8CA4728A8D8084DDE1007A5",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-input\\src\\archive\\zip64_tests.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "F51A671EAD4C6C2D8A7F5FA754E314CF83DEAC466D2167A50CEB55F0D2FAB9B0",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-input\\src\\archive\\zip64.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "C4CBA012030F9B8D92BE8F067AE938FBC8A37574DA8C9A0CCF3D0678024B5AF3",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-input\\src\\lib.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "B5A8D95591715769DBA3CA28731CAD14959E30C78454D51D93DE68FE0CFDD125",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-input\\src\\manifest\\axml.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "FA87AA206A6AED4B54F20379855EED713FDE482557892FE09FF1F2922F4E8DD3",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-input\\src\\manifest\\mod.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "8C39E6E4840CD1DF1494198B66C233AD79A35F7F3FD0953309BF9ABA477A7B77",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-input\\src\\manifest\\tests.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "F4EE666C5C87AC383E4D517526EF95A3A1A8AFFB77E6BF40269258323CA70C42",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-input\\src\\manifest\\text.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "7B5B2AFD099609C2787A960E93CC6E104E0E7CE508A2D6C1820A3EA63FCF93A0",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-input\\src\\snapshot\\mod.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "EB0E0C3D083AE0F3257A44519D9FFD1FA59BAB82A332C1E20A16A7EFB840D51D",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-query\\Cargo.toml"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "8B1A8A7117FB9E7CCDE9AD3D9DFCA76B5A190B6E777BF8147774AB1C7D8D3029",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-query\\src\\budget.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "1049C6D8794C4A9B1B7BDB9E817A0E1DDDC21A4774C685989939F122FF8DA091",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-query\\src\\budget\\imports.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "1AAD1FF8B6F2E7DFDF073AC65B1C88ADD775CFF4797155479E826A236EC8D845",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-query\\src\\budget\\imports\\tests.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "91C381C84E8DC1324006AE44153EF1325C34D1785790094FD7F620AE4180D8EA",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-query\\src\\budget\\tests.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "D7471CF3990FCD8E87E0609056890D1630799F7A71A53402C9C583581C0E6AAF",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-query\\src\\executor.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "65EA2BB668B6C3E0E95D101DCD1F65E9EE797B43C308B1879B96F8481335108E",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-query\\src\\executor\\facts.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "3D0C75417A12E64F8D98909CC790771D945E225E24A3C8A297B5405D19273488",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-query\\src\\executor\\runtime_tests.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "91FF743A7B0B87C2BCCBF883A1DE4C1158D6570ACE7B18B0F16C8EC4A093FBE7",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-query\\src\\executor\\tests.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "A4FE8A1A66D70684B868EEB61A77E56AECC10377DED6ACD517B3C59407CFE46F",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-query\\src\\ir\\mod.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "2A5C76F13CF01822E6A20EE6A8E33AC273C37A4508F0A4A5CA9D4A358EC085DC",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-query\\src\\lib.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "031DB339AE8CAEACF82B3876BAC9723D9D8C0BD5ACC934ED12E3A1D5922812D1",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-query\\src\\operators\\mod.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "567A80A7446067885639AC10D2C2326D7128B3AE536374A385E3EE1072051965",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-session\\Cargo.toml"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "EBF6EF5FD3C84F1400297F459B9794D089E97CD497E5CB33883B70F12CA25CDC",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-session\\src\\cancellation.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "8BBE6EDAB753A1BFC60E933FB833A97D8992AA9C8C9CDEAD3AEE5EE3EA73F994",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-session\\src\\lib.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "44701B578F006FF5EC3E509C218C278CDFF39A321D1B583BEC533E942E8FB6C6",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-sql\\Cargo.toml"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "2584D27C0C13B1DCBA7A00A3C0E22D34B8489B892ACB808E5E0BFE7D10CDA2F4",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-sql\\examples\\sql_bridge_probe.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "93430BDC581971C5B12BDD837582D08BE5F6A98A405B3F63D1E07DF94FB81803",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-sql\\src\\bridge.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "1D05CE1F95771E5797FFC8677134BBD6FED009501291EC1A86ADAD97273E374A",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-sql\\src\\control.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "CB3BB5F7A652329A3C6FE0F20AC49BE830C74AC2CCD67667F72947C22FB37FBE",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-sql\\src\\dialects\\ast.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "F4ACA963ABE8D9EF73003D1860111B8A6DA14505BE7F9F0C1EDDEC6F9FE3015C",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-sql\\src\\dialects\\functions.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "B86349330E76A79A7049897CA50EDDB5F3BED16CF8A6BDE17FF1C471E98D57F4",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-sql\\src\\dialects\\mod.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "2E06417C7300D2E48404A8E72C7879810151F4BEB33846839DB1BD772ED79CBF",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-sql\\src\\join_tests.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "4045B5A1C1CBC2CAE32B601BAC11E9509365A42D3B6835BCA6E0E0FB9CA9F15A",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-sql\\src\\lib.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "27CDCC535265C054E4C470AB737CF5402ABB9C734B2D5894A2B1CB439D0ACE56",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-sql\\src\\provider.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "8C5EE489BC6BBC0CDB38E15D6E2FB28CD99279B153ED72F187907580B70F021E",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-sql\\src\\provider\\metadata.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "A47DDAC4A942AD505B06B08021168ADD8A3650B08D43A8DD9D10137B4D2E05C8",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-sql\\src\\runtime_tests.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "B842C26D3A534E948970F0181E46C2089CDADFBC345F803A0C0F01313F9B814B",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-sql\\src\\runtime.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "AD87D663986BDEC1B4F98710D170E911FD1BE67695A9D1B53ABC62C54E50C9F8",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-sql\\src\\values.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "0C786785D9579EEBBEBD2E793B050E92CE50473EFC9D43E148F1313C5063DB66",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-sql\\src\\virtual_tables\\mod.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "AC77B6F33976B74A2A3F22BB7F01992331265AF8A13AEEF12F4EC6BAD6DB022B",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-types\\Cargo.toml"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "12B8B0BDD6D2EB549548880E2730C0837902BF6DC31A5508489F4D87A158437C",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-types\\src\\lib.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "A59007204E928527DA43A1855D3CB08C40385EC674F55A6090063156AB19C184",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-types\\src\\result.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "2E1D86974D50F4F34EE77B31F1A2AA82A82DBF813998C6B5F767B042FD9D9FB4",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-types\\src\\source_identity.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "202C45851E219A977516BC817A97EBACAD7DCB988073C0AF897404A24011B4EF",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-worker\\Cargo.toml"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "FC63495566F650D00950BED6CE4869BA871D2EFE8A3917DBC3CDDBF4FE8E3FAE",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-worker\\src\\lib.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "64ECC389ED84EA8BF92CBBD4B015DF3781E642D5D637BA424412125FA61D925B",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-worker\\src\\lifecycle\\mod.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "B2C19D86958ED6810741488DB5CD352856F303C53BCF0EA774E72F94EE4D201E",
+    "Path": "D:\\MeguvisDexDash\\rust-toolchain.toml"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "E0AEAA1D698E1D1149FFDCF116E7B3E98B3A3097814E01718C80CAAEE147B7AE",
+    "Path": "D:\\MeguvisDexDash\\tests\\fixtures\\generated\\minimal-035.dex"
+  }
+]

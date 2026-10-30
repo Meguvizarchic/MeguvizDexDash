@@ -3073,6 +3073,86 @@
       "sha256": "154b03a9244c00addf7b4b39884148a5a0b464dd9bc164afd5c489fa1b82cc40"
     },
     {
+      "path": "artifacts/mdd-005/a2-lifecycle-json-20261030/baseline-final/1-output.txt",
+      "bytes": 691,
+      "sha256": "f9ccc978d81c8e7d36dc054326c694bc64c80141728d64cd36b5b4ce1021bc1f"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-lifecycle-json-20261030/baseline-final/2-output.txt",
+      "bytes": 503,
+      "sha256": "72a900e0fff7ff27331b4a13da566af797a26b29c0d40a896b88872c459f497e"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-lifecycle-json-20261030/baseline-final/record.json",
+      "bytes": 1394,
+      "sha256": "453900fdcff4a433e6822aec462c1685d4a8c9192539677ea4b3c0d68b2792a3"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-lifecycle-json-20261030/baseline-final2/1-output.txt",
+      "bytes": 691,
+      "sha256": "38bf5570f277d5b893ebb1e52c06cc6285a83757c31b81b3c81c05bf882a8c35"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-lifecycle-json-20261030/baseline-final2/2-output.txt",
+      "bytes": 503,
+      "sha256": "72a900e0fff7ff27331b4a13da566af797a26b29c0d40a896b88872c459f497e"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-lifecycle-json-20261030/baseline-final2/record.json",
+      "bytes": 1394,
+      "sha256": "686cd88b2bd4135fa7e833f3175185366e616093de26d1693fe99d8e211fb91a"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-lifecycle-json-20261030/baseline-final3/1-output.txt",
+      "bytes": 108,
+      "sha256": "731497fe438734e5d846eb72a6e10623269b7612b89b976353e7d67fb6c7b7ef"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-lifecycle-json-20261030/baseline-final3/2-output.txt",
+      "bytes": 503,
+      "sha256": "72a900e0fff7ff27331b4a13da566af797a26b29c0d40a896b88872c459f497e"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-lifecycle-json-20261030/baseline-final3/record.json",
+      "bytes": 1429,
+      "sha256": "b8d854d6c64245f15061d1d51265ce2188d18e8b7639d94fd55d6844ee91e152"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-lifecycle-json-20261030/baseline-python/output.txt",
+      "bytes": 108,
+      "sha256": "3fe68edd4c0fb085181b1c38b098bd9a30f9293138b6756410846957d39b22ee"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-lifecycle-json-20261030/baseline-python/record.json",
+      "bytes": 929,
+      "sha256": "b85786267722e5aab91dc5b70c198879a12bf96d40924e98f273befa45043fe2"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-lifecycle-json-20261030/green/1-output.txt",
+      "bytes": 108,
+      "sha256": "549ec3352f033ceb482b5282903236acd9651c659f82a3b543ddaf9a34eddca8"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-lifecycle-json-20261030/green/2-output.txt",
+      "bytes": 503,
+      "sha256": "72a900e0fff7ff27331b4a13da566af797a26b29c0d40a896b88872c459f497e"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-lifecycle-json-20261030/green/record.json",
+      "bytes": 1382,
+      "sha256": "5e283f544b436f92b1fd1d58122c7ce9296e03ef6c725027ddab525c9d679a25"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-lifecycle-json-20261030/probe.py",
+      "bytes": 4152,
+      "sha256": "5b1553563aa4207acad8ce46ec552e2ebe10a6ca35a5e07f473c2d5a6a36d301"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-lifecycle-json-20261030/red/record.json",
+      "bytes": 528,
+      "sha256": "767c733b3974719674f0bde3ff5cb653ac9dcf51002ea1606188901d7d238761"
+    },
+    {
       "path": "artifacts/mdd-005/a2-mcp-transport-20261030/admission-run2.json",
       "bytes": 869,
       "sha256": "84e9d9e4a66bc412181227ec42cc5386d552eb84eeb55167b82d1724cdbe8766"
@@ -8356,6 +8436,26 @@
       "path": "artifacts/mdd-026/annotation-order-audit/20261028T165221569757Z/result.json",
       "bytes": 10285,
       "sha256": "f69723671a746710191ca6525a5d04b43b4eb221dd40ec12890d144d66d9729a"
+    },
+    {
+      "path": "artifacts/mdd-026/annotation-owner-view-20261030/run1/output.txt",
+      "bytes": 444,
+      "sha256": "d1f1082fa6148a3da3827e35ce0428532e77a9bec08e31a42e231da380060e99"
+    },
+    {
+      "path": "artifacts/mdd-026/annotation-owner-view-20261030/run1/record.json",
+      "bytes": 1455,
+      "sha256": "f2805541ce8fff0a05e007ddb99b96aa2bd93b606abd388ab0393983c814df9e"
+    },
+    {
+      "path": "artifacts/mdd-026/annotation-owner-view-20261030/run2/output.txt",
+      "bytes": 443,
+      "sha256": "179fe7fecceafccea16ebc0309a32e2afdd36323012f63c683ebe77dfd25a4b6"
+    },
+    {
+      "path": "artifacts/mdd-026/annotation-owner-view-20261030/run2/record.json",
+      "bytes": 1455,
+      "sha256": "c345bdf0f90be07dc94cb134c8dfcc9d01c9888fa199b203733662b1b56c039a"
     },
     {
       "path": "artifacts/mdd-026/class-scope-20261030/legacy/record.json",
@@ -18653,6 +18753,36 @@
       "sha256": "0c6bd93522c43f24267dbce9dbf1ebc840ec05a4158e34366a8910ef8155fce4"
     },
     {
+      "path": "artifacts/mdd-031-audit/in-subquery-bytes-bool-20261030/integrated/output.txt",
+      "bytes": 510,
+      "sha256": "dc079fa1c7b388554e3586c0ed6303d6f7eff53368f68011d7880de0a0936bb0"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/in-subquery-bytes-bool-20261030/integrated/record.json",
+      "bytes": 1561,
+      "sha256": "27fd27c3696311646b34738344b209cda483bb2c4d6f20f9afd95741b947e1e6"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/in-subquery-bytes-bool-20261030/local/output.txt",
+      "bytes": 583,
+      "sha256": "5a4bb582d65e3ebde2be13401916a046b443b3580d2e76999f0e03df6a5ada31"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/in-subquery-bytes-bool-20261030/local/record.json",
+      "bytes": 577,
+      "sha256": "7f112c3fcc3a14322c06930939a1f350752ba963caefc3f249a2789af1927a6b"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/in-subquery-bytes-bool-20261030/regression/output.txt",
+      "bytes": 649,
+      "sha256": "b7d0bbb85787b3ae1015e08320242dc0460417ad47e3a4114d78e4c7a2bd7746"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/in-subquery-bytes-bool-20261030/regression/record.json",
+      "bytes": 922,
+      "sha256": "941788fa086aeca03dc713e9e9a1246e97382ecf370dd820b5629a0836845959"
+    },
+    {
       "path": "artifacts/mdd-031-audit/integer-cast-observations/readback.py",
       "bytes": 3332,
       "sha256": "7da8041a1f16b6d676cfc5b22ae695be219ed350d0e311f126adff56546e403e"
@@ -28726,6 +28856,236 @@
       "path": "artifacts/mdd-034-audit/checkpoint-atomic-20261030/stdout.txt",
       "bytes": 413,
       "sha256": "4d0c96d500e638f09e470d3b048d3436284dab433628007c6cb803d6b8c96b12"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/fault-red/exit.txt",
+      "bytes": 15,
+      "sha256": "27c2b2745c8b8b5e9c85836a7dd7c353eba6d2ef652b9ccc53aadea903eb625b"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/fault-red/source-after.json",
+      "bytes": 941,
+      "sha256": "0a9b24196454175e682e80bb79b122e041e4d853889c95ba7297afbb680ed2a4"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/fault-red/source-before.json",
+      "bytes": 941,
+      "sha256": "0a9b24196454175e682e80bb79b122e041e4d853889c95ba7297afbb680ed2a4"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/fault-red/stderr.txt",
+      "bytes": 746,
+      "sha256": "5e80e3862c447cfc098bbbb35ec622ee8f5ec025d4154a9e4b5526f98932c03f"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/fault-red/stdout.txt",
+      "bytes": 325,
+      "sha256": "25abf68d5119ee46a876db2f52abee9e887c962672d10942dacc245dca3a2414"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/final/exits.txt",
+      "bytes": 45,
+      "sha256": "a14acb3542ea5d5b0dea7afea8c36fe8f6a6af06a03485c3dd3126be9efa2423"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/final/fault-stderr.txt",
+      "bytes": 1087,
+      "sha256": "7fbd59db6e8c712473901125cbb3bf189d6dfe78607eb67321ad9b90bad77d27"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/final/fault-stdout.txt",
+      "bytes": 208,
+      "sha256": "df1f2a419e475ebc0bb78acf8ab882ca97024b49118c02de1b4887fe183598ce"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/final/order-stderr.txt",
+      "bytes": 160,
+      "sha256": "6865f70825e1fc7639a6bf102f2ab615da8ab20f4aebcdb5590fb024c275075e"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/final/order-stdout.txt",
+      "bytes": 287,
+      "sha256": "f50976ea487117cc016abb98f36668b15333913adbb51be5b83410a53f1b8af2"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/final/queue-stderr.txt",
+      "bytes": 160,
+      "sha256": "d42c431146a9fae867d78e37878100e737473adeff47ded90b994193d9f4d730"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/final/queue-stdout.txt",
+      "bytes": 377,
+      "sha256": "ef796f1711d67911a1e5a1cb61b368f8d9ed66ba47bc9657210ed47b31c67ba1"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/final/receipt-stderr.txt",
+      "bytes": 160,
+      "sha256": "15d1919388f6a9ed72c32a7e5fc9970a781030f3a05814d55806d2f7d5fa532e"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/final/receipt-stdout.txt",
+      "bytes": 316,
+      "sha256": "70a9048a9e86b15aa3ebcf6a43a6546f04393b2668f10ebc887d1958c31f3641"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/final/record.json",
+      "bytes": 2597,
+      "sha256": "75d3a86d178c66b80bcaa73232cf91a4d69a81659e0ac12b7341fbcf18c53e18"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/final/session-stderr.txt",
+      "bytes": 162,
+      "sha256": "ac118cc46f38daef1f016a4f9239863d3c45ac8996f45b009e9a3b5a2e9506d1"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/final/session-stdout.txt",
+      "bytes": 295,
+      "sha256": "02ec4396afc061adad8df91778d2d7924ea2af8f5147804a84a550abb302753c"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/final/source-after.json",
+      "bytes": 17575,
+      "sha256": "713d749264fffb6f70a51732bf7be2ae1d0fe04d6bccb9ac0485392b5a7c0d20"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/final/source-before.json",
+      "bytes": 17575,
+      "sha256": "713d749264fffb6f70a51732bf7be2ae1d0fe04d6bccb9ac0485392b5a7c0d20"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/green-final/exits.txt",
+      "bytes": 37,
+      "sha256": "fc419a1dcdaaa934ccca0c1675a4a5a57e8f9ad5be226fdc1a5092891cf5e172"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/green-final/order-stderr.txt",
+      "bytes": 308,
+      "sha256": "d0acef54f41aa0dc6e58f61e85ca76f3fbee72b451943fb6ae32cf3d4b41cbdd"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/green-final/order-stdout.txt",
+      "bytes": 287,
+      "sha256": "6d81e390502e5795f591a05c357f860cb779b06bf2540a2ac7304ac40c00524b"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/green-final/queue-stderr.txt",
+      "bytes": 160,
+      "sha256": "939a1cb34196d25a37eb34c91068aabbff050e2a9b9575876312d0c4fd49396a"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/green-final/queue-stdout.txt",
+      "bytes": 377,
+      "sha256": "3a902d2a3fc423367d63e772e4f87515c6b3b511c1fc48ce4870ddc0ec36bdde"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/green-final/receipt-stderr.txt",
+      "bytes": 160,
+      "sha256": "6865f70825e1fc7639a6bf102f2ab615da8ab20f4aebcdb5590fb024c275075e"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/green-final/receipt-stdout.txt",
+      "bytes": 316,
+      "sha256": "8fa771832460785fdd6ffea3255b2f0a58fb350cb523bb625719fda934d904c5"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/green-final/session-stderr.txt",
+      "bytes": 238,
+      "sha256": "bc5951e11097ec0eab068d112147383f8ac897ee3a88435a69f6dc90d0dafbe5"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/green-final/session-stdout.txt",
+      "bytes": 295,
+      "sha256": "02ec4396afc061adad8df91778d2d7924ea2af8f5147804a84a550abb302753c"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/green-final/source-after.json",
+      "bytes": 17575,
+      "sha256": "ceef19a1554beb429a49c15badd22754e1582a85b0459ad4dac8ed1b12aaccdc"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/green-final/source-before.json",
+      "bytes": 17575,
+      "sha256": "ceef19a1554beb429a49c15badd22754e1582a85b0459ad4dac8ed1b12aaccdc"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/green/exits.txt",
+      "bytes": 37,
+      "sha256": "fc419a1dcdaaa934ccca0c1675a4a5a57e8f9ad5be226fdc1a5092891cf5e172"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/green/order-stderr.txt",
+      "bytes": 308,
+      "sha256": "c4082fe3b60d7409529e9f9169d985a958e300566bdba074aa7e523d9ceb91ff"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/green/order-stdout.txt",
+      "bytes": 287,
+      "sha256": "6d81e390502e5795f591a05c357f860cb779b06bf2540a2ac7304ac40c00524b"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/green/queue-stderr.txt",
+      "bytes": 160,
+      "sha256": "939a1cb34196d25a37eb34c91068aabbff050e2a9b9575876312d0c4fd49396a"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/green/queue-stdout.txt",
+      "bytes": 377,
+      "sha256": "3a902d2a3fc423367d63e772e4f87515c6b3b511c1fc48ce4870ddc0ec36bdde"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/green/receipt-stderr.txt",
+      "bytes": 160,
+      "sha256": "8e1033486200a84eb762deb70ce9b34bda3b570db142f2c8170a61cf8b5b670f"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/green/receipt-stdout.txt",
+      "bytes": 316,
+      "sha256": "8fa771832460785fdd6ffea3255b2f0a58fb350cb523bb625719fda934d904c5"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/green/session-stderr.txt",
+      "bytes": 238,
+      "sha256": "937c184e4c07402d8bab48e1f04da3a507c1851d88e9c1f2e9b02f327fdc71bd"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/green/session-stdout.txt",
+      "bytes": 208,
+      "sha256": "8387895a56b57e927eebf3022abff9a084e352cd6318e030f1b147c559fe48c2"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/green/source-after.json",
+      "bytes": 17575,
+      "sha256": "903a77958dddb1aa6fabe0482622fe79a55b9127f26139ef0ea96a403f5e99d3"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/green/source-before.json",
+      "bytes": 17575,
+      "sha256": "903a77958dddb1aa6fabe0482622fe79a55b9127f26139ef0ea96a403f5e99d3"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/red/exit.txt",
+      "bytes": 15,
+      "sha256": "27c2b2745c8b8b5e9c85836a7dd7c353eba6d2ef652b9ccc53aadea903eb625b"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/red/source-after.json",
+      "bytes": 1142,
+      "sha256": "c20a03a0187f0ae580aacfa11789f38af0c441b09b50dd0e3109c74c1291d9ad"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/red/source-before.json",
+      "bytes": 1142,
+      "sha256": "c20a03a0187f0ae580aacfa11789f38af0c441b09b50dd0e3109c74c1291d9ad"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/red/stderr.txt",
+      "bytes": 906,
+      "sha256": "0b82684ad87df5f0efe5426d8150fd26ab427536df5094f9572d9fc4f7a17dad"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/red/stdout.txt",
+      "bytes": 478,
+      "sha256": "f65c96a9fd19463c71a70b0b5e42f2c93ae0fea2dd1e18d323405bd85e8e3bc7"
     },
     {
       "path": "artifacts/mdd-034-audit/delivery-boundary-independent-20261029/Cargo.lock",

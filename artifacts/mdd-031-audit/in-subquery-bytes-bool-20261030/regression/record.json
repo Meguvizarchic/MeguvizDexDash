@@ -1,0 +1,15 @@
+{
+  "source_before": {
+    "crates/mdd-sql/src/dialects/ast.rs": "cb3bb5f7a652329a3c6fe0f20ac49be830c74ac2ccd67667f72947c22fb37fbe",
+    "crates/mdd-sql/src/bridge.rs": "93430bdc581971c5b12bdd837582d08be5f6a98a405b3f63d1e07df94fb81803",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089"
+  },
+  "exit_code": 0,
+  "source_after": {
+    "crates/mdd-sql/src/dialects/ast.rs": "cb3bb5f7a652329a3c6fe0f20ac49be830c74ac2ccd67667f72947c22fb37fbe",
+    "crates/mdd-sql/src/bridge.rs": "93430bdc581971c5b12bdd837582d08be5f6a98a405b3f63d1e07df94fb81803",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089"
+  },
+  "scope": "previous typed IN regression, no HostLab or profile qualification",
+  "command": "cargo test -p mdd-sql --locked --offline --jobs 1 in_subquery_same_typed_columns_preserves_null_duplicates_and_binding_errors -- --nocapture"
+}

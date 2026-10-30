@@ -1,0 +1,14 @@
+.F...
+======================================================================
+FAIL: test_invalid_structured_json_is_rejected (__main__.Checks.test_invalid_structured_json_is_rejected)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\MeguvisDexDash\artifacts\mdd-005\a2-lifecycle-json-20261030\probe.py", line 64, in test_invalid_structured_json_is_rejected
+    with self.assertRaises(DatasetCloseError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: DatasetCloseError not raised
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.005s
+
+FAILED (failures=1)

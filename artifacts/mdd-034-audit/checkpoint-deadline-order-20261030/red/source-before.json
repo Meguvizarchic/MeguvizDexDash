@@ -1,0 +1,32 @@
+[
+  {
+    "Algorithm": "SHA256",
+    "Hash": "9A93A0C99E0209820E16A8FB5B10C2114B5DA52D77B82695C1C3F2097CB8947D",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-query\\src\\budget.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "D7471CF3990FCD8E87E0609056890D1630799F7A71A53402C9C583581C0E6AAF",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-query\\src\\executor.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "3EA1E8D045CB4249B132B3C8E13CE9CCE3D5F04B18BA22E23E27125EAA4549D3",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-query\\src\\executor\\runtime_tests.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "B9D5F682B903FA68951A1FD1ACD2761E75B59773023BB98DF637A3021D6CC92F",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-session\\src\\lib.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "657D7087B991D73B8DCEFD27F51706168B6C54A75F3AC1906718B6F159D10FD7",
+    "Path": "D:\\MeguvisDexDash\\crates\\mdd-session\\src\\cancellation.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "Path": "D:\\MeguvisDexDash\\Cargo.lock"
+  }
+]
