@@ -1,0 +1,9 @@
+{
+  "scope": "Workspace path replaced in command and stderr; unchanged originals retained under ignored artifacts/local/scope-verifier-raw-20261030.",
+  "raw_sha256": {
+    "cross-run1/record.json": "e5531eae203944a776ac94b4582fe1776309a4b4ac3160edb0fdf7a135c791af",
+    "cross-run1/rust.stderr": "c0afd82ff12067364014eb319ba043a943e1c8705def0cf20a6923e053c4bd5c",
+    "cross-run2/record.json": "c89b95cc766f577b7db2497bf7a8c8fe16148edc2236de10a718b1ba9053176a",
+    "cross-run2/rust.stderr": "0e7a5ad48f2036c3567415e2261c1b62b241dbd77ed535bf3f35c8848c82718c"
+  }
+}

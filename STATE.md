@@ -22,6 +22,8 @@
 
 ## 当前推进与阻塞
 
+2026-10-30 目标持续功能（统一验证延后）：MDD-026 增加借用式方法调用站点，保留同源 caller/callee、编码 PC/operand 和重复出现；一项合成测试对照既有独立关系多重集，PC/ordinal 不由该 oracle 独立证明，见 artifacts/mdd-026/borrowed-method-calls-20261030/run1/record.json。MDD-030 增加 class_definition_details 类型化关系，保留来源、NULL、class data 范围与计数；两来源局部测试的预期来自同一事实实现，见 artifacts/mdd-030/class-definition-details-ir-20261030/run1/record.json。其中 annotations_offset 与 static_values_offset 是 class_def 声明的原始偏移，Structure 层不证明其为有效物理项起点或可解引用身份。MDD-031 限定支持同类型直接列的 IN/NOT IN 普通 DISTINCT 子查询，拒绝 DISTINCT 加排序或限制；两项局部检查含 SQLite 对照，文本和 U64 的新增断言只对照自身无 DISTINCT 结果，见 artifacts/mdd-031-audit/distinct-in-subquery-20261030/green/record.json。MDD-005 新增 scope 预像检查器：调用方须独立提供可信来源总数、有序输入/DEX 清单和快照身份，分别约束各类条目；5 项合成检查和两次出现、四个 DEX 的 ZIP 独立读取交叉检查通过，见 artifacts/mdd-005/scope-verifier-20261030/python-final2/record.json 与 cross-run2/record.json。后者的快照身份取自 Rust 输出，并非独立认证；早期版本记录保留。所有记录只固定所列源码，不能证明完整依赖身份；上述均不授予覆盖、HostLab、profile 或性能资格。用户既有 A2 未暂存补丁保留。
+
 MDD-026 的索引和三态 coverage 已有测试证据，但逐列事实验收尚未完成；MDD-030 类型化 IR/基础算子已完成Windows限定范围验收：7单元+2compilefail、36查询case、20LIKE、322正/12负Base64均实际通过，源码稳定且根复验通过。031 SQL桥与034预算/取消/终态的前置依赖已满足。未通过的 Methods 代码列、参数文本编码与参数注解 slot Unknown 均须显式阻断相应查询，不能填零/空值制造完整结果。
 
 解析安全独立 fuzz workspace 已实际完成 10,400 次本地 mutation、2 Rust 与 2 Python oracle/驱动测试、严格 Clippy。b29933d 两平台原生 CI 已通过，原始十份命令记录均 exit0。Linux ASan run40692557250 也真实通过：正控制非零检测到预期越界，六个各 15 秒目标共 2,426,570 次执行、无 crash 文件或超时，原 ZIP 的 GitHub 摘要及每份日志计数/锁参数均独立核验。见 artifacts/conformance/parser-safety/ci-readback.json。G1 未签发；固定预算不是完备证明，测试 nightly 不改变发布 stable 1.99.0。

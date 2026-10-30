@@ -27,6 +27,8 @@ A2已实测A1原生MCP的12工具与query compact参数，未打开数据集；�
 
 消费者检查查询身份、覆盖范围和结果 schema 字段是否存在，并拒绝重复事实层；这些字段存在并不证明 scope manifest 与实际输入匹配，实际来源绑定仍需独立验证。限定自检见 `artifacts/mdd-005/result-identity-20261030/`。
 
+`scope_commitment.py` 可用调用方独立核验的有序输入与 DEX 清单、快照身份及捕获来源数检查 v1 预像和摘要；输入数、DEX 数及捕获来源数分别受条目额度限制。该检查不认证这些外部依据，也不证明覆盖、事实完整或结果交付，因此尚不授予基准资格。
+
 结果信封及 coverage、execution、response 对象按现有契约检查必需和未知字段；结构检查不能替代实际 scope manifest、快照或工作负载证明。合成反例见 `artifacts/mdd-005/result-envelope-shape-20261030/`。
 
 覆盖问题与警告按结果契约检查必需字段、可选身份和数据类型；畸形或阻断性诊断不能作为完整输出，合成检查见 `artifacts/mdd-005/diagnostic-contract-20261030/`。此检查不证明诊断内容已覆盖所有真实错误。

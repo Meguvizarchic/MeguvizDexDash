@@ -2762,6 +2762,8 @@ mod tests {
             "SELECT a.lhs,a.lhs IN (SELECT b.rhs FROM vals b WHERE b.rhs IS NOT NULL) FROM vals a ORDER BY a.lhs",
             "SELECT a.lhs,a.lhs IN (SELECT b.rhs FROM vals b WHERE b.rhs=a.lhs) FROM vals a ORDER BY a.lhs",
             "SELECT a.lhs,EXISTS (SELECT 1 FROM vals a WHERE a.lhs IN (SELECT c.rhs FROM vals c)) FROM vals a ORDER BY a.lhs",
+            "SELECT lhs,lhs IN (SELECT DISTINCT rhs FROM vals),lhs NOT IN (SELECT DISTINCT rhs FROM vals) FROM vals ORDER BY lhs",
+            "SELECT a.lhs,a.lhs IN (SELECT DISTINCT b.rhs FROM vals b WHERE b.rhs=a.lhs) FROM vals a ORDER BY a.lhs",
         ];
         for dialect in [
             SqlDialect::NativeV1,
@@ -2801,6 +2803,7 @@ mod tests {
             for sql in [
                 "SELECT lhs IN (SELECT missing FROM vals) FROM vals",
                 "SELECT lhs IN (SELECT rhs FROM absent) FROM vals",
+                "SELECT lhs IN (SELECT DISTINCT missing FROM vals) FROM vals",
             ] {
                 assert_eq!(
                     bridge.query(sql).unwrap_err().code,
@@ -2816,6 +2819,8 @@ mod tests {
                 ErrorCode::UnsupportedQuery
             );
             for sql in [
+                "SELECT lhs IN (SELECT DISTINCT rhs FROM vals LIMIT 1) FROM vals",
+                "SELECT lhs IN (SELECT DISTINCT rhs FROM vals ORDER BY rhs) FROM vals",
                 "WITH d AS (SELECT rhs FROM vals) SELECT lhs IN (SELECT rhs FROM d) FROM vals",
                 "SELECT lhs IN (WITH d AS (SELECT rhs FROM vals) SELECT rhs FROM d) FROM vals",
                 "SELECT lhs IN (SELECT rhs FROM (WITH d AS (SELECT rhs FROM vals) SELECT rhs FROM d) AS z) FROM vals",
@@ -2877,6 +2882,10 @@ mod tests {
             let rows = bridge
                 .query("SELECT u IN (SELECT u FROM vals),u NOT IN (SELECT u FROM vals) FROM vals")
                 .unwrap();
+            let distinct = bridge
+                .query("SELECT u IN (SELECT DISTINCT u FROM vals),u NOT IN (SELECT DISTINCT u FROM vals) FROM vals")
+                .unwrap();
+            assert_eq!(rows.rows(), distinct.rows());
             assert_eq!(rows.rows().len(), 7);
             assert!(
                 rows.rows()
@@ -2895,6 +2904,10 @@ mod tests {
             let rows = bridge
                 .query("SELECT l IN (SELECT r FROM vals) FROM vals ORDER BY l")
                 .unwrap();
+            let distinct = bridge
+                .query("SELECT l IN (SELECT DISTINCT r FROM vals) FROM vals ORDER BY l")
+                .unwrap();
+            assert_eq!(rows.rows(), distinct.rows());
             assert_eq!(
                 rows.rows(),
                 &[
@@ -2978,6 +2991,7 @@ mod tests {
         let queries = [
             "SELECT id,l IN (SELECT r FROM vals),l NOT IN (SELECT r FROM vals) FROM vals ORDER BY id",
             "SELECT id,bl IN (SELECT br FROM vals),bl NOT IN (SELECT br FROM vals) FROM vals ORDER BY id",
+            "SELECT id,l IN (SELECT DISTINCT r FROM vals),bl NOT IN (SELECT DISTINCT br FROM vals) FROM vals ORDER BY id",
             "SELECT id,l IN (SELECT r FROM vals LIMIT 0),bl NOT IN (SELECT br FROM vals LIMIT 0) FROM vals ORDER BY id",
             "SELECT a.id,a.l IN (SELECT b.r FROM vals b WHERE b.id=a.id),a.bl IN (SELECT b.br FROM vals b WHERE b.id=a.id) FROM vals a ORDER BY a.id",
             "SELECT a.id,a.l IN (SELECT b.r FROM vals b WHERE b.r IS NOT NULL),a.bl NOT IN (SELECT b.br FROM vals b WHERE b.br IS NOT NULL) FROM vals a ORDER BY a.id",

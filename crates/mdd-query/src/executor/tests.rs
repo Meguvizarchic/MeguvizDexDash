@@ -376,6 +376,150 @@ fn native_occurrence_and_pool_join_preserves_source_multiplicity() {
     }
 }
 #[test]
+fn native_class_definition_details_preserve_ranges_and_occurrences() {
+    let catalog = native("definitions-038.dex", false);
+    let plan = prepare(
+        query(
+            Node::Scan {
+                relation: "class_definition_details".into(),
+            },
+            catalog.snapshot_id(),
+            catalog.catalog_epoch(),
+        ),
+        &catalog,
+    )
+    .unwrap();
+    assert_eq!(
+        plan.required_layers(),
+        &BTreeSet::from([FactLayer::Structure])
+    );
+    let mut expected = Vec::new();
+    for occurrence in &catalog.occurrences {
+        let source = occurrence.metadata.source();
+        for class in &occurrence
+            .definitions
+            .as_ref()
+            .unwrap()
+            .definitions()
+            .classes
+        {
+            let class_data = class.class_data_range.as_ref();
+            let id = EntityRef {
+                snapshot_id: source.snapshot_id.clone(),
+                dex_occurrence_id: source.dex_occurrence_id.clone(),
+                kind: EntityKind::ClassDefinition,
+                local_index: class.class_def_idx,
+            };
+            expected.push(vec![
+                Value::Entity(id),
+                Value::U64(DecimalU64(class.access_flags.into())),
+                class
+                    .annotations_byte_offset
+                    .map_or(Value::Null, Value::U64),
+                class
+                    .static_values_byte_offset
+                    .map_or(Value::Null, Value::U64),
+                class_data.map_or(Value::Null, |r| Value::U64(r.byte_offset)),
+                class_data.map_or(Value::Null, |r| Value::U64(r.byte_length)),
+                Value::U64(DecimalU64(class.static_fields_count.into())),
+                Value::U64(DecimalU64(class.instance_fields_count.into())),
+                Value::U64(DecimalU64(class.direct_methods_count.into())),
+                Value::U64(DecimalU64(class.virtual_methods_count.into())),
+                Value::U64(class.encoded_range.byte_offset),
+                Value::U64(class.encoded_range.byte_length),
+            ]);
+        }
+    }
+    assert!(!expected.is_empty());
+    assert!(expected.iter().any(|row| row[2] == Value::Null));
+    assert!(expected.iter().any(|row| row[3] == Value::Null));
+    expected.sort();
+    for mode in [
+        ExecutionMode::Streaming,
+        ExecutionMode::MaterializedReference,
+    ] {
+        let mut actual = execute(
+            &plan,
+            &catalog,
+            mode,
+            &mut Control::new(ExecutionLimits::default()),
+        )
+        .unwrap()
+        .rows()
+        .to_vec();
+        actual.sort();
+        assert_eq!(actual, expected);
+        let limited = ExecutionLimits {
+            max_output_rows: 0,
+            ..ExecutionLimits::default()
+        };
+        assert_eq!(
+            execute(&plan, &catalog, mode, &mut Control::new(limited))
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::QuotaExceeded
+        );
+    }
+    let nullable = native("nullable-root-class.dex", false);
+    let nullable_plan = prepare(
+        query(
+            Node::Scan {
+                relation: "class_definition_details".into(),
+            },
+            nullable.snapshot_id(),
+            nullable.catalog_epoch(),
+        ),
+        &nullable,
+    )
+    .unwrap();
+    let null_rows = execute(
+        &nullable_plan,
+        &nullable,
+        ExecutionMode::Streaming,
+        &mut Control::new(ExecutionLimits::default()),
+    )
+    .unwrap();
+    let root_classes: Vec<_> = null_rows
+        .rows()
+        .iter()
+        .filter(|row| matches!(&row[0], Value::Entity(e) if e.local_index == 0))
+        .collect();
+    assert_eq!(root_classes.len(), 2);
+    assert!(
+        root_classes
+            .iter()
+            .all(|row| row[4] == Value::Null && row[5] == Value::Null)
+    );
+    let missing = NativeCatalog::new(
+        catalog.snapshot_id().into(),
+        catalog.catalog_epoch(),
+        vec![OccurrenceFacts {
+            metadata: catalog.occurrences[0].metadata.clone(),
+            definitions: None,
+            code: None,
+        }],
+    )
+    .unwrap();
+    assert_eq!(
+        prepare(
+            query(
+                Node::Scan {
+                    relation: "class_definition_details".into()
+                },
+                missing.snapshot_id(),
+                missing.catalog_epoch()
+            ),
+            &missing
+        )
+        .err()
+        .unwrap()
+        .code,
+        ErrorCode::IncompleteFacts
+    );
+}
+
+#[test]
 fn native_class_field_members_preserve_occurrence_and_kind_ordinal() {
     let catalog = native("definitions-038.dex", false);
     let plan = prepare(

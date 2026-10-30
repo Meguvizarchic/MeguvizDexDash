@@ -532,7 +532,9 @@ impl Rewrite<'_> {
         if select.from.len() != 1
             || !select.from[0].joins.is_empty()
             || select.having.is_some()
-            || select.distinct.is_some()
+            || (select.distinct.is_some()
+                && (!matches!(&select.distinct, Some(Distinct::Distinct))
+                    || query.limit_clause.is_some()))
             || !matches!(&select.group_by, GroupByExpr::Expressions(values, modifiers)
                 if values.is_empty() && modifiers.is_empty())
             || select.projection.len() != 1
@@ -1402,6 +1404,14 @@ impl Rewrite<'_> {
                 }
                 self.expr(child, depth + 1)?;
                 **child = call("mdd_key", vec![take(child)]);
+                // IN/NOT IN observes membership and NULL, not multiplicity.
+                // With no LIMIT/OFFSET or ordering, ordinary DISTINCT cannot
+                // change that result. Remove only this narrowly typed form.
+                if let SetExpr::Select(select) = subquery.body.as_mut()
+                    && matches!(&select.distinct, Some(Distinct::Distinct))
+                {
+                    select.distinct = None;
+                }
                 let dependencies = self.query(subquery, depth + 1)?;
                 self.dependencies.extend(dependencies);
                 let SetExpr::Select(select) = subquery.body.as_mut() else {

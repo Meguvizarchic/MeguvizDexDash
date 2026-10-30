@@ -1,0 +1,13 @@
+{
+  "source_before": {
+    "artifacts/mdd-005/scope-verifier-20261030/probe.py": "4CC74A76CFFEF2AA84FE39CA7DAF0CD28AD50DB2643A78E814152FB5FBBF41C2",
+    "benchmarks/scope_commitment.py": "F7A420859E19938DE8BBF3A5C7246E48AA2130A07914E288427533F45A124581"
+  },
+  "source_after": {
+    "artifacts/mdd-005/scope-verifier-20261030/probe.py": "4CC74A76CFFEF2AA84FE39CA7DAF0CD28AD50DB2643A78E814152FB5FBBF41C2",
+    "benchmarks/scope_commitment.py": "F7A420859E19938DE8BBF3A5C7246E48AA2130A07914E288427533F45A124581"
+  },
+  "scope": "synthetic framing only; roster trust external",
+  "command": "python -B -O artifacts/mdd-005/scope-verifier-20261030/probe.py",
+  "exit_code": 0
+}

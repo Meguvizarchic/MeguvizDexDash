@@ -4608,6 +4608,86 @@
       "sha256": "c3a60a46130c053a0db74922a2421f6803660137ebdb499d2a6572edbc6e5e4d"
     },
     {
+      "path": "artifacts/mdd-005/scope-verifier-20261030/cross-run1/record.json",
+      "bytes": 2573,
+      "sha256": "c9cf2b336fb4034e68c29d30054d3fe2a017b452e03ddd6492d678635852fcf7"
+    },
+    {
+      "path": "artifacts/mdd-005/scope-verifier-20261030/cross-run1/rust.stderr",
+      "bytes": 316,
+      "sha256": "84b521fc788e8ed775d398bc99e6845b0b221192ebfc018d1119422eadf18f6d"
+    },
+    {
+      "path": "artifacts/mdd-005/scope-verifier-20261030/cross-run1/rust.stdout",
+      "bytes": 2790,
+      "sha256": "8b1adb5a6c7a651081812aa26a29f3bb48d0e09df82d8ddc6aabac533239002f"
+    },
+    {
+      "path": "artifacts/mdd-005/scope-verifier-20261030/cross-run2/record.json",
+      "bytes": 2573,
+      "sha256": "9f355378242135c0400a7ce610dbeb2ec849a40f7e70b508dda5df4462b850f8"
+    },
+    {
+      "path": "artifacts/mdd-005/scope-verifier-20261030/cross-run2/rust.stderr",
+      "bytes": 251,
+      "sha256": "5b3781a43dbe0e68b5c49ed38fcbd41b37bc49534966539de1dfbdd8da750069"
+    },
+    {
+      "path": "artifacts/mdd-005/scope-verifier-20261030/cross-run2/rust.stdout",
+      "bytes": 2790,
+      "sha256": "213e0951d674c01263261e042036720bab29928fabccc5297cd19c7d17bf7e8d"
+    },
+    {
+      "path": "artifacts/mdd-005/scope-verifier-20261030/cross_check.py",
+      "bytes": 4808,
+      "sha256": "366711dcf41a948deb5c99eaceb0a5ddf7cbfa3a746410675a58080d82849905"
+    },
+    {
+      "path": "artifacts/mdd-005/scope-verifier-20261030/probe.py",
+      "bytes": 4210,
+      "sha256": "8501a6f83e81b5d0b38213b472d07802a82c9192d2a63f708775d6430dbdeedb"
+    },
+    {
+      "path": "artifacts/mdd-005/scope-verifier-20261030/python-final/output.txt",
+      "bytes": 107,
+      "sha256": "1b6f69157102cc03f5264c937d138171570f1a3f06ab9ba2d8345507e1df7261"
+    },
+    {
+      "path": "artifacts/mdd-005/scope-verifier-20261030/python-final/record.json",
+      "bytes": 687,
+      "sha256": "28de7ab70357b92fcaaf602e336be58b3e9b8449ef7cc74d079dbb323a24c5f8"
+    },
+    {
+      "path": "artifacts/mdd-005/scope-verifier-20261030/python-final2/record.json",
+      "bytes": 1076,
+      "sha256": "d47e8bb846f9f48bd58cd8b873e64a1e6638605465928a2142525d68732f5374"
+    },
+    {
+      "path": "artifacts/mdd-005/scope-verifier-20261030/python-final2/stderr.txt",
+      "bytes": 108,
+      "sha256": "3fe68edd4c0fb085181b1c38b098bd9a30f9293138b6756410846957d39b22ee"
+    },
+    {
+      "path": "artifacts/mdd-005/scope-verifier-20261030/python-final2/stdout.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifacts/mdd-005/scope-verifier-20261030/python/output.txt",
+      "bytes": 106,
+      "sha256": "8ee4669655aaed29bbc70e28a8ef25f73d1ebe2b002448e637699b5a2cbcaa41"
+    },
+    {
+      "path": "artifacts/mdd-005/scope-verifier-20261030/python/record.json",
+      "bytes": 682,
+      "sha256": "1299b2757fb3a7527f6bbaa16b9e80c0f5698ab710dcec028c9449ae73c5669a"
+    },
+    {
+      "path": "artifacts/mdd-005/scope-verifier-20261030/redaction.json",
+      "bytes": 566,
+      "sha256": "54a942ae2de3f20bacfa99fd2a46861d46b8d1fc45e53cc079991f320adc8c97"
+    },
+    {
       "path": "artifacts/mdd-005/static-qualification-20261029.json",
       "bytes": 5065,
       "sha256": "0c0ef862e2332783679cc14b85fc19f5177d9742275688afee9e25ebb24752a4"
@@ -9011,6 +9091,16 @@
       "path": "artifacts/mdd-026/annotation-owner-view-20261030/run2/record.json",
       "bytes": 1455,
       "sha256": "c345bdf0f90be07dc94cb134c8dfcc9d01c9888fa199b203733662b1b56c039a"
+    },
+    {
+      "path": "artifacts/mdd-026/borrowed-method-calls-20261030/run1/output.txt",
+      "bytes": 948,
+      "sha256": "0b459a895210aa594e1cd483e51b4109ec9346dad544c1c9662207cd6b6a429f"
+    },
+    {
+      "path": "artifacts/mdd-026/borrowed-method-calls-20261030/run1/record.json",
+      "bytes": 1514,
+      "sha256": "6db8cb263bf8bee70bdd318fbbcf8214514666d5a1642a5c7bf5be837a4540ea"
     },
     {
       "path": "artifacts/mdd-026/class-members-view-20261030/final/output.txt",
@@ -16908,6 +16998,16 @@
       "sha256": "a4a8b3f7b2b52e98c35dad2f34a4abd07f910afbeb1154f3e1cb2a3894ca8ecc"
     },
     {
+      "path": "artifacts/mdd-030/class-definition-details-ir-20261030/run1/output.txt",
+      "bytes": 444,
+      "sha256": "383a774ed38b313475dbbde19347eb5a95307c3ae9ff7fbf7c2b8ec07a6b9bd4"
+    },
+    {
+      "path": "artifacts/mdd-030/class-definition-details-ir-20261030/run1/record.json",
+      "bytes": 2189,
+      "sha256": "b1bc787033dfb5ee7b123e4c9218fda88faae0720b41511085103a10cf8c5617"
+    },
+    {
       "path": "artifacts/mdd-030/class-field-members-ir-20261030/run1/output.txt",
       "bytes": 517,
       "sha256": "ccb945632aedd5909b951f0766de30c48b671fb0958bf76d22943a756b87c5fc"
@@ -18386,6 +18486,31 @@
       "path": "artifacts/mdd-031-audit/direct-text-affinity-20261030/red/stdout.txt",
       "bytes": 347,
       "sha256": "292d2613f302b1f7a24165f6e4fe68f0bdb4b1790d0255b8b63b9fcb592557a7"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/distinct-in-subquery-20261030/green/in_subquery_bytes_and_bool_match_sqlite_with_null_and_duplicates.txt",
+      "bytes": 370,
+      "sha256": "11282245fab00f932ce98382f8f12670a89f07487ef33930dc703515b2326bf5"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/distinct-in-subquery-20261030/green/in_subquery_same_typed_columns_preserves_null_duplicates_and_binding_errors.txt",
+      "bytes": 449,
+      "sha256": "9320c056a76b1d6a42fc74fe65932fde873e30c21602d1d7435ecc75a7c7b494"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/distinct-in-subquery-20261030/green/record.json",
+      "bytes": 1628,
+      "sha256": "f234988f599fd753b1fffab08fc64a13a0db2ab4e3b5f024e30fd0622339ff84"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/distinct-in-subquery-20261030/red/output.txt",
+      "bytes": 1302,
+      "sha256": "12af92de387ccb01cfda88ba0602a1eb04f44e35aebe10ad6dcc62cecf683e35"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/distinct-in-subquery-20261030/red/record.json",
+      "bytes": 1371,
+      "sha256": "281f47baa6ca78260ab93e1d1d5d888d9d522aa81eec5795e39acd77c1bc8e13"
     },
     {
       "path": "artifacts/mdd-031-audit/dto-resume-20261029/readback-run/record.json",

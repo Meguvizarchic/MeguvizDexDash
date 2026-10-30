@@ -1,0 +1,2 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.33s
+     Running `target\debug\examples\scope_commitment_export.exe <workspace>\tests\fixtures\generated\multidex-stored.apk <workspace>\tests\fixtures\generated\multidex-stored.apk`

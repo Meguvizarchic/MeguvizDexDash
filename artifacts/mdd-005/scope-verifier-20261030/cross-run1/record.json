@@ -1,0 +1,48 @@
+{
+  "command": [
+    "cargo",
+    "run",
+    "-p",
+    "mdd-facts",
+    "--example",
+    "scope_commitment_export",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "1",
+    "--",
+    "<workspace>\\tests\\fixtures\\generated\\multidex-stored.apk",
+    "<workspace>\\tests\\fixtures\\generated\\multidex-stored.apk"
+  ],
+  "started_utc": "2026-10-30T12:58:06.978672+00:00",
+  "exit_code": 0,
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "crates/mdd-facts/examples/scope_commitment_export.rs": "66480c6be96063305a6f0dfd01492f63271e5f0e246a7a8015cf2ced2d597611",
+    "crates/mdd-facts/src/indexes/scope.rs": "3fc13c036409a0abe526cb9a2da83f35f88f606a1b7f61d45bd3f38b689f84b3",
+    "crates/mdd-input/src/archive/mod.rs": "8b950285850f05925d18e4876f176cb64583879bd24309a3b5bb97a31c339428",
+    "benchmarks/scope_commitment.py": "f7a420859e19938de8bbf3a5c7246e48aa2130a07914e288427533f45a124581",
+    "artifacts/mdd-005/scope-verifier-20261030/cross_check.py": "a3b9c24c03bfda7fe16b70471c7a896a520da617f47e24a8710a250222864965",
+    "tests/fixtures/generated/multidex-stored.apk": "6b88277747a49dfddcc91900c171ae6420449cc424d57ffd46f896891ad26098"
+  },
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "crates/mdd-facts/examples/scope_commitment_export.rs": "66480c6be96063305a6f0dfd01492f63271e5f0e246a7a8015cf2ced2d597611",
+    "crates/mdd-facts/src/indexes/scope.rs": "3fc13c036409a0abe526cb9a2da83f35f88f606a1b7f61d45bd3f38b689f84b3",
+    "crates/mdd-input/src/archive/mod.rs": "8b950285850f05925d18e4876f176cb64583879bd24309a3b5bb97a31c339428",
+    "benchmarks/scope_commitment.py": "f7a420859e19938de8bbf3a5c7246e48aa2130a07914e288427533f45a124581",
+    "artifacts/mdd-005/scope-verifier-20261030/cross_check.py": "a3b9c24c03bfda7fe16b70471c7a896a520da617f47e24a8710a250222864965",
+    "tests/fixtures/generated/multidex-stored.apk": "6b88277747a49dfddcc91900c171ae6420449cc424d57ffd46f896891ad26098"
+  },
+  "scope": "two synthetic APK occurrences; Rust snapshot ID observed, not independently authenticated",
+  "status": "passed",
+  "input_count": 2,
+  "dex_count": 4,
+  "preimage_sha256": "f5ebc8fab403b375e984460102c24aee53806b0ca2f605563ed119edae89f9ae",
+  "negative_changed_input": "rejected",
+  "finished_utc": "2026-10-30T12:58:08.357189+00:00",
+  "redaction": {
+    "local_raw_sha256": "e5531eae203944a776ac94b4582fe1776309a4b4ac3160edb0fdf7a135c791af",
+    "note": "Workspace path replaced in command; original retained locally."
+  }
+}

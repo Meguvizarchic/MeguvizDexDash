@@ -1,0 +1,17 @@
+{
+  "scope": "synthetic framing and safe output label only; roster trust external",
+  "source_before": {
+    "artifacts/mdd-005/scope-verifier-20261030/probe.py": "8501a6f83e81b5d0b38213b472d07802a82c9192d2a63f708775d6430dbdeedb",
+    "benchmarks/scope_commitment.py": "b23341b4dc884e1b5364949d2bad33606814cfd64389617f55e3151587cbfe1c",
+    "artifacts/mdd-005/scope-verifier-20261030/cross_check.py": "366711dcf41a948deb5c99eaceb0a5ddf7cbfa3a746410675a58080d82849905"
+  },
+  "source_after": {
+    "artifacts/mdd-005/scope-verifier-20261030/probe.py": "8501a6f83e81b5d0b38213b472d07802a82c9192d2a63f708775d6430dbdeedb",
+    "benchmarks/scope_commitment.py": "b23341b4dc884e1b5364949d2bad33606814cfd64389617f55e3151587cbfe1c",
+    "artifacts/mdd-005/scope-verifier-20261030/cross_check.py": "366711dcf41a948deb5c99eaceb0a5ddf7cbfa3a746410675a58080d82849905"
+  },
+  "started_utc": "2026-10-30T13:49:10.0526948Z",
+  "command": "python -B -O artifacts/mdd-005/scope-verifier-20261030/probe.py",
+  "exit_code": 0,
+  "finished_utc": "2026-10-30T13:49:11.2326338Z"
+}

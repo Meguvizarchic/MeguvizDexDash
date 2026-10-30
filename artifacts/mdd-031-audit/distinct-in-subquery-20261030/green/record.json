@@ -1,0 +1,30 @@
+{
+  "command_template": "cargo test -p mdd-sql --locked --offline --jobs 1 FILTER -- --nocapture",
+  "scope": "local SQLite and same-facts comparison; no A0/A1 or profile qualification",
+  "source_before": {
+    "crates/mdd-sql/src/dialects/ast.rs": "AF076A42F09029C0849CB8B332AFCF1E88AAD3DF74AF7188677A4A5A6FCCF729",
+    "crates/mdd-query/src/executor/facts.rs": "B193138134E16F4B9A0ABD9994B04A10D1622A0882155789E9C763434266E7C9",
+    "crates/mdd-facts/src/definitions.rs": "7A2AC801D7EBC89647888F501493EC9629D95B176125A09ABDDB239E489AC40A",
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "crates/mdd-sql/src/bridge.rs": "82B0FC6E6DF90752D4CDB3118874B7546071AE18AA8B1C9151623557CC9C8483"
+  },
+  "source_after": {
+    "crates/mdd-sql/src/dialects/ast.rs": "AF076A42F09029C0849CB8B332AFCF1E88AAD3DF74AF7188677A4A5A6FCCF729",
+    "crates/mdd-query/src/executor/facts.rs": "B193138134E16F4B9A0ABD9994B04A10D1622A0882155789E9C763434266E7C9",
+    "crates/mdd-facts/src/definitions.rs": "7A2AC801D7EBC89647888F501493EC9629D95B176125A09ABDDB239E489AC40A",
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "crates/mdd-sql/src/bridge.rs": "82B0FC6E6DF90752D4CDB3118874B7546071AE18AA8B1C9151623557CC9C8483"
+  },
+  "runs": [
+    {
+      "one_pass": true,
+      "exit_code": 0,
+      "filter": "in_subquery_same_typed_columns_preserves_null_duplicates_and_binding_errors"
+    },
+    {
+      "one_pass": true,
+      "exit_code": 0,
+      "filter": "in_subquery_bytes_and_bool_match_sqlite_with_null_and_duplicates"
+    }
+  ]
+}

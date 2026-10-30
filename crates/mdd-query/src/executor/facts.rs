@@ -285,6 +285,23 @@ fn schema(relation: &str) -> MddResult<RelationSchema> {
             ],
             FactLayer::Structure,
         ),
+        "class_definition_details" => (
+            vec![
+                column("class_definition", Entity, false),
+                column("access_flags", U64, false),
+                column("annotations_offset", U64, true),
+                column("static_values_offset", U64, true),
+                column("class_data_offset", U64, true),
+                column("class_data_length", U64, true),
+                column("static_fields_count", U64, false),
+                column("instance_fields_count", U64, false),
+                column("direct_methods_count", U64, false),
+                column("virtual_methods_count", U64, false),
+                column("encoded_offset", U64, false),
+                column("encoded_length", U64, false),
+            ],
+            FactLayer::Structure,
+        ),
         "class_interfaces" => (
             vec![
                 column("class_definition", Entity, false),
@@ -498,6 +515,23 @@ fn rows<'a>(
         .ok_or_else(|| incomplete(FactLayer::Structure))?
         .definitions();
     Ok(match relation {
+        "class_definition_details" => Box::new(definitions.classes.iter().map(|v| {
+            let range = v.class_data_range.as_ref();
+            Ok(vec![
+                entity(source, EntityKind::ClassDefinition, v.class_def_idx),
+                number(v.access_flags),
+                v.annotations_byte_offset.map_or(Value::Null, Value::U64),
+                v.static_values_byte_offset.map_or(Value::Null, Value::U64),
+                range.map_or(Value::Null, |r| Value::U64(r.byte_offset)),
+                range.map_or(Value::Null, |r| Value::U64(r.byte_length)),
+                number(v.static_fields_count),
+                number(v.instance_fields_count),
+                number(v.direct_methods_count),
+                number(v.virtual_methods_count),
+                Value::U64(v.encoded_range.byte_offset),
+                Value::U64(v.encoded_range.byte_length),
+            ])
+        })),
         "classes" => Box::new(definitions.classes.iter().map(|v| {
             Ok(vec![
                 entity(source, EntityKind::ClassDefinition, v.class_def_idx),
