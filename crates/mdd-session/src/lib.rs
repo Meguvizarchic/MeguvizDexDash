@@ -276,7 +276,8 @@ impl State {
             };
             query.status.error = Some(error);
             query.reserved_threads = 0;
-            query.buffered_bytes = 0;
+            // A consumer can still own previously delivered buffers after a
+            // query or session ends. Only explicit release returns the quota.
         }
         for cursor in self
             .cursors
@@ -672,6 +673,8 @@ impl Lifecycle {
         Ok(())
     }
 
+    /// Return a prior logical buffer reservation, including after cancellation,
+    /// session closure or worker loss. This does not itself free a caller buffer.
     pub fn release_buffered_bytes(&self, query: &QueryHandle, bytes: u64) -> MddResult<()> {
         let mut state = self.lock()?;
         let remaining = state
@@ -993,6 +996,9 @@ impl Lifecycle {
             query.id(),
             MddError::new(ErrorCode::Cancelled, "lifecycle", "query released"),
         );
+        if state.query(query)?.buffered_bytes != 0 {
+            return Err(invalid("release outstanding buffer reservations first"));
+        }
         state.queries.remove(query.id());
         state
             .cursors
@@ -1243,6 +1249,70 @@ mod tests {
             ErrorCode::WorkerLost
         );
         assert!(other.register_snapshot(snapshot()).is_ok());
+    }
+
+    #[test]
+    fn terminal_queries_keep_live_buffer_accounting_until_release() {
+        let limits = ResourceLimits {
+            max_threads: 2,
+            max_buffered_bytes: 8,
+            ..ResourceLimits::default()
+        };
+        for close_session in [false, true] {
+            let (runtime, snapshot, first) = runtime(limits);
+            let second = runtime.open_session(&snapshot, limits).unwrap();
+            let a = prepare(&runtime, &first);
+            let b = prepare(&runtime, &second);
+            runtime.start_query(&first, &a, 1).unwrap();
+            runtime.start_query(&second, &b, 1).unwrap();
+            let retained = Arc::new(vec![7u8; 5]);
+            runtime
+                .reserve_buffered_bytes(&a, retained.len() as u64)
+                .unwrap();
+            if close_session {
+                runtime.release_session(&first).unwrap();
+            } else {
+                runtime.cancel_query(&a).unwrap();
+            }
+            assert_eq!(retained.as_slice(), &[7; 5]);
+            assert_eq!(
+                runtime.reserve_buffered_bytes(&b, 4).unwrap_err().code,
+                ErrorCode::QuotaExceeded
+            );
+            assert!(runtime.release_query(&a).is_err());
+            assert_eq!(
+                runtime.query_status(&a).unwrap().error.unwrap().code,
+                ErrorCode::Cancelled
+            );
+            drop(retained);
+            runtime.release_buffered_bytes(&a, 5).unwrap();
+            assert!(runtime.release_buffered_bytes(&a, 5).is_err());
+            assert_eq!(
+                runtime.query_status(&a).unwrap().error.unwrap().code,
+                ErrorCode::Cancelled
+            );
+            runtime.release_query(&a).unwrap();
+            assert!(runtime.release_query(&a).is_err());
+            runtime.reserve_buffered_bytes(&b, 4).unwrap();
+            runtime.release_buffered_bytes(&b, 4).unwrap();
+        }
+        let (runtime, _, session) = runtime(limits);
+        let a = prepare(&runtime, &session);
+        runtime.start_query(&session, &a, 1).unwrap();
+        runtime.reserve_buffered_bytes(&a, 5).unwrap();
+        runtime.worker_lost("injected worker loss").unwrap();
+        assert!(runtime.release_query(&a).is_err());
+        assert_eq!(
+            runtime.query_status(&a).unwrap().error.unwrap().code,
+            ErrorCode::WorkerLost
+        );
+        runtime.release_buffered_bytes(&a, 5).unwrap();
+        assert!(runtime.release_buffered_bytes(&a, 5).is_err());
+        assert_eq!(
+            runtime.query_status(&a).unwrap().error.unwrap().code,
+            ErrorCode::WorkerLost
+        );
+        runtime.release_query(&a).unwrap();
     }
 
     #[test]

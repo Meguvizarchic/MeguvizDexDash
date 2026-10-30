@@ -26,8 +26,13 @@ struct Fixture {
 }
 
 fn native_references() -> (NativeCatalog, Vec<Arc<ReferenceFacts>>) {
+    native_references_fixture("poly-custom-038.dex")
+}
+
+fn native_references_fixture(name: &str) -> (NativeCatalog, Vec<Arc<ReferenceFacts>>) {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../tests/fixtures/references/generated/poly-custom-038.dex");
+        .join("../../tests/fixtures/references/generated")
+        .join(name);
     let input = InputSpec {
         path,
         kind: InputKind::RawDex,
@@ -69,6 +74,100 @@ fn native_references() -> (NativeCatalog, Vec<Arc<ReferenceFacts>>) {
         .unwrap(),
         references,
     )
+}
+
+#[test]
+fn typed_string_reference_query_preserves_raw_text_sources_and_sites() {
+    let (native, references) = native_references_fixture("nonscalar-string-035.dex");
+    let catalog = ReferenceCatalog::new(native, references.clone()).unwrap();
+    let plan = prepare(catalog.string_reference_query(&[0xd800]).unwrap(), &catalog).unwrap();
+    assert!(plan.required_layers().contains(&FactLayer::References));
+    // Retained independent fixture has two encoded references per occurrence,
+    // at PC 0 and 2, to string index 13 containing the isolated surrogate.
+    for mode in [
+        ExecutionMode::Streaming,
+        ExecutionMode::MaterializedReference,
+    ] {
+        let output = execute(
+            &plan,
+            &catalog,
+            mode,
+            &mut Control::new(ExecutionLimits::default()),
+        )
+        .unwrap();
+        assert_eq!(output.rows().len(), 4);
+        let mut by_source = BTreeMap::<String, Vec<u64>>::new();
+        for row in output.rows() {
+            let (Value::Entity(caller), Value::Entity(string)) = (&row[2], &row[7]) else {
+                panic!("expected source-bound entities");
+            };
+            assert_eq!(caller.kind, EntityKind::MethodDefinition);
+            assert_eq!(caller.local_index, 0);
+            assert_eq!(string.kind, EntityKind::String);
+            assert_eq!(string.local_index, 13);
+            assert_eq!(caller.snapshot_id, string.snapshot_id);
+            assert_eq!(caller.dex_occurrence_id, string.dex_occurrence_id);
+            assert_eq!(row[0], Value::text(&caller.dex_occurrence_id));
+            assert_eq!(row[9], Value::Utf16(vec![0xd800]));
+            assert_eq!(row[10], Value::Bytes(Bytes(vec![0xed, 0xa0, 0x80])));
+            let Value::U64(DecimalU64(pc)) = row[3] else {
+                panic!("expected code-unit PC");
+            };
+            by_source
+                .entry(caller.dex_occurrence_id.clone())
+                .or_default()
+                .push(pc);
+        }
+        assert_eq!(by_source.len(), 2);
+        for pcs in by_source.values_mut() {
+            pcs.sort_unstable();
+            assert_eq!(pcs, &[0, 2]);
+        }
+        let missing =
+            prepare(catalog.string_reference_query(&[0xfffd]).unwrap(), &catalog).unwrap();
+        assert!(
+            execute(
+                &missing,
+                &catalog,
+                mode,
+                &mut Control::new(ExecutionLimits::default())
+            )
+            .unwrap()
+            .rows()
+            .is_empty()
+        );
+        let limits = ExecutionLimits {
+            max_output_rows: 1,
+            ..ExecutionLimits::default()
+        };
+        assert_eq!(
+            execute(&plan, &catalog, mode, &mut Control::new(limits))
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::QuotaExceeded
+        );
+    }
+    assert_eq!(
+        catalog
+            .string_reference_query(&vec![0; 1_000_001])
+            .unwrap_err()
+            .code,
+        ErrorCode::QuotaExceeded
+    );
+    let (mut incomplete, references) = native_references_fixture("nonscalar-string-035.dex");
+    incomplete.occurrences[0].code = None;
+    let incomplete = ReferenceCatalog::new(incomplete, references).unwrap();
+    assert_eq!(
+        prepare(
+            incomplete.string_reference_query(&[0xd800]).unwrap(),
+            &incomplete
+        )
+        .err()
+        .unwrap()
+        .code,
+        ErrorCode::IncompleteFacts
+    );
 }
 
 #[test]

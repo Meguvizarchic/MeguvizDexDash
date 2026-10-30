@@ -1,0 +1,99 @@
+{
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-session/src/lib.rs": "e2ff0a1403e54215303803f927d8c351b996659a5ccdfad83a8e3a77ea1677af",
+    "crates/mdd-session/src/cancellation.rs": "3a513a628237f80365f8e48db7334fa6ee588123dc8b6462dffe657392c90677",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  },
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-session/src/lib.rs": "e2ff0a1403e54215303803f927d8c351b996659a5ccdfad83a8e3a77ea1677af",
+    "crates/mdd-session/src/cancellation.rs": "3a513a628237f80365f8e48db7334fa6ee588123dc8b6462dffe657392c90677",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  },
+  "runs": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-session",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "terminal_queries_keep_live_buffer_accounting_until_release",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-10-30T14:17:54.996935+00:00",
+      "finished_utc": "2026-10-30T14:17:57.774884+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "68f5b2e09e03c22f440f52e722283a56950b3986b5d2be4c9fdcd61fff040b6a",
+      "raw_stderr_sha256": "23c5cb0ca0bc33ed5a28074c7d47518ac9d8d8b027b12dfbfb9d4a1b18f4137e"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-session",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "shared_budget_reservations_and_releases_are_enforced_across_sessions",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-10-30T14:17:57.774943+00:00",
+      "finished_utc": "2026-10-30T14:17:58.158392+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "fd04e52d923412db5e20b06fd8034aa71ad9280c60741c5c9b1497f7eee7a234",
+      "raw_stderr_sha256": "54c47fdddc8b544a6a7cb8478aba7d2d6f97479803b889c4553d2d40b0614c26"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-session",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "buffered_output_must_be_released_before_delivery_completion",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-10-30T14:17:58.158448+00:00",
+      "finished_utc": "2026-10-30T14:17:58.489196+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "8e0959741133c1364ed142cb22a95745a722d314ce6debd54bd0e4aa86d490aa",
+      "raw_stderr_sha256": "b73f79a8e820d8e7e9713602a4cfe1323c4c99b617c8c626848e5ba2f36148a7"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-session",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "snapshot_close_and_release_preserve_existing_owned_leases",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-10-30T14:17:58.489250+00:00",
+      "finished_utc": "2026-10-30T14:17:58.883757+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "11d459046ba4557a380f547cdf46b6ed7e702e4563f2fc763f0434b72c2852a4",
+      "raw_stderr_sha256": "616b3c4e4888320c5cb9d39523ee5665ee6f3fffe1bb2571c3a40163863a8fa7"
+    }
+  ],
+  "scope": "four targeted lifecycle tests; synthetic retained buffer and injected worker loss; path-redacted originals retained locally; not whole workspace, RSS or production IPC"
+}

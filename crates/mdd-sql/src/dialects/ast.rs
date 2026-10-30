@@ -1531,17 +1531,15 @@ impl Rewrite<'_> {
             } => {
                 let left = self.in_column_type(child);
                 let right = self.direct_subquery_column_type(subquery);
-                let supported = left == right
-                    && matches!(
-                        left,
-                        Some(
-                            crate::values::SqlType::I64
-                                | crate::values::SqlType::U64
-                                | crate::values::SqlType::Text
-                                | crate::values::SqlType::Bytes
-                                | crate::values::SqlType::Bool
-                        )
-                    );
+                use crate::values::SqlType::{Bool, Bytes, I64, Text, U64};
+                // All three integral types share the exact mathematical key;
+                // U64 values outside SQLite's signed range remain exact rather
+                // than being converted to float. Text/numeric affinity and
+                // floating-point cases still require separate proof.
+                let supported = matches!(
+                    (left, right),
+                    (Some(I64 | U64 | Bool), Some(I64 | U64 | Bool))
+                ) || (left == right && matches!(left, Some(Text | Bytes)));
                 if !supported {
                     let ctes = subquery
                         .with

@@ -1,0 +1,6 @@
+
+running 1 test
+test bridge::tests::mixed_integral_in_subquery_uses_exact_numeric_keys ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 123 filtered out; finished in 0.12s
+

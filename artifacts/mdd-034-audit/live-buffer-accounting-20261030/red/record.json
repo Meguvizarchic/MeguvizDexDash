@@ -1,0 +1,35 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "mdd-session",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "1",
+    "terminal_queries_keep_live_buffer_accounting_until_release",
+    "--",
+    "--nocapture"
+  ],
+  "started_utc": "2026-10-30T14:17:21.990486+00:00",
+  "finished_utc": "2026-10-30T14:17:24.083210+00:00",
+  "exit_code": 101,
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-session/src/lib.rs": "6d40686e3aa79586ba60b8df0aeb8780ef3203b2df4de99a0b390b078884ea14",
+    "crates/mdd-session/src/cancellation.rs": "3a513a628237f80365f8e48db7334fa6ee588123dc8b6462dffe657392c90677",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  },
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-session/src/lib.rs": "6d40686e3aa79586ba60b8df0aeb8780ef3203b2df4de99a0b390b078884ea14",
+    "crates/mdd-session/src/cancellation.rs": "3a513a628237f80365f8e48db7334fa6ee588123dc8b6462dffe657392c90677",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  },
+  "raw_stdout_sha256": "68b8b2d67e313eefb5a4e655621bc8d69e2a8a80b44beb3fc3212c85971e05c3",
+  "raw_stderr_sha256": "22b4594bf5ba4eae36024f763538a01bb50db3499fb2a1492743796e6d71002e",
+  "scope": "red first cancellation counterexample; subsequent cases not reached; local fixture only; paths redacted"
+}

@@ -255,6 +255,90 @@ impl ReferenceCatalog {
             references: ordered,
         })
     }
+
+    /// Construct a typed exact-string reference query for this catalog.
+    /// UTF-16 code units are compared without normalization or lossy decoding.
+    /// Every encoded operand occurrence is retained; this is not an index
+    /// pushdown or a promise of the legacy HostLab table shape. The query uses
+    /// the existing executor budgets and requires complete reference facts.
+    pub fn string_reference_query(&self, units: &[u16]) -> MddResult<QueryIr> {
+        if units.len() > 1_000_000 {
+            return Err(MddError::new(
+                ErrorCode::QuotaExceeded,
+                "query.facts",
+                "string predicate exceeds construction limit",
+            ));
+        }
+        let mut value = Vec::new();
+        value.try_reserve_exact(units.len()).map_err(|_| {
+            MddError::new(
+                ErrorCode::QuotaExceeded,
+                "query.facts",
+                "string predicate allocation failed",
+            )
+        })?;
+        value.extend_from_slice(units);
+        let sites = Node::Filter {
+            input: Box::new(Node::Scan {
+                relation: "reference_sites".into(),
+            }),
+            predicate: Predicate::Eq {
+                left: Expr::Column { ordinal: 6 },
+                right: Expr::Literal {
+                    value: Value::text("string"),
+                },
+            },
+        };
+        let strings = Node::Scan {
+            relation: "strings".into(),
+        };
+        let joined = Node::EquiJoin {
+            left: Box::new(sites),
+            right: Box::new(strings),
+            left_keys: vec![8],
+            right_keys: vec![0],
+            kind: JoinKind::Inner,
+        };
+        let matched = Node::Filter {
+            input: Box::new(joined),
+            predicate: Predicate::Eq {
+                left: Expr::Column { ordinal: 14 },
+                right: Expr::Literal {
+                    value: Value::Utf16(value),
+                },
+            },
+        };
+        let columns = [
+            ("dex_occurrence_id", DataType::Utf16, 0),
+            ("site_ordinal", DataType::U64, 1),
+            ("caller", DataType::Entity, 2),
+            ("code_unit_pc", DataType::U64, 3),
+            ("instruction_ordinal", DataType::U64, 4),
+            ("operand_ordinal", DataType::U64, 5),
+            ("opcode", DataType::U64, 9),
+            ("string_entity", DataType::Entity, 11),
+            ("string_pool_id", DataType::Utf16, 13),
+            ("utf16", DataType::Utf16, 14),
+            ("raw_mutf8", DataType::Bytes, 15),
+        ]
+        .into_iter()
+        .map(|(name, data_type, ordinal)| Projection {
+            column: column(name, data_type, false),
+            expression: Expr::Column { ordinal },
+        })
+        .collect();
+        Ok(QueryIr {
+            schema_version: IR_VERSION.into(),
+            text_semantics: TEXT_VERSION.into(),
+            snapshot_id: self.native.snapshot_id().to_owned(),
+            catalog_epoch: self.native.catalog_epoch(),
+            require_stable_order: false,
+            root: Node::Project {
+                input: Box::new(matched),
+                columns,
+            },
+        })
+    }
 }
 
 fn reference_schema() -> RelationSchema {

@@ -2977,6 +2977,154 @@ mod tests {
         }
     }
     #[test]
+    fn mixed_integral_in_subquery_uses_exact_numeric_keys() {
+        use mdd_query::ir::Signed64;
+        let provider = Arc::new(RowsProvider {
+            binding: SqlBinding {
+                provider_identity: "mixed-integral-in".into(),
+                snapshot_id: "mixed-integral-snapshot".into(),
+                catalog_epoch: DecimalU64(0),
+            },
+            columns: [
+                ("id", SqlType::I64, false),
+                ("i", SqlType::I64, true),
+                ("u", SqlType::U64, true),
+                ("b", SqlType::Bool, true),
+            ]
+            .into_iter()
+            .map(|(name, data_type, nullable)| SqlColumn {
+                id: name.into(),
+                name: name.into(),
+                data_type,
+                nullable,
+            })
+            .collect(),
+            rows: vec![
+                vec![
+                    SqlValue::I64(Signed64(0)),
+                    SqlValue::I64(Signed64(-1)),
+                    SqlValue::U64(DecimalU64(0)),
+                    SqlValue::Bool(false),
+                ],
+                vec![
+                    SqlValue::I64(Signed64(1)),
+                    SqlValue::I64(Signed64(0)),
+                    SqlValue::U64(DecimalU64(1)),
+                    SqlValue::Bool(true),
+                ],
+                vec![
+                    SqlValue::I64(Signed64(2)),
+                    SqlValue::I64(Signed64(1)),
+                    SqlValue::U64(DecimalU64(2)),
+                    SqlValue::Null,
+                ],
+                vec![
+                    SqlValue::I64(Signed64(3)),
+                    SqlValue::I64(Signed64(2)),
+                    SqlValue::U64(DecimalU64(i64::MAX as u64)),
+                    SqlValue::Bool(false),
+                ],
+                vec![
+                    SqlValue::I64(Signed64(4)),
+                    SqlValue::I64(Signed64(i64::MAX)),
+                    SqlValue::Null,
+                    SqlValue::Bool(true),
+                ],
+                vec![
+                    SqlValue::I64(Signed64(5)),
+                    SqlValue::Null,
+                    SqlValue::U64(DecimalU64(1u64 << 63)),
+                    SqlValue::Null,
+                ],
+                vec![
+                    SqlValue::I64(Signed64(6)),
+                    SqlValue::I64(Signed64(1)),
+                    SqlValue::U64(DecimalU64(u64::MAX)),
+                    SqlValue::Bool(true),
+                ],
+            ],
+        });
+        // SQLite's native INTEGER covers only the signed range. Exclude the
+        // last two rows here; wider U64 semantics are checked separately.
+        let sqlite = rusqlite::Connection::open_in_memory().unwrap();
+        sqlite.execute_batch("CREATE TABLE vals(id INTEGER,i INTEGER,u INTEGER,b INTEGER); INSERT INTO vals VALUES(0,-1,0,0),(1,0,1,1),(2,1,2,NULL),(3,2,9223372036854775807,0),(4,9223372036854775807,NULL,1);").unwrap();
+        let queries = [
+            "SELECT id,i IN (SELECT u FROM vals WHERE id<5),i NOT IN (SELECT u FROM vals WHERE id<5) FROM vals WHERE id<5 ORDER BY id",
+            "SELECT id,u IN (SELECT i FROM vals WHERE id<5),u NOT IN (SELECT i FROM vals WHERE id<5) FROM vals WHERE id<5 ORDER BY id",
+            "SELECT id,b IN (SELECT i FROM vals WHERE id<5),i IN (SELECT b FROM vals WHERE id<5) FROM vals WHERE id<5 ORDER BY id",
+            "SELECT id,u IN (SELECT b FROM vals WHERE id<5),b NOT IN (SELECT u FROM vals WHERE id<5) FROM vals WHERE id<5 ORDER BY id",
+            "SELECT a.id,a.i IN (SELECT b.u FROM vals b WHERE b.id=a.id) FROM vals a WHERE a.id<5 ORDER BY a.id",
+            "SELECT id,i IN (SELECT b FROM vals WHERE id<5 ORDER BY b DESC LIMIT 2),i NOT IN (SELECT b FROM vals WHERE id<5 ORDER BY b DESC LIMIT 2) FROM vals WHERE id<5 ORDER BY id",
+            "WITH d(v) AS (SELECT b FROM vals WHERE id<5) SELECT id,i IN (SELECT v FROM d) FROM vals WHERE id<5 ORDER BY id",
+            "SELECT id,i IN (SELECT u FROM vals WHERE id<0),i NOT IN (SELECT u FROM vals WHERE id<0) FROM vals WHERE id<5 ORDER BY id",
+        ];
+        for dialect in [
+            SqlDialect::NativeV1,
+            SqlDialect::DexSql010,
+            SqlDialect::DexSql011,
+        ] {
+            let bridge = SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+            for sql in queries {
+                let mut stmt = sqlite.prepare(sql).unwrap();
+                let width = stmt.column_count();
+                let expected = stmt
+                    .query_map([], |row| {
+                        (0..width)
+                            .map(|i| row.get::<_, Option<i64>>(i))
+                            .collect::<rusqlite::Result<Vec<_>>>()
+                    })
+                    .unwrap()
+                    .collect::<rusqlite::Result<Vec<_>>>()
+                    .unwrap();
+                let actual: Vec<Vec<Option<i64>>> = bridge
+                    .query(sql)
+                    .unwrap()
+                    .rows()
+                    .iter()
+                    .map(|row| {
+                        row.iter()
+                            .map(|value| match value {
+                                SqlValue::Null => None,
+                                SqlValue::I64(value) => Some(value.0),
+                                value => panic!("unexpected result: {value:?}"),
+                            })
+                            .collect()
+                    })
+                    .collect();
+                assert_eq!(actual, expected, "{dialect:?}: {sql}");
+            }
+            for (sql, expected) in [
+                (
+                    "SELECT i IN (SELECT u FROM vals WHERE id=5) FROM vals WHERE id=4",
+                    0,
+                ),
+                (
+                    "SELECT u IN (SELECT i FROM vals WHERE id=4) FROM vals WHERE id=5",
+                    0,
+                ),
+                (
+                    "SELECT u IN (SELECT i FROM vals WHERE id=4) FROM vals WHERE id=3",
+                    1,
+                ),
+                (
+                    "SELECT u IN (SELECT i FROM vals WHERE id=0) FROM vals WHERE id=6",
+                    0,
+                ),
+                (
+                    "SELECT u IN (SELECT b FROM vals WHERE id<5 AND b IS NOT NULL) FROM vals WHERE id=6",
+                    0,
+                ),
+            ] {
+                assert_eq!(
+                    bridge.query(sql).unwrap().rows(),
+                    &[vec![SqlValue::I64(Signed64(expected))]],
+                    "{dialect:?}: {sql}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn order_in_subquery_respects_current_scope_and_unknown_shadow() {
         use mdd_query::ir::Signed64;
         let provider = Arc::new(RowsProvider {

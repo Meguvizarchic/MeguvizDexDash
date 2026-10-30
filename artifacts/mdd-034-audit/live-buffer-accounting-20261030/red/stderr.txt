@@ -1,0 +1,8 @@
+   Compiling mdd-session v0.1.0-dev (<workspace>\crates\mdd-session)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.50s
+     Running unittests src\lib.rs (target\debug\deps\mdd_session-34588e5d55bf44f1.exe)
+
+thread 'tests::terminal_queries_keep_live_buffer_accounting_until_release' (10708) panicked at crates\mdd-session\src\lib.rs:1270:62:
+called `Result::unwrap_err()` on an `Ok` value: ()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p mdd-session --lib`
