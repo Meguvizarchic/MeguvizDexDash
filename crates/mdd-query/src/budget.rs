@@ -1366,7 +1366,18 @@ impl<T> BoundedReceiver<T> {
                 drop(state);
                 return Err(self.0.protocol_fault(invalid("read after queue terminal")));
             }
-            if let Some(end) = state.terminal.take() {
+            if let Some(mut end) = state.terminal.take() {
+                // An unbound queue has no later delivery receipt at which to
+                // recheck its budget. Confirm the deadline when the consumer
+                // actually receives a successful End, while retaining any
+                // error already published by the producer. Bound queues use
+                // their query receipt for the final delivery decision.
+                if end.is_ok()
+                    && self.0.delivery.is_none()
+                    && let Err(error) = self.0.checkpoint()
+                {
+                    end = Err(error);
+                }
                 state.end_delivered = true;
                 if let Some(tracker) = &self.0.delivery {
                     let mut delivery = tracker

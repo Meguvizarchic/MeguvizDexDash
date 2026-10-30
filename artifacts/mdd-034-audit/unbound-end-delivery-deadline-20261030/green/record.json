@@ -1,0 +1,34 @@
+{
+  "command_template": "cargo test -p mdd-query --locked --offline --jobs 1 FILTER -- --test-threads 1 --nocapture",
+  "source_after": {
+    "crates/mdd-session/src/lib.rs": "8BBE6EDAB753A1BFC60E933FB833A97D8992AA9C8C9CDEAD3AEE5EE3EA73F994",
+    "crates/mdd-session/src/cancellation.rs": "EBF6EF5FD3C84F1400297F459B9794D089E97CD497E5CB33883B70F12CA25CDC",
+    "crates/mdd-query/src/executor/runtime_tests.rs": "B69F270F51B2F8C1F16CA590E99F2002FB7259C96EF08DD4EFEA7EED4D79D552",
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "crates/mdd-query/src/budget/tests.rs": "C7DA9069CAA55F254FA929EABE515BD5B7307D546FBE6C227F0F646EE5DC4128",
+    "crates/mdd-query/src/budget.rs": "C4715FF8860AAA32FB0F78B33C872DE5E6CE96E1C485EED91F1F50A042EFD698"
+  },
+  "source_before": {
+    "crates/mdd-session/src/lib.rs": "8BBE6EDAB753A1BFC60E933FB833A97D8992AA9C8C9CDEAD3AEE5EE3EA73F994",
+    "crates/mdd-session/src/cancellation.rs": "EBF6EF5FD3C84F1400297F459B9794D089E97CD497E5CB33883B70F12CA25CDC",
+    "crates/mdd-query/src/executor/runtime_tests.rs": "B69F270F51B2F8C1F16CA590E99F2002FB7259C96EF08DD4EFEA7EED4D79D552",
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "crates/mdd-query/src/budget/tests.rs": "C7DA9069CAA55F254FA929EABE515BD5B7307D546FBE6C227F0F646EE5DC4128",
+    "crates/mdd-query/src/budget.rs": "C4715FF8860AAA32FB0F78B33C872DE5E6CE96E1C485EED91F1F50A042EFD698"
+  },
+  "runs": [
+    {
+      "filter": "unbound_terminal_",
+      "exit_code": 0
+    },
+    {
+      "filter": "queue_finish_expired_budget_unbound",
+      "exit_code": 0
+    },
+    {
+      "filter": "bound_sender_normal_backpressure_still_delivers_all_rows",
+      "exit_code": 0
+    }
+  ],
+  "scope": "targeted queue delivery; not full concurrency or profile qualification"
+}

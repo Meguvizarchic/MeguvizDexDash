@@ -210,6 +210,33 @@ pub struct MethodPrototypeParameters<'a> {
     pub definition: Option<&'a MethodDefinition>,
     metadata: &'a MetadataFacts,
 }
+
+/// Limits for one comma-separated parameter descriptor projection. These are
+/// logical input and output limits, not allocator, RSS or deadline guarantees.
+#[derive(Clone, Copy, Debug)]
+pub struct ParameterDescriptorLimits {
+    pub max_parameters: u64,
+    pub max_raw_bytes: u64,
+    pub max_utf16_units: u64,
+}
+impl Default for ParameterDescriptorLimits {
+    fn default() -> Self {
+        Self {
+            max_parameters: 1_000_000,
+            max_raw_bytes: 16 * 1024 * 1024,
+            max_utf16_units: 16 * 1024 * 1024,
+        }
+    }
+}
+
+/// Comma-separated descriptor data in both original byte and UTF-16 forms.
+/// This is not a UTF-8 string: MUTF-8 encodes supplementary characters as
+/// surrogate pairs. The selected method/source remain on the originating view.
+#[derive(Debug, Eq, PartialEq)]
+pub struct ParameterDescriptorText {
+    pub raw_mutf8: Vec<u8>,
+    pub utf16_units: Vec<u16>,
+}
 impl<'a> MethodPrototypeParameters<'a> {
     /// Each iteration preserves prototype order and repeated type identities.
     pub fn iter(
@@ -239,6 +266,114 @@ impl<'a> MethodPrototypeParameters<'a> {
                     type_fact: fact,
                 })
             })
+    }
+
+    /// Construct two lossless forms using the validated descriptor strings.
+    /// Empty parameter lists yield two empty values, including for references
+    /// without a definition. No annotation or compatibility qualification is
+    /// inferred from this native projection.
+    pub fn descriptor_text(
+        &self,
+        limits: ParameterDescriptorLimits,
+    ) -> MddResult<ParameterDescriptorText> {
+        let quota = || {
+            MddError::new(
+                ErrorCode::QuotaExceeded,
+                "facts.method_parameters",
+                "parameter descriptor projection budget exceeded",
+            )
+        };
+        let broken = || {
+            MddError::new(
+                ErrorCode::InternalFault,
+                "facts.method_parameters",
+                "validated descriptor string is inconsistent",
+            )
+        };
+        let count =
+            u64::try_from(self.prototype.parameter_type_indices.len()).map_err(|_| quota())?;
+        if count > limits.max_parameters {
+            return Err(quota());
+        }
+        let descriptor = |index: u32| -> MddResult<&DexString> {
+            let ty = self
+                .metadata
+                .types()
+                .get(index as usize)
+                .filter(|v| {
+                    v.data.type_idx == index
+                        && v.entity.kind == EntityKind::Type
+                        && v.entity.local_index == index
+                        && v.entity.snapshot_id == self.source.snapshot_id
+                        && v.entity.dex_occurrence_id == self.source.dex_occurrence_id
+                })
+                .ok_or_else(broken)?;
+            let string_index = ty.data.descriptor_string_idx;
+            let string = self
+                .metadata
+                .strings()
+                .get(string_index as usize)
+                .filter(|v| {
+                    v.data.string_idx == string_index
+                        && v.entity.kind == EntityKind::String
+                        && v.entity.local_index == string_index
+                        && v.entity.snapshot_id == self.source.snapshot_id
+                        && v.entity.dex_occurrence_id == self.source.dex_occurrence_id
+                        && ty.descriptor_string == v.entity
+                })
+                .ok_or_else(broken)?;
+            if !string.data.text.declared_length_verified
+                || usize::try_from(string.data.text.declared_utf16_length).ok()
+                    != Some(string.data.text.utf16_units.len())
+                || !ty.data.descriptor.encode_utf16().eq(string
+                    .data
+                    .text
+                    .utf16_units
+                    .iter()
+                    .copied())
+            {
+                return Err(broken());
+            }
+            Ok(&string.data)
+        };
+        let mut bytes = count.saturating_sub(1);
+        let mut units = count.saturating_sub(1);
+        for &index in &self.prototype.parameter_type_indices {
+            let text = &descriptor(index)?.text;
+            bytes = bytes
+                .checked_add(u64::try_from(text.raw_mutf8.len()).map_err(|_| quota())?)
+                .ok_or_else(quota)?;
+            units = units
+                .checked_add(u64::try_from(text.utf16_units.len()).map_err(|_| quota())?)
+                .ok_or_else(quota)?;
+            if bytes > limits.max_raw_bytes || units > limits.max_utf16_units {
+                return Err(quota());
+            }
+        }
+        if bytes > limits.max_raw_bytes || units > limits.max_utf16_units {
+            return Err(quota());
+        }
+        let mut raw_mutf8 = Vec::new();
+        let mut utf16_units = Vec::new();
+        raw_mutf8
+            .try_reserve_exact(usize::try_from(bytes).map_err(|_| quota())?)
+            .map_err(|_| quota())?;
+        utf16_units
+            .try_reserve_exact(usize::try_from(units).map_err(|_| quota())?)
+            .map_err(|_| quota())?;
+        for (ordinal, &index) in self.prototype.parameter_type_indices.iter().enumerate() {
+            if ordinal != 0 {
+                raw_mutf8.push(b',');
+                utf16_units.push(u16::from(b','));
+            }
+            let text = &descriptor(index)?.text;
+            raw_mutf8.extend_from_slice(&text.raw_mutf8);
+            utf16_units.extend_from_slice(&text.utf16_units);
+        }
+        Ok(ParameterDescriptorText {
+            raw_mutf8,
+            utf16_units,
+        })
     }
 }
 

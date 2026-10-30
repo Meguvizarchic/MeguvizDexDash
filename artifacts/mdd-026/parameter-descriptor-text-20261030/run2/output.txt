@@ -1,0 +1,11 @@
+   Compiling mdd-facts v0.1.0-dev (D:\MeguvisDexDash\crates\mdd-facts)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.80s
+     Running tests\parameter_descriptors.rs (target\debug\deps\parameter_descriptors-74aef1c8ca19de1d.exe)
+
+running 3 tests
+test nonscalar_parameter_descriptor_is_rejected_during_metadata_read ... ok
+test parameter_text_preserves_utf16_mutf8_occurrences_and_limits ... ok
+test parameter_text_matches_retained_a0_rows ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

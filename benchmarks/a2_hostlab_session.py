@@ -195,9 +195,18 @@ class HostlabCompactSession:
         self._check_thread()
         if not self._entered or self._closed or self._failed:
             raise HostlabSessionError("HostLab compact session is not usable")
+        # Register before returning the lazy iterator. An iterator that is
+        # never started (including one closed before first next()) does not
+        # run its generator finally block and must keep the session incomplete.
         self._active += 1
+        return self._iter_rows(sql, page_size=page_size, max_rows=max_rows, max_bytes=max_bytes)
+
+    def _iter_rows(self, sql, *, page_size, max_rows, max_bytes):
         exhausted = False
         try:
+            self._check_thread()
+            if self._closed or self._failed:
+                raise HostlabSessionError("compact session closed before query consumption")
             result = self._wait(self._adapter.result(sql, page_size=page_size,
                                                      max_rows=max_rows, max_bytes=max_bytes))
             records = getattr(result, 'rows', None)

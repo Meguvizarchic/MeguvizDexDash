@@ -1,0 +1,9 @@
+{
+  "source_sha256": {
+    "benchmarks/a2_hostlab_session.py": "3B449EA219FD97C8804E2F6508588ABC83144451E6E39869524E5F222CF01D41",
+    "artifacts/mdd-005/a2-sync-unstarted-20261030/probe.py": "F4F0266756EC3E4AAC11273AF44DBCD3716E86554E1064D03E695A4F8E84D61C"
+  },
+  "command": "baseline-venv python -B -O artifacts/mdd-005/a2-sync-unstarted-20261030/probe.py",
+  "exit_code": 1,
+  "scope": "synthetic synchronous HostLab session"
+}

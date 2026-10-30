@@ -411,8 +411,8 @@ impl SqlFactProvider for MetadataSqlProvider {
     }
 }
 
-/// Direct native class facts from one explicit snapshot scope. This does not
-/// implement the legacy HostLab table layout or infer inherited interfaces.
+/// Direct native definition facts from one explicit snapshot scope. This does
+/// not implement the legacy HostLab table layout or infer inherited members.
 pub struct DefinitionSqlProvider {
     binding: SqlBinding,
     occurrences: Vec<Arc<DefinitionFacts>>,
@@ -457,6 +457,10 @@ impl DefinitionSqlProvider {
 enum DefinitionRelation {
     Classes,
     Interfaces,
+    MethodReferences,
+    MethodDefinitions,
+    FieldReferences,
+    FieldDefinitions,
 }
 impl DefinitionRelation {
     fn parse(name: &str) -> MddResult<Self> {
@@ -464,10 +468,37 @@ impl DefinitionRelation {
             Ok(Self::Classes)
         } else if name.eq_ignore_ascii_case("native_class_interfaces") {
             Ok(Self::Interfaces)
+        } else if name.eq_ignore_ascii_case("native_method_references") {
+            Ok(Self::MethodReferences)
+        } else if name.eq_ignore_ascii_case("native_method_definitions") {
+            Ok(Self::MethodDefinitions)
+        } else if name.eq_ignore_ascii_case("native_field_references") {
+            Ok(Self::FieldReferences)
+        } else if name.eq_ignore_ascii_case("native_field_definitions") {
+            Ok(Self::FieldDefinitions)
         } else {
             Err(invalid("UNKNOWN_DEFINITION_RELATION"))
         }
     }
+}
+fn definition_name_text(
+    facts: &DefinitionFacts,
+    index: u32,
+    control: &SqlControl,
+) -> MddResult<(SqlValue, SqlValue)> {
+    let string = facts
+        .metadata()
+        .strings()
+        .get(index as usize)
+        .filter(|item| item.data.string_idx == index)
+        .ok_or_else(|| {
+            MddError::new(
+                ErrorCode::InternalFault,
+                "sql.definitions",
+                "validated name is missing",
+            )
+        })?;
+    source_text(string, control)
 }
 struct DefinitionCursor {
     provider: Arc<DefinitionSqlProvider>,
@@ -577,6 +608,107 @@ impl SqlFactCursor for DefinitionCursor {
                         raw,
                     ]
                 }
+                DefinitionRelation::MethodReferences => {
+                    let Some(method) = facts.definitions().method_references.get(self.ordinal)
+                    else {
+                        self.occurrence += 1;
+                        self.ordinal = 0;
+                        continue;
+                    };
+                    self.control.work(128)?;
+                    let occurrence = scalar_text(&source.dex_occurrence_id, &self.control)?;
+                    let (class, class_raw) =
+                        definition_type_text(facts, method.class_idx, &self.control)?;
+                    let (name, name_raw) =
+                        definition_name_text(facts, method.name_idx, &self.control)?;
+                    vec![
+                        occurrence,
+                        SqlValue::U64(DecimalU64(method.method_idx.into())),
+                        SqlValue::U64(DecimalU64(method.class_idx.into())),
+                        class,
+                        class_raw,
+                        SqlValue::U64(DecimalU64(method.proto_idx.into())),
+                        SqlValue::U64(DecimalU64(method.name_idx.into())),
+                        name,
+                        name_raw,
+                    ]
+                }
+                DefinitionRelation::MethodDefinitions => {
+                    let Some(method) = facts.definitions().method_definitions.get(self.ordinal)
+                    else {
+                        self.occurrence += 1;
+                        self.ordinal = 0;
+                        continue;
+                    };
+                    self.control.work(128)?;
+                    let (offset, insns) = match method.body {
+                        mdd_dex::definitions::MethodBody::Present {
+                            code_byte_offset,
+                            declared_insns_size,
+                        } => (
+                            SqlValue::U64(code_byte_offset),
+                            SqlValue::U64(DecimalU64(declared_insns_size.into())),
+                        ),
+                        _ => (SqlValue::Null, SqlValue::Null),
+                    };
+                    vec![
+                        scalar_text(&source.dex_occurrence_id, &self.control)?,
+                        SqlValue::U64(DecimalU64(method.class_def_idx.into())),
+                        SqlValue::U64(DecimalU64(method.class_idx.into())),
+                        SqlValue::U64(DecimalU64(method.method_idx.into())),
+                        scalar_text(method.kind.as_str(), &self.control)?,
+                        SqlValue::U64(DecimalU64(method.ordinal.into())),
+                        SqlValue::U64(DecimalU64(method.access_flags.into())),
+                        scalar_text(method.body.state(), &self.control)?,
+                        offset,
+                        insns,
+                    ]
+                }
+                DefinitionRelation::FieldReferences => {
+                    let Some(field) = facts.definitions().field_references.get(self.ordinal) else {
+                        self.occurrence += 1;
+                        self.ordinal = 0;
+                        continue;
+                    };
+                    self.control.work(144)?;
+                    let occurrence = scalar_text(&source.dex_occurrence_id, &self.control)?;
+                    let (class, class_raw) =
+                        definition_type_text(facts, field.class_idx, &self.control)?;
+                    let (ty, ty_raw) = definition_type_text(facts, field.type_idx, &self.control)?;
+                    let (name, name_raw) =
+                        definition_name_text(facts, field.name_idx, &self.control)?;
+                    vec![
+                        occurrence,
+                        SqlValue::U64(DecimalU64(field.field_idx.into())),
+                        SqlValue::U64(DecimalU64(field.class_idx.into())),
+                        class,
+                        class_raw,
+                        SqlValue::U64(DecimalU64(field.type_idx.into())),
+                        ty,
+                        ty_raw,
+                        SqlValue::U64(DecimalU64(field.name_idx.into())),
+                        name,
+                        name_raw,
+                    ]
+                }
+                DefinitionRelation::FieldDefinitions => {
+                    let Some(field) = facts.definitions().field_definitions.get(self.ordinal)
+                    else {
+                        self.occurrence += 1;
+                        self.ordinal = 0;
+                        continue;
+                    };
+                    self.control.work(96)?;
+                    vec![
+                        scalar_text(&source.dex_occurrence_id, &self.control)?,
+                        SqlValue::U64(DecimalU64(field.class_def_idx.into())),
+                        SqlValue::U64(DecimalU64(field.class_idx.into())),
+                        SqlValue::U64(DecimalU64(field.field_idx.into())),
+                        scalar_text(field.kind.as_str(), &self.control)?,
+                        SqlValue::U64(DecimalU64(field.ordinal.into())),
+                        SqlValue::U64(DecimalU64(field.access_flags.into())),
+                    ]
+                }
             };
             self.ordinal += 1;
             return Ok(Some(row));
@@ -589,15 +721,30 @@ impl SqlFactProvider for DefinitionSqlProvider {
         &self.binding
     }
     fn relations(&self) -> MddResult<Vec<SqlRelation>> {
-        let (classes, interfaces) = self
+        let (classes, interfaces, method_refs, method_defs, field_refs, field_defs) = self
             .occurrences
             .iter()
-            .try_fold((0u64, 0u64), |(c, i), facts| {
-                Some((
-                    c.checked_add(u64::try_from(facts.definitions().classes.len()).ok()?)?,
-                    i.checked_add(u64::try_from(facts.definitions().interfaces.len()).ok()?)?,
-                ))
-            })
+            .try_fold(
+                (0u64, 0u64, 0u64, 0u64, 0u64, 0u64),
+                |(c, i, mr, md, fr, fd), facts| {
+                    Some((
+                        c.checked_add(u64::try_from(facts.definitions().classes.len()).ok()?)?,
+                        i.checked_add(u64::try_from(facts.definitions().interfaces.len()).ok()?)?,
+                        mr.checked_add(
+                            u64::try_from(facts.definitions().method_references.len()).ok()?,
+                        )?,
+                        md.checked_add(
+                            u64::try_from(facts.definitions().method_definitions.len()).ok()?,
+                        )?,
+                        fr.checked_add(
+                            u64::try_from(facts.definitions().field_references.len()).ok()?,
+                        )?,
+                        fd.checked_add(
+                            u64::try_from(facts.definitions().field_definitions.len()).ok()?,
+                        )?,
+                    ))
+                },
+            )
             .ok_or_else(|| quota("DEFINITION_SQL_ROWS_OVERFLOW"))?;
         let relation = |name: &str, columns: &[(&str, SqlType, bool)], count| SqlRelation {
             name: name.into(),
@@ -643,6 +790,67 @@ impl SqlFactProvider for DefinitionSqlProvider {
                 ],
                 interfaces,
             ),
+            relation(
+                "native_method_references",
+                &[
+                    ("dex_occurrence_id", SqlType::Text, false),
+                    ("method_idx", SqlType::U64, false),
+                    ("class_type_idx", SqlType::U64, false),
+                    ("class_descriptor", SqlType::Text, false),
+                    ("class_descriptor_mutf8", SqlType::Bytes, false),
+                    ("prototype_idx", SqlType::U64, false),
+                    ("name_idx", SqlType::U64, false),
+                    ("name", SqlType::Text, false),
+                    ("name_mutf8", SqlType::Bytes, false),
+                ],
+                method_refs,
+            ),
+            relation(
+                "native_method_definitions",
+                &[
+                    ("dex_occurrence_id", SqlType::Text, false),
+                    ("class_def_idx", SqlType::U64, false),
+                    ("class_type_idx", SqlType::U64, false),
+                    ("method_idx", SqlType::U64, false),
+                    ("kind", SqlType::Text, false),
+                    ("ordinal", SqlType::U64, false),
+                    ("access_flags", SqlType::U64, false),
+                    ("body_state", SqlType::Text, false),
+                    ("code_byte_offset", SqlType::U64, true),
+                    ("declared_insns_size", SqlType::U64, true),
+                ],
+                method_defs,
+            ),
+            relation(
+                "native_field_references",
+                &[
+                    ("dex_occurrence_id", SqlType::Text, false),
+                    ("field_idx", SqlType::U64, false),
+                    ("class_type_idx", SqlType::U64, false),
+                    ("class_descriptor", SqlType::Text, false),
+                    ("class_descriptor_mutf8", SqlType::Bytes, false),
+                    ("field_type_idx", SqlType::U64, false),
+                    ("type_descriptor", SqlType::Text, false),
+                    ("type_descriptor_mutf8", SqlType::Bytes, false),
+                    ("name_idx", SqlType::U64, false),
+                    ("name", SqlType::Text, false),
+                    ("name_mutf8", SqlType::Bytes, false),
+                ],
+                field_refs,
+            ),
+            relation(
+                "native_field_definitions",
+                &[
+                    ("dex_occurrence_id", SqlType::Text, false),
+                    ("class_def_idx", SqlType::U64, false),
+                    ("class_type_idx", SqlType::U64, false),
+                    ("field_idx", SqlType::U64, false),
+                    ("kind", SqlType::Text, false),
+                    ("ordinal", SqlType::U64, false),
+                    ("access_flags", SqlType::U64, false),
+                ],
+                field_defs,
+            ),
         ])
     }
     fn require_relation(&self, relation: &str) -> MddResult<()> {
@@ -672,6 +880,203 @@ mod tests {
         archive::{ArchiveInventory, ArchiveLimits, InventoryPolicy},
         snapshot::{CaptureLimits, InputKind, InputSpec, Snapshot},
     };
+    #[test]
+    fn native_member_relations_keep_references_definitions_and_sources_distinct() {
+        use mdd_dex::definitions::{DefinitionLimits, MethodBody};
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let path = root.join("tests/fixtures/definitions/generated/definitions-035.dex");
+        let input = InputSpec {
+            path,
+            kind: InputKind::RawDex,
+            expected_sha256: None,
+        };
+        let snapshot =
+            Snapshot::capture(&[input.clone(), input], CaptureLimits::default()).unwrap();
+        let mut facts = Vec::new();
+        for source in snapshot.sources() {
+            let inventory = ArchiveInventory::build(
+                source,
+                InventoryPolicy::default(),
+                ArchiveLimits::default(),
+            )
+            .unwrap();
+            let metadata =
+                MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default()).unwrap();
+            facts.push(Arc::new(
+                DefinitionFacts::build(metadata, DefinitionLimits::default()).unwrap(),
+            ));
+        }
+        let bridge = SqlBridge::new(
+            Arc::new(DefinitionSqlProvider::new(facts.clone(), DecimalU64(0)).unwrap()),
+            SqlDialect::NativeV1,
+            SqlLimits::default(),
+        )
+        .unwrap();
+        let method_refs = bridge.query("SELECT dex_occurrence_id,method_idx,class_type_idx,class_descriptor,class_descriptor_mutf8,prototype_idx,name_idx,name,name_mutf8 FROM native_method_references").unwrap();
+        let method_defs = bridge.query("SELECT dex_occurrence_id,class_def_idx,class_type_idx,method_idx,kind,ordinal,access_flags,body_state,code_byte_offset,declared_insns_size FROM native_method_definitions").unwrap();
+        let field_refs = bridge.query("SELECT dex_occurrence_id,field_idx,class_type_idx,class_descriptor,class_descriptor_mutf8,field_type_idx,type_descriptor,type_descriptor_mutf8,name_idx,name,name_mutf8 FROM native_field_references").unwrap();
+        let field_defs = bridge.query("SELECT dex_occurrence_id,class_def_idx,class_type_idx,field_idx,kind,ordinal,access_flags FROM native_field_definitions").unwrap();
+        let as_u64 = |v: u32| SqlValue::U64(DecimalU64(u64::from(v)));
+        let text = |v: &SqlValue| match v {
+            SqlValue::Text(v) => v.strict_utf8().unwrap(),
+            other => panic!("expected text: {other:?}"),
+        };
+        let mut saw_reference_only = false;
+        let mut states = BTreeSet::new();
+        for f in &facts {
+            let source = &f.metadata().source().dex_occurrence_id;
+            let mrefs: Vec<_> = method_refs
+                .rows()
+                .iter()
+                .filter(|row| text(&row[0]) == *source)
+                .collect();
+            let mdefs: Vec<_> = method_defs
+                .rows()
+                .iter()
+                .filter(|row| text(&row[0]) == *source)
+                .collect();
+            let frefs: Vec<_> = field_refs
+                .rows()
+                .iter()
+                .filter(|row| text(&row[0]) == *source)
+                .collect();
+            let fdefs: Vec<_> = field_defs
+                .rows()
+                .iter()
+                .filter(|row| text(&row[0]) == *source)
+                .collect();
+            assert_eq!(mrefs.len(), f.definitions().method_references.len());
+            assert_eq!(mdefs.len(), f.definitions().method_definitions.len());
+            assert_eq!(frefs.len(), f.definitions().field_references.len());
+            assert_eq!(fdefs.len(), f.definitions().field_definitions.len());
+            for (row, reference) in mrefs.iter().zip(&f.definitions().method_references) {
+                assert_eq!(row[1], as_u64(reference.method_idx));
+                assert_eq!(row[2], as_u64(reference.class_idx));
+                assert_eq!(row[5], as_u64(reference.proto_idx));
+                assert_eq!(row[6], as_u64(reference.name_idx));
+                assert_eq!(text(&row[7]), reference.method_name);
+                let name = &f.metadata().strings()[reference.name_idx as usize]
+                    .data
+                    .text;
+                assert!(
+                    matches!(&row[8], SqlValue::DexMutf8 { bytes, .. } if bytes == &name.raw_mutf8)
+                );
+                if !f
+                    .definitions()
+                    .method_definitions
+                    .iter()
+                    .any(|d| d.method_idx == reference.method_idx)
+                {
+                    saw_reference_only = true;
+                }
+            }
+            for (row, definition) in mdefs.iter().zip(&f.definitions().method_definitions) {
+                assert_eq!(row[1], as_u64(definition.class_def_idx));
+                assert_eq!(row[2], as_u64(definition.class_idx));
+                assert_eq!(row[3], as_u64(definition.method_idx));
+                assert_eq!(text(&row[4]), definition.kind.as_str());
+                assert_eq!(row[5], as_u64(definition.ordinal));
+                assert_eq!(row[6], as_u64(definition.access_flags));
+                assert_eq!(text(&row[7]), definition.body.state());
+                states.insert(definition.body.state());
+                match &definition.body {
+                    MethodBody::Present {
+                        code_byte_offset,
+                        declared_insns_size,
+                    } => {
+                        assert_eq!(row[8], SqlValue::U64(*code_byte_offset));
+                        assert_eq!(row[9], as_u64(*declared_insns_size));
+                    }
+                    _ => assert_eq!((&row[8], &row[9]), (&SqlValue::Null, &SqlValue::Null)),
+                }
+            }
+            for (row, reference) in frefs.iter().zip(&f.definitions().field_references) {
+                assert_eq!(row[1], as_u64(reference.field_idx));
+                assert_eq!(row[2], as_u64(reference.class_idx));
+                assert_eq!(row[5], as_u64(reference.type_idx));
+                assert_eq!(row[8], as_u64(reference.name_idx));
+                assert_eq!(text(&row[9]), reference.field_name);
+                let name = &f.metadata().strings()[reference.name_idx as usize]
+                    .data
+                    .text;
+                assert!(
+                    matches!(&row[10], SqlValue::DexMutf8 { bytes, .. } if bytes == &name.raw_mutf8)
+                );
+            }
+            for (row, definition) in fdefs.iter().zip(&f.definitions().field_definitions) {
+                assert_eq!(row[1], as_u64(definition.class_def_idx));
+                assert_eq!(row[2], as_u64(definition.class_idx));
+                assert_eq!(row[3], as_u64(definition.field_idx));
+                assert_eq!(text(&row[4]), definition.kind.as_str());
+                assert_eq!(row[5], as_u64(definition.ordinal));
+                assert_eq!(row[6], as_u64(definition.access_flags));
+            }
+        }
+        assert_ne!(
+            facts[0].metadata().source().dex_occurrence_id,
+            facts[1].metadata().source().dex_occurrence_id
+        );
+        assert!(saw_reference_only);
+        assert!(
+            states.contains("native") && states.contains("abstract") && states.contains("present")
+        );
+        let joined = bridge.query("SELECT r.dex_occurrence_id,r.method_idx,d.method_idx,d.body_state FROM native_method_references r LEFT JOIN native_method_definitions d ON r.dex_occurrence_id=d.dex_occurrence_id AND r.method_idx=d.method_idx").unwrap();
+        assert_eq!(joined.rows().len(), method_refs.rows().len());
+        for row in joined.rows() {
+            let source = text(&row[0]);
+            let occurrence = facts
+                .iter()
+                .find(|facts| facts.metadata().source().dex_occurrence_id == source)
+                .unwrap();
+            let definition = occurrence
+                .definitions()
+                .method_definitions
+                .iter()
+                .find(|d| as_u64(d.method_idx) == row[1]);
+            match definition {
+                Some(definition) => {
+                    assert_eq!(row[2], row[1]);
+                    assert_eq!(text(&row[3]), definition.body.state());
+                }
+                None => assert_eq!((&row[2], &row[3]), (&SqlValue::Null, &SqlValue::Null)),
+            }
+        }
+        let joined_fields = bridge.query("SELECT r.dex_occurrence_id,r.field_idx,d.field_idx FROM native_field_references r LEFT JOIN native_field_definitions d ON r.dex_occurrence_id=d.dex_occurrence_id AND r.field_idx=d.field_idx").unwrap();
+        assert_eq!(joined_fields.rows().len(), field_refs.rows().len());
+        for row in joined_fields.rows() {
+            let source = text(&row[0]);
+            let occurrence = facts
+                .iter()
+                .find(|facts| facts.metadata().source().dex_occurrence_id == source)
+                .unwrap();
+            if occurrence
+                .definitions()
+                .field_definitions
+                .iter()
+                .any(|d| as_u64(d.field_idx) == row[1])
+            {
+                assert_eq!(row[2], row[1]);
+            } else {
+                assert_eq!(row[2], SqlValue::Null);
+            }
+        }
+        let small = SqlBridge::new(
+            Arc::new(DefinitionSqlProvider::new(facts, DecimalU64(0)).unwrap()),
+            SqlDialect::NativeV1,
+            SqlLimits {
+                max_cell_bytes: 1,
+                ..SqlLimits::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            small
+                .query("SELECT name FROM native_method_references")
+                .unwrap_err()
+                .code,
+            ErrorCode::QuotaExceeded
+        );
+    }
     #[test]
     fn native_class_relations_preserve_sources_nulls_and_interfaces() {
         use mdd_dex::definitions::DefinitionLimits;

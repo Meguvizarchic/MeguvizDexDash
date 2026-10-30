@@ -20,6 +20,65 @@ fn used(pool: &BudgetPool, resource: Resource) -> u64 {
 }
 
 #[test]
+fn unbound_terminal_delivered_after_deadline_is_not_success() {
+    for with_row in [false, true] {
+        let limits = BudgetLimits::default().deadlines(150, 5000).unwrap();
+        let (_, _, _, pool) = tree(limits);
+        let (sender, mut receiver) = bounded_channel::<u8>(pool.clone(), None, 1).unwrap();
+        if with_row {
+            sender.send(7, 1).unwrap();
+        }
+        sender.finish(Ok(())).unwrap();
+        let started = std::time::Instant::now();
+        loop {
+            if let Err(error) = pool.checkpoint() {
+                assert_eq!(error.code, ErrorCode::DeadlineExceeded);
+                break;
+            }
+            assert!(started.elapsed() < std::time::Duration::from_secs(3));
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+        if with_row {
+            let QueueEvent::Data(row) = receiver.receive().unwrap() else {
+                panic!("the previously queued row is missing");
+            };
+            assert_eq!(*row.payload(), 7);
+            drop(row);
+        }
+        let QueueEvent::End(result) = receiver.receive().unwrap() else {
+            panic!("the terminal is missing");
+        };
+        assert_eq!(result.unwrap_err().code, ErrorCode::DeadlineExceeded);
+    }
+}
+
+#[test]
+fn unbound_terminal_preserves_prior_error_after_deadline() {
+    let (_, _, _, pool) = tree(BudgetLimits::default().deadlines(150, 5000).unwrap());
+    let (sender, mut receiver) = bounded_channel::<u8>(pool.clone(), None, 1).unwrap();
+    let expected = MddError::new(ErrorCode::IncompleteFacts, "test.source", "source failed")
+        .detail("source", "original");
+    sender.finish(Err(expected.clone())).unwrap();
+    let started = std::time::Instant::now();
+    loop {
+        if let Err(error) = pool.checkpoint() {
+            assert_eq!(error.code, ErrorCode::DeadlineExceeded);
+            break;
+        }
+        assert!(started.elapsed() < std::time::Duration::from_secs(3));
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    }
+    let QueueEvent::End(result) = receiver.receive().unwrap() else {
+        panic!("the failure terminal is missing");
+    };
+    let actual = result.unwrap_err();
+    assert_eq!(actual.code, expected.code);
+    assert_eq!(actual.stage, expected.stage);
+    assert_eq!(actual.message, expected.message);
+    assert_eq!(actual.details, expected.details);
+}
+
+#[test]
 fn poisoned_budget_checkpoint_records_fault_and_preserves_prior_cancel() {
     use mdd_input::snapshot::{CaptureLimits, InputKind, InputSpec, Snapshot};
     use mdd_session::{Lifecycle, QueryBinding, ResourceLimits};

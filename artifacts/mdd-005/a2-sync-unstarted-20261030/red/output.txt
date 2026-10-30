@@ -1,0 +1,23 @@
+..FF
+======================================================================
+FAIL: test_unstarted_closed_iterator_still_prevents_success (__main__.Checks.test_unstarted_closed_iterator_still_prevents_success)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\MeguvisDexDash\artifacts\mdd-005\a2-sync-unstarted-20261030\probe.py", line 69, in test_unstarted_closed_iterator_still_prevents_success
+    with self.assertRaises(HostlabSessionError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: HostlabSessionError not raised
+
+======================================================================
+FAIL: test_unstarted_query_prevents_success (__main__.Checks.test_unstarted_query_prevents_success)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\MeguvisDexDash\artifacts\mdd-005\a2-sync-unstarted-20261030\probe.py", line 58, in test_unstarted_query_prevents_success
+    with self.assertRaises(HostlabSessionError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: HostlabSessionError not raised
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.016s
+
+FAILED (failures=2)
