@@ -1,0 +1,9 @@
+{
+  "exit_code": 1,
+  "scope": "synthetic page content completeness",
+  "command": "baseline-venv python -O artifacts/mdd-005/a2-compact-terminal-20261030/probe.py",
+  "source_sha256": {
+    "benchmarks/a2_compact_adapter.py": "E82E2B05E172AA03A0CF710003F013186B04C5C27FFD869C40A48AA2DAACCC26",
+    "artifacts/mdd-005/a2-compact-terminal-20261030/probe.py": "DFAF6673A64166D986ADD8B7D2EABCA36ABF459B91D62D857544C1E2D3876D70"
+  }
+}

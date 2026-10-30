@@ -2,7 +2,7 @@
 //! No legacy table projection or row-table ETL is implied.
 use super::*;
 use crate::{quota, values::SqlText};
-use mdd_facts::{MetadataFacts, metadata::StringFact};
+use mdd_facts::{MetadataFacts, definitions::DefinitionFacts, metadata::StringFact};
 use mdd_types::{Completeness, ErrorCode, MddError, opaque_id};
 use std::collections::BTreeSet;
 
@@ -411,6 +411,258 @@ impl SqlFactProvider for MetadataSqlProvider {
     }
 }
 
+/// Direct native class facts from one explicit snapshot scope. This does not
+/// implement the legacy HostLab table layout or infer inherited interfaces.
+pub struct DefinitionSqlProvider {
+    binding: SqlBinding,
+    occurrences: Vec<Arc<DefinitionFacts>>,
+}
+impl DefinitionSqlProvider {
+    pub fn new(occurrences: Vec<Arc<DefinitionFacts>>, epoch: DecimalU64) -> MddResult<Self> {
+        let snapshot = occurrences
+            .first()
+            .ok_or_else(|| invalid("DEFINITION_SCOPE_MUST_BE_EXPLICIT"))?
+            .metadata()
+            .source()
+            .snapshot_id
+            .clone();
+        let mut seen = BTreeSet::new();
+        for facts in &occurrences {
+            let source = facts.metadata().source();
+            if source.snapshot_id != snapshot || !seen.insert(source.dex_occurrence_id.clone()) {
+                return Err(invalid("DEFINITION_PROVIDER_SOURCE"));
+            }
+            if facts.metadata().metadata_coverage() != Completeness::Complete
+                || facts.definition_coverage() != Completeness::Complete
+            {
+                return Err(MddError::new(
+                    ErrorCode::IncompleteFacts,
+                    "sql.definitions",
+                    "complete metadata and definition facts are required",
+                ));
+            }
+        }
+        Ok(Self {
+            binding: SqlBinding {
+                provider_identity: opaque_id("sql-definition-provider")?,
+                snapshot_id: snapshot,
+                catalog_epoch: epoch,
+            },
+            occurrences,
+        })
+    }
+}
+
+#[derive(Clone, Copy)]
+enum DefinitionRelation {
+    Classes,
+    Interfaces,
+}
+impl DefinitionRelation {
+    fn parse(name: &str) -> MddResult<Self> {
+        if name.eq_ignore_ascii_case("native_classes") {
+            Ok(Self::Classes)
+        } else if name.eq_ignore_ascii_case("native_class_interfaces") {
+            Ok(Self::Interfaces)
+        } else {
+            Err(invalid("UNKNOWN_DEFINITION_RELATION"))
+        }
+    }
+}
+struct DefinitionCursor {
+    provider: Arc<DefinitionSqlProvider>,
+    relation: DefinitionRelation,
+    occurrence: usize,
+    ordinal: usize,
+    control: SqlControl,
+}
+fn definition_type_text(
+    facts: &DefinitionFacts,
+    index: u32,
+    control: &SqlControl,
+) -> MddResult<(SqlValue, SqlValue)> {
+    let metadata = facts.metadata();
+    let ty = metadata
+        .types()
+        .get(index as usize)
+        .filter(|item| item.data.type_idx == index)
+        .ok_or_else(|| {
+            MddError::new(
+                ErrorCode::InternalFault,
+                "sql.definitions",
+                "validated type is missing",
+            )
+        })?;
+    let string = metadata
+        .strings()
+        .get(ty.data.descriptor_string_idx as usize)
+        .filter(|item| item.data.string_idx == ty.data.descriptor_string_idx)
+        .ok_or_else(|| {
+            MddError::new(
+                ErrorCode::InternalFault,
+                "sql.definitions",
+                "validated descriptor is missing",
+            )
+        })?;
+    source_text(string, control)
+}
+impl SqlFactCursor for DefinitionCursor {
+    fn next_row(&mut self) -> MddResult<Option<SqlRow>> {
+        while let Some(facts) = self.provider.occurrences.get(self.occurrence) {
+            self.control.checkpoint(1, false)?;
+            let metadata = facts.metadata();
+            let source = metadata.source();
+            let row = match self.relation {
+                DefinitionRelation::Classes => {
+                    let Some(class) = facts.definitions().classes.get(self.ordinal) else {
+                        self.occurrence += 1;
+                        self.ordinal = 0;
+                        continue;
+                    };
+                    self.control.work(160)?;
+                    let occurrence = scalar_text(&source.dex_occurrence_id, &self.control)?;
+                    let (descriptor, raw) =
+                        definition_type_text(facts, class.class_idx, &self.control)?;
+                    let (source_file, source_raw) = match class.source_file_idx {
+                        None => (SqlValue::Null, SqlValue::Null),
+                        Some(index) => {
+                            let string = metadata
+                                .strings()
+                                .get(index as usize)
+                                .filter(|item| item.data.string_idx == index)
+                                .ok_or_else(|| {
+                                    MddError::new(
+                                        ErrorCode::InternalFault,
+                                        "sql.definitions",
+                                        "validated source file is missing",
+                                    )
+                                })?;
+                            source_text(string, &self.control)?
+                        }
+                    };
+                    vec![
+                        occurrence,
+                        SqlValue::U64(DecimalU64(u64::from(class.class_def_idx))),
+                        SqlValue::U64(DecimalU64(u64::from(class.class_idx))),
+                        descriptor,
+                        raw,
+                        SqlValue::U64(DecimalU64(u64::from(class.access_flags))),
+                        class
+                            .superclass_idx
+                            .map_or(SqlValue::Null, |v| SqlValue::U64(DecimalU64(u64::from(v)))),
+                        class
+                            .source_file_idx
+                            .map_or(SqlValue::Null, |v| SqlValue::U64(DecimalU64(u64::from(v)))),
+                        source_file,
+                        source_raw,
+                    ]
+                }
+                DefinitionRelation::Interfaces => {
+                    let Some(interface) = facts.definitions().interfaces.get(self.ordinal) else {
+                        self.occurrence += 1;
+                        self.ordinal = 0;
+                        continue;
+                    };
+                    self.control.work(112)?;
+                    let occurrence = scalar_text(&source.dex_occurrence_id, &self.control)?;
+                    let (descriptor, raw) =
+                        definition_type_text(facts, interface.interface_type_idx, &self.control)?;
+                    vec![
+                        occurrence,
+                        SqlValue::U64(DecimalU64(u64::from(interface.class_def_idx))),
+                        SqlValue::U64(DecimalU64(u64::from(interface.class_idx))),
+                        SqlValue::U64(DecimalU64(u64::from(interface.ordinal))),
+                        SqlValue::U64(DecimalU64(u64::from(interface.interface_type_idx))),
+                        descriptor,
+                        raw,
+                    ]
+                }
+            };
+            self.ordinal += 1;
+            return Ok(Some(row));
+        }
+        Ok(None)
+    }
+}
+impl SqlFactProvider for DefinitionSqlProvider {
+    fn binding(&self) -> &SqlBinding {
+        &self.binding
+    }
+    fn relations(&self) -> MddResult<Vec<SqlRelation>> {
+        let (classes, interfaces) = self
+            .occurrences
+            .iter()
+            .try_fold((0u64, 0u64), |(c, i), facts| {
+                Some((
+                    c.checked_add(u64::try_from(facts.definitions().classes.len()).ok()?)?,
+                    i.checked_add(u64::try_from(facts.definitions().interfaces.len()).ok()?)?,
+                ))
+            })
+            .ok_or_else(|| quota("DEFINITION_SQL_ROWS_OVERFLOW"))?;
+        let relation = |name: &str, columns: &[(&str, SqlType, bool)], count| SqlRelation {
+            name: name.into(),
+            columns: columns
+                .iter()
+                .map(|(name, data_type, nullable)| SqlColumn {
+                    id: (*name).into(),
+                    name: (*name).into(),
+                    data_type: *data_type,
+                    nullable: *nullable,
+                })
+                .collect(),
+            required_layers: vec![FactLayer::Metadata, FactLayer::Structure],
+            estimated_rows: Some(DecimalU64(count)),
+        };
+        Ok(vec![
+            relation(
+                "native_classes",
+                &[
+                    ("dex_occurrence_id", SqlType::Text, false),
+                    ("class_def_idx", SqlType::U64, false),
+                    ("type_idx", SqlType::U64, false),
+                    ("descriptor", SqlType::Text, false),
+                    ("descriptor_mutf8", SqlType::Bytes, false),
+                    ("access_flags", SqlType::U64, false),
+                    ("superclass_type_idx", SqlType::U64, true),
+                    ("source_file_string_idx", SqlType::U64, true),
+                    ("source_file", SqlType::Text, true),
+                    ("source_file_mutf8", SqlType::Bytes, true),
+                ],
+                classes,
+            ),
+            relation(
+                "native_class_interfaces",
+                &[
+                    ("dex_occurrence_id", SqlType::Text, false),
+                    ("class_def_idx", SqlType::U64, false),
+                    ("class_type_idx", SqlType::U64, false),
+                    ("ordinal", SqlType::U64, false),
+                    ("interface_type_idx", SqlType::U64, false),
+                    ("descriptor", SqlType::Text, false),
+                    ("descriptor_mutf8", SqlType::Bytes, false),
+                ],
+                interfaces,
+            ),
+        ])
+    }
+    fn require_relation(&self, relation: &str) -> MddResult<()> {
+        DefinitionRelation::parse(relation).map(|_| ())
+    }
+    fn open_cursor(
+        self: Arc<Self>,
+        relation: &str,
+        control: SqlControl,
+    ) -> MddResult<Box<dyn SqlFactCursor>> {
+        Ok(Box::new(DefinitionCursor {
+            provider: self,
+            relation: DefinitionRelation::parse(relation)?,
+            occurrence: 0,
+            ordinal: 0,
+            control,
+        }))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -420,6 +672,133 @@ mod tests {
         archive::{ArchiveInventory, ArchiveLimits, InventoryPolicy},
         snapshot::{CaptureLimits, InputKind, InputSpec, Snapshot},
     };
+    #[test]
+    fn native_class_relations_preserve_sources_nulls_and_interfaces() {
+        use mdd_dex::definitions::DefinitionLimits;
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let inputs = [
+            "tests/fixtures/definitions/generated/definitions-035.dex",
+            "tests/fixtures/definitions/generated/definitions-035.dex",
+            "tests/fixtures/class_source_boundary/generated/null-source.dex",
+            "tests/fixtures/class_source_boundary/generated/empty-source.dex",
+            "tests/fixtures/class_source_boundary/generated/surrogate-source.dex",
+            "tests/fixtures/class_source_boundary/generated/root-empty-source.dex",
+        ]
+        .map(|path| InputSpec {
+            path: root.join(path),
+            kind: InputKind::RawDex,
+            expected_sha256: None,
+        });
+        let snapshot = Snapshot::capture(&inputs, CaptureLimits::default()).unwrap();
+        let mut occurrences = Vec::new();
+        for source in snapshot.sources() {
+            let inventory = ArchiveInventory::build(
+                source,
+                InventoryPolicy::default(),
+                ArchiveLimits::default(),
+            )
+            .unwrap();
+            let metadata =
+                MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default()).unwrap();
+            occurrences.push(Arc::new(
+                DefinitionFacts::build(metadata, DefinitionLimits::default()).unwrap(),
+            ));
+        }
+        let duplicate = DefinitionSqlProvider::new(
+            vec![occurrences[0].clone(), occurrences[0].clone()],
+            DecimalU64(0),
+        );
+        assert!(matches!(duplicate, Err(error) if error.code == ErrorCode::InvalidArgument));
+        let source_ids: Vec<_> = occurrences
+            .iter()
+            .map(|facts| facts.metadata().source().dex_occurrence_id.clone())
+            .collect();
+        let classes: usize = occurrences
+            .iter()
+            .map(|facts| facts.definitions().classes.len())
+            .sum();
+        let interfaces: usize = occurrences
+            .iter()
+            .map(|facts| facts.definitions().interfaces.len())
+            .sum();
+        let provider =
+            Arc::new(DefinitionSqlProvider::new(occurrences.clone(), DecimalU64(0)).unwrap());
+        let bridge =
+            SqlBridge::new(provider.clone(), SqlDialect::NativeV1, SqlLimits::default()).unwrap();
+        let result = bridge.query("SELECT dex_occurrence_id,class_def_idx,type_idx,descriptor,descriptor_mutf8,access_flags,superclass_type_idx,source_file_string_idx,source_file,source_file_mutf8 FROM native_classes").unwrap();
+        assert_eq!(result.rows().len(), classes);
+        for (index, facts) in occurrences.iter().enumerate() {
+            for class in &facts.definitions().classes {
+                let row = result.rows().iter().find(|row| matches!(&row[0], SqlValue::Text(text) if text.strict_utf8().unwrap() == source_ids[index])
+                    && row[1] == SqlValue::U64(DecimalU64(u64::from(class.class_def_idx)))).unwrap();
+                assert_eq!(
+                    row[2],
+                    SqlValue::U64(DecimalU64(u64::from(class.class_idx)))
+                );
+                assert!(
+                    matches!(&row[3], SqlValue::Text(text) if text.strict_utf8().unwrap() == class.descriptor)
+                );
+                assert_eq!(
+                    row[5],
+                    SqlValue::U64(DecimalU64(u64::from(class.access_flags)))
+                );
+                assert_eq!(
+                    row[6],
+                    class
+                        .superclass_idx
+                        .map_or(SqlValue::Null, |v| SqlValue::U64(DecimalU64(u64::from(v))))
+                );
+                match class.source_file_idx {
+                    None => assert_eq!(
+                        (&row[7], &row[8], &row[9]),
+                        (&SqlValue::Null, &SqlValue::Null, &SqlValue::Null)
+                    ),
+                    Some(idx) => {
+                        let text = &facts.metadata().strings()[idx as usize].data.text;
+                        assert_eq!(row[7], SqlValue::U64(DecimalU64(u64::from(idx))));
+                        assert!(
+                            matches!(&row[8], SqlValue::Text(value) if value.utf16 == text.utf16_units)
+                        );
+                        assert!(
+                            matches!(&row[9], SqlValue::DexMutf8 {bytes, utf16_code_units} if *bytes == text.raw_mutf8 && utf16_code_units.0 == text.utf16_units.len() as u64)
+                        );
+                    }
+                }
+            }
+        }
+        assert_ne!(source_ids[0], source_ids[1]);
+        let boundary = |index: usize| {
+            result.rows().iter().find(|row| matches!(&row[0], SqlValue::Text(text) if text.strict_utf8().unwrap() == source_ids[index])).unwrap()
+        };
+        assert_eq!(boundary(2)[8], SqlValue::Null);
+        assert!(matches!(&boundary(3)[8], SqlValue::Text(text) if text.utf16.is_empty()));
+        assert!(matches!(&boundary(4)[8], SqlValue::Text(text) if text.utf16 == [0xd800]));
+        assert!(
+            matches!(&boundary(4)[9], SqlValue::DexMutf8 {bytes, ..} if *bytes == [0xed,0xa0,0x80])
+        );
+        assert_eq!(boundary(5)[6], SqlValue::Null);
+        let interfaces_result = bridge.query("SELECT dex_occurrence_id,class_def_idx,class_type_idx,ordinal,interface_type_idx,descriptor,descriptor_mutf8 FROM native_class_interfaces").unwrap();
+        assert_eq!(interfaces_result.rows().len(), interfaces);
+        assert!(interfaces >= 2);
+        for facts in &occurrences[..2] {
+            let source_id = &facts.metadata().source().dex_occurrence_id;
+            assert!(interfaces_result.rows().iter().any(|row| matches!(&row[0], SqlValue::Text(text) if text.strict_utf8().unwrap() == *source_id)
+                && row[3] == SqlValue::U64(DecimalU64(0))
+                && matches!(&row[5], SqlValue::Text(text) if text.strict_utf8().unwrap() == "Lfixture/I1;")));
+        }
+        let limits = SqlLimits {
+            max_cell_bytes: 1,
+            ..SqlLimits::default()
+        };
+        let small = SqlBridge::new(provider, SqlDialect::NativeV1, limits).unwrap();
+        assert_eq!(
+            small
+                .query("SELECT descriptor FROM native_classes")
+                .unwrap_err()
+                .code,
+            ErrorCode::QuotaExceeded
+        );
+    }
     #[test]
     fn real_metadata_same_snapshot_duplicates_and_lossless_values() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))

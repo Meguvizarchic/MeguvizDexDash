@@ -1,0 +1,19 @@
+{
+  "exit_code": 0,
+  "source_after": {
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "crates/mdd-query/src/budget.rs": "B2CDAB1B6821DB58B38D71ABFC17A311493A502E68B0776CF9838E9E900097CB",
+    "crates/mdd-facts/src/code.rs": "1AB093C589ECCCBFA86239BB400A5A5EACB55401A12C1DC8F12B3F1CB2BA35DA",
+    "crates/mdd-query/src/budget/tests.rs": "3A69B30F49FA534A7DC3A5B898A50A308372A117A82DFCE1F6A168AF907C38A2",
+    "crates/mdd-sql/src/provider/metadata.rs": "BDF44588560BA9872FE3A55FBEE440A556CE7383DD43EE56111038F70BCACD15"
+  },
+  "command": "cargo test -p mdd-sql --locked --offline --jobs 1 native_class_relations_preserve_sources_nulls_and_interfaces -- --nocapture",
+  "source_before": {
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "crates/mdd-query/src/budget.rs": "B2CDAB1B6821DB58B38D71ABFC17A311493A502E68B0776CF9838E9E900097CB",
+    "crates/mdd-facts/src/code.rs": "1AB093C589ECCCBFA86239BB400A5A5EACB55401A12C1DC8F12B3F1CB2BA35DA",
+    "crates/mdd-query/src/budget/tests.rs": "3A69B30F49FA534A7DC3A5B898A50A308372A117A82DFCE1F6A168AF907C38A2",
+    "crates/mdd-sql/src/provider/metadata.rs": "BDF44588560BA9872FE3A55FBEE440A556CE7383DD43EE56111038F70BCACD15"
+  },
+  "scope": "targeted SQL integration only; source identities limited to listed files"
+}

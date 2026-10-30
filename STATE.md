@@ -160,6 +160,8 @@ MDD-005 A2 查询转换候选位于 benchmarks/a2_compact_adapter.py，涵盖sha
 
 MDD-034 期限顺序补充：真实受控反例中两个期限都到期后，查询检查和绑定队列分别可能先报告较晚的期限；候选复制同owner预算截止见证并在生命周期锁内使用同一时刻比较，等时按原生命周期规则。另实际构造预算互斥锁中毒，修复见证读取错误未登记终态的问题并保留已登记首错。最终10项局部检查通过，记录 artifacts/mdd-034-audit/checkpoint-deadline-order-20261030/final/；不代表完整并发或生产worker验收。SQL新类型对照在本批query/session源码上又单项通过，见 artifacts/mdd-031-audit/in-subquery-bytes-bool-20261030/integrated/record.json；该记录仅固定列出的源码，非全量。
 
+2026-10-30 目标持续功能（统一验证延后）：MDD-026 方法body新增受界普通opcode数量及小写文本投影，纯引用为None，无体定义与实际空体由body状态区分；三份合成DEX共24个方法与保存的固定A0表逐行对照，见 artifacts/mdd-026/opcode-text-20261030/a0/record.json，仅此范围，额外分配、RSS和取消延迟未证。MDD-031 新增所选同snapshot DEX出现的原生类和直接接口惰性SQL提供器，保留来源、NULL、UTF-16、MUTF-8和接口序号；局部组合源码检查见 artifacts/mdd-031-audit/native-classes-20261030/integrated/record.json，不证明全快照覆盖、旧表或完整HostLab资格。MDD-034 绑定与非绑定队列在预算到期后仍发布成功End的受控红例已修复；最终6项局部检查见 artifacts/mdd-034-audit/queue-finish-budget-20261030/final2/record.json，检查后并发取消和生产worker未完整覆盖；前一条0测试筛选记录保留。MDD-005 compact页要求显式next_offset、有效错误状态、空内容列表和整数语句序号；合成红绿及固定A1、小DEX的7行4页对照见 artifacts/mdd-005/a2-compact-terminal-20261030/final/，snapshot/排序是模拟回调，未授予A2资格；首轮HEX空白/小写反例与固定消费者转换一致，未改变。全量、跨平台及性能资格仍未执行，原有A2未暂存内容保留。
+
 MDD-031 SQL桥仍进行中：受限虚表、会话预算绑定、U64真值、USING和子串路径有本机测试；独立真值18例及固定A0/A1子串16例通过，合成Q15结果与SQLite一致。真实完整corpus、legacy适配及生产工作区内存绑定尚未验收。检查点862b3dd的 Windows 离线测试161项、0失败/跳过，工作区严格Clippy通过，命令记录在 artifacts/integration/20261029/workspace-tests/ 与 workspace-clippy/。
 
 后续 SQL 结果驻留预算修复在 Windows 工作区重新运行165项测试、0失败/跳过及严格Clippy；零行 schema 的零预算错误、结果持有与释放独立复现。该计量是保守逻辑额度，SQLite内部分配、provider/调用方副本、传输缓冲及租约自身元数据仍需单独准入，不能称 RSS 硬上限。证据 artifacts/mdd-031-audit/result-memory-probe/after-fix.json、artifacts/integration/20261029/workspace-tests-result-budget/record.json。

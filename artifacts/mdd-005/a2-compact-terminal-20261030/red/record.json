@@ -1,0 +1,9 @@
+{
+  "exit_code": 1,
+  "source_sha256": {
+    "artifacts/mdd-005/a2-compact-terminal-20261030/probe.py": "13F9FCEF937D9C89F9B4EBC5F04156445B613EF66EBA72D238C37FBBCF590AEF",
+    "benchmarks/a2_compact_adapter.py": "4C95148C41E2BF4BCE5F86C453AC37A7E4BF27355B07DC5572656911919A0436"
+  },
+  "scope": "synthetic page terminal only",
+  "command": "baseline-venv python -O artifacts/mdd-005/a2-compact-terminal-20261030/probe.py"
+}

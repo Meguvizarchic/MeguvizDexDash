@@ -25,7 +25,7 @@ fn poisoned_budget_checkpoint_records_fault_and_preserves_prior_cancel() {
     use mdd_session::{Lifecycle, QueryBinding, ResourceLimits};
     use std::path::PathBuf;
 
-    for via_queue in [false, true] {
+    for entry in ["runtime", "receive", "finish"] {
         for prior_cancel in [false, true] {
             let limits = ResourceLimits::default();
             let lifecycle = Lifecycle::new(limits).unwrap();
@@ -75,7 +75,7 @@ fn poisoned_budget_checkpoint_records_fault_and_preserves_prior_cancel() {
                 )
                 .unwrap();
             let runtime = RuntimeBudget::new(pool.clone(), cancel.clone()).unwrap();
-            let (_sender, mut receiver) =
+            let (sender, mut receiver) =
                 bounded_channel::<u8>(pool.clone(), Some(cancel.clone()), 1).unwrap();
             if prior_cancel {
                 cancel.cancel().unwrap();
@@ -85,10 +85,10 @@ fn poisoned_budget_checkpoint_records_fault_and_preserves_prior_cancel() {
                 panic!("controlled budget mutex poisoning");
             }));
             assert!(poisoned.is_err());
-            let error = if via_queue {
-                receiver.receive().err().unwrap()
-            } else {
-                runtime.checkpoint().unwrap_err()
+            let error = match entry {
+                "receive" => receiver.receive().err().unwrap(),
+                "finish" => sender.finish(Ok(())).unwrap_err(),
+                _ => runtime.checkpoint().unwrap_err(),
             };
             let expected = if prior_cancel {
                 ErrorCode::Cancelled
@@ -97,8 +97,14 @@ fn poisoned_budget_checkpoint_records_fault_and_preserves_prior_cancel() {
             };
             assert_eq!(
                 error.code, expected,
-                "queue={via_queue} prior_cancel={prior_cancel}"
+                "entry={entry} prior_cancel={prior_cancel}"
             );
+            if entry == "finish" {
+                let QueueEvent::End(end) = receiver.receive().unwrap() else {
+                    panic!("poisoned budget did not produce an error End");
+                };
+                assert_eq!(end.unwrap_err().code, expected);
+            }
             let first = cancel
                 .status()
                 .unwrap()
@@ -110,6 +116,18 @@ fn poisoned_budget_checkpoint_records_fault_and_preserves_prior_cancel() {
         }
     }
 }
+#[test]
+fn queue_finish_expired_budget_unbound_still_emits_failure() {
+    let (_, _, _, query) = tree(BudgetLimits::default().deadlines(0, 60_000).unwrap());
+    let (sender, mut receiver) = bounded_channel::<u8>(query, None, 1).unwrap();
+    let error = sender.finish(Ok(())).unwrap_err();
+    assert_eq!(error.code, ErrorCode::DeadlineExceeded);
+    let QueueEvent::End(end) = receiver.receive().unwrap() else {
+        panic!("expired unbound queue did not publish an error End");
+    };
+    assert_eq!(end.unwrap_err().code, error.code);
+}
+
 #[test]
 fn all_budget_dimensions_restrict_atomically_and_resident_leases_release() {
     for resource in RESOURCES {

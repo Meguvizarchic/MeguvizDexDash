@@ -135,6 +135,13 @@ mod tests {
                 .find(|r| r.method.reference.method_name == "externalCall")
                 .unwrap();
             assert!(reference.body.decoded_opcode_bytes().is_none());
+            assert_eq!(
+                reference
+                    .body
+                    .opcode_text(OpcodeTextLimits::default())
+                    .unwrap(),
+                None
+            );
             for name in ["nativeCall", "abstractCall"] {
                 let body = &rows
                     .iter()
@@ -142,7 +149,60 @@ mod tests {
                     .unwrap()
                     .body;
                 assert_eq!(body.decoded_opcode_bytes().unwrap().count(), 0);
+                assert_eq!(
+                    body.opcode_text(OpcodeTextLimits {
+                        max_opcodes: 0,
+                        max_text_bytes: 0
+                    })
+                    .unwrap(),
+                    Some(OpcodeText {
+                        count: 0,
+                        text: String::new()
+                    })
+                );
             }
+            let init = rows
+                .iter()
+                .find(|r| r.method.reference.method_name == "<init>")
+                .unwrap();
+            assert_eq!(
+                init.body.opcode_text(OpcodeTextLimits::default()).unwrap(),
+                Some(OpcodeText {
+                    count: 2,
+                    text: "70 0e".into()
+                })
+            );
+            assert_eq!(
+                init.body
+                    .opcode_text(OpcodeTextLimits {
+                        max_opcodes: 1,
+                        max_text_bytes: 5
+                    })
+                    .unwrap_err()
+                    .code,
+                ErrorCode::QuotaExceeded
+            );
+            assert_eq!(
+                init.body
+                    .opcode_text(OpcodeTextLimits {
+                        max_opcodes: 2,
+                        max_text_bytes: 4
+                    })
+                    .unwrap_err()
+                    .code,
+                ErrorCode::QuotaExceeded
+            );
+            assert_eq!(
+                init.body
+                    .opcode_text(OpcodeTextLimits {
+                        max_opcodes: 2,
+                        max_text_bytes: 5
+                    })
+                    .unwrap()
+                    .unwrap()
+                    .text,
+                "70 0e"
+            );
             let present = rows
                 .iter()
                 .find(|r| r.method.reference.method_name == "virtualCall")
@@ -252,6 +312,13 @@ mod tests {
             })
             .unwrap();
         assert_eq!(empty.body.decoded_opcode_bytes().unwrap().count(), 0);
+        assert_eq!(
+            empty.body.opcode_text(OpcodeTextLimits::default()).unwrap(),
+            Some(OpcodeText {
+                count: 0,
+                text: String::new()
+            })
+        );
         assert!(matches!(
             empty.body,
             MethodCodeBody::Present { raw_insns: [], .. }
@@ -294,6 +361,15 @@ mod tests {
             assert_eq!(
                 body.decoded_opcode_bytes().unwrap().collect::<Vec<_>>(),
                 [expected, 0x0e]
+            );
+            assert_eq!(
+                body.opcode_text(OpcodeTextLimits::default())
+                    .unwrap()
+                    .unwrap(),
+                OpcodeText {
+                    count: 2,
+                    text: format!("{expected:02x} 0e")
+                }
             );
             assert!(
                 code.raw_insns(0).unwrap().len() > 2 * body.decoded_opcode_bytes().unwrap().count()
@@ -758,6 +834,30 @@ pub enum MethodCodeBody<'a> {
         raw_insns: &'a [u8],
     },
 }
+
+/// Logical limits for a single opcode text projection; not an RSS bound.
+#[derive(Clone, Copy, Debug)]
+pub struct OpcodeTextLimits {
+    pub max_opcodes: u64,
+    pub max_text_bytes: u64,
+}
+impl Default for OpcodeTextLimits {
+    fn default() -> Self {
+        Self {
+            max_opcodes: 4_000_000,
+            max_text_bytes: 12_000_000,
+        }
+    }
+}
+
+/// Exact ordinary-instruction count and lower-case hexadecimal text, in order.
+/// The underlying `MethodCodeBody` retains the specific definition/body state.
+#[derive(Debug, Eq, PartialEq)]
+pub struct OpcodeText {
+    pub count: u32,
+    pub text: String,
+}
+
 impl MethodCodeBody<'_> {
     /// Iterates decoded ordinary-instruction opcode bytes in code-unit order.
     /// Payloads are separately represented by `CodeItem::payloads` and are not
@@ -771,6 +871,53 @@ impl MethodCodeBody<'_> {
             Self::Present { code, .. } => &code.data().instructions,
         };
         Some(instructions.iter().map(|instruction| instruction.opcode))
+    }
+
+    /// Render ordinary opcodes as two lower-case hex digits separated by a
+    /// single space. Reference-only methods return None; native, abstract and
+    /// present-empty definitions return a zero count and empty text. Payload
+    /// words are not included. Limits cover logical opcode/text bytes only.
+    pub fn opcode_text(&self, limits: OpcodeTextLimits) -> MddResult<Option<OpcodeText>> {
+        let Some(opcodes) = self.decoded_opcode_bytes() else {
+            return Ok(None);
+        };
+        let quota = || {
+            MddError::new(
+                ErrorCode::QuotaExceeded,
+                "facts.opcode_text",
+                "opcode text projection budget exceeded",
+            )
+        };
+        let count = u64::try_from(opcodes.len()).map_err(|_| quota())?;
+        let count_u32 = u32::try_from(count).map_err(|_| quota())?;
+        let bytes = count
+            .checked_mul(3)
+            .and_then(|value| {
+                if count == 0 {
+                    Some(0)
+                } else {
+                    value.checked_sub(1)
+                }
+            })
+            .ok_or_else(quota)?;
+        if count > limits.max_opcodes || bytes > limits.max_text_bytes {
+            return Err(quota());
+        }
+        let mut text = String::new();
+        text.try_reserve_exact(usize::try_from(bytes).map_err(|_| quota())?)
+            .map_err(|_| quota())?;
+        const HEX: &[u8; 16] = b"0123456789abcdef";
+        for (ordinal, opcode) in opcodes.enumerate() {
+            if ordinal != 0 {
+                text.push(' ');
+            }
+            text.push(char::from(HEX[usize::from(opcode >> 4)]));
+            text.push(char::from(HEX[usize::from(opcode & 0x0f)]));
+        }
+        Ok(Some(OpcodeText {
+            count: count_u32,
+            text,
+        }))
     }
 }
 pub struct MethodCodeFactView<'a> {

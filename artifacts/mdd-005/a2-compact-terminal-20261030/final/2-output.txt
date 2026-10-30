@@ -1,0 +1,2 @@
+{"available_bytes": 11702525952, "minimum_bytes": 3221225472, "admitted": true}
+{"status": "passed", "rows": 7, "pages": 4, "engine_sha256": "602105c98232120c14d6124fb33574f2f95f12e50e51d25b8834f893925f28d6", "fixture_sha256": "108cf907d330b823c6e32d38eaab8f23709fe493f52537688bbd09ba3e271605", "scope": "fixed A1 and synthetic DEX, mocked generation/order checks; no A2 qualification"}

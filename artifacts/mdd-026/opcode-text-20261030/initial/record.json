@@ -1,0 +1,32 @@
+{
+  "tests": [
+    {
+      "exit_code": 0,
+      "test": "method_code_views_bind_exact_source_and_distinguish_body_states"
+    },
+    {
+      "exit_code": 0,
+      "test": "decoded_opcode_iteration_excludes_payload_words"
+    }
+  ],
+  "source_before": {
+    "crates/mdd-facts/src/code.rs": "1AB093C589ECCCBFA86239BB400A5A5EACB55401A12C1DC8F12B3F1CB2BA35DA",
+    "tests/fixtures/definitions/generated/zero-insns-present.dex": "A7F71AFA39B5981A897F0777F2266D9790D37F6EF08E5AEA56215349E8F487B6",
+    "crates/mdd-dex/src/instructions/decode.rs": "D339978B8D59FBFC563117E610F26AF9B09DC12ED174C3E28170A3916EAA1970",
+    "crates/mdd-facts/src/definitions.rs": "871AA50FDFA9F2C0A6AC833C83880AE90F6F5B7280B6E30094D6D9C730679F7B",
+    "tests/fixtures/definitions/generated/definitions-035.dex": "4E8F9E8DEEDF44C8793E10D99F2614E0BED705DCAC617C0D74137E7B2BD459CC",
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "artifacts/mdd-026/method-atom-audit/20261028T165707192974Z/a0-definitions/stdout.txt": "EEDD5FD9929AF81B06FBAE0024C63E95ACF0BCC552C9019CEE0793A17B0FB9B8"
+  },
+  "scope": "local synthetic method opcode projection; no SQL/profile qualification",
+  "command": "cargo test -p mdd-facts --locked --offline --jobs 1 <test> -- --nocapture",
+  "source_after": {
+    "crates/mdd-facts/src/code.rs": "1AB093C589ECCCBFA86239BB400A5A5EACB55401A12C1DC8F12B3F1CB2BA35DA",
+    "tests/fixtures/definitions/generated/zero-insns-present.dex": "A7F71AFA39B5981A897F0777F2266D9790D37F6EF08E5AEA56215349E8F487B6",
+    "crates/mdd-dex/src/instructions/decode.rs": "D339978B8D59FBFC563117E610F26AF9B09DC12ED174C3E28170A3916EAA1970",
+    "crates/mdd-facts/src/definitions.rs": "871AA50FDFA9F2C0A6AC833C83880AE90F6F5B7280B6E30094D6D9C730679F7B",
+    "tests/fixtures/definitions/generated/definitions-035.dex": "4E8F9E8DEEDF44C8793E10D99F2614E0BED705DCAC617C0D74137E7B2BD459CC",
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "artifacts/mdd-026/method-atom-audit/20261028T165707192974Z/a0-definitions/stdout.txt": "EEDD5FD9929AF81B06FBAE0024C63E95ACF0BCC552C9019CEE0793A17B0FB9B8"
+  }
+}

@@ -1,0 +1,24 @@
+   Compiling mdd-query v0.1.0-dev (D:\MeguvisDexDash\crates\mdd-query)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.40s
+     Running unittests src\lib.rs (target\debug\deps\mdd_query-82579f4092cfd058.exe)
+
+running 2 tests
+
+thread 'budget::tests::queue_finish_expired_budget_unbound_still_emits_failure' (37000) panicked at crates\mdd-query\src\budget\tests.rs:117:39:
+called `Result::unwrap_err()` on an `Ok` value: ()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test budget::tests::queue_finish_expired_budget_unbound_still_emits_failure ... FAILED
+
+thread 'executor::runtime_tests::queue_finish_expired_budget_publishes_failure_and_retains_computation' (44948) panicked at crates\mdd-query\src\executor\runtime_tests.rs:214:39:
+called `Result::unwrap_err()` on an `Ok` value: ()
+test executor::runtime_tests::queue_finish_expired_budget_publishes_failure_and_retains_computation ... FAILED
+
+failures:
+
+failures:
+    budget::tests::queue_finish_expired_budget_unbound_still_emits_failure
+    executor::runtime_tests::queue_finish_expired_budget_publishes_failure_and_retains_computation
+
+test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 81 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p mdd-query --lib`

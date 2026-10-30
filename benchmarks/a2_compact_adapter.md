@@ -8,6 +8,8 @@
 
 固定 A1 二进制和合成 structured-035.dex 曾在旧候选接口上完成每页两行的七行传输，并与标准 MCP DTO 相等；证据为 `artifacts/mdd-005/a2-adapter-development-20261030/probe6-run/stdout.txt` 和 `probe6-admission.json`。此前超时和页面大小配置错误的真实记录原样保留。该观测发生在新增快照和顺序证明要求之前，不验证当前接口、跨代一致性、完整 20 组 HostLab 审计或性能。
 
+后续候选要求 MCP 错误状态为明确布尔值、compact 内容为空列表、语句序号为整数零，并要求每页显式提供 `next_offset`；缺失或错误类型不能当作完整末页。`artifacts/mdd-005/a2-compact-terminal-20261030/` 保留合成反例，以及固定 A1、小型 DEX 的 7 行／4 页完整 DTO 对照；其中 snapshot 和排序回调仍是模拟断言，不证明生产者代次、总序或 A2 资格。首轮反例也观察到 HEX 小写和空白被接受，但固定消费者使用的 `bytes.fromhex` 同样接受这些等价形式，因此未收紧这项既有转换语义。
+
 受限范围：A1 offset 加 limit 不得超过 100000；请求上限、源检查成本、调用方及 MCP 解码副本的内存未覆盖整体 RSS。该候选未连接 HostLab 原生同步 session，未解决进程生命周期、完整 inventory、marker 调度和大于 offset 上限的查询。保留旧后端和报告身份，直到后续统一验证与显式授权完成。
 
 候选实现可在生产者明确返回 `output_too_large`、同时明确声明当前 dataset 未关闭且身份匹配时，将同一 offset 的页大小逐次减半；重试前仍要求冻结 continuation guard 允许重新执行。字段缺失、dataset 已关闭、最小单行仍超额及其他错误均保留原始错误并终止，不将任何页前缀作为完整输出。此新增分支尚未执行真实生产者验证。

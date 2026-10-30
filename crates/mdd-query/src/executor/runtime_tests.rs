@@ -206,6 +206,51 @@ fn runtime_budget_rejects_different_session_or_worker_ancestry() {
 }
 
 #[test]
+fn queue_finish_expired_budget_keeps_owned_producer_for_error_end() {
+    let f = setup_with_rows(BudgetLimits::default().deadlines(0, 60_000).unwrap(), 0);
+    let (sender, mut receiver) =
+        bounded_channel::<Row>(f.runtime.pool().clone(), Some(f.cancel.clone()), 1).unwrap();
+    let mut producer = sender.claim_producer().unwrap();
+    producer.arm();
+    f.cancel.mark_computed().unwrap();
+    let error = sender.finish_produced(&mut producer, Ok(())).unwrap_err();
+    assert_eq!(error.code, ErrorCode::DeadlineExceeded);
+    sender
+        .finish_produced(&mut producer, Err(error.clone()))
+        .unwrap();
+    let QueueEvent::End(end) = receiver.receive().unwrap() else {
+        panic!("owned producer did not publish an error End");
+    };
+    assert_eq!(end.unwrap_err().details, error.details);
+    let status = f.cancel.status().unwrap();
+    assert!(status.execution_complete);
+    assert!(!status.delivery_complete);
+    assert_eq!(status.error.unwrap().details, error.details);
+}
+
+#[test]
+fn queue_finish_expired_budget_publishes_failure_and_retains_computation() {
+    let f = setup_with_rows(BudgetLimits::default().deadlines(0, 60_000).unwrap(), 0);
+    let (sender, mut receiver) =
+        bounded_channel::<Row>(f.runtime.pool().clone(), Some(f.cancel.clone()), 1).unwrap();
+    f.cancel.mark_computed().unwrap();
+    let error = sender.finish(Ok(())).unwrap_err();
+    assert_eq!(error.code, ErrorCode::DeadlineExceeded);
+    assert_eq!(error.stage, "budget");
+    let QueueEvent::End(end) = receiver.receive().unwrap() else {
+        panic!("expired query did not publish an error End");
+    };
+    let end = end.unwrap_err();
+    assert_eq!(end.code, error.code);
+    assert_eq!(end.stage, error.stage);
+    assert_eq!(end.details, error.details);
+    let status = f.cancel.status().unwrap();
+    assert!(status.execution_complete);
+    assert!(!status.delivery_complete);
+    assert_eq!(status.error.unwrap().details, error.details);
+}
+
+#[test]
 fn queue_receive_deadline_keeps_original_terminal_after_receiver_drop() {
     let limits = BudgetLimits::default().deadlines(0, 60_000).unwrap();
     let f = setup_with_rows(limits, 0);

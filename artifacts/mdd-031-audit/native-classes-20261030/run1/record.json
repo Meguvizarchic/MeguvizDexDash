@@ -1,0 +1,27 @@
+{
+  "scope": "targeted synthetic native class/interface SQL, not HostLab profile; listed sources only",
+  "source_before": {
+    "tests/fixtures/class_source_boundary/generated/null-source.dex": "5E4198D669AE1BCA0D620F255D85C4D5E8688811E716641FDC71A93F4DF24603",
+    "crates/mdd-facts/src/code.rs": "1AB093C589ECCCBFA86239BB400A5A5EACB55401A12C1DC8F12B3F1CB2BA35DA",
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "crates/mdd-sql/src/provider/metadata.rs": "BDF44588560BA9872FE3A55FBEE440A556CE7383DD43EE56111038F70BCACD15",
+    "tests/fixtures/class_source_boundary/generated/empty-source.dex": "2A25ADBE587475853FA544789113DFFEA5C885CDB9BAB37ED21422D0A2E02B40",
+    "tests/fixtures/class_source_boundary/generated/root-empty-source.dex": "68409BE64333A8B5737FAAB6219F0D48F3B998E4A02A60BB09D9728A4FDD4AB7",
+    "tests/fixtures/definitions/generated/definitions-035.dex": "4E8F9E8DEEDF44C8793E10D99F2614E0BED705DCAC617C0D74137E7B2BD459CC",
+    "crates/mdd-facts/src/definitions.rs": "871AA50FDFA9F2C0A6AC833C83880AE90F6F5B7280B6E30094D6D9C730679F7B",
+    "tests/fixtures/class_source_boundary/generated/surrogate-source.dex": "DAF037DF44BFA95B2CD0B3B3237BCC704FC83FC54EB1D994F8A4D6C7FF84FE2A"
+  },
+  "exit_code": 0,
+  "command": "cargo test -p mdd-sql --locked --offline --jobs 1 native_class_relations_preserve_sources_nulls_and_interfaces -- --nocapture",
+  "source_after": {
+    "tests/fixtures/class_source_boundary/generated/null-source.dex": "5E4198D669AE1BCA0D620F255D85C4D5E8688811E716641FDC71A93F4DF24603",
+    "crates/mdd-facts/src/code.rs": "1AB093C589ECCCBFA86239BB400A5A5EACB55401A12C1DC8F12B3F1CB2BA35DA",
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "crates/mdd-sql/src/provider/metadata.rs": "BDF44588560BA9872FE3A55FBEE440A556CE7383DD43EE56111038F70BCACD15",
+    "tests/fixtures/class_source_boundary/generated/empty-source.dex": "2A25ADBE587475853FA544789113DFFEA5C885CDB9BAB37ED21422D0A2E02B40",
+    "tests/fixtures/class_source_boundary/generated/root-empty-source.dex": "68409BE64333A8B5737FAAB6219F0D48F3B998E4A02A60BB09D9728A4FDD4AB7",
+    "tests/fixtures/definitions/generated/definitions-035.dex": "4E8F9E8DEEDF44C8793E10D99F2614E0BED705DCAC617C0D74137E7B2BD459CC",
+    "crates/mdd-facts/src/definitions.rs": "871AA50FDFA9F2C0A6AC833C83880AE90F6F5B7280B6E30094D6D9C730679F7B",
+    "tests/fixtures/class_source_boundary/generated/surrogate-source.dex": "DAF037DF44BFA95B2CD0B3B3237BCC704FC83FC54EB1D994F8A4D6C7FF84FE2A"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "source_after": {
+    "artifacts/mdd-005/a2-compact-terminal-20261030/probe.py": "B2D2B030AFCE848F9285579DDDE7BDD2685FEBF69C8D52E0E0EE1A750E7B4ACA",
+    "benchmarks/a2_compact_adapter.py": "E82E2B05E172AA03A0CF710003F013186B04C5C27FFD869C40A48AA2DAACCC26"
+  },
+  "source_before": {
+    "artifacts/mdd-005/a2-compact-terminal-20261030/probe.py": "B2D2B030AFCE848F9285579DDDE7BDD2685FEBF69C8D52E0E0EE1A750E7B4ACA",
+    "benchmarks/a2_compact_adapter.py": "E82E2B05E172AA03A0CF710003F013186B04C5C27FFD869C40A48AA2DAACCC26"
+  },
+  "command": "baseline-venv python -O artifacts/mdd-005/a2-compact-terminal-20261030/probe.py",
+  "scope": "synthetic page terminal only",
+  "exit_code": 0
+}

@@ -1304,11 +1304,16 @@ impl<T> BoundedSender<T> {
         if self.0.delivery.is_some() && result.is_ok() && state.bound_sends_in_flight != 0 {
             return Err(invalid("bound queue has sends in flight"));
         }
-        if let (Some(cancel), Ok(())) = (&self.0.cancel, &result)
-            && let Some(error) = cancel.status()?.error
+        if result.is_ok()
+            && let Err(error) = self.0.checkpoint()
         {
-            state.terminal = Some(Err(error.clone()));
-            self.0.changed.notify_all();
+            // An owned producer still needs to publish its explicit error End
+            // and construct the corresponding failure envelope. External
+            // senders have no producer lease, so publish their error here.
+            if !owned {
+                state.terminal = Some(Err(error.clone()));
+                self.0.changed.notify_all();
+            }
             return Err(error);
         }
         if let (Some(cancel), Err(error)) = (&self.0.cancel, &result) {

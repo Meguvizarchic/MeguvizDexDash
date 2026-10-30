@@ -132,14 +132,16 @@ class CompactRowsAdapter:
         self._verify_snapshot_binding(self._dataset)
         if time.monotonic() >= self._deadline:
             raise TimeoutError("A2 compact dataset deadline exhausted during source verification")
-        if result.is_error:
+        if result.is_error is True:
             detail = {
                 "structured_content": result.structured_content,
                 "text": "\n".join(getattr(item, "text", "") for item in result.content),
             }
             raise CompactAdapterError("compact producer rejected query", producer_detail=detail)
-        if result.content:
-            raise CompactAdapterError("compact response unexpectedly includes text content")
+        if result.is_error is not False:
+            raise CompactAdapterError("compact producer error status is missing or invalid")
+        if not isinstance(result.content, list) or result.content:
+            raise CompactAdapterError("compact response content is absent, invalid, or unexpectedly nonempty")
         raw = result.structured_content
         if not isinstance(raw, dict) or raw.get("dataset_id") != self._dataset:
             raise CompactAdapterError("compact dataset identity mismatch")
@@ -157,7 +159,8 @@ class CompactRowsAdapter:
         item = statements[0]
         columns, rows, total, cursor = (item.get("columns"), item.get("rows"),
                                         item.get("total_rows"), item.get("next_offset"))
-        if (item.get("kind") != "query" or item.get("statement_index") != 0
+        if (item.get("kind") != "query" or type(item.get("statement_index")) is not int
+                or item["statement_index"] != 0 or "next_offset" not in item
                 or type(item.get("offset")) is not int or item["offset"] != offset
                 or type(item.get("truncated")) is not bool
                 or not isinstance(columns, list) or not all(isinstance(x, str) for x in columns)
