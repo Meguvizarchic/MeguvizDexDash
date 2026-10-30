@@ -1,0 +1,21 @@
+{
+  "command": [
+    ".venv/Scripts/python.exe",
+    "-B",
+    "-O",
+    "artifacts/mdd-005/a2-dataset-lifecycle-20261030/probe2.py"
+  ],
+  "started_utc": "2026-10-30T04:33:37.314821+00:00",
+  "finished_utc": "2026-10-30T04:33:37.432442+00:00",
+  "exit_code": 0,
+  "source_sha256": {
+    "benchmarks/a2_dataset_open.py": "905588eee22ceb64ac23d987d874f02e5f87bc558810fb03d1a6d35b0c97c810",
+    "benchmarks/a2_dataset_close.py": "311b1d22ddf2ee9cf6cd56231817b79c9edaec6f45b81dfd0142486c7d5d105a",
+    "benchmarks/a2_dataset_lifecycle.py": "7715a0579e9dc78931c8a08c1d20f19d2d6fc2261120f0c4d300a86ce192e685",
+    "artifacts/mdd-005/a2-dataset-lifecycle-20261030/probe2.py": "b32f84f212f5278f2e7cb4e291cef2e65f8c0b310ba683c28d4593f9f15ed96a"
+  },
+  "source_unchanged": true,
+  "stdout_sha256": "414f1dcf1c93eb4c78ee3571f5396c23547c252545f02845b2741946f068d50e",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "scope": "synthetic client and owner; no actual process, snapshot, A2 or performance qualification"
+}

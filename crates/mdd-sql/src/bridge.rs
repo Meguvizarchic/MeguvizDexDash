@@ -289,7 +289,18 @@ impl SqlBridge {
                 if error.details.get("confirm_sqlite_syntax")
                     == Some(&serde_json::Value::Bool(true)) =>
             {
-                if let Some(cause) = self.original_binding_error(sql, &relations)? {
+                let visible_ctes = error
+                    .details
+                    .get("visible_ctes")
+                    .and_then(|value| value.as_array())
+                    .map(|names| {
+                        names
+                            .iter()
+                            .filter_map(|name| name.as_str().map(str::to_owned))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                if let Some(cause) = self.original_binding_error(sql, &relations, &visible_ctes)? {
                     return Err(cause.detail("ast_error", error.message));
                 }
                 return Err(MddError::new(ErrorCode::UnsupportedQuery,"sql.ast","SQLite accepts this read-only syntax but the AST adapter does not yet implement it").detail("ast_error",error.message));
@@ -628,6 +639,7 @@ impl SqlBridge {
         &self,
         sql: &str,
         relations: &[SqlRelation],
+        visible_ctes: &BTreeSet<String>,
     ) -> MddResult<Option<MddError>> {
         let db = Connection::open_in_memory().map_err(sqlite_error)?;
         db.set_db_config(DbConfig::SQLITE_DBCONFIG_DEFENSIVE, true)
@@ -653,11 +665,23 @@ impl SqlBridge {
             .iter()
             .map(|r| r.name.to_ascii_lowercase())
             .collect::<BTreeSet<_>>();
+        let ctes = visible_ctes.clone();
         db.authorizer(Some(move |context: AuthContext<'_>| match context.action {
             AuthAction::Select | AuthAction::Recursive => Authorization::Allow,
             AuthAction::Read { table_name, .. }
                 if names.contains(&table_name.to_ascii_lowercase()) =>
             {
+                Authorization::Allow
+            }
+            AuthAction::Read {
+                table_name,
+                column_name,
+            } if context.database_name.is_none()
+                && column_name.is_empty()
+                && ctes.contains(&table_name.to_ascii_lowercase()) =>
+            {
+                // SQLite emits this read for a visible in-memory CTE container,
+                // not for a main, temp or attached database table.
                 Authorization::Allow
             }
             AuthAction::Function { function_name }
@@ -997,6 +1021,88 @@ mod tests {
                     )
                     .unwrap();
                 assert_eq!(rows.rows()[0][0], SqlValue::I64(Signed64(1)));
+            }
+        }
+    }
+
+    #[test]
+    fn correlated_in_resolves_only_proven_outer_scopes_and_respects_shadowing() {
+        let (provider, _) = bridge();
+        for dialect in [
+            SqlDialect::NativeV1,
+            SqlDialect::DexSql010,
+            SqlDialect::DexSql011,
+        ] {
+            let bridge = SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+            let rows = |sql: &str| {
+                bridge
+                    .query(sql)
+                    .unwrap()
+                    .rows()
+                    .iter()
+                    .map(|row| row[0].clone())
+                    .collect::<Vec<_>>()
+            };
+            assert_eq!(
+                rows(
+                    "SELECT o.id FROM facts o WHERE EXISTS (SELECT 1 FROM facts i WHERE o.id IN (1,3) AND i.id=1) ORDER BY o.id"
+                ),
+                vec![SqlValue::U64(DecimalU64(1)), SqlValue::U64(DecimalU64(3))],
+                "{dialect:?}"
+            );
+            for predicate in ["o.id IN (1)", "id IN (1)"] {
+                let sql = format!(
+                    "SELECT o.id FROM facts o WHERE EXISTS (SELECT 1 FROM facts o WHERE {predicate}) ORDER BY o.id"
+                );
+                assert_eq!(
+                    rows(&sql),
+                    vec![
+                        SqlValue::U64(DecimalU64(1)),
+                        SqlValue::U64(DecimalU64(2)),
+                        SqlValue::U64(DecimalU64(3))
+                    ],
+                    "{dialect:?}: {sql}"
+                );
+            }
+            for sql in [
+                "SELECT o.id FROM facts o WHERE EXISTS (SELECT 1 FROM (SELECT 1 AS id) d WHERE o.id IN (1))",
+                "WITH d AS (SELECT 1 AS id) SELECT o.id FROM facts o WHERE EXISTS (SELECT 1 FROM d WHERE o.id IN (1))",
+            ] {
+                let error = bridge.query(sql).unwrap_err();
+                assert_eq!(
+                    error.code,
+                    ErrorCode::UnsupportedQuery,
+                    "{dialect:?}: {sql}: {error:?}"
+                );
+            }
+            for sql in [
+                "SELECT o.id FROM facts o WHERE EXISTS (SELECT 1 FROM facts i JOIN facts j ON i.id=j.id WHERE id IN (1))",
+                "SELECT o.id FROM facts o WHERE EXISTS (SELECT 1 FROM facts i WHERE o.missing IN (1))",
+                "SELECT o.id FROM facts o WHERE EXISTS (SELECT 1 FROM facts i WHERE missing_alias.id IN (1))",
+                "WITH d AS (SELECT 1 AS id) SELECT o.id FROM facts o WHERE EXISTS (SELECT 1 FROM d WHERE o.id IN (1) AND missing=1)",
+            ] {
+                assert_eq!(
+                    bridge.query(sql).unwrap_err().code,
+                    ErrorCode::InvalidArgument,
+                    "{dialect:?}: {sql}"
+                );
+            }
+            // Even a same-named CTE hint cannot authorize a real internal table,
+            // a write, or database attachment during read-only preflight.
+            let relations = provider.relations().unwrap();
+            let hints = BTreeSet::from(["sqlite_master".to_owned()]);
+            for sql in [
+                "SELECT name FROM sqlite_master",
+                "DELETE FROM facts",
+                "ATTACH DATABASE ':memory:' AS other",
+            ] {
+                assert!(
+                    bridge
+                        .original_binding_error(sql, &relations, &hints)
+                        .unwrap()
+                        .is_some(),
+                    "{dialect:?}: {sql}"
+                );
             }
         }
     }

@@ -134,6 +134,8 @@ MDD-005 A2 查询转换候选位于 benchmarks/a2_compact_adapter.py，涵盖sha
 
 2026-10-30 后续功能候选（统一验证延后）：MDD-026 新增借用式字段与类事实视图，完整metadata/definitions前提下分别保留同DEX field-id的引用/类型/可选定义及class_def顺序、NO_INDEX父类/源文件、直接接口ordinal；不合成初始值或注解、不推断继承，各一项局部测试通过，类/接口条数预算不等于扫描字节或RSS预算。MDD-031 共享Text/Bytes/DexMutf8比较逐单元检查额度和取消，保持原有UTF-16/原始字节排序；函数与真实SQL桥各一项局部测试通过，逐单元成本及A0/A1/独立oracle待统一验证。MDD-005 新增A1独占dataset打开候选：前后检查来源、空闲状态、输入路径与dataset回执，任何已提交生命周期请求在取消/超时/不确定结果时要求owner中止；12项模拟客户端局部检查通过，原始记录 artifacts/mdd-005/a2-dataset-open-20261030/run2/record.json。最终源码未连接真实producer，不证明快照、总序或A2资格。
 
+2026-10-30 继续功能候选（统一验证延后）：MDD-026 新增同源method→code借用视图，绑定snapshot/occurrence/member/content并逐项核对真实物理code item起点和指令范围；区分reference-only、native、abstract、present及有体空指令，scoped缺项/partial明确失败，局部一项测试通过；旧opcode_count/hex、真实跨代和独立oracle未验证。MDD-031 对相关子查询IN按作用域由内向外解析可证明的基础表列，未知CTE/派生scope阻断推断、遮蔽/歧义/缺列保留真实绑定错误；局部首测发现合法CTE内部READ被预检误拒，后仅对当前AST可见CTE且database=None/column空的容器读取放行，局部测试及sqlite_master/DELETE/ATTACH拒绝检查通过。合成反例不证明真实HostLab corpus，A0/A1、独立安全及全量验证not_run。MDD-005 新增A1独占dataset生命周期组合，共享client/source/deadline，open/消费/close失败或取消要求owner确认中止；9项模拟客户端局部检查通过，记录 artifacts/mdd-005/a2-dataset-lifecycle-20261030/run2/record.json，不证明真实producer、快照、总序或A2资格。
+
 MDD-031 SQL桥仍进行中：受限虚表、会话预算绑定、U64真值、USING和子串路径有本机测试；独立真值18例及固定A0/A1子串16例通过，合成Q15结果与SQLite一致。真实完整corpus、legacy适配及生产工作区内存绑定尚未验收。检查点862b3dd的 Windows 离线测试161项、0失败/跳过，工作区严格Clippy通过，命令记录在 artifacts/integration/20261029/workspace-tests/ 与 workspace-clippy/。
 
 后续 SQL 结果驻留预算修复在 Windows 工作区重新运行165项测试、0失败/跳过及严格Clippy；零行 schema 的零预算错误、结果持有与释放独立复现。该计量是保守逻辑额度，SQLite内部分配、provider/调用方副本、传输缓冲及租约自身元数据仍需单独准入，不能称 RSS 硬上限。证据 artifacts/mdd-031-audit/result-memory-probe/after-fix.json、artifacts/integration/20261029/workspace-tests-result-budget/record.json。

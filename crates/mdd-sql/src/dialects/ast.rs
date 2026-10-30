@@ -374,36 +374,40 @@ impl Rewrite<'_> {
     fn in_column_type(&self, left: &Expr) -> Option<crate::values::SqlType> {
         // Never infer a column type from a global same-name schema. Derived
         // tables and CTEs may shadow a name with different affinity.
-        let Some(Some(scope)) = self.in_scopes.last() else {
-            return None;
-        };
         let mut left = left;
         while let Expr::Nested(inner) = left {
             left = inner;
         }
-        let data_type = match left {
-            Expr::Identifier(id) => {
-                let name = id.value.to_ascii_lowercase();
-                let mut matches = scope
-                    .tables
-                    .values()
-                    .filter_map(|columns| columns.get(&name));
-                let data_type = matches.next()?;
-                if matches.next().is_some() {
-                    return None;
+        for frame in self.in_scopes.iter().rev() {
+            // Unknown derived/CTE scope may shadow any outer column. Do not infer past it.
+            let scope = frame.as_ref()?;
+            match left {
+                Expr::Identifier(id) => {
+                    let name = id.value.to_ascii_lowercase();
+                    let mut matches = scope
+                        .tables
+                        .values()
+                        .filter_map(|columns| columns.get(&name));
+                    if let Some(data_type) = matches.next() {
+                        // A nearer scope with ambiguous names never resolves to an outer one.
+                        return if matches.next().is_none() {
+                            Some(*data_type)
+                        } else {
+                            None
+                        };
+                    }
                 }
-                data_type
+                Expr::CompoundIdentifier(ids) if ids.len() == 2 => {
+                    let qualifier = ids[0].value.to_ascii_lowercase();
+                    if let Some(columns) = scope.tables.get(&qualifier) {
+                        // An inner alias shadows the outer alias even if its column is absent.
+                        return columns.get(&ids[1].value.to_ascii_lowercase()).copied();
+                    }
+                }
+                _ => return None,
             }
-            Expr::CompoundIdentifier(ids) if ids.len() == 2 => {
-                let data_type = scope
-                    .tables
-                    .get(&ids[0].value.to_ascii_lowercase())
-                    .and_then(|columns| columns.get(&ids[1].value.to_ascii_lowercase()))?;
-                data_type
-            }
-            _ => return None,
-        };
-        Some(*data_type)
+        }
+        None
     }
     fn safe_in_affinity(&self, left: &Expr, list: &[Expr]) -> bool {
         if list.is_empty() || no_affinity(left) {
@@ -1078,8 +1082,21 @@ impl Rewrite<'_> {
                 if !self.safe_in_affinity(child, list)
                     && !self.legacy_numeric_in_literals(child, list)
                 {
+                    let visible_ctes = self
+                        .cte_scopes
+                        .iter()
+                        .flat_map(|scope| scope.keys())
+                        .cloned()
+                        .collect::<BTreeSet<_>>();
                     return Err(unsupported("IN_LEFT_AFFINITY_NOT_IMPLEMENTED")
-                        .detail("confirm_sqlite_syntax", true));
+                        .detail("confirm_sqlite_syntax", true)
+                        .detail(
+                            "visible_ctes",
+                            visible_ctes
+                                .into_iter()
+                                .map(serde_json::Value::from)
+                                .collect::<Vec<_>>(),
+                        ));
                 }
                 self.expr(child, depth + 1)?;
                 **child = call("mdd_key", vec![take(child)]);
