@@ -982,6 +982,185 @@ impl SqlFactProvider for CombinedSqlProvider {
     }
 }
 
+/// Encoded reference sites for an explicit, complete set of DEX occurrences.
+/// This does not infer runtime dispatch or legacy method-call rows.
+pub struct ReferenceSqlProvider {
+    binding: SqlBinding,
+    occurrences: Vec<Arc<mdd_facts::references::ReferenceFacts>>,
+}
+impl ReferenceSqlProvider {
+    pub fn new(
+        occurrences: Vec<Arc<mdd_facts::references::ReferenceFacts>>,
+        epoch: DecimalU64,
+    ) -> MddResult<Self> {
+        let snapshot = occurrences
+            .first()
+            .ok_or_else(|| invalid("REFERENCE_SCOPE_MUST_BE_EXPLICIT"))?
+            .source()
+            .snapshot_id
+            .clone();
+        let mut seen = BTreeSet::new();
+        for facts in &occurrences {
+            if facts.source().snapshot_id != snapshot
+                || !seen.insert(&facts.source().dex_occurrence_id)
+            {
+                return Err(invalid("REFERENCE_PROVIDER_SOURCE"));
+            }
+            facts.require_complete()?;
+        }
+        Ok(Self {
+            binding: SqlBinding {
+                provider_identity: opaque_id("sql-reference-provider")?,
+                snapshot_id: snapshot,
+                catalog_epoch: epoch,
+            },
+            occurrences,
+        })
+    }
+}
+struct ReferenceCursor {
+    provider: Arc<ReferenceSqlProvider>,
+    occurrence: usize,
+    ordinal: usize,
+    control: SqlControl,
+}
+impl SqlFactCursor for ReferenceCursor {
+    fn next_row(&mut self) -> MddResult<Option<SqlRow>> {
+        use mdd_dex::instructions::InvokeKind;
+        use mdd_facts::references::TargetKind;
+        while let Some(facts) = self.provider.occurrences.get(self.occurrence) {
+            self.control.checkpoint(1, false)?;
+            if let Some(site) = facts.sites().get(self.ordinal) {
+                self.control.work(200)?;
+                let target_kind = match site.target_kind {
+                    TargetKind::String => "string",
+                    TargetKind::Type => "type",
+                    TargetKind::Field => "field",
+                    TargetKind::Method => "method",
+                    TargetKind::Prototype => "prototype",
+                    TargetKind::CallSite => "call_site",
+                    TargetKind::MethodHandle => "method_handle",
+                };
+                let invoke = match site.invoke_kind.as_ref() {
+                    None => SqlValue::Null,
+                    Some(kind) => scalar_text(
+                        match kind {
+                            InvokeKind::Ordinary => "ordinary",
+                            InvokeKind::OrdinaryRange => "ordinary_range",
+                            InvokeKind::Polymorphic => "polymorphic",
+                            InvokeKind::PolymorphicRange => "polymorphic_range",
+                            InvokeKind::Custom => "custom",
+                            InvokeKind::CustomRange => "custom_range",
+                        },
+                        &self.control,
+                    )?,
+                };
+                let u = |n: u64| SqlValue::U64(DecimalU64(n));
+                let row = vec![
+                    scalar_text(&facts.source().dex_occurrence_id, &self.control)?,
+                    u(site.site_ordinal.into()),
+                    u(site.caller_method_idx.into()),
+                    u(site.class_def_idx.into()),
+                    u(site.class_idx.into()),
+                    SqlValue::U64(site.code_item_byte_offset),
+                    u(site.code_unit_pc.into()),
+                    u(site.instruction_ordinal.into()),
+                    u(site.operand_ordinal.into()),
+                    scalar_text(target_kind, &self.control)?,
+                    u(site.target_local_index.into()),
+                    u(site.opcode.into()),
+                    scalar_text(&site.mnemonic, &self.control)?,
+                    invoke,
+                    SqlValue::U64(site.instruction_range.byte_offset),
+                    SqlValue::U64(site.instruction_range.byte_length),
+                    SqlValue::U64(site.operand_range.byte_offset),
+                    SqlValue::U64(site.operand_range.byte_length),
+                ];
+                self.ordinal += 1;
+                return Ok(Some(row));
+            }
+            self.occurrence += 1;
+            self.ordinal = 0;
+        }
+        Ok(None)
+    }
+}
+impl SqlFactProvider for ReferenceSqlProvider {
+    fn binding(&self) -> &SqlBinding {
+        &self.binding
+    }
+    fn relations(&self) -> MddResult<Vec<SqlRelation>> {
+        let columns = [
+            ("dex_occurrence_id", SqlType::Text, false),
+            ("site_ordinal", SqlType::U64, false),
+            ("caller_method_idx", SqlType::U64, false),
+            ("class_def_idx", SqlType::U64, false),
+            ("class_idx", SqlType::U64, false),
+            ("code_item_byte_offset", SqlType::U64, false),
+            ("code_unit_pc", SqlType::U64, false),
+            ("instruction_ordinal", SqlType::U64, false),
+            ("operand_ordinal", SqlType::U64, false),
+            ("target_kind", SqlType::Text, false),
+            ("target_local_index", SqlType::U64, false),
+            ("opcode", SqlType::U64, false),
+            ("mnemonic", SqlType::Text, false),
+            ("invoke_kind", SqlType::Text, true),
+            ("instruction_byte_offset", SqlType::U64, false),
+            ("instruction_byte_length", SqlType::U64, false),
+            ("operand_byte_offset", SqlType::U64, false),
+            ("operand_byte_length", SqlType::U64, false),
+        ];
+        let count = self
+            .occurrences
+            .iter()
+            .try_fold(0u64, |total, facts| {
+                total.checked_add(u64::try_from(facts.sites().len()).ok()?)
+            })
+            .ok_or_else(|| quota("REFERENCE_SQL_ROWS_OVERFLOW"))?;
+        Ok(vec![SqlRelation {
+            name: "native_reference_sites".into(),
+            columns: columns
+                .iter()
+                .map(|(name, data_type, nullable)| SqlColumn {
+                    id: (*name).into(),
+                    name: (*name).into(),
+                    data_type: *data_type,
+                    nullable: *nullable,
+                })
+                .collect(),
+            required_layers: vec![
+                FactLayer::Metadata,
+                FactLayer::Structure,
+                FactLayer::CodeLayout,
+                FactLayer::References,
+            ],
+            estimated_rows: Some(DecimalU64(count)),
+        }])
+    }
+    fn require_relation(&self, relation: &str) -> MddResult<()> {
+        if !relation.eq_ignore_ascii_case("native_reference_sites") {
+            return Err(invalid("UNKNOWN_REFERENCE_RELATION"));
+        }
+        for facts in &self.occurrences {
+            facts.require_complete()?;
+        }
+        Ok(())
+    }
+    fn open_cursor(
+        self: Arc<Self>,
+        relation: &str,
+        control: SqlControl,
+    ) -> MddResult<Box<dyn SqlFactCursor>> {
+        self.require_relation(relation)?;
+        Ok(Box::new(ReferenceCursor {
+            provider: self,
+            occurrence: 0,
+            ordinal: 0,
+            control,
+        }))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -991,6 +1170,80 @@ mod tests {
         archive::{ArchiveInventory, ArchiveLimits, InventoryPolicy},
         snapshot::{CaptureLimits, InputKind, InputSpec, Snapshot},
     };
+    #[test]
+    fn native_reference_sites_keep_operand_and_occurrence_identity() {
+        use mdd_dex::{definitions::DefinitionLimits, instructions::CodeLimits};
+        use mdd_facts::{
+            code::CodeFacts,
+            references::{ReferenceFacts, ReferenceLimits},
+        };
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/references/generated/poly-custom-038.dex");
+        let spec = InputSpec {
+            path,
+            kind: InputKind::RawDex,
+            expected_sha256: None,
+        };
+        let snapshot = Snapshot::capture(&[spec.clone(), spec], CaptureLimits::default()).unwrap();
+        let mut sources = Vec::new();
+        for source in snapshot.sources() {
+            let inventory = ArchiveInventory::build(
+                source,
+                InventoryPolicy::default(),
+                ArchiveLimits::default(),
+            )
+            .unwrap();
+            let metadata =
+                MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default()).unwrap();
+            let definitions =
+                DefinitionFacts::build(metadata, DefinitionLimits::default()).unwrap();
+            let code =
+                CodeFacts::build_all_code_items(&snapshot, &inventory, 0, CodeLimits::default())
+                    .unwrap();
+            sources.push(Arc::new(
+                ReferenceFacts::build(definitions, code, ReferenceLimits::default()).unwrap(),
+            ));
+        }
+        assert!(!sources[0].sites().is_empty());
+        assert!(
+            ReferenceSqlProvider::new(vec![sources[0].clone(), sources[0].clone()], DecimalU64(0))
+                .is_err()
+        );
+        let provider = Arc::new(ReferenceSqlProvider::new(sources.clone(), DecimalU64(0)).unwrap());
+        let bridge = SqlBridge::new(provider, SqlDialect::NativeV1, SqlLimits::default()).unwrap();
+        let result = bridge.query("SELECT dex_occurrence_id,site_ordinal,caller_method_idx,code_unit_pc,operand_ordinal,target_kind,target_local_index,opcode,instruction_byte_offset,operand_byte_offset FROM native_reference_sites").unwrap();
+        let expected: Vec<_> = sources
+            .iter()
+            .flat_map(|source| {
+                source
+                    .sites()
+                    .iter()
+                    .map(move |site| (source.source().dex_occurrence_id.clone(), site))
+            })
+            .collect();
+        assert_eq!(result.rows().len(), expected.len());
+        for (row, (source, site)) in result.rows().iter().zip(expected) {
+            assert!(
+                matches!(&row[0], SqlValue::Text(text) if text.strict_utf8().unwrap() == source)
+            );
+            for (index, expected) in [
+                (1, site.site_ordinal as u64),
+                (2, site.caller_method_idx as u64),
+                (3, site.code_unit_pc as u64),
+                (4, site.operand_ordinal as u64),
+                (6, site.target_local_index as u64),
+                (7, site.opcode as u64),
+                (8, site.instruction_range.byte_offset.0),
+                (9, site.operand_range.byte_offset.0),
+            ] {
+                assert_eq!(row[index], SqlValue::U64(DecimalU64(expected)));
+            }
+        }
+        assert_ne!(
+            sources[0].source().dex_occurrence_id,
+            sources[1].source().dex_occurrence_id
+        );
+    }
     #[test]
     fn native_dex_occurrences_preserve_source_identities() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))

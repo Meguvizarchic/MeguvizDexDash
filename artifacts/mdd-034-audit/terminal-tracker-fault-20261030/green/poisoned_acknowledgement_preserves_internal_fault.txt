@@ -1,0 +1,12 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.35s
+     Running unittests src\lib.rs (target\debug\deps\mdd_query-82579f4092cfd058.exe)
+
+running 1 test
+
+thread 'budget::tests::poisoned_acknowledgement_preserves_internal_fault' (48144) panicked at crates\mdd-query\src\budget\tests.rs:154:17:
+injected tracker mutex poisoning
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test budget::tests::poisoned_acknowledgement_preserves_internal_fault ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 89 filtered out; finished in 0.00s
+

@@ -1,0 +1,6 @@
+{
+  "command": "python -O benchmarks/run-existing-baselines.py --self-test",
+  "scope": "synthetic baseline consumer shape checks",
+  "source_sha256": "F2CD7090E534F868DF0E9BF0FCF95D5FB3D366D6862036043877F7CF26DD4D6D",
+  "exit_code": 1
+}

@@ -1,0 +1,21 @@
+   Compiling mdd-facts v0.1.0-dev (D:\MeguvisDexDash\crates\mdd-facts)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 19.63s
+     Running unittests src\lib.rs (target\debug\deps\mdd_facts-f5fcaccb54dddfd1.exe)
+
+running 1 test
+test code::tests::method_code_views_bind_exact_source_and_distinguish_body_states ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 58 filtered out; finished in 0.01s
+
+     Running tests\opcode_projection.rs (target\debug\deps\opcode_projection-660a6c1d51f9b61c.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+     Running tests\parameter_descriptors.rs (target\debug\deps\parameter_descriptors-74aef1c8ca19de1d.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s
+

@@ -3,6 +3,94 @@ use std::sync::mpsc;
 use std::thread;
 
 #[test]
+fn poisoned_terminal_tracking_preserves_first_fault() {
+    use mdd_input::snapshot::{CaptureLimits, InputKind, InputSpec, Snapshot};
+    use mdd_session::{Lifecycle, QueryBinding, ResourceLimits};
+    let mut failures = Vec::new();
+    for mode in ["end", "receipt"] {
+        let limits = ResourceLimits::default();
+        let lifecycle = Lifecycle::new(limits).unwrap();
+        let snapshot = Snapshot::capture(
+            &[InputSpec {
+                path: std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                    .join("../../tests/fixtures/generated/minimal-035.dex"),
+                kind: InputKind::RawDex,
+                expected_sha256: None,
+            }],
+            CaptureLimits::default(),
+        )
+        .unwrap();
+        let snapshot = lifecycle.register_snapshot(Arc::new(snapshot)).unwrap();
+        let session = lifecycle.open_session(&snapshot, limits).unwrap();
+        let query = lifecycle
+            .prepare_query(
+                &session,
+                QueryBinding {
+                    request_key: "terminal-poison".into(),
+                    schema_id: "rows".into(),
+                    semantic_version: "v1".into(),
+                },
+                limits,
+            )
+            .unwrap();
+        lifecycle.start_query(&session, &query, 1).unwrap();
+        let cancel = lifecycle.cancellation_token(&query).unwrap();
+        let pool = BudgetPool::global("g".into(), BudgetLimits::default())
+            .unwrap()
+            .child(
+                cancel.worker_owner_id().unwrap(),
+                BudgetScope::Worker,
+                BudgetLimits::default(),
+            )
+            .unwrap()
+            .child(
+                session.id().into(),
+                BudgetScope::Session,
+                BudgetLimits::default(),
+            )
+            .unwrap()
+            .child(
+                query.id().into(),
+                BudgetScope::Query,
+                BudgetLimits::default(),
+            )
+            .unwrap();
+        let (sender, mut receiver) = bounded_channel::<u8>(pool, Some(cancel.clone()), 1).unwrap();
+        sender.finish(Ok(())).unwrap();
+        if mode == "receipt" {
+            assert!(matches!(
+                receiver.receive().unwrap(),
+                QueueEvent::End(Ok(()))
+            ));
+        }
+        let tracker = Arc::clone(sender.0.delivery.as_ref().unwrap());
+        assert!(
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let _guard = tracker.state.lock().unwrap();
+                panic!("injected tracker poisoning");
+            }))
+            .is_err()
+        );
+        let returned = if mode == "end" {
+            let error = receiver.receive().err().unwrap();
+            drop(receiver);
+            error
+        } else {
+            receiver.into_delivery_receipt().err().unwrap()
+        };
+        let first = cancel.status().unwrap().error.unwrap();
+        assert_eq!(returned.code, ErrorCode::InternalFault);
+        if first.code != returned.code
+            || first.stage != returned.stage
+            || first.message != returned.message
+        {
+            failures.push((mode, first.code, returned.code));
+        }
+    }
+    assert!(failures.is_empty(), "first faults differ: {failures:?}");
+}
+
+#[test]
 fn poisoned_acknowledgement_preserves_internal_fault() {
     use mdd_input::snapshot::{CaptureLimits, InputKind, InputSpec, Snapshot};
     use mdd_session::{Lifecycle, QueryBinding, ResourceLimits};

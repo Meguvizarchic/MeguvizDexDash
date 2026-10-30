@@ -1403,10 +1403,10 @@ impl<T> BoundedReceiver<T> {
                 }
                 state.end_delivered = true;
                 if let Some(tracker) = &self.0.delivery {
-                    let mut delivery = tracker
-                        .state
-                        .lock()
-                        .map_err(|_| fault("delivery tracking mutex poisoned"))?;
+                    let mut delivery = tracker.state.lock().map_err(|_| {
+                        self.0
+                            .bound_query_failure(fault("delivery tracking mutex poisoned"))
+                    })?;
                     delivery.end_seen = true;
                     delivery.end_error = end.as_ref().err().cloned();
                 }
@@ -1471,10 +1471,10 @@ impl<T> BoundedReceiver<T> {
                 .state
                 .lock()
                 .map_err(|_| fault("queue mutex poisoned"))?;
-            let state = tracker
-                .state
-                .lock()
-                .map_err(|_| fault("delivery tracking mutex poisoned"))?;
+            let state = tracker.state.lock().map_err(|_| {
+                self.0
+                    .bound_query_failure(fault("delivery tracking mutex poisoned"))
+            })?;
             if !state.end_seen
                 || state.abandoned
                 || state.sent != state.acknowledged

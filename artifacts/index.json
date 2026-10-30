@@ -4193,6 +4193,26 @@
       "sha256": "8a60a382bdb3e1611b9305a0990a77d7af9861209ba4c7a64a3c2973c34235f6"
     },
     {
+      "path": "artifacts/mdd-005/row-shape-20261030/green/output.txt",
+      "bytes": 1535,
+      "sha256": "f41922a1a29c2f5b4770a5ad55619118585e2b53d5c4c1d074f931b39679df73"
+    },
+    {
+      "path": "artifacts/mdd-005/row-shape-20261030/green/record.json",
+      "bytes": 357,
+      "sha256": "ce5387d8f5a4b902a469e0a46777c400e1595d0d169cf6b88d8bea9486657ef1"
+    },
+    {
+      "path": "artifacts/mdd-005/row-shape-20261030/red/output.txt",
+      "bytes": 6272,
+      "sha256": "a623364d6bd48d672c390d7385b445778964dc2f3a42e74e486b85d3222f1fb6"
+    },
+    {
+      "path": "artifacts/mdd-005/row-shape-20261030/red/record.json",
+      "bytes": 244,
+      "sha256": "c3a60a46130c053a0db74922a2421f6803660137ebdb499d2a6572edbc6e5e4d"
+    },
+    {
       "path": "artifacts/mdd-005/static-qualification-20261029.json",
       "bytes": 5065,
       "sha256": "0c0ef862e2332783679cc14b85fc19f5177d9742275688afee9e25ebb24752a4"
@@ -13138,6 +13158,16 @@
       "sha256": "d37c23f5b288e8d226b57c0ebd0cf2374183c2afee5d7518d036e54e846332fd"
     },
     {
+      "path": "artifacts/mdd-026/direct-method-code-20261030/output.txt",
+      "bytes": 885,
+      "sha256": "0ef8b60b6a2d1c146f68964b554ca7e0fb7223e46c3c30f1d15263a57f91a3c6"
+    },
+    {
+      "path": "artifacts/mdd-026/direct-method-code-20261030/record.json",
+      "bytes": 1181,
+      "sha256": "860e0af8cbe7a1262f8483b4b169caec67c21171475067f1906c6b8a03d3e1db"
+    },
+    {
       "path": "artifacts/mdd-026/dynamic-source-audit/20261029T012418079194Z/a0-method-calls/record.json",
       "bytes": 2080,
       "sha256": "47509c62dbc3de09f682b374dcfb7eee2defef96a1a173b4a2f465f19dda92e4"
@@ -21906,6 +21936,16 @@
       "path": "artifacts/mdd-031-audit/native-metadata-20261030/string-regression/stdout.txt",
       "bytes": 212,
       "sha256": "8738744e4b36ed1c4af861d5a3dbc679fc128cc44035c75c313f9dd39e01cad3"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/native-reference-sites-20261030/run1/output.txt",
+      "bytes": 518,
+      "sha256": "181e27f07b2b987951f5568fc9209edd69bd02d0b1ce78ac313c18d017780575"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/native-reference-sites-20261030/run1/record.json",
+      "bytes": 1189,
+      "sha256": "bf12f041a49601de75a25a706ce004775535f9ecd584a61a88ebab9538dd35b1"
     },
     {
       "path": "artifacts/mdd-031-audit/not-between-fix-20261029/clippy/record.json",
@@ -31081,6 +31121,41 @@
       "path": "artifacts/mdd-034-audit/streaming-json-independent-20261029/verify-probe4.py",
       "bytes": 5371,
       "sha256": "3d6a903b8bd62ba17d3f04f50269003ec952f83090a78bfb9ab6c4d57ab359bb"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/terminal-tracker-fault-20261030/green/poisoned_acknowledgement_preserves_internal_fault.txt",
+      "bytes": 611,
+      "sha256": "d552f89ad42c68651a5e0f3befa8172762e11cae9433be793bf8124dcbef80cc"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/terminal-tracker-fault-20261030/green/poisoned_terminal_tracking_preserves_first_fault.txt",
+      "bytes": 842,
+      "sha256": "4978df2459f06444593f7e8e43515af986cd0c71f7d6d9b4c24d6394fb706b69"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/terminal-tracker-fault-20261030/green/record.json",
+      "bytes": 1140,
+      "sha256": "a43a6ea773291cc719c298e22fe78d6b182d8e19710a7debe1fc5ceef122ec89"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/terminal-tracker-fault-20261030/red/output.txt",
+      "bytes": 1054,
+      "sha256": "6458979cda11b415e5f75f98c04d93a699bccfdbe6b5a4bd1c70fefd1f781a6e"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/terminal-tracker-fault-20261030/red/record.json",
+      "bytes": 884,
+      "sha256": "721d07d0695df67c90b48b43a5dfb37dacb7eb2d80e1addbd76dadd5a10b8369"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/terminal-tracker-fault-20261030/red2/output.txt",
+      "bytes": 1237,
+      "sha256": "58bfca595a6e69c248e07441108e592fba0d2bb7972525c769968a6f4791f61e"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/terminal-tracker-fault-20261030/red2/record.json",
+      "bytes": 872,
+      "sha256": "a84b6d306d0472bd8978504d7c2117c6986dea169411377fba058c5d3da4bedc"
     },
     {
       "path": "artifacts/mdd-034-audit/unbound-end-delivery-deadline-20261030/green/bound_sender_normal_backpressure_still_delivers_all_rows.txt",

@@ -172,6 +172,10 @@ MDD-034 预算释放候选先核对所有祖先及资源计数，再统一写入
 
 MDD-034 消费确认内部故障补充：受控锁中毒红例中INTERNAL_FAULT被未确认包析构改记为CANCELLED；候选在析构前登记首错，计数溢出亦处理。最终1项局部检查含两类内部故障注入，见 artifacts/mdd-034-audit/ack-internal-first-20261030/final/record.json；非自然输入复现，生产worker及完整并发未证。
 
+2026-10-30 目标持续功能（统一验证延后）：MDD-026 方法代码视图新增同来源实体直接查询，保留引用及实际方法体状态，双来源与迭代结果、原始字节对照1项通过，见 artifacts/mdd-026/direct-method-code-20261030/record.json；另两个二进制0项未计通过。MDD-031 新增独立 native_reference_sites provider，要求引用事实完整并保留来源、调用者、目标坐标及原始范围；双来源桥1项检查覆盖10列，见 artifacts/mdd-031-audit/native-reference-sites-20261030/run1/record.json；目标类型、调用类型和长度未逐列独立核验，尚未接入CombinedSqlProvider，不证明旧method_calls或完整资格。MDD-005 基准消费者对ordered/bag检查连续列ordinal、非空type及行数组宽度；六个合成反例和15项自检见 artifacts/mdd-005/row-shape-20261030/，不验证单元格类型或真实工作负载。全量、跨平台和性能验证未运行，现有A2未暂存工作保留。
+
+MDD-034 终态跟踪锁中毒的受控反例显示接收End和获取回执返回INTERNAL_FAULT但生命周期被清理改记CANCELLED；候选先登记首错，新测试及已有确认路径回归各1项通过，见 artifacts/mdd-034-audit/terminal-tracker-fault-20261030/green/record.json。锁故障为测试注入，非自然输入，生产worker与完整并发未验证。
+
 MDD-031 SQL桥仍进行中：受限虚表、会话预算绑定、U64真值、USING和子串路径有本机测试；独立真值18例及固定A0/A1子串16例通过，合成Q15结果与SQLite一致。真实完整corpus、legacy适配及生产工作区内存绑定尚未验收。检查点862b3dd的 Windows 离线测试161项、0失败/跳过，工作区严格Clippy通过，命令记录在 artifacts/integration/20261029/workspace-tests/ 与 workspace-clippy/。
 
 后续 SQL 结果驻留预算修复在 Windows 工作区重新运行165项测试、0失败/跳过及严格Clippy；零行 schema 的零预算错误、结果持有与释放独立复现。该计量是保守逻辑额度，SQLite内部分配、provider/调用方副本、传输缓冲及租约自身元数据仍需单独准入，不能称 RSS 硬上限。证据 artifacts/mdd-031-audit/result-memory-probe/after-fix.json、artifacts/integration/20261029/workspace-tests-result-budget/record.json。

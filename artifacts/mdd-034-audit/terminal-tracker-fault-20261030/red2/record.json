@@ -1,0 +1,15 @@
+{
+  "source_before": {
+    "crates/mdd-query/src/budget/tests.rs": "AB1E53412F96721589E165E2C836F6ACB355D9572C76BA47341DFD252FC1847E",
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "crates/mdd-query/src/budget.rs": "2DDF214A80C7C04812A7F35A3D8B3E3FFAC99A979326B35A67D46B89E9F67EB7"
+  },
+  "scope": "two injected poison cases, red",
+  "exit_code": 101,
+  "command": "cargo test -p mdd-query --locked --offline --jobs 1 poisoned_terminal_tracking_preserves_first_fault -- --nocapture",
+  "source_after": {
+    "crates/mdd-query/src/budget/tests.rs": "AB1E53412F96721589E165E2C836F6ACB355D9572C76BA47341DFD252FC1847E",
+    "Cargo.lock": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "crates/mdd-query/src/budget.rs": "2DDF214A80C7C04812A7F35A3D8B3E3FFAC99A979326B35A67D46B89E9F67EB7"
+  }
+}

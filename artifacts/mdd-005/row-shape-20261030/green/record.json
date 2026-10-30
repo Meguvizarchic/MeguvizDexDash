@@ -1,0 +1,7 @@
+{
+  "source_before": "CF31723395EC69FDD02E3A8A3470F11989B331BB8802EEDD8BF8FC23B1D4C015",
+  "exit_code": 0,
+  "source_after": "CF31723395EC69FDD02E3A8A3470F11989B331BB8802EEDD8BF8FC23B1D4C015",
+  "command": "python -O benchmarks/run-existing-baselines.py --self-test",
+  "scope": "synthetic row shape checks; no cell type or workload qualification"
+}

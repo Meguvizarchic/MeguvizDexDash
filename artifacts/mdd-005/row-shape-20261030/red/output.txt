@@ -1,0 +1,80 @@
+test_bag_keeps_duplicates (__main__.ContractTests.test_bag_keeps_duplicates) ... ok
+test_coverage_issues_require_typed_reason_and_layer (__main__.ContractTests.test_coverage_issues_require_typed_reason_and_layer) ... ok
+test_empty_complete_result (__main__.ContractTests.test_empty_complete_result) ... ok
+test_input_binding (__main__.ContractTests.test_input_binding) ... ok
+test_input_binding_distinguishes_bool_and_integer (__main__.ContractTests.test_input_binding_distinguishes_bool_and_integer) ... ok
+test_no_fallback (__main__.ContractTests.test_no_fallback) ... ok
+test_null_and_empty_are_distinct (__main__.ContractTests.test_null_and_empty_are_distinct) ... ok
+test_reject_incomplete_axes (__main__.ContractTests.test_reject_incomplete_axes) ... ok
+test_required_identity_and_scope_are_not_missing (__main__.ContractTests.test_required_identity_and_scope_are_not_missing) ... ok
+test_row_count (__main__.ContractTests.test_row_count) ... ok
+test_rows_match_declared_shape (__main__.ContractTests.test_rows_match_declared_shape) ... 
+  test_rows_match_declared_shape (__main__.ContractTests.test_rows_match_declared_shape) (schema=[{'ordinal': 0, 'type': 'utf8'}], row=[]) ... FAIL
+  test_rows_match_declared_shape (__main__.ContractTests.test_rows_match_declared_shape) (schema=[{'ordinal': 0, 'type': 'utf8'}], row=['a', 'b']) ... FAIL
+  test_rows_match_declared_shape (__main__.ContractTests.test_rows_match_declared_shape) (schema=[{'ordinal': 0, 'type': 'utf8'}], row='a') ... FAIL
+  test_rows_match_declared_shape (__main__.ContractTests.test_rows_match_declared_shape) (schema=[{'ordinal': False, 'type': 'utf8'}], row=['a']) ... FAIL
+  test_rows_match_declared_shape (__main__.ContractTests.test_rows_match_declared_shape) (schema=[{'ordinal': 1, 'type': 'utf8'}], row=['a']) ... FAIL
+  test_rows_match_declared_shape (__main__.ContractTests.test_rows_match_declared_shape) (schema=[{'ordinal': 0, 'type': ''}], row=['a']) ... FAIL
+test_scope_binding (__main__.ContractTests.test_scope_binding) ... ok
+test_strict_json (__main__.ContractTests.test_strict_json) ... ok
+test_strict_numbers_and_text (__main__.ContractTests.test_strict_numbers_and_text) ... ok
+test_structured_output_without_verifier_is_not_complete (__main__.ContractTests.test_structured_output_without_verifier_is_not_complete) ... ok
+
+======================================================================
+FAIL: test_rows_match_declared_shape (__main__.ContractTests.test_rows_match_declared_shape) (schema=[{'ordinal': 0, 'type': 'utf8'}], row=[])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\MeguvisDexDash\benchmarks\run-existing-baselines.py", line 389, in test_rows_match_declared_shape
+    with self.subTest(schema=schema, row=row), self.assertRaises(ValueError):
+                                               ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_rows_match_declared_shape (__main__.ContractTests.test_rows_match_declared_shape) (schema=[{'ordinal': 0, 'type': 'utf8'}], row=['a', 'b'])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\MeguvisDexDash\benchmarks\run-existing-baselines.py", line 389, in test_rows_match_declared_shape
+    with self.subTest(schema=schema, row=row), self.assertRaises(ValueError):
+                                               ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_rows_match_declared_shape (__main__.ContractTests.test_rows_match_declared_shape) (schema=[{'ordinal': 0, 'type': 'utf8'}], row='a')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\MeguvisDexDash\benchmarks\run-existing-baselines.py", line 389, in test_rows_match_declared_shape
+    with self.subTest(schema=schema, row=row), self.assertRaises(ValueError):
+                                               ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_rows_match_declared_shape (__main__.ContractTests.test_rows_match_declared_shape) (schema=[{'ordinal': False, 'type': 'utf8'}], row=['a'])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\MeguvisDexDash\benchmarks\run-existing-baselines.py", line 389, in test_rows_match_declared_shape
+    with self.subTest(schema=schema, row=row), self.assertRaises(ValueError):
+                                               ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_rows_match_declared_shape (__main__.ContractTests.test_rows_match_declared_shape) (schema=[{'ordinal': 1, 'type': 'utf8'}], row=['a'])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\MeguvisDexDash\benchmarks\run-existing-baselines.py", line 389, in test_rows_match_declared_shape
+    with self.subTest(schema=schema, row=row), self.assertRaises(ValueError):
+                                               ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_rows_match_declared_shape (__main__.ContractTests.test_rows_match_declared_shape) (schema=[{'ordinal': 0, 'type': ''}], row=['a'])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "D:\MeguvisDexDash\benchmarks\run-existing-baselines.py", line 389, in test_rows_match_declared_shape
+    with self.subTest(schema=schema, row=row), self.assertRaises(ValueError):
+                                               ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+----------------------------------------------------------------------
+Ran 15 tests in 0.024s
+
+FAILED (failures=6)

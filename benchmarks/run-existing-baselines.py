@@ -149,11 +149,19 @@ def consume(output, expected_inputs, expected_request, required_layers):
         raise ValueError("structured output completeness verifier is not implemented")
     data = output["final_dto"]
     if mode in ("ordered", "bag"):
+        schema = output["row_schema"]
+        if (not isinstance(schema, list) or any(
+                not isinstance(column, dict) or type(column.get("ordinal")) is not int
+                or column["ordinal"] != index or not isinstance(column.get("type"), str)
+                or not column["type"] for index, column in enumerate(schema))):
+            raise ValueError("invalid ordered row schema")
         if not isinstance(data, dict) or not isinstance(data.get("rows"), list):
             raise ValueError("materialized rows must be a list")
         rows = data["rows"]
         if len(rows) != int(response["total_rows"]):
             raise ValueError("not all rows materialized")
+        if any(not isinstance(row, list) or len(row) != len(schema) for row in rows):
+            raise ValueError("row shape differs from declared schema")
         if mode == "bag":
             data = dict(data, rows=sorted(rows, key=canonical))
     # Identity-bearing manifests and relation/column schema remain in digest.
@@ -374,6 +382,20 @@ class ContractTests(unittest.TestCase):
         item["final_dto"]["rows"] = "ab"
         with self.assertRaisesRegex(ValueError, "rows must be a list"):
             self.consume(item)
+
+    def test_rows_match_declared_shape(self):
+        for schema, row in (([{'ordinal': 0, 'type': 'utf8'}], []),
+                            ([{'ordinal': 0, 'type': 'utf8'}], ['a', 'b']),
+                            ([{'ordinal': 0, 'type': 'utf8'}], 'a'),
+                            ([{'ordinal': False, 'type': 'utf8'}], ['a']),
+                            ([{'ordinal': 1, 'type': 'utf8'}], ['a']),
+                            ([{'ordinal': 0, 'type': ''}], ['a'])):
+            item = self.fixture()
+            item['row_schema'] = schema
+            item['result']['response'].update(emitted_rows='1', total_rows='1')
+            item['final_dto']['rows'] = [row]
+            with self.subTest(schema=schema, row=row), self.assertRaises(ValueError):
+                self.consume(item)
 
     def test_structured_output_without_verifier_is_not_complete(self):
         item = self.fixture(); item["comparison_mode"] = "structured"

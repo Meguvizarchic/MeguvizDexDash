@@ -2,6 +2,7 @@
 use crate::{
     MetadataSource,
     definitions::{DefinitionFacts, MethodFactView, MethodFactViews, MethodViewLimits},
+    metadata::EntityRef,
 };
 use mdd_dex::{
     definitions::MethodBody,
@@ -103,6 +104,52 @@ mod tests {
             )
             .unwrap();
             let rows = view.iter().collect::<MddResult<Vec<_>>>().unwrap();
+            for row in &rows {
+                use crate::metadata::EntityKind;
+                let identity = definitions[ordinal]
+                    .entity(EntityKind::MethodReference, row.method.reference.method_idx)
+                    .unwrap();
+                let direct = view.get(&identity).unwrap();
+                assert_eq!(
+                    direct.method.reference.method_idx,
+                    row.method.reference.method_idx
+                );
+                match (&direct.body, &row.body) {
+                    (MethodCodeBody::ReferenceOnly, MethodCodeBody::ReferenceOnly)
+                    | (MethodCodeBody::Native, MethodCodeBody::Native)
+                    | (MethodCodeBody::Abstract, MethodCodeBody::Abstract) => (),
+                    (
+                        MethodCodeBody::Present {
+                            code: a,
+                            raw_insns: aa,
+                        },
+                        MethodCodeBody::Present {
+                            code: b,
+                            raw_insns: bb,
+                        },
+                    ) => {
+                        assert_eq!(a.code_item_id(), b.code_item_id());
+                        assert_eq!(aa, bb);
+                    }
+                    _ => panic!("direct lookup changed body state"),
+                }
+                let definition = EntityRef {
+                    kind: EntityKind::MethodDefinition,
+                    ..identity.clone()
+                };
+                assert_eq!(
+                    view.get(&definition).is_ok(),
+                    row.method.definition.is_some()
+                );
+                let foreign = EntityRef {
+                    dex_occurrence_id: "foreign".into(),
+                    ..identity
+                };
+                assert_eq!(
+                    view.get(&foreign).err().unwrap().code,
+                    ErrorCode::InvalidArgument
+                );
+            }
             assert_eq!(
                 rows.len(),
                 definitions[ordinal].definitions().method_references.len()
@@ -1065,6 +1112,14 @@ impl<'a> MethodCodeFactViews<'a> {
                 })
             }
         }
+    }
+
+    /// Look up a method identity in the already validated source-bound view.
+    /// Reference-only, native, abstract and present bodies remain distinct.
+    pub fn get(&self, entity: &EntityRef) -> MddResult<MethodCodeFactView<'a>> {
+        let method = self.methods.get(entity)?;
+        let body = self.body(&method)?;
+        Ok(MethodCodeFactView { method, body })
     }
 
     /// Iterate every method reference in DEX order, including reference-only rows.
