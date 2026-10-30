@@ -1,0 +1,52 @@
+[
+  {
+    "available_bytes": "16369090560",
+    "minimum_bytes": "3221225472",
+    "admitted": true
+  },
+  {
+    "available_bytes": "16368615424",
+    "minimum_bytes": "3221225472",
+    "admitted": true
+  },
+  {
+    "available_bytes": "16363311104",
+    "minimum_bytes": "3221225472",
+    "admitted": true
+  },
+  {
+    "available_bytes": "16362737664",
+    "minimum_bytes": "3221225472",
+    "admitted": true
+  },
+  {
+    "available_bytes": "16371179520",
+    "minimum_bytes": "3221225472",
+    "admitted": true
+  },
+  {
+    "available_bytes": "16376287232",
+    "minimum_bytes": "3221225472",
+    "admitted": true
+  },
+  {
+    "available_bytes": "16367890432",
+    "minimum_bytes": "3221225472",
+    "admitted": true
+  },
+  {
+    "available_bytes": "16369070080",
+    "minimum_bytes": "3221225472",
+    "admitted": true
+  },
+  {
+    "available_bytes": "16364978176",
+    "minimum_bytes": "3221225472",
+    "admitted": true
+  },
+  {
+    "available_bytes": "16364163072",
+    "minimum_bytes": "3221225472",
+    "admitted": true
+  }
+]

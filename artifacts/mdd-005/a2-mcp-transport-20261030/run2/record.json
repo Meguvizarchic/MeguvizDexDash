@@ -1,0 +1,23 @@
+{
+  "command": [
+    "artifacts/local/baseline-venv/Scripts/python.exe",
+    "-B",
+    "-O",
+    "artifacts/mdd-005/a2-mcp-transport-20261030/probe.py"
+  ],
+  "started_utc": "2026-10-30T06:18:28.678265+00:00",
+  "finished_utc": "2026-10-30T06:18:29.856969+00:00",
+  "elapsed_seconds": 1.1880000000001019,
+  "exit_code": 1,
+  "timed_out": false,
+  "source_sha256": {
+    "benchmarks/a2_mcp_transport.py": "e965ddc45c4ad1058a1ab39ad34007982e857516ad2ec0c70f7813f254a15f26",
+    "benchmarks/a2_windows_pipe_owner.py": "fa9eaef5a63a841ff969e6acb4a751bbd04fa37ef7c61f98657820b4acb0fbe7",
+    "benchmarks/a2_windows_job_owner.py": "2384f8f74707adfbedc903184e6c24a5c042da34795481e1daf612b7f436d916",
+    "artifacts/mdd-005/a2-mcp-transport-20261030/probe.py": "b858952bc940d5e029512aa615d96592f5a3d6992afeb6dff1afc96032f2d07b"
+  },
+  "source_unchanged": true,
+  "stdout_sha256": "725af8c5a357f487f679bd8f7a9ce77e1c273321b4b61e41d411eac39318768f",
+  "stderr_sha256": "f5727a7f1e41e30f80e80a24d714f935b9f8bbc142ed3bee487fc2eaa7c1c168",
+  "scope": "owned hidden synthetic processes and pinned A1 fixture only; no full audit, snapshot, A2 or performance qualification"
+}

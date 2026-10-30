@@ -35,3 +35,9 @@
 stdout 累计上限只统计经 `read()` 消费的字节，不证明 child 的全部写入量；Windows/asyncio 管道及 StreamReader 缓冲、allocator 和 RSS 不在该上限内。stderr 目前后台计数后丢弃，不保留原始诊断内容。可执行文件与目录身份检查、SHA 扫描，以及 watchdog 安装前的同步管道／进程启动阶段，不受 `io_seconds` 或 Job 生命周期的完整硬期限约束；仍需外部监督器。
 
 `artifacts/mdd-005/a2-windows-pipe-owner-20261030/` 保留所有局部记录：首次哨兵测试失败时测试未显式关闭 owner，该次没有 Job 树空证明；第二次只按句柄数值判断也不能证明真实继承。之后改用内核事件对象身份检查；run7 的 13 项合成局部检查包含关闭异常继续清理和取消。随后又补首个异常对象链及取消类型保留，最终源码仅运行了 run8 两项定向检查，run7 的 13 项未在最终源码全部重跑。该候选没有 MCP 协议或可靠结果帧、不提供快照／总序证明，也没有 Linux、完整 A2、性能或正式资源资格。
+
+`a2_mcp_transport.py` 是固定 MCP 2.2.0／mcp-types 2.2.0 的实验性标准消息流，绑定一个已创建的自有 Windows Job 管道。它对换行分帧、UTF-8、JSON 对象重复键、JSON-RPC 类型以及逐帧／累计字节和帧数设限；stderr 不进入 JSON 流。局部合成检查覆盖部分帧、错误 JSON、无效 UTF-8、额度与读写取消；固定 A1 和合成 DEX 的 open/query/close 也有局部运行记录 `artifacts/mdd-005/a2-mcp-transport-20261030/run4/record.json`。首次两次 A1 退出时 AnyIO 取消导致 Job 树空未确认，原始失败保留。
+
+SDK 正常关闭会取消其读任务；调用方可在自行确认无需再发送后声明 `expect_session_shutdown()`，但该声明仅为关闭意图，不能证明查询结果或页面已完整消费。此时底层 owner 可能记录预期的 reader `CancelledError`，不代表应用查询成功或失败。其他取消、部分帧、EOF 和错误保持失败；SDK 可能以 connection-closed 唤醒等待请求，原始传输失败另保存在 `transport.failure`，不得据此静默 fallback。SDK 序列化、JSON 解码、系统管道缓冲与 allocator/RSS 不在逻辑帧额度内，启动前同步身份扫描也不受 Job watchdog 全程约束。
+
+该传输只能证明局部消息交换与自身 Job 清理，不能证明 producer 输入快照、查询总序、未消费页面、完整 HostLab 审计或 A2／性能资格；全量与跨平台验证仍未执行。

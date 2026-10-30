@@ -1115,8 +1115,8 @@ fn scalar(
                 return Ok(SqlValue::Bytes(bytes[begin..end].to_vec()));
             }
             let text = match &args[0] {
-                SqlValue::Bytes(bytes) => decoded_text(bytes, dialect, control)?,
-                value => scalar_text(value, control)?,
+                SqlValue::Bytes(bytes) => Cow::Owned(decoded_text(bytes, dialect, control)?),
+                value => scalar_text_cow(value, control)?,
             };
             // The offset table holds at most one index per UTF-16 unit plus
             // the final boundary. Charge its logical capacity before it is
@@ -1171,7 +1171,7 @@ fn scalar(
             }))
         }
         "mdd_length" => {
-            let text = scalar_text(&args[0], control)?;
+            let text = scalar_text_cow(&args[0], control)?;
             let units = &text.utf16;
             let mut length = units.len();
             if dialect != SqlDialect::NativeV1 {
@@ -1199,12 +1199,12 @@ fn scalar(
             if has_escape && args[2] == SqlValue::Null {
                 return Ok(SqlValue::Null);
             }
-            let value = scalar_text(&args[0], control)?;
-            let pattern = scalar_text(&args[1], control)?;
+            let value = scalar_text_cow(&args[0], control)?;
+            let pattern = scalar_text_cow(&args[1], control)?;
             let escape = if !has_escape {
                 None
             } else {
-                let escape = scalar_text(&args[2], control)?;
+                let escape = scalar_text_cow(&args[2], control)?;
                 if escape.utf16.len() != 1 {
                     return Err(invalid("LIKE_ESCAPE_REQUIRES_ONE_UTF16_UNIT"));
                 }
