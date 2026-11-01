@@ -1881,6 +1881,587 @@ fn json_batches_execute_multiple_rows_and_bind_delivery() {
 }
 
 #[test]
+fn json_batch_consumer_binds_and_acknowledges_only_after_every_row() {
+    let rows = vec![
+        vec![Value::Null],
+        vec![Value::Utf16(vec![0xd800, 0])],
+        vec![Value::Utf16(vec![65])],
+    ];
+    let f = setup_with_schema(BudgetLimits::default(), DataType::Utf16, rows.clone());
+    let (sender, mut receiver) = bounded_owned_batch_channel(&f.runtime, 2).unwrap();
+    let mut pending = execute_json_batches_into(
+        &f.prepared,
+        &f.source,
+        ExecutionMode::Streaming,
+        &mut Control::new(ExecutionLimits::default()).with_runtime(f.runtime.clone()),
+        terminal(&f),
+        &sender,
+        JsonBatchLimits {
+            max_rows: 3,
+            max_bytes: 4096,
+        },
+    )
+    .unwrap();
+    let OwnedBatchEvent::Data(packet) = receiver.receive().unwrap() else {
+        panic!("missing batch")
+    };
+    let mut actual = Vec::new();
+    let consumed = consume_json_batch(
+        packet,
+        &f.runtime,
+        &f.prepared,
+        &f.source,
+        JsonBatchConsumerLimits {
+            max_bytes: 4096,
+            max_rows: 3,
+            max_columns: 1,
+        },
+        None,
+        |row| {
+            actual.push(row.clone());
+            Ok(())
+        },
+    )
+    .unwrap();
+    assert_eq!(consumed.rows, 3);
+    assert_eq!(actual, rows);
+    assert_eq!(
+        serde_json::from_slice::<Vec<Row>>(consumed.retained.bytes()).unwrap(),
+        rows
+    );
+    assert!(matches!(
+        receiver.receive().unwrap(),
+        OwnedBatchEvent::End(Ok(()))
+    ));
+    let mut receipt = receiver.into_delivery_receipt().unwrap();
+    assert!(
+        receipt
+            .finish_json_batches(&mut pending)
+            .unwrap()
+            .is_complete_result()
+    );
+}
+
+#[test]
+fn json_batch_consumer_rejects_invalid_or_partially_processed_packets() {
+    for scenario in [
+        "callback",
+        "row_limit",
+        "byte_limit",
+        "column_limit",
+        "malformed",
+        "width",
+    ] {
+        let f = setup_with_rows(BudgetLimits::default(), 2);
+        let (sender, mut receiver) = bounded_owned_batch_channel(&f.runtime, 2).unwrap();
+        let data = match scenario {
+            "malformed" => b"[not-json]".to_vec(),
+            "width" => b"[[{\"type\":\"u64\",\"value\":\"0\"},{\"type\":\"u64\",\"value\":\"1\"}]]"
+                .to_vec(),
+            _ => serde_json::to_vec(&vec![
+                vec![Value::U64(DecimalU64(0))],
+                vec![Value::U64(DecimalU64(1))],
+            ])
+            .unwrap(),
+        };
+        sender.send(&f.runtime, data.into_boxed_slice()).unwrap();
+        let OwnedBatchEvent::Data(packet) = receiver.receive().unwrap() else {
+            panic!("missing batch")
+        };
+        let mut visited = 0;
+        let limits = JsonBatchConsumerLimits {
+            max_bytes: if scenario == "byte_limit" { 1 } else { 4096 },
+            max_rows: if scenario == "row_limit" { 1 } else { 2 },
+            max_columns: if scenario == "column_limit" { 0 } else { 1 },
+        };
+        let error = consume_json_batch(
+            packet,
+            &f.runtime,
+            &f.prepared,
+            &f.source,
+            limits,
+            None,
+            |_| {
+                visited += 1;
+                if scenario == "callback" && visited == 2 {
+                    return Err(MddError::new(
+                        ErrorCode::InternalFault,
+                        "consumer",
+                        "injected failure",
+                    ));
+                }
+                Ok(())
+            },
+        )
+        .err()
+        .unwrap();
+        if scenario == "callback" {
+            assert_eq!(error.code, ErrorCode::InternalFault);
+            assert_eq!(error.stage, "consumer");
+            assert_eq!(visited, 2);
+        }
+        if scenario == "row_limit" {
+            assert_eq!(error.code, ErrorCode::QuotaExceeded);
+            assert_eq!(visited, 1);
+        }
+        if matches!(scenario, "byte_limit" | "column_limit") {
+            assert_eq!(error.code, ErrorCode::QuotaExceeded);
+            assert_eq!(visited, 0);
+        }
+        assert_eq!(f.cancel.status().unwrap().error.unwrap().code, error.code);
+        assert!(!f.cancel.status().unwrap().delivery_complete);
+        assert!(receiver.into_delivery_receipt().is_err());
+    }
+}
+
+#[test]
+fn json_batch_consumer_accepts_only_bound_partial_first_error() {
+    let f = setup_with_rows(BudgetLimits::default(), 3);
+    let (sender, mut receiver) = bounded_owned_batch_channel(&f.runtime, 4).unwrap();
+    let mut execution_limits = ExecutionLimits::default();
+    execution_limits.max_output_rows = 2;
+    let mut pending = execute_json_batches_into(
+        &f.prepared,
+        &f.source,
+        ExecutionMode::Streaming,
+        &mut Control::new(execution_limits).with_runtime(f.runtime.clone()),
+        terminal(&f),
+        &sender,
+        JsonBatchLimits {
+            max_rows: 1,
+            max_bytes: 256,
+        },
+    )
+    .unwrap();
+    let first = f.cancel.status().unwrap().error.unwrap();
+    let OwnedBatchEvent::Data(packet) = receiver.receive().unwrap() else {
+        panic!("missing batch")
+    };
+    let mut actual = Vec::new();
+    let result = consume_json_batch(
+        packet,
+        &f.runtime,
+        &f.prepared,
+        &f.source,
+        JsonBatchConsumerLimits {
+            max_bytes: 256,
+            max_rows: 1,
+            max_columns: 1,
+        },
+        Some(&first),
+        |row| {
+            actual.push(row.clone());
+            Ok(())
+        },
+    )
+    .unwrap();
+    assert_eq!(result.rows, 1);
+    assert_eq!(actual, vec![vec![Value::U64(DecimalU64(0))]]);
+    assert!(matches!(
+        receiver.receive().unwrap(),
+        OwnedBatchEvent::End(Err(_))
+    ));
+    let mut receipt = receiver.into_delivery_receipt().unwrap();
+    let envelope = receipt.finish_json_batches(&mut pending).unwrap();
+    assert_eq!(envelope.error.unwrap().code, first.code);
+    assert_eq!(envelope.response.emitted_rows, DecimalU64(1));
+    assert!(!f.cancel.status().unwrap().delivery_complete);
+}
+
+fn json_consumer_other_runtime(f: &Fixture, advance: bool) -> RuntimeBudget {
+    if advance {
+        assert_eq!(f.lifecycle.advance_catalog(&f.session).unwrap(), 1);
+    }
+    let query = f
+        .lifecycle
+        .prepare_query(
+            &f.session,
+            f.prepared.runtime_binding().unwrap(),
+            ResourceLimits::default(),
+        )
+        .unwrap();
+    f.lifecycle.start_query(&f.session, &query, 1).unwrap();
+    let cancel = f.lifecycle.cancellation_token(&query).unwrap();
+    let pool = f
+        .session_budget
+        .child(
+            query.id().into(),
+            BudgetScope::Query,
+            BudgetLimits::default(),
+        )
+        .unwrap();
+    RuntimeBudget::new(pool, cancel).unwrap()
+}
+
+#[test]
+fn json_consumer_rejects_actual_foreign_catalog_epoch() {
+    let f = setup_with_rows(BudgetLimits::default(), 1);
+    let other = json_consumer_other_runtime(&f, true);
+    assert_ne!(
+        other.cancellation().status().unwrap().catalog_epoch,
+        f.prepared.catalog_epoch()
+    );
+    let (sender, mut receiver) = bounded_owned_batch_channel(&other, 1).unwrap();
+    sender
+        .send(
+            &other,
+            serde_json::to_vec(&vec![vec![Value::U64(DecimalU64(0))]])
+                .unwrap()
+                .into_boxed_slice(),
+        )
+        .unwrap();
+    let OwnedBatchEvent::Data(packet) = receiver.receive().unwrap() else {
+        panic!("missing batch")
+    };
+    let mut visited = 0;
+    let error = consume_json_batch(
+        packet,
+        &other,
+        &f.prepared,
+        &f.source,
+        JsonBatchConsumerLimits {
+            max_bytes: 1024,
+            max_rows: 1,
+            max_columns: 1,
+        },
+        None,
+        |_| {
+            visited += 1;
+            Ok(())
+        },
+    )
+    .err()
+    .expect("foreign epoch was accepted");
+    assert_eq!(error.code, ErrorCode::InvalidArgument);
+    assert_eq!(visited, 0);
+}
+
+#[test]
+fn json_consumer_rejects_other_query_with_equal_binding() {
+    let f = setup_with_rows(BudgetLimits::default(), 1);
+    let other = json_consumer_other_runtime(&f, false);
+    assert_eq!(
+        other.cancellation().status().unwrap().catalog_epoch,
+        f.prepared.catalog_epoch()
+    );
+    assert_ne!(
+        other.cancellation().query_handle(),
+        f.runtime.cancellation().query_handle()
+    );
+    let (sender, mut receiver) = bounded_owned_batch_channel(&other, 1).unwrap();
+    sender
+        .send(
+            &other,
+            serde_json::to_vec(&vec![vec![Value::U64(DecimalU64(0))]])
+                .unwrap()
+                .into_boxed_slice(),
+        )
+        .unwrap();
+    let OwnedBatchEvent::Data(packet) = receiver.receive().unwrap() else {
+        panic!("missing batch")
+    };
+    let mut visited = 0;
+    let error = consume_json_batch(
+        packet,
+        &f.runtime,
+        &f.prepared,
+        &f.source,
+        JsonBatchConsumerLimits {
+            max_bytes: 1024,
+            max_rows: 1,
+            max_columns: 1,
+        },
+        None,
+        |_| {
+            visited += 1;
+            Ok(())
+        },
+    )
+    .err()
+    .expect("foreign query was accepted");
+    assert_eq!(error.code, ErrorCode::InvalidArgument);
+    assert_eq!(visited, 0);
+    assert!(f.cancel.status().unwrap().error.is_none());
+}
+
+#[test]
+fn json_consumer_rejects_equal_plan_from_other_session() {
+    let f = setup_with_rows(BudgetLimits::default(), 1);
+    let snapshot = f.lifecycle.snapshot_lease(&f.session).unwrap();
+    let handle = f.lifecycle.register_snapshot(snapshot).unwrap();
+    let session = f
+        .lifecycle
+        .open_session(&handle, ResourceLimits::default())
+        .unwrap();
+    let query = f
+        .lifecycle
+        .prepare_query(
+            &session,
+            f.prepared.runtime_binding().unwrap(),
+            ResourceLimits::default(),
+        )
+        .unwrap();
+    f.lifecycle.start_query(&session, &query, 1).unwrap();
+    let cancel = f.lifecycle.cancellation_token(&query).unwrap();
+    let pool = f
+        .worker_budget
+        .child(
+            session.id().into(),
+            BudgetScope::Session,
+            BudgetLimits::default(),
+        )
+        .unwrap()
+        .child(
+            query.id().into(),
+            BudgetScope::Query,
+            BudgetLimits::default(),
+        )
+        .unwrap();
+    let other = RuntimeBudget::new(pool, cancel).unwrap();
+    assert_eq!(
+        other.cancellation().snapshot_id().unwrap(),
+        f.prepared.snapshot_id()
+    );
+    assert_eq!(
+        other.cancellation().status().unwrap().catalog_epoch,
+        f.prepared.catalog_epoch()
+    );
+    assert_ne!(
+        other.cancellation().session_id().unwrap(),
+        f.runtime.cancellation().session_id().unwrap()
+    );
+    let (sender, mut receiver) = bounded_owned_batch_channel(&other, 1).unwrap();
+    sender
+        .send(
+            &other,
+            serde_json::to_vec(&vec![vec![Value::U64(DecimalU64(0))]])
+                .unwrap()
+                .into_boxed_slice(),
+        )
+        .unwrap();
+    let OwnedBatchEvent::Data(packet) = receiver.receive().unwrap() else {
+        panic!("missing batch")
+    };
+    let mut visited = 0;
+    let error = consume_json_batch(
+        packet,
+        &f.runtime,
+        &f.prepared,
+        &f.source,
+        JsonBatchConsumerLimits {
+            max_bytes: 1024,
+            max_rows: 1,
+            max_columns: 1,
+        },
+        None,
+        |_| {
+            visited += 1;
+            Ok(())
+        },
+    )
+    .err()
+    .unwrap();
+    assert_eq!(error.code, ErrorCode::InvalidArgument);
+    assert_eq!(visited, 0);
+    assert!(f.cancel.status().unwrap().error.is_none());
+}
+
+#[test]
+fn json_consumer_rejects_same_query_from_other_budget_tree() {
+    let f = setup_with_rows(BudgetLimits::default(), 1);
+    let alternate = BudgetPool::global("alternate-global".into(), BudgetLimits::default())
+        .unwrap()
+        .child(
+            f.cancel.worker_owner_id().unwrap(),
+            BudgetScope::Worker,
+            BudgetLimits::default(),
+        )
+        .unwrap()
+        .child(
+            f.session.id().into(),
+            BudgetScope::Session,
+            BudgetLimits::default(),
+        )
+        .unwrap()
+        .child(
+            f.cancel.query_handle().id().into(),
+            BudgetScope::Query,
+            BudgetLimits::default(),
+        )
+        .unwrap();
+    let other = RuntimeBudget::new(alternate, f.cancel.clone()).unwrap();
+    let (sender, mut receiver) = bounded_owned_batch_channel(&other, 1).unwrap();
+    sender
+        .send(
+            &other,
+            serde_json::to_vec(&vec![vec![Value::U64(DecimalU64(0))]])
+                .unwrap()
+                .into_boxed_slice(),
+        )
+        .unwrap();
+    let OwnedBatchEvent::Data(packet) = receiver.receive().unwrap() else {
+        panic!("missing batch")
+    };
+    let mut visited = 0;
+    let error = consume_json_batch(
+        packet,
+        &f.runtime,
+        &f.prepared,
+        &f.source,
+        JsonBatchConsumerLimits {
+            max_bytes: 1024,
+            max_rows: 1,
+            max_columns: 1,
+        },
+        None,
+        |_| {
+            visited += 1;
+            Ok(())
+        },
+    )
+    .err()
+    .unwrap();
+    assert_eq!(error.code, ErrorCode::InvalidArgument);
+    assert_eq!(visited, 0);
+    assert!(!f.cancel.status().unwrap().delivery_complete);
+}
+
+#[test]
+fn json_consumer_rejects_foreign_plan_or_source_before_callback() {
+    for use_foreign_plan in [false, true] {
+        let f = setup_with_rows(BudgetLimits::default(), 1);
+        let foreign = setup_with_rows(BudgetLimits::default(), 1);
+        let (sender, mut receiver) = bounded_owned_batch_channel(&f.runtime, 1).unwrap();
+        sender
+            .send(
+                &f.runtime,
+                serde_json::to_vec(&vec![vec![Value::U64(DecimalU64(0))]])
+                    .unwrap()
+                    .into_boxed_slice(),
+            )
+            .unwrap();
+        let OwnedBatchEvent::Data(packet) = receiver.receive().unwrap() else {
+            panic!("missing batch")
+        };
+        let plan = if use_foreign_plan {
+            &foreign.prepared
+        } else {
+            &f.prepared
+        };
+        let mut visited = 0;
+        let error = consume_json_batch(
+            packet,
+            &f.runtime,
+            plan,
+            &foreign.source,
+            JsonBatchConsumerLimits {
+                max_bytes: 1024,
+                max_rows: 1,
+                max_columns: 1,
+            },
+            None,
+            |_| {
+                visited += 1;
+                Ok(())
+            },
+        )
+        .err()
+        .unwrap();
+        assert_eq!(error.code, ErrorCode::InvalidArgument);
+        assert_eq!(visited, 0);
+        assert!(!f.cancel.status().unwrap().delivery_complete);
+    }
+}
+
+#[test]
+fn json_consumer_rejects_incorrect_partial_error_without_processing() {
+    let f = setup_with_rows(BudgetLimits::default(), 1);
+    let (sender, mut receiver) = bounded_owned_batch_channel(&f.runtime, 1).unwrap();
+    sender
+        .send(
+            &f.runtime,
+            serde_json::to_vec(&vec![vec![Value::U64(DecimalU64(0))]])
+                .unwrap()
+                .into_boxed_slice(),
+        )
+        .unwrap();
+    f.cancel.cancel().unwrap();
+    let first = f.cancel.status().unwrap().error.unwrap();
+    let wrong = MddError::new(first.code, "different", "wrong first error");
+    let OwnedBatchEvent::Data(packet) = receiver.receive().unwrap() else {
+        panic!("missing batch")
+    };
+    let mut visited = 0;
+    let error = consume_json_batch(
+        packet,
+        &f.runtime,
+        &f.prepared,
+        &f.source,
+        JsonBatchConsumerLimits {
+            max_bytes: 1024,
+            max_rows: 1,
+            max_columns: 1,
+        },
+        Some(&wrong),
+        |_| {
+            visited += 1;
+            Ok(())
+        },
+    )
+    .err()
+    .unwrap();
+    assert_eq!(error.code, first.code);
+    assert_eq!(error.stage, first.stage);
+    assert_eq!(visited, 0);
+    assert!(!f.cancel.status().unwrap().delivery_complete);
+}
+
+#[test]
+fn json_consumer_rejects_unknown_entity_in_same_snapshot() {
+    let f = setup_with_schema(BudgetLimits::default(), DataType::Entity, vec![]);
+    let entity = mdd_facts::EntityRef {
+        snapshot_id: f.prepared.snapshot_id().to_owned(),
+        dex_occurrence_id: "not-in-catalog".into(),
+        kind: mdd_facts::EntityKind::MethodReference,
+        local_index: 0,
+    };
+    let (sender, mut receiver) = bounded_owned_batch_channel(&f.runtime, 1).unwrap();
+    sender
+        .send(
+            &f.runtime,
+            serde_json::to_vec(&vec![vec![Value::Entity(entity)]])
+                .unwrap()
+                .into_boxed_slice(),
+        )
+        .unwrap();
+    let OwnedBatchEvent::Data(packet) = receiver.receive().unwrap() else {
+        panic!("missing batch")
+    };
+    let mut visited = 0;
+    let error = consume_json_batch(
+        packet,
+        &f.runtime,
+        &f.prepared,
+        &f.source,
+        JsonBatchConsumerLimits {
+            max_bytes: 1024,
+            max_rows: 1,
+            max_columns: 1,
+        },
+        None,
+        |_| {
+            visited += 1;
+            Ok(())
+        },
+    )
+    .err()
+    .unwrap();
+    assert_eq!(error.code, ErrorCode::InvalidArgument);
+    assert_eq!(visited, 0);
+    assert!(!f.cancel.status().unwrap().delivery_complete);
+}
+
+#[test]
 fn json_batches_zero_partial_and_limits_never_fake_complete() {
     let f = setup_with_rows(BudgetLimits::default(), 0);
     let (sender, mut receiver) = bounded_owned_batch_channel(&f.runtime, 2).unwrap();

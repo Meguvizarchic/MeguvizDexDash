@@ -788,7 +788,8 @@ impl Rewrite<'_> {
             || select.having.is_some()
             || (select.distinct.is_some()
                 && (!matches!(&select.distinct, Some(Distinct::Distinct))
-                    || query.limit_clause.is_some()))
+                    || (query.limit_clause.is_some()
+                        && !Self::ordered_distinct_direct_column(query, select))))
             || !matches!(&select.group_by, GroupByExpr::Expressions(values, modifiers)
                 if values.is_empty() && modifiers.is_empty())
             || select.projection.len() != 1
@@ -820,6 +821,61 @@ impl Rewrite<'_> {
                 .copied(),
             _ => None,
         }
+    }
+
+    /// LIMIT/OFFSET after DISTINCT is admissible only when a single ORDER BY
+    /// term selects the same direct projection. This proves deterministic
+    /// pagination over unique keys; unrelated ordering could change membership.
+    fn ordered_distinct_direct_column(query: &Query, select: &Select) -> bool {
+        if select.projection.len() != 1 {
+            return false;
+        }
+        let (projection, alias) = match &select.projection[0] {
+            SelectItem::UnnamedExpr(expr) => (expr, None),
+            SelectItem::ExprWithAlias { expr, alias } => (expr, Some(alias)),
+            _ => return false,
+        };
+        let mut projection = projection;
+        while let Expr::Nested(inner) = projection {
+            projection = inner;
+        }
+        if !matches!(
+            projection,
+            Expr::Identifier(_) | Expr::CompoundIdentifier(_)
+        ) {
+            return false;
+        }
+        let Some(order) = query.order_by.as_ref() else {
+            return false;
+        };
+        if order.interpolate.is_some() {
+            return false;
+        }
+        let OrderByKind::Expressions(expressions) = &order.kind else {
+            return false;
+        };
+        if expressions.len() != 1 {
+            return false;
+        }
+        let term = &expressions[0];
+        if term.with_fill.is_some() || matches!(term.options.sort, Some(OrderBySort::Using(_))) {
+            return false;
+        }
+        let mut expression = &term.expr;
+        while let Expr::Nested(inner) = expression {
+            expression = inner;
+        }
+        if let Expr::Value(value) = expression
+            && matches!(&value.value, Value::Number(number, _) if number == "1")
+        {
+            return true;
+        }
+        if let Expr::Identifier(id) = expression
+            && alias.is_some_and(|alias| alias.value.eq_ignore_ascii_case(&id.value))
+        {
+            return true;
+        }
+        expression == projection
     }
     fn safe_in_affinity(&self, left: &Expr, list: &[Expr]) -> bool {
         if list.is_empty() || no_affinity(left) {
@@ -1763,10 +1819,20 @@ impl Rewrite<'_> {
                 // U64 values outside SQLite's signed range remain exact rather
                 // than being converted to float. Text/numeric affinity and
                 // floating-point cases still require separate proof.
-                let supported = matches!(
-                    (left, right),
-                    (Some(I64 | U64 | Bool), Some(I64 | U64 | Bool))
-                ) || (left == right && matches!(left, Some(Text | Bytes)));
+                let distinct_limited = subquery.limit_clause.is_some()
+                    && matches!(subquery.body.as_ref(), SetExpr::Select(select)
+                        if matches!(&select.distinct, Some(Distinct::Distinct)));
+                // Native text order is contractually UTF-16. Legacy DexSQL
+                // supplementary-character pagination order is not yet proven;
+                // SQLite BINARY gives a different result for valid text.
+                let limited_type_ok = !distinct_limited
+                    || (left == right
+                        && !(right == Some(Text) && self.dialect != super::SqlDialect::NativeV1));
+                let supported = limited_type_ok
+                    && (matches!(
+                        (left, right),
+                        (Some(I64 | U64 | Bool), Some(I64 | U64 | Bool))
+                    ) || (left == right && matches!(left, Some(Text | Bytes))));
                 if !supported {
                     let ctes = subquery
                         .with
@@ -1789,6 +1855,7 @@ impl Rewrite<'_> {
                 // The order is still validated and evaluated by self.query.
                 if let SetExpr::Select(select) = subquery.body.as_mut()
                     && matches!(&select.distinct, Some(Distinct::Distinct))
+                    && !distinct_limited
                 {
                     select.distinct = None;
                 }

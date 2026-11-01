@@ -278,6 +278,139 @@ fn typed_method_call_query_preserves_oracle_sites_and_occurrences() {
 }
 
 #[test]
+fn typed_type_reference_query_preserves_oracle_sites_and_occurrences() {
+    let (native, references) = native_references_fixture("type-names-035.dex");
+    let catalog = ReferenceCatalog::new(native, references).unwrap();
+    let oracle: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../tests/fixtures/references/oracle-results.json"
+    ))
+    .unwrap();
+    let record = oracle["results"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|record| {
+            record["path"]
+                .as_str()
+                .is_some_and(|path| path.ends_with("/type-names-035.dex"))
+        })
+        .unwrap();
+    for (descriptor, type_index) in [("Ljava/lang/String;", 4u32), ("I", 0), ("[I", 6)] {
+        let units = descriptor.encode_utf16().collect::<Vec<_>>();
+        let mut expected = record["sites"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|site| site["kind"] == "type" && site["index"] == type_index)
+            .map(|site| {
+                (
+                    site["caller_method_idx"].as_u64().unwrap(),
+                    site["pc"].as_u64().unwrap(),
+                    site["operand_ordinal"].as_u64().unwrap(),
+                    site["opcode"].as_u64().unwrap(),
+                )
+            })
+            .collect::<Vec<_>>();
+        expected.sort_unstable();
+        assert!(!expected.is_empty());
+        let plan = prepare(catalog.type_reference_query(&units).unwrap(), &catalog).unwrap();
+        assert!(plan.required_layers().contains(&FactLayer::References));
+        for mode in [
+            ExecutionMode::Streaming,
+            ExecutionMode::MaterializedReference,
+        ] {
+            let output = execute(
+                &plan,
+                &catalog,
+                mode,
+                &mut Control::new(ExecutionLimits::default()),
+            )
+            .unwrap();
+            assert_eq!(output.rows().len(), expected.len() * 2);
+            let mut by_source = BTreeMap::<String, Vec<(u64, u64, u64, u64)>>::new();
+            for row in output.rows() {
+                let (Value::Entity(caller), Value::Entity(ty), Value::Entity(text)) =
+                    (&row[2], &row[7], &row[9])
+                else {
+                    panic!("expected source-bound entities")
+                };
+                assert_eq!(caller.kind, EntityKind::MethodDefinition);
+                assert_eq!(ty.kind, EntityKind::Type);
+                assert_eq!(ty.local_index, type_index);
+                assert_eq!(text.kind, EntityKind::String);
+                for entity in [ty, text] {
+                    assert_eq!(entity.snapshot_id, caller.snapshot_id);
+                    assert_eq!(entity.dex_occurrence_id, caller.dex_occurrence_id);
+                }
+                assert_eq!(row[0], Value::text(&caller.dex_occurrence_id));
+                assert_eq!(row[8], Value::Utf16(units.clone()));
+                let (
+                    Value::U64(DecimalU64(pc)),
+                    Value::U64(DecimalU64(operand)),
+                    Value::U64(DecimalU64(opcode)),
+                ) = (&row[3], &row[5], &row[6])
+                else {
+                    panic!("expected encoded site coordinates")
+                };
+                by_source
+                    .entry(caller.dex_occurrence_id.clone())
+                    .or_default()
+                    .push((u64::from(caller.local_index), *pc, *operand, *opcode));
+            }
+            assert_eq!(by_source.len(), 2);
+            for sites in by_source.values_mut() {
+                sites.sort_unstable();
+                assert_eq!(sites, &expected);
+            }
+            let limits = ExecutionLimits {
+                max_output_rows: 0,
+                ..ExecutionLimits::default()
+            };
+            assert_eq!(
+                execute(&plan, &catalog, mode, &mut Control::new(limits))
+                    .err()
+                    .unwrap()
+                    .code,
+                ErrorCode::QuotaExceeded
+            );
+        }
+    }
+    let missing = prepare(catalog.type_reference_query(&[0xd800]).unwrap(), &catalog).unwrap();
+    assert!(
+        execute(
+            &missing,
+            &catalog,
+            ExecutionMode::Streaming,
+            &mut Control::new(ExecutionLimits::default()),
+        )
+        .unwrap()
+        .rows()
+        .is_empty()
+    );
+    assert_eq!(
+        catalog
+            .type_reference_query(&vec![0; 1_000_001])
+            .unwrap_err()
+            .code,
+        ErrorCode::QuotaExceeded
+    );
+    let (mut incomplete, references) = native_references_fixture("type-names-035.dex");
+    incomplete.occurrences[0].code = None;
+    let incomplete = ReferenceCatalog::new(incomplete, references).unwrap();
+    let units = "Ljava/lang/String;".encode_utf16().collect::<Vec<_>>();
+    assert_eq!(
+        prepare(
+            incomplete.type_reference_query(&units).unwrap(),
+            &incomplete
+        )
+        .err()
+        .unwrap()
+        .code,
+        ErrorCode::IncompleteFacts
+    );
+}
+
+#[test]
 fn typed_field_reference_query_preserves_oracle_sites_and_occurrences() {
     let (native, references) = native_references_fixture("classic-035.dex");
     let catalog = ReferenceCatalog::new(native, references).unwrap();

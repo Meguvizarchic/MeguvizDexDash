@@ -1169,6 +1169,60 @@ impl OwnedBatchPacket {
     pub fn bytes(&self) -> &[u8] {
         self.0.payload.batch.bytes()
     }
+
+    pub(crate) fn query_binding(
+        &self,
+        expected: &RuntimeBudget,
+    ) -> MddResult<(mdd_session::QueryBinding, &str, DecimalU64)> {
+        let ack = self
+            .0
+            .acknowledgement
+            .as_ref()
+            .ok_or_else(|| invalid("queue has no query-bound delivery tracking"))?;
+        if !Arc::ptr_eq(&ack.tracker, &self.0.payload.tracker)
+            || !Arc::ptr_eq(&self.0._memory.0.pool.state, &expected.pool.state)
+            || self.0._memory.0.pool.owner != expected.pool.owner
+            || ack.tracker.cancel.query_handle() != expected.cancel.query_handle()
+            || ack.tracker.cancel.session_id()? != expected.cancel.session_id()?
+        {
+            return Err(invalid("batch belongs to another delivery queue"));
+        }
+        Ok((
+            ack.tracker.cancel.binding()?,
+            self.0.payload.batch.snapshot_id(),
+            ack.tracker.cancel.status()?.catalog_epoch,
+        ))
+    }
+
+    pub(crate) fn checkpoint(&self) -> MddResult<()> {
+        self.0.payload.tracker.cancel.checkpoint()
+    }
+
+    pub(crate) fn check_partial_error(&self, expected: &MddError) -> MddResult<()> {
+        let status = self.0.payload.tracker.cancel.status()?;
+        let actual = status
+            .error
+            .as_ref()
+            .ok_or_else(|| invalid("query has no first error"))?;
+        if status.delivery_complete
+            || actual.code != expected.code
+            || actual.stage != expected.stage
+            || actual.message != expected.message
+            || actual.retryable != expected.retryable
+            || actual.details != expected.details
+        {
+            return Err(invalid("partial consumer error binding mismatch"));
+        }
+        Ok(())
+    }
+
+    /// Record a consumer failure before dropping the unacknowledged packet.
+    pub(crate) fn reject(self, error: MddError) -> MddError {
+        match self.0.payload.tracker.cancel.fail(error.clone()) {
+            Ok(status) => status.error.unwrap_or(error),
+            Err(failure) => failure,
+        }
+    }
     /// Confirm consumption of this packet and retain its immutable bytes.
     pub fn acknowledge(self) -> MddResult<RetainedOwnedBatch> {
         self.0.acknowledge_owned_batch(None)

@@ -1,0 +1,11 @@
+
+running 1 test
+test bridge::tests::ordered_distinct_limited_text_compares_sqlite_supplementary_order ... FAILED
+
+failures:
+
+failures:
+    bridge::tests::ordered_distinct_limited_text_compares_sqlite_supplementary_order
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 133 filtered out; finished in 0.01s
+

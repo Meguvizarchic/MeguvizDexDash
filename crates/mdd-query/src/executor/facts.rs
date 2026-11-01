@@ -348,6 +348,88 @@ impl ReferenceCatalog {
         })
     }
 
+    /// Query encoded type-reference sites by an exact UTF-16 descriptor.
+    /// Source occurrences and operand sites are retained without deduplication.
+    /// This does not resolve runtime types or guarantee a stable row order. It
+    /// uses scan/filter/join rather than an indexed access path, and does not
+    /// promise the legacy HostLab table shape.
+    pub fn type_reference_query(&self, descriptor: &[u16]) -> MddResult<QueryIr> {
+        if descriptor.len() > 1_000_000 {
+            return Err(MddError::new(
+                ErrorCode::QuotaExceeded,
+                "query.facts",
+                "type descriptor predicate exceeds construction limit",
+            ));
+        }
+        let mut value = Vec::new();
+        value.try_reserve_exact(descriptor.len()).map_err(|_| {
+            MddError::new(
+                ErrorCode::QuotaExceeded,
+                "query.facts",
+                "type descriptor predicate allocation failed",
+            )
+        })?;
+        value.extend_from_slice(descriptor);
+        let sites = Node::Filter {
+            input: Box::new(Node::Scan {
+                relation: "reference_sites".into(),
+            }),
+            predicate: Predicate::Eq {
+                left: Expr::Column { ordinal: 6 },
+                right: Expr::Literal {
+                    value: Value::text("type"),
+                },
+            },
+        };
+        let joined = Node::EquiJoin {
+            left: Box::new(sites),
+            right: Box::new(Node::Scan {
+                relation: "types".into(),
+            }),
+            left_keys: vec![8],
+            right_keys: vec![0],
+            kind: JoinKind::Inner,
+        };
+        let matched = Node::Filter {
+            input: Box::new(joined),
+            predicate: Predicate::Eq {
+                left: Expr::Column { ordinal: 13 },
+                right: Expr::Literal {
+                    value: Value::Utf16(value),
+                },
+            },
+        };
+        let columns = [
+            ("dex_occurrence_id", DataType::Utf16, 0),
+            ("site_ordinal", DataType::U64, 1),
+            ("caller", DataType::Entity, 2),
+            ("code_unit_pc", DataType::U64, 3),
+            ("instruction_ordinal", DataType::U64, 4),
+            ("operand_ordinal", DataType::U64, 5),
+            ("opcode", DataType::U64, 9),
+            ("type", DataType::Entity, 11),
+            ("descriptor", DataType::Utf16, 13),
+            ("descriptor_string", DataType::Entity, 14),
+        ]
+        .into_iter()
+        .map(|(name, data_type, ordinal)| Projection {
+            column: column(name, data_type, false),
+            expression: Expr::Column { ordinal },
+        })
+        .collect();
+        Ok(QueryIr {
+            schema_version: IR_VERSION.into(),
+            text_semantics: TEXT_VERSION.into(),
+            snapshot_id: self.native.snapshot_id().to_owned(),
+            catalog_epoch: self.native.catalog_epoch(),
+            require_stable_order: false,
+            root: Node::Project {
+                input: Box::new(matched),
+                columns,
+            },
+        })
+    }
+
     /// Query encoded field-reference sites by an exact UTF-16 descriptor.
     /// Each source occurrence and operand site is retained. The opcode is the
     /// encoded instruction, not a claim about runtime field access or dispatch.

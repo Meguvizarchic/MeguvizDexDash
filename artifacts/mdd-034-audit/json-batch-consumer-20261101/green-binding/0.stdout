@@ -1,0 +1,10 @@
+
+running 5 tests
+test executor::runtime_tests::json_consumer_rejects_incorrect_partial_error_without_processing ... ok
+test executor::runtime_tests::json_consumer_rejects_other_query_with_equal_binding ... ok
+test executor::runtime_tests::json_consumer_rejects_actual_foreign_catalog_epoch ... ok
+test executor::runtime_tests::json_consumer_rejects_unknown_entity_in_same_snapshot ... ok
+test executor::runtime_tests::json_consumer_rejects_foreign_plan_or_source_before_callback ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 123 filtered out; finished in 0.00s
+

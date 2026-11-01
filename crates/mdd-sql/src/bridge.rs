@@ -3411,6 +3411,85 @@ mod tests {
     }
 
     #[test]
+    fn ordered_distinct_limited_text_compares_sqlite_supplementary_order() {
+        let values = ["\u{e000}", "\u{10000}"];
+        let provider = Arc::new(RowsProvider {
+            binding: SqlBinding {
+                provider_identity: "ordered-distinct-text".into(),
+                snapshot_id: "ordered-distinct-text-snapshot".into(),
+                catalog_epoch: DecimalU64(0),
+            },
+            columns: vec![
+                SqlColumn {
+                    id: "lhs".into(),
+                    name: "lhs".into(),
+                    data_type: SqlType::Text,
+                    nullable: false,
+                },
+                SqlColumn {
+                    id: "rhs".into(),
+                    name: "rhs".into(),
+                    data_type: SqlType::Text,
+                    nullable: false,
+                },
+            ],
+            rows: values
+                .iter()
+                .map(|value| vec![SqlValue::text(value), SqlValue::text(value)])
+                .collect(),
+        });
+        let sqlite = rusqlite::Connection::open_in_memory().unwrap();
+        sqlite
+            .execute_batch("CREATE TABLE vals(lhs TEXT,rhs TEXT);")
+            .unwrap();
+        for value in values {
+            sqlite
+                .execute("INSERT INTO vals VALUES (?1,?1)", [value])
+                .unwrap();
+        }
+        let sql =
+            "SELECT lhs,lhs IN (SELECT DISTINCT rhs FROM vals ORDER BY rhs LIMIT 1) FROM vals";
+        let mut expected: Vec<(String, i64)> = sqlite
+            .prepare(sql)
+            .unwrap()
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap();
+        expected.sort();
+        assert_eq!(
+            expected,
+            vec![("\u{e000}".into(), 1), ("\u{10000}".into(), 0)]
+        );
+        let native =
+            SqlBridge::new(provider.clone(), SqlDialect::NativeV1, SqlLimits::default()).unwrap();
+        let mut actual: Vec<(String, i64)> = native
+            .query(sql)
+            .unwrap()
+            .rows()
+            .iter()
+            .map(|row| match (&row[0], &row[1]) {
+                (SqlValue::Text(text), SqlValue::I64(value)) => {
+                    (text.strict_utf8().unwrap(), value.0)
+                }
+                _ => panic!("unexpected row: {row:?}"),
+            })
+            .collect();
+        actual.sort();
+        assert_eq!(
+            actual,
+            vec![("\u{e000}".into(), 0), ("\u{10000}".into(), 1)]
+        );
+        for dialect in [SqlDialect::DexSql010, SqlDialect::DexSql011] {
+            let bridge = SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+            assert_eq!(
+                bridge.query(sql).unwrap_err().code,
+                ErrorCode::UnsupportedQuery
+            );
+        }
+    }
+
+    #[test]
     fn in_subquery_same_typed_columns_preserves_null_duplicates_and_binding_errors() {
         use mdd_query::ir::Signed64;
         let pairs = [
@@ -3473,7 +3552,15 @@ mod tests {
             "SELECT lhs,lhs IN (SELECT rhs FROM vals ORDER BY 1 DESC LIMIT 1 OFFSET 1) FROM vals ORDER BY lhs",
             "SELECT a.lhs,a.lhs IN (SELECT b.rhs FROM vals b WHERE b.rhs<=a.lhs ORDER BY b.rhs DESC LIMIT 1 OFFSET 1) FROM vals a ORDER BY a.lhs",
             "SELECT lhs,lhs IN (SELECT DISTINCT rhs FROM vals ORDER BY rhs DESC),lhs NOT IN (SELECT DISTINCT rhs FROM vals ORDER BY rhs DESC) FROM vals ORDER BY lhs",
+            "SELECT lhs,lhs IN (SELECT DISTINCT rhs FROM vals ORDER BY rhs LIMIT 1),lhs NOT IN (SELECT DISTINCT rhs FROM vals ORDER BY rhs LIMIT 1) FROM vals ORDER BY lhs",
+            "SELECT lhs,lhs IN (SELECT DISTINCT rhs FROM vals ORDER BY rhs DESC LIMIT 1 OFFSET 1) FROM vals ORDER BY lhs",
+            "SELECT lhs,lhs IN (SELECT DISTINCT rhs AS x FROM vals ORDER BY x DESC LIMIT 2 OFFSET 1) FROM vals ORDER BY lhs",
+            "SELECT lhs,lhs IN (SELECT DISTINCT rhs AS lhs FROM vals ORDER BY lhs DESC LIMIT 1 OFFSET 1) FROM vals ORDER BY lhs",
+            "SELECT lhs,lhs IN (SELECT DISTINCT rhs FROM vals ORDER BY 1 ASC NULLS LAST LIMIT 2 OFFSET 1) FROM vals ORDER BY lhs",
+            "SELECT a.lhs,a.lhs IN (SELECT DISTINCT b.rhs FROM vals b WHERE b.rhs<=a.lhs ORDER BY b.rhs DESC LIMIT 1) FROM vals a ORDER BY a.lhs",
+            "SELECT lhs,lhs IN (SELECT DISTINCT rhs FROM vals ORDER BY rhs LIMIT 0),lhs NOT IN (SELECT DISTINCT rhs FROM vals ORDER BY rhs LIMIT 0) FROM vals ORDER BY lhs",
             "WITH d AS (SELECT rhs FROM vals) SELECT lhs,lhs IN (SELECT rhs FROM d),lhs NOT IN (SELECT rhs FROM d) FROM vals ORDER BY lhs",
+            "WITH d AS (SELECT lhs,rhs FROM vals) SELECT lhs,lhs IN (SELECT DISTINCT rhs FROM d ORDER BY rhs DESC LIMIT 1 OFFSET 1) FROM d ORDER BY lhs",
             "WITH d(a,b) AS (SELECT rhs,lhs FROM vals) SELECT b,b IN (SELECT a FROM d) FROM d ORDER BY b",
             "WITH d(a,b) AS (SELECT rhs,lhs FROM vals) SELECT v.lhs,v.lhs IN (SELECT d.a FROM d WHERE d.b=v.lhs) FROM vals v ORDER BY v.lhs",
             "WITH d AS (SELECT lhs AS rhs,rhs AS lhs FROM vals) SELECT d.lhs,d.lhs IN (SELECT v.rhs FROM vals v) FROM d ORDER BY d.lhs",
@@ -3518,6 +3605,7 @@ mod tests {
                 "SELECT lhs IN (SELECT missing FROM vals) FROM vals",
                 "SELECT lhs IN (SELECT rhs FROM absent) FROM vals",
                 "SELECT lhs IN (SELECT DISTINCT missing FROM vals) FROM vals",
+                "SELECT lhs IN (SELECT DISTINCT rhs FROM vals ORDER BY missing LIMIT 1) FROM vals",
                 "SELECT lhs IN (SELECT rhs FROM vals ORDER BY missing LIMIT 1) FROM vals",
                 "WITH d AS (SELECT rhs FROM vals) SELECT lhs IN (SELECT missing FROM d) FROM vals",
                 "WITH d AS (SELECT rhs FROM vals) SELECT lhs IN (SELECT missing.rhs FROM d) FROM vals",
@@ -3543,7 +3631,10 @@ mod tests {
             }
             for sql in [
                 "SELECT lhs IN (SELECT DISTINCT rhs FROM vals LIMIT 1) FROM vals",
-                "SELECT lhs IN (SELECT DISTINCT rhs FROM vals ORDER BY rhs LIMIT 1) FROM vals",
+                "SELECT lhs IN (SELECT DISTINCT rhs FROM vals ORDER BY lhs LIMIT 1) FROM vals",
+                "SELECT lhs IN (SELECT DISTINCT rhs FROM vals ORDER BY rhs,lhs LIMIT 1) FROM vals",
+                "SELECT lhs IN (SELECT DISTINCT txt FROM vals ORDER BY txt LIMIT 1) FROM vals",
+                "WITH d AS (SELECT rhs+0 AS x FROM vals) SELECT lhs IN (SELECT DISTINCT x FROM d ORDER BY x LIMIT 1) FROM vals",
                 "WITH d AS (SELECT rhs+0 AS x FROM vals) SELECT lhs IN (SELECT x FROM d) FROM vals",
                 "WITH vals(lhs,rhs) AS (SELECT 1,1) SELECT lhs IN (SELECT rhs FROM vals) FROM vals",
                 "WITH d(x,x) AS (SELECT rhs,txt FROM vals) SELECT lhs IN (SELECT x FROM d) FROM vals",
@@ -3988,6 +4079,8 @@ mod tests {
             "SELECT id,l IN (SELECT r FROM vals),l NOT IN (SELECT r FROM vals) FROM vals ORDER BY id",
             "SELECT id,bl IN (SELECT br FROM vals),bl NOT IN (SELECT br FROM vals) FROM vals ORDER BY id",
             "SELECT id,l IN (SELECT DISTINCT r FROM vals),bl NOT IN (SELECT DISTINCT br FROM vals) FROM vals ORDER BY id",
+            "SELECT id,l IN (SELECT DISTINCT r FROM vals ORDER BY r DESC LIMIT 2 OFFSET 1),bl NOT IN (SELECT DISTINCT br FROM vals ORDER BY br ASC LIMIT 2 OFFSET 1) FROM vals ORDER BY id",
+            "SELECT id,l NOT IN (SELECT DISTINCT r FROM vals ORDER BY 1 ASC NULLS LAST LIMIT 1),bl IN (SELECT DISTINCT br FROM vals ORDER BY br DESC LIMIT 1) FROM vals ORDER BY id",
             "SELECT id,l IN (SELECT r FROM vals LIMIT 0),bl NOT IN (SELECT br FROM vals LIMIT 0) FROM vals ORDER BY id",
             "SELECT a.id,a.l IN (SELECT b.r FROM vals b WHERE b.id=a.id),a.bl IN (SELECT b.br FROM vals b WHERE b.id=a.id) FROM vals a ORDER BY a.id",
             "SELECT a.id,a.l IN (SELECT b.r FROM vals b WHERE b.r IS NOT NULL),a.bl NOT IN (SELECT b.br FROM vals b WHERE b.br IS NOT NULL) FROM vals a ORDER BY a.id",

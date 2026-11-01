@@ -1,0 +1,67 @@
+{
+  "started_utc": "2026-11-01T02:24:13.621215+00:00",
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-query/src/budget.rs": "3d5ee5ccb111b66e3ca8fa8a9dc772c845e8ba2d10599f05a50e18517959ef58",
+    "crates/mdd-query/src/executor.rs": "f7e2cc2ef1c702e720cc0f17767d149bed63e242b0b795a3b0b7eaa7a9b98f1c",
+    "crates/mdd-query/src/executor/runtime_tests.rs": "cf6fe009512df45815f230fdac8ac0c511f2a2e87665d44bd725510fcb497df0",
+    "crates/mdd-session/src/lib.rs": "41eeb6e698e58db45abc9cb30120b50de3f7768500c2eba2ebccc186fec0eb47",
+    "crates/mdd-session/src/cancellation.rs": "b04d7294ce8a73cd17fdcfd1e6dbe7bcfb35aeef121cc27b1812840b78d0789c",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  },
+  "scope": "independent epoch and foreign-query counterexamples; no full qualification",
+  "runs": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-query",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "json_consumer_rejects_actual_foreign_catalog_epoch",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T02:24:13.622291+00:00",
+      "exit_code": 101,
+      "raw_stdout_sha256": "7eed0261ab7a3d89893a3f09cd8010993bc3e8f8b72eeacbe7320be7bbfb0212",
+      "raw_stderr_sha256": "605d8511f2371774802ee5a60e2bb48e2ad29b666eb0fca04358533b6fe9230a",
+      "finished_utc": "2026-11-01T02:24:17.768884+00:00"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-query",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "json_consumer_rejects_other_query_with_equal_binding",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T02:24:17.768914+00:00",
+      "exit_code": 101,
+      "raw_stdout_sha256": "0e74fffb30ce5d9a307dfacc94856aa40af5852e5033f6fa31ec12e10cd09047",
+      "raw_stderr_sha256": "a28c5b875d64a43ae3c6e862e5fb6bb0b1982a8ed1d93631a7dbeb8b7733b9d3",
+      "finished_utc": "2026-11-01T02:24:18.689912+00:00"
+    }
+  ],
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-query/src/budget.rs": "3d5ee5ccb111b66e3ca8fa8a9dc772c845e8ba2d10599f05a50e18517959ef58",
+    "crates/mdd-query/src/executor.rs": "f7e2cc2ef1c702e720cc0f17767d149bed63e242b0b795a3b0b7eaa7a9b98f1c",
+    "crates/mdd-query/src/executor/runtime_tests.rs": "cf6fe009512df45815f230fdac8ac0c511f2a2e87665d44bd725510fcb497df0",
+    "crates/mdd-session/src/lib.rs": "41eeb6e698e58db45abc9cb30120b50de3f7768500c2eba2ebccc186fec0eb47",
+    "crates/mdd-session/src/cancellation.rs": "b04d7294ce8a73cd17fdcfd1e6dbe7bcfb35aeef121cc27b1812840b78d0789c",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  },
+  "finished_utc": "2026-11-01T02:24:18.691122+00:00"
+}

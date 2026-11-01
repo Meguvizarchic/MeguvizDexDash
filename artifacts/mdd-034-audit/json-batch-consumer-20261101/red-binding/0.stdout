@@ -1,0 +1,11 @@
+
+running 1 test
+test executor::runtime_tests::json_consumer_rejects_actual_foreign_catalog_epoch ... FAILED
+
+failures:
+
+failures:
+    executor::runtime_tests::json_consumer_rejects_actual_foreign_catalog_epoch
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 124 filtered out; finished in 0.00s
+

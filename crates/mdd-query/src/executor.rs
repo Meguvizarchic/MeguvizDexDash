@@ -1,7 +1,7 @@
 //! Immutable-provider execution with typed prepare, explicit work checkpoints and bag semantics.
 use crate::budget::{
-    BoundedSender, OwnedBatchReceipt, OwnedBatchSender, QueueDeliveryReceipt, Reservation,
-    Resource, RuntimeBudget,
+    BoundedSender, OwnedBatchPacket, OwnedBatchReceipt, OwnedBatchSender, QueueDeliveryReceipt,
+    Reservation, Resource, RetainedOwnedBatch, RuntimeBudget,
 };
 use crate::ir::*;
 use crate::operators::{self, Truth};
@@ -1691,6 +1691,225 @@ impl QueueDeliveryReceipt {
 pub struct JsonBatchLimits {
     pub max_rows: u64,
     pub max_bytes: u64,
+}
+
+/// Logical bounds applied before and during JSON batch consumption. These do
+/// not bound parser allocations, allocator overhead, callback work or RSS.
+#[derive(Clone, Copy, Debug)]
+pub struct JsonBatchConsumerLimits {
+    pub max_bytes: u64,
+    pub max_rows: u64,
+    pub max_columns: u64,
+}
+
+/// A fully processed packet and its retained immutable bytes. This is not the
+/// final query receipt; all packets and End must still be consumed.
+pub struct ConsumedJsonBatch {
+    pub rows: u64,
+    pub retained: RetainedOwnedBatch,
+}
+
+struct JsonRowSeed<'a> {
+    width: usize,
+    allowed: bool,
+    failure: &'a mut Option<MddError>,
+}
+impl<'de> serde::de::DeserializeSeed<'de> for JsonRowSeed<'_> {
+    type Value = Row;
+    fn deserialize<D: serde::Deserializer<'de>>(self, deserializer: D) -> Result<Row, D::Error> {
+        use serde::de::Error as _;
+        if !self.allowed {
+            *self.failure = Some(quota("JSON_CONSUMER_ROW_LIMIT"));
+            return Err(D::Error::custom("JSON batch row limit"));
+        }
+        struct RowVisitor<'a>(JsonRowSeed<'a>);
+        impl<'de> serde::de::Visitor<'de> for RowVisitor<'_> {
+            type Value = Row;
+            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_str("a typed row array")
+            }
+            fn visit_seq<A: serde::de::SeqAccess<'de>>(self, mut seq: A) -> Result<Row, A::Error> {
+                use serde::de::Error as _;
+                let mut row = Vec::new();
+                if row.try_reserve_exact(self.0.width).is_err() {
+                    *self.0.failure = Some(quota("JSON_CONSUMER_ROW_ALLOCATION"));
+                    return Err(A::Error::custom("row allocation"));
+                }
+                for _ in 0..self.0.width {
+                    let Some(value) = seq.next_element::<Value>()? else {
+                        *self.0.failure = Some(invalid("ROW_WIDTH_MISMATCH"));
+                        return Err(A::Error::custom("row width"));
+                    };
+                    row.push(value);
+                }
+                if seq.next_element::<serde::de::IgnoredAny>()?.is_some() {
+                    *self.0.failure = Some(invalid("ROW_WIDTH_MISMATCH"));
+                    return Err(A::Error::custom("row width"));
+                }
+                Ok(row)
+            }
+        }
+        deserializer.deserialize_seq(RowVisitor(self))
+    }
+}
+
+struct JsonRowsSeed<'a, F> {
+    packet: &'a OwnedBatchPacket,
+    prepared: &'a PreparedQuery,
+    source: &'a dyn FactSource,
+    limits: JsonBatchConsumerLimits,
+    partial: bool,
+    consume: &'a mut F,
+    failure: &'a mut Option<MddError>,
+    count: &'a mut u64,
+}
+impl<'de, F> serde::de::DeserializeSeed<'de> for JsonRowsSeed<'_, F>
+where
+    F: FnMut(&Row) -> MddResult<()>,
+{
+    type Value = ();
+    fn deserialize<D: serde::Deserializer<'de>>(self, deserializer: D) -> Result<(), D::Error> {
+        struct RowsVisitor<'a, F>(JsonRowsSeed<'a, F>);
+        impl<'de, F> serde::de::Visitor<'de> for RowsVisitor<'_, F>
+        where
+            F: FnMut(&Row) -> MddResult<()>,
+        {
+            type Value = ();
+            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_str("an array of typed rows")
+            }
+            fn visit_seq<A: serde::de::SeqAccess<'de>>(self, mut seq: A) -> Result<(), A::Error> {
+                use serde::de::Error as _;
+                loop {
+                    let Some(row) = seq.next_element_seed(JsonRowSeed {
+                        width: self.0.prepared.output_schema.len(),
+                        allowed: *self.0.count < self.0.limits.max_rows,
+                        failure: &mut *self.0.failure,
+                    })?
+                    else {
+                        break;
+                    };
+                    let result = (|| {
+                        if !self.0.partial {
+                            self.0.packet.checkpoint()?;
+                        }
+                        validate_row(
+                            &row,
+                            &self.0.prepared.output_schema,
+                            self.0.prepared.snapshot_id(),
+                        )?;
+                        for cell in &row {
+                            if let Value::Entity(entity) = cell {
+                                self.0.source.validate_entity(entity)?;
+                            }
+                        }
+                        (self.0.consume)(&row)
+                    })();
+                    if let Err(error) = result {
+                        *self.0.failure = Some(error);
+                        return Err(A::Error::custom("JSON batch consumer stopped"));
+                    }
+                    *self.0.count += 1;
+                }
+                Ok(())
+            }
+        }
+        deserializer.deserialize_seq(RowsVisitor(self))
+    }
+}
+
+/// Decode and process one query-bound JSON batch, acknowledging it only after
+/// the complete packet is validated and every callback returns success.
+/// Callbacks already run before a later error are not rolled back; the packet
+/// remains unacknowledged and cannot count toward complete delivery. The
+/// caller's explicit callback success is an assertion of consumption. For an
+/// already failed query, `partial_error` must be its exact recorded first error.
+/// The expected runtime must be independently supplied by the caller. A
+/// generic sender can provide arbitrary valid rows; this function does not
+/// authenticate producer output, input coverage or the final result receipt.
+pub fn consume_json_batch<F>(
+    packet: OwnedBatchPacket,
+    expected_runtime: &RuntimeBudget,
+    prepared: &PreparedQuery,
+    source: &dyn FactSource,
+    limits: JsonBatchConsumerLimits,
+    partial_error: Option<&MddError>,
+    mut consume: F,
+) -> MddResult<ConsumedJsonBatch>
+where
+    F: FnMut(&Row) -> MddResult<()>,
+{
+    let process = (|| {
+        let (binding, snapshot, epoch) = packet.query_binding(expected_runtime)?;
+        let expected = prepared.runtime_binding()?;
+        if binding.request_key != expected.request_key
+            || binding.schema_id != expected.schema_id
+            || binding.semantic_version != expected.semantic_version
+            || snapshot != prepared.snapshot_id()
+            || epoch != prepared.catalog_epoch()
+            || source.identity() != prepared.source_identity
+            || source.snapshot_id() != prepared.snapshot_id()
+            || source.catalog_epoch() != prepared.catalog_epoch()
+        {
+            return Err(invalid("JSON_CONSUMER_BINDING_MISMATCH"));
+        }
+        if u64::try_from(packet.bytes().len()).map_err(|_| quota("JSON_CONSUMER_BYTE_LIMIT"))?
+            > limits.max_bytes
+            || u64::try_from(prepared.output_schema.len())
+                .map_err(|_| quota("JSON_CONSUMER_COLUMN_LIMIT"))?
+                > limits.max_columns
+        {
+            return Err(quota("JSON_CONSUMER_LIMIT"));
+        }
+        source.require_layers(&prepared.required_layers)?;
+        if let Some(error) = partial_error {
+            packet.check_partial_error(error)?;
+        } else {
+            packet.checkpoint()?;
+        }
+        let mut count = 0;
+        let mut failure = None;
+        let mut decoder = serde_json::Deserializer::from_slice(packet.bytes());
+        let result = serde::de::DeserializeSeed::deserialize(
+            JsonRowsSeed {
+                packet: &packet,
+                prepared,
+                source,
+                limits,
+                partial: partial_error.is_some(),
+                consume: &mut consume,
+                failure: &mut failure,
+                count: &mut count,
+            },
+            &mut decoder,
+        );
+        if let Some(error) = failure {
+            return Err(error);
+        }
+        result.map_err(|e| {
+            invalid("JSON_CONSUMER_DECODE")
+                .detail("line", e.line())
+                .detail("column", e.column())
+        })?;
+        decoder.end().map_err(|e| {
+            invalid("JSON_CONSUMER_TRAILING_DATA")
+                .detail("line", e.line())
+                .detail("column", e.column())
+        })?;
+        Ok(count)
+    })();
+    let count = match process {
+        Ok(count) => count,
+        Err(error) => return Err(packet.reject(error)),
+    };
+    let retained = match partial_error {
+        Some(error) => packet.acknowledge_partial(error)?,
+        None => packet.acknowledge()?,
+    };
+    Ok(ConsumedJsonBatch {
+        rows: count,
+        retained,
+    })
 }
 
 struct JsonBatchAssembly {

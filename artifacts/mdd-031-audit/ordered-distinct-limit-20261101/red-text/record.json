@@ -1,0 +1,41 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "mdd-sql",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "1",
+    "ordered_distinct_limited_text_compares_sqlite_supplementary_order",
+    "--",
+    "--nocapture"
+  ],
+  "started_utc": "2026-11-01T02:23:28.979885+00:00",
+  "finished_utc": "2026-11-01T02:23:35.505069+00:00",
+  "exit_code": 101,
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-sql/src/dialects/ast.rs": "fb73c1da3fe4b57dfb46df50129749b25f82221c2a8a688293639e6c40b4fcb6",
+    "crates/mdd-sql/src/bridge.rs": "445f8cc7703a93fd24e2c24863acc4e2765865c62195ed4a7b460d7e68b90112",
+    "crates/mdd-sql/src/dialects/functions.rs": "f4aca963abe8d9ef73003d1860111b8a6da14505be7f9f0c1eddec6f9fe3015c",
+    "crates/mdd-query/src/budget.rs": "3d5ee5ccb111b66e3ca8fa8a9dc772c845e8ba2d10599f05a50e18517959ef58",
+    "crates/mdd-query/src/executor.rs": "f7e2cc2ef1c702e720cc0f17767d149bed63e242b0b795a3b0b7eaa7a9b98f1c",
+    "crates/mdd-session/src/lib.rs": "41eeb6e698e58db45abc9cb30120b50de3f7768500c2eba2ebccc186fec0eb47"
+  },
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-sql/src/dialects/ast.rs": "fb73c1da3fe4b57dfb46df50129749b25f82221c2a8a688293639e6c40b4fcb6",
+    "crates/mdd-sql/src/bridge.rs": "445f8cc7703a93fd24e2c24863acc4e2765865c62195ed4a7b460d7e68b90112",
+    "crates/mdd-sql/src/dialects/functions.rs": "f4aca963abe8d9ef73003d1860111b8a6da14505be7f9f0c1eddec6f9fe3015c",
+    "crates/mdd-query/src/budget.rs": "3d5ee5ccb111b66e3ca8fa8a9dc772c845e8ba2d10599f05a50e18517959ef58",
+    "crates/mdd-query/src/executor.rs": "f7e2cc2ef1c702e720cc0f17767d149bed63e242b0b795a3b0b7eaa7a9b98f1c",
+    "crates/mdd-session/src/lib.rs": "41eeb6e698e58db45abc9cb30120b50de3f7768500c2eba2ebccc186fec0eb47"
+  },
+  "raw_stdout_sha256": "3a89eac357756fabba4261336e1ac6572cefa2ccc03a3964274efb80d3efa763",
+  "raw_stderr_sha256": "d3e72048ebc0e542eaabc54e6c1fbfd436d59231e8ed819d4db09232b57567fb",
+  "scope": "controlled synthetic UTF16 versus SQLite UTF8 ordering; first dialect only if failed"
+}

@@ -1,0 +1,22 @@
+   Compiling mdd-query v0.1.0-dev (<workspace>\crates\mdd-query)
+warning: variable does not need to be mutable
+    --> crates\mdd-query\src\executor.rs:1732:17
+     |
+1732 |                 mut self,
+     |                 ----^^^^
+     |                 |
+     |                 help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+    --> crates\mdd-query\src\executor.rs:1785:17
+     |
+1785 |                 mut self,
+     |                 ----^^^^
+     |                 |
+     |                 help: remove this `mut`
+
+warning: `mdd-query` (lib test) generated 2 warnings (run `cargo fix --lib -p mdd-query --tests` to apply 2 suggestions)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 14.06s
+     Running unittests src\lib.rs (target\debug\deps\mdd_query-82579f4092cfd058.exe)

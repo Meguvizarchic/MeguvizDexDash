@@ -1,0 +1,10 @@
+   Compiling mdd-sql v0.1.0-dev (<workspace>\crates\mdd-sql)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.44s
+     Running unittests src\lib.rs (target\debug\deps\mdd_sql-46977fcd4387e316.exe)
+
+thread 'bridge::tests::ordered_distinct_limited_text_compares_sqlite_supplementary_order' (40248) panicked at crates\mdd-sql\src\bridge.rs:3479:13:
+assertion `left == right` failed: NativeV1
+  left: [("\u{e000}", 0), ("𐀀", 1)]
+ right: [("\u{e000}", 1), ("𐀀", 0)]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p mdd-sql --lib`

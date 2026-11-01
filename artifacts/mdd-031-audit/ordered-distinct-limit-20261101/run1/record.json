@@ -1,0 +1,75 @@
+{
+  "scope": "targeted synthetic SQLite membership and existing bytes/bool regression; no full qualification",
+  "source_before": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-sql/src/dialects/ast.rs": "fb73c1da3fe4b57dfb46df50129749b25f82221c2a8a688293639e6c40b4fcb6",
+    "crates/mdd-sql/src/bridge.rs": "e129b076cfc8e8589460479985aa682e17a1be1e0c406e542baf1b0760e55c9a",
+    "crates/mdd-sql/src/dialects/functions.rs": "f4aca963abe8d9ef73003d1860111b8a6da14505be7f9f0c1eddec6f9fe3015c",
+    "crates/mdd-sql/src/values.rs": "ad87d663986bdec1b4f98710d170e911fd1be67695a9d1b53abc62c54e50c9f8",
+    "crates/mdd-query/src/budget.rs": "3d5ee5ccb111b66e3ca8fa8a9dc772c845e8ba2d10599f05a50e18517959ef58",
+    "crates/mdd-query/src/executor.rs": "f7e2cc2ef1c702e720cc0f17767d149bed63e242b0b795a3b0b7eaa7a9b98f1c",
+    "crates/mdd-query/src/executor/facts.rs": "831d249d5b1f37600ce75339a013f20b72e2cee4776965c89d1d4b77cffff4c5",
+    "crates/mdd-session/src/lib.rs": "41eeb6e698e58db45abc9cb30120b50de3f7768500c2eba2ebccc186fec0eb47",
+    "crates/mdd-session/src/cancellation.rs": "b04d7294ce8a73cd17fdcfd1e6dbe7bcfb35aeef121cc27b1812840b78d0789c"
+  },
+  "runs": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-sql",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "in_subquery_same_typed_columns_preserves_null_duplicates_and_binding_errors",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T02:22:21.686615+00:00",
+      "finished_utc": "2026-11-01T02:22:32.810586+00:00",
+      "exit_code": 0,
+      "stdout_raw_sha256": "75428b982a911fa68f1ef99b1513db43119b595f0e167de48be22dbf0e090011",
+      "stderr_raw_sha256": "2ecc416099422a8fb5b1b58dc24502606bba5014d7717c98f9e330ab9e279bf7",
+      "redaction": "workspace path replaced; originals retained in ignored local directory"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-sql",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "in_subquery_bytes_and_bool_match_sqlite_with_null_and_duplicates",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T02:22:32.810612+00:00",
+      "finished_utc": "2026-11-01T02:22:33.405643+00:00",
+      "exit_code": 0,
+      "stdout_raw_sha256": "bbf4ca1d401c6472d2862e386ca9b110e0c176f69b8105a5f1b07e35ef17399d",
+      "stderr_raw_sha256": "d7ca7cafe5a3d75afe30b1d973453f53745f2e5564d26287e7fb6dea82f13170",
+      "redaction": "workspace path replaced; originals retained in ignored local directory"
+    }
+  ],
+  "source_after": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-sql/src/dialects/ast.rs": "fb73c1da3fe4b57dfb46df50129749b25f82221c2a8a688293639e6c40b4fcb6",
+    "crates/mdd-sql/src/bridge.rs": "e129b076cfc8e8589460479985aa682e17a1be1e0c406e542baf1b0760e55c9a",
+    "crates/mdd-sql/src/dialects/functions.rs": "f4aca963abe8d9ef73003d1860111b8a6da14505be7f9f0c1eddec6f9fe3015c",
+    "crates/mdd-sql/src/values.rs": "ad87d663986bdec1b4f98710d170e911fd1be67695a9d1b53abc62c54e50c9f8",
+    "crates/mdd-query/src/budget.rs": "3d5ee5ccb111b66e3ca8fa8a9dc772c845e8ba2d10599f05a50e18517959ef58",
+    "crates/mdd-query/src/executor.rs": "f7e2cc2ef1c702e720cc0f17767d149bed63e242b0b795a3b0b7eaa7a9b98f1c",
+    "crates/mdd-query/src/executor/facts.rs": "831d249d5b1f37600ce75339a013f20b72e2cee4776965c89d1d4b77cffff4c5",
+    "crates/mdd-session/src/lib.rs": "41eeb6e698e58db45abc9cb30120b50de3f7768500c2eba2ebccc186fec0eb47",
+    "crates/mdd-session/src/cancellation.rs": "b04d7294ce8a73cd17fdcfd1e6dbe7bcfb35aeef121cc27b1812840b78d0789c"
+  }
+}
