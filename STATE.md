@@ -14,13 +14,15 @@
 
 - M0：MDD-001/002/003/004/006 已完成各自验收；005 尚未完成。
 - M1：MDD-010/011/012/013/014 已完成限定任务范围，包括不可变快照、逻辑出现次数、ZIP32/ZIP64 物理成员、生命周期与真实 worker 故障。012 曾重新打开补齐 ZIP64，52 向量及 65,535/65,536 成员边界已重验。
-- M2：MDD-020/021/022/023 已完成字符串/类型/原型、定义、注解与编码代码布局。020 曾因内部 item 引用反例重新打开，已用物理起点、合法 orphan、SDK 正反例与公开样本重新验收。Ready facts 对外只读。
+- M2：MDD-020/021/023 已完成字符串/类型/原型、定义与编码代码布局。MDD-022 曾完成注解限定验收，现因短参数列表将 Unknown 位置误报为已知的反例重新打开；修复后仍需独立完整复验。020 曾因内部 item 引用反例重新打开，已用物理起点、合法 orphan、SDK 正反例与公开样本重新验收。Ready facts 对外只读。
 - MDD-024：9 引用测试、18 手工 fixture（11 所需层成功、7 真损坏）、43 个固定 A0 完整小关系比较通过。公开 NewPipe 两 DEX 共 509,322 operand sites 完整读取。精确声明查找不等于运行时分派/继承解析；合法非 scalar 文本保留 UTF-16，拒绝有损 UTF-8 投影。
 - MDD-025：原始方法体、资源和 Manifest 所需事实验收完成。公开 55,763 方法、8,540 类聚合 recipe、792 资源逐项/摘要对齐固定 A0、Python 和原 HostLab 规则；76 Manifest 向量、AAPT2 完整树及 A0 六页结果通过。方法无 body 与空 body 区分，Manifest 与资源持有同一 Arc，源改写/重命名/释放后仍保持同快照证据。见 artifacts/mdd-025/raw-evidence-conformance.json。
 
 公开样本为官方 NewPipe 0.28.6，10,885,562 字节，SHA-256 e56ef6280b700696172797f94513ffd3f9aae9349945a2f06e235ec24446be58。APK 位于 ignored artifacts/local/inputs，不进入 Git。上述均非 ART 完整验证、完整 HostLab 替代或性能资格。
 
 ## 当前推进与阻塞
+
+2026-11-01 任务重开与局部修复：MDD-022 短参数列表实际反例显示 position coverage=Unknown 时旧 parser 仍输出 Some(true)，与原完成范围冲突；已重开 MDD-022，MDD-026 的该依赖门未满足。现 parser 对长度不匹配的编码列表保留槽位并将原型位置标为未知；typed 原始 owner 关系显式区分 complete/unknown/not_applicable，物理 set/entry 保留共享、多来源和顺序。解析器与 typed 三项、SQL 双来源按 occurrence/class_def/method 关联 coverage 一项通过，见 artifacts/mdd-022/parameter-position-unknown-20261101/；只直接实证短列表，长列表、空列表与原任务完整独立验收仍待统一验证。SQL 原生 nullable 位置须与 owner kind 和 parameter-list coverage 共同解释，不能单独作为无注解证明；typed 当前无 parameter-list 绑定关系，空 owner 结果不能区分无绑定与零槽列表。MDD-034 真实反例显示倒序消费第二批时 callback 在 ACK 拒绝前已执行；现 callback 前检查队列序号，最终 ACK 仍复核，五项局部检查见 artifacts/mdd-034-audit/json-consumer-order-20261101/，不证明所有并发交错或回调副作用回滚。MDD-031 Q13 shape/HEX 包装和缺层两项局部检查见 artifacts/mdd-031-audit/hostlab-q13-wrapper-20261101/run2/；首轮标准 UTF-8 假设失败保留，固定 A0 相同 A\0B 的 41C08042 为 MUTF-8，冻结 HostLab 的严格 UTF-8 解码会拒绝，完整 Q13/HostLab 仍未认证。以上只固定所列源码，未运行全量、跨平台、真实 HostLab 或性能验收；用户已有 A2 未暂存修改保留。
 
 2026-11-01 继续推进依赖满足功能（全量验证延后）：MDD-030 typed AnnotationCatalog 新增物理 annotation_items/annotation_values，按 DEX 出现保留位置、节点顺序、NULL、同源字符串引用、标量原始字节与浮点位型；双来源一项合成测试对照保存的独立物理项/元素 oracle、DEX scalar bytes 和 NaN 位型，见 artifacts/mdd-030/typed-annotation-values-20261101/run1/。MDD-031 允许类型可证明的直接列 CTE 参与同类型 JOIN USING，保留 SQLite 列合并、NULL 和重复；最终四项局部测试覆盖 INNER/LEFT、限定列、U64/Bool 和错误分类，见 artifacts/mdd-031-audit/direct-cte-using-20261101/run3/。此前 run2 因测试将 SQLite 布尔结果误包装为 Bool 而失败，已按实际 INTEGER 载体修正并保留；u64::MAX 仅手写预期，非独立 SQLite 证明。MDD-034 修复结果完整性误判：未知总数、精确总数与已交付数不一致或 blocking warning 不再判为完整；无后续页却精确总数矛盾的流独立报错，合法分页/未知总数仍可作为未完成响应。三类真实红例和四项局部检查见 artifacts/mdd-034-audit/exact-total-completeness-20261101/。这些结果只固定所列源码/样本，不授予完整 HostLab、跨平台、生产 IPC 或性能资格；用户已有 A2 未暂存改动保留，全量验证未运行。
 

@@ -1,0 +1,14 @@
+   Compiling mdd-sql v0.1.0-dev (<workspace>\crates\mdd-sql)
+warning: calls to `std::str::from_utf8` with an invalid literal always return an error
+    --> crates\mdd-sql\src\bridge.rs:3126:21
+     |
+3126 |             assert!(std::str::from_utf8(&[b'A', 0xc0, 0x80, b'B']).is_err());
+     |                     ^^^^^^^^^^^^^^^^^^^^^------------------------^
+     |                                          |
+     |                                          the literal was valid UTF-8 up to the 1 bytes
+     |
+     = note: `#[warn(invalid_from_utf8)]` on by default
+
+warning: `mdd-sql` (lib test) generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 7.23s
+     Running unittests src\lib.rs (target\debug\deps\mdd_sql-46977fcd4387e316.exe)

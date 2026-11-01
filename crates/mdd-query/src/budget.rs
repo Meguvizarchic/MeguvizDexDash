@@ -1184,6 +1184,30 @@ impl OwnedBatchPacket {
         self.0.payload.batch.bytes()
     }
 
+    /// Reject a packet that is not next in this queue before a consumer can
+    /// apply callback side effects. Final acknowledgement rechecks the order.
+    pub(crate) fn check_sequence(&self) -> MddResult<()> {
+        let ack = self
+            .0
+            .acknowledgement
+            .as_ref()
+            .ok_or_else(|| invalid("queue has no query-bound delivery tracking"))?;
+        if !Arc::ptr_eq(&ack.tracker, &self.0.payload.tracker) {
+            return Err(invalid("batch belongs to another delivery queue"));
+        }
+        let state = ack
+            .tracker
+            .state
+            .lock()
+            .map_err(|_| fault("delivery tracking mutex poisoned"))?;
+        if state.abandoned || ack.sequence != state.acknowledged {
+            return Err(invalid(
+                "delivery acknowledgement out of order or abandoned",
+            ));
+        }
+        Ok(())
+    }
+
     pub(crate) fn query_binding(
         &self,
         expected: &RuntimeBudget,

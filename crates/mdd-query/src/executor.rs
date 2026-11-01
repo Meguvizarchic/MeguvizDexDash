@@ -1873,6 +1873,7 @@ where
         {
             return Err(invalid("JSON_CONSUMER_BINDING_MISMATCH"));
         }
+        packet.check_sequence()?;
         if u64::try_from(packet.bytes().len()).map_err(|_| quota("JSON_CONSUMER_BYTE_LIMIT"))?
             > limits.max_bytes
             || u64::try_from(prepared.output_schema.len())

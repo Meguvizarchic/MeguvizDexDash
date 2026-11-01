@@ -1,0 +1,9 @@
+   Compiling mdd-types v0.1.0-dev (<workspace>\crates\mdd-types)
+   Compiling mdd-dex v0.1.0-dev (<workspace>\crates\mdd-dex)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.71s
+     Running unittests src\lib.rs (target\debug\deps\mdd_dex-53da92c92ae5d2fd.exe)
+
+thread 'annotations::tests::short_parameter_list_does_not_claim_known_prototype_positions' (14152) panicked at crates\mdd-dex\src\annotations.rs:1263:9:
+assertion failed: parameters.iter().all(|owner| owner.parameter_position_in_prototype.is_none())
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p mdd-dex --lib`

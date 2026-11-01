@@ -1,0 +1,11 @@
+
+running 1 test
+test bridge::tests::hostlab_shape_and_hex_wrapper_preserve_columns_rows_and_required_layers ... FAILED
+
+failures:
+
+failures:
+    bridge::tests::hostlab_shape_and_hex_wrapper_preserve_columns_rows_and_required_layers
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 137 filtered out; finished in 0.00s
+

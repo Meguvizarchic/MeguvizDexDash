@@ -2339,6 +2339,101 @@ fn json_batch_consumer_binds_and_acknowledges_only_after_every_row() {
 }
 
 #[test]
+fn json_batch_consumer_accepts_multiple_packets_in_order() {
+    let f = setup_with_rows(BudgetLimits::default(), 2);
+    let (sender, mut receiver) = bounded_owned_batch_channel(&f.runtime, 2).unwrap();
+    for value in 0..2 {
+        let data = serde_json::to_vec(&vec![vec![Value::U64(DecimalU64(value))]]).unwrap();
+        sender.send(&f.runtime, data.into_boxed_slice()).unwrap();
+    }
+    let OwnedBatchEvent::Data(first) = receiver.receive().unwrap() else {
+        panic!("missing first batch")
+    };
+    let OwnedBatchEvent::Data(second) = receiver.receive().unwrap() else {
+        panic!("missing second batch")
+    };
+    let mut visited = Vec::new();
+    for packet in [first, second] {
+        let consumed = consume_json_batch(
+            packet,
+            &f.runtime,
+            &f.prepared,
+            &f.source,
+            JsonBatchConsumerLimits {
+                max_bytes: 4096,
+                max_rows: 1,
+                max_columns: 1,
+            },
+            None,
+            |row| {
+                visited.push(row.clone());
+                Ok(())
+            },
+        )
+        .unwrap();
+        assert_eq!(consumed.rows, 1);
+    }
+    assert_eq!(
+        visited,
+        vec![
+            vec![Value::U64(DecimalU64(0))],
+            vec![Value::U64(DecimalU64(1))]
+        ]
+    );
+    f.cancel.mark_computed().unwrap();
+    sender.finish(Ok(())).unwrap();
+    assert!(matches!(
+        receiver.receive().unwrap(),
+        OwnedBatchEvent::End(Ok(()))
+    ));
+    receiver
+        .into_delivery_receipt()
+        .unwrap()
+        .confirm(&sender, &f.runtime, 2)
+        .unwrap();
+    assert!(f.cancel.status().unwrap().delivery_complete);
+}
+
+#[test]
+fn json_batch_out_of_order_is_rejected_before_consumer_callback() {
+    let f = setup_with_rows(BudgetLimits::default(), 2);
+    let (sender, mut receiver) = bounded_owned_batch_channel(&f.runtime, 2).unwrap();
+    for value in 0..2 {
+        let data = serde_json::to_vec(&vec![vec![Value::U64(DecimalU64(value))]]).unwrap();
+        sender.send(&f.runtime, data.into_boxed_slice()).unwrap();
+    }
+    let OwnedBatchEvent::Data(first) = receiver.receive().unwrap() else {
+        panic!("missing first batch")
+    };
+    let OwnedBatchEvent::Data(second) = receiver.receive().unwrap() else {
+        panic!("missing second batch")
+    };
+    let mut visited = Vec::new();
+    let error = consume_json_batch(
+        second,
+        &f.runtime,
+        &f.prepared,
+        &f.source,
+        JsonBatchConsumerLimits {
+            max_bytes: 4096,
+            max_rows: 1,
+            max_columns: 1,
+        },
+        None,
+        |row| {
+            visited.push(row.clone());
+            Ok(())
+        },
+    )
+    .err()
+    .expect("out-of-order batch was accepted");
+    assert_eq!(error.code, ErrorCode::InvalidArgument);
+    assert!(visited.is_empty(), "out-of-order callback already ran");
+    assert!(!f.cancel.status().unwrap().delivery_complete);
+    drop(first);
+}
+
+#[test]
 fn json_batch_consumer_rejects_invalid_or_partially_processed_packets() {
     for scenario in [
         "callback",

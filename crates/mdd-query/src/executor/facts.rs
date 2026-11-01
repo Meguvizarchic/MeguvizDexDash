@@ -834,6 +834,28 @@ fn annotation_schema(relation: &str) -> Option<RelationSchema> {
             column("encoded_offset", U64, false),
             column("encoded_length", U64, false),
         ],
+        "annotation_owners" => vec![
+            column("dex_occurrence_id", Utf16, false),
+            column("class_definition", Entity, false),
+            column("owner_kind", Utf16, false),
+            column("owner_reference", Entity, false),
+            column("encoded_parameter_slot", U64, true),
+            column("annotation_set_offset", U64, true),
+            column("prototype_parameter_count", U64, true),
+            column("prototype_position_coverage", Utf16, false),
+        ],
+        "annotation_sets" => vec![
+            column("dex_occurrence_id", Utf16, false),
+            column("annotation_set_offset", U64, false),
+            column("entry_count", U64, false),
+            column("encoded_length", U64, false),
+        ],
+        "annotation_set_entries" => vec![
+            column("dex_occurrence_id", Utf16, false),
+            column("annotation_set_offset", U64, false),
+            column("ordinal", U64, false),
+            column("annotation_offset", U64, false),
+        ],
         "annotation_values" => vec![
             column("dex_occurrence_id", Utf16, false),
             column("node_id", U64, false),
@@ -920,6 +942,84 @@ impl FactSource for AnnotationCatalog {
             return self.base.source().scan(relation);
         };
         self.require_layers(&schema.required_layers.into_iter().collect())?;
+        if relation == "annotation_owners" {
+            return Ok(Box::new(self.annotations.iter().flat_map(|facts| {
+                facts.data().owner_bindings.iter().map(move |owner| {
+                    use mdd_dex::annotations::AnnotationOwnerKind;
+                    let (kind, reference_kind) = match owner.kind {
+                        AnnotationOwnerKind::Class => ("class", EntityKind::ClassDefinition),
+                        AnnotationOwnerKind::Field => ("field", EntityKind::FieldReference),
+                        AnnotationOwnerKind::Method => ("method", EntityKind::MethodReference),
+                        AnnotationOwnerKind::Parameter => {
+                            ("parameter", EntityKind::MethodReference)
+                        }
+                    };
+                    let definitions = facts.definitions();
+                    // The raw relation exposes encoded slots and an explicit
+                    // mapping state; it does not certify prototype positions.
+                    let coverage = match (owner.kind, owner.parameter_position_in_prototype) {
+                        (AnnotationOwnerKind::Parameter, Some(true)) => "complete",
+                        (AnnotationOwnerKind::Parameter, None) => "unknown",
+                        (AnnotationOwnerKind::Parameter, Some(false)) => {
+                            return Err(MddError::new(
+                                ErrorCode::InternalFault,
+                                "query.facts",
+                                "invalid proven parameter position",
+                            ));
+                        }
+                        (_, None) => "not_applicable",
+                        (_, Some(_)) => {
+                            return Err(MddError::new(
+                                ErrorCode::InternalFault,
+                                "query.facts",
+                                "unexpected parameter position on non-parameter owner",
+                            ));
+                        }
+                    };
+                    Ok(vec![
+                        Value::text(&facts.source().dex_occurrence_id),
+                        Value::Entity(
+                            definitions.entity(EntityKind::ClassDefinition, owner.class_def_idx)?,
+                        ),
+                        Value::text(kind),
+                        Value::Entity(definitions.entity(reference_kind, owner.local_index)?),
+                        owner.parameter_ordinal.map_or(Value::Null, number),
+                        owner.annotation_set_offset.map_or(Value::Null, number),
+                        owner.prototype_parameter_count.map_or(Value::Null, number),
+                        Value::text(coverage),
+                    ])
+                })
+            })));
+        }
+        if relation == "annotation_sets" {
+            return Ok(Box::new(self.annotations.iter().flat_map(|facts| {
+                facts.data().sets.iter().map(move |set| {
+                    Ok(vec![
+                        Value::text(&facts.source().dex_occurrence_id),
+                        number(set.byte_offset),
+                        signature_ordinal(set.annotation_offsets.len())?,
+                        Value::U64(set.encoded_range.byte_length),
+                    ])
+                })
+            })));
+        }
+        if relation == "annotation_set_entries" {
+            return Ok(Box::new(self.annotations.iter().flat_map(|facts| {
+                facts.data().sets.iter().flat_map(move |set| {
+                    set.annotation_offsets
+                        .iter()
+                        .enumerate()
+                        .map(move |(ordinal, offset)| {
+                            Ok(vec![
+                                Value::text(&facts.source().dex_occurrence_id),
+                                number(set.byte_offset),
+                                signature_ordinal(ordinal)?,
+                                number(*offset),
+                            ])
+                        })
+                })
+            })));
+        }
         if relation == "annotation_items" {
             return Ok(Box::new(self.annotations.iter().flat_map(|facts| {
                 facts.data().annotation_items.iter().map(move |item| {

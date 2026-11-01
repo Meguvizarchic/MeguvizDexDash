@@ -1,0 +1,44 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "mdd-query",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "1",
+    "json_batch_out_of_order_is_rejected_before_consumer_callback",
+    "--",
+    "--nocapture"
+  ],
+  "started_utc": "2026-11-01T02:49:56.565300+00:00",
+  "finished_utc": "2026-11-01T02:50:04.809185+00:00",
+  "exit_code": 101,
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-query/src/budget.rs": "3c3dd15c6deeecd90f59d020ff877ec69f87c63e419b946a4771e81dddede19c",
+    "crates/mdd-query/src/executor.rs": "a664109676239f3e06846b9b79b64dffaa1b11cbd33a8bf9b5569671698ac2ae",
+    "crates/mdd-query/src/executor/runtime_tests.rs": "1cd71064a31a732b35a229bb5c0dcbcfc2d55fa0e9f3098b0347e91fac1a93de",
+    "crates/mdd-query/src/executor/facts.rs": "285f52b562f4a988dcd4a60bbce46d6dc5fe624b9f0a01126a4c61e72e7218e9",
+    "crates/mdd-session/src/lib.rs": "afda23d2dbb014680afa204ed7574387c017740223c6d5f68431c4b5f893efdd",
+    "crates/mdd-session/src/cancellation.rs": "7e3636d5e62cf4de567fb55088f186e5130eb024ddd0517a535e15bcad669114",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  },
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-query/src/budget.rs": "3c3dd15c6deeecd90f59d020ff877ec69f87c63e419b946a4771e81dddede19c",
+    "crates/mdd-query/src/executor.rs": "a664109676239f3e06846b9b79b64dffaa1b11cbd33a8bf9b5569671698ac2ae",
+    "crates/mdd-query/src/executor/runtime_tests.rs": "1cd71064a31a732b35a229bb5c0dcbcfc2d55fa0e9f3098b0347e91fac1a93de",
+    "crates/mdd-query/src/executor/facts.rs": "285f52b562f4a988dcd4a60bbce46d6dc5fe624b9f0a01126a4c61e72e7218e9",
+    "crates/mdd-session/src/lib.rs": "afda23d2dbb014680afa204ed7574387c017740223c6d5f68431c4b5f893efdd",
+    "crates/mdd-session/src/cancellation.rs": "7e3636d5e62cf4de567fb55088f186e5130eb024ddd0517a535e15bcad669114",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  },
+  "raw_stdout_sha256": "61dc4111b7f4e39853f0b445943458a1a94dc1b9e542177bc21f79e3d5b6a2ec",
+  "raw_stderr_sha256": "479e31863c523151568359c4fa14b0aa73d8f5b3bc6e542e3b8002b431eee9ea",
+  "scope": "synthetic two-packet out-of-order callback; selected source hashes only; no full qualification",
+  "redaction": "workspace path replaced; raw logs retained in ignored local artifacts"
+}

@@ -549,7 +549,7 @@
       "id": "MDD-022",
       "phase": "M2",
       "title": "实现注解、encoded values 与泛型签名",
-      "status": "done",
+      "status": "in_progress",
       "depends_on": [
         "MDD-020",
         "MDD-021"
@@ -578,12 +578,18 @@
         "docs/03_HOSTLAB_MIGRATION.md",
         "docs/04_VALIDATION_AND_PERFORMANCE.md"
       ],
-      "implementation_notes": "MDD020 physically revalidated and MDD021 accepted; production annotations now delegated",
+      "implementation_notes": "MDD020 physically revalidated and MDD021 accepted; production annotations now delegated; reopened after short parameter list marked Unknown while owner positions were emitted as Some(true); parser fix and independent requalification required",
       "implementation_evidence": [
         "artifacts/mdd-022/annotation-conformance.json",
-        "artifacts/integration/20261028/root-annotations-accepted/record.json"
+        "artifacts/integration/20261028/root-annotations-accepted/record.json",
+        "artifacts/mdd-022/parameter-position-unknown-20261101/red/record.json",
+        "artifacts/mdd-022/parameter-position-unknown-20261101/final/record.json",
+        "artifacts/mdd-022/parameter-position-unknown-20261101/sql-join-final/record.json"
       ],
-      "completion_scope": "complete encoded annotations/values and ordered Signature; missing parameter slots are unknown, not NULL"
+      "completion_scope": "complete encoded annotations/values and ordered Signature; missing parameter slots are unknown, not NULL",
+      "blocking_reasons": [
+        "Short encoded parameter list exposed unproven prototype positions as known; complete requalification is deferred until unified validation."
+      ]
     },
     {
       "id": "MDD-023",
@@ -750,6 +756,9 @@
         "artifacts/mdd-026/indexes/runs/20261028T141315875747Z/readback.json",
         "artifacts/mdd-026/root-reviewed-index-tests/record.json",
         "artifacts/mdd-026/new-audit/column-evidence.json"
+      ],
+      "blocking_reasons": [
+        "MDD-022 reopened after unproven parameter position exposure; its original acceptance must be requalified before downstream completion."
       ]
     },
     {

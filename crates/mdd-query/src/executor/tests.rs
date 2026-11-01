@@ -329,6 +329,246 @@ fn typed_signature_catalog_keeps_owner_fragments_and_occurrences() {
 }
 
 #[test]
+fn typed_annotation_owner_sets_preserve_sources_and_shared_entries() {
+    let input = InputSpec {
+        path: PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/annotations/generated/annotations-038.dex"),
+        kind: InputKind::RawDex,
+        expected_sha256: None,
+    };
+    let snapshot = Snapshot::capture(&[input.clone(), input], CaptureLimits::default()).unwrap();
+    let mut occurrences = Vec::new();
+    let mut annotations = Vec::new();
+    for source in snapshot.sources() {
+        let inventory =
+            ArchiveInventory::build(source, InventoryPolicy::default(), ArchiveLimits::default())
+                .unwrap();
+        let metadata =
+            MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default()).unwrap();
+        let definitions =
+            DefinitionFacts::build(metadata.clone(), DefinitionLimits::default()).unwrap();
+        annotations.push(Arc::new(
+            AnnotationFacts::build(definitions.clone(), AnnotationLimits::default()).unwrap(),
+        ));
+        occurrences.push(OccurrenceFacts {
+            metadata: Arc::new(metadata),
+            definitions: Some(Arc::new(definitions)),
+            code: None,
+        });
+    }
+    let native = NativeCatalog::new(
+        snapshot.manifest().snapshot_id.clone(),
+        DecimalU64(7),
+        occurrences,
+    )
+    .unwrap();
+    let catalog = AnnotationCatalog::new(native, annotations.clone()).unwrap();
+    let scan = |relation: &str| Node::Scan {
+        relation: relation.into(),
+    };
+    let plan = |root| {
+        prepare(
+            query(root, catalog.snapshot_id(), catalog.catalog_epoch()),
+            &catalog,
+        )
+        .unwrap()
+    };
+    let sets = plan(scan("annotation_sets"));
+    let entries = plan(scan("annotation_set_entries"));
+    let owners = plan(scan("annotation_owners"));
+    let joined = plan(Node::EquiJoin {
+        left: Box::new(scan("annotation_owners")),
+        right: Box::new(scan("annotation_set_entries")),
+        left_keys: vec![0, 5],
+        right_keys: vec![0, 1],
+        kind: JoinKind::Inner,
+    });
+    let oracle: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../tests/fixtures/annotations/oracle-results.json"
+    ))
+    .unwrap();
+    let expected: BTreeSet<_> = oracle["positive"]["annotation_set_entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|entry| {
+            (
+                entry["annotation_set_off"].as_u64().unwrap(),
+                entry["ordinal"].as_u64().unwrap(),
+                entry["annotation_off"].as_u64().unwrap(),
+            )
+        })
+        .collect();
+    let num = |value: &Value| match value {
+        Value::U64(DecimalU64(n)) => *n,
+        other => panic!("expected number: {other:?}"),
+    };
+    let text = |value: &Value| match value {
+        Value::Utf16(units) => String::from_utf16(units).unwrap(),
+        other => panic!("expected text: {other:?}"),
+    };
+    for mode in [
+        ExecutionMode::Streaming,
+        ExecutionMode::MaterializedReference,
+    ] {
+        let get = |prepared: &PreparedQuery| {
+            execute(
+                prepared,
+                &catalog,
+                mode,
+                &mut Control::new(ExecutionLimits::default()),
+            )
+            .unwrap()
+        };
+        let set_rows = get(&sets);
+        let entry_rows = get(&entries);
+        let owner_rows = get(&owners);
+        let joined_rows = get(&joined);
+        let mut by_source = BTreeMap::<String, BTreeSet<(u64, u64, u64)>>::new();
+        for row in entry_rows.rows() {
+            assert!(by_source.entry(text(&row[0])).or_default().insert((
+                num(&row[1]),
+                num(&row[2]),
+                num(&row[3])
+            )));
+        }
+        assert_eq!(by_source.len(), 2);
+        assert!(by_source.values().all(|rows| rows == &expected));
+        for row in set_rows.rows() {
+            let source = text(&row[0]);
+            let facts = annotations
+                .iter()
+                .find(|facts| facts.source().dex_occurrence_id == source)
+                .unwrap();
+            let offset = num(&row[1]) as usize;
+            let count =
+                u32::from_le_bytes(facts.bytes()[offset..offset + 4].try_into().unwrap()) as u64;
+            assert_eq!(count, num(&row[2]));
+            assert_eq!(num(&row[3]), 4 + count * 4);
+        }
+        assert_eq!(joined_rows.rows().len(), 14);
+        let mut fields = BTreeMap::<String, BTreeSet<u32>>::new();
+        let mut null_parameter_slots = 0;
+        for row in owner_rows.rows() {
+            let source = text(&row[0]);
+            let (Value::Entity(class), Value::Entity(owner)) = (&row[1], &row[3]) else {
+                panic!("expected source-bound owners")
+            };
+            assert_eq!(class.dex_occurrence_id, source);
+            assert_eq!(owner.dex_occurrence_id, source);
+            assert_eq!(class.snapshot_id, snapshot.manifest().snapshot_id);
+            assert_eq!(owner.snapshot_id, class.snapshot_id);
+            assert_eq!(
+                text(&row[7]),
+                if text(&row[2]) == "parameter" {
+                    "complete"
+                } else {
+                    "not_applicable"
+                }
+            );
+            if text(&row[2]) == "parameter" && row[5] == Value::Null {
+                assert_eq!(num(&row[4]), 1);
+                null_parameter_slots += 1;
+            }
+        }
+        assert_eq!(null_parameter_slots, 4);
+        for row in joined_rows.rows() {
+            assert_eq!(row[0], row[8]);
+            assert_eq!(row[5], row[9]);
+            if text(&row[2]) == "field" && num(&row[11]) == 1120 {
+                let Value::Entity(owner) = &row[3] else {
+                    panic!("expected field")
+                };
+                fields
+                    .entry(text(&row[0]))
+                    .or_default()
+                    .insert(owner.local_index);
+            }
+        }
+        assert_eq!(fields.len(), 2);
+        assert!(
+            fields
+                .values()
+                .all(|indices| indices == &BTreeSet::from([0, 1]))
+        );
+    }
+    let mut limits = ExecutionLimits::default();
+    limits.max_output_rows = 1;
+    assert_eq!(
+        execute(
+            &entries,
+            &catalog,
+            ExecutionMode::Streaming,
+            &mut Control::new(limits)
+        )
+        .err()
+        .unwrap()
+        .code,
+        ErrorCode::QuotaExceeded
+    );
+
+    let short_input = InputSpec {
+        path: PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/annotations/generated/bad-parameter-arity.dex"),
+        kind: InputKind::RawDex,
+        expected_sha256: None,
+    };
+    let short_snapshot = Snapshot::capture(&[short_input], CaptureLimits::default()).unwrap();
+    let inventory = ArchiveInventory::build(
+        &short_snapshot.sources()[0],
+        InventoryPolicy::default(),
+        ArchiveLimits::default(),
+    )
+    .unwrap();
+    let metadata =
+        MetadataFacts::build(&short_snapshot, &inventory, 0, StringLimits::default()).unwrap();
+    let definitions =
+        DefinitionFacts::build(metadata.clone(), DefinitionLimits::default()).unwrap();
+    let short_annotations =
+        AnnotationFacts::build(definitions.clone(), AnnotationLimits::default()).unwrap();
+    let short_catalog = AnnotationCatalog::new(
+        NativeCatalog::new(
+            short_snapshot.manifest().snapshot_id.clone(),
+            DecimalU64(0),
+            vec![OccurrenceFacts {
+                metadata: Arc::new(metadata),
+                definitions: Some(Arc::new(definitions)),
+                code: None,
+            }],
+        )
+        .unwrap(),
+        vec![Arc::new(short_annotations)],
+    )
+    .unwrap();
+    let short_plan = prepare(
+        query(
+            scan("annotation_owners"),
+            short_catalog.snapshot_id(),
+            short_catalog.catalog_epoch(),
+        ),
+        &short_catalog,
+    )
+    .unwrap();
+    let result = execute(
+        &short_plan,
+        &short_catalog,
+        ExecutionMode::Streaming,
+        &mut Control::new(ExecutionLimits::default()),
+    )
+    .unwrap();
+    let parameters: Vec<_> = result
+        .rows()
+        .iter()
+        .filter(|row| text(&row[2]) == "parameter")
+        .collect();
+    assert_eq!(parameters.len(), 2);
+    for row in parameters {
+        assert_eq!(num(&row[4]), 0);
+        assert_eq!(text(&row[7]), "unknown");
+    }
+}
+
+#[test]
 fn typed_annotation_physical_values_keep_identity_bits_and_string_links() {
     let input = InputSpec {
         path: PathBuf::from(env!("CARGO_MANIFEST_DIR"))

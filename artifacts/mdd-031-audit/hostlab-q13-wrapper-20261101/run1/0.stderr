@@ -1,0 +1,9 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.14s
+     Running unittests src\lib.rs (target\debug\deps\mdd_sql-46977fcd4387e316.exe)
+
+thread 'bridge::tests::hostlab_shape_and_hex_wrapper_preserve_columns_rows_and_required_layers' (40752) panicked at crates\mdd-sql\src\bridge.rs:3115:13:
+assertion `left == right` failed
+  left: [[Text(SqlText { utf16: [51, 49], original_mutf8: None }), Text(SqlText { utf16: [54, 49, 67, 48, 56, 48, 54, 50], original_mutf8: None })], [Text(SqlText { utf16: [51, 50], original_mutf8: None }), Text(SqlText { utf16: [78], original_mutf8: None })], [Text(SqlText { utf16: [51, 51], original_mutf8: None }), Text(SqlText { utf16: [], original_mutf8: None })]]
+ right: [[Text(SqlText { utf16: [51, 49], original_mutf8: None }), Text(SqlText { utf16: [54, 49, 48, 48, 54, 50], original_mutf8: None })], [Text(SqlText { utf16: [51, 50], original_mutf8: None }), Text(SqlText { utf16: [78], original_mutf8: None })], [Text(SqlText { utf16: [51, 51], original_mutf8: None }), Text(SqlText { utf16: [], original_mutf8: None })]]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p mdd-sql --lib`

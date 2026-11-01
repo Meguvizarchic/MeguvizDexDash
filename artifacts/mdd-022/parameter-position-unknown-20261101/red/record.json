@@ -1,0 +1,33 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "mdd-dex",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "1",
+    "short_parameter_list_does_not_claim_known_prototype_positions",
+    "--",
+    "--nocapture"
+  ],
+  "started_utc": "2026-11-01T02:50:34.787792+00:00",
+  "finished_utc": "2026-11-01T02:50:42.256104+00:00",
+  "exit_code": 101,
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-dex/src/annotations.rs": "b336209aabf8d8c07d74f0976a1cf477805199d2e9f519f7d18c547eada205c0",
+    "tests/fixtures/annotations/generated/bad-parameter-arity.dex": "dac87eb4842227104f1a7b3f215eb1fdc452422273c54020de89e88939ceea4f"
+  },
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-dex/src/annotations.rs": "b336209aabf8d8c07d74f0976a1cf477805199d2e9f519f7d18c547eada205c0",
+    "tests/fixtures/annotations/generated/bad-parameter-arity.dex": "dac87eb4842227104f1a7b3f215eb1fdc452422273c54020de89e88939ceea4f"
+  },
+  "stdout_raw_sha256": "456c71de11e5fb101a21efac617eb8369128c9226e7d58cd90f66c5ecead464e",
+  "stderr_raw_sha256": "1460b32a2aed51be92afc052277f8bca1089850a971f26f6a2659e1c2692d734",
+  "scope": "short encoded parameter list; expected unknown semantic positions; no full qualification"
+}

@@ -1117,6 +1117,8 @@ pub fn read_annotations<M: DefinitionMetadata>(
                     .prototype(method.proto_idx)
                     .ok_or_else(|| failure("ANNOTATION_PARAMETER_PROTO", u64::from(offset), 16))?;
                 let list = &ref_lists[refs_by_offset[&entry.target_byte_offset]];
+                let position_complete =
+                    list.annotation_set_offsets.len() == proto.parameter_type_indices.len();
                 p.budget.rows(1, u64::from(list.byte_offset))?;
                 parameter_lists.push(ParameterListBinding {
                     class_def_idx: class.class_def_idx,
@@ -1125,9 +1127,7 @@ pub fn read_annotations<M: DefinitionMetadata>(
                     encoded_slot_count: list.annotation_set_offsets.len() as u32,
                     prototype_parameter_count: proto.parameter_type_indices.len() as u32,
                     encoded_slots_complete: true,
-                    prototype_position_coverage: if list.annotation_set_offsets.len()
-                        == proto.parameter_type_indices.len()
-                    {
+                    prototype_position_coverage: if position_complete {
                         Completeness::Complete
                     } else {
                         Completeness::Unknown
@@ -1146,9 +1146,8 @@ pub fn read_annotations<M: DefinitionMetadata>(
                         parameter_ordinal: Some(ordinal as u32),
                         annotation_set_offset: *set,
                         prototype_parameter_count: Some(proto.parameter_type_indices.len() as u32),
-                        parameter_position_in_prototype: Some(
-                            ordinal < proto.parameter_type_indices.len(),
-                        ),
+                        parameter_position_in_prototype: position_complete
+                            .then_some(ordinal < proto.parameter_type_indices.len()),
                     });
                 }
             } else {
@@ -1223,6 +1222,13 @@ mod tests {
                 .count(),
             2
         );
+        assert!(
+            facts
+                .owner_bindings
+                .iter()
+                .filter(|owner| owner.kind == AnnotationOwnerKind::Parameter)
+                .all(|owner| owner.parameter_position_in_prototype == Some(true))
+        );
     }
     #[test]
     fn parameter_lists_preserve_encoded_slots_without_inventing_nulls() {
@@ -1248,6 +1254,36 @@ mod tests {
                     && binding.encoded_slot_count == 1
                     && binding.prototype_parameter_count == 2
                     && binding.prototype_position_coverage == Completeness::Unknown)
+        );
+    }
+    #[test]
+    fn short_parameter_list_does_not_claim_known_prototype_positions() {
+        let facts = parse(
+            include_bytes!("../../../tests/fixtures/annotations/generated/bad-parameter-arity.dex"),
+            AnnotationLimits::default(),
+        )
+        .unwrap();
+        let parameters: Vec<_> = facts
+            .owner_bindings
+            .iter()
+            .filter(|owner| owner.kind == AnnotationOwnerKind::Parameter)
+            .collect();
+        assert_eq!(parameters.len(), 2);
+        assert!(
+            parameters
+                .iter()
+                .all(|owner| owner.parameter_ordinal == Some(0))
+        );
+        assert!(
+            parameters
+                .iter()
+                .all(|owner| owner.parameter_position_in_prototype.is_none())
+        );
+        assert!(
+            facts
+                .parameter_lists
+                .iter()
+                .all(|binding| binding.prototype_position_coverage == Completeness::Unknown)
         );
     }
     #[test]

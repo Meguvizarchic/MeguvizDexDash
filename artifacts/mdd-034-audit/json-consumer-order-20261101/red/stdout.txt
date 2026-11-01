@@ -1,0 +1,11 @@
+
+running 1 test
+test executor::runtime_tests::json_batch_out_of_order_is_rejected_before_consumer_callback ... FAILED
+
+failures:
+
+failures:
+    executor::runtime_tests::json_batch_out_of_order_is_rejected_before_consumer_callback
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 141 filtered out; finished in 0.00s
+

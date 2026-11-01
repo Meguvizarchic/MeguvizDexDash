@@ -2602,6 +2602,7 @@ mod tests {
             "valid-orphan-empty-set.dex",
             "valid-orphan-empty-ref-list.dex",
             "bad-parameter-arity.dex",
+            "bad-parameter-arity.dex",
         ]
         .into_iter()
         .map(|name| InputSpec {
@@ -2712,6 +2713,64 @@ mod tests {
         assert!(
             expected[4].iter().any(|r| r[7] != "complete"),
             "unknown parameter coverage fixture missing"
+        );
+        let short_source = &facts.last().unwrap().source().dex_occurrence_id;
+        let owners = bridge.query("SELECT dex_occurrence_id,kind,parameter_ordinal,parameter_position_in_prototype FROM native_annotation_owners").unwrap();
+        let short_owners: Vec<_> = owners.rows().iter().filter(|row| {
+            matches!(&row[0], SqlValue::Text(text) if text.strict_utf8().unwrap() == *short_source)
+                && matches!(&row[1], SqlValue::Text(text) if text.strict_utf8().unwrap() == "parameter")
+        }).collect();
+        assert_eq!(short_owners.len(), 2);
+        for row in short_owners {
+            assert_eq!(row[2], SqlValue::U64(DecimalU64(0)));
+            // NULL denotes unproven position; the parameter-list relation
+            // below separately exposes the authoritative Unknown coverage.
+            assert_eq!(row[3], SqlValue::Null);
+        }
+        let lists = bridge.query("SELECT dex_occurrence_id,prototype_position_coverage FROM native_annotation_parameter_lists").unwrap();
+        let short_lists: Vec<_> = lists.rows().iter().filter(|row| {
+            matches!(&row[0], SqlValue::Text(text) if text.strict_utf8().unwrap() == *short_source)
+        }).collect();
+        assert_eq!(short_lists.len(), 2);
+        assert!(short_lists.iter().all(|row| matches!(&row[1], SqlValue::Text(text) if text.strict_utf8().unwrap() == "unknown")));
+        // Coverage must be associated through all source-local keys; NULL
+        // alone is not a proof of an absent or mapped prototype parameter.
+        let short_sources: std::collections::BTreeSet<_> = facts[facts.len() - 2..]
+            .iter()
+            .map(|f| f.source().dex_occurrence_id.clone())
+            .collect();
+        assert_eq!(short_sources.len(), 2);
+        let joined = bridge.query("SELECT o.dex_occurrence_id,o.class_def_idx,o.local_index,o.kind,o.parameter_ordinal,o.parameter_position_in_prototype,p.dex_occurrence_id,p.class_def_idx,p.method_idx,p.prototype_position_coverage FROM native_annotation_owners o JOIN native_annotation_parameter_lists p ON o.dex_occurrence_id=p.dex_occurrence_id AND o.class_def_idx=p.class_def_idx AND o.local_index=p.method_idx").unwrap();
+        let mut matches =
+            std::collections::BTreeMap::<String, std::collections::BTreeSet<u64>>::new();
+        for row in joined.rows() {
+            let SqlValue::Text(source) = &row[0] else {
+                panic!("missing occurrence")
+            };
+            let source = source.strict_utf8().unwrap();
+            if !short_sources.contains(&source)
+                || !matches!(&row[3], SqlValue::Text(text) if text.strict_utf8().unwrap() == "parameter")
+            {
+                continue;
+            }
+            assert_eq!(row[0], row[6]);
+            assert_eq!(row[1], row[7]);
+            assert_eq!(row[2], row[8]);
+            assert_eq!(row[4], SqlValue::U64(DecimalU64(0)));
+            assert_eq!(row[5], SqlValue::Null);
+            assert!(
+                matches!(&row[9], SqlValue::Text(text) if text.strict_utf8().unwrap() == "unknown")
+            );
+            let SqlValue::U64(DecimalU64(method)) = row[2] else {
+                panic!("missing method")
+            };
+            assert!(matches.entry(source).or_default().insert(method));
+        }
+        assert_eq!(matches.len(), 2);
+        assert!(
+            matches
+                .values()
+                .all(|methods| methods == &std::collections::BTreeSet::from([0, 1]))
         );
         for (index, name) in [
             "native_annotation_sets",

@@ -1,0 +1,75 @@
+{
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-sql/src/bridge.rs": "6ef32709c84b75be20aa0dbd0a7b820ddb38aeb40392d3cc465cb58c2894aa7b",
+    "crates/mdd-sql/src/dialects/ast.rs": "d281bb5d3f18318ee515151cd19afaf14cd72d53490ee8c82e9ee7abfe81de20",
+    "crates/mdd-sql/src/dialects/functions.rs": "f4aca963abe8d9ef73003d1860111b8a6da14505be7f9f0c1eddec6f9fe3015c",
+    "crates/mdd-sql/src/provider/metadata.rs": "acdd46b685727176fc983b414aea3508370f35151b6a15cefa49a226cd68918c",
+    "crates/mdd-query/src/executor/facts.rs": "81468f74e85197b8e69a1b04f3a4f746a9a62828ca3e9320399d40a3a1fa6e70",
+    "crates/mdd-facts/src/annotations.rs": "25ea01ec2a5c3bfe968044667a0955b7acdb0cd0b30898a961acbd28dda6597d",
+    "crates/mdd-dex/src/annotations.rs": "27395b3e4a916e43e10ef1b6ec4f0b5fafaf591288bae08ae3460918920ad915",
+    "crates/mdd-types/src/lib.rs": "59e6f5df23325ac7828b275d8701acacf47b3a75726f59eab3ec6e740df8cd38",
+    "artifacts/mdd-031/a0-literals/observations.json": "0b018b3db34e36dbd68fbee4b402cd8d7c182f9bff73a851b68c73108a42e32e",
+    "artifacts/mdd-031-audit/hostlab-case-hex-independent-20261029/verify.py": "595a5babe98ed48d2cc796ad3bcad5f2912d3de7792eeb8362b464e1f5f9e926",
+    "conformance/corpus/hostlab/source-8782f43/native_cli.py": "ca2b1cfb824c0da8f6ab00baeb6bbb24308c734b9ebc3ba4c5c7219d9503a3e3"
+  },
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-sql/src/bridge.rs": "6ef32709c84b75be20aa0dbd0a7b820ddb38aeb40392d3cc465cb58c2894aa7b",
+    "crates/mdd-sql/src/dialects/ast.rs": "d281bb5d3f18318ee515151cd19afaf14cd72d53490ee8c82e9ee7abfe81de20",
+    "crates/mdd-sql/src/dialects/functions.rs": "f4aca963abe8d9ef73003d1860111b8a6da14505be7f9f0c1eddec6f9fe3015c",
+    "crates/mdd-sql/src/provider/metadata.rs": "acdd46b685727176fc983b414aea3508370f35151b6a15cefa49a226cd68918c",
+    "crates/mdd-query/src/executor/facts.rs": "81468f74e85197b8e69a1b04f3a4f746a9a62828ca3e9320399d40a3a1fa6e70",
+    "crates/mdd-facts/src/annotations.rs": "25ea01ec2a5c3bfe968044667a0955b7acdb0cd0b30898a961acbd28dda6597d",
+    "crates/mdd-dex/src/annotations.rs": "27395b3e4a916e43e10ef1b6ec4f0b5fafaf591288bae08ae3460918920ad915",
+    "crates/mdd-types/src/lib.rs": "59e6f5df23325ac7828b275d8701acacf47b3a75726f59eab3ec6e740df8cd38",
+    "artifacts/mdd-031/a0-literals/observations.json": "0b018b3db34e36dbd68fbee4b402cd8d7c182f9bff73a851b68c73108a42e32e",
+    "artifacts/mdd-031-audit/hostlab-case-hex-independent-20261029/verify.py": "595a5babe98ed48d2cc796ad3bcad5f2912d3de7792eeb8362b464e1f5f9e926",
+    "conformance/corpus/hostlab/source-8782f43/native_cli.py": "ca2b1cfb824c0da8f6ab00baeb6bbb24308c734b9ebc3ba4c5c7219d9503a3e3"
+  },
+  "runs": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-sql",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "hostlab_shape_and_hex_wrapper_preserve_columns_rows_and_required_layers",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T02:55:30.145423+00:00",
+      "finished_utc": "2026-11-01T02:55:39.453963+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "eea2b70b255a27869bd0d4ed66684ba53dd1dc9b16a25356f61ca81eab8b69f3",
+      "raw_stderr_sha256": "ed3bbb5ed9f60d66a0deb40192ca1c5b210f129480609db8296d34ee13c5224b"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-sql",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "short_circuit_cannot_skip_required_layers_and_unused_cte_does_not_build_them",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T02:55:39.454054+00:00",
+      "finished_utc": "2026-11-01T02:55:40.174651+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "46e8918868c0487327454582c484a0374dc1f97eb208853c953a155f8054a572",
+      "raw_stderr_sha256": "6f84e0f910deba6b677d731947f9bfa085a950f0d806370da370d85702cc6360"
+    }
+  ],
+  "scope": "Q13 synthetic shape and hex wrapper; A0 retained literal evidence; HostLab strict decode step checked directly, not full HostLab; no profile qualification; paths redacted, originals retained locally"
+}

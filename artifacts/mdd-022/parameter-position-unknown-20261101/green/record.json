@@ -1,0 +1,92 @@
+{
+  "started_utc": "2026-11-01T02:51:37.383323+00:00",
+  "finished_utc": "2026-11-01T02:51:47.529100+00:00",
+  "source_before": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-dex/src/annotations.rs": "27395b3e4a916e43e10ef1b6ec4f0b5fafaf591288bae08ae3460918920ad915",
+    "crates/mdd-facts/src/annotations.rs": "25ea01ec2a5c3bfe968044667a0955b7acdb0cd0b30898a961acbd28dda6597d",
+    "crates/mdd-query/src/executor.rs": "6cce9cf70ea563e3b67cdad6ba40a7ca6e17395742c4d124074403d81c5f496b",
+    "crates/mdd-query/src/executor/facts.rs": "41f7a318016f2c8efd39bafc95ec76fd4b443585c36eec56d8e89ed567a387a7",
+    "crates/mdd-query/src/executor/tests.rs": "21c5568dc7b9214b54108baa0c9e822af23b6a7e11511a8f51e738a269f67238",
+    "crates/mdd-session/src/lib.rs": "afda23d2dbb014680afa204ed7574387c017740223c6d5f68431c4b5f893efdd",
+    "crates/mdd-session/src/cancellation.rs": "7e3636d5e62cf4de567fb55088f186e5130eb024ddd0517a535e15bcad669114",
+    "tests/fixtures/annotations/generated/bad-parameter-arity.dex": "dac87eb4842227104f1a7b3f215eb1fdc452422273c54020de89e88939ceea4f",
+    "tests/fixtures/annotations/generated/annotations-038.dex": "65380a8b23601e17339379be211e417d8b4c8383b686b6d173f800656b985360",
+    "tests/fixtures/annotations/oracle-results.json": "dc7fc27f6977703e16f9973ecf1bfcd9986c0933276d9a0e62acacf10e04d4e1"
+  },
+  "source_after": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-dex/src/annotations.rs": "27395b3e4a916e43e10ef1b6ec4f0b5fafaf591288bae08ae3460918920ad915",
+    "crates/mdd-facts/src/annotations.rs": "25ea01ec2a5c3bfe968044667a0955b7acdb0cd0b30898a961acbd28dda6597d",
+    "crates/mdd-query/src/executor.rs": "6cce9cf70ea563e3b67cdad6ba40a7ca6e17395742c4d124074403d81c5f496b",
+    "crates/mdd-query/src/executor/facts.rs": "41f7a318016f2c8efd39bafc95ec76fd4b443585c36eec56d8e89ed567a387a7",
+    "crates/mdd-query/src/executor/tests.rs": "21c5568dc7b9214b54108baa0c9e822af23b6a7e11511a8f51e738a269f67238",
+    "crates/mdd-session/src/lib.rs": "afda23d2dbb014680afa204ed7574387c017740223c6d5f68431c4b5f893efdd",
+    "crates/mdd-session/src/cancellation.rs": "7e3636d5e62cf4de567fb55088f186e5130eb024ddd0517a535e15bcad669114",
+    "tests/fixtures/annotations/generated/bad-parameter-arity.dex": "dac87eb4842227104f1a7b3f215eb1fdc452422273c54020de89e88939ceea4f",
+    "tests/fixtures/annotations/generated/annotations-038.dex": "65380a8b23601e17339379be211e417d8b4c8383b686b6d173f800656b985360",
+    "tests/fixtures/annotations/oracle-results.json": "dc7fc27f6977703e16f9973ecf1bfcd9986c0933276d9a0e62acacf10e04d4e1"
+  },
+  "runs": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-dex",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "short_parameter_list_does_not_claim_known_prototype_positions",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "stdout_raw_sha256": "9ccffb0e9228f36fa05492f941d68895b79035f7bc16cd52a6cc53baa85f1e30",
+      "stderr_raw_sha256": "0eb8a682ec71b1a31f7a09cc3971832a2d57dff11197a2117e76d16a06ea9782"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-dex",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "full_physical_annotations_preserve_types_bits_and_local_positions",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "stdout_raw_sha256": "470efa4fa0b10f93c89f725db6a2b119061f602e30ce4b3cfc4898588b3d1b40",
+      "stderr_raw_sha256": "e4c1e97c2ce7902c4866de9ac221cccaa0236d3f78893233adc0313fcfdaa13b"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-query",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "typed_annotation_owner_sets_preserve_sources_and_shared_entries",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "stdout_raw_sha256": "5bbc5f921d18f68e3d526d98d9b63c021c9feb68d8e5b4382225691ed5a9460a",
+      "stderr_raw_sha256": "5898651ccd63d67b1d9f0f6cc48c107c0e9e9fb3d6b1d9607de5da02d5a74f4b"
+    }
+  ],
+  "scope": "targeted parser positions and typed occurrence/set relationships; listed sources only; no MDD-022 qualification",
+  "redaction": "workspace path replaced; raw logs retained in ignored local directory"
+}

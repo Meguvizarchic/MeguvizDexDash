@@ -3072,6 +3072,90 @@ mod tests {
         }
     }
     #[test]
+    fn hostlab_shape_and_hex_wrapper_preserve_columns_rows_and_required_layers() {
+        let provider = Arc::new(RowsProvider {
+            binding: SqlBinding {
+                provider_identity: "shape-provider".into(),
+                snapshot_id: "shape-snapshot".into(),
+                catalog_epoch: DecimalU64(0),
+            },
+            columns: vec![
+                SqlColumn {
+                    id: "id".into(),
+                    name: "id".into(),
+                    data_type: SqlType::U64,
+                    nullable: false,
+                },
+                SqlColumn {
+                    id: "value".into(),
+                    name: "value".into(),
+                    data_type: SqlType::Text,
+                    nullable: true,
+                },
+            ],
+            rows: vec![
+                vec![SqlValue::U64(DecimalU64(1)), SqlValue::text("A\0B")],
+                vec![SqlValue::U64(DecimalU64(2)), SqlValue::Null],
+                vec![SqlValue::U64(DecimalU64(3)), SqlValue::text("")],
+            ],
+        });
+        let inner = "SELECT id,value FROM vals ORDER BY id";
+        let shape = format!("SELECT * FROM ({inner}) AS hostlab_shape LIMIT 0");
+        let values = format!(
+            "SELECT CASE WHEN \"id\" IS NULL THEN 'N' ELSE hex(CAST(\"id\" AS TEXT)) END AS \"id\",CASE WHEN \"value\" IS NULL THEN 'N' ELSE hex(CAST(\"value\" AS TEXT)) END AS \"value\" FROM ({inner}) AS hostlab_rows"
+        );
+        for dialect in [SqlDialect::DexSql010, SqlDialect::DexSql011] {
+            let bridge = SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+            let shape_result = bridge.query(&shape).unwrap();
+            assert_eq!(shape_result.columns(), &["id", "value"]);
+            assert!(shape_result.rows().is_empty());
+            assert_eq!(shape_result.required_relations, ["vals"]);
+            let rows = bridge.query(&values).unwrap();
+            assert_eq!(rows.columns(), shape_result.columns());
+            assert_eq!(
+                rows.rows(),
+                &[
+                    // The retained fixed A0 literal observation reports this
+                    // MUTF-8 encoding for exactly A\0B. HostLab's strict UTF-8
+                    // decoding of C0 80 fails, so this is not compatibility proof.
+                    vec![SqlValue::text("31"), SqlValue::text("41C08042")],
+                    vec![SqlValue::text("32"), SqlValue::text("N")],
+                    vec![SqlValue::text("33"), SqlValue::text("")],
+                ]
+            );
+            let SqlValue::Text(hex) = &rows.rows()[0][1] else {
+                panic!("wrapper must return hexadecimal text")
+            };
+            let hex = hex.strict_utf8().unwrap();
+            let decoded = (0..hex.len())
+                .step_by(2)
+                .map(|index| u8::from_str_radix(&hex[index..index + 2], 16).unwrap())
+                .collect::<Vec<_>>();
+            assert!(std::str::from_utf8(&decoded).is_err());
+            assert_eq!(
+                bridge
+                    .query("SELECT * FROM (SELECT missing FROM vals ORDER BY id) AS hostlab_shape LIMIT 0")
+                    .unwrap_err()
+                    .code,
+                ErrorCode::InvalidArgument
+            );
+        }
+        let (unbuilt_provider, _) = bridge();
+        let unbuilt = Arc::new(Unbuilt {
+            inner: unbuilt_provider,
+            required: AtomicUsize::new(0),
+        });
+        let bridge =
+            SqlBridge::new(unbuilt.clone(), SqlDialect::DexSql010, SqlLimits::default()).unwrap();
+        let unbuilt_shape =
+            "SELECT * FROM (SELECT id,value FROM facts ORDER BY id) AS hostlab_shape LIMIT 0";
+        assert_eq!(
+            bridge.query(unbuilt_shape).unwrap_err().code,
+            ErrorCode::IncompleteFacts
+        );
+        assert!(unbuilt.required.load(Ordering::SeqCst) > 0);
+    }
+    #[test]
     fn short_circuit_cannot_skip_required_layers_and_unused_cte_does_not_build_them() {
         let (provider, _) = bridge();
         let source = Arc::new(Unbuilt {
