@@ -1716,11 +1716,16 @@ impl<T> BoundedSender<T> {
         });
         loop {
             self.0.checkpoint()?;
+            #[cfg(test)]
+            tests::pause_after_send_checkpoint();
             let mut state = self
                 .0
                 .state
                 .lock()
                 .map_err(|_| fault("queue mutex poisoned"))?;
+            // The query may have been cancelled while this sender waited for
+            // the queue mutex after its previous checkpoint.
+            self.0.checkpoint()?;
             if state.receiver_closed {
                 return Err(MddError::new(
                     ErrorCode::Cancelled,

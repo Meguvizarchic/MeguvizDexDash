@@ -4873,6 +4873,111 @@
       "sha256": "7d09b5f48217c2444e5a86e796f69743126aba5d7683bddaf7c48df3aa3bea95"
     },
     {
+      "path": "artifacts/mdd-005/required-layer-order-20261101/after.json",
+      "bytes": 630,
+      "sha256": "3082458a88fbb626a8548fdcddfea10d06da6f054cf9ccedce54449d538d9abd"
+    },
+    {
+      "path": "artifacts/mdd-005/required-layer-order-20261101/before.json",
+      "bytes": 630,
+      "sha256": "3082458a88fbb626a8548fdcddfea10d06da6f054cf9ccedce54449d538d9abd"
+    },
+    {
+      "path": "artifacts/mdd-005/required-layer-order-20261101/final-after.json",
+      "bytes": 630,
+      "sha256": "c264819a3d7f4b80e5e74afc4706bd2cbcaab5cb236684ae5e6a08856c5af729"
+    },
+    {
+      "path": "artifacts/mdd-005/required-layer-order-20261101/final-before.json",
+      "bytes": 630,
+      "sha256": "c264819a3d7f4b80e5e74afc4706bd2cbcaab5cb236684ae5e6a08856c5af729"
+    },
+    {
+      "path": "artifacts/mdd-005/required-layer-order-20261101/final-exit.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-005/required-layer-order-20261101/final-rows-exit.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-005/required-layer-order-20261101/final-rows.txt",
+      "bytes": 885,
+      "sha256": "d9b8327c52c5396afde1d4426de7e447ef36782cca11a0a6744b0105b91dd6bf"
+    },
+    {
+      "path": "artifacts/mdd-005/required-layer-order-20261101/final-source-exit.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-005/required-layer-order-20261101/final-source.txt",
+      "bytes": 479,
+      "sha256": "16fb637190f9630b798e62aa299506fa1d8dc4330d4cc782b6a37519add15cf5"
+    },
+    {
+      "path": "artifacts/mdd-005/required-layer-order-20261101/final.txt",
+      "bytes": 623,
+      "sha256": "10e076d914eeee4a122fbe404d8315d25ee3e3d162536e89ef1327b4a5925030"
+    },
+    {
+      "path": "artifacts/mdd-005/required-layer-order-20261101/green-exit.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-005/required-layer-order-20261101/green.txt",
+      "bytes": 474,
+      "sha256": "38aaf7053c4ce47a1e49c2e0acef4abfbe257dbb9f1e4fa0abd74d803e458e13"
+    },
+    {
+      "path": "artifacts/mdd-005/required-layer-order-20261101/probe.py",
+      "bytes": 3388,
+      "sha256": "f82a91a279646f1e13847b30dc37bae7be1a474fe3105759b020a2ad20e2d729"
+    },
+    {
+      "path": "artifacts/mdd-005/required-layer-order-20261101/record.json",
+      "bytes": 4765,
+      "sha256": "c8174c53339241b77b2cac3852d0ed939ce79bfe2b807905307e58ff0f2267b4"
+    },
+    {
+      "path": "artifacts/mdd-005/required-layer-order-20261101/red-exit.txt",
+      "bytes": 3,
+      "sha256": "f1b2f662800122bed0ff255693df89c4487fbdcf453d3524a42d4ec20c3d9c04"
+    },
+    {
+      "path": "artifacts/mdd-005/required-layer-order-20261101/red.txt",
+      "bytes": 1070,
+      "sha256": "37444871ccc0d0617e0b1325fb9eacbb1061b7620c32dfa12061690e24ae98b3"
+    },
+    {
+      "path": "artifacts/mdd-005/required-layer-order-20261101/redactions.json",
+      "bytes": 1121,
+      "sha256": "14994aac0909b562298419651d162f5a5c071bd9e3a8eb8898effdd880aa0700"
+    },
+    {
+      "path": "artifacts/mdd-005/required-layer-order-20261101/rows-exit.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-005/required-layer-order-20261101/rows.txt",
+      "bytes": 885,
+      "sha256": "5ed1841777c9560645a027809c673ccffec36741766339563a3f9d884373a861"
+    },
+    {
+      "path": "artifacts/mdd-005/required-layer-order-20261101/source-exit.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-005/required-layer-order-20261101/source.txt",
+      "bytes": 479,
+      "sha256": "8af2d35914be00840a765b02db028d000bf00a503bd7e8fcfeae68705400ebe7"
+    },
+    {
       "path": "artifacts/mdd-005/result-envelope-shape-20261030/green/output.txt",
       "bytes": 1767,
       "sha256": "c6addb219825901672d771279a9ea2dc8800668c3bae22955a78cfb556d5dc06"
@@ -19151,6 +19256,66 @@
       "path": "artifacts/mdd-031-audit/aggregate-filter-truth-20261101/run.py",
       "bytes": 1790,
       "sha256": "ad3b382d438d6d762dd832e0b0680134d99ec6fe7ab039313917e8ba5dcc81a7"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/between-context-oracle-20261101/after.json",
+      "bytes": 498,
+      "sha256": "d9cdb3abdc5f34dfc55f31518168962e5097c2616b917f13bb25e5ff4f2651f8"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/between-context-oracle-20261101/before.json",
+      "bytes": 498,
+      "sha256": "d9cdb3abdc5f34dfc55f31518168962e5097c2616b917f13bb25e5ff4f2651f8"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/between-context-oracle-20261101/build-exit.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/between-context-oracle-20261101/build.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/between-context-oracle-20261101/exit.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/between-context-oracle-20261101/final-build-exit.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/between-context-oracle-20261101/final-build.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/between-context-oracle-20261101/final-exit.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/between-context-oracle-20261101/final.txt",
+      "bytes": 86,
+      "sha256": "f5cd90dd5f3152cdcbfdc3ac7825f9fa3cc55f7289ec162d261dab67c26b562e"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/between-context-oracle-20261101/oracle.rs",
+      "bytes": 2858,
+      "sha256": "730d8e0b4fbd2c6a03333c4d07e0747147a839425ecd7a3f59f445a7dc2f6727"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/between-context-oracle-20261101/output.txt",
+      "bytes": 86,
+      "sha256": "f5cd90dd5f3152cdcbfdc3ac7825f9fa3cc55f7289ec162d261dab67c26b562e"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/between-context-oracle-20261101/record.json",
+      "bytes": 2324,
+      "sha256": "ea62820adedf18fd20c1857ccd3d74809f3953d885c62eabd5532dc2588f3c27"
     },
     {
       "path": "artifacts/mdd-031-audit/between-independent-20261029/Cargo.lock",
@@ -38626,6 +38791,86 @@
       "path": "artifacts/mdd-034-audit/scoped-reference-rebuild-20261101/split-final/stdout.txt",
       "bytes": 211,
       "sha256": "e878301beed32841d6199d4b58129ab12a4cc826563ed485bdc50b4b42c5be1f"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/send-cancel-before-lock-20261101/backpressure/output.txt",
+      "bytes": 371,
+      "sha256": "6c89251a4067594394128f00cda256e3e8911911a76fdd769495fa056140cd62"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/send-cancel-before-lock-20261101/backpressure/record.json",
+      "bytes": 1705,
+      "sha256": "7d43324922d406f7bbfeafc99810f29d05aa148a713a6c792df8b78338b25c08"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/send-cancel-before-lock-20261101/final/output.txt",
+      "bytes": 510,
+      "sha256": "831b05928e34059b97780581295f9df24af79093622dbfdc659a6bfa29462da2"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/send-cancel-before-lock-20261101/final/record.json",
+      "bytes": 1684,
+      "sha256": "8d7fa2d1001167a8e37e7d4438ed162b4fb943cf7d11177965960cdf7f0ccd3d"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/send-cancel-before-lock-20261101/final_backpressure/output.txt",
+      "bytes": 371,
+      "sha256": "d6a0b07aefd8c699e4e1df32d6d607b754a3670a7b30b1ea70981c416ccb2535"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/send-cancel-before-lock-20261101/final_backpressure/record.json",
+      "bytes": 1705,
+      "sha256": "3a850ada5e305d300b014af5b2d1d2af8c651b4a8c3d3e8351f73480a71d5df8"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/send-cancel-before-lock-20261101/final_owned/output.txt",
+      "bytes": 619,
+      "sha256": "5f72faa29fde630603f4e815527a47cc581525a7d873dc5e79b64ec269f51996"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/send-cancel-before-lock-20261101/final_owned/record.json",
+      "bytes": 1652,
+      "sha256": "c3398372cc0e24ea1248dc0996cf9d5d4cd2178197906c8a7e0ca7f637c627c1"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/send-cancel-before-lock-20261101/green/output.txt",
+      "bytes": 422,
+      "sha256": "66ad7d4581aebe5d3b0c212c6381ddae31e2061be3af5aa3f70e47b41e6cb4dc"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/send-cancel-before-lock-20261101/green/record.json",
+      "bytes": 1691,
+      "sha256": "11f0b287aee89b319a408a6fb4bd6d3322c348cf9da822df4b9ed4e5cb88ca64"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/send-cancel-before-lock-20261101/owned/output.txt",
+      "bytes": 619,
+      "sha256": "d017c4418aeb4eecfa59b82444777a8c54c0bde64998409952536c4a5df5b633"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/send-cancel-before-lock-20261101/owned/record.json",
+      "bytes": 1652,
+      "sha256": "6058b311b0ca7ce9eb020a929508343565cabbfe360cf630f5bb5f6fddc7c50c"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/send-cancel-before-lock-20261101/red/output.txt",
+      "bytes": 860,
+      "sha256": "fffc4583870b2618fc82204ebb76a6d161a393ea524adec79f4760fe9e244890"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/send-cancel-before-lock-20261101/red/record.json",
+      "bytes": 1693,
+      "sha256": "02cae50934fa706c7f24e73def5e42b00d6168546ee5512663beb25369d7b95c"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/send-cancel-before-lock-20261101/run.py",
+      "bytes": 1501,
+      "sha256": "13ae901c2cc423d47fc9b6e3718a942a35fe69837c836fb64f12210300205058"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/send-cancel-before-lock-20261101/summary.json",
+      "bytes": 1589,
+      "sha256": "7eb879f7125137df822381d055b8889ceedc02cadd943bd689efb4bb4d6dc9c7"
     },
     {
       "path": "artifacts/mdd-034-audit/sender-drop-first-fault-20261101/final/after.json",

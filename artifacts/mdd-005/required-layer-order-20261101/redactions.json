@@ -1,0 +1,22 @@
+[
+  {
+    "path": "artifacts/mdd-005/required-layer-order-20261101/red.txt",
+    "original_sha256": "5a41294c4eb437aa81ebc7fcb3bc513e7ce93949778efc790466dbe6d1840e81",
+    "redacted_sha256": "37444871ccc0d0617e0b1325fb9eacbb1061b7620c32dfa12061690e24ae98b3"
+  },
+  {
+    "path": "artifacts/mdd-034-audit/send-cancel-before-lock-20261101/final/output.txt",
+    "original_sha256": "106ccfe59df8483158e869e199eb6b8a4fdf87372dead41149d8255c4cad2e03",
+    "redacted_sha256": "831b05928e34059b97780581295f9df24af79093622dbfdc659a6bfa29462da2"
+  },
+  {
+    "path": "artifacts/mdd-034-audit/send-cancel-before-lock-20261101/green/output.txt",
+    "original_sha256": "7f4ea219ef3e4ddfb5deed3090cffc26fed4d564f1ec04a21f591e61038149a6",
+    "redacted_sha256": "66ad7d4581aebe5d3b0c212c6381ddae31e2061be3af5aa3f70e47b41e6cb4dc"
+  },
+  {
+    "path": "artifacts/mdd-034-audit/send-cancel-before-lock-20261101/red/output.txt",
+    "original_sha256": "553703e7c3dfa14075ee89d77d9dc703ee2fd95c558ee604112d6024dbe34df7",
+    "redacted_sha256": "fffc4583870b2618fc82204ebb76a6d161a393ea524adec79f4760fe9e244890"
+  }
+]

@@ -1,0 +1,8 @@
+test_bag_order_and_unmatched_row_sources (__main__.SourceChecks.test_bag_order_and_unmatched_row_sources) ... ok
+test_cell_identifies_both_sources_and_unique_column (__main__.SourceChecks.test_cell_identifies_both_sources_and_unique_column) ... ok
+test_source_columns_must_be_unique_and_present (__main__.SourceChecks.test_source_columns_must_be_unique_and_present) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.003s
+
+OK

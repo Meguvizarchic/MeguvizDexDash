@@ -257,10 +257,29 @@ def compare_complete_rows(left, right, expected_inputs, expected_request, requir
                                expected_identity=left_identity)
     right_certificate = consume(right, expected_inputs, expected_request, required_layers,
                                 expected_identity=right_identity)
-    common = {"comparison_codec": "mdd-canonical-json-v1",
+    common = {"comparison_codec": "mdd-canonical-json-v1-required-layers-set-v1",
               "left_sha256": left_certificate["canonical_sha256"],
               "right_sha256": right_certificate["canonical_sha256"],
+              "comparison_left_sha256": left_certificate["canonical_sha256"],
+              "comparison_right_sha256": right_certificate["canonical_sha256"],
               "qualification": False}
+    # The v1 receipt preserves array order. Comparison treats required layers
+    # as a set, matching the uniqueness and set-equality admission checks.
+    # Normalize each side even when another difference returns early, so the
+    # comparison digest always matches its declared codec.
+    def normalized_hash(output, certificate, identity):
+        coverage = output["result"]["coverage"]
+        ordered = sorted(coverage["required_layers"])
+        if coverage["required_layers"] == ordered:
+            return certificate["canonical_sha256"]
+        normalized_coverage = dict(coverage, required_layers=ordered)
+        normalized_result = dict(output["result"], coverage=normalized_coverage)
+        normalized_output = dict(output, result=normalized_result)
+        return consume(normalized_output, expected_inputs, expected_request, required_layers,
+                       expected_identity=identity)["canonical_sha256"]
+
+    common["comparison_left_sha256"] = normalized_hash(left, left_certificate, left_identity)
+    common["comparison_right_sha256"] = normalized_hash(right, right_certificate, right_identity)
     if left["result"]["operation"] != right["result"]["operation"]:
         return dict(common, equal_under_codec=False, difference={"kind": "operation"})
     if left["comparison_mode"] != right["comparison_mode"]:
@@ -312,7 +331,7 @@ def compare_complete_rows(left, right, expected_inputs, expected_request, requir
         return dict(common, equal_under_codec=False, difference=attach_sources(
             difference, left_rows[index] if index < len(left_rows) else None,
             right_rows[index] if index < len(right_rows) else None))
-    if left_certificate["canonical_sha256"] != right_certificate["canonical_sha256"]:
+    if common["comparison_left_sha256"] != common["comparison_right_sha256"]:
         return dict(common, equal_under_codec=False, difference={"kind": "result_context"})
     return dict(common, equal_under_codec=True, difference=None)
 

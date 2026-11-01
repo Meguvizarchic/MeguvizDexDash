@@ -1,0 +1,31 @@
+{
+  "task": "MDD-034",
+  "finding": "A query cancelled after a producer checkpoint but before its queue mutex acquisition could still enqueue and report successful send.",
+  "method": "Test-only thread-local pause immediately after the first checkpoint synchronizes a real query cancellation and queue-lock wait; the hook injects ordering, not an error.",
+  "fix": "Recheck query cancellation and deadline after acquiring the queue mutex before admitting a packet.",
+  "runs": {
+    "red": {
+      "record": "red/record.json",
+      "tests_run": 1,
+      "exit": 101,
+      "observation": "Public send returned Ok after earlier query cancellation."
+    },
+    "final": {
+      "record": "final/record.json",
+      "tests_passed": 2,
+      "exit": 0,
+      "coverage": "Public send and produced row send preserve cancellation, publish no data and release logical queue/workspace reservations."
+    },
+    "final_backpressure": {
+      "record": "final_backpressure/record.json",
+      "tests_passed": 1,
+      "exit": 0
+    },
+    "final_owned": {
+      "record": "final_owned/record.json",
+      "tests_passed": 4,
+      "exit": 0
+    }
+  },
+  "limitations": "The red was observed only for public send, while the same inner path is used by produced sends. This closes cancellation during the pre-lock wait, not a later concurrent cancellation race; publication is not linearized with the lifecycle lock. No exhaustive concurrency, production IPC, full workspace or RSS qualification. The test-only synchronization point is not present in non-test builds."
+}

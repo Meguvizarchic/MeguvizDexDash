@@ -1,0 +1,24 @@
+{
+  "scope": "Standalone oracle against locally linked bundled SQLite, synthetic scalar callbacks; no bridge execution or qualification",
+  "compiler": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-pc-windows-msvc\nrelease: 1.99.0\nLLVM version: 23.1.1",
+  "build_command": "rustc --edition 2024 artifacts/mdd-031-audit/between-context-oracle-20261101/oracle.rs --extern rusqlite=target/debug/deps/librusqlite-a265e946e2b31789.rlib -L dependency=target/debug/deps -L native=target/debug/build/libsqlite3-sys-98e906563a302ec1/out -o artifacts/local/between-context-oracle-20261101/oracle-final.exe",
+  "build_exit": 0,
+  "execution_exit": 0,
+  "binary_sha256": "ecc37a013f3b4c7bc7508bf71326000c228d80c9570f5b3aa30f117e6f39073b",
+  "linked_sqlite_version": "3.53.2",
+  "observations": 6,
+  "source_before": {
+    "artifacts/mdd-031-audit/between-context-oracle-20261101/oracle.rs": "730d8e0b4fbd2c6a03333c4d07e0747147a839425ecd7a3f59f445a7dc2f6727",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "target/debug/deps/librusqlite-a265e946e2b31789.rlib": "939a3ee298d321fbc889e45b5290cb7b94b6277219a5571571446bee711c968a",
+    "target/debug/build/libsqlite3-sys-98e906563a302ec1/out/libsqlite3.a": "0c065158c8993d372c241361c223f6cbb2ebb207d06a70150c49188d09ed865b"
+  },
+  "source_after": {
+    "artifacts/mdd-031-audit/between-context-oracle-20261101/oracle.rs": "730d8e0b4fbd2c6a03333c4d07e0747147a839425ecd7a3f59f445a7dc2f6727",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "target/debug/deps/librusqlite-a265e946e2b31789.rlib": "939a3ee298d321fbc889e45b5290cb7b94b6277219a5571571446bee711c968a",
+    "target/debug/build/libsqlite3-sys-98e906563a302ec1/out/libsqlite3.a": "0c065158c8993d372c241361c223f6cbb2ebb207d06a70150c49188d09ed865b"
+  },
+  "listed_sources_stable": true,
+  "limitations": "The injected callbacks are non-deterministic synthetic probes and are not claimed supported by the bridge. This establishes an execution-context hazard, not the solution for LOWER or full HostLab/profile/performance qualification. Only listed link inputs were hashed; not all transitive compilation inputs are fixed."
+}

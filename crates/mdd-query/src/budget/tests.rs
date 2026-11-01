@@ -1,6 +1,109 @@
 use super::*;
+use std::cell::RefCell;
 use std::sync::mpsc;
 use std::thread;
+
+thread_local! {
+    static SEND_CHECKPOINT_PAUSE: RefCell<Option<(mpsc::Sender<()>, mpsc::Receiver<()>)>> =
+        const { RefCell::new(None) };
+}
+
+pub(super) fn pause_after_send_checkpoint() {
+    SEND_CHECKPOINT_PAUSE.with(|hook| {
+        if let Some((reached, resume)) = hook.borrow_mut().take() {
+            reached.send(()).unwrap();
+            resume.recv_timeout(Duration::from_secs(3)).unwrap();
+        }
+    });
+}
+
+#[test]
+fn sender_waiting_for_queue_lock_observes_query_cancellation() {
+    let (_, _, _, _, runtime) = owned_queue_test_runtime(BudgetLimits::default());
+    let (sender, mut receiver) = bounded_channel::<u8>(
+        runtime.pool().clone(),
+        Some(runtime.cancellation().clone()),
+        1,
+    )
+    .unwrap();
+    let producer = sender.try_clone().unwrap();
+    let (reached_tx, reached_rx) = mpsc::channel();
+    let (resume_tx, resume_rx) = mpsc::channel();
+    let worker = thread::spawn(move || {
+        SEND_CHECKPOINT_PAUSE.with(|hook| *hook.borrow_mut() = Some((reached_tx, resume_rx)));
+        producer.send(7, 1)
+    });
+    reached_rx.recv_timeout(Duration::from_secs(3)).unwrap();
+    let queue_lock = sender.0.state.lock().unwrap();
+    let first = runtime.cancellation().cancel().unwrap().error.unwrap();
+    resume_tx.send(()).unwrap();
+    drop(queue_lock);
+    let actual = worker.join().unwrap().unwrap_err();
+    assert_eq!(actual.code, first.code);
+    assert_eq!(actual.stage, first.stage);
+    assert_eq!(actual.message, first.message);
+    assert_eq!(actual.details, first.details);
+    let QueueEvent::End(Err(end)) = receiver.receive().unwrap() else {
+        panic!("cancelled producer must not enqueue a row")
+    };
+    assert_eq!(end.code, first.code);
+    assert!(!runtime.cancellation().status().unwrap().delivery_complete);
+    for resource in [
+        Resource::QueueItems,
+        Resource::QueueBytes,
+        Resource::QueryWorkspaceBytes,
+    ] {
+        assert_eq!(used(runtime.pool(), resource), 0);
+    }
+}
+
+#[test]
+fn producer_waiting_for_queue_lock_observes_query_cancellation() {
+    let (_, _, _, _, runtime) = owned_queue_test_runtime(BudgetLimits::default());
+    let (sender, mut receiver) = bounded_channel::<u8>(
+        runtime.pool().clone(),
+        Some(runtime.cancellation().clone()),
+        1,
+    )
+    .unwrap();
+    let reservation = sender.reserve_payload(1).unwrap();
+    let producer = sender.try_clone().unwrap();
+    let mut lease = sender.claim_producer().unwrap();
+    lease.arm();
+    let (reached_tx, reached_rx) = mpsc::channel();
+    let (resume_tx, resume_rx) = mpsc::channel();
+    let worker = thread::spawn(move || {
+        SEND_CHECKPOINT_PAUSE.with(|hook| *hook.borrow_mut() = Some((reached_tx, resume_rx)));
+        producer.send_reserved_produced(7, 1, reservation, &lease)
+    });
+    reached_rx.recv_timeout(Duration::from_secs(3)).unwrap();
+    let queue_lock = sender.0.state.lock().unwrap();
+    let first = runtime.cancellation().cancel().unwrap().error.unwrap();
+    resume_tx.send(()).unwrap();
+    drop(queue_lock);
+    let actual = worker.join().unwrap().unwrap_err();
+    assert_eq!(
+        (actual.code, actual.stage, actual.message, actual.details),
+        (
+            first.code,
+            first.stage.clone(),
+            first.message.clone(),
+            first.details.clone()
+        )
+    );
+    let QueueEvent::End(Err(end)) = receiver.receive().unwrap() else {
+        panic!("cancelled producer must not enqueue a row")
+    };
+    assert_eq!(end.code, first.code);
+    assert!(!runtime.cancellation().status().unwrap().delivery_complete);
+    for resource in [
+        Resource::QueueItems,
+        Resource::QueueBytes,
+        Resource::QueryWorkspaceBytes,
+    ] {
+        assert_eq!(used(runtime.pool(), resource), 0);
+    }
+}
 
 #[test]
 fn owned_receipt_confirmation_preserves_prior_failure_on_count_mismatch() {
