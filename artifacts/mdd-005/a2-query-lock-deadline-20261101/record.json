@@ -1,0 +1,52 @@
+{
+  "task": "MDD-005",
+  "finding": "A second compact query could wait past the shared deadline on the session lock without completing or timing out.",
+  "red": {
+    "command": "python -B artifacts/mdd-005/a2-query-lock-deadline-20261101/probe.py",
+    "exit": 1,
+    "tests_run": 1,
+    "tests_failed": 1,
+    "output": "red.txt",
+    "identity_note": "Red-time source hashes were not recorded. The probe gained a no-poison assertion afterward."
+  },
+  "intermediate_failure": {
+    "command": "python -B artifacts/mdd-005/a2-final-page-deadline-20261101/probe.py",
+    "exit": 1,
+    "output": "final-page.txt",
+    "observation": "Pre-lock deadline check masked the prior poisoned-session error; corrected before final run."
+  },
+  "final": {
+    "command": "python -B artifacts/mdd-005/a2-query-lock-deadline-20261101/probe.py",
+    "exit": 0,
+    "tests_passed": 1,
+    "output": "final.txt",
+    "listed_sources_before": {
+      "benchmarks/a2_compact_adapter.py": "3497b79f507708288320effe1c682bf0e9ab43980d1a3c486fe4cc1bb2bb89c7",
+      "artifacts/mdd-005/a2-query-lock-deadline-20261101/probe.py": "ff04f7d591bcf8f68e04b3e4403d6917298d135efcda30b8d1a4f2a7dbbb015d",
+      "artifacts/mdd-005/a2-compact-terminal-20261030/probe.py": "dfaf6673a64166d986add8b7d2eabca36abf459b91d62d857544c1e2d3876d70",
+      "artifacts/mdd-005/a2-final-page-deadline-20261101/probe.py": "834d9e6d411cd168458beed068aaf4c620cc5d8ef8141c4a275fb260166c8ddc"
+    },
+    "listed_sources_after": {
+      "benchmarks/a2_compact_adapter.py": "3497b79f507708288320effe1c682bf0e9ab43980d1a3c486fe4cc1bb2bb89c7",
+      "artifacts/mdd-005/a2-query-lock-deadline-20261101/probe.py": "ff04f7d591bcf8f68e04b3e4403d6917298d135efcda30b8d1a4f2a7dbbb015d",
+      "artifacts/mdd-005/a2-compact-terminal-20261030/probe.py": "dfaf6673a64166d986add8b7d2eabca36abf459b91d62d857544c1e2d3876d70",
+      "artifacts/mdd-005/a2-final-page-deadline-20261101/probe.py": "834d9e6d411cd168458beed068aaf4c620cc5d8ef8141c4a275fb260166c8ddc"
+    },
+    "listed_sources_stable": true
+  },
+  "regressions": [
+    {
+      "command": "python -B artifacts/mdd-005/a2-final-page-deadline-20261101/probe.py",
+      "tests_passed": 2,
+      "exit": 0,
+      "output": "final-page2.txt"
+    },
+    {
+      "command": "python -B artifacts/mdd-005/a2-compact-terminal-20261030/probe.py",
+      "tests_passed": 2,
+      "exit": 0,
+      "output": "terminal2.txt"
+    }
+  ],
+  "limits": "Synthetic concurrent wait only; OS/producer snapshot, real concurrent MCP semantics and A2/performance qualification are not proven. A waiter timing out before send does not poison or release the lock of the active query."
+}

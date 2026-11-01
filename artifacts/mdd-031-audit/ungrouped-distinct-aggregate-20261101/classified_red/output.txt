@@ -1,0 +1,19 @@
+   Compiling mdd-sql v0.1.0-dev (<WORKSPACE>\crates\mdd-sql)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.14s
+     Running unittests src\lib.rs (target\debug\deps\mdd_sql-46977fcd4387e316.exe)
+
+running 1 test
+
+thread 'bridge::tests::distinct_correlated_aggregate_ownership_matches_sqlite' (42256) panicked at crates\mdd-sql\src\bridge.rs:4295:39:
+called `Result::unwrap_err()` on an `Ok` value: SqlResult { binding: SqlBinding { provider_identity: "correlated-aggregate", snapshot_id: "correlated-aggregate-snapshot", catalog_epoch: DecimalU64(0) }, dialect: NativeV1, columns: ["id"], rows: [[I64(Signed64(2))], [I64(Signed64(1))]], calculation_complete: true, profiles_admitted: [], sqlite_version: "3.53.2", optimizer: OptimizerPolicy { omit: false, order_by_consumed: false, limit_offset_pushdown: false, in_pushdown: false }, required_relations: ["vals"], required_layers: [], ast_nodes: 12, execution_binding: None, _result_memory: ResultMemory { reservations: 0, unused: 0 } }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test bridge::tests::distinct_correlated_aggregate_ownership_matches_sqlite ... FAILED
+
+failures:
+
+failures:
+    bridge::tests::distinct_correlated_aggregate_ownership_matches_sqlite
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 153 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p mdd-sql --lib`

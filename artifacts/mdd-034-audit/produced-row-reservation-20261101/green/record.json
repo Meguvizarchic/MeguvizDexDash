@@ -1,0 +1,33 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "-p",
+    "mdd-query",
+    "produced_row_rejects_",
+    "--",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "listed_sources_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "crates/mdd-query/src/budget.rs": "89fc31ba063e08e3911b2e79f2a2f78b371fcf5319aaa25d8d715cf76c3dc20d",
+    "crates/mdd-query/src/budget/tests.rs": "ab6ead99878405a1c8dcd9fc5ef377c21050b072a39ce6c2d780812e339291c3",
+    "crates/mdd-session/src/lib.rs": "afda23d2dbb014680afa204ed7574387c017740223c6d5f68431c4b5f893efdd",
+    "crates/mdd-session/src/cancellation.rs": "7e3636d5e62cf4de567fb55088f186e5130eb024ddd0517a535e15bcad669114",
+    "crates/mdd-facts/src/annotations.rs": "70fca33f2c50a2eaa75b3673fbe2e8105c4d8605c5c38cc49a7dbe18a24f7025",
+    "crates/mdd-query/src/executor.rs": "ec6b20c95c76d6bd7a53450f30dd0db9a72392029816b79f1e046cac1332c206"
+  },
+  "listed_sources_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "crates/mdd-query/src/budget.rs": "89fc31ba063e08e3911b2e79f2a2f78b371fcf5319aaa25d8d715cf76c3dc20d",
+    "crates/mdd-query/src/budget/tests.rs": "ab6ead99878405a1c8dcd9fc5ef377c21050b072a39ce6c2d780812e339291c3",
+    "crates/mdd-session/src/lib.rs": "afda23d2dbb014680afa204ed7574387c017740223c6d5f68431c4b5f893efdd",
+    "crates/mdd-session/src/cancellation.rs": "7e3636d5e62cf4de567fb55088f186e5130eb024ddd0517a535e15bcad669114",
+    "crates/mdd-facts/src/annotations.rs": "70fca33f2c50a2eaa75b3673fbe2e8105c4d8605c5c38cc49a7dbe18a24f7025",
+    "crates/mdd-query/src/executor.rs": "ec6b20c95c76d6bd7a53450f30dd0db9a72392029816b79f1e046cac1332c206"
+  },
+  "listed_sources_stable": true,
+  "scope": "targeted synthetic queue check; not production IPC or performance qualification"
+}

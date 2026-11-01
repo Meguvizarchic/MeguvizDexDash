@@ -193,7 +193,11 @@ class CompactRowsAdapter:
     async def result(self, sql: str, *, page_size: int = 1000, max_rows: int = 500000,
                      max_bytes: int = 128 * 1024 * 1024, max_page_bytes: int = 128 * 1024):
         """Return this query's shape and fully received rows after a valid terminal."""
-        async with self._lock:
+        if self._poisoned:
+            raise CompactAdapterError("compact adapter is unusable after a failed query")
+        self._checkpoint()
+        await asyncio.wait_for(self._lock.acquire(), timeout=self.remaining_seconds())
+        try:
             if self._poisoned:
                 raise CompactAdapterError("compact adapter is unusable after a failed query")
             try:
@@ -203,6 +207,8 @@ class CompactRowsAdapter:
                 # reuse a dataset whose real state may have changed.
                 self._poisoned = True
                 raise
+        finally:
+            self._lock.release()
 
     async def _rows(self, sql: str, page_size: int, max_rows: int,
                     max_bytes: int, max_page_bytes: int):

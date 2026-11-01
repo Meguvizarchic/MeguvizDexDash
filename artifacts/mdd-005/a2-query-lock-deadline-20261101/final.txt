@@ -1,0 +1,6 @@
+test_waiter_times_out_without_releasing_others_lock (__main__.DeadlineChecks.test_waiter_times_out_without_releasing_others_lock) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 0.291s
+
+OK

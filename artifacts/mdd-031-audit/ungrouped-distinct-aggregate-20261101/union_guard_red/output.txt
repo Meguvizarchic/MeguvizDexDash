@@ -1,0 +1,19 @@
+   Compiling mdd-sql v0.1.0-dev (<WORKSPACE>\crates\mdd-sql)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 9.53s
+     Running unittests src\lib.rs (target\debug\deps\mdd_sql-46977fcd4387e316.exe)
+
+running 1 test
+
+thread 'bridge::tests::distinct_independent_union_scalar_subquery_matches_sqlite' (26820) panicked at crates\mdd-sql\src\bridge.rs:4242:42:
+called `Result::unwrap()` on an `Err` value: MddError { code: UnsupportedQuery, stage: "sql.ast", message: "SQLite accepts this read-only syntax but the AST adapter does not yet implement it", retryable: false, details: {"ast_error": String("DISTINCT_CORRELATED_AGGREGATE_BINDING")} }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test bridge::tests::distinct_independent_union_scalar_subquery_matches_sqlite ... FAILED
+
+failures:
+
+failures:
+    bridge::tests::distinct_independent_union_scalar_subquery_matches_sqlite
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 157 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p mdd-sql --lib`

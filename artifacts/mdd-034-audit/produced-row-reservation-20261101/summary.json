@@ -1,0 +1,24 @@
+{
+  "finding": "Independent produced row payloads could share one reservation by cloning or by reacquiring a shared-key registration, undercounting resident workspace.",
+  "fix": "Produced-row path admits only exclusive, non-shared-key reservations; generic send_reserved remains unchanged.",
+  "runs": {
+    "red": {
+      "record": "red/record.json",
+      "tests_run": 2,
+      "tests_failed": 2
+    },
+    "green": {
+      "record": "green/record.json",
+      "tests_passed": 2
+    },
+    "actual_row": {
+      "record": "actual_row/record.json",
+      "tests_passed": 1
+    },
+    "backpressure": {
+      "record": "backpressure/record.json",
+      "tests_passed": 1
+    }
+  },
+  "boundaries": "Controlled internal API counterexamples. The normal row producer creates fresh reservations, so no real production trigger is claimed. Not full tests, IPC, exhaustive concurrency, allocation measurement or RSS qualification."
+}

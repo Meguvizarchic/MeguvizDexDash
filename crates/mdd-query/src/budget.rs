@@ -1673,8 +1673,17 @@ impl<T> BoundedSender<T> {
         producer: Option<&BoundProducerLease<T>>,
     ) -> MddResult<()> {
         let _send = self.begin_bound_send(producer)?;
-        self.send_reserved_inner(payload, wire_bytes, memory)
-            .map_err(|error| self.0.bound_query_failure(error))
+        // Produced rows each own an independent payload allocation. An
+        // aliased reservation could otherwise account for several such rows
+        // only once; shared-key reservations can also be reacquired later.
+        let result = if producer.is_some()
+            && (memory.0.shared_key.is_some() || Arc::strong_count(&memory.0) != 1)
+        {
+            Err(invalid("produced row reservation must be exclusive"))
+        } else {
+            self.send_reserved_inner(payload, wire_bytes, memory)
+        };
+        result.map_err(|error| self.0.bound_query_failure(error))
     }
     fn send_reserved_inner(
         &self,

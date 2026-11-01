@@ -1,0 +1,21 @@
+   Compiling mdd-sql v0.1.0-dev (<WORKSPACE>\crates\mdd-sql)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.57s
+     Running unittests src\lib.rs (target\debug\deps\mdd_sql-46977fcd4387e316.exe)
+
+running 1 test
+
+thread 'bridge::tests::distinct_order_alias_scans_share_one_node_budget' (44932) panicked at crates\mdd-sql\src\bridge.rs:4225:9:
+assertion `left == right` failed
+  left: "EMITTED_AST_NODE_OR_DEPTH"
+ right: "SQL_AGGREGATE_DETECTION_NODES"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test bridge::tests::distinct_order_alias_scans_share_one_node_budget ... FAILED
+
+failures:
+
+failures:
+    bridge::tests::distinct_order_alias_scans_share_one_node_budget
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 155 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p mdd-sql --lib`

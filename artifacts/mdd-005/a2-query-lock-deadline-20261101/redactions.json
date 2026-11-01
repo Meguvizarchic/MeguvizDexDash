@@ -1,0 +1,87 @@
+[
+  {
+    "path": "artifacts/mdd-005/a2-query-lock-deadline-20261101/final-page.txt",
+    "original_sha256": "42e30c2d48fa2c46a2991bc26db507641bffe86488c6464ec7cfced99356faff",
+    "redacted_sha256": "ad28744acfc96455550c9c7c64a5305e096fa185df9a28eccce55758497cca62"
+  },
+  {
+    "path": "artifacts/mdd-005/a2-query-lock-deadline-20261101/red.txt",
+    "original_sha256": "11218813b0e6cc4e52c431d59a53384296532ebad8a88f423cd79585a5ba9e93",
+    "redacted_sha256": "f501bafed900046a98c093357daa4917773ea512a1b230c3101fb30eaadd1012"
+  },
+  {
+    "path": "artifacts/mdd-034-audit/produced-row-reservation-20261101/green/output.txt",
+    "original_sha256": "6f95517b3271733e3e6767cd74960742f901d4c89f19436696cc389e45a2e338",
+    "redacted_sha256": "c778261373c62cf1ef04605138933712e3e40d7de295d43a9c47316a58a9ad2b"
+  },
+  {
+    "path": "artifacts/mdd-034-audit/produced-row-reservation-20261101/red/output.txt",
+    "original_sha256": "3ef10b5bd0272bb59e3689ee9c61154e8c4bd467f163b4214eea87e029cfa58a",
+    "redacted_sha256": "5f3833589ee58c2832a3f9c7474f2251be55b258fe89687a353fd88bb144b472"
+  },
+  {
+    "path": "artifacts/mdd-031-audit/ungrouped-distinct-aggregate-20261101/classified_green/output.txt",
+    "original_sha256": "e8526e17da319ec6f18ce822a3e25f83a38ba393a241e6158986b5daca6132dc",
+    "redacted_sha256": "1907c23c1e441c2c0cb7ac1d8baff2c3726e655f5de5675d8ac2ad0441c59163"
+  },
+  {
+    "path": "artifacts/mdd-031-audit/ungrouped-distinct-aggregate-20261101/classified_red/output.txt",
+    "original_sha256": "10d5bd769750ef1b53d2d501640693f84cecfa7db264a14ece548bde4c3d436d",
+    "redacted_sha256": "f297624efe8be8f5c5b6367007ceb76e4ec675ae7a6cb957fe1c0840f0fef124"
+  },
+  {
+    "path": "artifacts/mdd-031-audit/ungrouped-distinct-aggregate-20261101/correlated_green/output.txt",
+    "original_sha256": "43a3446ec41801c0be8e491c2d5d01d4676bd2a009e233beadcbe4d6280b54ef",
+    "redacted_sha256": "006ac3a6ea8083500a22a65b7f6c2bac7f09a5f6bd14412d8e02963be0ee4d6d"
+  },
+  {
+    "path": "artifacts/mdd-031-audit/ungrouped-distinct-aggregate-20261101/correlated_red/output.txt",
+    "original_sha256": "59c37a67fa2efb4c4254e856598393308dd84a1d83aa7f3d545d6e41eabb6419",
+    "redacted_sha256": "f6d7ff458ae088155fc9540d49209ac1cd13d182094a5ac8b24f0250afd45776"
+  },
+  {
+    "path": "artifacts/mdd-031-audit/ungrouped-distinct-aggregate-20261101/green/output.txt",
+    "original_sha256": "f21c3b57fa11a1289f8b9a4390df067a8a6c3a118c9b50571aeb082db09b2e76",
+    "redacted_sha256": "5800117cf37d8928db91bbf59a3f23f6d929ffe9b5f673599d1c6e5533ad46e2"
+  },
+  {
+    "path": "artifacts/mdd-031-audit/ungrouped-distinct-aggregate-20261101/order_budget_green/output.txt",
+    "original_sha256": "2e3549970b78b12cee93578eef9393da7bd7d439a61063414a852492d935379f",
+    "redacted_sha256": "4dff7dba4a5db58772880cbd1443bd8a2d859f1335d6309e65a3afd40785f579"
+  },
+  {
+    "path": "artifacts/mdd-031-audit/ungrouped-distinct-aggregate-20261101/order_budget_red/output.txt",
+    "original_sha256": "6c013253579f9697810a3b2f5de168d06a6dfcf7547ffa78b532a6bf65c98f55",
+    "redacted_sha256": "859f6694e1dd27c8726b0097a8d19107ad05334c6f8a7f1751909f064c38061b"
+  },
+  {
+    "path": "artifacts/mdd-031-audit/ungrouped-distinct-aggregate-20261101/order_budget_red2/output.txt",
+    "original_sha256": "887073a14c657537e0192e343d5dfa3b5cb42c58ad3f38a846bd86f623c70469",
+    "redacted_sha256": "b0a1398f81854614207a2f8184d9daec9092a492ff216fc783fe288990075b8c"
+  },
+  {
+    "path": "artifacts/mdd-031-audit/ungrouped-distinct-aggregate-20261101/red/output.txt",
+    "original_sha256": "6e917a239278dabaf20c053afb108ce07cac19a82253d52ae95f56744055e090",
+    "redacted_sha256": "627c706d5fff32633ea69636862b2a932d378ea27cf9e85e86f0c23d80412dcf"
+  },
+  {
+    "path": "artifacts/mdd-031-audit/ungrouped-distinct-aggregate-20261101/union_final/output.txt",
+    "original_sha256": "0f817d4db93afd6b6bda4767f5baea8d9664f65b4cb8a8d16290737698daac2e",
+    "redacted_sha256": "87ee7874c94333214f038e407f611e62bd7e8ea198f4c97b09cb33807b142a3a"
+  },
+  {
+    "path": "artifacts/mdd-031-audit/ungrouped-distinct-aggregate-20261101/union_final2/output.txt",
+    "original_sha256": "74526eb774f7c87439aa5eb8fc38b6e3f164fc105ce2595c82c11bece4e32009",
+    "redacted_sha256": "00927947a3cdf562677bed67adcbd8d7a40aaa4c7ef01b31bad25988d4b0593c"
+  },
+  {
+    "path": "artifacts/mdd-031-audit/ungrouped-distinct-aggregate-20261101/union_guard_red/output.txt",
+    "original_sha256": "51ff1dee168cb3479ddac8bf434e96568dbf3f08290f2e7093745ec1042453f2",
+    "redacted_sha256": "b28415ef42076a48d2718605ccbcf0ceca8c90db7b07481ecae7d17e59952626"
+  },
+  {
+    "path": "artifacts/mdd-031-audit/ungrouped-distinct-aggregate-20261101/union_original/output.txt",
+    "original_sha256": "7e376978d93872bb1e0c32b029409da3b73444fc35d23dfc7f36f06b248744f4",
+    "redacted_sha256": "d27fedc460374c4e14c8661110890c829d6a618a5798c98eec98a3403b7c518f"
+  }
+]

@@ -1,0 +1,15 @@
+   Compiling mdd-types v0.1.0-dev (<WORKSPACE>\artifacts\local\sql-union-baseline-20261101\crates\mdd-types)
+   Compiling mdd-input v0.1.0-dev (<WORKSPACE>\artifacts\local\sql-union-baseline-20261101\crates\mdd-input)
+   Compiling mdd-dex v0.1.0-dev (<WORKSPACE>\artifacts\local\sql-union-baseline-20261101\crates\mdd-dex)
+   Compiling mdd-session v0.1.0-dev (<WORKSPACE>\artifacts\local\sql-union-baseline-20261101\crates\mdd-session)
+   Compiling mdd-facts v0.1.0-dev (<WORKSPACE>\artifacts\local\sql-union-baseline-20261101\crates\mdd-facts)
+   Compiling mdd-query v0.1.0-dev (<WORKSPACE>\artifacts\local\sql-union-baseline-20261101\crates\mdd-query)
+   Compiling mdd-sql v0.1.0-dev (<WORKSPACE>\artifacts\local\sql-union-baseline-20261101\crates\mdd-sql)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 31.78s
+     Running unittests src\lib.rs (<WORKSPACE>\target\debug\deps\mdd_sql-46977fcd4387e316.exe)
+
+running 1 test
+test bridge::tests::distinct_independent_union_scalar_subquery_matches_sqlite ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 152 filtered out; finished in 0.01s
+

@@ -1,0 +1,21 @@
+test_waiter_times_out_without_releasing_others_lock (__main__.DeadlineChecks.test_waiter_times_out_without_releasing_others_lock) ... FAIL
+
+======================================================================
+FAIL: test_waiter_times_out_without_releasing_others_lock (__main__.DeadlineChecks.test_waiter_times_out_without_releasing_others_lock)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<USER>\AppData\Local\Programs\Python\Python313\Lib\asyncio\runners.py", line 119, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "<USER>\AppData\Local\Programs\Python\Python313\Lib\asyncio\base_events.py", line 726, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "<WORKSPACE>\artifacts\mdd-005\a2-query-lock-deadline-20261101\probe.py", line 22, in test_waiter_times_out_without_releasing_others_lock
+    self.assertTrue(task.done(), 'waiting query exceeded its deadline without returning')
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : waiting query exceeded its deadline without returning
+
+----------------------------------------------------------------------
+Ran 1 test in 0.269s
+
+FAILED (failures=1)

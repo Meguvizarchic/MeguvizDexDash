@@ -4197,6 +4197,302 @@ mod tests {
     }
 
     #[test]
+    fn distinct_independent_union_scalar_subquery_matches_sqlite() {
+        use mdd_query::ir::Signed64;
+        let provider = Arc::new(RowsProvider {
+            binding: SqlBinding {
+                provider_identity: "union-scalar".into(),
+                snapshot_id: "union-scalar-snapshot".into(),
+                catalog_epoch: DecimalU64(0),
+            },
+            rows: [1, 1, 2]
+                .into_iter()
+                .map(|n| vec![SqlValue::I64(Signed64(n))])
+                .collect(),
+            columns: vec![SqlColumn {
+                id: "id".into(),
+                name: "id".into(),
+                data_type: SqlType::I64,
+                nullable: false,
+            }],
+        });
+        let sqlite = rusqlite::Connection::open_in_memory().unwrap();
+        sqlite
+            .execute_batch("CREATE TABLE vals(id INTEGER);INSERT INTO vals VALUES(1),(1),(2)")
+            .unwrap();
+        let sql = "SELECT DISTINCT o.id,(SELECT COUNT(*) FROM (SELECT id FROM vals UNION SELECT id FROM vals) AS x) FROM vals o ORDER BY o.id";
+        let expected = sqlite
+            .prepare(sql)
+            .unwrap()
+            .query_map([], |row| {
+                Ok(vec![
+                    SqlValue::I64(Signed64(row.get(0)?)),
+                    SqlValue::I64(Signed64(row.get(1)?)),
+                ])
+            })
+            .unwrap()
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .unwrap();
+        for dialect in [
+            SqlDialect::NativeV1,
+            SqlDialect::DexSql010,
+            SqlDialect::DexSql011,
+        ] {
+            let bridge = SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+            assert_eq!(bridge.query(sql).unwrap().rows(), expected, "{dialect:?}");
+        }
+    }
+
+    #[test]
+    fn distinct_order_alias_scans_share_one_node_budget() {
+        let provider = Arc::new(RowsProvider {
+            binding: SqlBinding {
+                provider_identity: "alias-scan".into(),
+                snapshot_id: "alias-scan-snapshot".into(),
+                catalog_epoch: DecimalU64(0),
+            },
+            rows: vec![],
+            columns: vec![SqlColumn {
+                id: "id".into(),
+                name: "id".into(),
+                data_type: SqlType::I64,
+                nullable: true,
+            }],
+        });
+        let limits = SqlLimits {
+            max_ast_nodes: 256,
+            ..SqlLimits::default()
+        };
+        let bridge = SqlBridge::new(provider, SqlDialect::NativeV1, limits).unwrap();
+        let args = vec!["id"; 50].join(",");
+        let ordering = vec!["a"; 60].join(",");
+        let sql = format!("SELECT DISTINCT COALESCE({args}) AS a FROM vals ORDER BY {ordering}");
+        let nested_args = vec!["id"; 20].join(",");
+        let nested = format!(
+            "(SELECT DISTINCT COALESCE({nested_args}) AS a FROM vals ORDER BY a,a,a,a,a,a LIMIT 1)"
+        );
+        let nested_sql = format!("SELECT {} FROM vals LIMIT 1", vec![nested; 5].join(","));
+        for sql in [sql, nested_sql] {
+            let error = bridge.prepare(&sql).err().unwrap();
+            assert_eq!(error.code, ErrorCode::QuotaExceeded, "{sql}");
+            assert_eq!(error.message, "SQL_AGGREGATE_DETECTION_NODES", "{sql}");
+        }
+    }
+
+    #[test]
+    fn distinct_correlated_aggregate_ownership_matches_sqlite() {
+        use mdd_query::ir::Signed64;
+        let provider = Arc::new(RowsProvider {
+            binding: SqlBinding {
+                provider_identity: "correlated-aggregate".into(),
+                snapshot_id: "correlated-aggregate-snapshot".into(),
+                catalog_epoch: DecimalU64(0),
+            },
+            rows: [1, 1, 2]
+                .into_iter()
+                .map(|n| vec![SqlValue::I64(Signed64(n))])
+                .collect(),
+            columns: vec![SqlColumn {
+                id: "id".into(),
+                name: "id".into(),
+                data_type: SqlType::I64,
+                nullable: false,
+            }],
+        });
+        let sqlite = rusqlite::Connection::open_in_memory().unwrap();
+        sqlite
+            .execute_batch("CREATE TABLE vals(id INTEGER);INSERT INTO vals VALUES(1),(1),(2)")
+            .unwrap();
+        for sql in [
+            "SELECT DISTINCT o.id,(SELECT COUNT(o.id)) FROM vals o",
+            "SELECT DISTINCT o.id,(SELECT COUNT(o.id) FROM vals t) FROM vals o",
+            "SELECT DISTINCT o.id,(SELECT COUNT(*) FILTER(WHERE o.id>0)) FROM vals o",
+        ] {
+            let expected = sqlite
+                .prepare(sql)
+                .unwrap()
+                .query_map([], |row| {
+                    Ok(vec![
+                        SqlValue::I64(Signed64(row.get(0)?)),
+                        SqlValue::I64(Signed64(row.get(1)?)),
+                    ])
+                })
+                .unwrap()
+                .collect::<rusqlite::Result<Vec<_>>>()
+                .unwrap();
+            for dialect in [
+                SqlDialect::NativeV1,
+                SqlDialect::DexSql010,
+                SqlDialect::DexSql011,
+            ] {
+                let bridge =
+                    SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+                assert_eq!(
+                    expected,
+                    vec![vec![SqlValue::I64(Signed64(1)), SqlValue::I64(Signed64(3))]]
+                );
+                assert_eq!(
+                    bridge.query(sql).unwrap_err().code,
+                    ErrorCode::UnsupportedQuery,
+                    "{dialect:?}: {sql}"
+                );
+            }
+        }
+        for dialect in [
+            SqlDialect::NativeV1,
+            SqlDialect::DexSql010,
+            SqlDialect::DexSql011,
+        ] {
+            let bridge = SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+            let local =
+                "SELECT DISTINCT o.id,(SELECT COUNT(t.id) FROM vals t) FROM vals o ORDER BY o.id";
+            let expected = sqlite
+                .prepare(local)
+                .unwrap()
+                .query_map([], |row| {
+                    Ok(vec![
+                        SqlValue::I64(Signed64(row.get(0)?)),
+                        SqlValue::I64(Signed64(row.get(1)?)),
+                    ])
+                })
+                .unwrap()
+                .collect::<rusqlite::Result<Vec<_>>>()
+                .unwrap();
+            assert_eq!(bridge.query(local).unwrap().rows(), expected, "{dialect:?}");
+            let missing = "SELECT DISTINCT o.id,(SELECT COUNT(o.missing)) FROM vals o";
+            assert!(sqlite.prepare(missing).is_err());
+            assert_eq!(
+                bridge.query(missing).unwrap_err().code,
+                ErrorCode::InvalidArgument,
+                "{dialect:?}"
+            );
+            for correlated_union in [
+                "SELECT DISTINCT o.id,(SELECT COUNT(o.id) UNION SELECT 1) FROM vals o",
+                "SELECT DISTINCT o.id,(SELECT COUNT(*) FROM (SELECT COUNT(o.id) UNION SELECT 1) AS x) FROM vals o",
+            ] {
+                assert!(
+                    !sqlite
+                        .prepare(correlated_union)
+                        .unwrap()
+                        .query([])
+                        .unwrap()
+                        .next()
+                        .unwrap()
+                        .is_none()
+                );
+                assert_eq!(
+                    bridge.query(correlated_union).unwrap_err().code,
+                    ErrorCode::UnsupportedQuery,
+                    "{dialect:?}: {correlated_union}"
+                );
+            }
+            for bad in [
+                "SELECT DISTINCT o.id FROM vals o ORDER BY (SELECT COUNT(o.id))",
+                "SELECT DISTINCT id FROM vals ORDER BY COUNT(*)",
+                "SELECT DISTINCT id FROM vals ORDER BY COUNT(*)+1",
+                "SELECT DISTINCT id FROM vals ORDER BY SUM(id)",
+                "SELECT DISTINCT o.id FROM vals o WHERE (SELECT COUNT(o.id))>0",
+                "SELECT DISTINCT id FROM vals HAVING COUNT(*)>2",
+                "SELECT DISTINCT id FROM vals HAVING id>2",
+            ] {
+                assert!(sqlite.prepare(bad).is_err(), "SQLite accepted {bad}");
+                assert_eq!(
+                    bridge.query(bad).unwrap_err().code,
+                    ErrorCode::InvalidArgument,
+                    "{dialect:?}: {bad}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn distinct_aggregate_expressions_and_having_match_sqlite() {
+        use mdd_query::ir::Signed64;
+        for ids in [vec![], vec![None, Some(1), Some(1), Some(2)]] {
+            let provider = Arc::new(RowsProvider {
+                binding: SqlBinding {
+                    provider_identity: "distinct-aggregate-expr".into(),
+                    snapshot_id: "distinct-aggregate-expr-snapshot".into(),
+                    catalog_epoch: DecimalU64(0),
+                },
+                rows: ids
+                    .iter()
+                    .map(|id| vec![id.map_or(SqlValue::Null, |n| SqlValue::I64(Signed64(n)))])
+                    .collect(),
+                columns: vec![SqlColumn {
+                    id: "id".into(),
+                    name: "id".into(),
+                    data_type: SqlType::I64,
+                    nullable: true,
+                }],
+            });
+            let sqlite = rusqlite::Connection::open_in_memory().unwrap();
+            sqlite
+                .execute_batch("CREATE TABLE vals(id INTEGER)")
+                .unwrap();
+            for id in &ids {
+                sqlite.execute("INSERT INTO vals VALUES (?)", [id]).unwrap();
+            }
+            for dialect in [
+                SqlDialect::NativeV1,
+                SqlDialect::DexSql010,
+                SqlDialect::DexSql011,
+            ] {
+                let bridge =
+                    SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+                for sql in [
+                    "SELECT DISTINCT COUNT(*)+1 AS n FROM vals",
+                    "SELECT DISTINCT CASE WHEN COUNT(*)>2 THEN 1 ELSE 0 END AS n FROM vals",
+                    "SELECT DISTINCT COALESCE(COUNT(id),7) AS n FROM vals",
+                    "SELECT DISTINCT SUM(id) AS n FROM vals",
+                    "SELECT DISTINCT MIN(id) AS n FROM vals",
+                    "SELECT DISTINCT MAX(id) AS n FROM vals",
+                    "SELECT DISTINCT COUNT(*) AS n FROM vals HAVING COUNT(*)>2",
+                    "SELECT DISTINCT id,(SELECT COUNT(*) FROM vals) AS n FROM vals ORDER BY id",
+                ] {
+                    let mut statement = sqlite.prepare(sql).unwrap();
+                    let width = statement.column_count();
+                    let expected = statement
+                        .query_map([], |row| {
+                            (0..width)
+                                .map(|i| {
+                                    row.get::<_, Option<i64>>(i).map(|v| {
+                                        v.map_or(SqlValue::Null, |n| SqlValue::I64(Signed64(n)))
+                                    })
+                                })
+                                .collect::<rusqlite::Result<Vec<_>>>()
+                        })
+                        .unwrap()
+                        .collect::<rusqlite::Result<Vec<_>>>()
+                        .unwrap();
+                    assert_eq!(
+                        bridge.query(sql).unwrap().rows(),
+                        expected,
+                        "{dialect:?}: {sql}"
+                    );
+                }
+                assert_eq!(
+                    bridge
+                        .query("SELECT DISTINCT COUNT(*) OVER() FROM vals")
+                        .unwrap_err()
+                        .code,
+                    ErrorCode::UnsupportedQuery
+                );
+                assert!(
+                    sqlite
+                        .prepare("SELECT DISTINCT id FROM vals HAVING COUNT(*)>2")
+                        .is_err()
+                );
+                assert!(
+                    bridge
+                        .query("SELECT DISTINCT id FROM vals HAVING COUNT(*)>2")
+                        .is_err()
+                );
+            }
+        }
+    }
+
+    #[test]
     fn distinct_ungrouped_count_matches_sqlite() {
         use mdd_query::ir::Signed64;
         for ids in [vec![], vec![None, Some(1), Some(1), Some(2)]] {

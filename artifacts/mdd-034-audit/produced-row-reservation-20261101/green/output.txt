@@ -1,0 +1,10 @@
+   Compiling mdd-query v0.1.0-dev (<WORKSPACE>\crates\mdd-query)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.78s
+     Running unittests src\lib.rs (target\debug\deps\mdd_query-82579f4092cfd058.exe)
+
+running 2 tests
+test budget::tests::produced_row_rejects_shared_reservation_reacquisition ... ok
+test budget::tests::produced_row_rejects_reservation_reused_across_rows ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 172 filtered out; finished in 0.00s
+

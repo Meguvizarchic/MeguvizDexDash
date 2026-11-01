@@ -1,0 +1,26 @@
+test_final_page_expiry_never_returns_complete_rows (__main__.DeadlineTests.test_final_page_expiry_never_returns_complete_rows) ... ERROR
+test_page_decoding_expiry_is_rejected (__main__.DeadlineTests.test_page_decoding_expiry_is_rejected) ... ok
+
+======================================================================
+ERROR: test_final_page_expiry_never_returns_complete_rows (__main__.DeadlineTests.test_final_page_expiry_never_returns_complete_rows)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<USER>\AppData\Local\Programs\Python\Python313\Lib\asyncio\runners.py", line 119, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "<USER>\AppData\Local\Programs\Python\Python313\Lib\asyncio\base_events.py", line 726, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "<WORKSPACE>\artifacts\mdd-005\a2-final-page-deadline-20261101\probe.py", line 60, in test_final_page_expiry_never_returns_complete_rows
+    await adapter.result('SELECT x ORDER BY x', page_size=1, max_page_bytes=4096)
+  File "<WORKSPACE>\benchmarks\a2_compact_adapter.py", line 196, in result
+    self._checkpoint()
+    ~~~~~~~~~~~~~~~~^^
+  File "<WORKSPACE>\benchmarks\a2_compact_adapter.py", line 115, in _checkpoint
+    raise TimeoutError("A2 compact dataset deadline exhausted")
+TimeoutError: A2 compact dataset deadline exhausted
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.123s
+
+FAILED (errors=1)

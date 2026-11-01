@@ -8,7 +8,10 @@ use sqlparser::{
     parser::{Parser, ParserError},
     tokenizer::{Token, Tokenizer},
 };
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    cell::Cell,
+    collections::{BTreeMap, BTreeSet},
+};
 
 pub(crate) struct Adapted {
     pub sql: String,
@@ -51,6 +54,510 @@ fn no_affinity(expr: &Expr) -> bool {
         }
         _ => false,
     }
+}
+
+// Inspect the already rewritten projection, but never descend into a nested
+// SELECT: an aggregate there does not make the outer SELECT an aggregate.
+// Rewriting may introduce several wrappers per input node, so cap traversal
+// independently rather than trusting unbounded recursion.
+struct AggregateScan {
+    depth_limit: usize,
+    remaining: Cell<usize>,
+}
+impl AggregateScan {
+    fn visit(&self, depth: usize) -> MddResult<()> {
+        if depth > self.depth_limit {
+            return Err(quota("SQL_AGGREGATE_DETECTION_DEPTH"));
+        }
+        let remaining = self
+            .remaining
+            .get()
+            .checked_sub(1)
+            .ok_or_else(|| quota("SQL_AGGREGATE_DETECTION_NODES"))?;
+        self.remaining.set(remaining);
+        Ok(())
+    }
+}
+fn current_aggregate(expr: &Expr, depth: usize, budget: &AggregateScan) -> MddResult<bool> {
+    budget.visit(depth)?;
+    let child = |e: &Expr| current_aggregate(e, depth + 1, budget);
+    match expr {
+        Expr::Function(function) => {
+            let name = function.name.0.first().and_then(|part| part.as_ident());
+            if function.name.0.len() == 1
+                && function.over.is_none()
+                && name.is_some_and(|name| {
+                    ["count", "mdd_sum", "mdd_min", "mdd_max"]
+                        .iter()
+                        .any(|aggregate| name.value.eq_ignore_ascii_case(aggregate))
+                })
+            {
+                return Ok(true);
+            }
+            if let FunctionArguments::List(arguments) = &function.args {
+                for argument in &arguments.args {
+                    if let FunctionArg::Unnamed(FunctionArgExpr::Expr(expr)) = argument
+                        && child(expr)?
+                    {
+                        return Ok(true);
+                    }
+                }
+            }
+            Ok(false)
+        }
+        Expr::Nested(expr)
+        | Expr::IsNull(expr)
+        | Expr::IsNotNull(expr)
+        | Expr::IsTrue(expr)
+        | Expr::IsFalse(expr)
+        | Expr::IsNotTrue(expr)
+        | Expr::IsNotFalse(expr)
+        | Expr::UnaryOp { expr, .. } => child(expr),
+        Expr::BinaryOp { left, right, .. } => Ok(child(left)? || child(right)?),
+        Expr::InList { expr, list, .. } => {
+            if child(expr)? {
+                return Ok(true);
+            }
+            for value in list {
+                if child(value)? {
+                    return Ok(true);
+                }
+            }
+            Ok(false)
+        }
+        Expr::InSubquery { expr, .. } => child(expr),
+        Expr::Case {
+            operand,
+            conditions,
+            else_result,
+            ..
+        } => {
+            if let Some(expr) = operand
+                && child(expr)?
+            {
+                return Ok(true);
+            }
+            for condition in conditions {
+                if child(&condition.condition)? || child(&condition.result)? {
+                    return Ok(true);
+                }
+            }
+            if let Some(expr) = else_result
+                && child(expr)?
+            {
+                return Ok(true);
+            }
+            Ok(false)
+        }
+        // Identifiers, literals and inner queries cannot introduce an
+        // aggregate into this SELECT. All unsupported forms were rejected by
+        // the expression rewriter before this inspection.
+        _ => Ok(false),
+    }
+}
+
+fn possible_outer_column(
+    expr: &Expr,
+    local: &BTreeMap<String, BTreeSet<String>>,
+    depth: usize,
+    budget: &AggregateScan,
+) -> MddResult<bool> {
+    budget.visit(depth)?;
+    let child = |value: &Expr| possible_outer_column(value, local, depth + 1, budget);
+    match expr {
+        Expr::Identifier(id) => {
+            let name = id.value.to_ascii_lowercase();
+            for columns in local.values() {
+                budget.visit(depth + 1)?;
+                if columns.contains(&name) {
+                    return Ok(false);
+                }
+            }
+            Ok(true)
+        }
+        Expr::CompoundIdentifier(ids) if ids.len() == 2 => {
+            budget.visit(depth + 1)?;
+            Ok(!local
+                .get(&ids[0].value.to_ascii_lowercase())
+                .is_some_and(|columns| columns.contains(&ids[1].value.to_ascii_lowercase())))
+        }
+        Expr::Value(_) => Ok(false),
+        Expr::Nested(expr)
+        | Expr::IsNull(expr)
+        | Expr::IsNotNull(expr)
+        | Expr::IsTrue(expr)
+        | Expr::IsFalse(expr)
+        | Expr::IsNotTrue(expr)
+        | Expr::IsNotFalse(expr)
+        | Expr::UnaryOp { expr, .. } => child(expr),
+        Expr::BinaryOp { left, right, .. } => Ok(child(left)? || child(right)?),
+        Expr::Function(function) => match &function.args {
+            FunctionArguments::List(arguments) => {
+                for arg in &arguments.args {
+                    match arg {
+                        FunctionArg::Unnamed(FunctionArgExpr::Expr(expr)) => {
+                            if child(expr)? {
+                                return Ok(true);
+                            }
+                        }
+                        FunctionArg::Unnamed(FunctionArgExpr::Wildcard) => (),
+                        _ => return Ok(true),
+                    }
+                }
+                if let Some(filter) = &function.filter
+                    && child(filter)?
+                {
+                    return Ok(true);
+                }
+                Ok(false)
+            }
+            _ => Ok(true),
+        },
+        _ => Ok(true),
+    }
+}
+
+// A nested aggregate may belong to an outer SELECT when its inputs reference
+// only outer columns. Rewriting that SELECT's DISTINCT into GROUP BY can
+// otherwise change semantics or produce an artificial SQLite error. Inspect
+// nested scopes and only proceed when aggregate inputs are demonstrably local.
+fn nested_aggregate_needs_binding(
+    expr: &Expr,
+    schemas: &BTreeMap<String, Vec<String>>,
+    ctes: &BTreeSet<String>,
+    depth: usize,
+    budget: &AggregateScan,
+    local: Option<&BTreeMap<String, BTreeSet<String>>>,
+) -> MddResult<bool> {
+    budget.visit(depth)?;
+    let child =
+        |e: &Expr| nested_aggregate_needs_binding(e, schemas, ctes, depth + 1, budget, local);
+    match expr {
+        Expr::Subquery(query)
+        | Expr::Exists {
+            subquery: query, ..
+        } => nested_query_needs_binding(query, schemas, ctes, depth + 1, budget),
+        Expr::InSubquery { expr, subquery, .. } => {
+            Ok(child(expr)?
+                || nested_query_needs_binding(subquery, schemas, ctes, depth + 1, budget)?)
+        }
+        Expr::Function(function) => {
+            let aggregate = function.name.0.len() == 1
+                && function.over.is_none()
+                && function.name.0[0].as_ident().is_some_and(|name| {
+                    ["count", "mdd_sum", "mdd_min", "mdd_max"]
+                        .iter()
+                        .any(|a| name.value.eq_ignore_ascii_case(a))
+                });
+            if let FunctionArguments::List(arguments) = &function.args {
+                for arg in &arguments.args {
+                    if let FunctionArg::Unnamed(FunctionArgExpr::Expr(value)) = arg {
+                        if aggregate && let Some(local) = local {
+                            if possible_outer_column(value, local, depth + 1, budget)? {
+                                return Ok(true);
+                            }
+                        }
+                        if child(value)? {
+                            return Ok(true);
+                        }
+                    }
+                }
+            }
+            if let Some(filter) = &function.filter {
+                if aggregate && let Some(local) = local {
+                    if possible_outer_column(filter, local, depth + 1, budget)? {
+                        return Ok(true);
+                    }
+                }
+                if child(filter)? {
+                    return Ok(true);
+                }
+            }
+            Ok(false)
+        }
+        Expr::Nested(expr)
+        | Expr::IsNull(expr)
+        | Expr::IsNotNull(expr)
+        | Expr::IsTrue(expr)
+        | Expr::IsFalse(expr)
+        | Expr::IsNotTrue(expr)
+        | Expr::IsNotFalse(expr)
+        | Expr::UnaryOp { expr, .. } => child(expr),
+        Expr::BinaryOp { left, right, .. } => Ok(child(left)? || child(right)?),
+        Expr::InList { expr, list, .. } => {
+            if child(expr)? {
+                return Ok(true);
+            }
+            for item in list {
+                if child(item)? {
+                    return Ok(true);
+                }
+            }
+            Ok(false)
+        }
+        Expr::Case {
+            operand,
+            conditions,
+            else_result,
+            ..
+        } => {
+            if let Some(expr) = operand
+                && child(expr)?
+            {
+                return Ok(true);
+            }
+            for condition in conditions {
+                if child(&condition.condition)? || child(&condition.result)? {
+                    return Ok(true);
+                }
+            }
+            if let Some(expr) = else_result
+                && child(expr)?
+            {
+                return Ok(true);
+            }
+            Ok(false)
+        }
+        _ => Ok(false),
+    }
+}
+
+fn nested_query_needs_binding(
+    query: &Query,
+    schemas: &BTreeMap<String, Vec<String>>,
+    ctes: &BTreeSet<String>,
+    depth: usize,
+    budget: &AggregateScan,
+) -> MddResult<bool> {
+    budget.visit(depth)?;
+    if let Some(with) = &query.with {
+        for cte in &with.cte_tables {
+            if nested_query_needs_binding(&cte.query, schemas, ctes, depth + 1, budget)? {
+                return Ok(true);
+            }
+        }
+    }
+    if let SetExpr::Select(select) = query.body.as_ref() {
+        return nested_select_needs_binding(
+            select,
+            query.order_by.as_ref(),
+            query.limit_clause.as_ref(),
+            schemas,
+            ctes,
+            depth + 1,
+            budget,
+        );
+    }
+    if nested_body_needs_binding(&query.body, schemas, ctes, depth + 1, budget)? {
+        return Ok(true);
+    }
+    let local = BTreeMap::new();
+    let check = |e: &Expr| {
+        nested_aggregate_needs_binding(e, schemas, ctes, depth + 1, budget, Some(&local))
+    };
+    if let Some(order) = &query.order_by
+        && let OrderByKind::Expressions(exprs) = &order.kind
+    {
+        for value in exprs {
+            if check(&value.expr)? {
+                return Ok(true);
+            }
+        }
+    }
+    if let Some(limit) = &query.limit_clause {
+        match limit {
+            LimitClause::LimitOffset { limit, offset, .. } => {
+                if let Some(expr) = limit
+                    && check(expr)?
+                {
+                    return Ok(true);
+                }
+                if let Some(offset) = offset
+                    && check(&offset.value)?
+                {
+                    return Ok(true);
+                }
+            }
+            LimitClause::OffsetCommaLimit { offset, limit } => {
+                if check(offset)? || check(limit)? {
+                    return Ok(true);
+                }
+            }
+        }
+    }
+    Ok(false)
+}
+
+fn nested_body_needs_binding(
+    body: &SetExpr,
+    schemas: &BTreeMap<String, Vec<String>>,
+    ctes: &BTreeSet<String>,
+    depth: usize,
+    budget: &AggregateScan,
+) -> MddResult<bool> {
+    budget.visit(depth)?;
+    match body {
+        SetExpr::Select(select) => {
+            nested_select_needs_binding(select, None, None, schemas, ctes, depth + 1, budget)
+        }
+        SetExpr::Query(query) => {
+            nested_query_needs_binding(query, schemas, ctes, depth + 1, budget)
+        }
+        SetExpr::SetOperation { left, right, .. } => {
+            Ok(
+                nested_body_needs_binding(left, schemas, ctes, depth + 1, budget)?
+                    || nested_body_needs_binding(right, schemas, ctes, depth + 1, budget)?,
+            )
+        }
+        SetExpr::Values(values) => {
+            let local = BTreeMap::new();
+            for row in &values.rows {
+                for value in row.iter() {
+                    if nested_aggregate_needs_binding(
+                        value,
+                        schemas,
+                        ctes,
+                        depth + 1,
+                        budget,
+                        Some(&local),
+                    )? {
+                        return Ok(true);
+                    }
+                }
+            }
+            Ok(false)
+        }
+        _ => Ok(true),
+    }
+}
+
+fn nested_select_needs_binding(
+    select: &Select,
+    order_by: Option<&OrderBy>,
+    limit_clause: Option<&LimitClause>,
+    schemas: &BTreeMap<String, Vec<String>>,
+    ctes: &BTreeSet<String>,
+    depth: usize,
+    budget: &AggregateScan,
+) -> MddResult<bool> {
+    budget.visit(depth)?;
+    let mut local = BTreeMap::new();
+    let add_table =
+        |table: &TableFactor, local: &mut BTreeMap<String, BTreeSet<String>>| -> MddResult<()> {
+            budget.visit(depth + 1)?;
+            if let TableFactor::Table { name, alias, .. } = table
+                && name.0.len() == 1
+                && let Some(id) = name.0[0].as_ident()
+            {
+                let table_name = id.value.to_ascii_lowercase();
+                if !ctes.contains(&table_name)
+                    && let Some(columns) = schemas.get(&table_name)
+                {
+                    let alias_name = alias
+                        .as_ref()
+                        .map_or_else(|| table_name.clone(), |a| a.name.value.to_ascii_lowercase());
+                    let mut normalized = BTreeSet::new();
+                    for column in columns {
+                        budget.visit(depth + 2)?;
+                        normalized.insert(column.to_ascii_lowercase());
+                    }
+                    local.insert(alias_name, normalized);
+                }
+            }
+            Ok(())
+        };
+    for table in &select.from {
+        add_table(&table.relation, &mut local)?;
+        for join in &table.joins {
+            add_table(&join.relation, &mut local)?;
+        }
+    }
+    let check = |e: &Expr| {
+        nested_aggregate_needs_binding(e, schemas, ctes, depth + 1, budget, Some(&local))
+    };
+    let table_has_nested = |table: &TableFactor| -> MddResult<bool> {
+        if let TableFactor::Derived { subquery, .. } = table {
+            nested_query_needs_binding(subquery, schemas, ctes, depth + 1, budget)
+        } else {
+            Ok(false)
+        }
+    };
+    for table in &select.from {
+        if table_has_nested(&table.relation)? {
+            return Ok(true);
+        }
+        for join in &table.joins {
+            if table_has_nested(&join.relation)? {
+                return Ok(true);
+            }
+            let constraint = match &join.join_operator {
+                JoinOperator::Join(c)
+                | JoinOperator::Inner(c)
+                | JoinOperator::Left(c)
+                | JoinOperator::LeftOuter(c)
+                | JoinOperator::Right(c)
+                | JoinOperator::RightOuter(c)
+                | JoinOperator::FullOuter(c)
+                | JoinOperator::CrossJoin(c) => c,
+                _ => return Ok(true),
+            };
+            if let JoinConstraint::On(expr) = constraint
+                && check(expr)?
+            {
+                return Ok(true);
+            }
+        }
+    }
+    for item in &select.projection {
+        if let SelectItem::UnnamedExpr(expr) | SelectItem::ExprWithAlias { expr, .. } = item
+            && check(expr)?
+        {
+            return Ok(true);
+        }
+    }
+    for expr in [&select.selection, &select.having].into_iter().flatten() {
+        if check(expr)? {
+            return Ok(true);
+        }
+    }
+    if let GroupByExpr::Expressions(exprs, _) = &select.group_by {
+        for expr in exprs {
+            if check(expr)? {
+                return Ok(true);
+            }
+        }
+    }
+    if let Some(order) = order_by
+        && let OrderByKind::Expressions(exprs) = &order.kind
+    {
+        for value in exprs {
+            if check(&value.expr)? {
+                return Ok(true);
+            }
+        }
+    }
+    if let Some(limit_clause) = limit_clause {
+        match limit_clause {
+            LimitClause::LimitOffset { limit, offset, .. } => {
+                if let Some(expr) = limit
+                    && check(expr)?
+                {
+                    return Ok(true);
+                }
+                if let Some(offset) = offset
+                    && check(&offset.value)?
+                {
+                    return Ok(true);
+                }
+            }
+            LimitClause::OffsetCommaLimit { offset, limit } => {
+                if check(offset)? || check(limit)? {
+                    return Ok(true);
+                }
+            }
+        }
+    }
+    Ok(false)
 }
 
 // Admit only the directly observed form. Derived columns, CTEs and arbitrary
@@ -442,6 +949,10 @@ pub(crate) fn adapt(
         .collect();
     let mut rewrite = Rewrite {
         limits,
+        aggregate_scan: AggregateScan {
+            depth_limit: limits.max_ast_depth.saturating_mul(4).min(512),
+            remaining: Cell::new(limits.max_ast_nodes.saturating_mul(4)),
+        },
         parameters: Vec::new(),
         inputs: parameters,
         next_input: 0,
@@ -516,6 +1027,9 @@ pub(crate) fn adapt(
 }
 struct Rewrite<'a> {
     limits: SqlLimits,
+    // Shared across all nested queries and ordering expressions in one SQL
+    // statement, including repeated projection aliases.
+    aggregate_scan: AggregateScan,
     parameters: Vec<SqlValue>,
     inputs: &'a [SqlValue],
     next_input: usize,
@@ -1266,7 +1780,12 @@ impl Rewrite<'_> {
             }
             _ => (None, None),
         };
+        let was_distinct =
+            matches!(query.body.as_ref(), SetExpr::Select(select) if select.distinct.is_some());
         self.body(&mut query.body, depth + 1)?;
+        let synthetic_distinct_group = was_distinct
+            && matches!(query.body.as_ref(),
+            SetExpr::Select(select) if matches!(&select.group_by, GroupByExpr::Expressions(values, _) if !values.is_empty()));
         if let Some(order) = &mut query.order_by {
             self.in_scopes.push(order_scope.take());
             self.cte_literal_text_scopes.push(order_cte_scope);
@@ -1296,6 +1815,21 @@ impl Rewrite<'_> {
                         order.expr = self.projection_at(&query.body, index)?;
                     } else {
                         self.expr(&mut order.expr, depth + 1)?;
+                    }
+                    if synthetic_distinct_group {
+                        if current_aggregate(&order.expr, 0, &self.aggregate_scan)?
+                            || nested_aggregate_needs_binding(
+                                &order.expr,
+                                &self.schemas,
+                                &self.cte_names,
+                                0,
+                                &self.aggregate_scan,
+                                None,
+                            )?
+                        {
+                            return Err(unsupported("DISTINCT_ORDER_AGGREGATE_BINDING")
+                                .detail("confirm_sqlite_syntax", true));
+                        }
                     }
                     order.expr = call("mdd_sort_key", vec![take(&mut order.expr)]);
                 } else if positional_ordinal(&order.expr)?.is_none() {
@@ -1485,30 +2019,56 @@ impl Rewrite<'_> {
                     if !matches!(distinct, Distinct::Distinct) {
                         return Err(unsupported("DISTINCT_ON"));
                     }
-                    if !grouping.is_empty() || select.having.is_some() {
+                    if !grouping.is_empty() {
                         return Err(unsupported("DISTINCT_AFTER_GROUP_REQUIRES_OUTER_SCOPE"));
                     }
-                    // An ungrouped direct COUNT makes this SELECT an aggregate
-                    // with at most one output row. DISTINCT is redundant;
-                    // grouping by COUNT would instead be invalid SQLite SQL.
-                    let direct_count = select.projection.iter().any(|item| {
-                        let expr = match item {
-                            SelectItem::UnnamedExpr(expr)
-                            | SelectItem::ExprWithAlias { expr, .. } => expr,
-                            _ => return false,
-                        };
-                        match expr {
-                            Expr::Function(function)
-                                if function.name.0.len() == 1 && function.over.is_none() =>
-                            {
-                                function.name.0[0]
-                                    .as_ident()
-                                    .is_some_and(|name| name.value.eq_ignore_ascii_case("count"))
-                            }
-                            _ => false,
+                    // A same-level aggregate without GROUP BY yields at most
+                    // one row, including when HAVING removes that row. DISTINCT
+                    // is redundant. A nested SELECT's aggregate does not count.
+                    let mut aggregate = false;
+                    for item in &select.projection {
+                        if let SelectItem::UnnamedExpr(expr)
+                        | SelectItem::ExprWithAlias { expr, .. } = item
+                            && current_aggregate(expr, 0, &self.aggregate_scan)?
+                        {
+                            aggregate = true;
+                            break;
                         }
-                    });
-                    if !direct_count {
+                    }
+                    if let Some(selection) = &select.selection
+                        && nested_aggregate_needs_binding(
+                            selection,
+                            &self.schemas,
+                            &self.cte_names,
+                            0,
+                            &self.aggregate_scan,
+                            None,
+                        )?
+                    {
+                        return Err(unsupported("DISTINCT_CORRELATED_AGGREGATE_BINDING")
+                            .detail("confirm_sqlite_syntax", true));
+                    }
+                    if !aggregate && select.having.is_some() {
+                        return Err(unsupported("DISTINCT_AFTER_GROUP_REQUIRES_OUTER_SCOPE")
+                            .detail("confirm_sqlite_syntax", true));
+                    }
+                    if !aggregate {
+                        for item in &select.projection {
+                            if let SelectItem::UnnamedExpr(expr)
+                            | SelectItem::ExprWithAlias { expr, .. } = item
+                                && nested_aggregate_needs_binding(
+                                    expr,
+                                    &self.schemas,
+                                    &self.cte_names,
+                                    0,
+                                    &self.aggregate_scan,
+                                    None,
+                                )?
+                            {
+                                return Err(unsupported("DISTINCT_CORRELATED_AGGREGATE_BINDING")
+                                    .detail("confirm_sqlite_syntax", true));
+                            }
+                        }
                         let expressions = self.select_expressions(select)?;
                         grouping = expressions
                             .into_iter()
@@ -2614,6 +3174,58 @@ fn order_identifier(mut expression: &Expr) -> Option<&Ident> {
     match expression {
         Expr::Identifier(id) => Some(id),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod aggregate_scan_tests {
+    use super::*;
+
+    #[test]
+    fn aggregate_reference_scan_obeys_depth_and_visit_budgets() {
+        let mut expr = Expr::Value(Value::Number("1".into(), false).into());
+        for _ in 0..10 {
+            expr = Expr::Nested(Box::new(expr));
+        }
+        let local = BTreeMap::new();
+        for budget in [
+            AggregateScan {
+                depth_limit: 4,
+                remaining: Cell::new(100),
+            },
+            AggregateScan {
+                depth_limit: 100,
+                remaining: Cell::new(2),
+            },
+        ] {
+            assert_eq!(
+                possible_outer_column(&expr, &local, 0, &budget)
+                    .unwrap_err()
+                    .code,
+                ErrorCode::QuotaExceeded
+            );
+        }
+    }
+
+    #[test]
+    fn aggregate_scope_schema_columns_are_charged() {
+        let statements =
+            Parser::parse_sql(&SQLiteDialect {}, "SELECT COUNT(id) FROM vals").unwrap();
+        let Statement::Query(query) = &statements[0] else {
+            panic!("expected SELECT")
+        };
+        let schemas = BTreeMap::from([(
+            "vals".to_string(),
+            (0..20).map(|n| format!("column{n}")).collect(),
+        )]);
+        let budget = AggregateScan {
+            depth_limit: 100,
+            remaining: Cell::new(5),
+        };
+        let error =
+            nested_query_needs_binding(query, &schemas, &BTreeSet::new(), 0, &budget).unwrap_err();
+        assert_eq!(error.code, ErrorCode::QuotaExceeded);
+        assert_eq!(error.message, "SQL_AGGREGATE_DETECTION_NODES");
     }
 }
 fn positional_ordinal(mut expression: &Expr) -> MddResult<Option<usize>> {
