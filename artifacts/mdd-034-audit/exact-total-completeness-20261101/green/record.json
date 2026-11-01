@@ -1,0 +1,105 @@
+{
+  "source_before": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-types/src/lib.rs": "59e6f5df23325ac7828b275d8701acacf47b3a75726f59eab3ec6e740df8cd38",
+    "crates/mdd-types/src/result.rs": "f93e5f7a79d0664bfda0c5c19d16f180dce654e1c92e8cd81944cb47b608a4e6",
+    "contracts/examples/result_complete.example.json": "46fe45fc09a8858435cbe8514fd3b9204e24a5f7616c51616998a6b2d48c2344",
+    "contracts/examples/result_page.example.json": "a6151b995a974af8c0599de19928228d2e86c1394c1b4bd1299cd59c14f224a8",
+    "contracts/examples/result_error.example.json": "89fe1e82986a0f1a918d6ac4aff75f8afede85a4807515975c9b32eab075f627"
+  },
+  "source_after": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-types/src/lib.rs": "59e6f5df23325ac7828b275d8701acacf47b3a75726f59eab3ec6e740df8cd38",
+    "crates/mdd-types/src/result.rs": "f93e5f7a79d0664bfda0c5c19d16f180dce654e1c92e8cd81944cb47b608a4e6",
+    "contracts/examples/result_complete.example.json": "46fe45fc09a8858435cbe8514fd3b9204e24a5f7616c51616998a6b2d48c2344",
+    "contracts/examples/result_page.example.json": "a6151b995a974af8c0599de19928228d2e86c1394c1b4bd1299cd59c14f224a8",
+    "contracts/examples/result_error.example.json": "89fe1e82986a0f1a918d6ac4aff75f8afede85a4807515975c9b32eab075f627"
+  },
+  "runs": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-types",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "complete_result_requires_an_exact_matching_total",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T02:42:54.597834+00:00",
+      "finished_utc": "2026-11-01T02:42:56.638427+00:00",
+      "exit_code": 0,
+      "stdout_raw_sha256": "19c06f60e7619b0ce2711de5ef183e7ffd567375b00f477c42e2ce31f0c023e7",
+      "stderr_raw_sha256": "5461616e4cc6ab4dbdbf8fbdc9edd1afd64e079610bbbb76386266bcd61bda49"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-types",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "exact_total_larger_than_delivered_is_not_complete",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T02:42:56.638475+00:00",
+      "finished_utc": "2026-11-01T02:42:57.320176+00:00",
+      "exit_code": 0,
+      "stdout_raw_sha256": "65207fb0569f29e4f7d9e1ca1210dd6850745551ccd4ede73469b33b729e6ac2",
+      "stderr_raw_sha256": "f319a93daa242444b3cdea587f3308e2e583fabe421b16b1281645bcc51aea67"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-types",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "blocking_warning_cannot_be_a_complete_result",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T02:42:57.320227+00:00",
+      "finished_utc": "2026-11-01T02:42:58.004206+00:00",
+      "exit_code": 0,
+      "stdout_raw_sha256": "078bc25f17cc332a44462b4e37115499a5afd72a8756a17de9cb7255adebfac7",
+      "stderr_raw_sha256": "06a51b73b203815cff65c4b85d3467a8f9e2df4253d9a2d4566604714332e990"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-types",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "contract_examples_roundtrip_and_partial_states_do_not_pass",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T02:42:58.004240+00:00",
+      "finished_utc": "2026-11-01T02:42:58.644635+00:00",
+      "exit_code": 0,
+      "stdout_raw_sha256": "f9f41fa89afc4230d83b2f4ee8a2e3ca68d7f68e640b5523065d87c52867042e",
+      "stderr_raw_sha256": "577f73fcb803624b6313a2a326baba643163ea6b2824e98ff776fea3b1eacffe"
+    }
+  ],
+  "scope": "four targeted contract/stream checks; listed sources only, not full workspace/profile qualification"
+}

@@ -1,0 +1,10 @@
+   Compiling memchr v2.8.3
+   Compiling serde_json v1.0.151
+   Compiling mdd-types v0.1.0-dev (<workspace>\crates\mdd-types)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.73s
+     Running unittests src\lib.rs (target\debug\deps\mdd_types-674dda7073209242.exe)
+
+thread 'result::tests::complete_result_requires_an_exact_matching_total' (39276) panicked at crates\mdd-types\src\result.rs:480:9:
+assertion failed: !inexact.is_complete_result()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p mdd-types --lib`

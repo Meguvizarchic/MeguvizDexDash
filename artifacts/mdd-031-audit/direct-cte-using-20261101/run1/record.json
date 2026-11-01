@@ -1,0 +1,94 @@
+{
+  "scope": "three targeted synthetic SQLite and legacy regression tests; listed sources only, no full qualification",
+  "source_before": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-sql/src/dialects/ast.rs": "d281bb5d3f18318ee515151cd19afaf14cd72d53490ee8c82e9ee7abfe81de20",
+    "crates/mdd-sql/src/bridge.rs": "1001a2b4c361c47d7894ea6f522b5d23e2e64798821e767047a341e733f75cb9",
+    "crates/mdd-sql/src/dialects/functions.rs": "f4aca963abe8d9ef73003d1860111b8a6da14505be7f9f0c1eddec6f9fe3015c",
+    "crates/mdd-query/src/executor.rs": "a664109676239f3e06846b9b79b64dffaa1b11cbd33a8bf9b5569671698ac2ae",
+    "crates/mdd-query/src/budget.rs": "3c3dd15c6deeecd90f59d020ff877ec69f87c63e419b946a4771e81dddede19c",
+    "crates/mdd-query/src/executor/facts.rs": "0aeb142c2d62c8b8fcff2ae1d25e689d8b2bcad15ed7725c6dc6929bfeb89e45",
+    "crates/mdd-session/src/lib.rs": "afda23d2dbb014680afa204ed7574387c017740223c6d5f68431c4b5f893efdd",
+    "crates/mdd-session/src/cancellation.rs": "7e3636d5e62cf4de567fb55088f186e5130eb024ddd0517a535e15bcad669114"
+  },
+  "runs": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-sql",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "direct_cte_using_preserves_wildcards_nulls_and_multiplicity",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T02:43:55.112450+00:00",
+      "finished_utc": "2026-11-01T02:44:06.852397+00:00",
+      "exit_code": 0,
+      "stdout_sha256": "3151a57a1de10c69a025489a4cdb7958c00c485feb4b580c95b95ccde31ac4b5",
+      "stderr_sha256": "5f0b3b45eba2df496db25a92d5c7ded52bc4202471218d22601396099d9de105",
+      "redaction": "workspace path replaced; originals retained locally"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-sql",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "using_join_same_carrier_retains_sqlite_merged_wildcard_shape",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T02:44:06.852435+00:00",
+      "finished_utc": "2026-11-01T02:44:07.488494+00:00",
+      "exit_code": 0,
+      "stdout_sha256": "f8d4e45beb8cba7eba3e8fc5ebe4cc6d7bab4f7bd9893707a18d60366d9dc73d",
+      "stderr_sha256": "4c7475f5f5aa129a0d65f13c85df1e0fbacd8eae1d99edfcd04c031fc5f05906",
+      "redaction": "workspace path replaced; originals retained locally"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-sql",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "legacy_direct_cte_text_literal_preserves_affinity",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T02:44:07.488571+00:00",
+      "finished_utc": "2026-11-01T02:44:08.219140+00:00",
+      "exit_code": 0,
+      "stdout_sha256": "3f3dab2260ed7ebf13860fe18086de420e626c94b31a212d5cef14065bb4ad09",
+      "stderr_sha256": "24dde67a1f85cc6a7945b1f8ffb231d89fc4f4b1ad6b51e9128871a62504ef68",
+      "redaction": "workspace path replaced; originals retained locally"
+    }
+  ],
+  "source_after": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-sql/src/dialects/ast.rs": "d281bb5d3f18318ee515151cd19afaf14cd72d53490ee8c82e9ee7abfe81de20",
+    "crates/mdd-sql/src/bridge.rs": "1001a2b4c361c47d7894ea6f522b5d23e2e64798821e767047a341e733f75cb9",
+    "crates/mdd-sql/src/dialects/functions.rs": "f4aca963abe8d9ef73003d1860111b8a6da14505be7f9f0c1eddec6f9fe3015c",
+    "crates/mdd-query/src/executor.rs": "a664109676239f3e06846b9b79b64dffaa1b11cbd33a8bf9b5569671698ac2ae",
+    "crates/mdd-query/src/budget.rs": "3c3dd15c6deeecd90f59d020ff877ec69f87c63e419b946a4771e81dddede19c",
+    "crates/mdd-query/src/executor/facts.rs": "0aeb142c2d62c8b8fcff2ae1d25e689d8b2bcad15ed7725c6dc6929bfeb89e45",
+    "crates/mdd-session/src/lib.rs": "afda23d2dbb014680afa204ed7574387c017740223c6d5f68431c4b5f893efdd",
+    "crates/mdd-session/src/cancellation.rs": "7e3636d5e62cf4de567fb55088f186e5130eb024ddd0517a535e15bcad669114"
+  }
+}

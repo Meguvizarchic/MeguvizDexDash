@@ -369,7 +369,14 @@ impl StreamVerifier {
             self.fault = Some(error.clone());
             return Err(error);
         }
-        if envelope.is_complete_result()
+        // Check the final delivery claim independently from the complete-result
+        // predicate: a stricter predicate must not hide a contradictory exact
+        // total. Pages and error/truncated responses retain their own semantics.
+        if envelope.operation_status == OperationStatus::Ok
+            && envelope.execution.complete
+            && !envelope.response.truncated
+            && !envelope.response.more_available
+            && envelope.response.next_cursor.is_none()
             && envelope.response.total_rows_exact
             && envelope.response.total_rows != Some(DecimalU64(self.rows))
         {
@@ -464,6 +471,79 @@ mod tests {
     }
     fn verifier() -> StreamVerifier {
         StreamVerifier::new(identity(), "scope".into(), vec!["structure".into()]).unwrap()
+    }
+    #[test]
+    fn complete_result_requires_an_exact_matching_total() {
+        let mut builder = TerminalBuilder::new(identity(), coverage()).unwrap();
+        builder.computation_complete(1).unwrap();
+        builder.record_batch(0, 1).unwrap();
+        let valid = builder.succeed(None).unwrap();
+        assert!(valid.is_complete_result());
+
+        let mut inexact = valid.clone();
+        inexact.response.total_rows = None;
+        inexact.response.total_rows_exact = false;
+        inexact.validate().unwrap();
+        assert!(!inexact.is_complete_result());
+        let mut receiver = verifier();
+        receiver.batch(0, "rows-v1", 1).unwrap();
+        receiver.terminal(inexact).unwrap();
+        assert!(!receiver.finish().unwrap().is_complete_result());
+
+        let mut mismatch = valid;
+        mismatch.response.total_rows = Some(DecimalU64(2));
+        mismatch.validate().unwrap();
+        assert!(!mismatch.is_complete_result());
+        let mut receiver = verifier();
+        receiver.batch(0, "rows-v1", 1).unwrap();
+        assert_eq!(
+            receiver.terminal(mismatch).unwrap_err().code,
+            ErrorCode::InvalidArgument
+        );
+
+        let mut page = TerminalBuilder::new(identity(), coverage()).unwrap();
+        page.computation_complete(2).unwrap();
+        page.record_batch(0, 1).unwrap();
+        let page = page.page(1, "cursor".into(), None).unwrap();
+        page.validate().unwrap();
+        assert!(!page.is_complete_result());
+        let mut receiver = verifier();
+        receiver.batch(0, "rows-v1", 1).unwrap();
+        receiver.terminal(page).unwrap();
+        assert!(!receiver.finish().unwrap().is_complete_result());
+    }
+    #[test]
+    fn exact_total_larger_than_delivered_is_not_complete() {
+        let mut builder = TerminalBuilder::new(identity(), coverage()).unwrap();
+        builder.computation_complete(1).unwrap();
+        builder.record_batch(0, 1).unwrap();
+        let mut mismatch = builder.succeed(None).unwrap();
+        mismatch.response.total_rows = Some(DecimalU64(2));
+        mismatch.validate().unwrap();
+        assert!(!mismatch.is_complete_result());
+    }
+    #[test]
+    fn blocking_warning_cannot_be_a_complete_result() {
+        let mut builder = TerminalBuilder::new(identity(), coverage()).unwrap();
+        builder.computation_complete(0).unwrap();
+        let mut result = builder.succeed(None).unwrap();
+        result.warnings.push(crate::Issue {
+            layer: "delivery".into(),
+            reason: "consumer could not establish complete delivery".into(),
+            blocking: false,
+            entity_id: None,
+            member_id: None,
+            range: None,
+            details: None,
+        });
+        result.validate().unwrap();
+        assert!(result.is_complete_result());
+        result.warnings[0].blocking = true;
+        result.validate().unwrap();
+        assert!(!result.is_complete_result());
+        let mut receiver = verifier();
+        receiver.terminal(result).unwrap();
+        assert!(!receiver.finish().unwrap().is_complete_result());
     }
     #[test]
     fn pristine_builder_rejects_even_a_recorded_zero_row_batch() {

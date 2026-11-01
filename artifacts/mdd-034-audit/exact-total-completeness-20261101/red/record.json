@@ -1,0 +1,37 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "mdd-types",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "1",
+    "complete_result_requires_an_exact_matching_total",
+    "--",
+    "--nocapture"
+  ],
+  "started_utc": "2026-11-01T02:41:13.795277+00:00",
+  "finished_utc": "2026-11-01T02:41:17.098782+00:00",
+  "exit_code": 101,
+  "source_before": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-types/src/lib.rs": "12b8b0bdd6d2eb549548880e2730c0837902bf6dc31a5508489f4d87a158437c",
+    "crates/mdd-types/src/result.rs": "8bec4905b0d78b6fa5d82e4493684b4fc6fb1ccadbd3cfd33d8e0a48c4a896ff",
+    "contracts/examples/result_complete.example.json": "46fe45fc09a8858435cbe8514fd3b9204e24a5f7616c51616998a6b2d48c2344"
+  },
+  "source_after": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-types/src/lib.rs": "12b8b0bdd6d2eb549548880e2730c0837902bf6dc31a5508489f4d87a158437c",
+    "crates/mdd-types/src/result.rs": "8bec4905b0d78b6fa5d82e4493684b4fc6fb1ccadbd3cfd33d8e0a48c4a896ff",
+    "contracts/examples/result_complete.example.json": "46fe45fc09a8858435cbe8514fd3b9204e24a5f7616c51616998a6b2d48c2344"
+  },
+  "stdout_raw_sha256": "54a6ab5fc3a38b8dfb614be843c1c2fac07667ff04fba163fb48e2f74c9dd76f",
+  "stderr_raw_sha256": "75ecc06361eef0910de9ed7e4d326c4b01038933be52f9081fe3f8ad6b8f57ba",
+  "scope": "real inexact-total completeness counterexample; first assertion only; no full qualification"
+}

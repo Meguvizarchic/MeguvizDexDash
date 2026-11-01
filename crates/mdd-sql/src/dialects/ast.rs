@@ -2082,13 +2082,23 @@ impl Rewrite<'_> {
                 .and_then(|p| p.as_ident())
                 .ok_or_else(|| invalid("TABLE_NAME_SHAPE"))?;
             let name = id.value.to_ascii_lowercase();
-            if self
+            if let Some(id) = self
                 .cte_scopes
                 .iter()
                 .rev()
-                .any(|scope| scope.contains_key(&name))
+                .find_map(|scope| scope.get(&name))
             {
-                return Err(unsupported("JOIN_USING_CTE_SCHEMA"));
+                return self.cte_direct_types.get(id).ok_or_else(|| {
+                    let visible_ctes = self
+                        .cte_scopes
+                        .iter()
+                        .flat_map(|scope| scope.keys())
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    unsupported("JOIN_USING_CTE_SCHEMA")
+                        .detail("confirm_sqlite_syntax", true)
+                        .detail("visible_ctes", visible_ctes)
+                });
             }
             self.schema_types
                 .get(&name)

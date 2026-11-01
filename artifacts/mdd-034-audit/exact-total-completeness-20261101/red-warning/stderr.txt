@@ -1,0 +1,8 @@
+   Compiling mdd-types v0.1.0-dev (<workspace>\crates\mdd-types)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.81s
+     Running unittests src\lib.rs (target\debug\deps\mdd_types-674dda7073209242.exe)
+
+thread 'result::tests::blocking_warning_cannot_be_a_complete_result' (560) panicked at crates\mdd-types\src\result.rs:543:9:
+assertion failed: !result.is_complete_result()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p mdd-types --lib`

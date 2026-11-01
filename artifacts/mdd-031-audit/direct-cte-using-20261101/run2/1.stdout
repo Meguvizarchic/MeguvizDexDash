@@ -1,0 +1,11 @@
+
+running 1 test
+test bridge::tests::direct_cte_using_unsigned_and_boolean_nulls_and_duplicates ... FAILED
+
+failures:
+
+failures:
+    bridge::tests::direct_cte_using_unsigned_and_boolean_nulls_and_duplicates
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 136 filtered out; finished in 0.00s
+

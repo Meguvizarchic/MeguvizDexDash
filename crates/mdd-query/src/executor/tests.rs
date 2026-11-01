@@ -329,6 +329,210 @@ fn typed_signature_catalog_keeps_owner_fragments_and_occurrences() {
 }
 
 #[test]
+fn typed_annotation_physical_values_keep_identity_bits_and_string_links() {
+    let input = InputSpec {
+        path: PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/annotations/generated/annotations-038.dex"),
+        kind: InputKind::RawDex,
+        expected_sha256: None,
+    };
+    let snapshot = Snapshot::capture(&[input.clone(), input], CaptureLimits::default()).unwrap();
+    let mut occurrences = Vec::new();
+    let mut annotations = Vec::new();
+    for source in snapshot.sources() {
+        let inventory =
+            ArchiveInventory::build(source, InventoryPolicy::default(), ArchiveLimits::default())
+                .unwrap();
+        let metadata =
+            MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default()).unwrap();
+        let definitions =
+            DefinitionFacts::build(metadata.clone(), DefinitionLimits::default()).unwrap();
+        annotations.push(Arc::new(
+            AnnotationFacts::build(definitions.clone(), AnnotationLimits::default()).unwrap(),
+        ));
+        occurrences.push(OccurrenceFacts {
+            metadata: Arc::new(metadata),
+            definitions: Some(Arc::new(definitions)),
+            code: None,
+        });
+    }
+    let native = NativeCatalog::new(
+        snapshot.manifest().snapshot_id.clone(),
+        DecimalU64(7),
+        occurrences,
+    )
+    .unwrap();
+    let catalog = AnnotationCatalog::new(native, annotations.clone()).unwrap();
+    let oracle: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../tests/fixtures/annotations/oracle-results.json"
+    ))
+    .unwrap();
+    let num = |value: &Value| match value {
+        Value::U64(DecimalU64(value)) => Some(*value),
+        Value::Null => None,
+        other => panic!("unexpected number {other:?}"),
+    };
+    let text = |value: &Value| match value {
+        Value::Utf16(value) => Some(String::from_utf16(value).unwrap()),
+        Value::Null => None,
+        other => panic!("unexpected text {other:?}"),
+    };
+    let canonical = |value: serde_json::Value| serde_json::to_string(&value).unwrap();
+    let expected_items: BTreeSet<_> = oracle["positive"]["annotations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| {
+            canonical(serde_json::json!({
+                "annotation_off":v["annotation_off"], "visibility":v["visibility"],
+                "type_idx":v["type_idx"], "element_count":v["element_count"]
+            }))
+        })
+        .collect();
+    let expected_values: BTreeSet<_> = oracle["positive"]["annotation_elements"].as_array().unwrap().iter().map(|v| canonical(serde_json::json!({
+        "annotation_off":v["annotation_off"], "depth":v["depth"], "ordinal":v["ordinal"],
+        "name_idx":v["name_idx"], "value_kind":v["value_kind"], "value_index":v["value_index"],
+        "value_i64":v["value_i64"], "value_off":v["value_off"], "value_end_off":v["value_end_off"]
+    }))).collect();
+    let scan = |relation: &str| Node::Scan {
+        relation: relation.into(),
+    };
+    let plan = |root| {
+        prepare(
+            query(root, catalog.snapshot_id(), catalog.catalog_epoch()),
+            &catalog,
+        )
+        .unwrap()
+    };
+    let items = plan(scan("annotation_items"));
+    let values = plan(scan("annotation_values"));
+    let joined = plan(Node::EquiJoin {
+        left: Box::new(scan("annotation_values")),
+        right: Box::new(scan("strings")),
+        left_keys: vec![9],
+        right_keys: vec![0],
+        kind: JoinKind::Inner,
+    });
+    for mode in [
+        ExecutionMode::Streaming,
+        ExecutionMode::MaterializedReference,
+    ] {
+        let item_rows = execute(
+            &items,
+            &catalog,
+            mode,
+            &mut Control::new(ExecutionLimits::default()),
+        )
+        .unwrap();
+        let value_rows = execute(
+            &values,
+            &catalog,
+            mode,
+            &mut Control::new(ExecutionLimits::default()),
+        )
+        .unwrap();
+        let join_rows = execute(
+            &joined,
+            &catalog,
+            mode,
+            &mut Control::new(ExecutionLimits::default()),
+        )
+        .unwrap();
+        let mut seen_items = BTreeMap::<String, BTreeSet<String>>::new();
+        let mut seen_values = BTreeMap::<String, BTreeSet<String>>::new();
+        let mut string_count = 0;
+        let mut float_bits = BTreeSet::new();
+        let mut null_count = 0;
+        for row in item_rows.rows() {
+            let source = text(&row[0]).unwrap();
+            let Value::Entity(ty) = &row[3] else {
+                panic!("missing type entity")
+            };
+            assert_eq!(ty.dex_occurrence_id, source);
+            assert_eq!(ty.snapshot_id, snapshot.manifest().snapshot_id);
+            assert_eq!(ty.kind, EntityKind::Type);
+            let key = canonical(
+                serde_json::json!({"annotation_off":num(&row[1]), "visibility":num(&row[2]),
+                "type_idx":ty.local_index, "element_count":num(&row[4])}),
+            );
+            assert!(seen_items.entry(source).or_default().insert(key));
+        }
+        for row in value_rows.rows() {
+            let source = text(&row[0]).unwrap();
+            let facts = annotations
+                .iter()
+                .find(|a| a.source().dex_occurrence_id == source)
+                .unwrap();
+            let start = num(&row[13]).unwrap() as usize;
+            let length = num(&row[14]).unwrap() as usize;
+            let Value::Bytes(raw) = &row[15] else {
+                panic!("missing raw scalar")
+            };
+            assert!(start + length <= facts.bytes().len());
+            assert!(1 + raw.0.len() <= length);
+            assert_eq!(
+                raw.0.as_slice(),
+                &facts.bytes()[start + 1..start + 1 + raw.0.len()]
+            );
+            let kind = text(&row[6]).unwrap();
+            if kind == "string" {
+                let Value::Entity(entity) = &row[9] else {
+                    panic!("missing string reference")
+                };
+                assert_eq!(entity.dex_occurrence_id, source);
+                assert_eq!(entity.snapshot_id, snapshot.manifest().snapshot_id);
+                assert_eq!(Some(u64::from(entity.local_index)), num(&row[8]));
+                string_count += 1;
+            } else {
+                assert_eq!(row[9], Value::Null);
+            }
+            if kind == "null" {
+                assert_eq!(row[10], Value::Null);
+                assert!(raw.0.is_empty());
+                null_count += 1;
+            }
+            if let Some(bits) = num(&row[11]) {
+                float_bits.insert(bits);
+            }
+            if let Some(annotation) = num(&row[2]) {
+                let key = canonical(
+                    serde_json::json!({"annotation_off":annotation, "depth":num(&row[3]),
+                    "ordinal":num(&row[4]), "name_idx":num(&row[5]), "value_kind":kind,
+                    "value_index":num(&row[8]), "value_i64":text(&row[10]), "value_off":start,
+                    "value_end_off":start + length}),
+                );
+                assert!(seen_values.entry(source).or_default().insert(key));
+            }
+        }
+        assert_eq!(seen_items.len(), 2);
+        assert_eq!(seen_values.len(), 2);
+        assert!(seen_items.values().all(|v| v == &expected_items));
+        assert!(seen_values.values().all(|v| v == &expected_values));
+        assert_eq!(join_rows.rows().len(), string_count);
+        for row in join_rows.rows() {
+            assert_eq!(row[9], row[17]);
+        }
+        assert!(null_count >= 2);
+        assert!(float_bits.contains(&0x7fc01234));
+        assert!(float_bits.contains(&0x7ff8000000001234));
+    }
+    let mut limits = ExecutionLimits::default();
+    limits.max_output_rows = 1;
+    assert_eq!(
+        execute(
+            &values,
+            &catalog,
+            ExecutionMode::Streaming,
+            &mut Control::new(limits)
+        )
+        .err()
+        .unwrap()
+        .code,
+        ErrorCode::QuotaExceeded
+    );
+}
+
+#[test]
 fn typed_string_reference_query_preserves_raw_text_sources_and_sites() {
     let (native, references) = native_references_fixture("nonscalar-string-035.dex");
     let catalog = ReferenceCatalog::new(native, references.clone()).unwrap();

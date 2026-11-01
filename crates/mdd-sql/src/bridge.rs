@@ -2291,6 +2291,204 @@ mod tests {
         );
     }
     #[test]
+    fn direct_cte_using_preserves_wildcards_nulls_and_multiplicity() {
+        use mdd_query::ir::Signed64;
+        let provider = Arc::new(RowsProvider {
+            binding: SqlBinding {
+                provider_identity: "using-cte".into(),
+                snapshot_id: "using-cte-snapshot".into(),
+                catalog_epoch: DecimalU64(0),
+            },
+            columns: vec![
+                SqlColumn {
+                    id: "id".into(),
+                    name: "id".into(),
+                    data_type: SqlType::I64,
+                    nullable: true,
+                },
+                SqlColumn {
+                    id: "txt".into(),
+                    name: "txt".into(),
+                    data_type: SqlType::Text,
+                    nullable: true,
+                },
+            ],
+            rows: vec![
+                vec![SqlValue::I64(Signed64(1)), SqlValue::text("a")],
+                vec![SqlValue::I64(Signed64(1)), SqlValue::text("b")],
+                vec![SqlValue::I64(Signed64(2)), SqlValue::Null],
+                vec![SqlValue::Null, SqlValue::text("z")],
+            ],
+        });
+        let sqlite = Connection::open_in_memory().unwrap();
+        sqlite.execute_batch("CREATE TABLE vals(id INTEGER,txt TEXT); INSERT INTO vals VALUES(1,'a'),(1,'b'),(2,NULL),(NULL,'z');").unwrap();
+        let sqls = [
+            "WITH c AS (SELECT id,txt FROM vals) SELECT * FROM c JOIN vals b USING(id) ORDER BY c.id,c.txt,b.txt",
+            "WITH c(v,id) AS (SELECT txt,id FROM vals) SELECT * FROM vals a LEFT JOIN c USING(id) ORDER BY a.id,a.txt,c.v",
+            "WITH c AS (SELECT id,txt FROM vals) SELECT a.id,c.id,a.txt,c.txt FROM vals a JOIN c USING(id) ORDER BY a.id,a.txt,c.txt",
+            "WITH c AS (SELECT id,txt FROM vals) SELECT * FROM c LEFT JOIN vals b USING(id) ORDER BY c.id,c.txt,b.txt",
+        ];
+        for dialect in [
+            SqlDialect::NativeV1,
+            SqlDialect::DexSql010,
+            SqlDialect::DexSql011,
+        ] {
+            let bridge = SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+            for sql in sqls {
+                let mut reference = sqlite.prepare(sql).unwrap();
+                let names = reference
+                    .column_names()
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect::<Vec<_>>();
+                let width = names.len();
+                let expected = reference
+                    .query_map([], |row| {
+                        (0..width)
+                            .map(|index| match row.get_ref(index)? {
+                                rusqlite::types::ValueRef::Null => Ok(SqlValue::Null),
+                                rusqlite::types::ValueRef::Integer(value) => {
+                                    Ok(SqlValue::I64(Signed64(value)))
+                                }
+                                rusqlite::types::ValueRef::Text(value) => {
+                                    Ok(SqlValue::text(std::str::from_utf8(value).unwrap()))
+                                }
+                                _ => panic!("unexpected SQLite cell"),
+                            })
+                            .collect::<rusqlite::Result<Vec<_>>>()
+                    })
+                    .unwrap()
+                    .collect::<rusqlite::Result<Vec<_>>>()
+                    .unwrap();
+                let actual = bridge.query(sql).unwrap();
+                assert_eq!(actual.columns, names, "{dialect:?}: {sql}");
+                assert_eq!(actual.rows, expected, "{dialect:?}: {sql}");
+            }
+            for sql in [
+                "WITH c AS (SELECT id,txt FROM vals) SELECT * FROM c JOIN vals USING(missing)",
+                "WITH c AS (SELECT id+0 AS id,txt FROM vals) SELECT * FROM c JOIN vals USING(missing)",
+                "WITH c AS (SELECT absent AS id FROM vals) SELECT * FROM c JOIN vals USING(id)",
+            ] {
+                assert_eq!(
+                    bridge.query(sql).unwrap_err().code,
+                    ErrorCode::InvalidArgument,
+                    "{dialect:?}: {sql}"
+                );
+            }
+            for sql in [
+                "WITH c AS (SELECT id+0 AS id,txt FROM vals) SELECT * FROM c JOIN vals USING(id)",
+                "WITH c AS (SELECT txt AS id FROM vals) SELECT * FROM c JOIN vals USING(id)",
+            ] {
+                assert!(sqlite.prepare(sql).is_ok(), "SQLite rejected: {sql}");
+                assert_eq!(
+                    bridge.query(sql).unwrap_err().code,
+                    ErrorCode::UnsupportedQuery,
+                    "{dialect:?}: {sql}"
+                );
+            }
+        }
+    }
+    #[test]
+    fn direct_cte_using_unsigned_and_boolean_nulls_and_duplicates() {
+        let provider = Arc::new(RowsProvider {
+            binding: SqlBinding {
+                provider_identity: "using-cte-integral".into(),
+                snapshot_id: "using-cte-integral-snapshot".into(),
+                catalog_epoch: DecimalU64(0),
+            },
+            columns: vec![
+                SqlColumn {
+                    id: "u".into(),
+                    name: "u".into(),
+                    data_type: SqlType::U64,
+                    nullable: true,
+                },
+                SqlColumn {
+                    id: "b".into(),
+                    name: "b".into(),
+                    data_type: SqlType::Bool,
+                    nullable: true,
+                },
+            ],
+            rows: vec![
+                vec![SqlValue::U64(DecimalU64(0)), SqlValue::Bool(false)],
+                vec![SqlValue::U64(DecimalU64(1)), SqlValue::Bool(true)],
+                vec![SqlValue::U64(DecimalU64(1)), SqlValue::Bool(true)],
+                vec![SqlValue::Null, SqlValue::Null],
+            ],
+        });
+        let sqlite = Connection::open_in_memory().unwrap();
+        sqlite.execute_batch("CREATE TABLE vals(u INTEGER,b INTEGER); INSERT INTO vals VALUES(0,0),(1,1),(1,1),(NULL,NULL);").unwrap();
+        let cases = [
+            (
+                "WITH c AS (SELECT u,b FROM vals) SELECT a.u,c.u FROM vals a LEFT JOIN c USING(u) ORDER BY a.u,c.b",
+                false,
+            ),
+            (
+                "WITH c AS (SELECT u,b FROM vals) SELECT a.b,c.b FROM c JOIN vals a USING(b) ORDER BY a.b",
+                true,
+            ),
+        ];
+        for dialect in [
+            SqlDialect::NativeV1,
+            SqlDialect::DexSql010,
+            SqlDialect::DexSql011,
+        ] {
+            let bridge = SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+            for (sql, boolean) in cases {
+                let mut stmt = sqlite.prepare(sql).unwrap();
+                let expected = stmt
+                    .query_map([], |row| {
+                        (0..2)
+                            .map(|index| {
+                                Ok(match row.get::<_, Option<i64>>(index)? {
+                                    None => SqlValue::Null,
+                                    // SQLite returns these Bool carrier values as
+                                    // INTEGER; this checks observable SQLite output.
+                                    Some(value) if boolean => {
+                                        SqlValue::I64(mdd_query::ir::Signed64(value))
+                                    }
+                                    Some(value) => SqlValue::U64(DecimalU64(value as u64)),
+                                })
+                            })
+                            .collect::<rusqlite::Result<Vec<_>>>()
+                    })
+                    .unwrap()
+                    .collect::<rusqlite::Result<Vec<_>>>()
+                    .unwrap();
+                assert_eq!(
+                    bridge.query(sql).unwrap().rows,
+                    expected,
+                    "{dialect:?}: {sql}"
+                );
+            }
+            let mixed = "WITH c AS (SELECT b AS u FROM vals) SELECT * FROM c JOIN vals USING(u)";
+            assert!(sqlite.prepare(mixed).is_ok());
+            assert_eq!(
+                bridge.query(mixed).unwrap_err().code,
+                ErrorCode::UnsupportedQuery
+            );
+            let extreme_provider = Arc::new(RowsProvider {
+                binding: SqlBinding {
+                    provider_identity: "using-cte-u64-max".into(),
+                    snapshot_id: "using-cte-u64-max-snapshot".into(),
+                    catalog_epoch: DecimalU64(0),
+                },
+                columns: provider.columns.clone(),
+                rows: vec![
+                    vec![SqlValue::U64(DecimalU64(u64::MAX)), SqlValue::Bool(true)],
+                    vec![SqlValue::U64(DecimalU64(u64::MAX)), SqlValue::Bool(false)],
+                ],
+            });
+            let extreme = SqlBridge::new(extreme_provider, dialect, SqlLimits::default()).unwrap();
+            let rows = extreme
+                .query("WITH c AS (SELECT u FROM vals) SELECT a.u,c.u FROM vals a JOIN c USING(u)")
+                .unwrap()
+                .rows;
+            assert_eq!(rows, vec![vec![SqlValue::U64(DecimalU64(u64::MAX)); 2]; 4]);
+        }
+    }
+    #[test]
     fn legacy_direct_cte_text_literal_preserves_affinity() {
         let (provider, native) = bridge();
         for dialect in [SqlDialect::DexSql010, SqlDialect::DexSql011] {

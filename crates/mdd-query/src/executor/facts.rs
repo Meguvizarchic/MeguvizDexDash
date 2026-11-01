@@ -799,7 +799,7 @@ impl FactSource for ReferenceCatalog {
     }
 }
 
-fn signature_schema(relation: &str) -> Option<RelationSchema> {
+fn annotation_schema(relation: &str) -> Option<RelationSchema> {
     use DataType::*;
     let columns = match relation {
         "annotation_signatures" => vec![
@@ -824,6 +824,34 @@ fn signature_schema(relation: &str) -> Option<RelationSchema> {
             column("string_entity", Entity, false),
             column("utf16", Utf16, false),
             column("raw_mutf8", Bytes, false),
+        ],
+        "annotation_items" => vec![
+            column("dex_occurrence_id", Utf16, false),
+            column("annotation_offset", U64, false),
+            column("visibility", U64, false),
+            column("annotation_type", Entity, false),
+            column("element_count", U64, false),
+            column("encoded_offset", U64, false),
+            column("encoded_length", U64, false),
+        ],
+        "annotation_values" => vec![
+            column("dex_occurrence_id", Utf16, false),
+            column("node_id", U64, false),
+            column("annotation_offset", U64, true),
+            column("depth", U64, false),
+            column("ordinal", U64, false),
+            column("name_index", U64, true),
+            column("value_kind", Utf16, false),
+            column("value_arg", U64, false),
+            column("value_index", U64, true),
+            column("value_string", Entity, true),
+            column("value_integer", Utf16, true),
+            column("float_bits", U64, true),
+            column("float_bit_width", U64, true),
+            column("encoded_offset", U64, false),
+            column("encoded_length", U64, false),
+            column("raw_scalar_payload", Bytes, false),
+            column("child_count", U64, false),
         ],
         _ => return None,
     };
@@ -860,7 +888,7 @@ impl FactSource for AnnotationCatalog {
         self.base.source().catalog_epoch()
     }
     fn relation_schema(&self, relation: &str) -> MddResult<RelationSchema> {
-        match signature_schema(relation) {
+        match annotation_schema(relation) {
             Some(schema) => Ok(schema),
             None => self.base.source().relation_schema(relation),
         }
@@ -888,10 +916,87 @@ impl FactSource for AnnotationCatalog {
         &'a self,
         relation: &str,
     ) -> MddResult<Box<dyn Iterator<Item = MddResult<Row>> + 'a>> {
-        let Some(schema) = signature_schema(relation) else {
+        let Some(schema) = annotation_schema(relation) else {
             return self.base.source().scan(relation);
         };
         self.require_layers(&schema.required_layers.into_iter().collect())?;
+        if relation == "annotation_items" {
+            return Ok(Box::new(self.annotations.iter().flat_map(|facts| {
+                facts.data().annotation_items.iter().map(move |item| {
+                    let source = facts.source();
+                    let annotation_type = facts
+                        .definitions()
+                        .metadata()
+                        .entity(EntityKind::Type, item.type_idx)?;
+                    Ok(vec![
+                        Value::text(&source.dex_occurrence_id),
+                        number(item.byte_offset),
+                        number(u32::from(item.visibility)),
+                        Value::Entity(annotation_type),
+                        signature_ordinal(item.elements.len())?,
+                        Value::U64(item.encoded_range.byte_offset),
+                        Value::U64(item.encoded_range.byte_length),
+                    ])
+                })
+            })));
+        }
+        if relation == "annotation_values" {
+            return Ok(Box::new(self.annotations.iter().flat_map(|facts| {
+                facts
+                    .data()
+                    .values
+                    .iter()
+                    .enumerate()
+                    .map(move |(ordinal, value)| {
+                        use mdd_dex::annotations::EncodedKind;
+                        if usize::try_from(value.node_id).ok() != Some(ordinal) {
+                            return Err(MddError::new(
+                                ErrorCode::InternalFault,
+                                "query.facts",
+                                "annotation value node identity is inconsistent",
+                            ));
+                        }
+                        let string = if value.kind == EncodedKind::String {
+                            let index = value.value_index.ok_or_else(|| {
+                                MddError::new(
+                                    ErrorCode::InternalFault,
+                                    "query.facts",
+                                    "annotation string reference is missing",
+                                )
+                            })?;
+                            Value::Entity(
+                                facts
+                                    .definitions()
+                                    .metadata()
+                                    .entity(EntityKind::String, index)?,
+                            )
+                        } else {
+                            Value::Null
+                        };
+                        Ok(vec![
+                            Value::text(&facts.source().dex_occurrence_id),
+                            number(value.node_id),
+                            value.annotation_byte_offset.map_or(Value::Null, number),
+                            number(value.depth),
+                            number(value.ordinal),
+                            value.name_idx.map_or(Value::Null, number),
+                            Value::text(value.kind.as_str()),
+                            number(u32::from(value.value_arg)),
+                            value.value_index.map_or(Value::Null, number),
+                            string,
+                            value.value_i64.as_deref().map_or(Value::Null, Value::text),
+                            value.float_bits.map_or(Value::Null, Value::U64),
+                            value
+                                .float_bit_width
+                                .map_or(Value::Null, |v| number(u32::from(v))),
+                            Value::U64(value.encoded_range.byte_offset),
+                            Value::U64(value.encoded_range.byte_length),
+                            Value::Bytes(Bytes(value.raw_scalar_payload.clone())),
+                            signature_ordinal(value.children.len())?,
+                        ])
+                    })
+            })));
+        }
         if relation == "annotation_signatures" {
             return Ok(Box::new(self.annotations.iter().flat_map(|facts| {
                 facts

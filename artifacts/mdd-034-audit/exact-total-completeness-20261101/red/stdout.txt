@@ -1,0 +1,11 @@
+
+running 1 test
+test result::tests::complete_result_requires_an_exact_matching_total ... FAILED
+
+failures:
+
+failures:
+    result::tests::complete_result_requires_an_exact_matching_total
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10 filtered out; finished in 0.00s
+

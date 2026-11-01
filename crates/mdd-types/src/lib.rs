@@ -294,10 +294,13 @@ impl ResultEnvelope {
             && self.operation_status == OperationStatus::Ok
             && self.coverage.input == Completeness::Complete
             && self.coverage.facts == Completeness::Complete
+            && !self.warnings.iter().any(|warning| warning.blocking)
             && self.execution.complete
             && !self.response.truncated
             && !self.response.more_available
             && self.response.next_cursor.is_none()
+            && self.response.total_rows_exact
+            && self.response.total_rows == Some(self.response.emitted_rows)
     }
 }
 

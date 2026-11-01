@@ -1,0 +1,115 @@
+{
+  "scope": "four targeted synthetic SQLite and legacy regression tests; high u64 hand-expected; listed sources only, no full qualification",
+  "source_before": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-sql/src/dialects/ast.rs": "d281bb5d3f18318ee515151cd19afaf14cd72d53490ee8c82e9ee7abfe81de20",
+    "crates/mdd-sql/src/bridge.rs": "b296d0b262c5d9b070bd08bd51d8d547d7df49d6d39daddc1d7630d4122a7d28",
+    "crates/mdd-sql/src/dialects/functions.rs": "f4aca963abe8d9ef73003d1860111b8a6da14505be7f9f0c1eddec6f9fe3015c",
+    "crates/mdd-query/src/executor.rs": "a664109676239f3e06846b9b79b64dffaa1b11cbd33a8bf9b5569671698ac2ae",
+    "crates/mdd-query/src/budget.rs": "3c3dd15c6deeecd90f59d020ff877ec69f87c63e419b946a4771e81dddede19c",
+    "crates/mdd-query/src/executor/facts.rs": "0aeb142c2d62c8b8fcff2ae1d25e689d8b2bcad15ed7725c6dc6929bfeb89e45",
+    "crates/mdd-session/src/lib.rs": "afda23d2dbb014680afa204ed7574387c017740223c6d5f68431c4b5f893efdd",
+    "crates/mdd-session/src/cancellation.rs": "7e3636d5e62cf4de567fb55088f186e5130eb024ddd0517a535e15bcad669114"
+  },
+  "runs": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-sql",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "direct_cte_using_preserves_wildcards_nulls_and_multiplicity",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T02:45:41.129585+00:00",
+      "finished_utc": "2026-11-01T02:45:45.461540+00:00",
+      "exit_code": 0,
+      "stdout_sha256": "e365b8ee305ee4df64a6e4ec4e0d675198fab254da04a6e981ec10a74f951709",
+      "stderr_sha256": "709f62f8b895b1d9f3cef20605ea86cdc91db84fa3093d5f08fc18d3d4c934d3",
+      "redaction": "workspace path replaced; originals retained locally"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-sql",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "direct_cte_using_unsigned_and_boolean_nulls_and_duplicates",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T02:45:45.461589+00:00",
+      "finished_utc": "2026-11-01T02:45:46.077350+00:00",
+      "exit_code": 0,
+      "stdout_sha256": "9c568d6c35d3bdc02fa17bbc53b517985c8f4ee0bdbb6acea2ddc5092fee4025",
+      "stderr_sha256": "4c7475f5f5aa129a0d65f13c85df1e0fbacd8eae1d99edfcd04c031fc5f05906",
+      "redaction": "workspace path replaced; originals retained locally"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-sql",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "using_join_same_carrier_retains_sqlite_merged_wildcard_shape",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T02:45:46.077387+00:00",
+      "finished_utc": "2026-11-01T02:45:46.658126+00:00",
+      "exit_code": 0,
+      "stdout_sha256": "43554f9d248b0d584f382584f811ad5a4be44b8681504746875246d79c795ee7",
+      "stderr_sha256": "df09dff11ae27f0db2d663f88c70b7d21f46fbd792f35862d56d58b22ba503ea",
+      "redaction": "workspace path replaced; originals retained locally"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-sql",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "legacy_direct_cte_text_literal_preserves_affinity",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T02:45:46.658165+00:00",
+      "finished_utc": "2026-11-01T02:45:46.920337+00:00",
+      "exit_code": 0,
+      "stdout_sha256": "946f85635c482e11e433c15731f2549e1e1be8d2d71e67907e2168cd51b11ced",
+      "stderr_sha256": "4c7475f5f5aa129a0d65f13c85df1e0fbacd8eae1d99edfcd04c031fc5f05906",
+      "redaction": "workspace path replaced; originals retained locally"
+    }
+  ],
+  "source_after": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-sql/src/dialects/ast.rs": "d281bb5d3f18318ee515151cd19afaf14cd72d53490ee8c82e9ee7abfe81de20",
+    "crates/mdd-sql/src/bridge.rs": "b296d0b262c5d9b070bd08bd51d8d547d7df49d6d39daddc1d7630d4122a7d28",
+    "crates/mdd-sql/src/dialects/functions.rs": "f4aca963abe8d9ef73003d1860111b8a6da14505be7f9f0c1eddec6f9fe3015c",
+    "crates/mdd-query/src/executor.rs": "a664109676239f3e06846b9b79b64dffaa1b11cbd33a8bf9b5569671698ac2ae",
+    "crates/mdd-query/src/budget.rs": "3c3dd15c6deeecd90f59d020ff877ec69f87c63e419b946a4771e81dddede19c",
+    "crates/mdd-query/src/executor/facts.rs": "0aeb142c2d62c8b8fcff2ae1d25e689d8b2bcad15ed7725c6dc6929bfeb89e45",
+    "crates/mdd-session/src/lib.rs": "afda23d2dbb014680afa204ed7574387c017740223c6d5f68431c4b5f893efdd",
+    "crates/mdd-session/src/cancellation.rs": "7e3636d5e62cf4de567fb55088f186e5130eb024ddd0517a535e15bcad669114"
+  }
+}

@@ -1,0 +1,8 @@
+   Compiling mdd-types v0.1.0-dev (<workspace>\crates\mdd-types)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.67s
+     Running unittests src\lib.rs (target\debug\deps\mdd_types-674dda7073209242.exe)
+
+thread 'result::tests::exact_total_larger_than_delivered_is_not_complete' (16368) panicked at crates\mdd-types\src\result.rs:503:9:
+assertion failed: !mismatch.is_complete_result()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p mdd-types --lib`

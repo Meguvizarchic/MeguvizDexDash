@@ -1,0 +1,9 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.27s
+     Running unittests src\lib.rs (target\debug\deps\mdd_sql-46977fcd4387e316.exe)
+
+thread 'bridge::tests::direct_cte_using_unsigned_and_boolean_nulls_and_duplicates' (19016) panicked at crates\mdd-sql\src\bridge.rs:2455:17:
+assertion `left == right` failed: NativeV1: WITH c AS (SELECT u,b FROM vals) SELECT a.b,c.b FROM c JOIN vals a USING(b) ORDER BY a.b
+  left: [[I64(Signed64(0)), I64(Signed64(0))], [I64(Signed64(1)), I64(Signed64(1))], [I64(Signed64(1)), I64(Signed64(1))], [I64(Signed64(1)), I64(Signed64(1))], [I64(Signed64(1)), I64(Signed64(1))]]
+ right: [[Bool(false), Bool(false)], [Bool(true), Bool(true)], [Bool(true), Bool(true)], [Bool(true), Bool(true)], [Bool(true), Bool(true)]]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p mdd-sql --lib`
