@@ -118,6 +118,10 @@ fn exact_i64_text_literal(expr: &Expr) -> Option<i64> {
     let Value::SingleQuotedString(text) = &value.value else {
         return None;
     };
+    exact_i64_text(text)
+}
+
+fn exact_i64_text(text: &str) -> Option<i64> {
     if !text.is_ascii() {
         return None;
     }
@@ -1059,6 +1063,94 @@ impl Rewrite<'_> {
             Value::Placeholder(format!("?{}", self.parameters.len())).into(),
         ))
     }
+    // SQLite applies an exact integer conversion to LIMIT/OFFSET values.
+    // Our lossless text, float and unsigned carriers are BLOBs, which SQLite
+    // would otherwise reject even for values such as '2' or 2.0. Convert only
+    // directly supplied values whose integer representation is proven exact.
+    fn limit_expr(&mut self, expr: &mut Expr, depth: usize) -> MddResult<()> {
+        if let Expr::Nested(child) = expr {
+            self.visit(depth)?;
+            return self.limit_expr(child, depth + 1);
+        }
+        let mut parameter = false;
+        let mut unary_child = false;
+        let integer = match expr {
+            Expr::Value(value) => match &value.value {
+                Value::SingleQuotedString(text) => {
+                    if text.encode_utf16().count() as u64 > self.limits.max_cell_bytes / 2 {
+                        return Err(quota("SQL_LITERAL_UTF16_BEFORE_ALLOCATION"));
+                    }
+                    exact_i64_text(text)
+                }
+                Value::Number(number, _) => exact_real_syntax_integer(number),
+                Value::Placeholder(name) if name == "?" => {
+                    let value = self
+                        .inputs
+                        .get(self.next_input)
+                        .ok_or_else(|| invalid("UNBOUND_SQL_PARAMETER"))?;
+                    if value.byte_size() > self.limits.max_cell_bytes {
+                        return Err(quota("SQL_PARAMETER_BEFORE_CLONE"));
+                    }
+                    parameter = true;
+                    match value {
+                        SqlValue::U64(value) => i64::try_from(value.0).ok(),
+                        SqlValue::F64(bits) => {
+                            let number = f64::from_bits(bits.0);
+                            if number.is_finite()
+                                && number.fract() == 0.0
+                                && number >= i64::MIN as f64
+                                && number < -(i64::MIN as f64)
+                            {
+                                Some(number as i64)
+                            } else {
+                                None
+                            }
+                        }
+                        SqlValue::Text(text) if text.utf16.iter().all(|unit| *unit <= 0x7f) => {
+                            let ascii: String = text
+                                .utf16
+                                .iter()
+                                .map(|unit| char::from(*unit as u8))
+                                .collect();
+                            exact_i64_text(&ascii)
+                        }
+                        _ => None,
+                    }
+                }
+                _ => None,
+            },
+            Expr::UnaryOp { op, expr: child }
+                if matches!(op, UnaryOperator::Plus | UnaryOperator::Minus) =>
+            {
+                let Expr::Value(value) = child.as_ref() else {
+                    return self.expr(expr, depth);
+                };
+                let Value::Number(number, _) = &value.value else {
+                    return self.expr(expr, depth);
+                };
+                unary_child = true;
+                let value = exact_real_syntax_integer(number);
+                if matches!(op, UnaryOperator::Minus) {
+                    value.and_then(i64::checked_neg)
+                } else {
+                    value
+                }
+            }
+            _ => None,
+        };
+        if let Some(integer) = integer {
+            self.visit(depth)?;
+            if unary_child {
+                self.visit(depth + 1)?;
+            }
+            if parameter {
+                self.next_input += 1;
+            }
+            *expr = self.bind(SqlValue::I64(Signed64(integer)))?;
+            return Ok(());
+        }
+        self.expr(expr, depth)
+    }
     fn fresh(&mut self) -> String {
         loop {
             let symbol = format!("__mdd_internal_{}", self.next_symbol);
@@ -1222,15 +1314,15 @@ impl Rewrite<'_> {
                         return Err(unsupported("LIMIT_BY"));
                     }
                     if let Some(limit) = limit {
-                        self.expr(limit, depth + 1)?;
+                        self.limit_expr(limit, depth + 1)?;
                     }
                     if let Some(offset) = offset {
-                        self.expr(&mut offset.value, depth + 1)?;
+                        self.limit_expr(&mut offset.value, depth + 1)?;
                     }
                 }
                 LimitClause::OffsetCommaLimit { offset, limit } => {
-                    self.expr(offset, depth + 1)?;
-                    self.expr(limit, depth + 1)?;
+                    self.limit_expr(offset, depth + 1)?;
+                    self.limit_expr(limit, depth + 1)?;
                 }
             }
         }

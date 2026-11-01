@@ -1,0 +1,35 @@
+{
+  "task": "MDD-034",
+  "finding": "A last sender previously published WORKER_LOST before preserving an already recorded query error; the receiver could observe a later failure as End.",
+  "change": "Record or retrieve the first query failure while holding the queue lock before publishing End; receiver closure and unbound behavior remain as before.",
+  "red": {
+    "command": "cargo test --locked -p mdd-query sender_drop_terminal_preserves_prior_query_failure -- --nocapture",
+    "exit": 101,
+    "tests_run": 1,
+    "evidence": "red/output.txt",
+    "observed": "WorkerLost instead of already-recorded Cancelled; test stopped at the first case."
+  },
+  "green": {
+    "command": "cargo test --locked -p mdd-query sender_drop_terminal_preserves_prior_query_failure -- --nocapture",
+    "exit": 0,
+    "tests_passed": 1,
+    "evidence": "final/output.txt",
+    "coverage": "Earlier Cancelled and QuotaExceeded errors including code, stage, message, retryable and details."
+  },
+  "regressions": [
+    {
+      "command": "cargo test --locked -p mdd-query receiver_drop_ -- --nocapture",
+      "exit": 0,
+      "tests_passed": 2,
+      "evidence": "regression/receiver.txt"
+    },
+    {
+      "command": "cargo test --locked -p mdd-query producer_drop_after_prefix_is_worker_lost_and_explicit_failure_stays_failure -- --nocapture",
+      "exit": 0,
+      "tests_passed": 1,
+      "evidence": "regression/producer.txt"
+    }
+  ],
+  "source_identity": "final and regression before/after hashes match for listed inputs. Initial green run annotations.rs changed during compilation and is retained but is not the final-source evidence. Red only tracked listed files; not all transitive inputs were frozen or hashed.",
+  "boundaries": "Synthetic in-process tests; no production IPC, exhaustive interleaving, platform or performance qualification."
+}

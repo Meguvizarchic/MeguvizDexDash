@@ -1,0 +1,17 @@
+[
+  {
+    "Algorithm": "SHA256",
+    "Hash": "79CB3D70EC1B5ADBF1F4F877CDCF766450770F3855DD6D4BF31BC1B3491B73FF",
+    "Path": "<WORKSPACE>\\crates\\mdd-query\\src\\budget.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "8E13237AA0CBF8B716F2213EC75643FA165CFA7F86C1A1D4C2D8DC931F4006BE",
+    "Path": "<WORKSPACE>\\crates\\mdd-query\\src\\budget\\tests.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "Path": "<WORKSPACE>\\Cargo.lock"
+  }
+]

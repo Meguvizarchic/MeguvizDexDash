@@ -1,0 +1,11 @@
+   Compiling mdd-facts v0.1.0-dev (<WORKSPACE>\crates\mdd-facts)
+   Compiling mdd-query v0.1.0-dev (<WORKSPACE>\crates\mdd-query)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.72s
+     Running unittests src\lib.rs (target\debug\deps\mdd_query-82579f4092cfd058.exe)
+
+running 2 tests
+test budget::tests::receiver_drop_releases_reentrant_payload_without_losing_first_error ... ok
+test budget::tests::receiver_drop_last_queued_sender_is_cancelled_not_worker_lost ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 166 filtered out; finished in 0.01s
+

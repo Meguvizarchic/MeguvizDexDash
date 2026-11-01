@@ -1,0 +1,3 @@
+PASS: expired during final decode is rejected
+PASS: final idle verification deadline is checked
+PASS: valid close still succeeds

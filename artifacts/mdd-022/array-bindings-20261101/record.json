@@ -1,0 +1,41 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "-p",
+    "mdd-facts",
+    "annotations::tests::encoded_array_bindings_keep_shared_classes_call_sites_and_orphans",
+    "--",
+    "--exact"
+  ],
+  "exit": 0,
+  "listed_sources_before": {
+    "crates/mdd-facts/src/annotations.rs": "2de25254a9705fce5e76e760c268e7d84237ae6e22931653a541a0ddd0673481",
+    "crates/mdd-facts/src/definitions.rs": "7a2ac801d7ebc89647888f501493ec9629d95b176125a09abddb239e489ac40a",
+    "crates/mdd-facts/src/metadata.rs": "e5fafa598807cc23d011570e7411ee53e1129391362c08b5cef5a38afe040357",
+    "crates/mdd-dex/src/annotations.rs": "f4bf544d7782eeead95a0d98dc5277d18f95992baf7257d4a4d775e8f9be5c74",
+    "crates/mdd-dex/src/definitions.rs": "ccebdce7db90d5ba87bb02e69446b27d4920c5bb3671f9208f7e93e130c259a3",
+    "tests/fixtures/annotations/generated/valid-orphan-arrays.dex": "9687ad9b7111f4c2bf9015f8fbf764ada03d4bdeb54c2c597cafcfbeae2302a8",
+    "tests/fixtures/annotations/generated/valid-call-site-array.dex": "da059521bc1ba34421ab929ffbbebe0094d66df56f106a28268693be6465a663",
+    "tests/fixtures/annotations/generate.py": "6bed3eb45f8d0c887c600983a6470daca2be62d51a8b6a277294b3e18a622e22",
+    "artifacts/mdd-022/array-bindings-20261101/shared-static-empty.dex": "015dba4c155200308536598673ec1b2af92319032e5557b5f86136dc47c02527",
+    "artifacts/mdd-022/array-bindings-20261101/fixture.json": "59425130c0f4deb37f3756a9ebfb823daeb8e6e523acf10a46972be59a65ba2b",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089"
+  },
+  "listed_sources_after": {
+    "crates/mdd-facts/src/annotations.rs": "2de25254a9705fce5e76e760c268e7d84237ae6e22931653a541a0ddd0673481",
+    "crates/mdd-facts/src/definitions.rs": "7a2ac801d7ebc89647888f501493ec9629d95b176125a09abddb239e489ac40a",
+    "crates/mdd-facts/src/metadata.rs": "e5fafa598807cc23d011570e7411ee53e1129391362c08b5cef5a38afe040357",
+    "crates/mdd-dex/src/annotations.rs": "f4bf544d7782eeead95a0d98dc5277d18f95992baf7257d4a4d775e8f9be5c74",
+    "crates/mdd-dex/src/definitions.rs": "ccebdce7db90d5ba87bb02e69446b27d4920c5bb3671f9208f7e93e130c259a3",
+    "tests/fixtures/annotations/generated/valid-orphan-arrays.dex": "9687ad9b7111f4c2bf9015f8fbf764ada03d4bdeb54c2c597cafcfbeae2302a8",
+    "tests/fixtures/annotations/generated/valid-call-site-array.dex": "da059521bc1ba34421ab929ffbbebe0094d66df56f106a28268693be6465a663",
+    "tests/fixtures/annotations/generate.py": "6bed3eb45f8d0c887c600983a6470daca2be62d51a8b6a277294b3e18a622e22",
+    "artifacts/mdd-022/array-bindings-20261101/shared-static-empty.dex": "015dba4c155200308536598673ec1b2af92319032e5557b5f86136dc47c02527",
+    "artifacts/mdd-022/array-bindings-20261101/fixture.json": "59425130c0f4deb37f3756a9ebfb823daeb8e6e523acf10a46972be59a65ba2b",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089"
+  },
+  "listed_sources_stable": true,
+  "limitations": "Synthetic DEX; fixture writer and physical class_def offsets supply reference oracle; no all-format or runtime qualification."
+}

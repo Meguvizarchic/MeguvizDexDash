@@ -1627,6 +1627,114 @@ mod tests {
     }
 
     #[test]
+    fn limit_and_offset_accept_exact_numeric_carriers() {
+        use mdd_query::ir::Signed64;
+        let provider = Arc::new(RowsProvider {
+            binding: SqlBinding {
+                provider_identity: "limit-carrier".into(),
+                snapshot_id: "limit-carrier-snapshot".into(),
+                catalog_epoch: DecimalU64(0),
+            },
+            rows: (0..5).map(|n| vec![SqlValue::I64(Signed64(n))]).collect(),
+            columns: vec![SqlColumn {
+                id: "id".into(),
+                name: "id".into(),
+                data_type: SqlType::I64,
+                nullable: false,
+            }],
+        });
+        let sqlite = rusqlite::Connection::open_in_memory().unwrap();
+        sqlite
+            .execute_batch(
+                "CREATE TABLE vals(id INTEGER); INSERT INTO vals VALUES(0),(1),(2),(3),(4)",
+            )
+            .unwrap();
+        for dialect in [
+            SqlDialect::NativeV1,
+            SqlDialect::DexSql010,
+            SqlDialect::DexSql011,
+        ] {
+            let bridge = SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+            for sql in [
+                "SELECT id FROM vals ORDER BY id LIMIT '2' OFFSET '1'",
+                "SELECT id FROM vals ORDER BY id LIMIT '1','2'",
+                "SELECT id FROM vals ORDER BY id LIMIT '2e0' OFFSET '0.0'",
+                "SELECT id FROM vals ORDER BY id LIMIT 2.0 OFFSET 1.0",
+                "SELECT id FROM vals ORDER BY id LIMIT '-1' OFFSET '-1'",
+                "SELECT id FROM vals ORDER BY id LIMIT -1.0 OFFSET -1.0",
+            ] {
+                let expected = sqlite
+                    .prepare(sql)
+                    .unwrap()
+                    .query_map([], |row| row.get::<_, i64>(0))
+                    .unwrap()
+                    .map(|r| vec![SqlValue::I64(Signed64(r.unwrap()))])
+                    .collect::<Vec<_>>();
+                assert_eq!(
+                    bridge.query(sql).unwrap().rows(),
+                    expected,
+                    "{dialect:?}: {sql}"
+                );
+            }
+            let sql = "SELECT id FROM vals ORDER BY id LIMIT ? OFFSET ?";
+            let input = [
+                SqlValue::U64(DecimalU64(2)),
+                SqlValue::F64(DecimalU64(1.0f64.to_bits())),
+            ];
+            let actual = bridge
+                .prepare_with_parameters(sql, &input)
+                .unwrap()
+                .execute(SqlControl::new(SqlLimits::default(), None))
+                .unwrap();
+            assert_eq!(
+                actual.rows(),
+                &[
+                    vec![SqlValue::I64(Signed64(1))],
+                    vec![SqlValue::I64(Signed64(2))]
+                ]
+            );
+            let prepared = bridge
+                .prepare_with_parameters(
+                    "SELECT id FROM vals ORDER BY id LIMIT ?,?",
+                    &[SqlValue::text(" 1.0 "), SqlValue::text("+2")],
+                )
+                .unwrap();
+            let actual = prepared
+                .execute(SqlControl::new(SqlLimits::default(), None))
+                .unwrap();
+            assert_eq!(
+                actual.rows(),
+                &[
+                    vec![SqlValue::I64(Signed64(1))],
+                    vec![SqlValue::I64(Signed64(2))]
+                ]
+            );
+            for invalid in [
+                SqlValue::U64(DecimalU64(u64::MAX)),
+                SqlValue::F64(DecimalU64(1.5f64.to_bits())),
+                SqlValue::Null,
+                SqlValue::text("1.5"),
+            ] {
+                let result = bridge
+                    .prepare_with_parameters("SELECT id FROM vals LIMIT ?", &[invalid])
+                    .unwrap()
+                    .execute(SqlControl::new(SqlLimits::default(), None));
+                assert!(result.is_err(), "{dialect:?}");
+            }
+            for sql in [
+                "SELECT id FROM vals LIMIT '0.5'",
+                "SELECT id FROM vals LIMIT 1.5",
+                "SELECT id FROM vals LIMIT NULL",
+            ] {
+                let mut statement = sqlite.prepare(sql).unwrap();
+                let mut rows = statement.query([]).unwrap();
+                assert!(rows.next().is_err(), "{sql}");
+                assert!(bridge.query(sql).is_err(), "{dialect:?}: {sql}");
+            }
+        }
+    }
+
+    #[test]
     fn legacy_simple_case_numeric_column_uses_exact_text_affinity() {
         use mdd_query::ir::Signed64;
         let values = [None, Some(-1), Some(0), Some(1), Some(8), Some(9), Some(9)];

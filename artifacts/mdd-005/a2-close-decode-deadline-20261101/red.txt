@@ -1,0 +1,16 @@
+Traceback (most recent call last):
+  File "<WORKSPACE>\artifacts\mdd-005\a2-close-decode-deadline-20261101\probe.py", line 51, in <module>
+    asyncio.run(main())
+    ~~~~~~~~~~~^^^^^^^^
+  File "<USER>\AppData\Local\Programs\Python\Python313\Lib\asyncio\runners.py", line 196, in run
+    return runner.run(main)
+           ~~~~~~~~~~^^^^^^
+  File "<USER>\AppData\Local\Programs\Python\Python313\Lib\asyncio\runners.py", line 119, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "<USER>\AppData\Local\Programs\Python\Python313\Lib\asyncio\base_events.py", line 726, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "<WORKSPACE>\artifacts\mdd-005\a2-close-decode-deadline-20261101\probe.py", line 43, in main
+    raise RuntimeError('expired during final decode was reported successful')
+RuntimeError: expired during final decode was reported successful

@@ -1,0 +1,22 @@
+   Compiling mdd-facts v0.1.0-dev (<WORKSPACE>\crates\mdd-facts)
+   Compiling mdd-query v0.1.0-dev (<WORKSPACE>\crates\mdd-query)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 12.57s
+     Running unittests src\lib.rs (target\debug\deps\mdd_query-82579f4092cfd058.exe)
+
+running 1 test
+
+thread 'budget::tests::sender_drop_terminal_preserves_prior_query_failure' (41268) panicked at crates\mdd-query\src\budget\tests.rs:25:9:
+assertion `left == right` failed
+  left: WorkerLost
+ right: Cancelled
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test budget::tests::sender_drop_terminal_preserves_prior_query_failure ... FAILED
+
+failures:
+
+failures:
+    budget::tests::sender_drop_terminal_preserves_prior_query_failure
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 167 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p mdd-query --lib`

@@ -3,6 +3,34 @@ use std::sync::mpsc;
 use std::thread;
 
 #[test]
+fn sender_drop_terminal_preserves_prior_query_failure() {
+    for first in [
+        MddError::new(ErrorCode::Cancelled, "test.cancel", "caller cancelled")
+            .detail("reason", "explicit"),
+        MddError::new(ErrorCode::QuotaExceeded, "test.quota", "budget exceeded")
+            .detail("resource", "steps"),
+    ] {
+        let (_, _, _, _, runtime) = owned_queue_test_runtime(BudgetLimits::default());
+        let (sender, mut receiver) = bounded_channel::<()>(
+            runtime.pool().clone(),
+            Some(runtime.cancellation().clone()),
+            1,
+        )
+        .unwrap();
+        runtime.cancellation().fail(first.clone()).unwrap();
+        drop(sender);
+        let QueueEvent::End(Err(actual)) = receiver.receive().unwrap() else {
+            panic!("sender loss must preserve the earlier query failure")
+        };
+        assert_eq!(actual.code, first.code);
+        assert_eq!(actual.stage, first.stage);
+        assert_eq!(actual.message, first.message);
+        assert_eq!(actual.retryable, first.retryable);
+        assert_eq!(actual.details, first.details);
+    }
+}
+
+#[test]
 fn receiver_drop_releases_reentrant_payload_without_losing_first_error() {
     let (done, finished) = mpsc::channel();
     thread::spawn(move || {

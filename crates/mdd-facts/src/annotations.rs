@@ -5,11 +5,11 @@ use crate::{
 };
 use mdd_dex::annotations::{
     AnnotationItem, AnnotationLimits, AnnotationOwnerBinding, AnnotationOwnerKind, AnnotationSet,
-    AnnotationSetRefList, DexAnnotations, EncodedArrayItem, EncodedKind, EncodedValue, ExactFloat,
-    ParameterListBinding, read_annotations,
+    AnnotationSetRefList, CallSiteArrayBinding, DexAnnotations, EncodedArrayItem, EncodedKind,
+    EncodedValue, ExactFloat, ParameterListBinding, read_annotations,
 };
 use mdd_dex::{
-    definitions::{MethodDefinition, MethodReference},
+    definitions::{ClassDefinition, MethodDefinition, MethodReference},
     types::{DexPrototype, DexType},
 };
 use mdd_types::{Completeness, ErrorCode, MddError, MddResult, content_id};
@@ -78,6 +78,22 @@ pub struct EncodedArrayView<'a> {
 pub struct EncodedArrayValueFact<'a> {
     pub value: &'a EncodedValue,
     pub raw_encoded: &'a [u8],
+}
+
+/// A physical reference to an encoded array in the same DEX occurrence.
+/// Static values describe only an encoded class binding; no field assignment,
+/// type compatibility, or runtime bootstrap behavior is inferred.
+pub enum EncodedArrayBinding<'a> {
+    StaticValues(&'a ClassDefinition),
+    CallSite(&'a CallSiteArrayBinding),
+}
+
+pub struct EncodedArrayBindings<'a> {
+    pub source: &'a MetadataSource,
+    pub array: &'a EncodedArrayItem,
+    /// Classes appear in class-definition order, followed by call-site order.
+    /// Each physical reference is retained even when multiple refer to one item.
+    pub bindings: Vec<EncodedArrayBinding<'a>>,
 }
 
 /// Logical entry-visit and result bounds for a physical annotation value view.
@@ -1243,6 +1259,107 @@ impl AnnotationFacts {
                     raw_encoded,
                 })
             }))
+    }
+    /// Return encoded references to one physical array without deduplicating
+    /// classes or call sites. An empty result means this complete occurrence
+    /// contains no such encoded bindings; it makes no runtime claim.
+    /// Limits count scanned entries and returned bindings, not bytes or RSS.
+    pub fn encoded_array_bindings(
+        &self,
+        reference: &EncodedArrayRef,
+        limits: AnnotationOwnerViewLimits,
+    ) -> MddResult<EncodedArrayBindings<'_>> {
+        let stage = "facts.encoded_array_bindings";
+        let source = self.source();
+        if reference.snapshot_id != source.snapshot_id
+            || reference.dex_occurrence_id != source.dex_occurrence_id
+        {
+            return Err(MddError::new(
+                ErrorCode::InvalidArgument,
+                stage,
+                "array belongs to another snapshot or occurrence",
+            ));
+        }
+        if self.annotation_coverage != Completeness::Complete
+            || self.definitions.definition_coverage() != Completeness::Complete
+            || self.definitions.metadata().metadata_coverage() != Completeness::Complete
+        {
+            return Err(MddError::new(
+                ErrorCode::IncompleteFacts,
+                stage,
+                "complete metadata, definitions and annotations are required",
+            ));
+        }
+        let quota = || MddError::new(ErrorCode::QuotaExceeded, stage, "binding budget exceeded");
+        let inconsistent = || {
+            MddError::new(
+                ErrorCode::InternalFault,
+                stage,
+                "validated array binding is inconsistent",
+            )
+        };
+        let classes = &self.definitions.definitions.classes;
+        let call_sites = &self.data.call_site_arrays;
+        let arrays = &self.data.encoded_arrays;
+        let visits = u64::try_from(arrays.len())
+            .ok()
+            .and_then(|n| n.checked_add(u64::try_from(classes.len()).ok()?))
+            .and_then(|n| n.checked_add(u64::try_from(call_sites.len()).ok()?))
+            .ok_or_else(quota)?;
+        if visits > limits.max_scanned_entries {
+            return Err(quota());
+        }
+        let mut matching = arrays
+            .iter()
+            .enumerate()
+            .filter(|(_, array)| array.byte_offset == reference.byte_offset);
+        let (array_index, array) = matching.next().ok_or_else(|| {
+            MddError::new(
+                ErrorCode::InvalidArgument,
+                stage,
+                "array offset is not a physical item start",
+            )
+        })?;
+        if matching.next().is_some()
+            || array.encoded_range.byte_offset.0 != u64::from(array.byte_offset)
+        {
+            return Err(inconsistent());
+        }
+        let mut bindings = Vec::new();
+        for (index, class) in classes.iter().enumerate() {
+            if class
+                .static_values_byte_offset
+                .is_some_and(|offset| offset.0 == u64::from(array.byte_offset))
+            {
+                if u32::try_from(index).ok() != Some(class.class_def_idx) {
+                    return Err(inconsistent());
+                }
+                if u64::try_from(bindings.len()).map_err(|_| quota())? >= limits.max_matches {
+                    return Err(quota());
+                }
+                bindings.try_reserve(1).map_err(|_| quota())?;
+                bindings.push(EncodedArrayBinding::StaticValues(class));
+            }
+        }
+        for (index, binding) in call_sites.iter().enumerate() {
+            if binding.encoded_array_byte_offset == array.byte_offset {
+                if u32::try_from(index).ok() != Some(binding.call_site_idx)
+                    || usize::try_from(binding.encoded_array_index).ok() != Some(array_index)
+                {
+                    return Err(inconsistent());
+                }
+                if u64::try_from(bindings.len()).map_err(|_| quota())? >= limits.max_matches {
+                    return Err(quota());
+                }
+                bindings.try_reserve(1).map_err(|_| quota())?;
+                bindings.push(EncodedArrayBinding::CallSite(binding));
+            }
+        }
+        Ok(EncodedArrayBindings {
+            source,
+            array,
+            bindings,
+        })
     }
     /// Resolve a physically walked encoded-array item and its value nodes.
     /// Limits bound logical visits and returned nodes, not memory or CPU time.
@@ -2889,6 +3006,135 @@ mod tests {
                 .unwrap()
                 .code,
             ErrorCode::InvalidArgument
+        );
+    }
+    #[test]
+    fn encoded_array_bindings_keep_shared_classes_call_sites_and_orphans() {
+        let facts = build("artifacts/mdd-022/array-bindings-20261101/shared-static-empty.dex");
+        let expected: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../artifacts/mdd-022/array-bindings-20261101/fixture.json"
+        ))
+        .unwrap();
+        let offset = expected["array_offset"].as_u64().unwrap() as u32;
+        let reference = EncodedArrayRef {
+            snapshot_id: facts.source().snapshot_id.clone(),
+            dex_occurrence_id: facts.source().dex_occurrence_id.clone(),
+            byte_offset: offset,
+        };
+        let result = facts
+            .encoded_array_bindings(&reference, AnnotationOwnerViewLimits::default())
+            .unwrap();
+        assert_eq!(result.source.dex_occurrence_id, reference.dex_occurrence_id);
+        assert_eq!(result.array.byte_offset, offset);
+        assert_eq!(result.bindings.len(), 2);
+        for (ordinal, binding) in result.bindings.iter().enumerate() {
+            let EncodedArrayBinding::StaticValues(class) = binding else {
+                panic!("expected class binding")
+            };
+            assert_eq!(class.class_def_idx, ordinal as u32);
+            let at = class.encoded_range.byte_offset.0 as usize + 28;
+            assert_eq!(&facts.bytes()[at..at + 4], &offset.to_le_bytes());
+        }
+        let visits = facts.data.encoded_arrays.len() as u64
+            + facts.definitions.definitions.classes.len() as u64
+            + facts.data.call_site_arrays.len() as u64;
+        for limits in [
+            AnnotationOwnerViewLimits {
+                max_scanned_entries: visits - 1,
+                max_matches: 2,
+            },
+            AnnotationOwnerViewLimits {
+                max_scanned_entries: visits,
+                max_matches: 1,
+            },
+        ] {
+            assert_eq!(
+                facts
+                    .encoded_array_bindings(&reference, limits)
+                    .err()
+                    .unwrap()
+                    .code,
+                ErrorCode::QuotaExceeded
+            );
+        }
+        let result = facts
+            .encoded_array_bindings(
+                &reference,
+                AnnotationOwnerViewLimits {
+                    max_scanned_entries: visits,
+                    max_matches: 2,
+                },
+            )
+            .unwrap();
+        assert_eq!(result.bindings.len(), 2);
+        let mut bad = reference.clone();
+        bad.dex_occurrence_id = "foreign".into();
+        assert_eq!(
+            facts
+                .encoded_array_bindings(&bad, AnnotationOwnerViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InvalidArgument
+        );
+        bad = reference.clone();
+        bad.byte_offset += 2;
+        assert_eq!(
+            facts
+                .encoded_array_bindings(&bad, AnnotationOwnerViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InvalidArgument
+        );
+        let mut incomplete = facts.clone();
+        incomplete.annotation_coverage = Completeness::Partial;
+        assert_eq!(
+            incomplete
+                .encoded_array_bindings(&reference, AnnotationOwnerViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::IncompleteFacts
+        );
+
+        let orphan = build("tests/fixtures/annotations/generated/valid-orphan-arrays.dex");
+        let orphan_ref = EncodedArrayRef {
+            snapshot_id: orphan.source().snapshot_id.clone(),
+            dex_occurrence_id: orphan.source().dex_occurrence_id.clone(),
+            byte_offset: orphan.data.encoded_arrays[0].byte_offset,
+        };
+        assert!(
+            orphan
+                .encoded_array_bindings(&orphan_ref, AnnotationOwnerViewLimits::default())
+                .unwrap()
+                .bindings
+                .is_empty()
+        );
+
+        let call = build("tests/fixtures/annotations/generated/valid-call-site-array.dex");
+        let call_ref = EncodedArrayRef {
+            snapshot_id: call.source().snapshot_id.clone(),
+            dex_occurrence_id: call.source().dex_occurrence_id.clone(),
+            byte_offset: call.data.encoded_arrays[0].byte_offset,
+        };
+        let result = call
+            .encoded_array_bindings(&call_ref, AnnotationOwnerViewLimits::default())
+            .unwrap();
+        let [EncodedArrayBinding::CallSite(binding)] = result.bindings.as_slice() else {
+            panic!("expected call site")
+        };
+        assert_eq!(binding.call_site_idx, 0);
+        assert_eq!(binding.encoded_array_byte_offset, call_ref.byte_offset);
+        let mut corrupted = call.clone();
+        corrupted.data.call_site_arrays[0].encoded_array_index = u32::MAX;
+        assert_eq!(
+            corrupted
+                .encoded_array_bindings(&call_ref, AnnotationOwnerViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InternalFault
         );
     }
     #[test]

@@ -1836,7 +1836,6 @@ impl<T> BoundedSender<T> {
 }
 impl<T> Drop for BoundedSender<T> {
     fn drop(&mut self) {
-        let mut lost = None;
         if let Ok(mut state) = self.0.state.lock() {
             state.senders -= 1;
             // Receiver shutdown may release the last sender as part of a
@@ -1851,13 +1850,13 @@ impl<T> Drop for BoundedSender<T> {
                     "queue",
                     "producer dropped without terminal",
                 );
-                state.terminal = Some(Err(error.clone()));
-                lost = Some(error);
+                // Publish only after recording the failure, so a receiver
+                // cannot observe a later worker loss in place of an earlier
+                // query error. The queue lock also serializes End delivery.
+                let first = self.0.bound_query_failure(error);
+                state.terminal = Some(Err(first));
             }
             self.0.changed.notify_all();
-        }
-        if let (Some(cancel), Some(error)) = (&self.0.cancel, lost) {
-            let _ = cancel.fail(error);
         }
     }
 }

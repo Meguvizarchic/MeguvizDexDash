@@ -1,0 +1,33 @@
+{
+  "command": "cargo test --locked -p mdd-sql limit_and_offset_accept_exact_numeric_carriers -- --nocapture",
+  "red": {
+    "exit": 101,
+    "tests_run": 1,
+    "output": "red/output.txt",
+    "observation": "LIMIT text was rejected with datatype mismatch"
+  },
+  "green_first": {
+    "exit": 101,
+    "output": "green/output.txt",
+    "observation": "Test incorrectly assumed SQLite query() stepped the statement; failure retained."
+  },
+  "final": {
+    "exit": 0,
+    "tests_passed": 1,
+    "output": "final/output.txt"
+  },
+  "regression": {
+    "command": "cargo test --locked -p mdd-sql in_subquery_same_typed_columns_preserves_null_duplicates_and_binding_errors -- --nocapture",
+    "exit": 0,
+    "tests_passed": 1,
+    "output": "regression/output.txt"
+  },
+  "listed_source_sha256_after": {
+    "crates/mdd-sql/src/dialects/ast.rs": "4eda4c4a73bcba81c242dbf16c57825b9bcf03c855bc5d1ea5a8fd89b35dead8",
+    "crates/mdd-sql/src/bridge.rs": "76a87c5e1fa9a556a3c7616888f96aeb1a574ab8c2381835442b1d33855a04fd",
+    "crates/mdd-query/src/budget.rs": "b441624eecd168383540709216372ede4ca65a68e535a684ac8fbe0e8e9f4259",
+    "crates/mdd-facts/src/annotations.rs": "2de25254a9705fce5e76e760c268e7d84237ae6e22931653a541a0ddd0673481",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089"
+  },
+  "limitations": "Three dialects; direct values only; computed carriers, extreme numeric text, A0/A1, full HostLab and profile qualification remain open."
+}

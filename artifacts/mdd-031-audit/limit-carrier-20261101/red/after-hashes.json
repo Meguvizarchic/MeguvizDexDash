@@ -1,0 +1,32 @@
+[
+  {
+    "Algorithm": "SHA256",
+    "Hash": "8C3BB71AF61F7126CFFB506BAD7C4E8AB6BF38331E4938EE2C739FAE2D1E783C",
+    "Path": "<WORKSPACE>\\crates\\mdd-sql\\src\\dialects\\ast.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "E8F15EF4FD86C7C1B455AA5BBD570B98D4361354B429DEFE9AE16F0D190CD692",
+    "Path": "<WORKSPACE>\\crates\\mdd-sql\\src\\bridge.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "AD87D663986BDEC1B4F98710D170E911FD1BE67695A9D1B53ABC62C54E50C9F8",
+    "Path": "<WORKSPACE>\\crates\\mdd-sql\\src\\values.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "B441624EECD168383540709216372EDE4CA65A68E535A684AC8FBE0E8E9F4259",
+    "Path": "<WORKSPACE>\\crates\\mdd-query\\src\\budget.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "2DE25254A9705FCE5E76E760C268E7D84237AE6E22931653A541A0DDD0673481",
+    "Path": "<WORKSPACE>\\crates\\mdd-facts\\src\\annotations.rs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "FCF51A7765C73AF5E97F4AEFD238FA0020C6C303AB42C20D48FBC55D8A56C089",
+    "Path": "<WORKSPACE>\\Cargo.lock"
+  }
+]

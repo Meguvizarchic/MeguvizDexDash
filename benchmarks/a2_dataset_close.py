@@ -139,7 +139,12 @@ class A1ExclusiveDatasetCloser:
         if (not isinstance(remaining, (int, float)) or isinstance(remaining, bool)
                 or not math.isfinite(remaining) or remaining <= 0):
             raise DatasetCloseError(tool, 'shared deadline expired during lifecycle response')
-        return _payload(response, tool)
+        value = _payload(response, tool)
+        remaining = self._remaining()
+        if (not isinstance(remaining, (int, float)) or isinstance(remaining, bool)
+                or not math.isfinite(remaining) or remaining <= 0):
+            raise DatasetCloseError(tool, 'shared deadline expired during lifecycle decoding')
+        return value
 
     async def close(self):
         """Return True only after the exact close and idle readback both succeed."""
@@ -160,6 +165,10 @@ class A1ExclusiveDatasetCloser:
                     or type(usage.get('input_bytes')) is not int or usage['input_bytes'] != 0):
                 raise DatasetCloseError('list_datasets', 'exclusive server is not empty and idle',
                                         producer_detail=idle)
+            remaining = self._remaining()
+            if (not isinstance(remaining, (int, float)) or isinstance(remaining, bool)
+                    or not math.isfinite(remaining) or remaining <= 0):
+                raise DatasetCloseError('list_datasets', 'shared deadline expired during idle verification')
             self._state = 'closed'
             return True
         except BaseException:

@@ -1,0 +1,20 @@
+   Compiling mdd-query v0.1.0-dev (<WORKSPACE>\crates\mdd-query)
+   Compiling mdd-sql v0.1.0-dev (<WORKSPACE>\crates\mdd-sql)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 11.79s
+     Running unittests src\lib.rs (target\debug\deps\mdd_sql-46977fcd4387e316.exe)
+
+running 1 test
+
+thread 'bridge::tests::limit_and_offset_accept_exact_numeric_carriers' (17724) panicked at crates\mdd-sql\src\bridge.rs:1662:46:
+called `Result::unwrap()` on an `Err` value: MddError { code: InvalidArgument, stage: "sql.sqlite", message: "datatype mismatch", retryable: false, details: {"sqlite_code": String("TypeMismatch"), "sqlite_extended_code": Number(20)} }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test bridge::tests::limit_and_offset_accept_exact_numeric_carriers ... FAILED
+
+failures:
+
+failures:
+    bridge::tests::limit_and_offset_accept_exact_numeric_carriers
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 148 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p mdd-sql --lib`

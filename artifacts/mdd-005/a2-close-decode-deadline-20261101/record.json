@@ -1,0 +1,28 @@
+{
+  "scope": "Synthetic close-deadline regression; no snapshot, A2 or performance qualification",
+  "red": {
+    "command": "python -B artifacts/mdd-005/a2-close-decode-deadline-20261101/probe.py",
+    "exit": 1,
+    "observation": "A controlled deadline reaching zero during final idle response decoding was accepted as successful. The probe was subsequently extended with an additional final-check case; its red-version bytes were not retained."
+  },
+  "green": {
+    "command": "python -B artifacts/mdd-005/a2-close-decode-deadline-20261101/probe.py",
+    "exit": 0,
+    "checks": 3,
+    "before": {
+      "benchmarks/a2_dataset_close.py": "783091f6511bac0ac90ea4df50ea73b59856f3ae280522c01d55cf6652e9aa8d",
+      "artifacts/mdd-005/a2-close-decode-deadline-20261101/probe.py": "a2550f80fe56dddefab1f7b3e2b87148b67a7039d8e37860b2f356b55f53a968"
+    },
+    "after": {
+      "benchmarks/a2_dataset_close.py": "783091f6511bac0ac90ea4df50ea73b59856f3ae280522c01d55cf6652e9aa8d",
+      "artifacts/mdd-005/a2-close-decode-deadline-20261101/probe.py": "a2550f80fe56dddefab1f7b3e2b87148b67a7039d8e37860b2f356b55f53a968"
+    }
+  },
+  "regression": {
+    "command": "python -B artifacts/mdd-005/a2-dataset-lifecycle-20261030/probe2.py",
+    "exit": 0,
+    "checks": 9,
+    "limits": "Synthetic client and owner, no live MCP or process."
+  },
+  "limitations": "The time of pre-fix source and red-probe identity were not recorded. Source and probe hashes cover only listed files; synchronous JSON decoding cannot be forcibly interrupted. No full test suite was run."
+}
