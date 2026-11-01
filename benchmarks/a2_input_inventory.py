@@ -11,6 +11,8 @@ import hashlib
 import os
 import re
 import zipfile
+import zlib
+from dataclasses import dataclass
 from pathlib import Path
 
 
@@ -20,6 +22,17 @@ class InputInventoryError(RuntimeError):
 
 def _file_stat(stat):
     return stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns
+
+
+@dataclass(frozen=True)
+class PhysicalDexDigest:
+    """One selected central-directory occurrence, not a logical DEX identity."""
+
+    central_ordinal: int
+    name: str
+    uncompressed_bytes: int
+    sha256: str
+    crc32: int
 
 
 class PinnedInputInventory:
@@ -119,3 +132,60 @@ class PinnedInputInventory:
             if actual != self.physical_members:
                 raise InputInventoryError("physical DEX member inventory differs")
         self.verify_source()
+
+    def digest_physical_members(self, *, chunk_bytes=1024 * 1024):
+        """Fully read selected APK DEX members and retain ordered byte identities.
+
+        ZIP CRC is checked by reading each member to EOF; this is not DEX
+        structural validation, an immutable producer snapshot, logical DEX
+        enumeration, a complete audit or an RSS bound. The caller must still
+        bind the result to its independently checked input occurrence.
+        Raw DEX has no archive member inventory and returns None.
+        """
+        if type(chunk_bytes) is not int or not 1 <= chunk_bytes <= 1024 * 1024:
+            raise ValueError('invalid physical member read chunk')
+        self.verify_source()
+        if self.physical_members is None:
+            self.verify_source()
+            return None
+        try:
+            with zipfile.ZipFile(self.path) as archive:
+                infos = archive.infolist()
+                if len(infos) > self.max_entries:
+                    raise InputInventoryError('archive entry budget exceeded')
+                selected = [(index, item) for index, item in enumerate(infos)
+                            if re.fullmatch(r'classes\d*\.dex', item.filename)]
+                names = [item.filename for _, item in selected]
+                if (not names or len(names) != len(set(names))
+                        or frozenset(names) != self.physical_members):
+                    raise InputInventoryError('DEX archive members changed or are ambiguous')
+                if any(item.orig_filename != item.filename for _, item in selected):
+                    raise InputInventoryError('DEX archive member name was normalized')
+                if sum(item.file_size for _, item in selected) > self.max_dex_bytes:
+                    raise InputInventoryError('uncompressed DEX budget exceeded')
+                total = 0
+                records = []
+                for ordinal, item in selected:
+                    digest = hashlib.sha256()
+                    length = 0
+                    with archive.open(item, 'r') as stream:
+                        while True:
+                            block = stream.read(chunk_bytes)
+                            if not block:
+                                break
+                            length += len(block)
+                            total += len(block)
+                            if length > item.file_size or total > self.max_dex_bytes:
+                                raise InputInventoryError('uncompressed DEX budget exceeded')
+                            digest.update(block)
+                    if length != item.file_size:
+                        raise InputInventoryError('DEX member uncompressed length differs')
+                    records.append(PhysicalDexDigest(ordinal, item.filename, length,
+                                                     digest.hexdigest(), item.CRC))
+        except (OSError, EOFError, zipfile.BadZipFile, zlib.error, RuntimeError,
+                NotImplementedError) as error:
+            if isinstance(error, InputInventoryError):
+                raise
+            raise InputInventoryError('DEX member read or CRC verification failed') from error
+        self.verify_source()
+        return tuple(records)

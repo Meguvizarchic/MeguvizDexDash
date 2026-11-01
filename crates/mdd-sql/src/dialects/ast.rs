@@ -42,10 +42,15 @@ fn null() -> Expr {
 fn take(expr: &mut Expr) -> Expr {
     std::mem::replace(expr, null())
 }
+fn without_parentheses(mut expr: &Expr) -> &Expr {
+    while let Expr::Nested(inner) = expr {
+        expr = inner;
+    }
+    expr
+}
 fn no_affinity(expr: &Expr) -> bool {
-    match expr {
+    match without_parentheses(expr) {
         Expr::Value(_) => true,
-        Expr::Nested(inner) => no_affinity(inner),
         Expr::UnaryOp {
             op: UnaryOperator::Plus | UnaryOperator::Minus,
             expr,
@@ -572,8 +577,7 @@ fn nested_select_needs_binding(
 // Admit only the directly observed form. Derived columns, CTEs and arbitrary
 // expressions need their own affinity binding; they must not inherit this rule.
 fn text_cast_string_literal(expr: &Expr) -> bool {
-    match expr {
-        Expr::Nested(inner) => text_cast_string_literal(inner),
+    match without_parentheses(expr) {
         Expr::Cast {
             expr,
             data_type,
@@ -587,8 +591,7 @@ fn text_cast_string_literal(expr: &Expr) -> bool {
 }
 
 fn nonnegative_i64_literal(expr: &Expr) -> bool {
-    match expr {
-        Expr::Nested(inner) => nonnegative_i64_literal(inner),
+    match without_parentheses(expr) {
         Expr::Value(value) => match &value.value {
             Value::Number(number, _) => {
                 number.bytes().all(|b| b.is_ascii_digit()) && number.parse::<i64>().is_ok()
@@ -599,8 +602,7 @@ fn nonnegative_i64_literal(expr: &Expr) -> bool {
     }
 }
 fn integer_cast_string_literal(expr: &Expr) -> bool {
-    match expr {
-        Expr::Nested(inner) => integer_cast_string_literal(inner),
+    match without_parentheses(expr) {
         Expr::Cast {
             expr,
             data_type: DataType::Integer(None),
@@ -613,8 +615,7 @@ fn integer_cast_string_literal(expr: &Expr) -> bool {
     }
 }
 fn text_cast_nonnegative_i64_literal(expr: &Expr) -> bool {
-    match expr {
-        Expr::Nested(inner) => text_cast_nonnegative_i64_literal(inner),
+    match without_parentheses(expr) {
         Expr::Cast {
             expr,
             data_type: DataType::Text,
@@ -874,8 +875,7 @@ enum InStorageClass {
     Bytes,
 }
 fn literal_in_class(expr: &Expr) -> Option<Option<InStorageClass>> {
-    match expr {
-        Expr::Nested(inner) => literal_in_class(inner),
+    match without_parentheses(expr) {
         Expr::UnaryOp {
             op: UnaryOperator::Plus | UnaryOperator::Minus,
             expr,
@@ -1154,8 +1154,7 @@ impl Rewrite<'_> {
         let Some(Some((qualifier, column))) = self.cte_literal_text_scopes.last() else {
             return false;
         };
-        match expr {
-            Expr::Nested(inner) => self.current_cte_literal_text_column(inner),
+        match without_parentheses(expr) {
             Expr::Identifier(id) => id.value.eq_ignore_ascii_case(column),
             Expr::CompoundIdentifier(ids) if ids.len() == 2 => {
                 ids[0].value.eq_ignore_ascii_case(qualifier)
@@ -3274,6 +3273,67 @@ fn order_identifier(mut expression: &Expr) -> Option<&Ident> {
 #[cfg(test)]
 mod aggregate_scan_tests {
     use super::*;
+
+    #[test]
+    fn affinity_parentheses_use_bounded_stack() {
+        let parse_expression = |sql: &str| {
+            let mut statements = Parser::parse_sql(&SQLiteDialect {}, sql).unwrap();
+            let Statement::Query(query) = statements.remove(0) else {
+                panic!("expected SELECT")
+            };
+            let SetExpr::Select(mut select) = *query.body else {
+                panic!("expected SELECT body")
+            };
+            let SelectItem::UnnamedExpr(expression) = select.projection.remove(0) else {
+                panic!("expected projection expression")
+            };
+            expression
+        };
+        let cast_text = parse_expression("SELECT CAST('x' AS TEXT)");
+        let cast_integer = parse_expression("SELECT CAST('1' AS INTEGER)");
+        let cast_number = parse_expression("SELECT CAST(1 AS TEXT)");
+        let result = std::thread::Builder::new()
+            .stack_size(128 * 1024)
+            .spawn(move || {
+                fn wrap(mut value: Expr) -> Expr {
+                    for _ in 0..5000 {
+                        value = Expr::Nested(Box::new(value));
+                    }
+                    value
+                }
+                fn release(mut value: Expr) {
+                    // Avoid recursive destructor work on this deliberately deep AST.
+                    while let Expr::Nested(inner) = value {
+                        value = *inner;
+                    }
+                }
+                let expr = wrap(Expr::Value(Value::Number("1".into(), false).into()));
+                assert!(no_affinity(&expr));
+                assert!(nonnegative_i64_literal(&expr));
+                assert!(matches!(literal_in_class(&expr), Some(Some(InStorageClass::Numeric))));
+                assert!(!text_cast_string_literal(&expr));
+                assert!(!integer_cast_string_literal(&expr));
+                assert!(!text_cast_nonnegative_i64_literal(&expr));
+                release(expr);
+                let expr = wrap(cast_text);
+                assert!(text_cast_string_literal(&expr));
+                assert!(!integer_cast_string_literal(&expr));
+                release(expr);
+                let expr = wrap(cast_integer);
+                assert!(integer_cast_string_literal(&expr));
+                assert!(!text_cast_string_literal(&expr));
+                release(expr);
+                let expr = wrap(cast_number);
+                assert!(text_cast_nonnegative_i64_literal(&expr));
+                release(expr);
+                let expr = wrap(Expr::Identifier(Ident::new("bound")));
+                assert!(matches!(without_parentheses(&expr), Expr::Identifier(id) if id.value == "bound"));
+                release(expr);
+            })
+            .unwrap()
+            .join();
+        result.unwrap();
+    }
 
     #[test]
     fn between_length_guard_limits_nested_preflight_without_recursion() {

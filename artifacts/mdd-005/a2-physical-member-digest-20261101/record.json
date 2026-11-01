@@ -1,0 +1,54 @@
+{
+  "task": "MDD-005",
+  "scope": "Synthetic physical selected ZIP members only; no producer snapshot, logical DEX or A2 qualification",
+  "runs": [
+    {
+      "command": "python -B artifacts/mdd-005/a2-physical-member-digest-20261101/probe.py",
+      "exit": 0,
+      "tests_passed": 4,
+      "output": "output.txt"
+    },
+    {
+      "command": "python -B -O artifacts/mdd-005/a2-physical-member-digest-20261101/probe.py",
+      "exit": 0,
+      "tests_passed": 4,
+      "output": "optimized.txt"
+    }
+  ],
+  "listed_sources_before": {
+    "benchmarks/a2_input_inventory.py": "8565ed1a50eb642ff15ebdfdc64b5a287bc6feb44c3fb66ad73fa2f4a5d8d00e",
+    "tests/fixtures/generated/structured-035.dex": "108cf907d330b823c6e32d38eaab8f23709fe493f52537688bbd09ba3e271605",
+    "artifacts/mdd-005/a2-physical-member-digest-20261101/probe.py": "899b8cb0c9cc86c50151f0cdaa975dc65141eb4a7697860604f533ad861cbb4a"
+  },
+  "listed_sources_after": {
+    "benchmarks/a2_input_inventory.py": "8565ed1a50eb642ff15ebdfdc64b5a287bc6feb44c3fb66ad73fa2f4a5d8d00e",
+    "tests/fixtures/generated/structured-035.dex": "108cf907d330b823c6e32d38eaab8f23709fe493f52537688bbd09ba3e271605",
+    "artifacts/mdd-005/a2-physical-member-digest-20261101/probe.py": "899b8cb0c9cc86c50151f0cdaa975dc65141eb4a7697860604f533ad861cbb4a"
+  },
+  "stable": true,
+  "limits": "Python ZIP reader CRC is checked by consuming selected members to EOF. Does not independently prove complete ZIP/ZIP64/compressed-stream validity, DEX parse, producer identity, logical occurrences or immutable source generation. Input is hashed before and after but may change and revert between observations. Python decompression/central directory, buffers and RSS are not bounded by logical member bytes. Full read and hashing costs must be measured in complete future workloads; tests use local synthetic APKs.",
+  "final": {
+    "command": "python -B artifacts/mdd-005/a2-physical-member-digest-20261101/probe.py",
+    "exit": 0,
+    "tests_passed": 5,
+    "output": "final.txt",
+    "listed_sources_before": {
+      "benchmarks/a2_input_inventory.py": "3fae2f9df2c726025ee52682d2414c3b47c53b626ce618f1c69759616ccb148e",
+      "tests/fixtures/generated/structured-035.dex": "108cf907d330b823c6e32d38eaab8f23709fe493f52537688bbd09ba3e271605",
+      "artifacts/mdd-005/a2-physical-member-digest-20261101/probe.py": "ec2e6eacc046e225069153ef660343ed572f590a1e1cabae1c3d0fcd679ed151"
+    },
+    "listed_sources_after": {
+      "benchmarks/a2_input_inventory.py": "3fae2f9df2c726025ee52682d2414c3b47c53b626ce618f1c69759616ccb148e",
+      "tests/fixtures/generated/structured-035.dex": "108cf907d330b823c6e32d38eaab8f23709fe493f52537688bbd09ba3e271605",
+      "artifacts/mdd-005/a2-physical-member-digest-20261101/probe.py": "ec2e6eacc046e225069153ef660343ed572f590a1e1cabae1c3d0fcd679ed151"
+    },
+    "stable": true,
+    "optimized": {
+      "command": "python -B -O artifacts/mdd-005/a2-physical-member-digest-20261101/probe.py",
+      "exit": 0,
+      "tests_passed": 5,
+      "output": "final-optimized.txt"
+    },
+    "scope": "NUL member names exposed by Python as truncated are rejected by physical digest; original HostLab inventory behavior is preserved separately."
+  }
+}

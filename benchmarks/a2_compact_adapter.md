@@ -1,5 +1,7 @@
 # A2 compact 查询转换候选
 
+输入 inventory 可对选定 APK DEX 成员读取至 EOF，核对 Python ZIP 读取器执行的 CRC，并按 central-directory 顺序记录物理成员序号、解压长度和 SHA-256；重复内容保留为多个成员，Python 规范化过的成员名称会被该摘要入口拒绝。该候选在读取前后复核来源，但不证明中间不可变、压缩流/ZIP64 全格式、逻辑 DEX 完整性或生产者快照。合成 stored/deflate、NUL 名称和 CRC 反例见 `artifacts/mdd-005/a2-physical-member-digest-20261101/`；完整读取和哈希的开销须计入后续测量。
+
 等待 compact 查询锁也受会话期限约束；未发送的等待请求超时不会释放正在使用的锁，也不会将另一个请求的会话标为失败。定向反例及页面终态回归见 `artifacts/mdd-005/a2-query-lock-deadline-20261101/`；这不证明真实生产者并发语义或 A2 资格。
 
 compact 适配器在页面校验、逐单元解码和最终结果登记前检查共享期限，解码超时不会返回完整结果；两项受控反例和两项页面终态回归见 `artifacts/mdd-005/a2-final-page-deadline-20261101/`。同步解析无法被硬中断，逐单元检查的开销需要在未来完整测量中归因；这不证明真实生产者快照或 A2 资格。

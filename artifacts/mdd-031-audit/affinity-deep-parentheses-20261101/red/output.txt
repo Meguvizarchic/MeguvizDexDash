@@ -1,0 +1,11 @@
+   Compiling mdd-sql v0.1.0-dev (<WORKSPACE>\crates\mdd-sql)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.13s
+     Running unittests src\lib.rs (target\debug\deps\mdd_sql-46977fcd4387e316.exe)
+
+running 1 test
+
+thread '<unknown>' (42084) has overflowed its stack
+error: test failed, to rerun pass `-p mdd-sql --lib`
+
+Caused by:
+  process didn't exit successfully: `<WORKSPACE>\target\debug\deps\mdd_sql-46977fcd4387e316.exe affinity_parentheses_use_bounded_stack --nocapture` (exit code: 0xc00000fd, STATUS_STACK_OVERFLOW)

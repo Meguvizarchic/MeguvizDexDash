@@ -1,0 +1,18 @@
+{
+  "task": "MDD-034",
+  "kind": "source_review_not_runtime_proof",
+  "observation": "DeliveryBudgetDeadline::new is public and validates owner and soft/hard order, but a same-owner later witness is not authenticated against the budget tree. This is a trusted-caller boundary, not proof of a successful audit bypass.",
+  "internal_paths": "Query runtime checks query/ancestor budget ownership and copies the actual pool deadline for bound queue/owned-batch paths. Low-level unwitnessed methods intentionally retain their documented semantics.",
+  "limitations": "Inference from listed source only; no runtime counterexample, untrusted SDK threat model, complete audit bypass or security conclusion. Caller-created witness does not override lifecycle deadlines, first errors or cursor/ack gates.",
+  "source_sha256": {
+    "crates/mdd-session/src/cancellation.rs": "069a9dc557bfce6a77ee4766de64450dd0d9f906e71880c0c84be3027ae4e003",
+    "crates/mdd-session/src/lib.rs": "afda23d2dbb014680afa204ed7574387c017740223c6d5f68431c4b5f893efdd",
+    "crates/mdd-query/src/budget.rs": "407485782a7ea3fbec62905a2cf7641822ac4f9ad3046f568da5d751f023d891",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089"
+  },
+  "references": [
+    "crates/mdd-session/src/cancellation.rs",
+    "crates/mdd-session/src/lib.rs",
+    "crates/mdd-query/src/budget.rs"
+  ]
+}

@@ -1,0 +1,21 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+     Running unittests src\lib.rs (target\debug\deps\mdd_sql-46977fcd4387e316.exe)
+
+running 14 tests
+test dialects::ast::aggregate_scan_tests::affinity_parentheses_use_bounded_stack ... ok
+test bridge::tests::legacy_integer_cast_literal_in_uses_numeric_affinity ... ok
+test bridge::tests::legacy_numeric_affinity_does_not_cross_inner_join_alias ... ok
+test bridge::tests::legacy_numeric_affinity_does_not_cross_inner_group_alias ... ok
+test runtime_tests::in_list_never_silently_guesses_column_or_cast_affinity ... ok
+test bridge::tests::legacy_integer_cast_literal_equality_uses_numeric_affinity ... ok
+test bridge::tests::legacy_numeric_affinity_does_not_cross_inner_alias ... ok
+test bridge::tests::legacy_direct_cte_text_literal_preserves_affinity ... ok
+test bridge::tests::legacy_integer_in_text_affinity_matches_sqlite_for_exact_decimal_forms ... ok
+test bridge::tests::legacy_literal_text_affinity_in_between_and_simple_case ... ok
+test bridge::tests::legacy_simple_case_numeric_column_uses_exact_text_affinity ... ok
+test bridge::tests::legacy_numeric_column_comparison_applies_exact_text_affinity ... ok
+test bridge::tests::legacy_text_column_in_integer_literals_matches_sqlite_affinity ... ok
+test bridge::tests::literal_mixed_class_comparisons_preserve_sqlite_rank_without_guessing_affinity ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 160 filtered out; finished in 0.04s
+

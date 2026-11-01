@@ -1,0 +1,9 @@
+test_corrupt_member_crc_is_not_full_success (__main__.PhysicalDigestChecks.test_corrupt_member_crc_is_not_full_success) ... ok
+test_physical_order_duplicate_content_and_full_read (__main__.PhysicalDigestChecks.test_physical_order_duplicate_content_and_full_read) ... ok
+test_raw_dex_is_not_archive_coverage (__main__.PhysicalDigestChecks.test_raw_dex_is_not_archive_coverage) ... ok
+test_scope_budget_and_source_change (__main__.PhysicalDigestChecks.test_scope_budget_and_source_change) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.048s
+
+OK

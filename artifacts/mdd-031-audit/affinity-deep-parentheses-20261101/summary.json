@@ -1,0 +1,32 @@
+{
+  "task": "MDD-031",
+  "finding": "Recursive parenthesis peeling in affinity prechecks can overflow a constrained thread stack on a deeply nested in-memory AST.",
+  "change": "Use iterative parenthesis peeling for no_affinity, text/integer cast literal helpers, literal IN class and scoped CTE column matching; retain original direct-expression recognition and type branches.",
+  "runs": {
+    "red": {
+      "command": "cargo test --locked -p mdd-sql affinity_parentheses_use_bounded_stack -- --nocapture",
+      "output": "red/output.txt",
+      "exit_observed": "0xc00000fd (STATUS_STACK_OVERFLOW)",
+      "tests_run": 1,
+      "before_after_identical": true,
+      "note": "The controlled test constructed 5000 nested AST nodes and called the original no_affinity on a 128 KiB test thread stack; process abort is isolated to the cargo test child. The test was expanded after red."
+    },
+    "green": {
+      "command": "cargo test --locked -p mdd-sql affinity_parentheses_use_bounded_stack -- --nocapture",
+      "output": "green/output.txt",
+      "exit": 0,
+      "tests_passed": 1,
+      "before_after_identical": true,
+      "note": "Checks positive/negative affinity helper forms and unwraps the deliberately deep AST iteratively before drop."
+    },
+    "regression": {
+      "command": "cargo test --locked -p mdd-sql affinity -- --nocapture",
+      "output": "regression/output.txt",
+      "exit": 0,
+      "tests_passed": 14,
+      "before_after_identical": true,
+      "note": "Includes the new helper test; do not add it to 14 as a distinct test."
+    }
+  },
+  "limits": "Controlled synthetic in-memory AST and small thread stack only; not evidence that default or normal SQL causes a natural crash. Actual adapt() preflights SQL bytes, token count and lexical depth; helpers themselves do not establish independent CPU/step limits, and parser, other AST recursion, Linux, real HostLab, A0/A1, full SQL or performance were not qualified. LOWER and general complex BETWEEN repeated evaluation remain unresolved."
+}

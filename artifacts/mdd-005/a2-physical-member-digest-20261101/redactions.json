@@ -1,0 +1,42 @@
+[
+  {
+    "path": "artifacts/mdd-031-audit/affinity-deep-parentheses-20261101/green/after.json",
+    "original_sha256": "2f3fb8ba867e7649db9ca7a97183baf696584c8601ea75d13faaa635814b9b21",
+    "redacted_sha256": "81845abd4f23b9607419bca7f291ded219ba1da99f840e43cafd3de74a97f028"
+  },
+  {
+    "path": "artifacts/mdd-031-audit/affinity-deep-parentheses-20261101/green/before.json",
+    "original_sha256": "2f3fb8ba867e7649db9ca7a97183baf696584c8601ea75d13faaa635814b9b21",
+    "redacted_sha256": "81845abd4f23b9607419bca7f291ded219ba1da99f840e43cafd3de74a97f028"
+  },
+  {
+    "path": "artifacts/mdd-031-audit/affinity-deep-parentheses-20261101/green/output.txt",
+    "original_sha256": "fa2dcd66547f545ac181de4ad6ccf1abf799fc866ee705ad14e3ba1c9be2181d",
+    "redacted_sha256": "a6cb425ce3e4f7f2755e29da3f2bf469f71f3fe5e16dc8e40aea35d9feeab1f3"
+  },
+  {
+    "path": "artifacts/mdd-031-audit/affinity-deep-parentheses-20261101/red/after.json",
+    "original_sha256": "f5cc6bc23fae332d724da69a4d81300a423bd11f7cecf01eaeddc1c63f36c49d",
+    "redacted_sha256": "864b601222d86413fee0fac3d532c57b532920154d14dd7e5fee0df3cb5cc41a"
+  },
+  {
+    "path": "artifacts/mdd-031-audit/affinity-deep-parentheses-20261101/red/before.json",
+    "original_sha256": "f5cc6bc23fae332d724da69a4d81300a423bd11f7cecf01eaeddc1c63f36c49d",
+    "redacted_sha256": "864b601222d86413fee0fac3d532c57b532920154d14dd7e5fee0df3cb5cc41a"
+  },
+  {
+    "path": "artifacts/mdd-031-audit/affinity-deep-parentheses-20261101/red/output.txt",
+    "original_sha256": "6c80dfa5217b27f4baed96faf3216f74d22ea43e0f3b84934ef499d68c992aa3",
+    "redacted_sha256": "c66442b14a121831a1106a22c2862894bcbc2cf5778d28b3d033db097bf2ef3a"
+  },
+  {
+    "path": "artifacts/mdd-031-audit/affinity-deep-parentheses-20261101/regression/after.json",
+    "original_sha256": "2f3fb8ba867e7649db9ca7a97183baf696584c8601ea75d13faaa635814b9b21",
+    "redacted_sha256": "81845abd4f23b9607419bca7f291ded219ba1da99f840e43cafd3de74a97f028"
+  },
+  {
+    "path": "artifacts/mdd-031-audit/affinity-deep-parentheses-20261101/regression/before.json",
+    "original_sha256": "2f3fb8ba867e7649db9ca7a97183baf696584c8601ea75d13faaa635814b9b21",
+    "redacted_sha256": "81845abd4f23b9607419bca7f291ded219ba1da99f840e43cafd3de74a97f028"
+  }
+]
