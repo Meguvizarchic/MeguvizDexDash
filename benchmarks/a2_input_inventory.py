@@ -35,6 +35,15 @@ class PhysicalDexDigest:
     crc32: int
 
 
+@dataclass(frozen=True)
+class ObservedDexMember:
+    """A producer-reported file row and the corresponding physical member."""
+
+    file_id: int
+    entry_name: str
+    member: PhysicalDexDigest
+
+
 class PinnedInputInventory:
     """A single fixed input SHA-256 and HostLab-compatible physical inventory.
 
@@ -189,3 +198,32 @@ class PinnedInputInventory:
             raise InputInventoryError('DEX member read or CRC verification failed') from error
         self.verify_source()
         return tuple(records)
+
+    def bind_observed_members(self, source, files, *, chunk_bytes=1024 * 1024):
+        """Associate observed producer rows with independently read APK members.
+
+        File rows retain their caller-provided order and are never deduplicated
+        by physical bytes. Suffix stripping follows the fixed HostLab inventory
+        convention only; this does not validate logical DEX offsets or prove
+        that the producer read the hashed member bytes. Raw DEX inputs have no
+        archive member and are not admitted to this APK-specific mapping.
+        """
+        if not isinstance(files, dict):
+            raise InputInventoryError('DEX inventory is missing')
+        # Freeze the observed rows once: verification and mapping must not use
+        # different generations if the caller later mutates its dictionary.
+        observed = dict.copy(files)
+        self.verify_inventory(source, observed)
+        records = self.digest_physical_members(chunk_bytes=chunk_bytes)
+        if records is None:
+            raise InputInventoryError('raw DEX has no physical archive members')
+        members = {member.name: member for member in records}
+        result = []
+        for file_id, entry_name in observed.items():
+            physical_name = re.sub(r'#\d+$', '', entry_name)
+            member = members.get(physical_name)
+            if member is None:
+                raise InputInventoryError('observed DEX row has no physical member')
+            result.append(ObservedDexMember(file_id, entry_name, member))
+        self.verify_source()
+        return tuple(result)

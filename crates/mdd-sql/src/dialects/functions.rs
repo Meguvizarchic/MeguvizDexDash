@@ -882,15 +882,19 @@ fn like(
         .ok()
         .and_then(|length| length.checked_mul(std::mem::size_of::<Token>() as u64))
         .ok_or_else(|| control.fail(quota("LIKE_TOKEN_WORKSPACE_OVERFLOW")))?;
-    let _reservation = control
-        .runtime()
-        .map(|runtime| {
-            runtime
-                .pool()
-                .reserve(mdd_query::budget::Resource::QueryWorkspaceBytes, bytes)
-                .map_err(|error| control.fail(error))
-        })
-        .transpose()?;
+    let _reservation = if bytes == 0 {
+        None
+    } else {
+        control
+            .runtime()
+            .map(|runtime| {
+                runtime
+                    .pool()
+                    .reserve(mdd_query::budget::Resource::QueryWorkspaceBytes, bytes)
+                    .map_err(|error| control.fail(error))
+            })
+            .transpose()?
+    };
     let mut tokens = Vec::new();
     tokens
         .try_reserve_exact(pattern.utf16.len())

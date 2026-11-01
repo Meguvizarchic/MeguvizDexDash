@@ -1,0 +1,12 @@
+[
+  {
+    "path": "artifacts/mdd-031-audit/like-empty-reservation-20261101/green/output.txt",
+    "original_sha256": "aaf39f173a857e464c5bbe03ea2157e2f56a29db56baf8851d014a493963a785",
+    "redacted_sha256": "71e6455574a702924fb765ad09bf7e1cd30321f198c7130f3675a6cf8bc8450d"
+  },
+  {
+    "path": "artifacts/mdd-031-audit/like-empty-reservation-20261101/red/output.txt",
+    "original_sha256": "ab5f65f61bd2075a3f292153ee3d4a6fa0b89a8c98c1ef0dc0755a0ac5a0c6d4",
+    "redacted_sha256": "fc716355826c4010b1da681874ff5c7c1de46504ff69f37356389637bba93641"
+  }
+]

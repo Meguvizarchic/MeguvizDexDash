@@ -1,0 +1,9 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.15s
+     Running unittests src\lib.rs (target\debug\deps\mdd_sql-46977fcd4387e316.exe)
+
+running 2 tests
+test runtime_tests::like_token_allocation_requires_real_session_workspace_budget ... ok
+test runtime_tests::like_token_workspace_is_released_after_success ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 173 filtered out; finished in 0.11s
+

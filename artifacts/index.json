@@ -3638,6 +3638,51 @@
       "sha256": "01e29bb1c48b2e3b3db6e4cb12e867b77720ab85d8fb5b65fdcb5912f324d18c"
     },
     {
+      "path": "artifacts/mdd-005/a2-observed-member-binding-20261101/after.json",
+      "bytes": 503,
+      "sha256": "3d173346cb191621c4fbc22d22e31b30cfe30b55096cf85cc2b8ca431306c224"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-observed-member-binding-20261101/before.json",
+      "bytes": 503,
+      "sha256": "3d173346cb191621c4fbc22d22e31b30cfe30b55096cf85cc2b8ca431306c224"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-observed-member-binding-20261101/exit.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-observed-member-binding-20261101/output.txt",
+      "bytes": 498,
+      "sha256": "e7f62f24b02166983691612959f87281e389602a356c3392cb0ba315302a665b"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-observed-member-binding-20261101/probe.py",
+      "bytes": 2866,
+      "sha256": "c15b2f19474da74104a849aadc88d23a79b92790a1dc6e35d385438c25dcd3e9"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-observed-member-binding-20261101/record.json",
+      "bytes": 1988,
+      "sha256": "1ef8b5627b3a55794d86dbcac671703f0734bc23c83c4304b633c7a6c121a7dc"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-observed-member-binding-20261101/redactions.json",
+      "bytes": 569,
+      "sha256": "5069168c4952826d60ab74c7881352d4aa11100ce16f5ea041f01ef60bccf367"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-observed-member-binding-20261101/regression-exit.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-observed-member-binding-20261101/regression.txt",
+      "bytes": 761,
+      "sha256": "e8e6852843bfe86d84df5eb622d43ecc26e66a2e29e3b63a9d3d3a219908b18d"
+    },
+    {
       "path": "artifacts/mdd-005/a2-physical-member-digest-20261101/after.json",
       "bytes": 366,
       "sha256": "7a3e931ca4815d2eebeb45140b0c64e51b3cb94003f4a20655a1ddacbb24e2f6"
@@ -25196,6 +25241,66 @@
       "path": "artifacts/mdd-031-audit/like-budget-20261029/summary.json",
       "bytes": 1675,
       "sha256": "cfa08ce3151035430be28f027a55ea1bacf9aaeac5a6098be89aed14feb85080"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/like-empty-reservation-20261101/green/output.txt",
+      "bytes": 403,
+      "sha256": "71e6455574a702924fb765ad09bf7e1cd30321f198c7130f3675a6cf8bc8450d"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/like-empty-reservation-20261101/green/record.json",
+      "bytes": 1686,
+      "sha256": "8ab63c43316627543d3fa4923456af6446819bb515651fdd18f5c4c2901a8368"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/like-empty-reservation-20261101/q06/output.txt",
+      "bytes": 355,
+      "sha256": "5fb65e0131ba374d960a545decb606d30ccbd223dda392284a2569a9bb40e122"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/like-empty-reservation-20261101/q06/record.json",
+      "bytes": 1699,
+      "sha256": "ef640e05aa925c951e57c44a3ce2fec128385e1d89e17493d838f1ce88eeffd8"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/like-empty-reservation-20261101/red/output.txt",
+      "bytes": 943,
+      "sha256": "fc716355826c4010b1da681874ff5c7c1de46504ff69f37356389637bba93641"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/like-empty-reservation-20261101/red/record.json",
+      "bytes": 1688,
+      "sha256": "a57a81feee34ab536047d07ce264145acf1759cd9c486a2b3ba9fbdb7c5b42d3"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/like-empty-reservation-20261101/run.py",
+      "bytes": 1545,
+      "sha256": "b2ec2e3d14d9b28d450f09ee46016589751e619290d666a711a89fb65c22ea01"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/like-empty-reservation-20261101/semantics/output.txt",
+      "bytes": 345,
+      "sha256": "0d542f843483472a6729c3e0789d6597946c02083f7d7e0b2cf730bd9f6987c9"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/like-empty-reservation-20261101/semantics/record.json",
+      "bytes": 1689,
+      "sha256": "b9d8c87891ac148868e2283aece1f78a73a69194a0ca48275cda3e5b0fd75900"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/like-empty-reservation-20261101/summary.json",
+      "bytes": 1548,
+      "sha256": "789ea0c827811e1c0ff7f92483ce98cb9b154d5a40ccb9351185569b47d6ab9e"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/like-empty-reservation-20261101/token/output.txt",
+      "bytes": 433,
+      "sha256": "ee26406bfec6876c4ed0aa401a5eadffd08fc2ee960585ee564183beb24c6572"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/like-empty-reservation-20261101/token/record.json",
+      "bytes": 1653,
+      "sha256": "f039efa4333446187f955101e3aad9856ed0bb65cf02dc23527fd55ce187c324"
     },
     {
       "path": "artifacts/mdd-031-audit/like-independent-20261029/Cargo.lock",

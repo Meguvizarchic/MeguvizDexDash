@@ -1,0 +1,37 @@
+{
+  "task": "MDD-031",
+  "finding": "Empty LIKE pattern allocated a zero-byte workspace reservation, causing a query-budget failure when live reservation slots were already full despite no token allocation.",
+  "red": {
+    "record": "red/record.json",
+    "exit": 101,
+    "tests_run": 1,
+    "observation": "NativeV1 empty LIKE returned QuotaExceeded for the 10001st live reservation; later dialects did not run."
+  },
+  "green": {
+    "record": "green/record.json",
+    "exit": 0,
+    "tests_passed": 1,
+    "scope": "All three dialects; empty and nonempty input, explicit escape, NULL escape, cancellation; occupied live slots are controlled synthetic state. Red test source was expanded after failure."
+  },
+  "regressions": [
+    {
+      "record": "token/record.json",
+      "exit": 0,
+      "tests_passed": 2,
+      "scope": "existing nonempty token allocation quota and release"
+    },
+    {
+      "record": "semantics/record.json",
+      "exit": 0,
+      "tests_passed": 1,
+      "scope": "existing LIKE policies and escaped patterns"
+    },
+    {
+      "record": "q06/record.json",
+      "exit": 0,
+      "tests_passed": 1,
+      "scope": "synthetic HostLab Q06-shaped query"
+    }
+  ],
+  "limitations": "Direct SQLite UDF with a real lifecycle/query budget but synthetic occupied reservation slots; no live HostLab, A0/A1, platform, real workload or performance qualification. Internal decoded argument buffers and SQLite/RSS remain outside this proof. General complex BETWEEN remains unresolved."
+}

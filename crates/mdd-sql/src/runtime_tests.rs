@@ -348,6 +348,79 @@ fn truth_empty_text_needs_no_reservation_slot() {
 }
 
 #[test]
+fn like_empty_pattern_needs_no_reservation_slot() {
+    use crate::values::SqlValue;
+    for dialect in [
+        SqlDialect::NativeV1,
+        SqlDialect::DexSql010,
+        SqlDialect::DexSql011,
+    ] {
+        let (lifecycle, session, _, bridge) = setup_with_dialect(dialect);
+        let prepared = bridge.prepare("SELECT 1").unwrap();
+        let (runtime, token) = runtime(&lifecycle, &session, &prepared, BudgetLimits::default());
+        let pool = runtime.pool().clone();
+        let mut occupied = Vec::with_capacity(10_000);
+        for _ in 0..10_000 {
+            occupied.push(pool.reserve(Resource::QueryWorkspaceBytes, 0).unwrap());
+        }
+        let control = SqlControl::new(SqlLimits::default(), None).with_runtime(runtime);
+        let db = rusqlite::Connection::open_in_memory().unwrap();
+        crate::dialects::functions::register(&db, dialect, control.clone()).unwrap();
+        let empty = SqlValue::text("")
+            .sqlite(SqlLimits::default().max_cell_bytes)
+            .unwrap();
+        let nonempty = SqlValue::text("x")
+            .sqlite(SqlLimits::default().max_cell_bytes)
+            .unwrap();
+        for (value, expected) in [(&empty, 1), (&nonempty, 0)] {
+            let actual: i64 = db
+                .query_row(
+                    "SELECT mdd_like(?1, ?2, NULL, 0)",
+                    rusqlite::params![value, &empty],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(actual, expected, "{dialect:?}");
+        }
+        let escape = SqlValue::text("\\")
+            .sqlite(SqlLimits::default().max_cell_bytes)
+            .unwrap();
+        let escaped: i64 = db
+            .query_row(
+                "SELECT mdd_like(?1, ?2, ?3, 1)",
+                rusqlite::params![&empty, &empty, &escape],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(escaped, 1, "{dialect:?}");
+        let null_escape: Option<i64> = db
+            .query_row(
+                "SELECT mdd_like(?1, ?2, NULL, 1)",
+                rusqlite::params![&empty, &empty],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(null_escape, None, "{dialect:?}");
+        assert!(token.status().unwrap().error.is_none());
+        drop(occupied);
+        assert_eq!(
+            pool.usage().unwrap().used[&Resource::QueryWorkspaceBytes].0,
+            0
+        );
+        token.cancel().unwrap();
+        assert!(
+            db.query_row(
+                "SELECT mdd_like(?1, ?2, NULL, 0)",
+                rusqlite::params![&empty, &empty],
+                |row| row.get::<_, Option<i64>>(0),
+            )
+            .is_err()
+        );
+        assert_eq!(control.error().unwrap().code, ErrorCode::Cancelled);
+    }
+}
+
+#[test]
 fn truth_surrogate_output_uses_exact_workspace() {
     for (workspace, succeeds) in [(8, false), (9, true)] {
         let (lifecycle, session, _, bridge) = setup();
