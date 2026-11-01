@@ -1,0 +1,38 @@
+[
+  {
+    "path": "Cargo.lock",
+    "sha256": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089"
+  },
+  {
+    "path": "crates/mdd-sql/src/dialects/ast.rs",
+    "sha256": "e07375b14e60044d69a1cb0fa369080aa6e9e2b1d0ee8ed6e9b5ad418d4ba406"
+  },
+  {
+    "path": "crates/mdd-sql/src/dialects/functions.rs",
+    "sha256": "3a4f2bb7a699d3ed830814d61ec417e6bf8da021027cce50d07b9f85c28a7bbb"
+  },
+  {
+    "path": "crates/mdd-sql/src/values.rs",
+    "sha256": "13d19c9e8df6057a5adba421458b361a7e44eb6fb3834f7c299aa246b1a1babb"
+  },
+  {
+    "path": "crates/mdd-sql/src/bridge.rs",
+    "sha256": "f8a8d3a04ba028667295593a13e1f3e809275e81deca4a5498f6780b291bdeca"
+  },
+  {
+    "path": "crates/mdd-sql/src/runtime_tests.rs",
+    "sha256": "03ffeaebc5aa40970a643481e4989f3f38a7919b30269f3ceb4a00af3550ccf1"
+  },
+  {
+    "path": "crates/mdd-query/src/budget.rs",
+    "sha256": "407485782a7ea3fbec62905a2cf7641822ac4f9ad3046f568da5d751f023d891"
+  },
+  {
+    "path": "crates/mdd-facts/src/lib.rs",
+    "sha256": "393c9a5cacb2762fe493a55aa94c5c27fbb01b5ff652b361cc1f20e33b27b2d9"
+  },
+  {
+    "path": "target/debug/deps/mdd_sql-46977fcd4387e316.exe",
+    "sha256": "094c24dddc7dcb0cdbcebeb515ed61538364cd85c74fa9b51953bbfdb828dc1d"
+  }
+]

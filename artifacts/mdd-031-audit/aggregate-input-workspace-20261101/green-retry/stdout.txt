@@ -1,0 +1,19 @@
+
+running 14 tests
+test dialects::ast::aggregate_scan_tests::compound_carrier_nested_parentheses_charge_every_visit ... ok
+test dialects::ast::aggregate_scan_tests::aggregate_reference_scan_obeys_depth_and_visit_budgets ... ok
+test dialects::ast::aggregate_scan_tests::aggregate_scope_schema_columns_are_charged ... ok
+test dialects::ast::aggregate_scan_tests::between_length_guard_limits_nested_preflight_without_recursion ... ok
+test dialects::ast::aggregate_scan_tests::affinity_parentheses_use_bounded_stack ... ok
+test bridge::tests::aggregate_filter_truth_matches_sqlite_for_text_carriers ... ok
+test bridge::tests::aggregate_filter_truth_for_numeric_carriers_and_invalid_filter ... ok
+test runtime_tests::aggregate_retained_values_and_nulls_release_workspace ... ok
+test runtime_tests::aggregate_output_coexists_with_retained_input_workspace ... ok
+test runtime_tests::aggregate_argument_workspace_is_charged_and_released ... ok
+test bridge::tests::long_sql_comparisons_are_bounded_in_scalar_and_aggregate_paths ... ok
+test bridge::tests::distinct_correlated_aggregate_ownership_matches_sqlite ... ok
+test bridge::tests::distinct_aggregate_expressions_and_having_match_sqlite ... ok
+test runtime_tests::aggregate_argument_materialization_respects_query_work_budget ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 187 filtered out; finished in 0.03s
+

@@ -1,0 +1,26 @@
+
+running 21 tests
+test executor::scoped::tests::checked_source_detects_binding_change_from_eof_iterator_drop ... ok
+test executor::scoped::tests::checked_source_detects_change_during_scan_before_limit_zero ... ok
+test executor::scoped::tests::checked_source_rechecks_binding_before_scan_returns ... ok
+test executor::scoped::tests::checked_source_records_change_before_iterator_drop_cancels_query ... ok
+test executor::scoped::tests::commitment_preflight_covers_inventory_policies_and_empty_selection ... ok
+test executor::scoped::tests::identity_comparison_rejects_different_bytes_and_enforces_budget ... ok
+test executor::scoped::tests::commitment_preflight_keeps_invalid_inventory_identity_before_byte_quota ... ok
+test executor::scoped::tests::runtime_bound_checked_source_must_not_stop_a_different_query ... ok
+test executor::scoped::tests::runtime_query_steps_bound_scoped_entity_checks ... ok
+test executor::scoped::tests::runtime_scoped_entity_steps_are_counted_once_and_observe_cancel ... ok
+test executor::scoped::tests::same_snapshot_rebuilt_inventory_accepts_identical_dex_bytes ... ok
+test executor::scoped::tests::scope_commitment_budget_is_checked_before_scope_construction ... ok
+test executor::scoped::tests::scope_rejects_missing_reordered_and_other_snapshot ... ok
+test executor::scoped::tests::scoped_code_coverage_limit_keeps_missing_layer_error ... ok
+test executor::scoped::tests::scoped_entity_authority_distinguishes_definitions_from_references ... ok
+test executor::scoped::tests::scoped_entity_authority_rejects_altered_scan_and_bounds_checks ... ok
+test executor::scoped::tests::scoped_entity_authority_rejects_altered_json_batch_before_delivery ... ok
+test executor::scoped::tests::scoped_references_derive_layers_from_the_actual_facts ... ok
+test executor::scoped::tests::scoped_references_accept_rebuilt_identical_dex_under_budget ... ok
+test executor::scoped::tests::strict_limit_drops_scan_before_return_or_json_end ... ok
+test executor::scoped::tests::scoped_query_uses_derived_coverage_through_json_delivery ... ok
+
+test result: ok. 21 passed; 0 failed; 0 ignored; 0 measured; 174 filtered out; finished in 0.16s
+

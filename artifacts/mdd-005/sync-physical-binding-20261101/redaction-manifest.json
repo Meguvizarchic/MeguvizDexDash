@@ -1,0 +1,101 @@
+{
+  "description": "Raw originals retained under ignored artifacts/local; listed published copies replace local workspace and user paths. Original command-record stream hashes refer to raw bytes.",
+  "files": [
+    {
+      "path": "artifacts/mdd-005/sync-physical-binding-20261101/consistency-red.txt",
+      "raw_sha256": "f34e5580df5d811ba810ed443fc8107ba068780ae0aa5781f9da24455a5bd001",
+      "raw_bytes": 2703,
+      "redacted_sha256": "9b9d8555993f45dd798f1c1342d4bfaa94f33d54d8c9b2274ec5c949ed22926b"
+    },
+    {
+      "path": "artifacts/mdd-005/sync-physical-binding-20261101/consistency-red2.txt",
+      "raw_sha256": "df413514071f1aed35005ed3bdba8273ca35765c6111e0b597240a6e3ee57574",
+      "raw_bytes": 2610,
+      "redacted_sha256": "c31c56546d2a426490c85b0d9649186ccec527477f5de6216767eded7e72431d"
+    },
+    {
+      "path": "artifacts/mdd-022/signature-type-search-20261101/run1.log",
+      "raw_sha256": "b25bdac66ceb286234d4c6b21d0aa0ff9cc2cd5fcbfd2f9098d6b4840f350c68",
+      "raw_bytes": 857,
+      "redacted_sha256": "dec097954dd2d62ba237f5ccfe7c804032bfeec328fde5f76fa6eb10fb714278"
+    },
+    {
+      "path": "artifacts/mdd-022/signature-type-search-20261101/run3.log",
+      "raw_sha256": "51a14b2c6ffa0a27b56d0444ca1f0c3576a8cde3c9f9c1fd8c9ac9936ef10e0d",
+      "raw_bytes": 862,
+      "redacted_sha256": "117e9b01c2b47a3c56a921ab592e609f839a9cc1bb35241175d25ec5f010c1d4"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/aggregate-input-workspace-20261101/green/record.json",
+      "raw_sha256": "b8a3b7b6eeed79407b729a4db51477126ca772736c1aef9ead850804e0784b82",
+      "raw_bytes": 693,
+      "redacted_sha256": "1fd5a04f385ff0f6f88cc62aa99557e8153079096e4e6f4a3471b92d633c17db"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/aggregate-input-workspace-20261101/green/stderr.txt",
+      "raw_sha256": "170f8528f617b44861ebf46a77a731167a461e85664713c60e75054a251d6b9e",
+      "raw_bytes": 5801,
+      "redacted_sha256": "cd0d725738a71a969e12fd16a06661e4ea65b5a6bdf2e69d43493dde78e636a4"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/aggregate-input-workspace-20261101/green-retry/record.json",
+      "raw_sha256": "724ae29c493e1e7f53d17e2c6188364e0a0a820c859becfedf40e00cab5eaaf1",
+      "raw_bytes": 693,
+      "redacted_sha256": "f795e1d74f9377a7e58a3d9bef69b19343a22556cab94fa727c9aabfa81bea9a"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/aggregate-input-workspace-20261101/green-retry/stderr.txt",
+      "raw_sha256": "f1dcbeac025442878e2245ad483bb0bd2b833538aecc6fff71a1df6553ae5a18",
+      "raw_bytes": 223,
+      "redacted_sha256": "86b153217e8ba3df015c167de4c23683f837ef49968cae6e9c6d99c8c62a1f95"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/aggregate-input-workspace-20261101/green-tosql/record.json",
+      "raw_sha256": "fb42f8c85d8227c9c0d1067be0b43f49755556c8a56a2563ce5fa6fa1dad6a2e",
+      "raw_bytes": 734,
+      "redacted_sha256": "983029c950ddfc2667f27441fcdba3192808ae3410755f55e3682f9691ca4275"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/aggregate-input-workspace-20261101/green-udf/record.json",
+      "raw_sha256": "fe88a795fce79debe51ba186f7162a8349edefed7253f01110c96141d23cbe29",
+      "raw_bytes": 711,
+      "redacted_sha256": "d3a675f7ba813200e87a1768bbe0c21df67029df60a2bd5256757cb5b6300d37"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/aggregate-input-workspace-20261101/red/record.json",
+      "raw_sha256": "9b16ecf71744d511832e11833473e0c5710e83df4c5d3430a44755e3d72bfb84",
+      "raw_bytes": 746,
+      "redacted_sha256": "0c8e82f29e38f05b42c3f0de480de0c9796c71570258a7b922770c5f10f3e773"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/aggregate-input-workspace-20261101/red/stderr.txt",
+      "raw_sha256": "9605ecf9908a2ad1cbd9d6ac6bd9982499ed03e16fec9f65ac61597f732b449d",
+      "raw_bytes": 550,
+      "redacted_sha256": "612c824ba5328d1f3327efa1e24642fead7abcedca4032941d740092bed75cae"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-runtime-budget-20261101/final-combined-scoped/record.json",
+      "raw_sha256": "b18ae071578a8a73f2aab7044f303cb17c2b7a7ecc54ac42eaa79ba18e09bc91",
+      "raw_bytes": 695,
+      "redacted_sha256": "508420bc98cfbd25014c0bb5bab1d999f4336b1739907b55ac650c3f3aeceed4"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-runtime-budget-20261101/green-scoped/record.json",
+      "raw_sha256": "28da59515b02983d9848d89f1e845fc95715c2a4e6036dd0862687e786c8ff9c",
+      "raw_bytes": 695,
+      "redacted_sha256": "90ea04b785e44df72e6c557841561915b6e8f8810dd6913496b1cbc329791e8f"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-runtime-budget-20261101/green-scoped/stderr.txt",
+      "raw_sha256": "bf17c5948176fd0475664c82b1643006c198eeb3bfd52e02246ef74bd8947352",
+      "raw_bytes": 229,
+      "redacted_sha256": "b3413fcd53da1588c99f9e059d8d6d4341815e3f3bfdc292139469cdc61f5ea2"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-runtime-budget-20261101/red/record.json",
+      "raw_sha256": "e8586c736a010a59e3842f4a89ed0db4ae2b57babc9950d10c5a29e76890ed5d",
+      "raw_bytes": 715,
+      "redacted_sha256": "aa2dcc01f00a0b6921978ab0c5c27edfaeff7773193499097611e8197e30c31f"
+    }
+  ]
+}

@@ -459,6 +459,32 @@ fn physical_annotation_item(data: &DexAnnotations, offset: u32) -> MddResult<&An
         })
 }
 
+// read_annotations validates that every set entry points to a physical item
+// and that their type indices are strictly increasing. Search those validated
+// entries without building a per-owner index or coalescing shared owners.
+fn physical_annotation_of_type<'a>(
+    data: &'a DexAnnotations,
+    set: &AnnotationSet,
+    type_idx: u32,
+) -> MddResult<Option<&'a AnnotationItem>> {
+    let mut start = 0usize;
+    let mut end = set.annotation_offsets.len();
+    while start < end {
+        let middle = start + (end - start) / 2;
+        let item = physical_annotation_item(data, set.annotation_offsets[middle])?;
+        if item.type_idx < type_idx {
+            start = middle + 1;
+        } else {
+            end = middle;
+        }
+    }
+    let Some(&offset) = set.annotation_offsets.get(start) else {
+        return Ok(None);
+    };
+    let item = physical_annotation_item(data, offset)?;
+    Ok((item.type_idx == type_idx).then_some(item))
+}
+
 #[derive(Clone, Serialize)]
 /// Validated annotation facts expose only read-only getters.
 /// ```compile_fail
@@ -771,20 +797,24 @@ impl AnnotationFacts {
             .max_decoded_bytes
             .saturating_sub(data.usage.decoded_bytes);
         let mut owner_layout_validated = false;
+        let signature_type = definitions
+            .metadata
+            .types
+            .iter()
+            .find(|item| item.data.descriptor == "Ldalvik/annotation/Signature;")
+            .map(|item| item.data.type_idx);
         for owner in &data.owner_bindings {
+            let Some(signature_type) = signature_type else {
+                break;
+            };
             let Some(set) = owner.annotation_set_offset else {
                 continue;
             };
             let set = physical_annotation_set(&data, set).map_err(bind)?;
-            for offset in &set.annotation_offsets {
-                let item = physical_annotation_item(&data, *offset).map_err(bind)?;
-                if definitions.metadata.types[item.type_idx as usize]
-                    .data
-                    .descriptor
-                    != "Ldalvik/annotation/Signature;"
-                {
-                    continue;
-                }
+            if let Some(item) =
+                physical_annotation_of_type(&data, set, signature_type).map_err(bind)?
+            {
+                let offset = item.byte_offset;
                 let invalid = || {
                     bind(MddError::new(ErrorCode::InvalidInput,"facts.annotations","Signature requires one named value containing an array of string references").detail("reason","SIGNATURE_SHAPE").detail("byte_offset",offset.to_string()))
                 };
@@ -917,7 +947,7 @@ impl AnnotationFacts {
                     annotation: AnnotationRef {
                         snapshot_id: source.snapshot_id.clone(),
                         dex_occurrence_id: source.dex_occurrence_id.clone(),
-                        annotation_byte_offset: *offset,
+                        annotation_byte_offset: offset,
                     },
                     owner: owner_ref(&definitions, owner, has_definition).map_err(bind)?,
                     string_pool_id: definitions.metadata.string_pool.string_pool_id.clone(),
@@ -2884,6 +2914,102 @@ mod tests {
                 ErrorCode::InternalFault
             );
         }
+    }
+    #[test]
+    fn signature_type_search_matches_linear_physical_sets() {
+        for path in [
+            "tests/fixtures/annotations/generated/parameter-shared-signature.dex",
+            "tests/fixtures/annotations/generated/parameter-shared-empty-set.dex",
+            "tests/fixtures/annotations/generated/valid-orphan-annotation.dex",
+        ] {
+            let facts = build(path);
+            let data = &facts.data;
+            for set in &data.sets {
+                for target in facts
+                    .definitions
+                    .metadata
+                    .types
+                    .iter()
+                    .map(|item| item.data.type_idx)
+                    .chain(std::iter::once(u32::MAX))
+                {
+                    let expected = set
+                        .annotation_offsets
+                        .iter()
+                        .map(|offset| physical_annotation_item(data, *offset).unwrap())
+                        .find(|item| item.type_idx == target)
+                        .map(|item| item.byte_offset);
+                    let actual = physical_annotation_of_type(data, set, target)
+                        .unwrap()
+                        .map(|item| item.byte_offset);
+                    assert_eq!(actual, expected, "{path}: type {target}");
+                }
+            }
+        }
+        let facts = build("tests/fixtures/annotations/generated/parameter-shared-signature.dex");
+        let data = &facts.data;
+        let mut bad = data
+            .sets
+            .iter()
+            .find(|set| !set.annotation_offsets.is_empty())
+            .unwrap()
+            .clone();
+        bad.annotation_offsets[0] = u32::MAX;
+        assert_eq!(
+            physical_annotation_of_type(data, &bad, 0).unwrap_err().code,
+            ErrorCode::InternalFault
+        );
+    }
+    #[test]
+    fn signature_absent_preserves_shared_empty_and_orphan_sets() {
+        let facts =
+            build("artifacts/mdd-022/signature-type-search-20261101/no-signature-shared-empty.dex");
+        assert!(
+            facts
+                .definitions
+                .metadata
+                .types
+                .iter()
+                .all(|item| { item.data.descriptor != "Ldalvik/annotation/Signature;" })
+        );
+        assert!(facts.signatures().is_empty());
+        let expected: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../tests/fixtures/annotations/parameter-shared-empty-set.json"
+        ))
+        .unwrap();
+        let empty = expected["empty_set_offset"].as_u64().unwrap() as u32;
+        let orphan = expected["orphan_set_offset"].as_u64().unwrap() as u32;
+        assert!(
+            physical_annotation_set(&facts.data, empty)
+                .unwrap()
+                .annotation_offsets
+                .is_empty()
+        );
+        assert!(
+            physical_annotation_set(&facts.data, orphan)
+                .unwrap()
+                .annotation_offsets
+                .is_empty()
+        );
+        assert_eq!(
+            facts
+                .data
+                .owner_bindings
+                .iter()
+                .filter(|owner| {
+                    owner.kind == AnnotationOwnerKind::Parameter
+                        && owner.annotation_set_offset == Some(empty)
+                })
+                .count(),
+            4
+        );
+        assert!(
+            !facts
+                .data
+                .owner_bindings
+                .iter()
+                .any(|owner| { owner.annotation_set_offset == Some(orphan) })
+        );
     }
     #[test]
     fn signature_name_matches_utf16_units_without_losing_errors() {

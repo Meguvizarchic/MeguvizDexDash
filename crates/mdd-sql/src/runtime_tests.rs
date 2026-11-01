@@ -706,6 +706,178 @@ fn key_distinct_long_text_respects_session_step_budget() {
 }
 
 #[test]
+fn aggregate_argument_materialization_respects_query_work_budget() {
+    use crate::values::SqlValue;
+    for dialect in [
+        SqlDialect::NativeV1,
+        SqlDialect::DexSql010,
+        SqlDialect::DexSql011,
+    ] {
+        for value in [
+            SqlValue::text(&"x".repeat(4096)),
+            SqlValue::Bytes(vec![1; 4096]),
+        ] {
+            let (lifecycle, session, _, bridge) = setup_with_dialect(dialect);
+            let prepared = bridge
+                .prepare_with_parameters("SELECT MIN(?) IS NOT NULL AS present", &[value])
+                .unwrap();
+            let (runtime, token) = runtime(
+                &lifecycle,
+                &session,
+                &prepared,
+                BudgetLimits::default().with(Resource::QuerySteps, 64),
+            );
+            let outcome = prepared
+                .bind_runtime(&runtime)
+                .unwrap()
+                .execute(SqlControl::new(SqlLimits::default(), None).with_runtime(runtime));
+            let error = match outcome {
+                Ok(_) => panic!("aggregate input escaped work budget: {dialect:?}"),
+                Err(error) => error,
+            };
+            assert_eq!(error.code, ErrorCode::QuotaExceeded, "{dialect:?}");
+            assert!(!token.status().unwrap().execution_complete);
+        }
+    }
+}
+
+#[test]
+fn aggregate_argument_workspace_is_charged_and_released() {
+    use crate::values::SqlValue;
+    for dialect in [
+        SqlDialect::NativeV1,
+        SqlDialect::DexSql010,
+        SqlDialect::DexSql011,
+    ] {
+        let value = SqlValue::text(&"x".repeat(4096));
+        let (lifecycle, session, _, bridge) = setup_with_dialect(dialect);
+        let prepared = bridge
+            .prepare_with_parameters("SELECT MIN(?) IS NOT NULL AS present", &[value])
+            .unwrap();
+        let (runtime, token) = runtime(
+            &lifecycle,
+            &session,
+            &prepared,
+            BudgetLimits::default().with(Resource::QueryWorkspaceBytes, 5000),
+        );
+        let pool = runtime.pool().clone();
+        let error = prepared
+            .bind_runtime(&runtime)
+            .unwrap()
+            .execute(SqlControl::new(SqlLimits::default(), None).with_runtime(runtime))
+            .unwrap_err();
+        assert_eq!(error.code, ErrorCode::QuotaExceeded, "{dialect:?}");
+        assert_eq!(error.details["budget"], "query_workspace_bytes");
+        assert!(!token.status().unwrap().execution_complete);
+        assert_eq!(
+            pool.usage()
+                .unwrap()
+                .used
+                .get(&Resource::QueryWorkspaceBytes)
+                .map_or(0, |v| v.0),
+            0
+        );
+    }
+}
+
+#[test]
+fn aggregate_output_coexists_with_retained_input_workspace() {
+    use crate::values::SqlValue;
+    for dialect in [
+        SqlDialect::NativeV1,
+        SqlDialect::DexSql010,
+        SqlDialect::DexSql011,
+    ] {
+        let (lifecycle, session, _, bridge) = setup_with_dialect(dialect);
+        let prepared = bridge
+            .prepare_with_parameters(
+                "SELECT MIN(?) IS NOT NULL AS present",
+                &[SqlValue::text(&"x".repeat(4096))],
+            )
+            .unwrap();
+        // Each 8192-byte copy fits separately, but they must coexist while
+        // encoding the SQLite carrier and therefore cannot both fit here.
+        let (runtime, token) = runtime(
+            &lifecycle,
+            &session,
+            &prepared,
+            BudgetLimits::default().with(Resource::QueryWorkspaceBytes, 13_000),
+        );
+        let pool = runtime.pool().clone();
+        let error = prepared
+            .bind_runtime(&runtime)
+            .unwrap()
+            .execute(SqlControl::new(SqlLimits::default(), None).with_runtime(runtime))
+            .unwrap_err();
+        assert_eq!(error.code, ErrorCode::QuotaExceeded, "{dialect:?}");
+        assert_eq!(error.details["budget"], "query_workspace_bytes");
+        assert!(!token.status().unwrap().execution_complete);
+        assert_eq!(
+            pool.usage()
+                .unwrap()
+                .used
+                .get(&Resource::QueryWorkspaceBytes)
+                .map_or(0, |v| v.0),
+            0
+        );
+    }
+}
+
+#[test]
+fn aggregate_retained_values_and_nulls_release_workspace() {
+    use crate::values::SqlValue;
+    for dialect in [
+        SqlDialect::NativeV1,
+        SqlDialect::DexSql010,
+        SqlDialect::DexSql011,
+    ] {
+        let (lifecycle, session, _, bridge) = setup_with_dialect(dialect);
+        let values = [
+            SqlValue::text(&format!("z{}", "x".repeat(1023))),
+            SqlValue::text("a"),
+        ];
+        let prepared = bridge.prepare_with_parameters(
+            "SELECT MIN(v) AS lo,MAX(v) AS hi FROM (SELECT ? AS v UNION ALL SELECT ? AS v UNION ALL SELECT NULL AS v)",
+            &values).unwrap();
+        let (runtime, _) = runtime(
+            &lifecycle,
+            &session,
+            &prepared,
+            BudgetLimits::default().with(Resource::QueryWorkspaceBytes, 100_000),
+        );
+        let pool = runtime.pool().clone();
+        let output = prepared
+            .bind_runtime(&runtime)
+            .unwrap()
+            .execute(SqlControl::new(SqlLimits::default(), None).with_runtime(runtime))
+            .unwrap();
+        assert_eq!(
+            output.rows(),
+            &[vec![SqlValue::text("a"), values[0].clone()]],
+            "{dialect:?}"
+        );
+        drop(output);
+        assert_eq!(
+            pool.usage()
+                .unwrap()
+                .used
+                .get(&Resource::QueryWorkspaceBytes)
+                .map_or(0, |v| v.0),
+            0
+        );
+
+        let all_null = bridge
+            .query("SELECT MIN(NULL),MAX(NULL),SUM(NULL)")
+            .unwrap();
+        assert_eq!(
+            all_null.rows(),
+            &[vec![SqlValue::Null, SqlValue::Null, SqlValue::Null]],
+            "{dialect:?}"
+        );
+    }
+}
+
+#[test]
 fn udf_argument_materialization_respects_query_work_budget() {
     use crate::values::SqlValue;
     for dialect in [

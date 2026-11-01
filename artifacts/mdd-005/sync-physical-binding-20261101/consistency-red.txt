@@ -1,0 +1,33 @@
+test_binding_that_exhausts_deadline_is_not_published (__main__.SyncBindingChecks.test_binding_that_exhausts_deadline_is_not_published) ... ok
+test_callback_row_mismatch_fails_closed (__main__.SyncBindingChecks.test_callback_row_mismatch_fails_closed) ... ok
+test_inconsistent_physical_identity_fails_closed (__main__.SyncBindingChecks.test_inconsistent_physical_identity_fails_closed) ... 
+  test_inconsistent_physical_identity_fails_closed (__main__.SyncBindingChecks.test_inconsistent_physical_identity_fails_closed) (kind='same_name') ... FAIL
+  test_inconsistent_physical_identity_fails_closed (__main__.SyncBindingChecks.test_inconsistent_physical_identity_fails_closed) (kind='same_ordinal') ... ERROR
+test_opt_out_is_explicitly_not_bound (__main__.SyncBindingChecks.test_opt_out_is_explicitly_not_bound) ... ok
+test_real_pinned_physical_mapping_keeps_reported_rows (__main__.SyncBindingChecks.test_real_pinned_physical_mapping_keeps_reported_rows) ... ok
+test_tuple_subclass_cannot_hide_observed_rows (__main__.SyncBindingChecks.test_tuple_subclass_cannot_hide_observed_rows) ... ok
+
+======================================================================
+ERROR: test_inconsistent_physical_identity_fails_closed (__main__.SyncBindingChecks.test_inconsistent_physical_identity_fails_closed) (kind='same_ordinal')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<WORKSPACE>\artifacts\mdd-005\sync-physical-binding-20261101\probe.py", line 102, in test_inconsistent_physical_identity_fails_closed
+    with self.subTest(kind=kind), self.pin:
+                                  ^^^^^^^^
+  File "<WORKSPACE>\benchmarks\a2_windows_input_pin.py", line 50, in __enter__
+    raise InputPinError('input pin is not reusable')
+a2_windows_input_pin.InputPinError: input pin is not reusable
+
+======================================================================
+FAIL: test_inconsistent_physical_identity_fails_closed (__main__.SyncBindingChecks.test_inconsistent_physical_identity_fails_closed) (kind='same_name')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<WORKSPACE>\artifacts\mdd-005\sync-physical-binding-20261101\probe.py", line 111, in test_inconsistent_physical_identity_fails_closed
+    with self.assertRaisesRegex(HostlabSessionError, 'physical member binding'):
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: HostlabSessionError not raised
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.138s
+
+FAILED (failures=1, errors=1)

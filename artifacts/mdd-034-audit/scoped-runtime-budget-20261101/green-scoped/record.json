@@ -1,0 +1,26 @@
+{
+  "schema_version": "mdd.command-record.v1",
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "mdd-query",
+    "executor::scoped::tests::",
+    "--",
+    "--nocapture"
+  ],
+  "cwd": "<WORKSPACE>",
+  "started_utc": "2026-11-01T09:26:12.756621+00:00",
+  "finished_utc": "2026-11-01T09:26:16.581627+00:00",
+  "elapsed_seconds": 3.8250058999983594,
+  "exit_code": 0,
+  "measurement_scope": "development validation, not performance qualification",
+  "stdout": {
+    "bytes": 2149,
+    "sha256": "8ffb2e51aeb0e993f9c5f764af88e64d5059948855eb29d51658ead60b022172"
+  },
+  "stderr": {
+    "bytes": 229,
+    "sha256": "bf17c5948176fd0475664c82b1643006c198eeb3bfd52e02246ef74bd8947352"
+  }
+}

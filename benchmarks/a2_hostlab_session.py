@@ -11,11 +11,17 @@ import asyncio
 from concurrent.futures import CancelledError, TimeoutError as FutureTimeout
 from dataclasses import dataclass
 import hashlib
+import re
 import math
 from pathlib import Path
 import threading
 import time
 from typing import Callable
+
+if __package__:
+    from .a2_input_inventory import ObservedDexMember, PhysicalDexDigest
+else:
+    from a2_input_inventory import ObservedDexMember, PhysicalDexDigest
 
 
 class HostlabSessionError(RuntimeError):
@@ -93,7 +99,7 @@ class HostlabCompactSession:
 
     def __init__(self, apk, adapter, loop: asyncio.AbstractEventLoop, *,
                  verify_inventory: Callable, close_dataset: Callable,
-                 abort_transport: Callable):
+                 abort_transport: Callable, bind_physical_members: Callable | None = None):
         self.apk = Path(apk).resolve(strict=True)
         if not self.apk.is_file():
             raise ValueError("HostLab input is not a file")
@@ -101,11 +107,14 @@ class HostlabCompactSession:
             raise ValueError("a running owner event loop is required")
         if not all(callable(fn) for fn in (verify_inventory, close_dataset, abort_transport)):
             raise ValueError("inventory, close and abort callbacks are required")
+        if bind_physical_members is not None and not callable(bind_physical_members):
+            raise ValueError("physical member binding must be callable")
         if not all(callable(getattr(adapter, name, None)) for name in ("result", "remaining_seconds", "verify_binding")):
             raise ValueError("a bound compact rows adapter is required")
         self._adapter, self._loop = adapter, loop
         self._verify_inventory, self._close_dataset, self._abort_transport = (
             verify_inventory, close_dataset, abort_transport)
+        self._bind_physical_members = bind_physical_members
         self._thread = threading.get_ident()
         self._entered = False
         self._closed = False
@@ -115,11 +124,17 @@ class HostlabCompactSession:
         self.files = {}
         self.queries = 0
         self._deliveries = []
+        self._physical_members = None
 
     @property
     def deliveries(self):
         """Only rows whose complete producer result and consumer iteration finished."""
         return tuple(self._deliveries)
+
+    @property
+    def physical_members(self):
+        """Optional caller-observed member mappings; never a snapshot certificate."""
+        return self._physical_members
 
     def _check_thread(self, *, allow_stopped=False):
         if threading.get_ident() != self._thread:
@@ -183,6 +198,37 @@ class HostlabCompactSession:
                 raise HostlabSessionError("producer returned no DEX inventory")
             self._verify_inventory(self.apk, files)
             self._adapter.verify_binding()
+            if self._bind_physical_members is not None:
+                observations = self._bind_physical_members(self.apk, dict(files))
+                self._checkpoint()
+                if type(observations) is not tuple or len(observations) != len(files):
+                    raise HostlabSessionError('physical member binding row count differs')
+                members_by_name = {}
+                names_by_ordinal = {}
+                for (file_id, name), observation in zip(files.items(), observations):
+                    if (type(observation) is not ObservedDexMember
+                            or type(observation.file_id) is not int or observation.file_id != file_id
+                            or type(observation.entry_name) is not str or observation.entry_name != name
+                            or type(observation.member) is not PhysicalDexDigest
+                            or type(observation.member.name) is not str
+                            or observation.member.name != re.sub(r'#\d+$', '', name)
+                            or type(observation.member.central_ordinal) is not int
+                            or observation.member.central_ordinal < 0
+                            or type(observation.member.uncompressed_bytes) is not int
+                            or observation.member.uncompressed_bytes < 0
+                            or type(observation.member.crc32) is not int
+                            or not 0 <= observation.member.crc32 <= 0xffffffff
+                            or type(observation.member.sha256) is not str
+                            or not re.fullmatch(r'[0-9a-f]{64}', observation.member.sha256)):
+                        raise HostlabSessionError('physical member binding differs from observed rows')
+                    member = observation.member
+                    previous = members_by_name.setdefault(member.name, member)
+                    previous_name = names_by_ordinal.setdefault(member.central_ordinal, member.name)
+                    if previous != member or previous_name != member.name:
+                        raise HostlabSessionError('physical member binding contains conflicting identities')
+                self._checkpoint()
+                self._adapter.verify_binding()
+                self._physical_members = observations
             self.files = files
             self.opened = {"transport": "mcp_compact_candidate",
                            "session_adaptation_ms": (time.monotonic() - started) * 1000,

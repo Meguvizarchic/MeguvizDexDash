@@ -1944,51 +1944,112 @@ struct AggregateValue {
     name: &'static str,
     control: SqlControl,
 }
-impl Aggregate<Option<SqlValue>, Cell> for AggregateValue {
-    fn init(&self, _: &mut Context<'_>) -> rusqlite::Result<Option<SqlValue>> {
-        Ok(None)
+
+// Values must be dropped before the reservation that accounts for them.
+// SQLite's own aggregate context, result carrier and allocator overhead are
+// distinct from this logical workspace accounting.
+#[derive(Default)]
+struct AggregateState {
+    value: Option<SqlValue>,
+    // The lease is only moved or dropped, never inspected across callbacks.
+    // A caught callback panic leaves the state safe to drop during finalize.
+    _workspace: std::panic::AssertUnwindSafe<Option<Reservation>>,
+}
+
+impl Aggregate<AggregateState, SqlCellWithWorkspaceLease> for AggregateValue {
+    fn init(&self, _: &mut Context<'_>) -> rusqlite::Result<AggregateState> {
+        Ok(AggregateState::default())
     }
-    fn step(
-        &self,
-        context: &mut Context<'_>,
-        state: &mut Option<SqlValue>,
-    ) -> rusqlite::Result<()> {
+    fn step(&self, context: &mut Context<'_>, state: &mut AggregateState) -> rusqlite::Result<()> {
         self.control
             .checkpoint(1, false)
             .map_err(|e| failure(&self.control, e))?;
-        let value =
-            SqlValue::from_sqlite(context.get_raw(0)).map_err(|e| failure(&self.control, e))?;
+        let mut arguments = args(context, &self.control).map_err(|e| failure(&self.control, e))?;
+        let value = arguments
+            .values
+            .pop()
+            .ok_or_else(|| failure(&self.control, invalid("AGGREGATE_ARGUMENT_MISSING")))?;
         if value == SqlValue::Null {
             return Ok(());
         }
-        if let Some(previous) = state {
+        let replace = if let Some(previous) = &state.value {
             if self.name == "mdd_sum" {
-                *previous =
+                let sum =
                     numeric(previous, &value, "add").map_err(|e| failure(&self.control, e))?;
+                // The arithmetic result is fixed-width. Retain the previous
+                // value's lease until its value has actually been dropped.
+                state.value = Some(sum);
+                state._workspace.0 = None;
+                false
             } else {
                 let order = compare(previous, &value, &self.control)
                     .map_err(|e| failure(&self.control, e))?;
-                if (self.name == "mdd_min" && order == Ordering::Greater)
+                (self.name == "mdd_min" && order == Ordering::Greater)
                     || (self.name == "mdd_max" && order == Ordering::Less)
-                {
-                    *previous = value;
-                }
             }
         } else {
-            *state = Some(value);
+            true
+        };
+        if replace {
+            // Move the chosen input's existing lease with its value. Assign
+            // the value first, so the old lease outlives the replaced value.
+            state.value = Some(value);
+            state._workspace.0 = arguments._workspace.take();
         }
         Ok(())
     }
     fn finalize(
         &self,
         _: &mut Context<'_>,
-        state: Option<Option<SqlValue>>,
-    ) -> rusqlite::Result<Cell> {
-        state
-            .flatten()
-            .unwrap_or(SqlValue::Null)
+        state: Option<AggregateState>,
+    ) -> rusqlite::Result<SqlCellWithWorkspaceLease> {
+        self.control
+            .checkpoint(0, false)
+            .map_err(|e| failure(&self.control, e))?;
+        let state = state.unwrap_or_default();
+        let value = state.value.as_ref().unwrap_or(&SqlValue::Null);
+        let size = value
+            .sqlite_blob_size(self.control.inner.limits.max_cell_bytes)
+            .map_err(|e| failure(&self.control, e))?;
+        let overflow = || failure(&self.control, quota("SQL_OUTPUT_WORK_OVERFLOW"));
+        let work = match value {
+            SqlValue::Text(text) => u64::try_from(text.utf16.len()).map_err(|_| overflow())?,
+            SqlValue::Bytes(bytes) => u64::try_from(bytes.len()).map_err(|_| overflow())?,
+            SqlValue::DexMutf8 { bytes, .. } => u64::try_from(bytes.len())
+                .map_err(|_| overflow())?
+                .checked_mul(2)
+                .ok_or_else(overflow)?,
+            _ => 0,
+        };
+        self.control
+            .checkpoint(work, false)
+            .map_err(|e| failure(&self.control, e))?;
+        let workspace = match size {
+            Some(size) if size != 0 => {
+                let amount = u64::try_from(size)
+                    .map_err(|_| failure(&self.control, quota("SQL_OUTPUT_BYTES_OVERFLOW")))?;
+                self.control
+                    .runtime()
+                    .map(|runtime| {
+                        runtime
+                            .pool()
+                            .reserve(mdd_query::budget::Resource::QueryWorkspaceBytes, amount)
+                    })
+                    .transpose()
+                    .map_err(|e| failure(&self.control, e))?
+            }
+            _ => None,
+        };
+        // Both leases remain live during encoding. The output lease then
+        // accompanies the carrier through rusqlite's ToSql callback.
+        let result = value
             .sqlite(self.control.inner.limits.max_cell_bytes)
-            .map_err(|e| failure(&self.control, e))
+            .map_err(|e| failure(&self.control, e))?;
+        drop(state);
+        Ok(SqlCellWithWorkspaceLease {
+            value: result,
+            _workspace: workspace,
+        })
     }
 }
 

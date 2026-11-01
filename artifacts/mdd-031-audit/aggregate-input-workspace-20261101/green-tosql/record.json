@@ -1,0 +1,27 @@
+{
+  "schema_version": "mdd.command-record.v1",
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "-p",
+    "mdd-sql",
+    "key_lease_survives_actual_rusqlite_to_sql_callback",
+    "--",
+    "--nocapture"
+  ],
+  "cwd": "<WORKSPACE>",
+  "started_utc": "2026-11-01T09:27:20.597665+00:00",
+  "finished_utc": "2026-11-01T09:27:20.845294+00:00",
+  "elapsed_seconds": 0.24762610000107088,
+  "exit_code": 0,
+  "measurement_scope": "development validation, not performance qualification",
+  "stdout": {
+    "bytes": 217,
+    "sha256": "f10eb5154c6c408e6d9a74f952daf7138b561059ef2af5e2a9c82f5a36606a15"
+  },
+  "stderr": {
+    "bytes": 260,
+    "sha256": "ebe6f2df39a1c3743f7a6a06f7c8b40b864d44a1b5865416baed8f538d7a277a"
+  }
+}

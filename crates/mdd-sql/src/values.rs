@@ -65,6 +65,14 @@ fn copy_bytes(raw: &[u8]) -> MddResult<Vec<u8>> {
     Ok(bytes)
 }
 
+fn output_buffer(capacity: usize) -> MddResult<Vec<u8>> {
+    let mut bytes = Vec::new();
+    bytes
+        .try_reserve_exact(capacity)
+        .map_err(|_| quota("SQL_OUTPUT_ALLOCATION"))?;
+    Ok(bytes)
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SqlType {
@@ -146,32 +154,46 @@ impl SqlValue {
             _ => None,
         }
     }
-    pub(crate) fn sqlite(&self, max_cell_bytes: u64) -> MddResult<SqliteValue> {
+    // Exact Rust carrier size, excluding SQLite's subsequent transient copy.
+    pub(crate) fn sqlite_blob_size(&self, max_cell_bytes: u64) -> MddResult<Option<usize>> {
         if self.byte_size() > max_cell_bytes {
             return Err(quota("SQL_CELL_BYTES"));
         }
+        let size = match self {
+            Self::Null | Self::Bool(_) | Self::I64(_) => return Ok(None),
+            Self::U64(_) => Some(UNSIGNED.len() + 8),
+            Self::F64(_) => Some(FLOAT.len() + 8),
+            Self::Text(v) => v
+                .utf16
+                .len()
+                .checked_mul(2)
+                .and_then(|n| n.checked_add(TEXT.len())),
+            Self::Bytes(v) => v.len().checked_add(BYTES.len()),
+            Self::DexMutf8 { bytes, .. } => bytes.len().checked_add(MUTF8.len() + 8),
+        };
+        size.map(Some)
+            .ok_or_else(|| quota("SQL_OUTPUT_BYTES_OVERFLOW"))
+    }
+    pub(crate) fn sqlite(&self, max_cell_bytes: u64) -> MddResult<SqliteValue> {
+        let size = self.sqlite_blob_size(max_cell_bytes)?;
         Ok(match self {
             Self::Null => SqliteValue::Null,
             Self::Bool(v) => SqliteValue::Integer(i64::from(*v)),
             Self::I64(v) => SqliteValue::Integer(v.0),
             Self::U64(v) => {
-                let mut bytes = UNSIGNED.to_vec();
+                let mut bytes = output_buffer(size.unwrap())?;
+                bytes.extend(UNSIGNED);
                 bytes.extend(v.0.to_be_bytes());
                 SqliteValue::Blob(bytes)
             }
             Self::F64(bits) => {
-                let mut bytes = FLOAT.to_vec();
+                let mut bytes = output_buffer(size.unwrap())?;
+                bytes.extend(FLOAT);
                 bytes.extend(bits.0.to_be_bytes());
                 SqliteValue::Blob(bytes)
             }
             Self::Text(v) => {
-                let length = v
-                    .utf16
-                    .len()
-                    .checked_mul(2)
-                    .and_then(|n| n.checked_add(TEXT.len()))
-                    .ok_or_else(|| quota("TEXT_BYTES_OVERFLOW"))?;
-                let mut bytes = Vec::with_capacity(length);
+                let mut bytes = output_buffer(size.unwrap())?;
                 bytes.extend(TEXT);
                 for unit in &v.utf16 {
                     bytes.extend(unit.to_be_bytes());
@@ -179,7 +201,7 @@ impl SqlValue {
                 SqliteValue::Blob(bytes)
             }
             Self::Bytes(v) => {
-                let mut bytes = Vec::with_capacity(BYTES.len() + v.len());
+                let mut bytes = output_buffer(size.unwrap())?;
                 bytes.extend(BYTES);
                 bytes.extend(v);
                 SqliteValue::Blob(bytes)
@@ -189,7 +211,7 @@ impl SqlValue {
                 utf16_code_units,
             } => {
                 validate_mutf8(raw, utf16_code_units.0)?;
-                let mut bytes = Vec::with_capacity(MUTF8.len() + 8 + raw.len());
+                let mut bytes = output_buffer(size.unwrap())?;
                 bytes.extend(MUTF8);
                 bytes.extend(utf16_code_units.0.to_be_bytes());
                 bytes.extend(raw);

@@ -1,0 +1,88 @@
+   Compiling mdd-query v0.1.0-dev (<WORKSPACE>\crates\mdd-query)
+   Compiling mdd-sql v0.1.0-dev (<WORKSPACE>\crates\mdd-sql)
+error[E0277]: the type `(dyn budget::KeepAlive + 'static)` may contain interior mutability and a reference may not be safely transferable across a catch_unwind boundary
+    --> crates\mdd-sql\src\dialects\functions.rs:1957:6
+     |
+1957 | impl Aggregate<AggregateState, SqlCellWithWorkspaceLease> for AggregateValue {
+     |      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `(dyn budget::KeepAlive + 'static)` may contain interior mutability and a reference may not be safely transferable across a catch_unwind boundary
+     |
+     = help: within `budget::ReservationInner`, the trait `RefUnwindSafe` is not implemented for `(dyn budget::KeepAlive + 'static)`
+note: required because it appears within the type `PhantomData<(dyn budget::KeepAlive + 'static)>`
+    --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library\core\src\marker.rs:811:11
+note: required because it appears within the type `std::ptr::Unique<(dyn budget::KeepAlive + 'static)>`
+    --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library\core\src\ptr\unique.rs:35:11
+note: required because it appears within the type `Box<(dyn budget::KeepAlive + 'static)>`
+    --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library\alloc\src\boxed.rs:236:11
+note: required because it appears within the type `std::option::Option<Box<(dyn budget::KeepAlive + 'static)>>`
+    --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library\core\src\option.rs:598:9
+note: required because it appears within the type `budget::ReservationInner`
+    --> crates\mdd-query\src\budget.rs:623:8
+     |
+ 623 | struct ReservationInner {
+     |        ^^^^^^^^^^^^^^^^
+     = note: required for `std::sync::Arc<budget::ReservationInner>` to implement `UnwindSafe`
+note: required because it appears within the type `Reservation`
+    --> crates\mdd-query\src\budget.rs:687:12
+     |
+ 687 | pub struct Reservation(Arc<ReservationInner>);
+     |            ^^^^^^^^^^^
+note: required because it appears within the type `std::option::Option<Reservation>`
+    --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library\core\src\option.rs:598:9
+note: required because it appears within the type `AggregateState`
+    --> crates\mdd-sql\src\dialects\functions.rs:1952:8
+     |
+1952 | struct AggregateState {
+     |        ^^^^^^^^^^^^^^
+note: required by a bound in `rusqlite::functions::Aggregate`
+    --> <USER>\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rusqlite-0.40.2\src\functions.rs:355:24
+     |
+ 353 | pub trait Aggregate<A, T>
+     |           --------- required by a bound in this trait
+ 354 | where
+ 355 |     A: RefUnwindSafe + UnwindSafe,
+     |                        ^^^^^^^^^^ required by this bound in `Aggregate`
+
+error[E0277]: the type `(dyn budget::KeepAlive + 'static)` may contain interior mutability and a reference may not be safely transferable across a catch_unwind boundary
+    --> crates\mdd-sql\src\dialects\functions.rs:1931:12
+     |
+1931 |         db.create_aggregate_function(
+     |            ^^^^^^^^^^^^^^^^^^^^^^^^^ `(dyn budget::KeepAlive + 'static)` may contain interior mutability and a reference may not be safely transferable across a catch_unwind boundary
+     |
+     = help: within `budget::ReservationInner`, the trait `RefUnwindSafe` is not implemented for `(dyn budget::KeepAlive + 'static)`
+note: required because it appears within the type `PhantomData<(dyn budget::KeepAlive + 'static)>`
+    --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library\core\src\marker.rs:811:11
+note: required because it appears within the type `std::ptr::Unique<(dyn budget::KeepAlive + 'static)>`
+    --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library\core\src\ptr\unique.rs:35:11
+note: required because it appears within the type `Box<(dyn budget::KeepAlive + 'static)>`
+    --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library\alloc\src\boxed.rs:236:11
+note: required because it appears within the type `std::option::Option<Box<(dyn budget::KeepAlive + 'static)>>`
+    --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library\core\src\option.rs:598:9
+note: required because it appears within the type `budget::ReservationInner`
+    --> crates\mdd-query\src\budget.rs:623:8
+     |
+ 623 | struct ReservationInner {
+     |        ^^^^^^^^^^^^^^^^
+     = note: required for `std::sync::Arc<budget::ReservationInner>` to implement `UnwindSafe`
+note: required because it appears within the type `Reservation`
+    --> crates\mdd-query\src\budget.rs:687:12
+     |
+ 687 | pub struct Reservation(Arc<ReservationInner>);
+     |            ^^^^^^^^^^^
+note: required because it appears within the type `std::option::Option<Reservation>`
+    --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library\core\src\option.rs:598:9
+note: required because it appears within the type `AggregateState`
+    --> crates\mdd-sql\src\dialects\functions.rs:1952:8
+     |
+1952 | struct AggregateState {
+     |        ^^^^^^^^^^^^^^
+note: required by a bound in `rusqlite::functions::<impl rusqlite::Connection>::create_aggregate_function`
+    --> <USER>\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rusqlite-0.40.2\src\functions.rs:503:28
+     |
+ 495 |     pub fn create_aggregate_function<A, D, N: Name, T>(
+     |            ------------------------- required by a bound in this associated function
+...
+ 503 |         A: RefUnwindSafe + UnwindSafe,
+     |                            ^^^^^^^^^^ required by this bound in `rusqlite::functions::<impl Connection>::create_aggregate_function`
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `mdd-sql` (lib test) due to 2 previous errors

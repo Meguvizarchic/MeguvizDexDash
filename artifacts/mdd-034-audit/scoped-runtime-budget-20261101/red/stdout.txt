@@ -1,0 +1,11 @@
+
+running 1 test
+test executor::scoped::tests::runtime_query_steps_bound_scoped_entity_checks ... FAILED
+
+failures:
+
+failures:
+    executor::scoped::tests::runtime_query_steps_bound_scoped_entity_checks
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 193 filtered out; finished in 0.00s
+

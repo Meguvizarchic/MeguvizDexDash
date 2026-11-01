@@ -10,7 +10,7 @@ use super::{
     prepare,
 };
 use crate::{
-    budget::{OwnedBatchSender, RuntimeBudget},
+    budget::{OwnedBatchSender, Resource, RuntimeBudget},
     ir::{FactLayer, QueryIr, Row, Value},
 };
 use mdd_facts::{
@@ -849,7 +849,20 @@ impl EntityCheckedSource<'_, '_> {
             .map_or(failure.clone(), |runtime| runtime.stop(failure))
     }
 
+    // The standalone wrapper remains governed by EntityCheckLimits. A wrapper
+    // confined to a query additionally charges its own checking work to that
+    // query; provider callbacks and pre-binding work are outside this charge.
+    fn charge_query_steps(&self, steps: u64) -> MddResult<()> {
+        if let Some(runtime) = &self.runtime {
+            runtime.charge(Resource::QuerySteps, steps)?;
+        }
+        Ok(())
+    }
+
     fn check_provider_binding(&self) -> MddResult<()> {
+        if let Some(runtime) = &self.runtime {
+            runtime.checkpoint()?;
+        }
         let identity = self.source.identity();
         let snapshot = self.source.snapshot_id();
         let compared = u64::try_from(identity.len())
@@ -861,6 +874,11 @@ impl EntityCheckedSource<'_, '_> {
             compared,
             self.limits.max_identity_bytes,
             "entity identity byte budget exceeded",
+        )?;
+        self.charge_query_steps(
+            compared
+                .checked_add(1)
+                .ok_or_else(|| authority_quota("provider binding step overflow"))?,
         )?;
         if identity != self.source_identity
             || snapshot != self.authority.catalog.scope.snapshot_id()
@@ -902,6 +920,11 @@ impl EntityCheckedSource<'_, '_> {
             self.limits.max_identity_bytes,
             "entity identity byte budget exceeded",
         )?;
+        let query_steps = compared
+            .checked_add(occurrence_steps)
+            .and_then(|value| value.checked_add(1))
+            .ok_or_else(|| authority_quota("entity query step overflow"))?;
+        self.charge_query_steps(query_steps)?;
         if entity.snapshot_id != self.authority.catalog.scope.snapshot_id() {
             return Err(error(
                 ErrorCode::InvalidArgument,
@@ -950,21 +973,25 @@ impl EntityCheckedSource<'_, '_> {
                     EntityKind::FieldReference => position < definitions.field_references.len(),
                     EntityKind::MethodReference => position < definitions.method_references.len(),
                     EntityKind::FieldDefinition => {
+                        let steps = search_step_bound(item.fields.len());
                         spend_authority(
                             &self.steps,
-                            search_step_bound(item.fields.len()),
+                            steps,
                             self.limits.max_lookup_steps,
                             "entity lookup budget exceeded",
                         )?;
+                        self.charge_query_steps(steps)?;
                         item.fields.binary_search(&entity.local_index).is_ok()
                     }
                     EntityKind::MethodDefinition => {
+                        let steps = search_step_bound(item.methods.len());
                         spend_authority(
                             &self.steps,
-                            search_step_bound(item.methods.len()),
+                            steps,
                             self.limits.max_lookup_steps,
                             "entity lookup budget exceeded",
                         )?;
+                        self.charge_query_steps(steps)?;
                         item.methods.binary_search(&entity.local_index).is_ok()
                     }
                     _ => unreachable!(),
@@ -993,6 +1020,12 @@ impl EntityCheckedSource<'_, '_> {
                 "entity checked row width exceeds schema limit",
             ));
         }
+        self.charge_query_steps(
+            u64::try_from(row.len())
+                .map_err(|_| authority_quota("entity row step overflow"))?
+                .checked_add(1)
+                .ok_or_else(|| authority_quota("entity row step overflow"))?,
+        )?;
         for value in row {
             if let Value::Entity(entity) = value {
                 self.check_entity(entity)?;
@@ -2047,6 +2080,154 @@ mod tests {
             max_lookup_steps: 10000,
             max_identity_bytes: 1_000_000,
         }
+    }
+
+    #[test]
+    fn runtime_query_steps_bound_scoped_entity_checks() {
+        let (snapshot, catalog) = authority_fixture();
+        let authority = catalog
+            .entity_authority(EntityAuthorityLimits {
+                max_occurrences: 1,
+                max_definition_indices: 0,
+                max_index_bytes: 4096,
+            })
+            .unwrap();
+        let source = catalog.base.source();
+        let prepared_source = authority
+            .checked_source(source, entity_check_limits())
+            .unwrap();
+        let plan = prepare(scan(&snapshot, "strings"), &prepared_source).unwrap();
+        let lifecycle = Lifecycle::new(ResourceLimits::default()).unwrap();
+        let snapshot_handle = lifecycle.register_snapshot(Arc::clone(&snapshot)).unwrap();
+        let session = lifecycle
+            .open_session(&snapshot_handle, ResourceLimits::default())
+            .unwrap();
+        let query = lifecycle
+            .prepare_query(
+                &session,
+                plan.runtime_binding().unwrap(),
+                ResourceLimits::default(),
+            )
+            .unwrap();
+        lifecycle.start_query(&session, &query, 1).unwrap();
+        let cancel = lifecycle.cancellation_token(&query).unwrap();
+        let budget_limits = BudgetLimits::default().with(Resource::QuerySteps, 0);
+        let pool = BudgetPool::global("entity-steps-global".into(), budget_limits.clone())
+            .unwrap()
+            .child(
+                cancel.worker_owner_id().unwrap(),
+                BudgetScope::Worker,
+                budget_limits.clone(),
+            )
+            .unwrap()
+            .child(
+                session.id().into(),
+                BudgetScope::Session,
+                budget_limits.clone(),
+            )
+            .unwrap()
+            .child(query.id().into(), BudgetScope::Query, budget_limits)
+            .unwrap();
+        let runtime = RuntimeBudget::new(pool, cancel).unwrap();
+        let checked = authority
+            .checked_source_with_runtime(source, &plan, &runtime, entity_check_limits())
+            .unwrap();
+        let entity = EntityRef {
+            snapshot_id: snapshot.manifest().snapshot_id.clone(),
+            dex_occurrence_id: authority.occurrences[0]
+                .metadata
+                .source()
+                .dex_occurrence_id
+                .clone(),
+            kind: EntityKind::String,
+            local_index: 0,
+        };
+        let failure = checked.validate_entity(&entity).unwrap_err();
+        assert_eq!(failure.code, ErrorCode::QuotaExceeded);
+        assert_eq!(
+            runtime.cancellation().status().unwrap().error.unwrap().code,
+            ErrorCode::QuotaExceeded
+        );
+    }
+
+    #[test]
+    fn runtime_scoped_entity_steps_are_counted_once_and_observe_cancel() {
+        let (snapshot, catalog) = authority_fixture();
+        let authority = catalog
+            .entity_authority(EntityAuthorityLimits {
+                max_occurrences: 1,
+                max_definition_indices: 0,
+                max_index_bytes: 4096,
+            })
+            .unwrap();
+        let source = catalog.base.source();
+        let unbound = authority
+            .checked_source(source, entity_check_limits())
+            .unwrap();
+        let plan = prepare(scan(&snapshot, "strings"), &unbound).unwrap();
+        let lifecycle = Lifecycle::new(ResourceLimits::default()).unwrap();
+        let snapshot_handle = lifecycle.register_snapshot(Arc::clone(&snapshot)).unwrap();
+        let session = lifecycle
+            .open_session(&snapshot_handle, ResourceLimits::default())
+            .unwrap();
+        let query = lifecycle
+            .prepare_query(
+                &session,
+                plan.runtime_binding().unwrap(),
+                ResourceLimits::default(),
+            )
+            .unwrap();
+        lifecycle.start_query(&session, &query, 1).unwrap();
+        let cancel = lifecycle.cancellation_token(&query).unwrap();
+        let limits = BudgetLimits::default();
+        let pool = BudgetPool::global("entity-steps-count-global".into(), limits.clone())
+            .unwrap()
+            .child(
+                cancel.worker_owner_id().unwrap(),
+                BudgetScope::Worker,
+                limits.clone(),
+            )
+            .unwrap()
+            .child(session.id().into(), BudgetScope::Session, limits.clone())
+            .unwrap()
+            .child(query.id().into(), BudgetScope::Query, limits)
+            .unwrap();
+        let runtime = RuntimeBudget::new(pool, cancel).unwrap();
+        let checked = authority
+            .checked_source_with_runtime(source, &plan, &runtime, entity_check_limits())
+            .unwrap();
+        let entity = EntityRef {
+            snapshot_id: snapshot.manifest().snapshot_id.clone(),
+            dex_occurrence_id: authority.occurrences[0]
+                .metadata
+                .source()
+                .dex_occurrence_id
+                .clone(),
+            kind: EntityKind::String,
+            local_index: 0,
+        };
+        checked.validate_entity(&entity).unwrap();
+        let occurrence_steps = search_step_bound(authority.occurrences.len());
+        let entity_steps = 1
+            + occurrence_steps
+            + entity.snapshot_id.len() as u64
+            + entity.dex_occurrence_id.len() as u64 * occurrence_steps;
+        let binding_steps = 1 + source.identity().len() as u64 + source.snapshot_id().len() as u64;
+        let used = runtime.pool().usage().unwrap().used[&Resource::QuerySteps].0;
+        assert_eq!(used, 2 * binding_steps + entity_steps);
+        runtime.cancellation().cancel().unwrap();
+        assert_eq!(
+            checked.validate_entity(&entity).unwrap_err().code,
+            ErrorCode::Cancelled
+        );
+        assert_eq!(
+            runtime.pool().usage().unwrap().used[&Resource::QuerySteps].0,
+            used
+        );
+        assert_eq!(
+            runtime.cancellation().status().unwrap().error.unwrap().code,
+            ErrorCode::Cancelled
+        );
     }
 
     #[test]

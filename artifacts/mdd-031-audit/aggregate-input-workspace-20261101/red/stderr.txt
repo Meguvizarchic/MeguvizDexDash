@@ -1,0 +1,8 @@
+   Compiling mdd-sql v0.1.0-dev (<WORKSPACE>\crates\mdd-sql)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.91s
+     Running unittests src\lib.rs (target\debug\deps\mdd_sql-46977fcd4387e316.exe)
+
+thread 'runtime_tests::aggregate_argument_materialization_respects_query_work_budget' (3024) panicked at crates\mdd-sql\src\runtime_tests.rs:720:26:
+aggregate input escaped work budget: NativeV1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p mdd-sql --lib`

@@ -1,0 +1,10 @@
+{
+  "source": "tests/fixtures/annotations/generated/parameter-shared-empty-set.dex",
+  "source_sha256": "a0178738ab6be08db3b2ac0d75d38a44f141add9df24a76b8d186a7a8f089609",
+  "output": "no-signature-shared-empty.dex",
+  "output_sha256": "bf1a909bcaa573ee6d13ede850aaf201b63acf2317005825bb85a5211b470b3c",
+  "method": "replace exactly one equal-length ASCII descriptor; recompute DEX SHA-1 signature and Adler-32 checksum",
+  "descriptor_offset": 487,
+  "old_descriptor": "Ldalvik/annotation/Signature;",
+  "new_descriptor": "Ldalvik/annotation/Rignature;"
+}

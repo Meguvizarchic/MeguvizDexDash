@@ -1,0 +1,102 @@
+{
+  "task": "MDD-005",
+  "scope": "Optional physical-member association in synchronous HostLab bridge; synthetic producer and real Windows pin only",
+  "initial": {
+    "command": "python -B artifacts/mdd-005/sync-physical-binding-20261101/probe.py",
+    "exit": 0,
+    "tests_passed": 4,
+    "output": "output.txt",
+    "note": "Precedes exact-tuple hardening and added subclass test; not final source evidence."
+  },
+  "final": {
+    "command": "python -B artifacts/mdd-005/sync-physical-binding-20261101/probe.py",
+    "exit": 0,
+    "tests_passed": 5,
+    "output": "final.txt",
+    "listed_sources_before": {
+      "benchmarks/a2_hostlab_session.py": "0da2197fe2cb4a4da235566d498d9b338fa275b6e376d6f54ec351080850b90d",
+      "benchmarks/a2_input_inventory.py": "b264ac1e4886880f686ea344221682e0d12eff6e3665612cfafd6a20497ba45e",
+      "benchmarks/a2_windows_input_pin.py": "fd9b210a966f0e8cfd54df464c3c8630e04cde1ad20ce5f2854f5562f3487ef3",
+      "tests/fixtures/generated/structured-035.dex": "108cf907d330b823c6e32d38eaab8f23709fe493f52537688bbd09ba3e271605",
+      "artifacts/mdd-005/sync-physical-binding-20261101/probe.py": "3fd1d49c7c65bafc2ca51cd35865b0e868b7fb65414d82fade4ae3ea75fafccb",
+      "artifacts/mdd-005/a2-sync-unstarted-20261030/probe.py": "f4f0266756ec3e4aac11273af44dbcd3716e86554e1064d03e695a4f8e84d61c"
+    },
+    "listed_sources_after": {
+      "benchmarks/a2_hostlab_session.py": "0da2197fe2cb4a4da235566d498d9b338fa275b6e376d6f54ec351080850b90d",
+      "benchmarks/a2_input_inventory.py": "b264ac1e4886880f686ea344221682e0d12eff6e3665612cfafd6a20497ba45e",
+      "benchmarks/a2_windows_input_pin.py": "fd9b210a966f0e8cfd54df464c3c8630e04cde1ad20ce5f2854f5562f3487ef3",
+      "tests/fixtures/generated/structured-035.dex": "108cf907d330b823c6e32d38eaab8f23709fe493f52537688bbd09ba3e271605",
+      "artifacts/mdd-005/sync-physical-binding-20261101/probe.py": "3fd1d49c7c65bafc2ca51cd35865b0e868b7fb65414d82fade4ae3ea75fafccb",
+      "artifacts/mdd-005/a2-sync-unstarted-20261030/probe.py": "f4f0266756ec3e4aac11273af44dbcd3716e86554e1064d03e695a4f8e84d61c"
+    },
+    "stable": true,
+    "optimized": {
+      "command": "python -B -O artifacts/mdd-005/sync-physical-binding-20261101/probe.py",
+      "exit": 0,
+      "tests_passed": 5,
+      "output": "final-opt.txt"
+    },
+    "regressions": [
+      {
+        "command": "python -B artifacts/mdd-005/a2-sync-unstarted-20261030/probe.py",
+        "exit": 0,
+        "tests_passed": 4,
+        "output": "unstarted.txt"
+      },
+      {
+        "command": "python -B artifacts/mdd-005/a2-sync-consumer-deadline-20261101/probe.py",
+        "exit": 0,
+        "tests_passed": 2,
+        "output": "deadline.txt"
+      }
+    ]
+  },
+  "limits": "Synthetic client and inventory assertions; real read-sharing pin over synthetic local APK. Callback-provided records are structurally checked but can be fabricated by an untrusted caller. Existing writable mappings, producer capture, generation identity, actual logical DEX completeness and full HostLab/performance remain unproven; optional disabled state is None, not successful binding.",
+  "consistency_followup": {
+    "red": {
+      "output": "consistency-red2.txt",
+      "exit": 1,
+      "note": "Two conflict subcases failed before the fix. Earlier consistency-red.txt also contains a test setup error from attempting to reuse a closed input pin."
+    },
+    "green": {
+      "command": "python -B artifacts/mdd-005/sync-physical-binding-20261101/probe.py",
+      "output": "consistency-green.txt",
+      "exit": 0,
+      "tests_passed": 6
+    },
+    "optimized": {
+      "command": "python -B -O artifacts/mdd-005/sync-physical-binding-20261101/probe.py",
+      "output": "consistency-opt.txt",
+      "exit": 0,
+      "tests_passed": 6
+    },
+    "regressions": [
+      {
+        "output": "consistency-unstarted.txt",
+        "exit": 0,
+        "tests_passed": 4
+      },
+      {
+        "output": "consistency-deadline.txt",
+        "exit": 0,
+        "tests_passed": 2
+      }
+    ],
+    "listed_sources_before": {
+      "benchmarks/a2_hostlab_session.py": "b2217f9d313cb7e9b8d8216478bc5dc1ee6bfb12e73a978fa01bb3d5e389a663",
+      "benchmarks/a2_input_inventory.py": "b264ac1e4886880f686ea344221682e0d12eff6e3665612cfafd6a20497ba45e",
+      "benchmarks/a2_windows_input_pin.py": "fd9b210a966f0e8cfd54df464c3c8630e04cde1ad20ce5f2854f5562f3487ef3",
+      "tests/fixtures/generated/structured-035.dex": "108cf907d330b823c6e32d38eaab8f23709fe493f52537688bbd09ba3e271605",
+      "artifacts/mdd-005/sync-physical-binding-20261101/probe.py": "af5c742793f84412d7bbe3cfee088909b7f932fa7f482fb0e07a37eb46929338"
+    },
+    "listed_sources_after": {
+      "benchmarks/a2_hostlab_session.py": "b2217f9d313cb7e9b8d8216478bc5dc1ee6bfb12e73a978fa01bb3d5e389a663",
+      "benchmarks/a2_input_inventory.py": "b264ac1e4886880f686ea344221682e0d12eff6e3665612cfafd6a20497ba45e",
+      "benchmarks/a2_windows_input_pin.py": "fd9b210a966f0e8cfd54df464c3c8630e04cde1ad20ce5f2854f5562f3487ef3",
+      "tests/fixtures/generated/structured-035.dex": "108cf907d330b823c6e32d38eaab8f23709fe493f52537688bbd09ba3e271605",
+      "artifacts/mdd-005/sync-physical-binding-20261101/probe.py": "af5c742793f84412d7bbe3cfee088909b7f932fa7f482fb0e07a37eb46929338"
+    },
+    "stable": true,
+    "limit": "The synchronous callback cannot be interrupted by this deadline while blocked. The mapping is not an authenticated producer snapshot."
+  }
+}

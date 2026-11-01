@@ -1,0 +1,9 @@
+test_binding_that_exhausts_deadline_is_not_published (__main__.SyncBindingChecks.test_binding_that_exhausts_deadline_is_not_published) ... ok
+test_callback_row_mismatch_fails_closed (__main__.SyncBindingChecks.test_callback_row_mismatch_fails_closed) ... ok
+test_opt_out_is_explicitly_not_bound (__main__.SyncBindingChecks.test_opt_out_is_explicitly_not_bound) ... ok
+test_real_pinned_physical_mapping_keeps_reported_rows (__main__.SyncBindingChecks.test_real_pinned_physical_mapping_keeps_reported_rows) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.048s
+
+OK
