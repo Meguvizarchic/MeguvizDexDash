@@ -428,6 +428,37 @@ impl SignatureFact {
     }
 }
 
+// read_annotations walks each physical section in strictly increasing offset
+// order, including empty and unreferenced items. These searches reuse those
+// validated starts without allocating a second offset index.
+fn physical_annotation_set(data: &DexAnnotations, offset: u32) -> MddResult<&AnnotationSet> {
+    data.sets
+        .binary_search_by_key(&offset, |item| item.byte_offset)
+        .ok()
+        .and_then(|index| data.sets.get(index))
+        .ok_or_else(|| {
+            MddError::new(
+                ErrorCode::InternalFault,
+                "facts.annotations",
+                "validated annotation set start is missing",
+            )
+        })
+}
+
+fn physical_annotation_item(data: &DexAnnotations, offset: u32) -> MddResult<&AnnotationItem> {
+    data.annotation_items
+        .binary_search_by_key(&offset, |item| item.byte_offset)
+        .ok()
+        .and_then(|index| data.annotation_items.get(index))
+        .ok_or_else(|| {
+            MddError::new(
+                ErrorCode::InternalFault,
+                "facts.annotations",
+                "validated annotation item start is missing",
+            )
+        })
+}
+
 #[derive(Clone, Serialize)]
 /// Validated annotation facts expose only read-only getters.
 /// ```compile_fail
@@ -735,16 +766,6 @@ impl AnnotationFacts {
             limits,
         )
         .map_err(bind)?;
-        let sets: BTreeMap<_, _> = data
-            .sets
-            .iter()
-            .map(|item| (item.byte_offset, item))
-            .collect();
-        let items: BTreeMap<_, _> = data
-            .annotation_items
-            .iter()
-            .map(|item| (item.byte_offset, item))
-            .collect();
         let mut signatures = Vec::new();
         let mut remaining = limits
             .max_decoded_bytes
@@ -754,8 +775,9 @@ impl AnnotationFacts {
             let Some(set) = owner.annotation_set_offset else {
                 continue;
             };
-            for offset in &sets[&set].annotation_offsets {
-                let item = items[offset];
+            let set = physical_annotation_set(&data, set).map_err(bind)?;
+            for offset in &set.annotation_offsets {
+                let item = physical_annotation_item(&data, *offset).map_err(bind)?;
                 if definitions.metadata.types[item.type_idx as usize]
                     .data
                     .descriptor
@@ -848,6 +870,13 @@ impl AnnotationFacts {
                         )
                         .detail("reason", "SIGNATURE_BYTE_BUDGET"),
                     )
+                })?;
+                signatures.try_reserve(1).map_err(|_| {
+                    bind(MddError::new(
+                        ErrorCode::QuotaExceeded,
+                        "facts.annotations",
+                        "Signature list allocation failed",
+                    ))
                 })?;
                 let mut units = Vec::new();
                 units
@@ -2803,6 +2832,58 @@ mod tests {
             MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default()).unwrap();
         let definitions = DefinitionFacts::build(metadata, DefinitionLimits::default()).unwrap();
         AnnotationFacts::build(definitions, AnnotationLimits::default()).unwrap()
+    }
+    #[test]
+    fn signature_physical_search_keeps_shared_empty_and_orphan_items() {
+        for path in [
+            "tests/fixtures/annotations/generated/parameter-shared-signature.dex",
+            "tests/fixtures/annotations/generated/parameter-shared-empty-set.dex",
+            "tests/fixtures/annotations/generated/valid-orphan-annotation.dex",
+        ] {
+            let facts = build(path);
+            let data = &facts.data;
+            assert!(
+                data.sets
+                    .windows(2)
+                    .all(|items| items[0].byte_offset < items[1].byte_offset)
+            );
+            assert!(
+                data.annotation_items
+                    .windows(2)
+                    .all(|items| items[0].byte_offset < items[1].byte_offset)
+            );
+            for item in &data.sets {
+                assert!(std::ptr::eq(
+                    physical_annotation_set(data, item.byte_offset).unwrap(),
+                    item
+                ));
+                for offset in &item.annotation_offsets {
+                    let expected = data
+                        .annotation_items
+                        .iter()
+                        .find(|item| item.byte_offset == *offset)
+                        .unwrap();
+                    assert!(std::ptr::eq(
+                        physical_annotation_item(data, *offset).unwrap(),
+                        expected
+                    ));
+                }
+            }
+            for item in &data.annotation_items {
+                assert!(std::ptr::eq(
+                    physical_annotation_item(data, item.byte_offset).unwrap(),
+                    item
+                ));
+            }
+            assert_eq!(
+                physical_annotation_set(data, u32::MAX).unwrap_err().code,
+                ErrorCode::InternalFault
+            );
+            assert_eq!(
+                physical_annotation_item(data, u32::MAX).unwrap_err().code,
+                ErrorCode::InternalFault
+            );
+        }
     }
     #[test]
     fn signature_name_matches_utf16_units_without_losing_errors() {

@@ -2,7 +2,11 @@
 
 输入 inventory 可对选定 APK DEX 成员读取至 EOF，核对 Python ZIP 读取器执行的 CRC，并按 central-directory 顺序记录物理成员序号、解压长度和 SHA-256；重复内容保留为多个成员，Python 规范化过的成员名称会被该摘要入口拒绝。该候选在读取前后复核来源，但不证明中间不可变、压缩流/ZIP64 全格式、逻辑 DEX 完整性或生产者快照。合成 stored/deflate、NUL 名称和 CRC 反例见 `artifacts/mdd-005/a2-physical-member-digest-20261101/`；完整读取和哈希的开销须计入后续测量。
 
-`bind_observed_members` 可将一次冻结的生产者文件行与上述 APK 物理成员摘要关联，保留每个 file ID、原始 entry name、行次序和物理成员位置，不按相同内容去重。文件行数量由独立的 `max_observed_rows` 约束，默认 100000，不与 ZIP 物理成员额度混用；并发修改可能在复制后复核前产生临时分配，不能视为 RSS 硬上限。名称后缀仅按固定 HostLab 约定关联；它不验证逻辑 DEX 偏移或数量，不证明生产者实际读取了被哈希的成员。原始 DEX 不具备 APK 成员，不能使用该映射。合成两成员、多文件行及调用方字典变更检查见 `artifacts/mdd-005/a2-observed-member-binding-20261101/`。
+`bind_observed_members` 可将一次冻结的生产者文件行与上述 APK 物理成员摘要关联，保留每个 file ID、原始 entry name、行次序和物理成员位置，不按相同内容去重。文件行数量由独立的 `max_observed_rows` 约束，默认 100000，不与 ZIP 物理成员额度混用；名称总 UTF-8 字节由 `max_observed_name_bytes` 独立约束，默认 16 MiB，分段编码后检查。并发修改可能在复制后复核前产生临时分配，不能视为 RSS 硬上限。名称后缀仅按固定 HostLab 约定关联；它不验证逻辑 DEX 偏移或数量，不证明生产者实际读取了被哈希的成员。原始 DEX 不具备 APK 成员，不能使用该映射。合成两成员、多文件行及调用方字典变更检查见 `artifacts/mdd-005/a2-observed-member-binding-20261101/`；名称额度与 Windows pin 转发检查见 `artifacts/mdd-005/observed-name-budget-20261101/`。
+
+名称额度入口只接受原生 `str`，避免子类伪造长度或切片；Windows pin 在调用前检查 source 签名能否接受名称额度，不支持或无法确认时明确失败。签名检查不能证明自定义 source 实际执行额度，source 内部错误按原样传播；调用方仍须独立验证其实现。
+
+Windows read-sharing pin 可在持锁期间转发成员摘要与观察行关联；合成 APK 的实际持锁、新写句柄拒绝和释放后调用拒绝见 `artifacts/mdd-005/pinned-member-binding-20261101/record.json`。这不证明既有可写映射无法更改文件，也不证明生产者已捕获该代次。
 
 等待 compact 查询锁也受会话期限约束；未发送的等待请求超时不会释放正在使用的锁，也不会将另一个请求的会话标为失败。定向反例及页面终态回归见 `artifacts/mdd-005/a2-query-lock-deadline-20261101/`；这不证明真实生产者并发语义或 A2 资格。
 

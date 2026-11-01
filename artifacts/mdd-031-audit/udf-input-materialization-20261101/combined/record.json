@@ -1,0 +1,31 @@
+{
+  "command": "cargo test --locked -p mdd-sql udf_argument_ -- --nocapture",
+  "exit": 0,
+  "tests_passed": 6,
+  "listed_sources_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "crates/mdd-sql/src/dialects/functions.rs": "da8cb9c2db32ccff3d425f35325490954cf74322e39e5836acd767af2c61f768",
+    "crates/mdd-sql/src/values.rs": "23c9d2c106137b49c5ebc3f5abbae63279f9bfa8829bd18f4e0bd36669dacd85",
+    "crates/mdd-sql/src/bridge.rs": "f8a8d3a04ba028667295593a13e1f3e809275e81deca4a5498f6780b291bdeca",
+    "crates/mdd-sql/src/dialects/ast.rs": "e07375b14e60044d69a1cb0fa369080aa6e9e2b1d0ee8ed6e9b5ad418d4ba406",
+    "crates/mdd-sql/src/runtime_tests.rs": "5b51bda258fae62f47e943cc10bfcaf14b8002f6e29c4f9ec4b10d65ed7a356e",
+    "crates/mdd-query/src/budget.rs": "407485782a7ea3fbec62905a2cf7641822ac4f9ad3046f568da5d751f023d891",
+    "crates/mdd-query/src/executor.rs": "0783f45e9c8c6b0d16dc7779ecab3d09104811a2818569fa1b8aea264affe08f",
+    "crates/mdd-query/src/executor/scoped.rs": "1271cfb66fc522e9afacbd08c8f885a161c169ec1c508ddfe1e4a954edab69d5",
+    "crates/mdd-facts/src/annotations.rs": "a2480e4fd20a3026716b8188b9104249bdcfb4af70ac3b9efd988857880e0c54"
+  },
+  "listed_sources_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "crates/mdd-sql/src/dialects/functions.rs": "da8cb9c2db32ccff3d425f35325490954cf74322e39e5836acd767af2c61f768",
+    "crates/mdd-sql/src/values.rs": "23c9d2c106137b49c5ebc3f5abbae63279f9bfa8829bd18f4e0bd36669dacd85",
+    "crates/mdd-sql/src/bridge.rs": "f8a8d3a04ba028667295593a13e1f3e809275e81deca4a5498f6780b291bdeca",
+    "crates/mdd-sql/src/dialects/ast.rs": "e07375b14e60044d69a1cb0fa369080aa6e9e2b1d0ee8ed6e9b5ad418d4ba406",
+    "crates/mdd-sql/src/runtime_tests.rs": "5b51bda258fae62f47e943cc10bfcaf14b8002f6e29c4f9ec4b10d65ed7a356e",
+    "crates/mdd-query/src/budget.rs": "407485782a7ea3fbec62905a2cf7641822ac4f9ad3046f568da5d751f023d891",
+    "crates/mdd-query/src/executor.rs": "0783f45e9c8c6b0d16dc7779ecab3d09104811a2818569fa1b8aea264affe08f",
+    "crates/mdd-query/src/executor/scoped.rs": "1271cfb66fc522e9afacbd08c8f885a161c169ec1c508ddfe1e4a954edab69d5",
+    "crates/mdd-facts/src/annotations.rs": "a2480e4fd20a3026716b8188b9104249bdcfb4af70ac3b9efd988857880e0c54"
+  },
+  "stable": true,
+  "scope": "Final combined listed sources; no complete SQL/HostLab qualification."
+}

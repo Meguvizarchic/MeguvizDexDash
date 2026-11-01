@@ -1,0 +1,8 @@
+{
+  "benchmarks/a2_input_inventory.py": "ec89b87d70903cbb257e334c6c0a4a8d494035578d425bd669ce76874b9f7868",
+  "benchmarks/a2_windows_input_pin.py": "c19428b076615c22a4572dadaf93518613c7f53a6564739e7af6b8bd83e8dd2c",
+  "tests/fixtures/generated/structured-035.dex": "108cf907d330b823c6e32d38eaab8f23709fe493f52537688bbd09ba3e271605",
+  "artifacts/mdd-005/observed-name-budget-20261101/probe.py": "6a31a67e8dc920f9f87704b1e1ea8d8fcb2034a9aafb7a045fbb9a151353535b",
+  "artifacts/mdd-005/a2-observed-row-budget-20261101/probe.py": "51b6d81fda5e634d6913d36b15c7082d002e3206ca3372b22e1e746ac6ee6948",
+  "artifacts/mdd-005/pinned-member-binding-20261101/probe.py": "3070b6b8f60f7db0a20b7aac7092e96bd45a3b7f927345b1aa186079684f8187"
+}

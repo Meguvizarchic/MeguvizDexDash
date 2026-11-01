@@ -1,0 +1,12 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.12s
+     Running unittests src\lib.rs (target\debug\deps\mdd_query-82579f4092cfd058.exe)
+
+running 5 tests
+test executor::scoped::tests::checked_source_rechecks_binding_before_scan_returns ... ok
+test executor::scoped::tests::checked_source_detects_binding_change_from_eof_iterator_drop ... ok
+test executor::scoped::tests::checked_source_detects_change_during_scan_before_limit_zero ... ok
+test executor::scoped::tests::checked_source_records_change_before_iterator_drop_cancels_query ... ok
+test executor::scoped::tests::runtime_bound_checked_source_must_not_stop_a_different_query ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 187 filtered out; finished in 0.00s
+

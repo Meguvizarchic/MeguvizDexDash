@@ -7,6 +7,7 @@ or qualify an A2 workload. The caller owns the pin and must close it explicitly.
 from __future__ import annotations
 
 import ctypes
+import inspect
 import os
 from pathlib import Path
 
@@ -99,6 +100,38 @@ class WindowsInputPin:
             raise InputPinError('source inventory check is unavailable')
         self.verify()
         result = check(source, files)
+        self.verify()
+        return result
+
+    def digest_physical_members(self, *, chunk_bytes=1024 * 1024):
+        """Read selected APK members while this pin is held; not a snapshot proof."""
+        check = getattr(self._source, 'digest_physical_members', None)
+        if not callable(check):
+            raise InputPinError('source physical member digest is unavailable')
+        self.verify()
+        result = check(chunk_bytes=chunk_bytes)
+        self.verify()
+        return result
+
+    def bind_observed_members(self, source, files, *, chunk_bytes=1024 * 1024,
+                              max_observed_rows=100000,
+                              max_observed_name_bytes=16 * 1024 * 1024):
+        """Associate observed rows while held; producer identity remains unproven."""
+        check = getattr(self._source, 'bind_observed_members', None)
+        if not callable(check):
+            raise InputPinError('source physical member binding is unavailable')
+        self.verify()
+        kwargs = {'chunk_bytes': chunk_bytes, 'max_observed_rows': max_observed_rows,
+                  'max_observed_name_bytes': max_observed_name_bytes}
+        try:
+            signature = inspect.signature(check)
+        except (TypeError, ValueError) as error:
+            raise InputPinError('source name-budget support cannot be established') from error
+        try:
+            signature.bind(source, files, **kwargs)
+        except TypeError as error:
+            raise InputPinError('source does not accept the required name budget') from error
+        result = check(source, files, **kwargs)
         self.verify()
         return result
 

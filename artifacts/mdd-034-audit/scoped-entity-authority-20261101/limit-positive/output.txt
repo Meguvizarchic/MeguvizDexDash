@@ -1,0 +1,19 @@
+   Compiling mdd-query v0.1.0-dev (<WORKSPACE>\crates\mdd-query)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.35s
+     Running unittests src\lib.rs (target\debug\deps\mdd_query-82579f4092cfd058.exe)
+
+running 1 test
+
+thread 'executor::scoped::tests::strict_limit_drops_scan_before_return_or_json_end' (37424) panicked at crates\mdd-query\src\executor\scoped.rs:1930:33:
+assertion failed: flip
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test executor::scoped::tests::strict_limit_drops_scan_before_return_or_json_end ... FAILED
+
+failures:
+
+failures:
+    executor::scoped::tests::strict_limit_drops_scan_before_return_or_json_end
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 192 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p mdd-query --lib`

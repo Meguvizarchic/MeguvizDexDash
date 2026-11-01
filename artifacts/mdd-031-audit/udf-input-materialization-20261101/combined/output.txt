@@ -1,0 +1,15 @@
+   Compiling mdd-query v0.1.0-dev (<WORKSPACE>\crates\mdd-query)
+   Compiling mdd-sql v0.1.0-dev (<WORKSPACE>\crates\mdd-sql)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 11.86s
+     Running unittests src\lib.rs (target\debug\deps\mdd_sql-46977fcd4387e316.exe)
+
+running 6 tests
+test dialects::functions::like_budget_tests::udf_argument_preflight_preserves_first_mutf8_error ... ok
+test runtime_tests::udf_argument_materialization_releases_workspace_after_success ... ok
+test dialects::functions::like_budget_tests::udf_argument_materialization_preserves_text_and_bytes_values ... ok
+test dialects::functions::like_budget_tests::udf_argument_preflight_keeps_malformed_carrier_errors ... ok
+test runtime_tests::udf_argument_materialization_workspace_is_charged_and_released ... ok
+test runtime_tests::udf_argument_materialization_respects_query_work_budget ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 191 filtered out; finished in 0.04s
+

@@ -1,0 +1,8 @@
+test_exact_name_budget_and_one_byte_short (__main__.NameBudgetChecks.test_exact_name_budget_and_one_byte_short) ... ok
+test_large_and_invalid_unicode_fail_before_archive_read (__main__.NameBudgetChecks.test_large_and_invalid_unicode_fail_before_archive_read) ... ok
+test_windows_pin_forwards_the_explicit_name_budget (__main__.NameBudgetChecks.test_windows_pin_forwards_the_explicit_name_budget) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.030s
+
+OK

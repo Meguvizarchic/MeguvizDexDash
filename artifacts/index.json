@@ -5143,6 +5143,146 @@
       "sha256": "16fb637190f9630b798e62aa299506fa1d8dc4330d4cc782b6a37519add15cf5"
     },
     {
+      "path": "artifacts/mdd-005/observed-name-budget-20261101/after.json",
+      "bytes": 735,
+      "sha256": "ae416bbe4c64e8845b9e3865791a74e5639891e0648c325b4741ac8646c04462"
+    },
+    {
+      "path": "artifacts/mdd-005/observed-name-budget-20261101/before.json",
+      "bytes": 735,
+      "sha256": "ae416bbe4c64e8845b9e3865791a74e5639891e0648c325b4741ac8646c04462"
+    },
+    {
+      "path": "artifacts/mdd-005/observed-name-budget-20261101/final-after.json",
+      "bytes": 735,
+      "sha256": "c134d8b6657d3e9e3d049132355c09118dd6b7677325e127ec554c56f8bfda02"
+    },
+    {
+      "path": "artifacts/mdd-005/observed-name-budget-20261101/final-before.json",
+      "bytes": 735,
+      "sha256": "c134d8b6657d3e9e3d049132355c09118dd6b7677325e127ec554c56f8bfda02"
+    },
+    {
+      "path": "artifacts/mdd-005/observed-name-budget-20261101/final-exit.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-005/observed-name-budget-20261101/final-opt-exit.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-005/observed-name-budget-20261101/final-opt.txt",
+      "bytes": 509,
+      "sha256": "355f5800133a24dfa51f5615c785899fdb121d4fd90656830b48f12d16f6371b"
+    },
+    {
+      "path": "artifacts/mdd-005/observed-name-budget-20261101/final.txt",
+      "bytes": 509,
+      "sha256": "f4e843ece4134dafd646e4478b011a7c459a75b4c829041ce331d630c90672cb"
+    },
+    {
+      "path": "artifacts/mdd-005/observed-name-budget-20261101/final2-exit.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-005/observed-name-budget-20261101/final2-opt-exit.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-005/observed-name-budget-20261101/final2-opt.txt",
+      "bytes": 777,
+      "sha256": "dc555208c1f7fcff4c08c756a59462a02f94047284a943b63e5135873afd6602"
+    },
+    {
+      "path": "artifacts/mdd-005/observed-name-budget-20261101/final2.txt",
+      "bytes": 777,
+      "sha256": "00544278e6d1d030d6fb870601f4756b0c64e97fd7a540a9fc8739217eb6402e"
+    },
+    {
+      "path": "artifacts/mdd-005/observed-name-budget-20261101/pin-exit.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-005/observed-name-budget-20261101/pin.txt",
+      "bytes": 383,
+      "sha256": "e6e5e33be14699511178c8e3eb6e9a0d02d85bbd78598617ee3318c6321a2127"
+    },
+    {
+      "path": "artifacts/mdd-005/observed-name-budget-20261101/pin2-exit.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-005/observed-name-budget-20261101/pin2.txt",
+      "bytes": 383,
+      "sha256": "8a104ec2f09eaa2ffbaf9491bb2344fe5d63fb7c6f9ad26b77c4cef551f20987"
+    },
+    {
+      "path": "artifacts/mdd-005/observed-name-budget-20261101/probe.py",
+      "bytes": 4920,
+      "sha256": "28c26577a5b9fb1f8eb210dae0aeb853292080c3f6c10774f67565e1df25f6d0"
+    },
+    {
+      "path": "artifacts/mdd-005/observed-name-budget-20261101/record.json",
+      "bytes": 5253,
+      "sha256": "7ce4e0cf9682ad22726b1488c266420ce66e427238d562e57604c0fc6f85e606"
+    },
+    {
+      "path": "artifacts/mdd-005/observed-name-budget-20261101/redactions.json",
+      "bytes": 9026,
+      "sha256": "70efaf8b54c93202559075c9cb1db7ffa756938c1abb5fda82d60b2c75bf9bb1"
+    },
+    {
+      "path": "artifacts/mdd-005/observed-name-budget-20261101/rows-exit.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-005/observed-name-budget-20261101/rows.txt",
+      "bytes": 649,
+      "sha256": "70688f67999e5d6b2fe6312bd69e89aad945a198dbf6df4d1276ed91937692b1"
+    },
+    {
+      "path": "artifacts/mdd-005/observed-name-budget-20261101/rows2-exit.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-005/observed-name-budget-20261101/rows2.txt",
+      "bytes": 649,
+      "sha256": "ecc72eedd684044860ff4fd6bacc78b5915cc0c6522dd0965ba86b4d48e23cbe"
+    },
+    {
+      "path": "artifacts/mdd-005/pinned-member-binding-20261101/before.json",
+      "bytes": 471,
+      "sha256": "abf1a21a325d88d0e5094ec54c50b012e615b493eb053cdbad620ba09d24ba3d"
+    },
+    {
+      "path": "artifacts/mdd-005/pinned-member-binding-20261101/exit.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-005/pinned-member-binding-20261101/output.txt",
+      "bytes": 383,
+      "sha256": "f40d684f365951896c53cdc34b3385c62c72fa0be4e94afbb3918ba24ecb01f3"
+    },
+    {
+      "path": "artifacts/mdd-005/pinned-member-binding-20261101/probe.py",
+      "bytes": 2484,
+      "sha256": "3070b6b8f60f7db0a20b7aac7092e96bd45a3b7f927345b1aa186079684f8187"
+    },
+    {
+      "path": "artifacts/mdd-005/pinned-member-binding-20261101/record.json",
+      "bytes": 3095,
+      "sha256": "c38435fc33701d6fb037a1d29cbec3baf219d033e8dd68151826ace5c6f3ee32"
+    },
+    {
       "path": "artifacts/mdd-005/preflight.json",
       "bytes": 537,
       "sha256": "48a708f9b9232f71efc18aa98006e1728e4b602cee4cbe0812dd7b53501247fd"
@@ -8051,6 +8191,31 @@
       "path": "artifacts/mdd-022/signature-owner-layout-20261101/run1/record.json",
       "bytes": 2789,
       "sha256": "5b2231985a2038b70eb99a7db94b1b7755d163c071e32e99209bae2ed52c1922"
+    },
+    {
+      "path": "artifacts/mdd-022/signature-physical-lookup-20261101/run.py",
+      "bytes": 1896,
+      "sha256": "75fcfc6533badded36daaa8fcc3f5653ea7aaae70596a27c46d8180474fbaadc"
+    },
+    {
+      "path": "artifacts/mdd-022/signature-physical-lookup-20261101/signature/output.txt",
+      "bytes": 1467,
+      "sha256": "882a4f540f3c5873de40a14053f79b44e294e000cc527bfc836fff9ab7e67aa5"
+    },
+    {
+      "path": "artifacts/mdd-022/signature-physical-lookup-20261101/signature/record.json",
+      "bytes": 2290,
+      "sha256": "341946f5e768dbf1c774bf3dc9e5d668e1f42dad9452a8a9d343c4d5b135e180"
+    },
+    {
+      "path": "artifacts/mdd-022/signature-physical-lookup-20261101/single/output.txt",
+      "bytes": 862,
+      "sha256": "b678f2321db522d50fbc78df3f28115311af656404d6db6d8fa51f51fd5a7ff6"
+    },
+    {
+      "path": "artifacts/mdd-022/signature-physical-lookup-20261101/single/record.json",
+      "bytes": 2377,
+      "sha256": "f09a64e52d1c082ec3b6357bc7416686782dd7515f3a92d0b245b2f6737f9085"
     },
     {
       "path": "artifacts/mdd-022/validation/20261028T105548144184Z/A0-compare.json",
@@ -30408,6 +30573,271 @@
       "sha256": "65e395d3b8c3e64dfb752638394376e3cfa457bfcc9b3551520d3285b5b0944d"
     },
     {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/combined/after.json",
+      "bytes": 1066,
+      "sha256": "6fbbeabab5c4ae677ce25efecf29b78120ef970f5d6cd78ac6eee8a45b6482d4"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/combined/before.json",
+      "bytes": 1066,
+      "sha256": "6fbbeabab5c4ae677ce25efecf29b78120ef970f5d6cd78ac6eee8a45b6482d4"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/combined/exit.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/combined/output.txt",
+      "bytes": 997,
+      "sha256": "42cafbd315781070e1d217ce5b3635338e24b5eee775e4d52139609d1c747943"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/combined/record.json",
+      "bytes": 2453,
+      "sha256": "2065ef89b28b012ec6a2da8345d5c23cf44a78ed8a195b35a0786c3fe47b8f8e"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/final-between/output.txt",
+      "bytes": 708,
+      "sha256": "2075bab1b5787a12ece5728aa55c516db949478d5147fe080f1ce341ffb2859f"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/final-between/record.json",
+      "bytes": 2536,
+      "sha256": "6d4eafc3bcadaf6286b3e5342cb19f06d7e6020fd98f9552a8e59da3225df14c"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/final-filter/output.txt",
+      "bytes": 444,
+      "sha256": "5bd35cf889f1b115551b8ddfd098ed274faebfb792543186acac8b639090a245"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/final-filter/record.json",
+      "bytes": 2538,
+      "sha256": "e7200f1ebf2912ed9c6d9634cb20cd6d752874a269d9d7f159888ade51070394"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/final-like/output.txt",
+      "bytes": 3200,
+      "sha256": "f079ea10cf6805d19bf03b2f7d8b501af960dc07f07361e608fd705158a2fad4"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/final-like/record.json",
+      "bytes": 2527,
+      "sha256": "e6e3e07c69326c468bd98d156911189fe6c9a16e35677d729ecedacc7fb629eb"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/final-q15/output.txt",
+      "bytes": 348,
+      "sha256": "c369d5ba66fe5511ad7bc032deec144e56b1363cc70f12bf89178b2a3eb3f59a"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/final-q15/record.json",
+      "bytes": 2533,
+      "sha256": "14ac3453b37fed859a58ff84247b1a36fe47c64746960177acc63d2f149e39e4"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/final-slot/output.txt",
+      "bytes": 345,
+      "sha256": "3ae8569a38a7e7f79254a43d834a26ed00106b657338fe1bcc1f5618796ad0e4"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/final-slot/record.json",
+      "bytes": 2569,
+      "sha256": "3f041a59c0791f8b31c718026c085ff51a1a5f00e51759353e31c7d082948a62"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/final-types/output.txt",
+      "bytes": 356,
+      "sha256": "14507c5eb3d62743d56245093d599b116eb0793a1beb87d361bb7380d3ebcda7"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/final-types/record.json",
+      "bytes": 2580,
+      "sha256": "ea911ba268c01538221e1d635dac6fdda1d234df968af1bd5cacff3a6221e95b"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/final-udf/output.txt",
+      "bytes": 982,
+      "sha256": "14f192d2d687ff5b145fa9de1b1c3310d92b8053288029bc8969a007ff17ae04"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/final-udf/record.json",
+      "bytes": 2535,
+      "sha256": "e72dd6c9952e6d55b2f87f6130c26ea323a659088816981cb9073337e8b0c7b4"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/green/output.txt",
+      "bytes": 570,
+      "sha256": "dc4620dc584119d8505eff54f3a5aebda962ed9dd622c889632ad5705ad1d8ac"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/green/record.json",
+      "bytes": 2550,
+      "sha256": "1909ec6532cf719f140839dca5e7dd1a53bfd16b216bec10f85c6ee04d17c3fd"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/green2/output.txt",
+      "bytes": 570,
+      "sha256": "2c6789355e6eb1253dff8f48e87b17c80a303159ab8c138356571076b9445ec4"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/green2/record.json",
+      "bytes": 2550,
+      "sha256": "df2bb8ddd315a73d4be6c2a597d30e8b57872fd615594bd76449e72fcc688c8c"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/green3/output.txt",
+      "bytes": 444,
+      "sha256": "530b1c5b303a40ded4590c03807e88da209f48082df5c120a4e6e90167faf57e"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/green3/record.json",
+      "bytes": 2550,
+      "sha256": "b7fed3be0084bfc172b2357808034f9060090dc65841cb9e4686017572155cb3"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/malformed/output.txt",
+      "bytes": 376,
+      "sha256": "59a2a8c988672d265b7c8928f619c9b6358f5d6ec8f0b493bea9acd4df763a9f"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/malformed/record.json",
+      "bytes": 2575,
+      "sha256": "bb3189f5da8ca1e760be653930a724a6195f8936577e083ca9571c62aae9acfc"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/malformed2/output.txt",
+      "bytes": 376,
+      "sha256": "23ba776c262cbaaade74b58170cce3d18083f20239629aa18417f9ea3b9d4957"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/malformed2/record.json",
+      "bytes": 2575,
+      "sha256": "7c9bb263e9ecf883b58dd17730c268c2239d2a1b78d472b5eb56bf1c7a7116ca"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/red/output.txt",
+      "bytes": 3312,
+      "sha256": "b3de89bc4941e5a7edbf160608dfed5472d7267905514251882d38c0c4ce70e5"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/red/record.json",
+      "bytes": 2343,
+      "sha256": "ce6e648bd48f15bdca96856b5427d8611f5912cc36bb910d84f6aa0f0f8d2d26"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/regression-between/output.txt",
+      "bytes": 1228,
+      "sha256": "506eaa3777a67f388881cab00a941279c9973635db7c8596d57c1e9d6c4a4fe4"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/regression-between/record.json",
+      "bytes": 2538,
+      "sha256": "cb0155c9762069d739b2a63e900c44037a10adadc0325a6d5503392ac40201da"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/regression-between2/output.txt",
+      "bytes": 769,
+      "sha256": "43ad09a928f1b006efc23231b969dbb712b858fe5d2fee70898f268c6cf2b57c"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/regression-between2/record.json",
+      "bytes": 2536,
+      "sha256": "a9a0e24238b54c41c3d773d2deae74aa6f43d3b71dc54cd6647bc2047ce1fd01"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/regression-filter/output.txt",
+      "bytes": 444,
+      "sha256": "d091ed0b22e99e0cfe2cb08640d6aceb6bf6b484a1ff6f2e2c907db52cf725cc"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/regression-filter/record.json",
+      "bytes": 2538,
+      "sha256": "0607a3f72b7b95e96db833d3b006e540e5df4a329a0e95d3bca2d1ffcf3a5b43"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/regression-length-slot/output.txt",
+      "bytes": 345,
+      "sha256": "0dec990570ce1b0081f23cea4a239f878ec72ed25d4abec5f15889edab1c2c0f"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/regression-length-slot/record.json",
+      "bytes": 2569,
+      "sha256": "89a061c8bf5352f347c3e66382d59751359841c43f1a3c80a84dba000c4e404c"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/regression-like/output.txt",
+      "bytes": 3308,
+      "sha256": "e0482dea165743217d54e1c671fcfee53a17e4b9423cc1b11a96979eeefd801d"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/regression-like/record.json",
+      "bytes": 2529,
+      "sha256": "db1512baf2762a37e1e85061da9e74ec2614705f121786e9d5b2779924e587d7"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/regression-like2/output.txt",
+      "bytes": 2875,
+      "sha256": "ac46bc33a65e1ff6b8d055cf9549d69eadbdd67c23045f6b4a4bf1409e7d1862"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/regression-like2/record.json",
+      "bytes": 2527,
+      "sha256": "e979b716625052293271bdcfa6cd7732fca3830eeaa11d05065b831120988a84"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/regression-like3/output.txt",
+      "bytes": 2984,
+      "sha256": "c4e81f38a0027b9b99f237382f60e14996546c9aad9526c4ab3b8c2c96d7d324"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/regression-like3/record.json",
+      "bytes": 2527,
+      "sha256": "5a0be4197acd2ab7aee02d19e6d0fedbd180df761dc9952a33e7073617fb724d"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/regression-q15-2/output.txt",
+      "bytes": 348,
+      "sha256": "737e015f83379cec096be66935e914de5375ccfa44fd89a1e95f7337dd082d01"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/regression-q15-2/record.json",
+      "bytes": 2533,
+      "sha256": "15ad00ae8f472b909259e680f771988f60c5d198d8b7b48101cd89f4c4d16f3d"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/regression-q15/output.txt",
+      "bytes": 348,
+      "sha256": "230cfb5b57635574ec9b5cb98d545b278cde4cc2a315ac8908574a8982452b16"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/regression-q15/record.json",
+      "bytes": 2533,
+      "sha256": "6d9ab5b2efa1dbe31c7eaa41a7fc47795c955209cdbd58b6ef87012595c7e9fb"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/regression-types/output.txt",
+      "bytes": 356,
+      "sha256": "c1b9fe0400e593b3dc86089da53561e1d718b8fe01b1a5cc160695b3fdabf830"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/regression-types/record.json",
+      "bytes": 2580,
+      "sha256": "b3746e362fbaaae9c0dbc231f3bb5b4b8b74d2a8c89da26a4a4d820c1ae79baa"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/run.py",
+      "bytes": 1564,
+      "sha256": "b703c69f7af773b57ac14f2b1cf5f0656e862b2b4969269a7a04f8e5e2cf43ed"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/udf-input-materialization-20261101/summary.json",
+      "bytes": 3472,
+      "sha256": "eced5e6f2a07749c6ffa932a4f3947a194fe6aaeb70b369da7801d81d7e26e1f"
+    },
+    {
       "path": "artifacts/mdd-031-audit/ungrouped-distinct-aggregate-20261101/bounded_scan/output.txt",
       "bytes": 374,
       "sha256": "f603d54ccff9b1f1db2cff2360facfd9c9ccf8f34c798d43aaf9dfeb954513af"
@@ -41351,6 +41781,351 @@
       "path": "artifacts/mdd-034-audit/scoped-coverage-work-20261101/run1/record.json",
       "bytes": 4076,
       "sha256": "e525c9635f657146d32c39b0c89964a22bf03854d37a11dae7d95a16e36a4626"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/ROUND_REPORT.md",
+      "bytes": 2832,
+      "sha256": "378d54a504090f46880e9dc1bd89bab69a87f583ac642dbb83705c92b15ff29b"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/drop-red/after.json",
+      "bytes": 1317,
+      "sha256": "2c76cc0a37a29eb5e903867892266a2b6b135677524430735466d6ca89df39da"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/drop-red/before.json",
+      "bytes": 1317,
+      "sha256": "2c76cc0a37a29eb5e903867892266a2b6b135677524430735466d6ca89df39da"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/drop-red/exit.txt",
+      "bytes": 5,
+      "sha256": "bdc830287616dae1818ced3e7c186e1387155900ad30d5983ec02da1519c4a95"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/drop-red/output.txt",
+      "bytes": 958,
+      "sha256": "643adfc581379e8648e587f975dc3f13c16e393f26cfeab067225f4885cfb249"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/drop-red/record.json",
+      "bytes": 3054,
+      "sha256": "8f5dd2a887dc1a61280be8d798b185b283c922a1a5a75b55cef61361c8e4466d"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/eof-drop-red/after.json",
+      "bytes": 790,
+      "sha256": "8dd2ebe4442298d6409344bea58119688545777422fe2344b715ccec68fb6bfe"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/eof-drop-red/before.json",
+      "bytes": 1317,
+      "sha256": "947e2fb4a362b76a32c61ab93aeb3e4be5f4f00a9c574e5dec86acd0ace91945"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/eof-drop-red/exit.txt",
+      "bytes": 5,
+      "sha256": "bdc830287616dae1818ced3e7c186e1387155900ad30d5983ec02da1519c4a95"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/eof-drop-red/output.txt",
+      "bytes": 912,
+      "sha256": "7a1d3536ad6772aa593465f8e26a3003a4e4726e0883d61466f63335a9aac54a"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/final-strict/after.json",
+      "bytes": 790,
+      "sha256": "a2d8f34ac35c616aa19d6ba39ffa387f04aaee1a05ae3b2f909939143310cb2d"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/final-strict/before.json",
+      "bytes": 790,
+      "sha256": "a2d8f34ac35c616aa19d6ba39ffa387f04aaee1a05ae3b2f909939143310cb2d"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/final-strict/check-exit.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/final-strict/check.txt",
+      "bytes": 139,
+      "sha256": "b666779f6b3107ea88f379589da04d1491d39fbc99e88e36d7ff175c12f7ef94"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/final-strict/json-exit.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/final-strict/json.txt",
+      "bytes": 1545,
+      "sha256": "b09d1733f757b6a0a934866ba77ab5c4b937df835fd15bacd4cf1b2c1c744db5"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/final/after.json",
+      "bytes": 1317,
+      "sha256": "d3568ded945db46c9cb1beb068c3b4bfe4abc80222ddb62383539ecc68f34599"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/final/authority-exit.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/final/authority.txt",
+      "bytes": 590,
+      "sha256": "d4322155a60010e652ba04a8c0b86a2bd6954a4e4b4693424255a2ed3eed68b2"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/final/before.json",
+      "bytes": 1317,
+      "sha256": "d3568ded945db46c9cb1beb068c3b4bfe4abc80222ddb62383539ecc68f34599"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/final/checked-exit.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/final/checked.txt",
+      "bytes": 637,
+      "sha256": "85df8a38d5d63b4c2b845bf73a2242722d58196b879fb35fc92c20b21012b93c"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/final/json-consumer-exit.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/final/json-consumer.txt",
+      "bytes": 381,
+      "sha256": "f8a09c99fd1845900cc857222428a61fe3f6cfea1215586e8d14cb8e249485b8"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/final/record.json",
+      "bytes": 4037,
+      "sha256": "f0141ca06c15b12259e55c4f5d99d1a2f80530facc856cd570309b00d73818eb"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/final/scoped-exit.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/final/scoped.txt",
+      "bytes": 374,
+      "sha256": "cf2cdf8a2b931895894904533f009eec41efb4639df637a239287f0b03e0c4fc"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/limit-drop/after.json",
+      "bytes": 790,
+      "sha256": "63ac36c817a76ff5c2371ff3f97ad39ff81aaac379b87340aa9b3d9e3ab6dd67"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/limit-drop/before.json",
+      "bytes": 790,
+      "sha256": "63ac36c817a76ff5c2371ff3f97ad39ff81aaac379b87340aa9b3d9e3ab6dd67"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/limit-drop/exit.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/limit-drop/output.txt",
+      "bytes": 433,
+      "sha256": "2b93384105c87b3b993761423b8419fc41e1287e503b6a3147081576ed3cef7b"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/limit-positive-fixed/after.json",
+      "bytes": 790,
+      "sha256": "a2d8f34ac35c616aa19d6ba39ffa387f04aaee1a05ae3b2f909939143310cb2d"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/limit-positive-fixed/before.json",
+      "bytes": 790,
+      "sha256": "a2d8f34ac35c616aa19d6ba39ffa387f04aaee1a05ae3b2f909939143310cb2d"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/limit-positive-fixed/exit.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/limit-positive-fixed/output.txt",
+      "bytes": 433,
+      "sha256": "40a614cb0daa9092d12caea19429831a72b87e759e8a197c70600dae36db3db9"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/limit-positive/after.json",
+      "bytes": 790,
+      "sha256": "73cc03f2848f5d7553b776abe3cc23c1cfb4e2e2ad81b038e1e37c4bd1ae1404"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/limit-positive/before.json",
+      "bytes": 790,
+      "sha256": "73cc03f2848f5d7553b776abe3cc23c1cfb4e2e2ad81b038e1e37c4bd1ae1404"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/limit-positive/diagnostic-exit.txt",
+      "bytes": 5,
+      "sha256": "bdc830287616dae1818ced3e7c186e1387155900ad30d5983ec02da1519c4a95"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/limit-positive/diagnostic.txt",
+      "bytes": 1015,
+      "sha256": "ceaecb75ae9b8ac100f01e84ba411c9354043061372ff4f62864df29f0fb04b3"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/limit-positive/exit.txt",
+      "bytes": 5,
+      "sha256": "bdc830287616dae1818ced3e7c186e1387155900ad30d5983ec02da1519c4a95"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/limit-positive/output.txt",
+      "bytes": 862,
+      "sha256": "93b097e951e5e4388c3b2be56d9676f4fd0f44ba984b0cba9ec31a3b9eac8675"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/run1/after.json",
+      "bytes": 864,
+      "sha256": "2c964e7d470ba1dfda8f8d2e227add42fc94a159a06d603a847909943a844c33"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/run1/before.json",
+      "bytes": 864,
+      "sha256": "2c964e7d470ba1dfda8f8d2e227add42fc94a159a06d603a847909943a844c33"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/run1/exit.txt",
+      "bytes": 5,
+      "sha256": "bdc830287616dae1818ced3e7c186e1387155900ad30d5983ec02da1519c4a95"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/run1/output.txt",
+      "bytes": 1036,
+      "sha256": "1106fde10d72862c853c06579999ed30025a123a24d650d5b0e48caa724207bc"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/run1/record.json",
+      "bytes": 2134,
+      "sha256": "08ea8784d9b424bd96e5158b92b3aa62ff16a33362e691cebdd65947e8faa77e"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/run2/after.json",
+      "bytes": 995,
+      "sha256": "9262e035d70520e2fb8d284db28af388ded825345b31d131436f6bef7f838ea1"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/run2/before.json",
+      "bytes": 995,
+      "sha256": "9262e035d70520e2fb8d284db28af388ded825345b31d131436f6bef7f838ea1"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/run2/exit.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/run2/output.txt",
+      "bytes": 551,
+      "sha256": "fff36938ad12a7955dab9f816ab3e096056c28821aa2be911338f1ca9651350c"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/run2/record.json",
+      "bytes": 2367,
+      "sha256": "4a8703e8ada939ec519d7e7b7d10e43691118260be4eb18b3f8fdbadeaa528a7"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/runtime-swap-red/after.json",
+      "bytes": 1317,
+      "sha256": "b3fe28ddfca8e1c71be8993d0c3249b562f74adf15ed54d73050983fd880a1c0"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/runtime-swap-red/before.json",
+      "bytes": 1317,
+      "sha256": "b3fe28ddfca8e1c71be8993d0c3249b562f74adf15ed54d73050983fd880a1c0"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/runtime-swap-red/exit.txt",
+      "bytes": 5,
+      "sha256": "bdc830287616dae1818ced3e7c186e1387155900ad30d5983ec02da1519c4a95"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/runtime-swap-red/output.txt",
+      "bytes": 910,
+      "sha256": "bfcd31d62847ad6d350ccc4435d608c8a497432220c51d91b662ad881275df97"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/runtime-swap-red/record.json",
+      "bytes": 3002,
+      "sha256": "ae5bb8df9ca81329eeb4058f3597e324f37377f7863e995462789d0a9e35a5c0"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/scan-red/after.json",
+      "bytes": 995,
+      "sha256": "c7a0a3cc665067c8d723dc739e8b0b9bbfc6bbc3c94cc5b460bfd092ccc24233"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/scan-red/before.json",
+      "bytes": 995,
+      "sha256": "c7a0a3cc665067c8d723dc739e8b0b9bbfc6bbc3c94cc5b460bfd092ccc24233"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/scan-red/exit.txt",
+      "bytes": 5,
+      "sha256": "bdc830287616dae1818ced3e7c186e1387155900ad30d5983ec02da1519c4a95"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/scan-red/output.txt",
+      "bytes": 902,
+      "sha256": "c79e3d8bde517ae7fe291d6a6fce4750d0e5f96e0dc11aa690b974af8ed4ee62"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/scan-red/record.json",
+      "bytes": 2393,
+      "sha256": "66c0917f834bff64d10ff4471f229061a0cb29118152882e0489903bbc29d13f"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/strict-internal/after.json",
+      "bytes": 790,
+      "sha256": "fe45caf01b1b6ebf1f0820cd3d2bc8f649bd8f84fdff8b9802b2dff736c568c0"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/strict-internal/authority-exit.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/strict-internal/authority.txt",
+      "bytes": 656,
+      "sha256": "3b489c2b800b6df97715e809f19bb5b68f639b588e2787b1c087fb174ef427ce"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/strict-internal/before.json",
+      "bytes": 790,
+      "sha256": "fe45caf01b1b6ebf1f0820cd3d2bc8f649bd8f84fdff8b9802b2dff736c568c0"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/strict-internal/checked-exit.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/strict-internal/checked.txt",
+      "bytes": 769,
+      "sha256": "50d50bb7b6153c8f2447fda49b7e52c5fb85329d046b817b3b68e969a1b0c561"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/strict-internal/swap-exit.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scoped-entity-authority-20261101/strict-internal/swap.txt",
+      "bytes": 378,
+      "sha256": "9f620f847b2030754e7ed141b822b2385d1aebb0b45bbffd41f52a8ace30b731"
     },
     {
       "path": "artifacts/mdd-034-audit/scoped-reference-rebuild-20261101/green/0.stderr",

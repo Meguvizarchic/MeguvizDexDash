@@ -1,0 +1,2 @@
+    Checking mdd-query v0.1.0-dev (<WORKSPACE>\crates\mdd-query)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.08s

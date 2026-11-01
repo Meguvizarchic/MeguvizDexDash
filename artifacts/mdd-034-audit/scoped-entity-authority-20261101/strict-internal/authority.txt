@@ -1,0 +1,11 @@
+   Compiling mdd-query v0.1.0-dev (<WORKSPACE>\crates\mdd-query)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.96s
+     Running unittests src\lib.rs (target\debug\deps\mdd_query-82579f4092cfd058.exe)
+
+running 3 tests
+test executor::scoped::tests::scoped_entity_authority_distinguishes_definitions_from_references ... ok
+test executor::scoped::tests::scoped_entity_authority_rejects_altered_scan_and_bounds_checks ... ok
+test executor::scoped::tests::scoped_entity_authority_rejects_altered_json_batch_before_delivery ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 189 filtered out; finished in 0.00s
+

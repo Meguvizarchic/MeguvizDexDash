@@ -2,7 +2,7 @@ use crate::{
     control::SqlControl,
     dialects::SqlDialect,
     invalid, quota,
-    values::{BYTES, SqlText, SqlValue, TEXT},
+    values::{BYTES, RawDecodePlan, SqlText, SqlValue, TEXT, raw_decode_plan, validate_mutf8},
 };
 use mdd_query::{budget::Reservation, ir::Signed64};
 use mdd_types::{DecimalU64, MddError, MddResult};
@@ -1591,10 +1591,182 @@ fn scalar(
 fn failure(control: &SqlControl, error: MddError) -> rusqlite::Error {
     rusqlite::Error::UserFunctionError(Box::new(control.fail(error)))
 }
-fn args(context: &Context<'_>) -> MddResult<Vec<SqlValue>> {
-    (0..context.len())
-        .map(|i| SqlValue::from_sqlite(context.get_raw(i)))
-        .collect()
+// Drop the materialized values before their logical workspace reservation.
+// SQLite argument buffers, this Vec's metadata, allocator overhead and RSS are
+// separate from the variable-value copies charged here.
+struct ChargedArguments {
+    values: Vec<SqlValue>,
+    _workspace: Option<Reservation>,
+}
+
+fn args(context: &Context<'_>, control: &SqlControl) -> MddResult<ChargedArguments> {
+    control.checkpoint(0, false)?;
+    let overflow = || control.fail(quota("SQL_ARGUMENT_DECODE_OVERFLOW"));
+    let mut workspace = 0u64;
+    for index in 0..context.len() {
+        let bytes = match raw_decode_plan(context.get_raw(index))? {
+            RawDecodePlan::Fixed => 0,
+            RawDecodePlan::Utf16(length) => {
+                let length = u64::try_from(length).map_err(|_| overflow())?;
+                control.checkpoint(length / 2, false)?;
+                length
+            }
+            RawDecodePlan::Bytes(length) => {
+                let length = u64::try_from(length).map_err(|_| overflow())?;
+                control.checkpoint(length, false)?;
+                length
+            }
+            RawDecodePlan::Mutf8 { bytes, units } => {
+                let length = u64::try_from(bytes.len()).map_err(|_| overflow())?;
+                // Validate each argument before inspecting the next one, so a
+                // later malformed carrier cannot hide an earlier MUTF-8 error.
+                control.checkpoint(length, false)?;
+                validate_mutf8(bytes, units)?;
+                // Materialization validates again, then copies the bytes.
+                control.checkpoint(length.checked_mul(2).ok_or_else(overflow)?, false)?;
+                length
+            }
+            RawDecodePlan::Utf8(bytes) => {
+                let length = u64::try_from(bytes.len()).map_err(|_| overflow())?;
+                control.checkpoint(length, false)?;
+                let input =
+                    std::str::from_utf8(bytes).map_err(|_| invalid("INVALID_UTF8_FROM_SQLITE"))?;
+                let mut units = 0u64;
+                for character in input.chars() {
+                    let count = character.len_utf16() as u64;
+                    control.checkpoint(count, false)?;
+                    units = units.checked_add(count).ok_or_else(overflow)?;
+                }
+                // from_sqlite validates UTF-8, counts UTF-16 capacity, then
+                // walks it again to build the output. Charge these synchronous
+                // operations before either allocation or copying.
+                let repeated = units
+                    .checked_mul(2)
+                    .and_then(|value| value.checked_add(length))
+                    .ok_or_else(overflow)?;
+                control.checkpoint(repeated, false)?;
+                units.checked_mul(2).ok_or_else(overflow)?
+            }
+        };
+        workspace = workspace.checked_add(bytes).ok_or_else(overflow)?;
+    }
+    let lease = if workspace == 0 {
+        None
+    } else {
+        control
+            .runtime()
+            .map(|runtime| {
+                runtime
+                    .pool()
+                    .reserve(mdd_query::budget::Resource::QueryWorkspaceBytes, workspace)
+                    .map_err(|error| control.fail(error))
+            })
+            .transpose()?
+    };
+    let mut values = Vec::new();
+    values
+        .try_reserve_exact(context.len())
+        .map_err(|_| control.fail(quota("SQL_ARGUMENT_VECTOR_ALLOCATION")))?;
+    for index in 0..context.len() {
+        control.checkpoint(0, false)?;
+        values.push(SqlValue::from_sqlite(context.get_raw(index))?);
+    }
+    control.checkpoint(0, false)?;
+    Ok(ChargedArguments {
+        values,
+        _workspace: lease,
+    })
+}
+
+// For an empty TEXT pattern and already validated TEXT carriers, matching
+// needs only the value's emptiness. Avoid cloning either TEXT value merely to
+// discover that no LIKE token or decoded input buffer is needed. Other carrier
+// kinds keep the general path, including their normal validation and budgets.
+fn empty_text_like(context: &Context<'_>, control: &SqlControl) -> Option<MddResult<SqlValue>> {
+    let ValueRef::Blob(pattern) = context.get_raw(1) else {
+        return None;
+    };
+    if pattern != TEXT {
+        return None;
+    }
+    let value_empty = match context.get_raw(0) {
+        ValueRef::Null => None,
+        ValueRef::Blob(value) => {
+            let raw = value.strip_prefix(TEXT)?;
+            if !raw.len().is_multiple_of(2) {
+                return None;
+            }
+            Some(raw.is_empty())
+        }
+        _ => return None,
+    };
+    let ValueRef::Integer(flag) = context.get_raw(3) else {
+        return None;
+    };
+    let null_escape = match (flag != 0, context.get_raw(2)) {
+        (false, ValueRef::Null) => false,
+        (true, ValueRef::Null) => true,
+        (true, ValueRef::Blob(bytes))
+            if bytes.strip_prefix(TEXT).is_some_and(|raw| raw.len() == 2) =>
+        {
+            false
+        }
+        _ => return None,
+    };
+    Some((|| {
+        control.checkpoint(0, false)?;
+        // Keep the scalar and LIKE checkpoints even when no allocation is
+        // necessary. NULL returns before the LIKE matcher is entered.
+        control.checkpoint(1, false)?;
+        let Some(empty) = value_empty else {
+            return Ok(SqlValue::Null);
+        };
+        if null_escape {
+            return Ok(SqlValue::Null);
+        }
+        control.checkpoint(1, false)?;
+        if !empty {
+            control.checkpoint(1, false)?;
+        }
+        Ok(SqlValue::Bool(empty))
+    })())
+}
+
+// Length of a TEXT carrier needs no owned UTF-16 copy. Count legacy surrogate
+// pairs directly from the borrowed big-endian code units under the same work
+// checkpoints used by the ordinary length implementation.
+fn borrowed_text_length(
+    context: &Context<'_>,
+    dialect: SqlDialect,
+    control: &SqlControl,
+) -> Option<MddResult<SqlValue>> {
+    let ValueRef::Blob(bytes) = context.get_raw(0) else {
+        return None;
+    };
+    let raw = bytes.strip_prefix(TEXT)?;
+    Some((|| {
+        control.checkpoint(0, false)?;
+        if !raw.len().is_multiple_of(2) {
+            return Err(invalid("INVALID_TEXT_CARRIER"));
+        }
+        control.checkpoint(1, false)?;
+        let mut length = raw.len() / 2;
+        if dialect != SqlDialect::NativeV1 {
+            let mut previous = None;
+            for pair in raw.as_chunks::<2>().0 {
+                control.checkpoint(1, false)?;
+                let unit = u16::from_be_bytes(*pair);
+                if previous.is_some_and(|high| (0xd800..=0xdbff).contains(&high))
+                    && (0xdc00..=0xdfff).contains(&unit)
+                {
+                    length -= 1;
+                }
+                previous = Some(unit);
+            }
+        }
+        let length = i64::try_from(length).map_err(|_| quota("LENGTH_OVERFLOW"))?;
+        Ok(SqlValue::I64(Signed64(length)))
+    })())
 }
 pub(crate) fn register(
     db: &Connection,
@@ -1695,7 +1867,30 @@ pub(crate) fn register(
     ] {
         let control = control.clone();
         db.create_scalar_function(name, count, flags, move |context| {
-            let values = args(context).map_err(|e| failure(&control, e))?;
+            if name == "mdd_length"
+                && let Some(result) = borrowed_text_length(context, dialect, &control)
+            {
+                let value = result
+                    .and_then(|value| value.sqlite(control.inner.limits.max_cell_bytes))
+                    .map_err(|e| failure(&control, e))?;
+                return Ok(SqlCellWithWorkspaceLease {
+                    value,
+                    _workspace: None,
+                });
+            }
+            if name == "mdd_like"
+                && let Some(result) = empty_text_like(context, &control)
+            {
+                let value = result
+                    .and_then(|value| value.sqlite(control.inner.limits.max_cell_bytes))
+                    .map_err(|e| failure(&control, e))?;
+                return Ok(SqlCellWithWorkspaceLease {
+                    value,
+                    _workspace: None,
+                });
+            }
+            let arguments = args(context, &control).map_err(|e| failure(&control, e))?;
+            let values = &arguments.values;
             let key_workspace = if name == "mdd_key" || name == "mdd_sort_key" {
                 reserve_key_workspace(&values[0], &control).map_err(|e| failure(&control, e))?
             } else {
@@ -1802,6 +1997,233 @@ mod like_budget_tests {
     use super::*;
     use crate::control::SqlLimits;
     use mdd_types::ErrorCode;
+
+    #[test]
+    fn udf_argument_materialization_preserves_text_and_bytes_values() {
+        let db = Connection::open_in_memory().unwrap();
+        let control = SqlControl::new(SqlLimits::default(), None);
+        register(&db, SqlDialect::NativeV1, control).unwrap();
+        let utf8: i64 = db
+            .query_row("SELECT mdd_eq(?1, ?2)", ["A😀", "A😀"], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(utf8, 1);
+        let lone = SqlValue::Text(SqlText {
+            utf16: vec![0xd800, 0, 0xdc00],
+            original_mutf8: None,
+        })
+        .sqlite(SqlLimits::default().max_cell_bytes)
+        .unwrap();
+        let same: i64 = db
+            .query_row("SELECT mdd_eq(?1, ?2)", [&lone, &lone], |row| row.get(0))
+            .unwrap();
+        assert_eq!(same, 1);
+        let raw = vec![0xc0, 0x80];
+        let dex = SqlValue::DexMutf8 {
+            bytes: raw.clone(),
+            utf16_code_units: DecimalU64(1),
+        }
+        .sqlite(SqlLimits::default().max_cell_bytes)
+        .unwrap();
+        let bytes = SqlValue::Bytes(raw)
+            .sqlite(SqlLimits::default().max_cell_bytes)
+            .unwrap();
+        let equivalent: i64 = db
+            .query_row("SELECT mdd_eq(?1, ?2)", [&dex, &bytes], |row| row.get(0))
+            .unwrap();
+        assert_eq!(equivalent, 1);
+
+        let db = Connection::open_in_memory().unwrap();
+        let control = SqlControl::new(SqlLimits::default(), None);
+        register(&db, SqlDialect::NativeV1, control.clone()).unwrap();
+        assert!(
+            db.query_row("SELECT mdd_eq(CAST(X'FF' AS TEXT), 'x')", [], |row| row
+                .get::<_, i64>(0))
+                .is_err()
+        );
+        let error = control.error().unwrap();
+        assert_eq!(error.code, ErrorCode::InvalidArgument);
+        assert_eq!(error.message, "INVALID_UTF8_FROM_SQLITE");
+    }
+
+    #[test]
+    fn borrowed_text_length_keeps_utf16_errors_and_first_cancel() {
+        let text = |units: &[u16]| {
+            let mut carrier = TEXT.to_vec();
+            for unit in units {
+                carrier.extend_from_slice(&unit.to_be_bytes());
+            }
+            Cell::Blob(carrier)
+        };
+        let units = [0x61, 0xd800, 0xdc00, 0xdfff];
+        for (dialect, expected) in [
+            (SqlDialect::NativeV1, 4),
+            (SqlDialect::DexSql010, 3),
+            (SqlDialect::DexSql011, 3),
+        ] {
+            let db = Connection::open_in_memory().unwrap();
+            let control = SqlControl::new(SqlLimits::default(), None);
+            register(&db, dialect, control).unwrap();
+            let actual: i64 = db
+                .query_row("SELECT mdd_length(?1)", [text(&units)], |row| row.get(0))
+                .unwrap();
+            assert_eq!(actual, expected, "{dialect:?}");
+        }
+        for cancelled in [false, true] {
+            let db = Connection::open_in_memory().unwrap();
+            let control = SqlControl::new(SqlLimits::default(), None);
+            register(&db, SqlDialect::NativeV1, control.clone()).unwrap();
+            if cancelled {
+                control.cancel().unwrap();
+            }
+            let bad = Cell::Blob([TEXT, &[0x31]].concat());
+            assert!(
+                db.query_row("SELECT mdd_length(?1)", [bad], |row| row.get::<_, i64>(0))
+                    .is_err()
+            );
+            assert_eq!(
+                control.error().unwrap().code,
+                if cancelled {
+                    ErrorCode::Cancelled
+                } else {
+                    ErrorCode::InvalidArgument
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn empty_text_like_preserves_errors_null_and_cancellation() {
+        let text = |units: &[u16]| {
+            let mut carrier = TEXT.to_vec();
+            for unit in units {
+                carrier.extend_from_slice(&unit.to_be_bytes());
+            }
+            Cell::Blob(carrier)
+        };
+        for (input, escape, flag, expected) in [
+            (text(&[]), Cell::Null, 0, Some(1)),
+            (text(&[0xd800]), Cell::Null, 0, Some(0)),
+            (Cell::Null, Cell::Null, 0, None),
+            (text(&[]), text(&[b'\\' as u16]), 1, Some(1)),
+            (text(&[]), Cell::Null, 1, None),
+        ] {
+            let db = Connection::open_in_memory().unwrap();
+            let control = SqlControl::new(SqlLimits::default(), None);
+            register(&db, SqlDialect::NativeV1, control).unwrap();
+            let actual: Option<i64> = db
+                .query_row(
+                    "SELECT mdd_like(?1, ?2, ?3, ?4)",
+                    rusqlite::params![input, text(&[]), escape, flag],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(actual, expected);
+        }
+        for (input, escape, flag, expected) in [
+            (
+                Cell::Blob([TEXT, &[0x31]].concat()),
+                Cell::Null,
+                0,
+                "INVALID_TEXT_CARRIER",
+            ),
+            (text(&[]), Cell::Blob(vec![0xff]), 0, "UNTYPED_SQLITE_BLOB"),
+            (
+                text(&[]),
+                text(&[b'a' as u16, b'b' as u16]),
+                1,
+                "LIKE_ESCAPE_REQUIRES_ONE_UTF16_UNIT",
+            ),
+        ] {
+            let db = Connection::open_in_memory().unwrap();
+            let control = SqlControl::new(SqlLimits::default(), None);
+            register(&db, SqlDialect::NativeV1, control.clone()).unwrap();
+            assert!(
+                db.query_row(
+                    "SELECT mdd_like(?1, ?2, ?3, ?4)",
+                    rusqlite::params![input, text(&[]), escape, flag],
+                    |row| row.get::<_, Option<i64>>(0),
+                )
+                .is_err()
+            );
+            assert_eq!(control.error().unwrap().message, expected);
+        }
+        let db = Connection::open_in_memory().unwrap();
+        let control = SqlControl::new(SqlLimits::default(), None);
+        register(&db, SqlDialect::NativeV1, control.clone()).unwrap();
+        control.cancel().unwrap();
+        assert!(
+            db.query_row(
+                "SELECT mdd_like(?1, ?2, NULL, 0)",
+                rusqlite::params![text(&[]), text(&[])],
+                |row| row.get::<_, Option<i64>>(0)
+            )
+            .is_err()
+        );
+        assert_eq!(control.error().unwrap().code, ErrorCode::Cancelled);
+    }
+
+    #[test]
+    fn udf_argument_preflight_keeps_malformed_carrier_errors() {
+        use rusqlite::types::Value as Cell;
+        for (bytes, expected) in [
+            (vec![0xff], "UNTYPED_SQLITE_BLOB"),
+            ([TEXT, &[0x31]].concat(), "INVALID_TEXT_CARRIER"),
+            (
+                [b"\0MDDUINT1".as_slice(), &[1]].concat(),
+                "INVALID_U64_CARRIER",
+            ),
+            (
+                [b"\0MDDMUTF1".as_slice(), &[1]].concat(),
+                "TRUNCATED_MUTF8_CARRIER",
+            ),
+            (
+                [b"\0MDDMUTF1".as_slice(), &1u64.to_be_bytes(), &[0xff]].concat(),
+                "INVALID_DEX_MUTF8_CARRIER",
+            ),
+        ] {
+            let db = Connection::open_in_memory().unwrap();
+            let control = SqlControl::new(SqlLimits::default(), None);
+            register(&db, SqlDialect::NativeV1, control.clone()).unwrap();
+            let result = db.query_row(
+                "SELECT mdd_eq(?1, ?2)",
+                [Cell::Blob(bytes), Cell::Integer(1)],
+                |row| row.get::<_, Option<i64>>(0),
+            );
+            assert!(result.is_err());
+            let error = control.error().unwrap();
+            assert_eq!(error.code, ErrorCode::InvalidArgument);
+            assert_eq!(error.message, expected);
+        }
+    }
+
+    #[test]
+    fn udf_argument_preflight_preserves_first_mutf8_error() {
+        for (data, units, expected) in [
+            (vec![0xff], 1u64, "INVALID_DEX_MUTF8_CARRIER"),
+            (Vec::new(), 1u64, "DEX_MUTF8_UNIT_COUNT_MISMATCH"),
+        ] {
+            let db = Connection::open_in_memory().unwrap();
+            let control = SqlControl::new(SqlLimits::default(), None);
+            register(&db, SqlDialect::NativeV1, control.clone()).unwrap();
+            let mut first = b"\0MDDMUTF1".to_vec();
+            first.extend_from_slice(&units.to_be_bytes());
+            first.extend_from_slice(&data);
+            let later = [b"\0MDDUINT1".as_slice(), &[1]].concat();
+            assert!(
+                db.query_row(
+                    "SELECT mdd_eq(?1, ?2)",
+                    [Cell::Blob(first), Cell::Blob(later)],
+                    |row| row.get::<_, Option<i64>>(0),
+                )
+                .is_err()
+            );
+            let error = control.error().unwrap();
+            assert_eq!(error.code, ErrorCode::InvalidArgument);
+            assert_eq!(error.message, expected);
+        }
+    }
 
     #[test]
     fn truth_text_rejects_malformed_carrier_before_interpretation() {

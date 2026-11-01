@@ -1,0 +1,42 @@
+{
+  "task": "MDD-005",
+  "scope": "Real Windows read-sharing pin over synthetic APK, not producer snapshot or A2 qualification",
+  "initial": {
+    "command": "python -B artifacts/mdd-005/pinned-member-binding-20261101/probe.py",
+    "exit": 0,
+    "tests_passed": 2,
+    "output": "output.txt",
+    "listed_sources_before": {
+      "benchmarks/a2_windows_input_pin.py": "6370b808d915d48fb4db8863ded923a571bdfcc817f3d00daeb88fc90f409f74",
+      "benchmarks/a2_input_inventory.py": "be2eeee7c304e9ea0ad3ffe9b2fe98d4675b85fc8541d1dc0bb0aecf6dc4af0b",
+      "tests/fixtures/generated/structured-035.dex": "108cf907d330b823c6e32d38eaab8f23709fe493f52537688bbd09ba3e271605",
+      "artifacts/mdd-005/pinned-member-binding-20261101/probe.py": "3070b6b8f60f7db0a20b7aac7092e96bd45a3b7f927345b1aa186079684f8187"
+    },
+    "limitations": "A source-after hash was not captured before later name-budget changes; this is not final-source evidence."
+  },
+  "final": {
+    "command": "python -B artifacts/mdd-005/pinned-member-binding-20261101/probe.py",
+    "exit": 0,
+    "tests_passed": 2,
+    "output": "../observed-name-budget-20261101/pin2.txt",
+    "source_identity_record": "../observed-name-budget-20261101/record.json#final2",
+    "listed_sources_before": {
+      "benchmarks/a2_input_inventory.py": "b264ac1e4886880f686ea344221682e0d12eff6e3665612cfafd6a20497ba45e",
+      "benchmarks/a2_windows_input_pin.py": "fd9b210a966f0e8cfd54df464c3c8630e04cde1ad20ce5f2854f5562f3487ef3",
+      "tests/fixtures/generated/structured-035.dex": "108cf907d330b823c6e32d38eaab8f23709fe493f52537688bbd09ba3e271605",
+      "artifacts/mdd-005/observed-name-budget-20261101/probe.py": "28c26577a5b9fb1f8eb210dae0aeb853292080c3f6c10774f67565e1df25f6d0",
+      "artifacts/mdd-005/a2-observed-row-budget-20261101/probe.py": "51b6d81fda5e634d6913d36b15c7082d002e3206ca3372b22e1e746ac6ee6948",
+      "artifacts/mdd-005/pinned-member-binding-20261101/probe.py": "3070b6b8f60f7db0a20b7aac7092e96bd45a3b7f927345b1aa186079684f8187"
+    },
+    "listed_sources_after": {
+      "benchmarks/a2_input_inventory.py": "b264ac1e4886880f686ea344221682e0d12eff6e3665612cfafd6a20497ba45e",
+      "benchmarks/a2_windows_input_pin.py": "fd9b210a966f0e8cfd54df464c3c8630e04cde1ad20ce5f2854f5562f3487ef3",
+      "tests/fixtures/generated/structured-035.dex": "108cf907d330b823c6e32d38eaab8f23709fe493f52537688bbd09ba3e271605",
+      "artifacts/mdd-005/observed-name-budget-20261101/probe.py": "28c26577a5b9fb1f8eb210dae0aeb853292080c3f6c10774f67565e1df25f6d0",
+      "artifacts/mdd-005/a2-observed-row-budget-20261101/probe.py": "51b6d81fda5e634d6913d36b15c7082d002e3206ca3372b22e1e746ac6ee6948",
+      "artifacts/mdd-005/pinned-member-binding-20261101/probe.py": "3070b6b8f60f7db0a20b7aac7092e96bd45a3b7f927345b1aa186079684f8187"
+    },
+    "stable": true
+  },
+  "limits": "Observed new writer denial only for this own synthetic file. Existing writable mappings, privileged operations, immutable producer generation, full logical DEX and resource/RSS/performance qualification remain unproven."
+}

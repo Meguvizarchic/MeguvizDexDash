@@ -421,6 +421,36 @@ fn like_empty_pattern_needs_no_reservation_slot() {
 }
 
 #[test]
+fn length_text_borrowing_needs_no_reservation_slot() {
+    use crate::values::SqlValue;
+    for dialect in [
+        SqlDialect::NativeV1,
+        SqlDialect::DexSql010,
+        SqlDialect::DexSql011,
+    ] {
+        let (lifecycle, session, _, bridge) = setup_with_dialect(dialect);
+        let prepared = bridge.prepare("SELECT 1").unwrap();
+        let (runtime, token) = runtime(&lifecycle, &session, &prepared, BudgetLimits::default());
+        let pool = runtime.pool().clone();
+        let mut occupied = Vec::with_capacity(10_000);
+        for _ in 0..10_000 {
+            occupied.push(pool.reserve(Resource::QueryWorkspaceBytes, 0).unwrap());
+        }
+        let control = SqlControl::new(SqlLimits::default(), None).with_runtime(runtime);
+        let db = rusqlite::Connection::open_in_memory().unwrap();
+        crate::dialects::functions::register(&db, dialect, control.clone()).unwrap();
+        let value = SqlValue::text("abc")
+            .sqlite(SqlLimits::default().max_cell_bytes)
+            .unwrap();
+        let actual: i64 = db
+            .query_row("SELECT mdd_length(?1)", [value], |row| row.get(0))
+            .unwrap();
+        assert_eq!(actual, 3, "{dialect:?}");
+        assert!(token.status().unwrap().error.is_none());
+    }
+}
+
+#[test]
 fn truth_surrogate_output_uses_exact_workspace() {
     for (workspace, succeeds) in [(8, false), (9, true)] {
         let (lifecycle, session, _, bridge) = setup();
@@ -672,6 +702,128 @@ fn key_distinct_long_text_respects_session_step_budget() {
     assert_key_scan_obeys_step_budget(
         "SELECT COUNT(*) FROM (SELECT DISTINCT ? AS v)",
         vec![SqlValue::text(&"A".repeat(50_000))],
+    );
+}
+
+#[test]
+fn udf_argument_materialization_respects_query_work_budget() {
+    use crate::values::SqlValue;
+    for dialect in [
+        SqlDialect::NativeV1,
+        SqlDialect::DexSql010,
+        SqlDialect::DexSql011,
+    ] {
+        for values in [
+            vec![
+                SqlValue::text(&format!("A{}", "x".repeat(4095))),
+                SqlValue::text(&format!("B{}", "x".repeat(4095))),
+            ],
+            vec![
+                SqlValue::Bytes(vec![0; 4096]),
+                SqlValue::Bytes(vec![1; 4096]),
+            ],
+        ] {
+            let (lifecycle, session, _, bridge) = setup_with_dialect(dialect);
+            let prepared = bridge
+                .prepare_with_parameters("SELECT ? = ? AS same", &values)
+                .unwrap();
+            let (runtime, token) = runtime(
+                &lifecycle,
+                &session,
+                &prepared,
+                BudgetLimits::default().with(Resource::QuerySteps, 64),
+            );
+            let result = prepared
+                .bind_runtime(&runtime)
+                .unwrap()
+                .execute(SqlControl::new(SqlLimits::default(), None).with_runtime(runtime));
+            let error = match result {
+                Ok(_) => panic!("full carrier copies escaped the query work budget: {dialect:?}"),
+                Err(error) => error,
+            };
+            assert_eq!(error.code, ErrorCode::QuotaExceeded, "{dialect:?}");
+            assert!(!token.status().unwrap().execution_complete);
+        }
+    }
+}
+
+#[test]
+fn udf_argument_materialization_workspace_is_charged_and_released() {
+    use crate::values::SqlValue;
+    for dialect in [
+        SqlDialect::NativeV1,
+        SqlDialect::DexSql010,
+        SqlDialect::DexSql011,
+    ] {
+        let (lifecycle, session, _, bridge) = setup_with_dialect(dialect);
+        let values = [
+            SqlValue::text(&format!("A{}", "x".repeat(4095))),
+            SqlValue::text(&format!("B{}", "x".repeat(4095))),
+        ];
+        let prepared = bridge
+            .prepare_with_parameters("SELECT ? = ? AS same", &values)
+            .unwrap();
+        let (runtime, token) = runtime(
+            &lifecycle,
+            &session,
+            &prepared,
+            BudgetLimits::default().with(Resource::QueryWorkspaceBytes, 10_000),
+        );
+        let pool = runtime.pool().clone();
+        let error = prepared
+            .bind_runtime(&runtime)
+            .unwrap()
+            .execute(SqlControl::new(SqlLimits::default(), None).with_runtime(runtime))
+            .unwrap_err();
+        assert_eq!(error.code, ErrorCode::QuotaExceeded, "{dialect:?}");
+        assert_eq!(error.details["budget"], "query_workspace_bytes");
+        assert_eq!(
+            pool.usage()
+                .unwrap()
+                .used
+                .get(&Resource::QueryWorkspaceBytes)
+                .map_or(0, |v| v.0),
+            0
+        );
+        assert!(!token.status().unwrap().execution_complete);
+    }
+}
+
+#[test]
+fn udf_argument_materialization_releases_workspace_after_success() {
+    use crate::values::SqlValue;
+    let (lifecycle, session, _, bridge) = setup();
+    let values = [
+        SqlValue::text(&format!("A{}", "x".repeat(4095))),
+        SqlValue::text(&format!("B{}", "x".repeat(4095))),
+    ];
+    let prepared = bridge
+        .prepare_with_parameters("SELECT ? = ? AS same", &values)
+        .unwrap();
+    let (runtime, _) = runtime(
+        &lifecycle,
+        &session,
+        &prepared,
+        BudgetLimits::default().with(Resource::QueryWorkspaceBytes, 100_000),
+    );
+    let pool = runtime.pool().clone();
+    let result = prepared
+        .bind_runtime(&runtime)
+        .unwrap()
+        .execute(SqlControl::new(SqlLimits::default(), None).with_runtime(runtime))
+        .unwrap();
+    assert_eq!(
+        result.rows(),
+        &[vec![SqlValue::I64(mdd_query::ir::Signed64(0))]]
+    );
+    drop(result);
+    assert_eq!(
+        pool.usage()
+            .unwrap()
+            .used
+            .get(&Resource::QueryWorkspaceBytes)
+            .map_or(0, |v| v.0),
+        0
     );
 }
 

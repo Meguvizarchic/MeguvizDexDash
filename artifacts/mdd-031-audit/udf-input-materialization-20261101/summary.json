@@ -1,0 +1,71 @@
+{
+  "task": "MDD-031",
+  "finding": "General scalar UDF argument decode materialized full UTF16/bytes/MUTF8 carriers before any SqlControl checkpoint or logical workspace reservation. A synthetic real-session short-prefix comparison with 4096-unit input succeeded under QuerySteps=64.",
+  "change": "Preflight carrier structure, charge variable decode/copy work before materialization and reserve logical workspace for variable owned arguments. Values are dropped before the workspace lease. Allocation is attempted through try_reserve_exact. MUTF8 is validated left-to-right before inspecting later carriers, with duplicate validation work charged. Strict empty-TEXT LIKE and TEXT length borrowed paths avoid copies and preserve prior zero-slot/step behavior.",
+  "runs": {
+    "red": {
+      "record": "red/record.json",
+      "exit": 101,
+      "tests_run": 1,
+      "scope": "Only first NativeV1 TEXT failure was reached; scoped.rs was not included in red identity list."
+    },
+    "initial_wrapper_error": "First green wrapper invocation had an extra --nocapture argument and exited before cargo; recorded only in tool session.",
+    "intermediate_like": {
+      "record": "regression-like/record.json",
+      "exit": 101,
+      "tests_run": 26,
+      "tests_failed": 1,
+      "observation": "Initial generic reservation regressed empty-pattern LIKE under full live slots; fixed with restricted borrowed path, prior output retained."
+    },
+    "intermediate_between": {
+      "record": "regression-between/record.json",
+      "exit": 101,
+      "tests_run": 5,
+      "tests_failed": 1,
+      "observation": "Initial generic input-copy charge made 6000-step length BETWEEN fail; fixed with restricted borrowed length path, prior output retained."
+    },
+    "final_udf": {
+      "record": "final-udf/record.json",
+      "exit": 0,
+      "tests_passed": 6
+    },
+    "final_like": {
+      "record": "final-like/record.json",
+      "exit": 0,
+      "tests_passed": 30,
+      "note": "Contains some UDF and borrowed-length tests also counted separately; do not add as disjoint."
+    },
+    "final_between": {
+      "record": "final-between/record.json",
+      "exit": 0,
+      "tests_passed": 5
+    },
+    "final_slot": {
+      "record": "final-slot/record.json",
+      "exit": 0,
+      "tests_passed": 1
+    },
+    "final_q15": {
+      "record": "final-q15/record.json",
+      "exit": 0,
+      "tests_passed": 1
+    },
+    "final_types": {
+      "record": "final-types/record.json",
+      "exit": 0,
+      "tests_passed": 1
+    },
+    "final_filter": {
+      "record": "final-filter/record.json",
+      "exit": 0,
+      "tests_passed": 2
+    },
+    "combined": {
+      "record": "combined/record.json",
+      "exit": 0,
+      "tests_passed": 6,
+      "note": "Repeated UDF filter after final scoped authority source; overlaps previous six."
+    }
+  },
+  "limitations": "Scalar UDF input-copy work and logical variable-value workspace only. AggregateValue::step and retained aggregate accumulator are separate and NOT fixed. SQLite copies, decoded output, argument Vec metadata, allocator overhead and RSS not covered. UTF8 and MUTF8 validation/copy include synchronous operations and cannot be hard-interrupted mid-pass; budget exhaustion before malformed content is reached may report quota. Legacy/A0/A1, HostLab, all SQL semantics, Linux, full workspace tests and performance not qualified."
+}

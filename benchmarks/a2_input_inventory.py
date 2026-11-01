@@ -200,7 +200,8 @@ class PinnedInputInventory:
         return tuple(records)
 
     def bind_observed_members(self, source, files, *, chunk_bytes=1024 * 1024,
-                              max_observed_rows=100000):
+                              max_observed_rows=100000,
+                              max_observed_name_bytes=16 * 1024 * 1024):
         """Associate observed producer rows with independently read APK members.
 
         File rows retain their caller-provided order and are never deduplicated
@@ -211,8 +212,9 @@ class PinnedInputInventory:
         """
         if not isinstance(files, dict):
             raise InputInventoryError('DEX inventory is missing')
-        if type(max_observed_rows) is not int or max_observed_rows < 0:
-            raise ValueError('invalid observed DEX row budget')
+        if (type(max_observed_rows) is not int or max_observed_rows < 0
+                or type(max_observed_name_bytes) is not int or max_observed_name_bytes < 0):
+            raise ValueError('invalid observed DEX row or name budget')
         if dict.__len__(files) > max_observed_rows:
             raise InputInventoryError('observed DEX row budget exceeded')
         # Freeze the observed rows once: verification and mapping must not use
@@ -220,6 +222,18 @@ class PinnedInputInventory:
         observed = dict.copy(files)
         if len(observed) > max_observed_rows:
             raise InputInventoryError('observed DEX row budget exceeded')
+        name_bytes = 0
+        for entry_name in observed.values():
+            if type(entry_name) is not str or not entry_name:
+                raise InputInventoryError('invalid logical DEX inventory row')
+            # Limit temporary UTF-8 allocation even for an oversized name.
+            for start in range(0, len(entry_name), 1024):
+                try:
+                    name_bytes += len(entry_name[start:start + 1024].encode('utf-8', 'strict'))
+                except UnicodeError as error:
+                    raise InputInventoryError('invalid Unicode in observed DEX name') from error
+                if name_bytes > max_observed_name_bytes:
+                    raise InputInventoryError('observed DEX name byte budget exceeded')
         self.verify_inventory(source, observed)
         records = self.digest_physical_members(chunk_bytes=chunk_bytes)
         if records is None:

@@ -10,6 +10,61 @@ const FLOAT: &[u8] = b"\0MDDFLOAT1";
 pub(crate) const BYTES: &[u8] = b"\0MDDBYTES1";
 const MUTF8: &[u8] = b"\0MDDMUTF1";
 
+/// Borrowed preflight for SQLite-to-Rust materialization. It validates fixed
+/// carrier shape without allocating; variable text contents are checked by
+/// the caller under its query work budget before materialization.
+pub(crate) enum RawDecodePlan<'a> {
+    Fixed,
+    Utf8(&'a [u8]),
+    Utf16(usize),
+    Bytes(usize),
+    Mutf8 { bytes: &'a [u8], units: u64 },
+}
+
+pub(crate) fn raw_decode_plan(value: ValueRef<'_>) -> MddResult<RawDecodePlan<'_>> {
+    Ok(match value {
+        ValueRef::Null | ValueRef::Integer(_) | ValueRef::Real(_) => RawDecodePlan::Fixed,
+        ValueRef::Text(bytes) => RawDecodePlan::Utf8(bytes),
+        ValueRef::Blob(bytes) => {
+            if let Some(raw) = bytes.strip_prefix(TEXT) {
+                if !raw.len().is_multiple_of(2) {
+                    return Err(invalid("INVALID_TEXT_CARRIER"));
+                }
+                RawDecodePlan::Utf16(raw.len())
+            } else if let Some(raw) = bytes.strip_prefix(UNSIGNED) {
+                if raw.len() != 8 {
+                    return Err(invalid("INVALID_U64_CARRIER"));
+                }
+                RawDecodePlan::Fixed
+            } else if let Some(raw) = bytes.strip_prefix(FLOAT) {
+                if raw.len() != 8 {
+                    return Err(invalid("INVALID_F64_CARRIER"));
+                }
+                RawDecodePlan::Fixed
+            } else if let Some(raw) = bytes.strip_prefix(BYTES) {
+                RawDecodePlan::Bytes(raw.len())
+            } else if let Some(raw) = bytes.strip_prefix(MUTF8) {
+                let data = raw
+                    .get(8..)
+                    .ok_or_else(|| invalid("TRUNCATED_MUTF8_CARRIER"))?;
+                let units = u64::from_be_bytes(raw[..8].try_into().unwrap());
+                RawDecodePlan::Mutf8 { bytes: data, units }
+            } else {
+                return Err(invalid("UNTYPED_SQLITE_BLOB"));
+            }
+        }
+    })
+}
+
+fn copy_bytes(raw: &[u8]) -> MddResult<Vec<u8>> {
+    let mut bytes = Vec::new();
+    bytes
+        .try_reserve_exact(raw.len())
+        .map_err(|_| quota("SQL_INPUT_ALLOCATION"))?;
+    bytes.extend_from_slice(raw);
+    Ok(bytes)
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SqlType {
@@ -148,20 +203,35 @@ impl SqlValue {
             ValueRef::Integer(v) => Self::I64(Signed64(v)),
             ValueRef::Real(v) => Self::F64(DecimalU64(v.to_bits())),
             ValueRef::Text(v) => {
-                Self::text(std::str::from_utf8(v).map_err(|_| invalid("INVALID_UTF8_FROM_SQLITE"))?)
+                let text =
+                    std::str::from_utf8(v).map_err(|_| invalid("INVALID_UTF8_FROM_SQLITE"))?;
+                let mut utf16 = Vec::new();
+                utf16
+                    .try_reserve_exact(text.encode_utf16().count())
+                    .map_err(|_| quota("SQL_INPUT_ALLOCATION"))?;
+                utf16.extend(text.encode_utf16());
+                Self::Text(SqlText {
+                    utf16,
+                    original_mutf8: None,
+                })
             }
             ValueRef::Blob(bytes) => {
                 if let Some(raw) = bytes.strip_prefix(TEXT) {
                     if !raw.len().is_multiple_of(2) {
                         return Err(invalid("INVALID_TEXT_CARRIER"));
                     }
-                    Self::Text(SqlText {
-                        utf16: raw
-                            .as_chunks::<2>()
+                    let mut utf16 = Vec::new();
+                    utf16
+                        .try_reserve_exact(raw.len() / 2)
+                        .map_err(|_| quota("SQL_INPUT_ALLOCATION"))?;
+                    utf16.extend(
+                        raw.as_chunks::<2>()
                             .0
                             .iter()
-                            .map(|v| u16::from_be_bytes(*v))
-                            .collect(),
+                            .map(|v| u16::from_be_bytes(*v)),
+                    );
+                    Self::Text(SqlText {
+                        utf16,
                         original_mutf8: None,
                     })
                 } else if let Some(raw) = bytes.strip_prefix(UNSIGNED) {
@@ -173,7 +243,7 @@ impl SqlValue {
                         raw.try_into().map_err(|_| invalid("INVALID_F64_CARRIER"))?,
                     )))
                 } else if let Some(raw) = bytes.strip_prefix(BYTES) {
-                    Self::Bytes(raw.to_vec())
+                    Self::Bytes(copy_bytes(raw)?)
                 } else if let Some(raw) = bytes.strip_prefix(MUTF8) {
                     let count = u64::from_be_bytes(
                         raw.get(..8)
@@ -184,7 +254,7 @@ impl SqlValue {
                     let data = &raw[8..];
                     validate_mutf8(data, count)?;
                     Self::DexMutf8 {
-                        bytes: data.to_vec(),
+                        bytes: copy_bytes(data)?,
                         utf16_code_units: DecimalU64(count),
                     }
                 } else {
@@ -194,7 +264,7 @@ impl SqlValue {
         })
     }
 }
-fn validate_mutf8(bytes: &[u8], expected: u64) -> MddResult<()> {
+pub(crate) fn validate_mutf8(bytes: &[u8], expected: u64) -> MddResult<()> {
     let mut at = 0;
     let mut count = 0u64;
     while at < bytes.len() {

@@ -1,0 +1,87 @@
+   Compiling mdd-query v0.1.0-dev (<WORKSPACE>\crates\mdd-query)
+warning: unused import: `RelationSchema`
+ --> crates\mdd-query\src\executor\scoped.rs:7:99
+  |
+7 |     Control, ExecutionMode, FactSource, JsonBatchLimits, PendingJsonBatchDelivery, PreparedQuery, RelationSchema,
+  |                                                                                                   ^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused imports: `Row` and `Value`
+  --> crates\mdd-query\src\executor\scoped.rs:14:30
+   |
+14 |     ir::{FactLayer, QueryIr, Row, Value},
+   |                              ^^^  ^^^^^
+
+warning: unused imports: `EntityKind` and `EntityRef`
+  --> crates\mdd-query\src\executor\scoped.rs:17:5
+   |
+17 |     EntityKind, EntityRef,
+   |     ^^^^^^^^^^  ^^^^^^^^^
+
+warning: fields `metadata`, `definitions`, `fields`, and `methods` are never read
+   --> crates\mdd-query\src\executor\scoped.rs:116:5
+    |
+115 | struct EntityOccurrence<'a> {
+    |        ---------------- fields in this struct
+116 |     metadata: &'a mdd_facts::MetadataFacts,
+    |     ^^^^^^^^
+117 |     definitions: Option<&'a mdd_facts::definitions::DefinitionFacts>,
+    |     ^^^^^^^^^^^
+118 |     fields: Vec<u32>,
+    |     ^^^^^^
+119 |     methods: Vec<u32>,
+    |     ^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: fields `catalog` and `occurrences` are never read
+   --> crates\mdd-query\src\executor\scoped.rs:127:5
+    |
+126 | pub struct ScopedEntityAuthority<'a> {
+    |            --------------------- fields in this struct
+127 |     catalog: &'a ScopedCatalog,
+    |     ^^^^^^^
+128 |     occurrences: Vec<EntityOccurrence<'a>>,
+    |     ^^^^^^^^^^^
+
+warning: multiple fields are never read
+   --> crates\mdd-query\src\executor\scoped.rs:136:5
+    |
+135 | pub struct EntityCheckedSource<'a> {
+    |            ------------------- fields in this struct
+136 |     source: &'a dyn FactSource,
+    |     ^^^^^^
+137 |     authority: &'a ScopedEntityAuthority<'a>,
+    |     ^^^^^^^^^
+138 |     limits: EntityCheckLimits,
+    |     ^^^^^^
+139 |     rows: Cell<u64>,
+    |     ^^^^
+140 |     entities: Cell<u64>,
+    |     ^^^^^^^^
+141 |     steps: Cell<u64>,
+    |     ^^^^^
+142 |     identity_bytes: Cell<u64>,
+    |     ^^^^^^^^^^^^^^
+
+warning: `mdd-query` (lib) generated 6 warnings (run `cargo fix --lib -p mdd-query` to apply 3 suggestions)
+   Compiling mdd-sql v0.1.0-dev (<WORKSPACE>\crates\mdd-sql)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 8.74s
+     Running unittests src\lib.rs (target\debug\deps\mdd_sql-46977fcd4387e316.exe)
+
+running 1 test
+
+thread 'runtime_tests::udf_argument_materialization_respects_query_work_budget' (34264) panicked at crates\mdd-sql\src\runtime_tests.rs:711:26:
+full carrier copies escaped the query work budget: NativeV1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test runtime_tests::udf_argument_materialization_respects_query_work_budget ... FAILED
+
+failures:
+
+failures:
+    runtime_tests::udf_argument_materialization_respects_query_work_budget
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 188 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p mdd-sql --lib`

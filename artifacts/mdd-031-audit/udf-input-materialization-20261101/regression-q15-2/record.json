@@ -1,0 +1,39 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "-p",
+    "mdd-sql",
+    "hostlab_q15",
+    "--",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "listed_sources_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "crates/mdd-sql/src/dialects/functions.rs": "53a23641754362b7ae025caa322f764b275420c97cf42e700bbcd758839b006c",
+    "crates/mdd-sql/src/values.rs": "e369fadda30099427165910b7d1f59f2915602cc44f985ebefd658024b644dae",
+    "crates/mdd-sql/src/bridge.rs": "f8a8d3a04ba028667295593a13e1f3e809275e81deca4a5498f6780b291bdeca",
+    "crates/mdd-sql/src/dialects/ast.rs": "e07375b14e60044d69a1cb0fa369080aa6e9e2b1d0ee8ed6e9b5ad418d4ba406",
+    "crates/mdd-sql/src/runtime_tests.rs": "187d4b34967ae93272d2fc586f1b7e227063444da57a2960cb39eb519a8c920c",
+    "crates/mdd-query/src/budget.rs": "407485782a7ea3fbec62905a2cf7641822ac4f9ad3046f568da5d751f023d891",
+    "crates/mdd-query/src/executor.rs": "ec6b20c95c76d6bd7a53450f30dd0db9a72392029816b79f1e046cac1332c206",
+    "crates/mdd-query/src/executor/scoped.rs": "6accd370e089f2b009a176c80d4a2fff8da20bd32522ee74d46f50f1d9c456d0",
+    "crates/mdd-facts/src/annotations.rs": "a2480e4fd20a3026716b8188b9104249bdcfb4af70ac3b9efd988857880e0c54"
+  },
+  "listed_sources_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "crates/mdd-sql/src/dialects/functions.rs": "53a23641754362b7ae025caa322f764b275420c97cf42e700bbcd758839b006c",
+    "crates/mdd-sql/src/values.rs": "e369fadda30099427165910b7d1f59f2915602cc44f985ebefd658024b644dae",
+    "crates/mdd-sql/src/bridge.rs": "f8a8d3a04ba028667295593a13e1f3e809275e81deca4a5498f6780b291bdeca",
+    "crates/mdd-sql/src/dialects/ast.rs": "e07375b14e60044d69a1cb0fa369080aa6e9e2b1d0ee8ed6e9b5ad418d4ba406",
+    "crates/mdd-sql/src/runtime_tests.rs": "187d4b34967ae93272d2fc586f1b7e227063444da57a2960cb39eb519a8c920c",
+    "crates/mdd-query/src/budget.rs": "407485782a7ea3fbec62905a2cf7641822ac4f9ad3046f568da5d751f023d891",
+    "crates/mdd-query/src/executor.rs": "ec6b20c95c76d6bd7a53450f30dd0db9a72392029816b79f1e046cac1332c206",
+    "crates/mdd-query/src/executor/scoped.rs": "6accd370e089f2b009a176c80d4a2fff8da20bd32522ee74d46f50f1d9c456d0",
+    "crates/mdd-facts/src/annotations.rs": "a2480e4fd20a3026716b8188b9104249bdcfb4af70ac3b9efd988857880e0c54"
+  },
+  "listed_sources_stable": true,
+  "scope": "targeted synthetic SQL check, listed sources only; no HostLab or performance qualification"
+}

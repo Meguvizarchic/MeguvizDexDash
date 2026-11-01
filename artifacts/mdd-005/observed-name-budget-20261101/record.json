@@ -1,0 +1,88 @@
+{
+  "task": "MDD-005",
+  "scope": "Observed file-name UTF-8 byte limit; synthetic APK and real Windows pin only",
+  "command": "python -B artifacts/mdd-005/observed-name-budget-20261101/probe.py",
+  "exit": 0,
+  "tests_passed": 3,
+  "output": "final.txt",
+  "listed_sources_before": {
+    "benchmarks/a2_input_inventory.py": "ec89b87d70903cbb257e334c6c0a4a8d494035578d425bd669ce76874b9f7868",
+    "benchmarks/a2_windows_input_pin.py": "c19428b076615c22a4572dadaf93518613c7f53a6564739e7af6b8bd83e8dd2c",
+    "tests/fixtures/generated/structured-035.dex": "108cf907d330b823c6e32d38eaab8f23709fe493f52537688bbd09ba3e271605",
+    "artifacts/mdd-005/observed-name-budget-20261101/probe.py": "6a31a67e8dc920f9f87704b1e1ea8d8fcb2034a9aafb7a045fbb9a151353535b",
+    "artifacts/mdd-005/a2-observed-row-budget-20261101/probe.py": "51b6d81fda5e634d6913d36b15c7082d002e3206ca3372b22e1e746ac6ee6948",
+    "artifacts/mdd-005/pinned-member-binding-20261101/probe.py": "3070b6b8f60f7db0a20b7aac7092e96bd45a3b7f927345b1aa186079684f8187"
+  },
+  "listed_sources_after": {
+    "benchmarks/a2_input_inventory.py": "ec89b87d70903cbb257e334c6c0a4a8d494035578d425bd669ce76874b9f7868",
+    "benchmarks/a2_windows_input_pin.py": "c19428b076615c22a4572dadaf93518613c7f53a6564739e7af6b8bd83e8dd2c",
+    "tests/fixtures/generated/structured-035.dex": "108cf907d330b823c6e32d38eaab8f23709fe493f52537688bbd09ba3e271605",
+    "artifacts/mdd-005/observed-name-budget-20261101/probe.py": "6a31a67e8dc920f9f87704b1e1ea8d8fcb2034a9aafb7a045fbb9a151353535b",
+    "artifacts/mdd-005/a2-observed-row-budget-20261101/probe.py": "51b6d81fda5e634d6913d36b15c7082d002e3206ca3372b22e1e746ac6ee6948",
+    "artifacts/mdd-005/pinned-member-binding-20261101/probe.py": "3070b6b8f60f7db0a20b7aac7092e96bd45a3b7f927345b1aa186079684f8187"
+  },
+  "stable": true,
+  "optimized": {
+    "command": "python -B -O artifacts/mdd-005/observed-name-budget-20261101/probe.py",
+    "exit": 0,
+    "tests_passed": 3,
+    "output": "final-opt.txt"
+  },
+  "regressions": [
+    {
+      "command": "python -B artifacts/mdd-005/a2-observed-row-budget-20261101/probe.py",
+      "exit": 0,
+      "tests_passed": 4,
+      "output": "rows.txt"
+    },
+    {
+      "command": "python -B artifacts/mdd-005/pinned-member-binding-20261101/probe.py",
+      "exit": 0,
+      "tests_passed": 2,
+      "output": "pin.txt"
+    }
+  ],
+  "limits": "File rows are caller observations and name budget is separate from physical member/byte budgets. UTF-8 encoding is chunked to 1024 Python characters; preexisting dictionary, copy race, original parsing, Python allocation overhead and RSS are not bounded. Read-sharing pin is not producer snapshot isolation, existing writable mappings remain outside proof; no logical DEX, HostLab or performance qualification.",
+  "final2": {
+    "command": "python -B artifacts/mdd-005/observed-name-budget-20261101/probe.py",
+    "output": "final2.txt",
+    "exit": 0,
+    "tests_passed": 5,
+    "listed_sources_before": {
+      "benchmarks/a2_input_inventory.py": "b264ac1e4886880f686ea344221682e0d12eff6e3665612cfafd6a20497ba45e",
+      "benchmarks/a2_windows_input_pin.py": "fd9b210a966f0e8cfd54df464c3c8630e04cde1ad20ce5f2854f5562f3487ef3",
+      "tests/fixtures/generated/structured-035.dex": "108cf907d330b823c6e32d38eaab8f23709fe493f52537688bbd09ba3e271605",
+      "artifacts/mdd-005/observed-name-budget-20261101/probe.py": "28c26577a5b9fb1f8eb210dae0aeb853292080c3f6c10774f67565e1df25f6d0",
+      "artifacts/mdd-005/a2-observed-row-budget-20261101/probe.py": "51b6d81fda5e634d6913d36b15c7082d002e3206ca3372b22e1e746ac6ee6948",
+      "artifacts/mdd-005/pinned-member-binding-20261101/probe.py": "3070b6b8f60f7db0a20b7aac7092e96bd45a3b7f927345b1aa186079684f8187"
+    },
+    "listed_sources_after": {
+      "benchmarks/a2_input_inventory.py": "b264ac1e4886880f686ea344221682e0d12eff6e3665612cfafd6a20497ba45e",
+      "benchmarks/a2_windows_input_pin.py": "fd9b210a966f0e8cfd54df464c3c8630e04cde1ad20ce5f2854f5562f3487ef3",
+      "tests/fixtures/generated/structured-035.dex": "108cf907d330b823c6e32d38eaab8f23709fe493f52537688bbd09ba3e271605",
+      "artifacts/mdd-005/observed-name-budget-20261101/probe.py": "28c26577a5b9fb1f8eb210dae0aeb853292080c3f6c10774f67565e1df25f6d0",
+      "artifacts/mdd-005/a2-observed-row-budget-20261101/probe.py": "51b6d81fda5e634d6913d36b15c7082d002e3206ca3372b22e1e746ac6ee6948",
+      "artifacts/mdd-005/pinned-member-binding-20261101/probe.py": "3070b6b8f60f7db0a20b7aac7092e96bd45a3b7f927345b1aa186079684f8187"
+    },
+    "stable": true,
+    "optimized": {
+      "command": "python -B -O artifacts/mdd-005/observed-name-budget-20261101/probe.py",
+      "output": "final2-opt.txt",
+      "exit": 0,
+      "tests_passed": 5
+    },
+    "regressions": [
+      {
+        "output": "rows2.txt",
+        "exit": 0,
+        "tests_passed": 4
+      },
+      {
+        "output": "pin2.txt",
+        "exit": 0,
+        "tests_passed": 2
+      }
+    ],
+    "notes": "Exact str prevents a custom string subclass from falsifying length/slices. An inspectable old source signature is rejected before invocation; a TypeError inside an accepting source remains the original error."
+  }
+}

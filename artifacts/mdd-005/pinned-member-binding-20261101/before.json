@@ -1,0 +1,6 @@
+{
+  "benchmarks/a2_windows_input_pin.py": "6370b808d915d48fb4db8863ded923a571bdfcc817f3d00daeb88fc90f409f74",
+  "benchmarks/a2_input_inventory.py": "be2eeee7c304e9ea0ad3ffe9b2fe98d4675b85fc8541d1dc0bb0aecf6dc4af0b",
+  "tests/fixtures/generated/structured-035.dex": "108cf907d330b823c6e32d38eaab8f23709fe493f52537688bbd09ba3e271605",
+  "artifacts/mdd-005/pinned-member-binding-20261101/probe.py": "3070b6b8f60f7db0a20b7aac7092e96bd45a3b7f927345b1aa186079684f8187"
+}

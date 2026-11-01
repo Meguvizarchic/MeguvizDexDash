@@ -1,0 +1,11 @@
+   Compiling mdd-query v0.1.0-dev (<WORKSPACE>\crates\mdd-query)
+   Compiling mdd-sql v0.1.0-dev (<WORKSPACE>\crates\mdd-sql)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 8.59s
+     Running unittests src\lib.rs (target\debug\deps\mdd_sql-46977fcd4387e316.exe)
+
+running 2 tests
+test runtime_tests::udf_argument_materialization_workspace_is_charged_and_released ... ok
+test runtime_tests::udf_argument_materialization_respects_query_work_budget ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 189 filtered out; finished in 0.04s
+

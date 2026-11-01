@@ -17,9 +17,9 @@ use std::{
 };
 
 pub mod facts;
-pub mod scoped;
 #[cfg(test)]
 mod runtime_tests;
+pub mod scoped;
 #[cfg(test)]
 mod tests;
 
@@ -2258,6 +2258,12 @@ pub fn execute_json_batches_into(
             control.step("output_row", 1)?;
             dropped = false;
             drop(row_memory);
+        }
+        // Destroy short-circuited scans before publishing a successful end.
+        // A checked source may record a failure during iterator destruction.
+        drop(input);
+        if let Some(error) = runtime.cancellation().status()?.error {
+            return Err(error);
         }
         if !terminal.execution_complete() {
             terminal.computation_complete(seen_rows)?;

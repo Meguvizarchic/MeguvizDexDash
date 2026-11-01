@@ -1,0 +1,19 @@
+   Compiling mdd-query v0.1.0-dev (<WORKSPACE>\crates\mdd-query)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.46s
+     Running unittests src\lib.rs (target\debug\deps\mdd_query-82579f4092cfd058.exe)
+
+running 1 test
+
+thread 'executor::scoped::tests::runtime_bound_checked_source_must_not_stop_a_different_query' (45088) panicked at crates\mdd-query\src\executor\scoped.rs:1663:9:
+query A must not be stopped by query B
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test executor::scoped::tests::runtime_bound_checked_source_must_not_stop_a_different_query ... FAILED
+
+failures:
+
+failures:
+    executor::scoped::tests::runtime_bound_checked_source_must_not_stop_a_different_query
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 190 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p mdd-query --lib`

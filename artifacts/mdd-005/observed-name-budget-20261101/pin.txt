@@ -1,0 +1,7 @@
+test_real_pin_covers_digest_binding_and_denies_new_writer (__main__.PinBindingChecks.test_real_pin_covers_digest_binding_and_denies_new_writer) ... ok
+test_unheld_pin_cannot_return_member_evidence (__main__.PinBindingChecks.test_unheld_pin_cannot_return_member_evidence) ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.034s
+
+OK

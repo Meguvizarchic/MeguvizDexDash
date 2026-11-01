@@ -1,0 +1,37 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.16s
+     Running unittests src\lib.rs (target\debug\deps\mdd_sql-46977fcd4387e316.exe)
+
+running 30 tests
+test dialects::functions::like_budget_tests::concat_capacity_checks_addition_multiplication_and_cell_limit ... ok
+test dialects::functions::like_budget_tests::empty_input_does_not_skip_long_pattern_step_budget ... ok
+test dialects::functions::like_budget_tests::legacy_concat_checks_steps_cell_limit_and_cancellation ... ok
+test dialects::functions::like_budget_tests::cancelled_empty_like_is_not_a_success ... ok
+test dialects::functions::like_budget_tests::trailing_escape_follows_selected_dialect_when_budget_sufficient ... ok
+test dialects::functions::like_budget_tests::legacy_trailing_escape_does_not_hide_budget_or_cancel_errors ... ok
+test dialects::functions::like_budget_tests::legacy_integer_text_candidate_is_strict_and_budgeted ... ok
+test dialects::functions::like_budget_tests::scalar_minmax_comparisons_consume_step_budget ... ok
+test dialects::functions::like_budget_tests::key_workspace_checked_amount_rejects_overflow ... ok
+test dialects::functions::like_budget_tests::text_and_bytes_comparisons_account_for_work ... ok
+test dialects::functions::like_budget_tests::text_decode_obeys_step_budget_and_cancellation ... ok
+test dialects::functions::like_budget_tests::key_lease_survives_actual_rusqlite_to_sql_callback ... ok
+test dialects::functions::like_budget_tests::truth_text_lease_survives_sqlite_to_sql_callback ... ok
+test dialects::functions::like_budget_tests::truth_text_rejects_malformed_carrier_before_interpretation ... ok
+test dialects::functions::like_budget_tests::udf_argument_preflight_preserves_first_mutf8_error ... ok
+test dialects::functions::like_budget_tests::legacy_concat_lossy_decoder_agrees_with_bounded_standard_oracle ... ok
+test dialects::functions::like_budget_tests::udf_argument_materialization_preserves_text_and_bytes_values ... ok
+test bridge::tests::legacy_like_dangling_escape_matches_fixed_engines ... ok
+test dialects::functions::like_budget_tests::truth_utf8_checks_work_cancel_and_invalid_bytes ... ok
+test bridge::tests::like_policies_and_escaped_patterns_are_distinct ... ok
+test dialects::functions::like_budget_tests::borrowed_text_length_keeps_utf16_errors_and_first_cancel ... ok
+test dialects::functions::like_budget_tests::udf_argument_preflight_keeps_malformed_carrier_errors ... ok
+test bridge::tests::like_without_escape_internal_flag_ignores_false_column ... ok
+test bridge::tests::like_with_escape_internal_flag_ignores_true_column ... ok
+test dialects::functions::like_budget_tests::empty_text_like_preserves_errors_null_and_cancellation ... ok
+test bridge::tests::hostlab_q06_candidates_two_like_and_distinct_match_sqlite ... ok
+test runtime_tests::like_token_allocation_requires_real_session_workspace_budget ... ok
+test runtime_tests::like_token_workspace_is_released_after_success ... ok
+test runtime_tests::cancelling_during_like_pattern_scan_releases_token_workspace ... ok
+test runtime_tests::like_empty_pattern_needs_no_reservation_slot ... ok
+
+test result: ok. 30 passed; 0 failed; 0 ignored; 0 measured; 167 filtered out; finished in 0.30s
+
