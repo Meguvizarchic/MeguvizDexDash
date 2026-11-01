@@ -1,0 +1,136 @@
+{
+  "started_utc": "2026-11-01T03:03:15.296584+00:00",
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-dex/src/annotations.rs": "f4bf544d7782eeead95a0d98dc5277d18f95992baf7257d4a4d775e8f9be5c74",
+    "crates/mdd-facts/src/annotations.rs": "6b56f8dec7f7f820a72a08360f7eebcccaa823b267fb43e0afa11f1e8efae43c",
+    "crates/mdd-facts/src/definitions.rs": "7a2ac801d7ebc89647888f501493ec9629d95b176125a09abddb239e489ac40a",
+    "crates/mdd-facts/src/metadata.rs": "e5fafa598807cc23d011570e7411ee53e1129391362c08b5cef5a38afe040357",
+    "tests/fixtures/annotations/generate.py": "a30bf16399493f9cd9b55a484830669838f0d3799d42d85c5624f3348123bb72",
+    "tests/fixtures/annotations/generate_parameter_positions.py": "1b1e64e28e8eb0fe9260f122ebe2dfc7222cffed71c1e3a974aecfc9ba9ce5ac",
+    "tests/fixtures/annotations/parameter-position-fixtures.json": "e0a899e4e9b106a543a49e9a3f45f7ad27c758476d0fbcd7c4452f6ac6fb1f80",
+    "tests/fixtures/annotations/generated/annotations-038.dex": "65380a8b23601e17339379be211e417d8b4c8383b686b6d173f800656b985360",
+    "tests/fixtures/annotations/generated/parameter-empty-nonzero-proto.dex": "b6d66276b679aaa54d06b5de3d312e19e200ba1ac74145ef2c412145784f82cc",
+    "tests/fixtures/annotations/generated/parameter-long-nonzero-proto.dex": "2766a32a0b66fecfb9471d9bef7873b671f2a2d31f85d3bd412fbd371bfea396",
+    "tests/fixtures/annotations/generated/parameter-empty-zero-proto.dex": "80ee3c0a1425bfb14e88ab2e72244a3da464a3e0e14d7497297f3124dacccfd8",
+    "tests/fixtures/annotations/generated/parameter-orphan-empty-no-binding.dex": "345aa3f5e1dd938ea04171dd1a9137a8e6990f6218179b883f6cbd28eda53907"
+  },
+  "runs": [
+    {
+      "command": [
+        "python",
+        "-B",
+        "-O",
+        "tests/fixtures/annotations/generate_parameter_positions.py",
+        "--check"
+      ],
+      "started_utc": "2026-11-01T03:03:15.298232+00:00",
+      "finished_utc": "2026-11-01T03:03:15.394063+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "086860eb8204dd968bafc33b9adf8f030519d63d28e84481287d7e2591a6a002",
+      "raw_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-dex",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "parameter_list_physical_counts_do_not_invent_positions",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T03:03:15.395272+00:00",
+      "finished_utc": "2026-11-01T03:03:18.537163+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "983a4dbefbb7be7fcbb451cf2673eac3d1705b51f258f45570a0a9113609f714",
+      "raw_stderr_sha256": "fb5c8c2e627a124bd6294cc60eaf664de98226f7c1a4696a5e6553887e8510b3"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-facts",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "empty_and_long_encoded_lists_are_not_inferred_as_complete_positions",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T03:03:18.538645+00:00",
+      "finished_utc": "2026-11-01T03:03:33.643086+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "db8534d1b7b941cbb53f25e8bd88e05e7ba960c8c6e82f71f02cf1b003a7ea8d",
+      "raw_stderr_sha256": "5e268cb38297d9699def1e39f571d1ff105ab1af3f48d76249e848051b9f5761"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-facts",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "empty_parameter_list_and_absent_binding_remain_distinct",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T03:03:33.645583+00:00",
+      "finished_utc": "2026-11-01T03:03:35.056665+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "821ed83d14b434f5b0146ebc04984bbe02e4422813de6d625b76ed6e6775f102",
+      "raw_stderr_sha256": "d3cb94c86df7e593d6592b38be8cd7979e62b6a8c86bc192f1a5d0c8bfbcc3ba"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-facts",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "long_parameter_lists_keep_duplicate_source_occurrences_distinct",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T03:03:35.058131+00:00",
+      "finished_utc": "2026-11-01T03:03:36.494834+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "7abe6e3abdf355f6016ac797e0d0689372327805297364aa66063b555124a69d",
+      "raw_stderr_sha256": "d3cb94c86df7e593d6592b38be8cd7979e62b6a8c86bc192f1a5d0c8bfbcc3ba"
+    }
+  ],
+  "scope": "synthetic physical parameter lists and duplicate occurrences; no ART, full format or task qualification",
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-dex/src/annotations.rs": "f4bf544d7782eeead95a0d98dc5277d18f95992baf7257d4a4d775e8f9be5c74",
+    "crates/mdd-facts/src/annotations.rs": "6b56f8dec7f7f820a72a08360f7eebcccaa823b267fb43e0afa11f1e8efae43c",
+    "crates/mdd-facts/src/definitions.rs": "7a2ac801d7ebc89647888f501493ec9629d95b176125a09abddb239e489ac40a",
+    "crates/mdd-facts/src/metadata.rs": "e5fafa598807cc23d011570e7411ee53e1129391362c08b5cef5a38afe040357",
+    "tests/fixtures/annotations/generate.py": "a30bf16399493f9cd9b55a484830669838f0d3799d42d85c5624f3348123bb72",
+    "tests/fixtures/annotations/generate_parameter_positions.py": "1b1e64e28e8eb0fe9260f122ebe2dfc7222cffed71c1e3a974aecfc9ba9ce5ac",
+    "tests/fixtures/annotations/parameter-position-fixtures.json": "e0a899e4e9b106a543a49e9a3f45f7ad27c758476d0fbcd7c4452f6ac6fb1f80",
+    "tests/fixtures/annotations/generated/annotations-038.dex": "65380a8b23601e17339379be211e417d8b4c8383b686b6d173f800656b985360",
+    "tests/fixtures/annotations/generated/parameter-empty-nonzero-proto.dex": "b6d66276b679aaa54d06b5de3d312e19e200ba1ac74145ef2c412145784f82cc",
+    "tests/fixtures/annotations/generated/parameter-long-nonzero-proto.dex": "2766a32a0b66fecfb9471d9bef7873b671f2a2d31f85d3bd412fbd371bfea396",
+    "tests/fixtures/annotations/generated/parameter-empty-zero-proto.dex": "80ee3c0a1425bfb14e88ab2e72244a3da464a3e0e14d7497297f3124dacccfd8",
+    "tests/fixtures/annotations/generated/parameter-orphan-empty-no-binding.dex": "345aa3f5e1dd938ea04171dd1a9137a8e6990f6218179b883f6cbd28eda53907"
+  },
+  "finished_utc": "2026-11-01T03:03:36.497625+00:00",
+  "redaction": "workspace path replaced in logs; raw outputs retained in ignored local directory"
+}

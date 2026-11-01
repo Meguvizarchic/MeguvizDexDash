@@ -2870,4 +2870,162 @@ mod tests {
                 .any(|layer| layer == "prototype_parameter_annotation_positions")
         );
     }
+
+    #[test]
+    fn empty_and_long_encoded_lists_are_not_inferred_as_complete_positions() {
+        for (path, expected_slots) in [
+            (
+                "tests/fixtures/annotations/generated/parameter-empty-nonzero-proto.dex",
+                0usize,
+            ),
+            (
+                "tests/fixtures/annotations/generated/parameter-long-nonzero-proto.dex",
+                3usize,
+            ),
+        ] {
+            let facts = build(path);
+            let method = facts
+                .definitions()
+                .entity(EntityKind::MethodReference, 0)
+                .unwrap();
+            let list = facts
+                .method_encoded_parameter_list(&method, ParameterViewLimits::default())
+                .unwrap()
+                .expect("an encoded list exists, even when its length is zero");
+            assert_eq!(
+                list.binding.prototype_position_coverage,
+                Completeness::Unknown
+            );
+            assert_eq!(list.binding.prototype_parameter_count, 2);
+            assert_eq!(list.list.annotation_set_offsets.len(), expected_slots);
+            assert_eq!(list.raw_encoded.len(), 4 + expected_slots * 4);
+            assert_eq!(
+                u32::from_le_bytes(list.raw_encoded[..4].try_into().unwrap()) as usize,
+                expected_slots
+            );
+            assert_eq!(
+                facts
+                    .method_parameter_facts(&method, ParameterViewLimits::default())
+                    .err()
+                    .unwrap()
+                    .code,
+                ErrorCode::IncompleteFacts
+            );
+            assert_eq!(
+                facts
+                    .require_complete_parameter_positions()
+                    .unwrap_err()
+                    .code,
+                ErrorCode::IncompleteFacts
+            );
+            if expected_slots == 3 {
+                assert_eq!(list.list.annotation_set_offsets[1], None);
+                assert_eq!(
+                    list.list.annotation_set_offsets[0],
+                    list.list.annotation_set_offsets[2]
+                );
+                assert!(list.list.annotation_set_offsets[0].is_some());
+            }
+        }
+    }
+
+    #[test]
+    fn empty_parameter_list_and_absent_binding_remain_distinct() {
+        let explicit = build("tests/fixtures/annotations/generated/parameter-empty-zero-proto.dex");
+        let absent =
+            build("tests/fixtures/annotations/generated/parameter-orphan-empty-no-binding.dex");
+        for (facts, has_binding) in [(&explicit, true), (&absent, false)] {
+            let method = facts
+                .definitions()
+                .entity(EntityKind::MethodReference, 0)
+                .unwrap();
+            let encoded = facts
+                .method_encoded_parameter_list(&method, ParameterViewLimits::default())
+                .unwrap();
+            assert_eq!(encoded.is_some(), has_binding);
+            if let Some(encoded) = encoded {
+                assert_eq!(
+                    encoded.binding.prototype_position_coverage,
+                    Completeness::Complete
+                );
+                assert_eq!(encoded.raw_encoded, &[0, 0, 0, 0]);
+            }
+            let view = facts
+                .method_parameter_facts(&method, ParameterViewLimits::default())
+                .unwrap();
+            assert_eq!(view.encoded_list.is_some(), has_binding);
+            assert_eq!(view.iter().count(), 0);
+            facts.require_complete_parameter_positions().unwrap();
+            // Physical empty list can be an orphan; absence of an owner binding
+            // must not make the parser reject the valid physical item.
+            assert_eq!(facts.data.ref_lists.len(), 1);
+            assert!(facts.data.ref_lists[0].annotation_set_offsets.is_empty());
+        }
+    }
+
+    #[test]
+    fn long_parameter_lists_keep_duplicate_source_occurrences_distinct() {
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/annotations/generated/parameter-long-nonzero-proto.dex");
+        let input = InputSpec {
+            path,
+            kind: InputKind::RawDex,
+            expected_sha256: None,
+        };
+        let snapshot =
+            Snapshot::capture(&[input.clone(), input], CaptureLimits::default()).unwrap();
+        let mut pair = Vec::new();
+        for source in snapshot.sources() {
+            let inventory = ArchiveInventory::build(
+                source,
+                InventoryPolicy::default(),
+                ArchiveLimits::default(),
+            )
+            .unwrap();
+            let metadata =
+                MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default()).unwrap();
+            let definitions =
+                DefinitionFacts::build(metadata, DefinitionLimits::default()).unwrap();
+            pair.push(AnnotationFacts::build(definitions, AnnotationLimits::default()).unwrap());
+        }
+        let first = pair[0]
+            .definitions()
+            .entity(EntityKind::MethodReference, 0)
+            .unwrap();
+        let second = pair[1]
+            .definitions()
+            .entity(EntityKind::MethodReference, 0)
+            .unwrap();
+        assert_eq!(first.snapshot_id, second.snapshot_id);
+        assert_ne!(first.dex_occurrence_id, second.dex_occurrence_id);
+        let left = pair[0]
+            .method_encoded_parameter_list(&first, ParameterViewLimits::default())
+            .unwrap()
+            .unwrap();
+        let right = pair[1]
+            .method_encoded_parameter_list(&second, ParameterViewLimits::default())
+            .unwrap()
+            .unwrap();
+        assert_eq!(left.raw_encoded, right.raw_encoded);
+        assert_ne!(
+            left.source.dex_occurrence_id,
+            right.source.dex_occurrence_id
+        );
+        assert_eq!(
+            left.binding.prototype_position_coverage,
+            Completeness::Unknown
+        );
+        assert_eq!(
+            right.binding.prototype_position_coverage,
+            Completeness::Unknown
+        );
+        assert_eq!(
+            pair[0]
+                .method_encoded_parameter_list(&second, ParameterViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InvalidArgument
+        );
+    }
 }

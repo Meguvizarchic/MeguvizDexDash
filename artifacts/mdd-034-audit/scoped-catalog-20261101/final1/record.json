@@ -1,0 +1,108 @@
+{
+  "source_before": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-query/src/executor.rs": "ec6b20c95c76d6bd7a53450f30dd0db9a72392029816b79f1e046cac1332c206",
+    "crates/mdd-query/src/executor/scoped.rs": "34a14d5f77475c3657f0b476ee096a542de7ad4f0171c81bb54f6c4744a3c5b4",
+    "crates/mdd-query/src/executor/facts.rs": "81468f74e85197b8e69a1b04f3a4f746a9a62828ca3e9320399d40a3a1fa6e70",
+    "crates/mdd-query/src/budget.rs": "99b013a1e3ac90ced738d4a6ec678b4357a7a7b807e319d0789ffdde1a331ba4",
+    "crates/mdd-facts/src/coverage.rs": "49244043a9ff68c38b0ba69fb1140f70a7728145a4a9d192bca82d6aa2b0eda7",
+    "crates/mdd-facts/src/indexes/scope.rs": "3fc13c036409a0abe526cb9a2da83f35f88f606a1b7f61d45bd3f38b689f84b3",
+    "crates/mdd-facts/src/indexes/views.rs": "9edb1fa3ac471a6a7a48b30ba624009e9b5a5d099060b3718635c4955d03a2ba",
+    "crates/mdd-facts/src/references.rs": "51cc6630028bf2d14489320f3fce94c0970d096ea69512db6e0332dce075c254",
+    "crates/mdd-input/src/snapshot/mod.rs": "7b5b2afd099609c2787a960e93cc6e104e0e7ce508a2d6c1820a3ea63fcf93a0",
+    "crates/mdd-input/src/archive/mod.rs": "8b950285850f05925d18e4876f176cb64583879bd24309a3b5bb97a31c339428",
+    "crates/mdd-session/src/lib.rs": "afda23d2dbb014680afa204ed7574387c017740223c6d5f68431c4b5f893efdd",
+    "crates/mdd-session/src/cancellation.rs": "7e3636d5e62cf4de567fb55088f186e5130eb024ddd0517a535e15bcad669114",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae",
+    "tests/fixtures/generated/multidex-deflated.apk": "d063e89802d9cc0445c547f91b22deeeda3574ee17be8bcd3190ee6ae3113697",
+    "tests/fixtures/references/generated/poly-custom-038.dex": "25bc5a03641d31d87212a9a292d798e64c563e2666d03f579e7fc894ac8ee425"
+  },
+  "runs": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-query",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "executor::scoped::tests",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T03:07:51.574822+00:00",
+      "finished_utc": "2026-11-01T03:07:55.844546+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "246c54b427dffd244c4b2858c21bbdc2da294b3eb232b83fa7c77bb386efd9ab",
+      "raw_stderr_sha256": "75a9ce45eaabb323ab900e80b411cbf8f0ddef64b1ae241f7c2f921752c29c3c",
+      "redaction": "workspace path replaced; raw output retained under ignored local evidence"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-query",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "json_batches_execute_multiple_rows_and_bind_delivery",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T03:07:55.844577+00:00",
+      "finished_utc": "2026-11-01T03:07:55.988376+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "b9bf5f25218fbc0dc6d672c24816cb93d4e80680d1c22b9ea6871de8b68dcab8",
+      "raw_stderr_sha256": "cfc6fe37e186581d5495f5471c707231b02e6e6c8bfc4c4492ec6ac08d3d5dde",
+      "redaction": "workspace path replaced; raw output retained under ignored local evidence"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-query",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "json_batches_zero_partial_and_limits_never_fake_complete",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T03:07:55.988402+00:00",
+      "finished_utc": "2026-11-01T03:07:56.121743+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "78dfbd7331fc17e2ed64f8a61ab34e9d1738bdeccdcb714548638e1e86ab016a",
+      "raw_stderr_sha256": "1153bace4938b35b8b58dcb4017f4f3f3b79c13665a5a444157d961b60d953ae",
+      "redaction": "workspace path replaced; raw output retained under ignored local evidence"
+    }
+  ],
+  "scope": "synthetic selected roster and JSON delivery only; listed sources; not independent acquisition, HostLab or profile qualification",
+  "source_after": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-query/src/executor.rs": "ec6b20c95c76d6bd7a53450f30dd0db9a72392029816b79f1e046cac1332c206",
+    "crates/mdd-query/src/executor/scoped.rs": "34a14d5f77475c3657f0b476ee096a542de7ad4f0171c81bb54f6c4744a3c5b4",
+    "crates/mdd-query/src/executor/facts.rs": "81468f74e85197b8e69a1b04f3a4f746a9a62828ca3e9320399d40a3a1fa6e70",
+    "crates/mdd-query/src/budget.rs": "99b013a1e3ac90ced738d4a6ec678b4357a7a7b807e319d0789ffdde1a331ba4",
+    "crates/mdd-facts/src/coverage.rs": "49244043a9ff68c38b0ba69fb1140f70a7728145a4a9d192bca82d6aa2b0eda7",
+    "crates/mdd-facts/src/indexes/scope.rs": "3fc13c036409a0abe526cb9a2da83f35f88f606a1b7f61d45bd3f38b689f84b3",
+    "crates/mdd-facts/src/indexes/views.rs": "9edb1fa3ac471a6a7a48b30ba624009e9b5a5d099060b3718635c4955d03a2ba",
+    "crates/mdd-facts/src/references.rs": "51cc6630028bf2d14489320f3fce94c0970d096ea69512db6e0332dce075c254",
+    "crates/mdd-input/src/snapshot/mod.rs": "7b5b2afd099609c2787a960e93cc6e104e0e7ce508a2d6c1820a3ea63fcf93a0",
+    "crates/mdd-input/src/archive/mod.rs": "8b950285850f05925d18e4876f176cb64583879bd24309a3b5bb97a31c339428",
+    "crates/mdd-session/src/lib.rs": "afda23d2dbb014680afa204ed7574387c017740223c6d5f68431c4b5f893efdd",
+    "crates/mdd-session/src/cancellation.rs": "7e3636d5e62cf4de567fb55088f186e5130eb024ddd0517a535e15bcad669114",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae",
+    "tests/fixtures/generated/multidex-deflated.apk": "d063e89802d9cc0445c547f91b22deeeda3574ee17be8bcd3190ee6ae3113697",
+    "tests/fixtures/references/generated/poly-custom-038.dex": "25bc5a03641d31d87212a9a292d798e64c563e2666d03f579e7fc894ac8ee425"
+  }
+}

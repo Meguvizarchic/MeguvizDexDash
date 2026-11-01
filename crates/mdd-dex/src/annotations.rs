@@ -1287,6 +1287,89 @@ mod tests {
         );
     }
     #[test]
+    fn parameter_list_physical_counts_do_not_invent_positions() {
+        let cases: [(&[u8], usize, usize, usize, Completeness); 4] = [
+            (
+                include_bytes!(
+                    "../../../tests/fixtures/annotations/generated/parameter-empty-nonzero-proto.dex"
+                ),
+                0,
+                2,
+                2,
+                Completeness::Unknown,
+            ),
+            (
+                include_bytes!(
+                    "../../../tests/fixtures/annotations/generated/parameter-long-nonzero-proto.dex"
+                ),
+                3,
+                2,
+                2,
+                Completeness::Unknown,
+            ),
+            (
+                include_bytes!(
+                    "../../../tests/fixtures/annotations/generated/parameter-empty-zero-proto.dex"
+                ),
+                0,
+                0,
+                2,
+                Completeness::Complete,
+            ),
+            (
+                include_bytes!(
+                    "../../../tests/fixtures/annotations/generated/parameter-orphan-empty-no-binding.dex"
+                ),
+                0,
+                0,
+                0,
+                Completeness::Unknown,
+            ),
+        ];
+        for (bytes, slot_count, proto_count, binding_count, coverage) in cases {
+            let facts = parse(bytes, AnnotationLimits::default()).unwrap();
+            assert_eq!(facts.ref_lists.len(), 1);
+            let list = &facts.ref_lists[0];
+            assert_eq!(list.annotation_set_offsets.len(), slot_count);
+            let start = list.byte_offset as usize;
+            assert_eq!(
+                u32::from_le_bytes(bytes[start..start + 4].try_into().unwrap()) as usize,
+                slot_count
+            );
+            assert_eq!(facts.parameter_lists.len(), binding_count);
+            for binding in &facts.parameter_lists {
+                assert!(binding.encoded_slots_complete);
+                assert_eq!(binding.ref_list_byte_offset, list.byte_offset);
+                assert_eq!(binding.encoded_slot_count as usize, slot_count);
+                assert_eq!(binding.prototype_parameter_count as usize, proto_count);
+                assert_eq!(binding.prototype_position_coverage, coverage);
+            }
+            let owners: Vec<_> = facts
+                .owner_bindings
+                .iter()
+                .filter(|owner| owner.kind == AnnotationOwnerKind::Parameter)
+                .collect();
+            assert_eq!(owners.len(), slot_count * binding_count);
+            for (owner_index, owner) in owners.iter().enumerate() {
+                let ordinal = owner_index % slot_count;
+                assert_eq!(owner.parameter_ordinal, Some(ordinal as u32));
+                assert_eq!(
+                    owner.annotation_set_offset,
+                    list.annotation_set_offsets[ordinal]
+                );
+                assert_eq!(owner.parameter_position_in_prototype, None);
+            }
+            if slot_count == 3 {
+                assert_eq!(list.annotation_set_offsets[1], None);
+                assert_eq!(
+                    list.annotation_set_offsets[0],
+                    list.annotation_set_offsets[2]
+                );
+                assert!(list.annotation_set_offsets[0].is_some());
+            }
+        }
+    }
+    #[test]
     fn depth_nodes_and_bytes_fail_closed() {
         let bytes =
             include_bytes!("../../../tests/fixtures/annotations/generated/annotations-038.dex");

@@ -17,6 +17,7 @@ use std::{
 };
 
 pub mod facts;
+pub mod scoped;
 #[cfg(test)]
 mod runtime_tests;
 #[cfg(test)]

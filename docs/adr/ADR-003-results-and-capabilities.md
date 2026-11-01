@@ -15,6 +15,8 @@
 
 首轮机器接口采用结构化 JSON 批。MCP stdout 仅合法 MCP JSON，二进制仅在独立 worker 通道/SDK 协商。日志写 stderr，不将表格或 hex wire 作为默认机器接口。列批仅在完整 producer→consumer 同 DTO 比较后决定。
 
+实验性 scoped SDK 入口从实际快照、所选 inventory 与同源事实重建覆盖，并仅允许 `native-unqualified`、SQL 方言为 null 的类型化预览；它不授予任何 profile 准入。`AllCapturedInputs` 只涉及已捕获来源，不证明全部成员或安装 split，外部来源授权、解析器独立正确性与消费交付仍分别验证。注解与资源层在当前入口明确拒绝，MDD-022 重开期间不得以该入口恢复注解资格。
+
 文本/bytes/整数/浮点保留类型，重复 display_name 以列 ordinal 和稳定列 ID 区分。MUTF-8/NUL/孤立代理采用显式无损编码；非有限浮点和 bit-exact 值使用原始位型标签。不得将坏文本或精度损失写成正常 UTF-8/浮点数。
 
 ## 候选与取舍

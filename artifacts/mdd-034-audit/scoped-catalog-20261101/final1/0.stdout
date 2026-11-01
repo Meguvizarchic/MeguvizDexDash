@@ -1,0 +1,9 @@
+
+running 4 tests
+test executor::scoped::tests::same_snapshot_rebuilt_inventory_accepts_identical_dex_bytes ... ok
+test executor::scoped::tests::scope_rejects_missing_reordered_and_other_snapshot ... ok
+test executor::scoped::tests::scoped_references_derive_layers_from_the_actual_facts ... ok
+test executor::scoped::tests::scoped_query_uses_derived_coverage_through_json_delivery ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 143 filtered out; finished in 0.03s
+

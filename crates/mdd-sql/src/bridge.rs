@@ -3237,6 +3237,113 @@ mod tests {
         }
     }
 
+    #[test]
+    fn hostlab_q10_group_count_and_order_match_sqlite_for_duplicate_calls() {
+        use mdd_query::ir::Signed64;
+        let columns = [
+            ("file_id", SqlType::I64),
+            ("method", SqlType::Text),
+            ("callee", SqlType::Text),
+            ("callee_class", SqlType::Text),
+        ]
+        .into_iter()
+        .map(|(name, data_type)| SqlColumn {
+            id: name.into(),
+            name: name.into(),
+            data_type,
+            nullable: true,
+        })
+        .collect();
+        let input = [
+            (0, Some("m1"), Some("a"), Some("Lfixture/A;")),
+            (0, Some("m1"), Some("a"), Some("Lfixture/A;")),
+            (0, Some("m1"), Some("b"), Some("Lfixture/B;")),
+            (0, Some("m1"), Some("a"), Some("Lother/A;")),
+            (0, Some("m2"), None, Some("Lfixture/B;")),
+            (0, Some("m2"), None, Some("Lfixture/B;")),
+            (0, None, Some("z"), Some("Lfixture/Z;")),
+            (1, Some("m1"), Some("a"), Some("Lfixture/A;")),
+            (0, Some("m2"), Some("c"), None),
+        ];
+        let text = |value: Option<&str>| value.map_or(SqlValue::Null, SqlValue::text);
+        let provider = Arc::new(RowsProvider {
+            binding: SqlBinding {
+                provider_identity: "q10-synthetic".into(),
+                snapshot_id: "q10-snapshot".into(),
+                catalog_epoch: DecimalU64(0),
+            },
+            rows: input
+                .iter()
+                .map(|(file, method, callee, class)| {
+                    vec![
+                        SqlValue::I64(Signed64(*file)),
+                        text(*method),
+                        text(*callee),
+                        text(*class),
+                    ]
+                })
+                .collect(),
+            columns,
+        });
+        let sqlite = rusqlite::Connection::open_in_memory().unwrap();
+        sqlite
+            .execute_batch(
+                "CREATE TABLE vals(file_id INTEGER,method TEXT,callee TEXT,callee_class TEXT)",
+            )
+            .unwrap();
+        for (file, method, callee, class) in input {
+            sqlite
+                .execute(
+                    "INSERT INTO vals VALUES (?1,?2,?3,?4)",
+                    (file, method, callee, class),
+                )
+                .unwrap();
+        }
+        let sql = "SELECT file_id,method,callee,COUNT(*) AS n FROM vals WHERE file_id=0 AND callee_class LIKE 'Lfixture/%' ESCAPE '\\' GROUP BY file_id,method,callee ORDER BY file_id,method,callee";
+        let expected: Vec<(i64, Option<String>, Option<String>, i64)> = sqlite
+            .prepare(sql)
+            .unwrap()
+            .query_map([], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+            })
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap();
+        assert_eq!(expected.len(), 4);
+        for dialect in [
+            SqlDialect::NativeV1,
+            SqlDialect::DexSql010,
+            SqlDialect::DexSql011,
+        ] {
+            let bridge = SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+            let result = bridge.query(sql).unwrap();
+            assert_eq!(result.columns(), &["file_id", "method", "callee", "n"]);
+            let actual: Vec<_> = result
+                .rows()
+                .iter()
+                .map(|row| {
+                    let number = |cell: &SqlValue| match cell {
+                        SqlValue::I64(v) => v.0,
+                        SqlValue::U64(v) => i64::try_from(v.0).unwrap(),
+                        other => panic!("unexpected number: {other:?}"),
+                    };
+                    let text = |cell: &SqlValue| match cell {
+                        SqlValue::Null => None,
+                        SqlValue::Text(v) => Some(v.strict_utf8().unwrap()),
+                        other => panic!("unexpected text: {other:?}"),
+                    };
+                    (
+                        number(&row[0]),
+                        text(&row[1]),
+                        text(&row[2]),
+                        number(&row[3]),
+                    )
+                })
+                .collect();
+            assert_eq!(actual, expected, "{dialect:?}");
+        }
+    }
+
     fn like_shadow_fixture() -> (Arc<RowsProvider>, rusqlite::Connection) {
         use mdd_query::ir::Signed64;
         let provider = Arc::new(RowsProvider {

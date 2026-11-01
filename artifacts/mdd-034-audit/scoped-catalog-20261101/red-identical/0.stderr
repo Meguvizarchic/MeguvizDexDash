@@ -1,0 +1,8 @@
+   Compiling mdd-query v0.1.0-dev (<workspace>\crates\mdd-query)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.57s
+     Running unittests src\lib.rs (target\debug\deps\mdd_query-82579f4092cfd058.exe)
+
+thread 'executor::scoped::tests::same_snapshot_rebuilt_inventory_accepts_identical_dex_bytes' (35196) panicked at crates\mdd-query\src\executor\scoped.rs:547:9:
+same captured bytes must survive inventory reconstruction
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p mdd-query --lib`
