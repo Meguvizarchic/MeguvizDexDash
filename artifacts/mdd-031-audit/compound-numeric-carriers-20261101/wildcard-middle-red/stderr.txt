@@ -1,0 +1,10 @@
+   Compiling mdd-sql v0.1.0-dev (<WORKSPACE>\crates\mdd-sql)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.90s
+     Running unittests src\lib.rs (target\debug\deps\mdd_sql-46977fcd4387e316.exe)
+
+thread 'bridge::tests::compound_order_uses_earlier_wildcard_before_later_alias' (35628) panicked at crates\mdd-sql\src\bridge.rs:7141:17:
+assertion `left == right` failed: NativeV1: SELECT 2 AS a,9 AS b UNION ALL SELECT * FROM vals UNION ALL SELECT 3 AS y,7 AS x ORDER BY x
+  left: [[I64(Signed64(7)), I64(Signed64(1))], [I64(Signed64(0)), I64(Signed64(3))], [I64(Signed64(3)), I64(Signed64(7))], [I64(Signed64(2)), I64(Signed64(9))]]
+ right: [[I64(Signed64(0)), I64(Signed64(3))], [I64(Signed64(2)), I64(Signed64(9))], [I64(Signed64(3)), I64(Signed64(7))], [I64(Signed64(7)), I64(Signed64(1))]]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p mdd-sql --lib`

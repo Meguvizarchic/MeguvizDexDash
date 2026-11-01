@@ -199,7 +199,8 @@ class PinnedInputInventory:
         self.verify_source()
         return tuple(records)
 
-    def bind_observed_members(self, source, files, *, chunk_bytes=1024 * 1024):
+    def bind_observed_members(self, source, files, *, chunk_bytes=1024 * 1024,
+                              max_observed_rows=100000):
         """Associate observed producer rows with independently read APK members.
 
         File rows retain their caller-provided order and are never deduplicated
@@ -210,9 +211,15 @@ class PinnedInputInventory:
         """
         if not isinstance(files, dict):
             raise InputInventoryError('DEX inventory is missing')
+        if type(max_observed_rows) is not int or max_observed_rows < 0:
+            raise ValueError('invalid observed DEX row budget')
+        if dict.__len__(files) > max_observed_rows:
+            raise InputInventoryError('observed DEX row budget exceeded')
         # Freeze the observed rows once: verification and mapping must not use
         # different generations if the caller later mutates its dictionary.
         observed = dict.copy(files)
+        if len(observed) > max_observed_rows:
+            raise InputInventoryError('observed DEX row budget exceeded')
         self.verify_inventory(source, observed)
         records = self.digest_physical_members(chunk_bytes=chunk_bytes)
         if records is None:

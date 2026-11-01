@@ -1,0 +1,24 @@
+   Compiling mdd-facts v0.1.0-dev (<WORKSPACE>\crates\mdd-facts)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.08s
+     Running unittests src\lib.rs (target\debug\deps\mdd_facts-f5fcaccb54dddfd1.exe)
+
+running 1 test
+test annotations::tests::signature_name_matches_utf16_units_without_losing_errors ... FAILED
+
+failures:
+
+---- annotations::tests::signature_name_matches_utf16_units_without_losing_errors stdout ----
+
+thread 'annotations::tests::signature_name_matches_utf16_units_without_losing_errors' (27516) panicked at crates\mdd-facts\src\annotations.rs:2868:13:
+assertion `left == right` failed
+  left: Some("ANNOTATION_NAME_NON_SCALAR")
+ right: Some("SIGNATURE_SHAPE")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    annotations::tests::signature_name_matches_utf16_units_without_losing_errors
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 89 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p mdd-facts --lib`

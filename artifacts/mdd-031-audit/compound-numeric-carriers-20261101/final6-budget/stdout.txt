@@ -1,0 +1,7 @@
+
+running 2 tests
+test bridge::tests::compound_carrier_proof_charges_schema_before_scope_clone ... ok
+test bridge::tests::compound_carrier_proof_bounds_repeated_scope_lookup ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 177 filtered out; finished in 0.00s
+

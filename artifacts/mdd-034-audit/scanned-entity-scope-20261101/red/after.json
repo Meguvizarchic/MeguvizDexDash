@@ -1,0 +1,10 @@
+{
+  "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+  "crates/mdd-query/src/executor.rs": "ec6b20c95c76d6bd7a53450f30dd0db9a72392029816b79f1e046cac1332c206",
+  "crates/mdd-query/src/executor/runtime_tests.rs": "5d76b7504afbc0b43f5bcbc04f8fc00536ebbd3c80cd473b9b9ff7e9bb84843b",
+  "crates/mdd-query/src/executor/facts.rs": "7690598fb6da19bda465627c737d3b4582a0a55f99d026df43f250a0153c1292",
+  "crates/mdd-query/src/ir/mod.rs": "a4fe8a1a66d70684b868eeb61a77e56aecc10377ded6acd517b3c59407cfe46f",
+  "crates/mdd-facts/src/metadata.rs": "e5fafa598807cc23d011570e7411ee53e1129391362c08b5cef5a38afe040357",
+  "crates/mdd-facts/src/annotations.rs": "d0adc242f1b347c15701c94c031589fbd509834727f81af6bca7b568f2985b9c",
+  "tests/fixtures/generated/structured-035.dex": "108cf907d330b823c6e32d38eaab8f23709fe493f52537688bbd09ba3e271605"
+}

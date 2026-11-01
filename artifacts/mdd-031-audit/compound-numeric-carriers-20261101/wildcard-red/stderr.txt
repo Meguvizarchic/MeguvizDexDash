@@ -1,0 +1,8 @@
+   Compiling mdd-sql v0.1.0-dev (<WORKSPACE>\crates\mdd-sql)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.74s
+     Running unittests src\lib.rs (target\debug\deps\mdd_sql-46977fcd4387e316.exe)
+
+thread 'bridge::tests::compound_order_wildcard_projection_preserves_rows' (27996) panicked at crates\mdd-sql\src\bridge.rs:7026:39:
+called `Result::unwrap()` on an `Err` value: MddError { code: UnsupportedQuery, stage: "sql.ast", message: "COMPOUND_WILDCARD_SCHEMA", retryable: false, details: {} }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p mdd-sql --lib`

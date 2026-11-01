@@ -1,0 +1,13 @@
+   Compiling mdd-query v0.1.0-dev (<WORKSPACE>\crates\mdd-query)
+   Compiling mdd-sql v0.1.0-dev (<WORKSPACE>\crates\mdd-sql)
+error[E0277]: `&Parens<Vec<sqlparser::ast::Expr>>` is not an iterator
+    --> crates\mdd-sql\src\dialects\ast.rs:1509:34
+     |
+1509 |                     for value in row {
+     |                                  ^^^ `&Parens<Vec<sqlparser::ast::Expr>>` is not an iterator
+     |
+     = help: the trait `std::iter::Iterator` is not implemented for `&Parens<Vec<sqlparser::ast::Expr>>`
+     = note: required for `&Parens<Vec<sqlparser::ast::Expr>>` to implement `IntoIterator`
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `mdd-sql` (lib test) due to 1 previous error

@@ -1,0 +1,11 @@
+
+running 1 test
+test bridge::tests::compound_numeric_storage_classes_match_sqlite ... FAILED
+
+failures:
+
+failures:
+    bridge::tests::compound_numeric_storage_classes_match_sqlite
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 175 filtered out; finished in 0.00s
+

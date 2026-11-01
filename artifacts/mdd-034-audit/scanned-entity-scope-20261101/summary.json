@@ -1,0 +1,15 @@
+{
+  "task": "MDD-034",
+  "finding": "A public generic FactSource wrapper over a real validated NativeCatalog returned scanned EntityRef with matching snapshot but a nonexistent occurrence. Its own validate_entity rejects the same entity, yet both Streaming and MaterializedReference execute return successful QueryOutput.",
+  "red_runs": [
+    "red/record.json",
+    "red2/record.json"
+  ],
+  "reproduction_patch": "reproduction.patch",
+  "reproduction_patch_sha256": "7d15135dd710cdb93c07b731e6e046db8d4683f83e953614a449d51251710cd9",
+  "baseline_git_commit": "26957e6",
+  "actual_root_source_sha256": "a54cd55aa5db2b080442c7776524f14452fc58fe0558991e03d50dbafe5a865b",
+  "scope": "Synthetic inconsistent custom FactSource only. ScopedPrepared uses sealed built-in Native/ReferenceCatalog and was not shown to accept a forged occurrence. This is not observed real APK/HostLab or complete audit success.",
+  "cost_and_blocker": "NativeCatalog validates occurrence by linear scan and definitions by linear definition search; MemoryCatalog validates by scanning all tables and rows. Calling validate_entity for every scanned entity may be quadratic, and provider callback work is not bounded by current Control steps. A correct fix needs an authenticated, budgeted entity roster/index or explicit sealed trust boundary and integration without misclassifying errors; this is not implemented here.",
+  "test_policy": "The failing default test was saved as an exact patch after actual runs, then removed from the tracked Rust test module; no default skip or claimed pass."
+}

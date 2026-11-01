@@ -1,0 +1,21 @@
+   Compiling mdd-facts v0.1.0-dev (<WORKSPACE>\crates\mdd-facts)
+   Compiling mdd-query v0.1.0-dev (<WORKSPACE>\crates\mdd-query)
+   Compiling mdd-sql v0.1.0-dev (<WORKSPACE>\crates\mdd-sql)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.02s
+     Running unittests src\lib.rs (target\debug\deps\mdd_sql-46977fcd4387e316.exe)
+
+thread 'bridge::tests::compound_numeric_storage_classes_match_sqlite' (35340) panicked at crates\mdd-sql\src\bridge.rs:6558:9:
+NativeV1: SELECT 1 UNION SELECT 1.0: actual=["F64(DecimalU64(4607182418800017408))", "I64(Signed64(1))"], expected=["F64(DecimalU64(4607182418800017408))"]
+NativeV1: SELECT 1.0 UNION SELECT 1: actual=["F64(DecimalU64(4607182418800017408))", "I64(Signed64(1))"], expected=["I64(Signed64(1))"]
+NativeV1: SELECT 1 INTERSECT SELECT 1.0: actual=[], expected=["I64(Signed64(1))"]
+NativeV1: SELECT 1 EXCEPT SELECT 1.0: actual=["I64(Signed64(1))"], expected=[]
+DexSql010: SELECT 1 UNION SELECT 1.0: actual=["F64(DecimalU64(4607182418800017408))", "I64(Signed64(1))"], expected=["F64(DecimalU64(4607182418800017408))"]
+DexSql010: SELECT 1.0 UNION SELECT 1: actual=["F64(DecimalU64(4607182418800017408))", "I64(Signed64(1))"], expected=["I64(Signed64(1))"]
+DexSql010: SELECT 1 INTERSECT SELECT 1.0: actual=[], expected=["I64(Signed64(1))"]
+DexSql010: SELECT 1 EXCEPT SELECT 1.0: actual=["I64(Signed64(1))"], expected=[]
+DexSql011: SELECT 1 UNION SELECT 1.0: actual=["F64(DecimalU64(4607182418800017408))", "I64(Signed64(1))"], expected=["F64(DecimalU64(4607182418800017408))"]
+DexSql011: SELECT 1.0 UNION SELECT 1: actual=["F64(DecimalU64(4607182418800017408))", "I64(Signed64(1))"], expected=["I64(Signed64(1))"]
+DexSql011: SELECT 1 INTERSECT SELECT 1.0: actual=[], expected=["I64(Signed64(1))"]
+DexSql011: SELECT 1 EXCEPT SELECT 1.0: actual=["I64(Signed64(1))"], expected=[]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p mdd-sql --lib`

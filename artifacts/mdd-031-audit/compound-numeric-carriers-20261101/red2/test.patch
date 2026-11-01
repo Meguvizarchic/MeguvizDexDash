@@ -1,0 +1,76 @@
+diff --git a/crates/mdd-sql/src/bridge.rs b/crates/mdd-sql/src/bridge.rs
+index 4eac7ed..fd3f67e 100644
+--- a/crates/mdd-sql/src/bridge.rs
++++ b/crates/mdd-sql/src/bridge.rs
+@@ -6493,6 +6493,71 @@ mod tests {
+         });
+         SqlBridge::new(provider, SqlDialect::NativeV1, SqlLimits::default()).unwrap()
+     }
++    #[test]
++    fn compound_numeric_storage_classes_match_sqlite() {
++        use mdd_query::ir::Signed64;
++        use rusqlite::types::ValueRef;
++        let (provider, _) = bridge();
++        let sqlite = rusqlite::Connection::open_in_memory().unwrap();
++        let queries = [
++            "SELECT 1 UNION SELECT 1.0",
++            "SELECT 1.0 UNION SELECT 1",
++            "SELECT 1 INTERSECT SELECT 1.0",
++            "SELECT 1 EXCEPT SELECT 1.0",
++            "SELECT NULL UNION SELECT NULL",
++            "SELECT 1 UNION ALL SELECT 1.0",
++        ];
++        let mut differences = Vec::new();
++        for dialect in [
++            SqlDialect::NativeV1,
++            SqlDialect::DexSql010,
++            SqlDialect::DexSql011,
++        ] {
++            let bridge = SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
++            for sql in queries {
++                let mut statement = sqlite.prepare(sql).unwrap();
++                let expected = statement
++                    .query_map([], |row| {
++                        Ok(match row.get_ref(0)? {
++                            ValueRef::Null => SqlValue::Null,
++                            ValueRef::Integer(value) => SqlValue::I64(Signed64(value)),
++                            ValueRef::Real(value) => SqlValue::F64(DecimalU64(value.to_bits())),
++                            other => panic!("unexpected SQLite value: {other:?}"),
++                        })
++                    })
++                    .unwrap()
++                    .collect::<rusqlite::Result<Vec<_>>>()
++                    .unwrap();
++                let actual = match bridge.query(sql) {
++                    Ok(result) => result
++                        .rows()
++                        .iter()
++                        .map(|row| row[0].clone())
++                        .collect::<Vec<_>>(),
++                    Err(error) => {
++                        differences.push(format!("{dialect:?}: {sql}: bridge error {error:?}"));
++                        continue;
++                    }
++                };
++                // SQLite does not promise result ordering without ORDER BY.
++                // Sort the debug forms while retaining value type and multiplicity.
++                let mut expected = expected
++                    .iter()
++                    .map(|v| format!("{v:?}"))
++                    .collect::<Vec<_>>();
++                let mut actual = actual.iter().map(|v| format!("{v:?}")).collect::<Vec<_>>();
++                expected.sort();
++                actual.sort();
++                if actual != expected {
++                    differences.push(format!(
++                        "{dialect:?}: {sql}: actual={actual:?}, expected={expected:?}"
++                    ));
++                }
++            }
++        }
++        assert!(differences.is_empty(), "{}", differences.join("\n"));
++    }
++
+     #[test]
+     fn native_u64_direct_case_union_and_numeric_edges_remain_lossless() {
+         let bridge = numeric_bridge();

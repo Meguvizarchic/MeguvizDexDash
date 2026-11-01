@@ -1,0 +1,6 @@
+
+running 1 test
+test bridge::tests::distinct_independent_union_scalar_subquery_matches_sqlite ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 187 filtered out; finished in 0.00s
+

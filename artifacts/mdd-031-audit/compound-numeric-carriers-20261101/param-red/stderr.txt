@@ -1,0 +1,10 @@
+   Compiling mdd-sql v0.1.0-dev (<WORKSPACE>\crates\mdd-sql)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.06s
+     Running unittests src\lib.rs (target\debug\deps\mdd_sql-46977fcd4387e316.exe)
+
+thread 'bridge::tests::compound_carrier_guard_preserves_parameter_errors' (22164) panicked at crates\mdd-sql\src\bridge.rs:6901:17:
+assertion `left == right` failed: NativeV1: SELECT ? UNION SELECT ?: MddError { code: UnsupportedQuery, stage: "sql.ast", message: "SQLite accepts this read-only syntax but the AST adapter does not yet implement it", retryable: false, details: {"ast_error": String("COMPOUND_SET_CARRIER_NOT_PROVEN")} }
+  left: UnsupportedQuery
+ right: InvalidArgument
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p mdd-sql --lib`

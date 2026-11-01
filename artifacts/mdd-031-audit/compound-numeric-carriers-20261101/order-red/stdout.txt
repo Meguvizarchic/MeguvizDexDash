@@ -1,0 +1,11 @@
+
+running 1 test
+test bridge::tests::compound_order_expression_binding_preserves_original_sqlite_rules ... FAILED
+
+failures:
+
+failures:
+    bridge::tests::compound_order_expression_binding_preserves_original_sqlite_rules
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 182 filtered out; finished in 0.00s
+

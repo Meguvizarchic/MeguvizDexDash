@@ -770,11 +770,16 @@ impl AnnotationFacts {
                     return Err(invalid());
                 }
                 let value = &data.values[item.elements[0] as usize];
-                let name = value
+                // The required ASCII name is exactly five UTF-16 units.
+                // Comparing the captured units avoids allocating a UTF-8
+                // copy of an arbitrarily long or invalid-surrogate name.
+                let name_matches = value
                     .name_idx
                     .and_then(|index| definitions.metadata.strings.get(index as usize))
-                    .and_then(|item| item.data.text.strict_utf8().ok());
-                if name.as_deref() != Some("value") || value.kind != EncodedKind::Array {
+                    .is_some_and(|item| {
+                        item.data.text.utf16_units.as_slice() == [0x76, 0x61, 0x6c, 0x75, 0x65]
+                    });
+                if !name_matches || value.kind != EncodedKind::Array {
                     return Err(invalid());
                 }
                 let mut total_units = 0u64;
@@ -2798,6 +2803,117 @@ mod tests {
             MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default()).unwrap();
         let definitions = DefinitionFacts::build(metadata, DefinitionLimits::default()).unwrap();
         AnnotationFacts::build(definitions, AnnotationLimits::default()).unwrap()
+    }
+    #[test]
+    fn signature_name_matches_utf16_units_without_losing_errors() {
+        let base = "artifacts/mdd-022/signature-name-units-20261101/";
+        let expected: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../artifacts/mdd-022/signature-name-units-20261101/fixture.json"
+        ))
+        .unwrap();
+        let signature_offset = expected["signature_byte_offset"].as_u64().unwrap();
+        let valid = build(&format!("{base}valid.dex"));
+        assert_eq!(valid.signatures().len(), 4);
+        for name in ["long-name.dex", "surrogate-name.dex"] {
+            let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../..")
+                .join(base)
+                .join(name);
+            let snapshot = Snapshot::capture(
+                &[InputSpec {
+                    path,
+                    kind: InputKind::RawDex,
+                    expected_sha256: None,
+                }],
+                CaptureLimits::default(),
+            )
+            .unwrap();
+            let inventory = ArchiveInventory::build(
+                &snapshot.sources()[0],
+                InventoryPolicy::default(),
+                ArchiveLimits::default(),
+            )
+            .unwrap();
+            let metadata =
+                MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default()).unwrap();
+            if name == "surrogate-name.dex" {
+                let index = expected["name_string_index"].as_u64().unwrap() as usize;
+                assert_eq!(
+                    metadata.strings[index].data.text.utf16_units,
+                    [0x76, 0xd800, 0x65]
+                );
+                assert_eq!(
+                    metadata.strings[index].data.text.raw_mutf8,
+                    [0x76, 0xed, 0xa0, 0x80, 0x65]
+                );
+                assert!(metadata.strings[index].data.text.strict_utf8().is_err());
+            } else {
+                let index = expected["long_name_string_index"].as_u64().unwrap() as usize;
+                assert_eq!(
+                    metadata.strings[index].data.text.strict_utf8().unwrap(),
+                    "v_infinity_float"
+                );
+            }
+            let definitions =
+                DefinitionFacts::build(metadata, DefinitionLimits::default()).unwrap();
+            let source = definitions.metadata.source().clone();
+            let error = match AnnotationFacts::build(definitions, AnnotationLimits::default()) {
+                Ok(_) => panic!("invalid Signature name was accepted"),
+                Err(error) => error,
+            };
+            assert_eq!(error.code, ErrorCode::InvalidInput, "{name}");
+            let (reason, stage, offset) = if name == "surrogate-name.dex" {
+                // The physical annotation reader rejects a non-scalar name
+                // before Signature expansion; do not reclassify that error.
+                (
+                    "ANNOTATION_NAME_NON_SCALAR",
+                    "dex.annotations",
+                    signature_offset + 3,
+                )
+            } else {
+                ("SIGNATURE_SHAPE", "facts.annotations", signature_offset)
+            };
+            assert_eq!(error.stage, stage);
+            assert_eq!(
+                error.details.get("reason").and_then(|value| value.as_str()),
+                Some(reason)
+            );
+            assert_eq!(
+                error
+                    .details
+                    .get("snapshot_id")
+                    .and_then(|value| value.as_str()),
+                Some(source.snapshot_id.as_str())
+            );
+            assert_eq!(
+                error
+                    .details
+                    .get("dex_occurrence_id")
+                    .and_then(|value| value.as_str()),
+                Some(source.dex_occurrence_id.as_str())
+            );
+            assert_eq!(
+                error
+                    .details
+                    .get("member_id")
+                    .and_then(|value| value.as_str()),
+                Some(source.member_id.as_str())
+            );
+            assert_eq!(
+                error
+                    .details
+                    .get("content_id")
+                    .and_then(|value| value.as_str()),
+                Some(source.content_id.as_str())
+            );
+            assert_eq!(
+                error
+                    .details
+                    .get("byte_offset")
+                    .and_then(|value| value.as_str()),
+                Some(offset.to_string().as_str())
+            );
+        }
     }
     #[test]
     fn signature_owner_lookup_keeps_member_kinds_and_rejects_bad_layout() {

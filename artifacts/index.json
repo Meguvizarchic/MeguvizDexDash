@@ -3648,9 +3648,49 @@
       "sha256": "3d173346cb191621c4fbc22d22e31b30cfe30b55096cf85cc2b8ca431306c224"
     },
     {
+      "path": "artifacts/mdd-005/a2-observed-member-binding-20261101/digest-final-exit.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-observed-member-binding-20261101/digest-final.txt",
+      "bytes": 761,
+      "sha256": "765d31456122092fe48e8da2888a7118bfb2126a98dcfee4da79ec2654db32ae"
+    },
+    {
       "path": "artifacts/mdd-005/a2-observed-member-binding-20261101/exit.txt",
       "bytes": 3,
       "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-observed-member-binding-20261101/final-after.json",
+      "bytes": 503,
+      "sha256": "a96350b87f4f0a422ce9c2925d3120b7fbced9def015b83b7a3ef676bcba792c"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-observed-member-binding-20261101/final-before.json",
+      "bytes": 503,
+      "sha256": "a96350b87f4f0a422ce9c2925d3120b7fbced9def015b83b7a3ef676bcba792c"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-observed-member-binding-20261101/final-exit.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-observed-member-binding-20261101/final-opt-exit.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-observed-member-binding-20261101/final-opt.txt",
+      "bytes": 649,
+      "sha256": "fe566ef546f1e0524facaa34839cfb227d3041fef7c0e3e9bf4a9f93ac906903"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-observed-member-binding-20261101/final.txt",
+      "bytes": 649,
+      "sha256": "3aac92f75a3c67b147d8e419ada5d4beada4e816e50ed9f44d0e3d0fd1b65bf8"
     },
     {
       "path": "artifacts/mdd-005/a2-observed-member-binding-20261101/output.txt",
@@ -3681,6 +3721,61 @@
       "path": "artifacts/mdd-005/a2-observed-member-binding-20261101/regression.txt",
       "bytes": 761,
       "sha256": "e8e6852843bfe86d84df5eb622d43ecc26e66a2e29e3b63a9d3d3a219908b18d"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-observed-row-budget-20261101/after.json",
+      "bytes": 499,
+      "sha256": "46a8b860b0c2269b3fd9d926d26f27d3266a706fcb0e212482cfe2f9c7aaa2f8"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-observed-row-budget-20261101/before.json",
+      "bytes": 499,
+      "sha256": "46a8b860b0c2269b3fd9d926d26f27d3266a706fcb0e212482cfe2f9c7aaa2f8"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-observed-row-budget-20261101/digest-exit.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-observed-row-budget-20261101/digest.txt",
+      "bytes": 761,
+      "sha256": "bf38aab17d66a314fe6356765a053fb4135b21ed7d05a0572a739817ac16305a"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-observed-row-budget-20261101/final-exit.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-observed-row-budget-20261101/final-opt-exit.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-observed-row-budget-20261101/final-opt.txt",
+      "bytes": 649,
+      "sha256": "ed281c05f694f5e2e13b6cefa8e9ce67f0daf02d103d0c63a9a47a0e439db627"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-observed-row-budget-20261101/final.txt",
+      "bytes": 649,
+      "sha256": "337441592e427e088e94c556e89802d14bd3f521b74955b11bf158271488a9f7"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-observed-row-budget-20261101/probe.py",
+      "bytes": 3635,
+      "sha256": "51b6d81fda5e634d6913d36b15c7082d002e3206ca3372b22e1e746ac6ee6948"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-observed-row-budget-20261101/record.json",
+      "bytes": 2441,
+      "sha256": "1de0f2717d09722d089421d6e99a46bd03cbc56e4d1ce36dd697eb30a04541f4"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-observed-row-budget-20261101/redactions.json",
+      "bytes": 8372,
+      "sha256": "0106ac0d3d79d39e8bb3c9d635da3a4743a3cc9fb3c87174170bbf3d5836f43e"
     },
     {
       "path": "artifacts/mdd-005/a2-physical-member-digest-20261101/after.json",
@@ -7856,6 +7951,66 @@
       "path": "artifacts/mdd-022/signature-identity-budget-20261101/run.py",
       "bytes": 1741,
       "sha256": "f6ea449e77762cad50ef17517bc6c82b4b5965bf481e1a35dfa1dbade06b1889"
+    },
+    {
+      "path": "artifacts/mdd-022/signature-name-units-20261101/fixture.json",
+      "bytes": 515,
+      "sha256": "530ea300bb32c8a9a741903914757a9f44d322140454402f93e533853ec6dfda"
+    },
+    {
+      "path": "artifacts/mdd-022/signature-name-units-20261101/generate.py",
+      "bytes": 1795,
+      "sha256": "1bb382e25b0f505fff699005057c0f337fa3d2ebbae1a8c00b56aba9aafffe66"
+    },
+    {
+      "path": "artifacts/mdd-022/signature-name-units-20261101/long-name.dex",
+      "bytes": 1452,
+      "sha256": "f7c2ad641a40f6db9428432754ccd382718191919797cbeef07ed661e374a422"
+    },
+    {
+      "path": "artifacts/mdd-022/signature-name-units-20261101/regression/output.txt",
+      "bytes": 1373,
+      "sha256": "4cde01551acc29c875b93da1198732b49ecde7f1bda01a677b86e2d6a14ee9b1"
+    },
+    {
+      "path": "artifacts/mdd-022/signature-name-units-20261101/regression/record.json",
+      "bytes": 3236,
+      "sha256": "fe126d64a64058ddf75f64297d77d1d148dd363e8ee19077ea7f95916573d3b7"
+    },
+    {
+      "path": "artifacts/mdd-022/signature-name-units-20261101/run.py",
+      "bytes": 1903,
+      "sha256": "bd5d27be5ecdf7df8a61a6239d3d3872d80f5fbd756378e57d4a1cb161598d58"
+    },
+    {
+      "path": "artifacts/mdd-022/signature-name-units-20261101/run1/output.txt",
+      "bytes": 1025,
+      "sha256": "cf63fc2335c1bd7be5fb054f0390e9216b820133ec6fb24176214a3bffa65d4c"
+    },
+    {
+      "path": "artifacts/mdd-022/signature-name-units-20261101/run1/record.json",
+      "bytes": 3300,
+      "sha256": "1aac0e4b10beb53cac0fff119b71ff475c4486777ca8c35592ec4828bba4c7c9"
+    },
+    {
+      "path": "artifacts/mdd-022/signature-name-units-20261101/run2/output.txt",
+      "bytes": 857,
+      "sha256": "1bb4578a4f2d89397f5f66ec263c32e0d3f0985a0ed968728847b6bf94105323"
+    },
+    {
+      "path": "artifacts/mdd-022/signature-name-units-20261101/run2/record.json",
+      "bytes": 3298,
+      "sha256": "4b29e1aa3128d9076c258cdb4b0b9f19ce5baad715fa2a1307d5902287417243"
+    },
+    {
+      "path": "artifacts/mdd-022/signature-name-units-20261101/surrogate-name.dex",
+      "bytes": 1452,
+      "sha256": "0492425273e20e20e90f4f04ecde96682eed5694664f09ea60dfd75d1039d24c"
+    },
+    {
+      "path": "artifacts/mdd-022/signature-name-units-20261101/valid.dex",
+      "bytes": 1452,
+      "sha256": "65380a8b23601e17339379be211e417d8b4c8383b686b6d173f800656b985360"
     },
     {
       "path": "artifacts/mdd-022/signature-owner-layout-20261101/fixture.json",
@@ -20831,6 +20986,1146 @@
       "path": "artifacts/mdd-031-audit/combined-three-layer-20261030/run1/record.json",
       "bytes": 1912,
       "sha256": "fe4fec4700ec9053851f99ca5e8ca453d14ff6f822b86cbadc55bef7fd31f410"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/alias-green/record.json",
+      "bytes": 1862,
+      "sha256": "21ffed994746cceedc0594ed7296ff8c49bc35953c852d7c96590d965455e81b"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/alias-green/stderr.txt",
+      "bytes": 217,
+      "sha256": "9a318d6b603219eb15126c640f69bed137799a742259512c817ae112fcd037f0"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/alias-green/stdout.txt",
+      "bytes": 193,
+      "sha256": "d1066fd84d5b267037d53e1760c76aabda8e2c3e3fa2e4f5dcb2ad481bab40e8"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/alias-red/record.json",
+      "bytes": 1864,
+      "sha256": "b297bbf592f693fab9c158203cdd9e7787a34a4da1295564e872f112abce38ca"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/alias-red/stderr.txt",
+      "bytes": 656,
+      "sha256": "c688e0bed6ea56c920f469fe0f2f5d4c4901b469ef3aa5f22330b430bb2efe1e"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/alias-red/stdout.txt",
+      "bytes": 294,
+      "sha256": "443f2115939878b1609377e839967b536ee5c046572a3e9341cae94052473ced"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/case-red/record.json",
+      "bytes": 1863,
+      "sha256": "3d9e5324ee02083ad6ea1654c4fa2398d5743a8480f4118554374a43ade18078"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/case-red/stderr.txt",
+      "bytes": 594,
+      "sha256": "16d95262f80e2ade730e1b97b7e6251c7f31728ab23ef223b0f4c24b5d46a4e0"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/case-red/stdout.txt",
+      "bytes": 292,
+      "sha256": "44cef2330350812c88b4d3ab2d755f094e9b7e5dc4c50230e2074e12eeb4062d"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/existing-correlated/record.json",
+      "bytes": 1865,
+      "sha256": "746979ad110a7bea39307d63ca2310ebd810c2ebe5709c7bf4383e377781ddaa"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/existing-correlated/stderr.txt",
+      "bytes": 156,
+      "sha256": "4c7475f5f5aa129a0d65f13c85df1e0fbacd8eae1d99edfcd04c031fc5f05906"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/existing-correlated/stdout.txt",
+      "bytes": 196,
+      "sha256": "153d4c65c38e08ba5a8471bf054a0486e150bc7ac68ac250e46a084fc387c826"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/existing-independent/record.json",
+      "bytes": 1868,
+      "sha256": "e7c39ff03f0df5a74e6f7f310d83c594c90b5112dc6d82121d31cb90cdee5d15"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/existing-independent/stderr.txt",
+      "bytes": 156,
+      "sha256": "4c7475f5f5aa129a0d65f13c85df1e0fbacd8eae1d99edfcd04c031fc5f05906"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/existing-independent/stdout.txt",
+      "bytes": 199,
+      "sha256": "06ccd4ddc77cbdf207aa71ef6380fed09208b271f5fcef5a74c8a23f042d03c7"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/existing-union/record.json",
+      "bytes": 1873,
+      "sha256": "04e6eb32a07b404183c27ed2dda4b5c287811643ff5a726fe9bb74413f17e3e6"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/existing-union/stderr.txt",
+      "bytes": 156,
+      "sha256": "a018fe47a92f6fd9ecc12a25b8c71fcc318e4ed65fb37abc70a8533307c4e96e"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/existing-union/stdout.txt",
+      "bytes": 204,
+      "sha256": "c4b8c277845138a490c13030ad2de48cf6f2e8b5879f8a6ed50f8eef1ed512c9"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final-correlated/record.json",
+      "bytes": 1865,
+      "sha256": "c2feca33fd9bf92f9d744439c83665ddf92a441d0a72f95703ffb5c0e7fd8c2c"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final-correlated/stderr.txt",
+      "bytes": 156,
+      "sha256": "a018fe47a92f6fd9ecc12a25b8c71fcc318e4ed65fb37abc70a8533307c4e96e"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final-correlated/stdout.txt",
+      "bytes": 196,
+      "sha256": "61bcb12e2892b93c4fd4e2285044d071ddbd546cc3830246c78307611f53b632"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final-independent/record.json",
+      "bytes": 1868,
+      "sha256": "2ccc18f56e076ce7add8fe404c19a65b759e8d47eb74418c685f1a5acd14a573"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final-independent/stderr.txt",
+      "bytes": 156,
+      "sha256": "62a197d91812302844637bfd0fce4d06b8fdd452675d8cc0003a5277f0a61972"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final-independent/stdout.txt",
+      "bytes": 199,
+      "sha256": "06ccd4ddc77cbdf207aa71ef6380fed09208b271f5fcef5a74c8a23f042d03c7"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final-union/record.json",
+      "bytes": 1873,
+      "sha256": "c3ae25a178a9d96f154774436925f969cfccca1805f1633b245dc216f53716bd"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final-union/stderr.txt",
+      "bytes": 156,
+      "sha256": "df09dff11ae27f0db2d663f88c70b7d21f46fbd792f35862d56d58b22ba503ea"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final-union/stdout.txt",
+      "bytes": 204,
+      "sha256": "c4b8c277845138a490c13030ad2de48cf6f2e8b5879f8a6ed50f8eef1ed512c9"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final5-budget/record.json",
+      "bytes": 1867,
+      "sha256": "d2ad849b113e35bf8179d02ba8489e8a41bfd306693bf840bb7958dd03f6c2b0"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final5-budget/stderr.txt",
+      "bytes": 156,
+      "sha256": "3a044e3dec0ae1c7940d59d1e666f6d47a1702cfd9323f552536dbf3f8f39720"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final5-budget/stdout.txt",
+      "bytes": 198,
+      "sha256": "73f35e4a5c4603e53bb56e2f49c5264ae5e99aa836db62f66c49db2bc877353b"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final5-union/record.json",
+      "bytes": 1873,
+      "sha256": "72b4807983ab1f644d5319d5323cbb6cfd49acc1626f8d36ace69bccbae51b47"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final5-union/stderr.txt",
+      "bytes": 156,
+      "sha256": "4c7475f5f5aa129a0d65f13c85df1e0fbacd8eae1d99edfcd04c031fc5f05906"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final5-union/stdout.txt",
+      "bytes": 204,
+      "sha256": "87eafe95b0ba044c689bb34ae766f444d1bd0a77a6326a44428004e908701755"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final5/record.json",
+      "bytes": 1831,
+      "sha256": "05b01900f62d9dfed60cf72234fa43a40b2c6bec42c2824b8131ec1925100b7d"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final5/stderr.txt",
+      "bytes": 217,
+      "sha256": "a947519e3dcdf6e0f145f93e5729506953c96e7e94a85b5b38db176a96e31eca"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final5/stdout.txt",
+      "bytes": 282,
+      "sha256": "cb12d1a2bcf33bd62a7adb55b4ce8c41507df86add73cc03a4f7183c12e0ffa3"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final6-budget/record.json",
+      "bytes": 1833,
+      "sha256": "ebd710f05e7a85d5372fab279de35fff0fca129c8bdcc73e9066f8cfe8fe7cb3"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final6-budget/stderr.txt",
+      "bytes": 156,
+      "sha256": "3a044e3dec0ae1c7940d59d1e666f6d47a1702cfd9323f552536dbf3f8f39720"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final6-budget/stdout.txt",
+      "bytes": 278,
+      "sha256": "b5d27f05703f1b0a01d11a8926b98b7fc541138be38686006f18de331c4c2413"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final6-correlated/record.json",
+      "bytes": 1865,
+      "sha256": "29e9f6ccb11cc97bf8c3ff5d8ae5856131879d2e493c8eed76b767028d714ba6"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final6-correlated/stderr.txt",
+      "bytes": 156,
+      "sha256": "dcb43e65889f467ba9be33de7e5603f88dca5c0db742d4152639b8a3fbd09fcb"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final6-correlated/stdout.txt",
+      "bytes": 196,
+      "sha256": "9e69fc6fff021f7669668ed98fe0dcd560446182d8fb73096189a5e700ae8a6f"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final6-independent/record.json",
+      "bytes": 1868,
+      "sha256": "913d17e3208f864944f1d4d56be6246630902a9b3b7e8a26322efcfcb882c44f"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final6-independent/stderr.txt",
+      "bytes": 156,
+      "sha256": "a018fe47a92f6fd9ecc12a25b8c71fcc318e4ed65fb37abc70a8533307c4e96e"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final6-independent/stdout.txt",
+      "bytes": 199,
+      "sha256": "93a42e6c51c442aac61e17a9ed6c1ccad30ded71f4c0a82c73c6d9bb25388da5"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final6-union/record.json",
+      "bytes": 1873,
+      "sha256": "ee5892c401eff37ec69f4c12f0b3c4b6b12ff033886f9c636a7f9a1c4f4f18ac"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final6-union/stderr.txt",
+      "bytes": 156,
+      "sha256": "df09dff11ae27f0db2d663f88c70b7d21f46fbd792f35862d56d58b22ba503ea"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final6-union/stdout.txt",
+      "bytes": 204,
+      "sha256": "1459884d2bed71314f3d7a2777d81b176b4c22338a8bc54bad4611834b6dac85"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final6/record.json",
+      "bytes": 1831,
+      "sha256": "7200d9caa7173349904e2765ce87ebb84f256b6d94f301a29ee6e9ae1a64611a"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final6/stderr.txt",
+      "bytes": 217,
+      "sha256": "83939e76030873fab612b9d6050d0046c9e27c2d7f597707d8e22fa81b18daea"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final6/stdout.txt",
+      "bytes": 282,
+      "sha256": "8e04dd8200af8c975b1aa7b15537b285d59cf20d5d1216f4bfd16c7ba47872f4"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final7-budget/record.json",
+      "bytes": 1833,
+      "sha256": "51e72941db7a4898666486c5c521026986e88db6b87cd44a670b28383737f387"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final7-budget/stderr.txt",
+      "bytes": 156,
+      "sha256": "4c7475f5f5aa129a0d65f13c85df1e0fbacd8eae1d99edfcd04c031fc5f05906"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final7-budget/stdout.txt",
+      "bytes": 278,
+      "sha256": "51ba74d05fdf88c8501ca896874b4b0b324f9c5051e9632a9de27467732e4a9d"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final7-carriers/record.json",
+      "bytes": 1831,
+      "sha256": "54199dbd386c456ba8ec0fd602441770e1bdf7d6ce2b8a33ed4665072cf6f684"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final7-carriers/stderr.txt",
+      "bytes": 156,
+      "sha256": "800a42e37e8657ec0f87d7cbef0784a607efd053c15bce73c9bd6d0fe80bc9a1"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final7-carriers/stdout.txt",
+      "bytes": 282,
+      "sha256": "8e5c594d847117468c5da6b992c21de3582d09b2eb97ea8efb733d49453081f1"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final7-correlated/record.json",
+      "bytes": 1865,
+      "sha256": "d536dd3c8d47d57d99a4d22223e2a750028d13e05e333730cf832ddcc9387285"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final7-correlated/stderr.txt",
+      "bytes": 156,
+      "sha256": "821c506d79dd1de5feb5168edc6b67fb6086268da14ddebb71c3aaeabe0ac715"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final7-correlated/stdout.txt",
+      "bytes": 196,
+      "sha256": "b436f4404e4eb3b86d2fb7cbbfdd39bd25d9bcfa12e3c5ce52af28a0ebbb2537"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final7-cte/record.json",
+      "bytes": 1886,
+      "sha256": "42f8fe20495e99badf683a8f505a58750bb0b5afab9e94b84bcafa1a35ca5e73"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final7-cte/stderr.txt",
+      "bytes": 156,
+      "sha256": "4b2241c55848d729d6a2c46e050d23c4d0bf447a4049316a375508c4a9b9c432"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final7-cte/stdout.txt",
+      "bytes": 217,
+      "sha256": "8d4db04499243cb91edfa047416a36d64da9d90a11dd53f028e960a4fa6e7e3c"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final7-independent/record.json",
+      "bytes": 1868,
+      "sha256": "d7384be30bdc4632aac4a75a62f2e00f522786343545b42c18b1aba844f98309"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final7-independent/stderr.txt",
+      "bytes": 156,
+      "sha256": "df09dff11ae27f0db2d663f88c70b7d21f46fbd792f35862d56d58b22ba503ea"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final7-independent/stdout.txt",
+      "bytes": 199,
+      "sha256": "139d9dff0d5c6c159ba2a64de4266a1028a6cac91ab30845cd2f922bcf3e8951"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final7-scope/record.json",
+      "bytes": 1881,
+      "sha256": "5a9e8c1f19c0b9a3cee3d5109303df365bc9eb234acfae568f54eed50769eec8"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final7-scope/stderr.txt",
+      "bytes": 156,
+      "sha256": "8813562ca7031a06a4c44c1dbb9d801af3f94fd94e830b5bc4de663ebc300fed"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final7-scope/stdout.txt",
+      "bytes": 212,
+      "sha256": "d8434cbaf4b5165a02066c7df6f78ab1dbe17251515fb6680e420c1041794b4f"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final7-union/record.json",
+      "bytes": 1873,
+      "sha256": "5ffdaed7945b70f3d56d9471f63b02c5460caf778f5a82eb9c751d02afb2dca9"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final7-union/stderr.txt",
+      "bytes": 156,
+      "sha256": "3a044e3dec0ae1c7940d59d1e666f6d47a1702cfd9323f552536dbf3f8f39720"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final7-union/stdout.txt",
+      "bytes": 204,
+      "sha256": "87aa291b73e365d35daf4ea7713c78094f70aaae55941ecdc51f328b9954e75f"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final8-budget/record.json",
+      "bytes": 1833,
+      "sha256": "751db90edb70e919666de3a9ecf62c264e1b3e3ae54b953695501b89c1cc9ce3"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final8-budget/stderr.txt",
+      "bytes": 156,
+      "sha256": "3a044e3dec0ae1c7940d59d1e666f6d47a1702cfd9323f552536dbf3f8f39720"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final8-budget/stdout.txt",
+      "bytes": 278,
+      "sha256": "51ba74d05fdf88c8501ca896874b4b0b324f9c5051e9632a9de27467732e4a9d"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final8-carriers/record.json",
+      "bytes": 1831,
+      "sha256": "9915b72173977f384d046b361fc54b3462b7a3a6560a72e0451d1b1dac9dbbf8"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final8-carriers/stderr.txt",
+      "bytes": 156,
+      "sha256": "df09dff11ae27f0db2d663f88c70b7d21f46fbd792f35862d56d58b22ba503ea"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final8-carriers/stdout.txt",
+      "bytes": 282,
+      "sha256": "8e5c594d847117468c5da6b992c21de3582d09b2eb97ea8efb733d49453081f1"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final8-correlated/record.json",
+      "bytes": 1865,
+      "sha256": "86482b57e220e046ca5809bc1433de714bb814ec832a71f66a8e0deae9d85454"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final8-correlated/stderr.txt",
+      "bytes": 156,
+      "sha256": "3a044e3dec0ae1c7940d59d1e666f6d47a1702cfd9323f552536dbf3f8f39720"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final8-correlated/stdout.txt",
+      "bytes": 196,
+      "sha256": "87e65ca74b0406cef6f490dde12866357ca98095876be605d1570b414fc3cdc5"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final8-cte/record.json",
+      "bytes": 1886,
+      "sha256": "4e03e0b11b2fc831dad8b611b5a826db614aa2c1387788ebc2d3fa8248a6df1d"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final8-cte/stderr.txt",
+      "bytes": 156,
+      "sha256": "821c506d79dd1de5feb5168edc6b67fb6086268da14ddebb71c3aaeabe0ac715"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final8-cte/stdout.txt",
+      "bytes": 217,
+      "sha256": "8d4db04499243cb91edfa047416a36d64da9d90a11dd53f028e960a4fa6e7e3c"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final8-independent/record.json",
+      "bytes": 1868,
+      "sha256": "48eeeebaedf44b9157989a02e8a741f7ca5f74a5407e553217f73df582df28f1"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final8-independent/stderr.txt",
+      "bytes": 156,
+      "sha256": "3a044e3dec0ae1c7940d59d1e666f6d47a1702cfd9323f552536dbf3f8f39720"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final8-independent/stdout.txt",
+      "bytes": 199,
+      "sha256": "139d9dff0d5c6c159ba2a64de4266a1028a6cac91ab30845cd2f922bcf3e8951"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final8-scope/record.json",
+      "bytes": 1881,
+      "sha256": "e595b70eeceac49c3a20598438f53fd686c59dd8a01ab401178213749d3c7e2f"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final8-scope/stderr.txt",
+      "bytes": 156,
+      "sha256": "24dde67a1f85cc6a7945b1f8ffb231d89fc4f4b1ad6b51e9128871a62504ef68"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final8-scope/stdout.txt",
+      "bytes": 212,
+      "sha256": "d8434cbaf4b5165a02066c7df6f78ab1dbe17251515fb6680e420c1041794b4f"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final8-union/record.json",
+      "bytes": 1873,
+      "sha256": "843c667f7b3d31529f43ec8c3bdcc17b7eb5cfd523c9b4184e6d3fb5ad92eed1"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final8-union/stderr.txt",
+      "bytes": 156,
+      "sha256": "3a044e3dec0ae1c7940d59d1e666f6d47a1702cfd9323f552536dbf3f8f39720"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final8-union/stdout.txt",
+      "bytes": 204,
+      "sha256": "87aa291b73e365d35daf4ea7713c78094f70aaae55941ecdc51f328b9954e75f"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final9-compound/record.json",
+      "bytes": 1820,
+      "sha256": "df1f3f2491eec9549780c1ed338e8f81ad57457aca39a7d54f7244415fbdcb52"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final9-compound/stderr.txt",
+      "bytes": 217,
+      "sha256": "c13f16ecd966c59fa4fb7139dc29229ba1c76067503240fc4b1f85404b9d5eba"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final9-compound/stdout.txt",
+      "bytes": 1244,
+      "sha256": "ac5e96b06fec6c8fd8c80ab6a3ed794d3ef2a02997bfb3876f17b1f2c3cf1867"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final9-correlated/record.json",
+      "bytes": 1865,
+      "sha256": "726566c5a6e985307fef6921d3c508878261def45dd44249f695bd2d0ac100e0"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final9-correlated/stderr.txt",
+      "bytes": 156,
+      "sha256": "df09dff11ae27f0db2d663f88c70b7d21f46fbd792f35862d56d58b22ba503ea"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final9-correlated/stdout.txt",
+      "bytes": 196,
+      "sha256": "f0507659f1ae34d21eec446e9068368d081d7fe53d755918e5133ff23ebbb556"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final9-cte/record.json",
+      "bytes": 1886,
+      "sha256": "4a71889c6aec8d171cd65939e66fa8cfbfbaf334275a9fd5f197899a75db2556"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final9-cte/stderr.txt",
+      "bytes": 156,
+      "sha256": "df09dff11ae27f0db2d663f88c70b7d21f46fbd792f35862d56d58b22ba503ea"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final9-cte/stdout.txt",
+      "bytes": 217,
+      "sha256": "59b946bae8d4e65332bd9e92874c4a314f45554c8bb16c64b8262a75b159b3b9"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final9-independent/record.json",
+      "bytes": 1868,
+      "sha256": "50657421777c06bda2d1d614528d3f1e5f5b7918ff0c1dd5a2d9cfcd9f719f76"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final9-independent/stderr.txt",
+      "bytes": 156,
+      "sha256": "d7ca7cafe5a3d75afe30b1d973453f53745f2e5564d26287e7fb6dea82f13170"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final9-independent/stdout.txt",
+      "bytes": 199,
+      "sha256": "4741c4c41875e4c96485b1e3e40592261a0d402da43f0f7920461fe0be12456c"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final9-scope/record.json",
+      "bytes": 1881,
+      "sha256": "4a2225caede447c3c3d32120b4e4a177ad08835c4ec8931e3f4189a84f89e3ee"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final9-scope/stderr.txt",
+      "bytes": 156,
+      "sha256": "20eb71464b183dd23322b2c9190d0f70d02a6b64265bfbd4cb492ae2860a8c48"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final9-scope/stdout.txt",
+      "bytes": 212,
+      "sha256": "c47472c46cc90b9bd75660ed918609a06c9e187e6dc84e1343a7190455b67c06"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final9-union/record.json",
+      "bytes": 1873,
+      "sha256": "5721f64a050419d6f588d6a544aaf39a550e613faebcb47e2d79c4d8f13c64cc"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final9-union/stderr.txt",
+      "bytes": 156,
+      "sha256": "3a044e3dec0ae1c7940d59d1e666f6d47a1702cfd9323f552536dbf3f8f39720"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/final9-union/stdout.txt",
+      "bytes": 204,
+      "sha256": "790e01512e1badb4c1a1740e504f8dbdc4f1258c50f17028aed7544c48aa07cc"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/guard1/record.json",
+      "bytes": 1872,
+      "sha256": "55f2cf5cccf34ef0681b528e63d42bc03c7aa9fd4e1f91e102e6d9098c92a6ea"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/guard1/stderr.txt",
+      "bytes": 742,
+      "sha256": "64fe62b233c2fb6e8936c0da3d48964612a1cc52924ae0027fbe6b60256e0bc3"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/guard1/stdout.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/guard2/record.json",
+      "bytes": 1870,
+      "sha256": "42236085f75f664235acdc1c51f1f9499d5c2d8a7e3c4b45e9fbaaa00af16b30"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/guard2/stderr.txt",
+      "bytes": 217,
+      "sha256": "b94445050e3a92287d54cd07302c8637e1f94a2f4bce0bd951c5b8d8d45c0c85"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/guard2/stdout.txt",
+      "bytes": 201,
+      "sha256": "e37df622013ea7d000aa7bdcd8a08ba021c2752f1495f131bcbf107c066032c8"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/guard3/record.json",
+      "bytes": 1831,
+      "sha256": "5096243f6e173aca9842945f12ed690c2f0802b0f325b638e8181c92d7993f34"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/guard3/stderr.txt",
+      "bytes": 217,
+      "sha256": "1c5b553a1f7b3350cf5d41a847eec02471c8d0553b5dd374b19300c9db8767be"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/guard3/stdout.txt",
+      "bytes": 282,
+      "sha256": "afbbe9bd9f109d2c534d8abe1727a1590ce2a1a9234ed99783b34a660b749100"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/guard4/record.json",
+      "bytes": 1831,
+      "sha256": "0419484a3e453f0d7358e1444c3baa710f9b02c925572f47b6034ba1b49523c4"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/guard4/stderr.txt",
+      "bytes": 217,
+      "sha256": "8681cca619ac5bb8c20649596b88a784cf047b8f01c6888d1c7f1d8e235c1bca"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/guard4/stdout.txt",
+      "bytes": 282,
+      "sha256": "8e7100cc8397db85830a35cd8498a644c6f05665bef1e177fa74e967af769cf8"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/mixed1/record.json",
+      "bytes": 1820,
+      "sha256": "0d56df7c17b89ce9104e6ed6f2d6047a7e7249772001dff2d85f86adc63ca81e"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/mixed1/stderr.txt",
+      "bytes": 1516,
+      "sha256": "c855e3ef520fc562eee7bf2bc3c44022314384a93bc7b7ae51c43df5e891147f"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/mixed1/stdout.txt",
+      "bytes": 610,
+      "sha256": "940f6053341c9b100d9cddf24795ad7a8f6ea3d416cbf9c7a588641b3b49da95"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/mixed2/record.json",
+      "bytes": 1820,
+      "sha256": "4bd96c2d838d3ab9bed38d1ff23a1d9d70d2a2f6be70837c02e8386bced50d0a"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/mixed2/stderr.txt",
+      "bytes": 1516,
+      "sha256": "f27e39c864b3c3a1577ccfc92aa0245fd57506d6efff6388657510fc453ffc69"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/mixed2/stdout.txt",
+      "bytes": 706,
+      "sha256": "8bc0019207d58f7b01163d50d0715e841d246260934a964f5b970c620667a946"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/mixed3-correlated/record.json",
+      "bytes": 1865,
+      "sha256": "26bb46515ac1a9d8db0b73fa13de33defeef9d39b40ef7e8c614975692ba363b"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/mixed3-correlated/stderr.txt",
+      "bytes": 1455,
+      "sha256": "f4702f402262c0e0aa3d4b057caa760f458e2890197a04c080df1bc0cf67aa61"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/mixed3-correlated/stdout.txt",
+      "bytes": 196,
+      "sha256": "a3a1028d65d1bb1a69d4aa3ebd31f74362e5ef95232d436c2ae4e41bd8f823a4"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/mixed3-cte/record.json",
+      "bytes": 1886,
+      "sha256": "59f22586516eec2ab7392873c59ef13daf5a4479a7307fd6a0c802eccdf7e78f"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/mixed3-cte/stderr.txt",
+      "bytes": 1455,
+      "sha256": "f4702f402262c0e0aa3d4b057caa760f458e2890197a04c080df1bc0cf67aa61"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/mixed3-cte/stdout.txt",
+      "bytes": 217,
+      "sha256": "7af9e9b7e5e43199451b7d3822ab0c983bc5b81962342138aa56f11fa4f87bc5"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/mixed3-independent/record.json",
+      "bytes": 1868,
+      "sha256": "47eb6ee107b333eadf696ae11c4ac9743189d104c34678afdf2d5d6f3d6bb65c"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/mixed3-independent/stderr.txt",
+      "bytes": 1455,
+      "sha256": "21ea47d4a9e7f457014a7217baa1bc561475c346fb4aeedb590fbba489f139c8"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/mixed3-independent/stdout.txt",
+      "bytes": 199,
+      "sha256": "4a5eb274fc2e6db9bacae84ad21fe95fdb67385ce13e98cc0415487cf32e8502"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/mixed3-scope/record.json",
+      "bytes": 1881,
+      "sha256": "2ef054c393bf087b04e9f05719a7ae9c7b80e50b9b33dab6d7a273e3feddc9f4"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/mixed3-scope/stderr.txt",
+      "bytes": 1455,
+      "sha256": "441f60b4ae5fd1c67a884aec03633579e1783086db3c9b677d538b3e8b694313"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/mixed3-scope/stdout.txt",
+      "bytes": 212,
+      "sha256": "1eee2961a01d9af76015d107cebb8e291a352acbd1a4681215f22e7592bc8bec"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/mixed3-union/record.json",
+      "bytes": 1873,
+      "sha256": "a8e6e125bd4b3c1f1fbac0903a3dafd2c62c54c530292bee9cffda8db7e5ce3b"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/mixed3-union/stderr.txt",
+      "bytes": 1455,
+      "sha256": "9e5abbe2b4f2b5674f8603219d74495688f3a69f1008b91f7fc6e80fead6114b"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/mixed3-union/stdout.txt",
+      "bytes": 204,
+      "sha256": "ea6fc0c0cda500c27670d611d561c76a57dee4a2e854382d9aca0d2bc8ae63be"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/mixed3/record.json",
+      "bytes": 1820,
+      "sha256": "da28ca12546ed537e382226b4f19c424d66459f92bc34bfc8d5c232e623ecd1d"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/mixed3/stderr.txt",
+      "bytes": 1516,
+      "sha256": "25787629250eb19b3e03c2c396b2a4f2ed901b8a0098d080b09cb2b8d5ca5c34"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/mixed3/stdout.txt",
+      "bytes": 706,
+      "sha256": "86691e20adfbad4c00270ab1c1ab2151bc447fbbfabe683c319053f3a8f069e9"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order-final-compound/record.json",
+      "bytes": 1820,
+      "sha256": "d346d13021efe1e6fde12741e3b44bb9ea038b6a8bdd4e2c13dd1f36e0691267"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order-final-compound/stderr.txt",
+      "bytes": 156,
+      "sha256": "3a044e3dec0ae1c7940d59d1e666f6d47a1702cfd9323f552536dbf3f8f39720"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order-final-compound/stdout.txt",
+      "bytes": 799,
+      "sha256": "64734f764ae9476afa01de454c462ad54f988f5557873bc2642176cff2a64ed9"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order-final-correlated/record.json",
+      "bytes": 1865,
+      "sha256": "49e17a2dce8c075e591118430a355d8ebbe02eed7a3776dc0081e2a944b95eae"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order-final-correlated/stderr.txt",
+      "bytes": 156,
+      "sha256": "3a044e3dec0ae1c7940d59d1e666f6d47a1702cfd9323f552536dbf3f8f39720"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order-final-correlated/stdout.txt",
+      "bytes": 196,
+      "sha256": "cc314593e358d51b85f885b375b1f71a8eb74faea3527351b02d993635509714"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order-final-cte/record.json",
+      "bytes": 1886,
+      "sha256": "69ac16fc4f758d99e05d98f2c089cb55191d758c298e7afc458b0d711e6a709f"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order-final-cte/stderr.txt",
+      "bytes": 156,
+      "sha256": "3a044e3dec0ae1c7940d59d1e666f6d47a1702cfd9323f552536dbf3f8f39720"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order-final-cte/stdout.txt",
+      "bytes": 217,
+      "sha256": "8fc167bc5a872b954a885f626f15f5a8af7f07b6e77fe121d09dec06de0134bd"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order-final-independent/record.json",
+      "bytes": 1868,
+      "sha256": "e1883ffe818b6fd2473ed41a596058273d5f9266f73cbeda9fd9f34fda3578b3"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order-final-independent/stderr.txt",
+      "bytes": 156,
+      "sha256": "d7ca7cafe5a3d75afe30b1d973453f53745f2e5564d26287e7fb6dea82f13170"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order-final-independent/stdout.txt",
+      "bytes": 199,
+      "sha256": "4156f4b087277c52605a36ab459ac3859072f3fe44f1c1b1d867c85439a82a17"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order-final-scope/record.json",
+      "bytes": 1881,
+      "sha256": "2723366127d64523d7957a4f4e9be7535228cc467b103aed819465f97886cbb2"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order-final-scope/stderr.txt",
+      "bytes": 156,
+      "sha256": "3a044e3dec0ae1c7940d59d1e666f6d47a1702cfd9323f552536dbf3f8f39720"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order-final-scope/stdout.txt",
+      "bytes": 212,
+      "sha256": "74538c90dcfa14f0c20620acc9cfe235864d83559d8f42a52d277c23f23733a2"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order-final-union/record.json",
+      "bytes": 1873,
+      "sha256": "26dcfd54f24beb3360c393fbc4d9699d7f8bd520168f3dd23dd5540699498035"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order-final-union/stderr.txt",
+      "bytes": 156,
+      "sha256": "d7ca7cafe5a3d75afe30b1d973453f53745f2e5564d26287e7fb6dea82f13170"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order-final-union/stdout.txt",
+      "bytes": 204,
+      "sha256": "fb88d8f2252295410a239c99f2a5a83b29075e18eaf7c910d16551a36d74a27f"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order-green/record.json",
+      "bytes": 1876,
+      "sha256": "b1799815e03d162f903dd9dc1a5dc8b54a2bc201a006e77c5a6c25cd00a0b077"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order-green/stderr.txt",
+      "bytes": 217,
+      "sha256": "eba390441ff554cc07dab19e896e71eb4c2baedd3d6ee65f21613ad05f752620"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order-green/stdout.txt",
+      "bytes": 207,
+      "sha256": "a334d90ce9060b91684861aea94b404926ce694420212e89612f06f8a209b096"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order-green2/record.json",
+      "bytes": 1876,
+      "sha256": "1c751e841f50c64b772bbd26572d20082fbd4769bb1365ebf98e21fb3c9d9bc6"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order-green2/stderr.txt",
+      "bytes": 217,
+      "sha256": "bac22df5e24659ceb6504e430c4b2c5ccd0cb7bee3003b4de675e68baa7917e4"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order-green2/stdout.txt",
+      "bytes": 207,
+      "sha256": "a334d90ce9060b91684861aea94b404926ce694420212e89612f06f8a209b096"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order-green3/record.json",
+      "bytes": 1876,
+      "sha256": "7529060a24beb9e03fe9cbd34cdc679572320056cd4f87c9d45536c81dedf827"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order-green3/stderr.txt",
+      "bytes": 217,
+      "sha256": "fff605e6039bc88a0df1dada772057ced578437916ab556cb599ca68d0a7a0c4"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order-green3/stdout.txt",
+      "bytes": 207,
+      "sha256": "a334d90ce9060b91684861aea94b404926ce694420212e89612f06f8a209b096"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order-red/record.json",
+      "bytes": 1878,
+      "sha256": "754b91b489e2f13fecd0caa619cc3eff03934599dc33ff462c596d0226a6e100"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order-red/stderr.txt",
+      "bytes": 4074,
+      "sha256": "e4edc32f60417dfa61586e833b9ba00961cf1db953f5ec020061a4b48dffd890"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order-red/stdout.txt",
+      "bytes": 322,
+      "sha256": "5fc76fe3cb3f5d0f6ba116a758987bbbffd1ebaca4fc3f2706c76c240937ef08"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order-red/test.patch",
+      "bytes": 31765,
+      "sha256": "34483641957120f214303b4b77ee881903aa3833fdb27ffa68ee0e75df1c0e97"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order2-compound/record.json",
+      "bytes": 1820,
+      "sha256": "59916d005b7ad501167ef850a1be3b751ce96f2e98a89352c763932cd7de0ad5"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order2-compound/stderr.txt",
+      "bytes": 156,
+      "sha256": "3a044e3dec0ae1c7940d59d1e666f6d47a1702cfd9323f552536dbf3f8f39720"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order2-compound/stdout.txt",
+      "bytes": 878,
+      "sha256": "849a66d3a5935f8b2e45a5dfdd2b22252a26ba0143a31a13801c398385e66749"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order2-correlated/record.json",
+      "bytes": 1865,
+      "sha256": "5b5acb65ccfa90b39f2796e5ef526dadfd777e4f609495a2e57dea195e7f2632"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order2-correlated/stderr.txt",
+      "bytes": 156,
+      "sha256": "d7ca7cafe5a3d75afe30b1d973453f53745f2e5564d26287e7fb6dea82f13170"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order2-correlated/stdout.txt",
+      "bytes": 196,
+      "sha256": "6c6ef9eb650044d9bab80c32f0022f12b4b043b82e5b7934c1e5380d4769da3c"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order2-cte/record.json",
+      "bytes": 1886,
+      "sha256": "152aead19a231fde6b0429e540105692369a6bca73793b01778d81052ebfc8db"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order2-cte/stderr.txt",
+      "bytes": 156,
+      "sha256": "3a044e3dec0ae1c7940d59d1e666f6d47a1702cfd9323f552536dbf3f8f39720"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order2-cte/stdout.txt",
+      "bytes": 217,
+      "sha256": "2c54e6013c653c8fb08a2b7970a7d5be5bdaa3beb101c071e5c07c1ea52604bc"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order2-independent/record.json",
+      "bytes": 1868,
+      "sha256": "c496b04046d1b66838645b9a93221dc3ab5943187345836a1b0a4a6ea550d588"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order2-independent/stderr.txt",
+      "bytes": 156,
+      "sha256": "d7ca7cafe5a3d75afe30b1d973453f53745f2e5564d26287e7fb6dea82f13170"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order2-independent/stdout.txt",
+      "bytes": 199,
+      "sha256": "52de0a0819850b890cb066c5c8a329558f9f309ae8d16c188862aa8d019a0654"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order2-scope/record.json",
+      "bytes": 1881,
+      "sha256": "7fabe1a255c8aa40a6b2b731fc2e8c724c52e49464b0849540110ffbedf17e30"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order2-scope/stderr.txt",
+      "bytes": 156,
+      "sha256": "df09dff11ae27f0db2d663f88c70b7d21f46fbd792f35862d56d58b22ba503ea"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order2-scope/stdout.txt",
+      "bytes": 212,
+      "sha256": "9a543cc923ef409dcf9b32d29fb2e3e951b6d0eae264d3b129c6cb155884ec3d"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order2-union/record.json",
+      "bytes": 1873,
+      "sha256": "0f1a18f5a8785de1f533609ea60e440e0aef83fca5187aba8f4c4778398cd049"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order2-union/stderr.txt",
+      "bytes": 156,
+      "sha256": "4c7475f5f5aa129a0d65f13c85df1e0fbacd8eae1d99edfcd04c031fc5f05906"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/order2-union/stdout.txt",
+      "bytes": 204,
+      "sha256": "3c58e4b362bdcbdceb9078ca0a0c21c5a9fe9df574407abc738f650af1d89f3b"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/param-final/record.json",
+      "bytes": 1860,
+      "sha256": "9275aaef553340494bc5793456be7f21a4361135567e257b814486fe98acaec7"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/param-final/stderr.txt",
+      "bytes": 217,
+      "sha256": "ed0a41056cfbd62c74c6369a639e331c48e1d259d4d9811fa6fad77563230d6a"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/param-final/stdout.txt",
+      "bytes": 191,
+      "sha256": "f141a2c826031388095fa07ce72713168d4d48cc7fe052c18b752abc430b3687"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/param-final2/record.json",
+      "bytes": 1860,
+      "sha256": "a93a7b57ebdaa59a8d6a03e61d370a4d763a43f17c84824f5f37315418999815"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/param-final2/stderr.txt",
+      "bytes": 217,
+      "sha256": "e97e9233a582cd20f483565b209d720074c1341d5c4a0c9ef2468389d93d3747"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/param-final2/stdout.txt",
+      "bytes": 191,
+      "sha256": "f141a2c826031388095fa07ce72713168d4d48cc7fe052c18b752abc430b3687"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/param-green/record.json",
+      "bytes": 1860,
+      "sha256": "9c4ab1d5e1c79d3296383dd2d117c9ada9776860580c5d2ce12278ea8f0f9e4c"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/param-green/stderr.txt",
+      "bytes": 217,
+      "sha256": "ad666685443152b422eb3d44cf93d400a45dc0ed475e7522e7b6d05f2f1db50c"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/param-green/stdout.txt",
+      "bytes": 191,
+      "sha256": "f141a2c826031388095fa07ce72713168d4d48cc7fe052c18b752abc430b3687"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/param-red/record.json",
+      "bytes": 1862,
+      "sha256": "50bd4492a08913636543f6ef1eef42c0cf18b648776af38214f0b3ad3029b0e8"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/param-red/stderr.txt",
+      "bytes": 833,
+      "sha256": "9f850906b44d9715c00c6f03fdb5cba87cb934eb8aa19c6898d71e63616dc620"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/param-red/stdout.txt",
+      "bytes": 290,
+      "sha256": "fe699215e4e4270b113b1f02ac879b7235dbd310c4f2a6450af5782a94c3bd3f"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/red/record.json",
+      "bytes": 1860,
+      "sha256": "d3b051a07bbfe3badee7afdeae4bb4188bc3d98ccbd3317226d7ba0dcf08617f"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/red/stderr.txt",
+      "bytes": 795,
+      "sha256": "bf910f32bbdec9451ce8e105385b272898c8421bd8dd0f9d15555730a74fbb6d"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/red/stdout.txt",
+      "bytes": 282,
+      "sha256": "ce9840f30b27583aea8bc31b1c7cbeff76b1c6b5053398bb2e48800135551a36"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/red2/record.json",
+      "bytes": 1860,
+      "sha256": "86b9ff72316bbad04c8591a1b319ced946c178780dcbd6716bf216ec739d0ce6"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/red2/stderr.txt",
+      "bytes": 1973,
+      "sha256": "27af1563f1eeb70b9a57e39517d56b559af7ea417bd5fce1f238898917e4cd51"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/red2/stdout.txt",
+      "bytes": 282,
+      "sha256": "beaa56628119264a42b72dedbe0835ce7f584667f309f9103741b58e75e2ee82"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/red2/test.patch",
+      "bytes": 3334,
+      "sha256": "793e1c39cc1d55c9d96fea7b330d4556c9ad95bbb0e289b13ccaadc407ce2168"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/run.py",
+      "bytes": 1393,
+      "sha256": "1bd34de85beb782f73a7b2e01e76cb1e615824ce2b9f6385a3e5c2ecca6755f3"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/run_guard.py",
+      "bytes": 1339,
+      "sha256": "88bf939c01796fa3c455e1088e2c47fbbf5a89e4bba373bce89266afae9bced9"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/summary.json",
+      "bytes": 10288,
+      "sha256": "6e33e3e49def9728ef5cea33ae61782dcade3f6dc3622d9f195258c94022321b"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/wildcard-middle-green/record.json",
+      "bytes": 1866,
+      "sha256": "b89487c85bbbbabf94d5bce2e6599e8be5b1dcc835ae94a477b1998b443b991e"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/wildcard-middle-green/stderr.txt",
+      "bytes": 217,
+      "sha256": "f6ee7a0f1d039679bdc5df1cb212b355ccfa35fb949c228d1df151bc60784b2b"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/wildcard-middle-green/stdout.txt",
+      "bytes": 197,
+      "sha256": "9d7a2c432e7b186ca6b335d1261506ae7005b662541c7671bfc83d123bc9fc42"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/wildcard-middle-red/record.json",
+      "bytes": 1868,
+      "sha256": "06347c2836d7a36a85a21757e76ecd194e8f52310890d18d167e7fcd54977d1b"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/wildcard-middle-red/stderr.txt",
+      "bytes": 945,
+      "sha256": "10e553ed3bcab85c48491cf4b55936e7456428ea626872a7d80eaae80ebc6d16"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/wildcard-middle-red/stdout.txt",
+      "bytes": 302,
+      "sha256": "cccd0b929a7821da439a29c5d7dd635cb98f3e7ca4de9fee8aacfc625d59d4cd"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/wildcard-red/record.json",
+      "bytes": 1862,
+      "sha256": "0fd98f0cbe69518ed397ba4dffc4d0e614d34f6336472100a1cf5006a23e993f"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/wildcard-red/stderr.txt",
+      "bytes": 648,
+      "sha256": "6113aeeec97225c0a4a04865fca80bebf73e3dffe8f231eee68b8092f4f6cbe0"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/wildcard-red/stdout.txt",
+      "bytes": 290,
+      "sha256": "f27036bddcedb837ee9e580519c154ebd055f4eb9f1568b84a5ad7b2a78586b3"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/compound-numeric-carriers-20261101/wildcard-red/test.patch",
+      "bytes": 32879,
+      "sha256": "11b1bae009b0ca9134801d69195c3b136156e063f37cb704293b2020610b424d"
     },
     {
       "path": "artifacts/mdd-031-audit/concat-budget-20261029/clippy/record.json",
@@ -39751,6 +41046,66 @@
       "path": "artifacts/mdd-034-audit/remaining-resident-20261030/run1/stdout.txt",
       "bytes": 206,
       "sha256": "0fe9420e7c2e51d940ab689ed97e4c6deac71e29bc02c9976399293232fbd6b7"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scanned-entity-scope-20261101/red/after.json",
+      "bytes": 871,
+      "sha256": "bc978d9e9c2a495decb91a4de36ab15b24f4a302a7f435d17e1e44d521feef79"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scanned-entity-scope-20261101/red/before.json",
+      "bytes": 871,
+      "sha256": "bc978d9e9c2a495decb91a4de36ab15b24f4a302a7f435d17e1e44d521feef79"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scanned-entity-scope-20261101/red/exit.txt",
+      "bytes": 5,
+      "sha256": "bdc830287616dae1818ced3e7c186e1387155900ad30d5983ec02da1519c4a95"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scanned-entity-scope-20261101/red/output.txt",
+      "bytes": 928,
+      "sha256": "b25110c75461d5800fdf3294c80ad5d753fe208a6bd71b01cbbe57b1c01c811d"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scanned-entity-scope-20261101/red/record.json",
+      "bytes": 2145,
+      "sha256": "d459f67e4e78b19000efc327104153a489f4883f22663398fb1ae070674541c0"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scanned-entity-scope-20261101/red2/after.json",
+      "bytes": 871,
+      "sha256": "40801a9e6061f04089a927e71dd4d759efaf17067ef6cf76a8790c46b765a502"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scanned-entity-scope-20261101/red2/before.json",
+      "bytes": 871,
+      "sha256": "40801a9e6061f04089a927e71dd4d759efaf17067ef6cf76a8790c46b765a502"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scanned-entity-scope-20261101/red2/exit.txt",
+      "bytes": 5,
+      "sha256": "bdc830287616dae1818ced3e7c186e1387155900ad30d5983ec02da1519c4a95"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scanned-entity-scope-20261101/red2/output.txt",
+      "bytes": 959,
+      "sha256": "a63846a6426e5878ffb3138fc0697a4e3a20946f5052338ac9efacdcd1254b59"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scanned-entity-scope-20261101/red2/record.json",
+      "bytes": 2381,
+      "sha256": "09a8c0b7bf8e196e2e472e55647d2e995784f70ad861fad15bb12425603d3be8"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scanned-entity-scope-20261101/reproduction.patch",
+      "bytes": 4379,
+      "sha256": "7d15135dd710cdb93c07b731e6e046db8d4683f83e953614a449d51251710cd9"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/scanned-entity-scope-20261101/summary.json",
+      "bytes": 1585,
+      "sha256": "5a812e64a00725a1438019ad2a230eded385f90d90820ef237656e92791b9421"
     },
     {
       "path": "artifacts/mdd-034-audit/scoped-catalog-20261101/final1/0.stderr",

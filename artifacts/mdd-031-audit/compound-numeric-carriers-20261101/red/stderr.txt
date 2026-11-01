@@ -1,0 +1,12 @@
+   Compiling mdd-facts v0.1.0-dev (<WORKSPACE>\crates\mdd-facts)
+   Compiling mdd-query v0.1.0-dev (<WORKSPACE>\crates\mdd-query)
+   Compiling mdd-sql v0.1.0-dev (<WORKSPACE>\crates\mdd-sql)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.66s
+     Running unittests src\lib.rs (target\debug\deps\mdd_sql-46977fcd4387e316.exe)
+
+thread 'bridge::tests::compound_numeric_storage_classes_match_sqlite' (45380) panicked at crates\mdd-sql\src\bridge.rs:6546:17:
+assertion `left == right` failed: NativeV1: SELECT 1 UNION SELECT 1.0
+  left: ["F64(DecimalU64(4607182418800017408))", "I64(Signed64(1))"]
+ right: ["F64(DecimalU64(4607182418800017408))"]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p mdd-sql --lib`

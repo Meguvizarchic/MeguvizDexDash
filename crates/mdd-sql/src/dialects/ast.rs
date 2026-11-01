@@ -83,6 +83,22 @@ impl AggregateScan {
         Ok(())
     }
 }
+
+fn charged_compound_expression<'a>(
+    mut expr: &'a Expr,
+    mut depth: usize,
+    budget: &AggregateScan,
+) -> MddResult<&'a Expr> {
+    while let Expr::Nested(inner) = expr {
+        budget.visit(depth)?;
+        depth = depth
+            .checked_add(1)
+            .ok_or_else(|| quota("SQL_AGGREGATE_DETECTION_DEPTH"))?;
+        expr = inner;
+    }
+    budget.visit(depth)?;
+    Ok(expr)
+}
 fn current_aggregate(expr: &Expr, depth: usize, budget: &AggregateScan) -> MddResult<bool> {
     budget.visit(depth)?;
     let child = |e: &Expr| current_aggregate(e, depth + 1, budget);
@@ -874,6 +890,225 @@ enum InStorageClass {
     Text,
     Bytes,
 }
+
+// Compound set operators execute inside SQLite, so they may only compare
+// carrier representations known to agree with our logical equality. Bytes
+// from a provider are not safe: Bytes and DexMutf8 share SqlType::Bytes but
+// have different physical tags. F64 is not safe even within one type because
+// +0 and -0 have distinct carriers but equal numeric keys.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum CompoundCarrier {
+    Null,
+    Integer,
+    Unsigned,
+    Text,
+    LiteralBytes,
+    Mixed(u8),
+    Unknown,
+}
+
+fn merge_compound_carrier(a: CompoundCarrier, b: CompoundCarrier) -> CompoundCarrier {
+    use CompoundCarrier::*;
+    let mask = |value| match value {
+        Null => Some(0),
+        Integer => Some(1),
+        Unsigned => Some(2),
+        Text => Some(4),
+        LiteralBytes => Some(8),
+        Mixed(bits) => Some(bits),
+        Unknown => None,
+    };
+    let Some(bits) = mask(a).zip(mask(b)).map(|(a, b)| a | b) else {
+        return Unknown;
+    };
+    // INTEGER and U64 may be numerically equal despite different carriers.
+    // The other admitted storage classes have disjoint physical tags and
+    // are also distinct according to SQL's compound set equality.
+    if bits & 3 == 3 {
+        return Unknown;
+    }
+    match bits {
+        0 => Null,
+        1 => Integer,
+        2 => Unsigned,
+        4 => Text,
+        8 => LiteralBytes,
+        _ => Mixed(bits),
+    }
+}
+
+// Only compare raw expressions whose complete structure is understood and
+// contains no user placeholder. SQLite gives separate bare '?' occurrences
+// distinct parameter indices, even if their supplied values happen to match.
+fn stable_compound_order_expr(
+    expr: &Expr,
+    depth: usize,
+    budget: &AggregateScan,
+) -> MddResult<bool> {
+    // Expr equality below is recursive; do not attempt it for a deep input.
+    if depth > 64 {
+        return Ok(false);
+    }
+    budget.visit(depth)?;
+    let child = |expr: &Expr| stable_compound_order_expr(expr, depth + 1, budget);
+    match expr {
+        Expr::Value(value) => Ok(!matches!(
+            value.value,
+            Value::Placeholder(_) | Value::Boolean(_)
+        )),
+        Expr::Identifier(_) | Expr::CompoundIdentifier(_) => Ok(true),
+        Expr::Nested(inner) => child(inner),
+        Expr::UnaryOp { expr, .. } => child(expr),
+        Expr::BinaryOp { left, right, .. } => Ok(child(left)? && child(right)?),
+        Expr::Cast {
+            expr, format: None, ..
+        } => child(expr),
+        Expr::Function(function)
+            if function.over.is_none()
+                && function.filter.is_none()
+                && function.null_treatment.is_none()
+                && function.within_group.is_empty()
+                && matches!(function.parameters, FunctionArguments::None) =>
+        {
+            let FunctionArguments::List(arguments) = &function.args else {
+                return Ok(false);
+            };
+            if !arguments.clauses.is_empty() {
+                return Ok(false);
+            }
+            let count_wildcard = function.name.0.len() == 1
+                && function.name.0[0]
+                    .as_ident()
+                    .is_some_and(|id| id.value.eq_ignore_ascii_case("count"))
+                && arguments.duplicate_treatment.is_none()
+                && arguments.args.len() == 1;
+            for argument in &arguments.args {
+                match argument {
+                    FunctionArg::Unnamed(FunctionArgExpr::Expr(expr)) if child(expr)? => (),
+                    FunctionArg::Unnamed(FunctionArgExpr::Wildcard) if count_wildcard => (),
+                    _ => return Ok(false),
+                }
+            }
+            Ok(true)
+        }
+        // Subqueries and other nontrivial forms retain the previous path until
+        // their placeholder and scope behavior has separate proof.
+        _ => Ok(false),
+    }
+}
+// Match only the stable subset above. SQLite identifiers and function names
+// are ASCII case-insensitive, while literal content and AST operators remain
+// exact. No SQL text substitution or unproven source binding is performed.
+fn same_compound_order_expr(
+    mut left: &Expr,
+    mut right: &Expr,
+    mut depth: usize,
+    budget: &AggregateScan,
+) -> MddResult<bool> {
+    while let Expr::Nested(inner) = left {
+        if depth > 64 {
+            return Ok(false);
+        }
+        budget.visit(depth)?;
+        depth += 1;
+        left = inner;
+    }
+    while let Expr::Nested(inner) = right {
+        if depth > 64 {
+            return Ok(false);
+        }
+        budget.visit(depth)?;
+        depth += 1;
+        right = inner;
+    }
+    if depth > 64 {
+        return Ok(false);
+    }
+    budget.visit(depth)?;
+    let child = |a: &Expr, b: &Expr| same_compound_order_expr(a, b, depth + 1, budget);
+    match (left, right) {
+        (Expr::Value(a), Expr::Value(b)) => Ok(a.value == b.value),
+        (Expr::Identifier(a), Expr::Identifier(b)) => Ok(a.value.eq_ignore_ascii_case(&b.value)),
+        (Expr::CompoundIdentifier(a), Expr::CompoundIdentifier(b)) => {
+            if a.len() != b.len() {
+                return Ok(false);
+            }
+            for (a, b) in a.iter().zip(b) {
+                budget.visit(depth + 1)?;
+                if !a.value.eq_ignore_ascii_case(&b.value) {
+                    return Ok(false);
+                }
+            }
+            Ok(true)
+        }
+        (Expr::UnaryOp { op: a, expr: x }, Expr::UnaryOp { op: b, expr: y }) => {
+            Ok(a == b && child(x, y)?)
+        }
+        (
+            Expr::BinaryOp {
+                left: a,
+                op: x,
+                right: b,
+            },
+            Expr::BinaryOp {
+                left: c,
+                op: y,
+                right: d,
+            },
+        ) => Ok(x == y && child(a, c)? && child(b, d)?),
+        (
+            Expr::Cast {
+                kind: a,
+                expr: x,
+                data_type: t,
+                format: None,
+            },
+            Expr::Cast {
+                kind: b,
+                expr: y,
+                data_type: u,
+                format: None,
+            },
+        ) => Ok(a == b && t == u && child(x, y)?),
+        (Expr::Function(a), Expr::Function(b)) => {
+            if a.name.0.len() != b.name.0.len() || a.uses_odbc_syntax != b.uses_odbc_syntax {
+                return Ok(false);
+            }
+            for (x, y) in a.name.0.iter().zip(&b.name.0) {
+                budget.visit(depth + 1)?;
+                let (Some(x), Some(y)) = (x.as_ident(), y.as_ident()) else {
+                    return Ok(false);
+                };
+                if !x.value.eq_ignore_ascii_case(&y.value) {
+                    return Ok(false);
+                }
+            }
+            let (FunctionArguments::List(a), FunctionArguments::List(b)) = (&a.args, &b.args)
+            else {
+                return Ok(false);
+            };
+            if a.duplicate_treatment != b.duplicate_treatment || a.args.len() != b.args.len() {
+                return Ok(false);
+            }
+            for (a, b) in a.args.iter().zip(&b.args) {
+                match (a, b) {
+                    (
+                        FunctionArg::Unnamed(FunctionArgExpr::Expr(a)),
+                        FunctionArg::Unnamed(FunctionArgExpr::Expr(b)),
+                    ) if child(a, b)? => (),
+                    (
+                        FunctionArg::Unnamed(FunctionArgExpr::Wildcard),
+                        FunctionArg::Unnamed(FunctionArgExpr::Wildcard),
+                    ) => (),
+                    _ => return Ok(false),
+                }
+            }
+            Ok(true)
+        }
+        _ => Ok(false),
+    }
+}
+
 fn literal_in_class(expr: &Expr) -> Option<Option<InStorageClass>> {
     match without_parentheses(expr) {
         Expr::UnaryOp {
@@ -1253,6 +1488,613 @@ impl Rewrite<'_> {
             select_aliases,
             aliases_visible: false,
         })
+    }
+
+    fn compound_type_carrier(data_type: crate::values::SqlType) -> CompoundCarrier {
+        use crate::values::SqlType;
+        match data_type {
+            SqlType::Bool | SqlType::I64 => CompoundCarrier::Integer,
+            SqlType::U64 => CompoundCarrier::Unsigned,
+            SqlType::Text => CompoundCarrier::Text,
+            SqlType::F64 | SqlType::Bytes => CompoundCarrier::Unknown,
+        }
+    }
+
+    // base_in_scope clones table type maps; charge their entries before that
+    // clone so repeated set branches cannot multiply unmetered schema work.
+    // String bytes and allocator overhead remain outside this logical bound.
+    fn charge_compound_scope(&self, select: &Select, depth: usize) -> MddResult<()> {
+        for from in &select.from {
+            for factor in
+                std::iter::once(&from.relation).chain(from.joins.iter().map(|join| &join.relation))
+            {
+                self.aggregate_scan.visit(depth)?;
+                let TableFactor::Table { name, .. } = factor else {
+                    continue;
+                };
+                let [part] = name.0.as_slice() else { continue };
+                let Some(id) = part.as_ident() else { continue };
+                let source = id.value.to_ascii_lowercase();
+                let cte = self
+                    .cte_scopes
+                    .iter()
+                    .rev()
+                    .find_map(|scope| scope.get(&source));
+                let columns = match cte {
+                    Some(id) => self.cte_direct_types.get(id),
+                    None => self.schema_types.get(&source),
+                };
+                if let Some(columns) = columns {
+                    for _ in columns {
+                        self.aggregate_scan.visit(depth + 1)?;
+                    }
+                }
+            }
+        }
+        // base_in_scope also resolves each unqualified SELECT alias by
+        // scanning the local tables. Charge that possible work before it runs.
+        for item in &select.projection {
+            if let SelectItem::ExprWithAlias { expr, .. } = item {
+                self.aggregate_scan.visit(depth)?;
+                let mut value = expr;
+                let mut nested_depth = depth;
+                while let Expr::Nested(inner) = value {
+                    nested_depth = nested_depth
+                        .checked_add(1)
+                        .ok_or_else(|| quota("SQL_AGGREGATE_DETECTION_DEPTH"))?;
+                    // Once for this preflight and once for base_in_scope's
+                    // subsequent alias traversal.
+                    self.aggregate_scan.visit(nested_depth)?;
+                    self.aggregate_scan.visit(nested_depth)?;
+                    value = inner;
+                }
+                if matches!(value, Expr::Identifier(_)) {
+                    for from in &select.from {
+                        for _ in std::iter::once(&from.relation)
+                            .chain(from.joins.iter().map(|join| &join.relation))
+                        {
+                            self.aggregate_scan.visit(depth + 1)?;
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn compound_expression_carrier(
+        &self,
+        expr: &Expr,
+        scope: Option<&InScope>,
+        depth: usize,
+    ) -> MddResult<CompoundCarrier> {
+        let expr = charged_compound_expression(expr, depth, &self.aggregate_scan)?;
+        let value = match expr {
+            Expr::Value(value) => match &value.value {
+                Value::Null => CompoundCarrier::Null,
+                Value::Number(number, _) if number.parse::<i64>().is_ok() => {
+                    CompoundCarrier::Integer
+                }
+                Value::SingleQuotedString(_) => CompoundCarrier::Text,
+                Value::HexStringLiteral(_) => CompoundCarrier::LiteralBytes,
+                // TRUE/FALSE can resolve to a column; parameters and real
+                // literals need their own proven carrier binding.
+                _ => CompoundCarrier::Unknown,
+            },
+            Expr::UnaryOp { op, expr: inner }
+                if matches!(op, UnaryOperator::Plus | UnaryOperator::Minus)
+                    && (matches!(inner.as_ref(), Expr::Value(value)
+                        if matches!(&value.value, Value::Number(number, _) if number.parse::<i64>().is_ok()))
+                        || (self.dialect == super::SqlDialect::NativeV1
+                            && matches!(op, UnaryOperator::Minus)
+                            && exact_i64_numeric_literal(expr) == Some(i64::MIN))) =>
+            {
+                CompoundCarrier::Integer
+            }
+            Expr::Identifier(id) => {
+                let Some(scope) = scope else {
+                    return Ok(CompoundCarrier::Unknown);
+                };
+                let name = id.value.to_ascii_lowercase();
+                let mut found = None;
+                for columns in scope.tables.values() {
+                    self.aggregate_scan.visit(depth + 1)?;
+                    if let Some(value) = columns.get(&name) {
+                        if found.is_some() {
+                            return Ok(CompoundCarrier::Unknown);
+                        }
+                        found = Some(*value);
+                    }
+                }
+                found.map_or(CompoundCarrier::Unknown, Self::compound_type_carrier)
+            }
+            Expr::CompoundIdentifier(ids) if ids.len() == 2 => scope
+                .and_then(|scope| scope.tables.get(&ids[0].value.to_ascii_lowercase()))
+                .and_then(|columns| columns.get(&ids[1].value.to_ascii_lowercase()))
+                .copied()
+                .map_or(CompoundCarrier::Unknown, Self::compound_type_carrier),
+            Expr::Cast {
+                data_type,
+                format: None,
+                ..
+            } => match data_type {
+                DataType::Text
+                | DataType::Varchar(None)
+                | DataType::Char(None)
+                | DataType::Character(None) => CompoundCarrier::Text,
+                DataType::Int(None)
+                | DataType::Integer(None)
+                | DataType::BigInt(None)
+                | DataType::Int64
+                | DataType::Boolean
+                | DataType::Bool => CompoundCarrier::Integer,
+                DataType::Unsigned | DataType::UnsignedInteger | DataType::BigIntUnsigned(None) => {
+                    CompoundCarrier::Unsigned
+                }
+                DataType::Blob(None) | DataType::Binary(None) => CompoundCarrier::LiteralBytes,
+                _ => CompoundCarrier::Unknown,
+            },
+            Expr::Function(function)
+                if function.name.0.len() == 1
+                    && function.name.0[0]
+                        .as_ident()
+                        .is_some_and(|id| id.value.eq_ignore_ascii_case("count"))
+                    && function.over.is_none() =>
+            {
+                CompoundCarrier::Integer
+            }
+            Expr::Function(function)
+                if function.name.0.len() == 1
+                    && function.name.0[0]
+                        .as_ident()
+                        .is_some_and(|id| id.value.eq_ignore_ascii_case("length"))
+                    && function.over.is_none()
+                    && function.filter.is_none()
+                    && matches!(&function.args, FunctionArguments::List(arguments)
+                        if arguments.duplicate_treatment.is_none()
+                        && arguments.clauses.is_empty()
+                        && matches!(arguments.args.as_slice(), [FunctionArg::Unnamed(FunctionArgExpr::Expr(_))])) =>
+            {
+                CompoundCarrier::Integer
+            }
+            _ => CompoundCarrier::Unknown,
+        };
+        Ok(value)
+    }
+
+    fn compound_wildcard_carriers(
+        &self,
+        select: &Select,
+        scope: Option<&InScope>,
+        qualifier: Option<&ObjectName>,
+        depth: usize,
+    ) -> MddResult<Option<Vec<CompoundCarrier>>> {
+        let Some(scope) = scope else { return Ok(None) };
+        let [from] = select.from.as_slice() else {
+            return Ok(None);
+        };
+        if !from.joins.is_empty() {
+            return Ok(None);
+        }
+        let TableFactor::Table { name, alias, .. } = &from.relation else {
+            return Ok(None);
+        };
+        let [part] = name.0.as_slice() else {
+            return Ok(None);
+        };
+        let Some(id) = part.as_ident() else {
+            return Ok(None);
+        };
+        let source = id.value.to_ascii_lowercase();
+        let table = alias
+            .as_ref()
+            .map_or_else(|| source.clone(), |a| a.name.value.to_ascii_lowercase());
+        if let Some(qualifier) = qualifier {
+            let [part] = qualifier.0.as_slice() else {
+                return Ok(None);
+            };
+            if part
+                .as_ident()
+                .is_none_or(|id| !id.value.eq_ignore_ascii_case(&table))
+            {
+                return Ok(None);
+            }
+        }
+        let names = if let Some(id) = self.cte_scopes.iter().rev().find_map(|s| s.get(&source)) {
+            self.cte_columns.get(id)
+        } else {
+            self.schemas.get(&source)
+        };
+        let (Some(names), Some(columns)) = (names, scope.tables.get(&table)) else {
+            return Ok(None);
+        };
+        let mut result = Vec::new();
+        for name in names {
+            self.aggregate_scan.visit(depth)?;
+            let Some(ty) = columns.get(&name.to_ascii_lowercase()).copied() else {
+                return Ok(None);
+            };
+            result
+                .try_reserve(1)
+                .map_err(|_| quota("COMPOUND_CARRIER_ALLOCATION"))?;
+            result.push(Self::compound_type_carrier(ty));
+        }
+        Ok(Some(result))
+    }
+
+    fn compound_carriers(
+        &self,
+        body: &SetExpr,
+        depth: usize,
+    ) -> MddResult<Option<Vec<CompoundCarrier>>> {
+        self.aggregate_scan.visit(depth)?;
+        match body {
+            SetExpr::Select(select) => {
+                self.charge_compound_scope(select, depth + 1)?;
+                let scope = self.base_in_scope(select);
+                let mut result = Vec::new();
+                for item in &select.projection {
+                    self.aggregate_scan.visit(depth + 1)?;
+                    match item {
+                        SelectItem::UnnamedExpr(expr) | SelectItem::ExprWithAlias { expr, .. } => {
+                            result
+                                .try_reserve(1)
+                                .map_err(|_| quota("COMPOUND_CARRIER_ALLOCATION"))?;
+                            result.push(self.compound_expression_carrier(
+                                expr,
+                                scope.as_ref(),
+                                depth + 2,
+                            )?)
+                        }
+                        SelectItem::Wildcard(options)
+                            if *options == WildcardAdditionalOptions::default() =>
+                        {
+                            let Some(values) = self.compound_wildcard_carriers(
+                                select,
+                                scope.as_ref(),
+                                None,
+                                depth + 2,
+                            )?
+                            else {
+                                return Ok(None);
+                            };
+                            result
+                                .try_reserve(values.len())
+                                .map_err(|_| quota("COMPOUND_CARRIER_ALLOCATION"))?;
+                            result.extend(values);
+                        }
+                        SelectItem::QualifiedWildcard(
+                            SelectItemQualifiedWildcardKind::ObjectName(name),
+                            options,
+                        ) if *options == WildcardAdditionalOptions::default() => {
+                            let Some(values) = self.compound_wildcard_carriers(
+                                select,
+                                scope.as_ref(),
+                                Some(name),
+                                depth + 2,
+                            )?
+                            else {
+                                return Ok(None);
+                            };
+                            result
+                                .try_reserve(values.len())
+                                .map_err(|_| quota("COMPOUND_CARRIER_ALLOCATION"))?;
+                            result.extend(values);
+                        }
+                        _ => return Ok(None),
+                    }
+                }
+                Ok(Some(result))
+            }
+            SetExpr::Query(query) if query.with.is_none() => {
+                self.compound_carriers(&query.body, depth + 1)
+            }
+            SetExpr::SetOperation { left, right, .. } => {
+                let (Some(mut left), Some(right)) = (
+                    self.compound_carriers(left, depth + 1)?,
+                    self.compound_carriers(right, depth + 1)?,
+                ) else {
+                    return Ok(None);
+                };
+                if left.len() != right.len() {
+                    return Ok(None);
+                }
+                for (a, b) in left.iter_mut().zip(right) {
+                    *a = merge_compound_carrier(*a, b);
+                }
+                Ok(Some(left))
+            }
+            SetExpr::Values(values) => {
+                let mut result: Option<Vec<CompoundCarrier>> = None;
+                for row in &values.rows {
+                    let mut current = Vec::new();
+                    for value in row.iter() {
+                        current
+                            .try_reserve(1)
+                            .map_err(|_| quota("COMPOUND_CARRIER_ALLOCATION"))?;
+                        current.push(self.compound_expression_carrier(value, None, depth + 1)?);
+                    }
+                    result = match result {
+                        None => Some(current),
+                        Some(mut previous) if previous.len() == current.len() => {
+                            for (a, b) in previous.iter_mut().zip(current) {
+                                *a = merge_compound_carrier(*a, b);
+                            }
+                            Some(previous)
+                        }
+                        Some(_) => return Ok(None),
+                    };
+                }
+                Ok(result)
+            }
+            _ => Ok(None),
+        }
+    }
+
+    fn compound_order_matches(
+        &self,
+        body: &SetExpr,
+        order: &Expr,
+        stable_order: bool,
+        depth: usize,
+        found: &mut Option<usize>,
+    ) -> MddResult<()> {
+        if found.is_some() {
+            return Ok(());
+        }
+        self.aggregate_scan.visit(depth)?;
+        match body {
+            SetExpr::Select(select) => {
+                if select.projection.iter().any(|item| {
+                    !matches!(
+                        item,
+                        SelectItem::UnnamedExpr(_) | SelectItem::ExprWithAlias { .. }
+                    )
+                }) {
+                    match self.compound_single_wildcard_order(select, order, depth + 1)? {
+                        Some(position) => {
+                            *found = position;
+                            return Ok(());
+                        }
+                        None => {
+                            return Err(unsupported("COMPOUND_ORDER_WILDCARD_BINDING")
+                                .detail("confirm_sqlite_syntax", true)
+                                .detail("validate_bare_parameters", true));
+                        }
+                    }
+                }
+                // SQLite searches SELECT arms left to right. Within each arm,
+                // an explicit alias wins before expression matching.
+                if let Some(identifier) = order_identifier(order) {
+                    for (index, item) in select.projection.iter().enumerate() {
+                        self.aggregate_scan.visit(depth + 1)?;
+                        if let SelectItem::ExprWithAlias { alias, .. } = item
+                            && alias.value.eq_ignore_ascii_case(&identifier.value)
+                        {
+                            *found = Some(index);
+                            return Ok(());
+                        }
+                    }
+                }
+                if stable_order {
+                    for (index, item) in select.projection.iter().enumerate() {
+                        self.aggregate_scan.visit(depth + 1)?;
+                        let expr = match item {
+                            SelectItem::UnnamedExpr(expr)
+                            | SelectItem::ExprWithAlias { expr, .. } => expr,
+                            _ => return Ok(()),
+                        };
+                        if stable_compound_order_expr(expr, depth + 1, &self.aggregate_scan)?
+                            && (same_compound_order_expr(
+                                expr,
+                                order,
+                                depth + 1,
+                                &self.aggregate_scan,
+                            )? || self.compound_same_direct_column(
+                                select,
+                                expr,
+                                order,
+                                depth + 1,
+                            )?)
+                        {
+                            *found = Some(index);
+                            return Ok(());
+                        }
+                    }
+                }
+            }
+            SetExpr::Query(query) => {
+                self.compound_order_matches(&query.body, order, stable_order, depth + 1, found)?
+            }
+            SetExpr::SetOperation { left, right, .. } => {
+                self.compound_order_matches(left, order, stable_order, depth + 1, found)?;
+                self.compound_order_matches(right, order, stable_order, depth + 1, found)?;
+            }
+            _ => (),
+        }
+        Ok(())
+    }
+
+    // A bare column and its qualified form are equal only if both bind to
+    // the same column of one directly known table in this SELECT arm.
+    fn compound_same_direct_column(
+        &self,
+        select: &Select,
+        left: &Expr,
+        right: &Expr,
+        depth: usize,
+    ) -> MddResult<bool> {
+        self.aggregate_scan.visit(depth)?;
+        let (bare, ids) = match (without_parentheses(left), without_parentheses(right)) {
+            (Expr::Identifier(bare), Expr::CompoundIdentifier(ids))
+            | (Expr::CompoundIdentifier(ids), Expr::Identifier(bare))
+                if ids.len() == 2 =>
+            {
+                (bare, ids)
+            }
+            _ => return Ok(false),
+        };
+        if !bare.value.eq_ignore_ascii_case(&ids[1].value) {
+            return Ok(false);
+        }
+        let [from] = select.from.as_slice() else {
+            return Ok(false);
+        };
+        if !from.joins.is_empty() {
+            return Ok(false);
+        }
+        let TableFactor::Table { name, alias, .. } = &from.relation else {
+            return Ok(false);
+        };
+        if alias
+            .as_ref()
+            .is_some_and(|alias| !alias.columns.is_empty())
+        {
+            return Ok(false);
+        }
+        let [part] = name.0.as_slice() else {
+            return Ok(false);
+        };
+        let Some(id) = part.as_ident() else {
+            return Ok(false);
+        };
+        let source = id.value.to_ascii_lowercase();
+        let table = alias
+            .as_ref()
+            .map_or_else(|| source.clone(), |a| a.name.value.to_ascii_lowercase());
+        if !ids[0].value.eq_ignore_ascii_case(&table) {
+            return Ok(false);
+        }
+        let cte = self
+            .cte_scopes
+            .iter()
+            .rev()
+            .find_map(|scope| scope.get(&source));
+        let columns = match cte {
+            Some(id) => self.cte_direct_types.get(id),
+            None => self.schema_types.get(&source),
+        };
+        Ok(columns.is_some_and(|columns| columns.contains_key(&bare.value.to_ascii_lowercase())))
+    }
+
+    // Only expand a sole wildcard over one known base table or direct CTE.
+    // Other wildcard scopes may contain an earlier match at an unknown
+    // ordinal, so they must not be skipped in favor of a later SELECT arm.
+    fn compound_single_wildcard_order(
+        &self,
+        select: &Select,
+        order: &Expr,
+        depth: usize,
+    ) -> MddResult<Option<Option<usize>>> {
+        self.aggregate_scan.visit(depth)?;
+        let [projection] = select.projection.as_slice() else {
+            return Ok(None);
+        };
+        let qualifier = match projection {
+            SelectItem::Wildcard(options) if *options == WildcardAdditionalOptions::default() => {
+                None
+            }
+            SelectItem::QualifiedWildcard(
+                SelectItemQualifiedWildcardKind::ObjectName(name),
+                options,
+            ) if *options == WildcardAdditionalOptions::default() => Some(name),
+            _ => return Ok(None),
+        };
+        let [from] = select.from.as_slice() else {
+            return Ok(None);
+        };
+        if !from.joins.is_empty() {
+            return Ok(None);
+        }
+        let TableFactor::Table { name, alias, .. } = &from.relation else {
+            return Ok(None);
+        };
+        if alias
+            .as_ref()
+            .is_some_and(|alias| !alias.columns.is_empty())
+        {
+            return Ok(None);
+        }
+        let [part] = name.0.as_slice() else {
+            return Ok(None);
+        };
+        let Some(id) = part.as_ident() else {
+            return Ok(None);
+        };
+        let source = id.value.to_ascii_lowercase();
+        let table = alias
+            .as_ref()
+            .map_or_else(|| source.clone(), |a| a.name.value.to_ascii_lowercase());
+        if let Some(qualifier) = qualifier {
+            let [part] = qualifier.0.as_slice() else {
+                return Ok(None);
+            };
+            if part
+                .as_ident()
+                .is_none_or(|id| !id.value.eq_ignore_ascii_case(&table))
+            {
+                return Ok(None);
+            }
+        }
+        let names = if let Some(id) = self.cte_scopes.iter().rev().find_map(|s| s.get(&source)) {
+            let (Some(names), Some(types)) =
+                (self.cte_columns.get(id), self.cte_direct_types.get(id))
+            else {
+                return Ok(None);
+            };
+            if names.len() != types.len() {
+                return Ok(None);
+            }
+            Some(names)
+        } else {
+            self.schemas.get(&source)
+        };
+        let Some(names) = names else { return Ok(None) };
+        let column = match without_parentheses(order) {
+            Expr::Identifier(id) => Some(id.value.as_str()),
+            Expr::CompoundIdentifier(ids)
+                if ids.len() == 2 && ids[0].value.eq_ignore_ascii_case(&table) =>
+            {
+                Some(ids[1].value.as_str())
+            }
+            _ => None,
+        };
+        for (index, name) in names.iter().enumerate() {
+            self.aggregate_scan.visit(depth + 1)?;
+            if column.is_some_and(|column| name.eq_ignore_ascii_case(column)) {
+                return Ok(Some(Some(index)));
+            }
+        }
+        Ok(Some(None))
+    }
+
+    fn original_compound_order_positions(
+        &self,
+        body: &SetExpr,
+        order: Option<&OrderBy>,
+    ) -> MddResult<Vec<Option<usize>>> {
+        let Some(OrderBy {
+            kind: OrderByKind::Expressions(expressions),
+            ..
+        }) = order
+        else {
+            return Ok(Vec::new());
+        };
+        let mut positions = Vec::new();
+        for item in expressions {
+            positions
+                .try_reserve(1)
+                .map_err(|_| quota("COMPOUND_ORDER_PROOF_ALLOCATION"))?;
+            if positional_ordinal(&item.expr)?.is_some() {
+                positions.push(None);
+                continue;
+            }
+            let stable = stable_compound_order_expr(&item.expr, 0, &self.aggregate_scan)?;
+            let mut found = None;
+            self.compound_order_matches(body, &item.expr, stable, 0, &mut found)?;
+            positions.push(found);
+        }
+        Ok(positions)
     }
 
     // Register only a direct projection from one non-CTE physical relation.
@@ -1842,6 +2684,11 @@ impl Rewrite<'_> {
             }
             _ => (None, None),
         };
+        let compound_positions = if matches!(*query.body, SetExpr::SetOperation { .. }) {
+            self.original_compound_order_positions(&query.body, query.order_by.as_ref())?
+        } else {
+            Vec::new()
+        };
         let was_distinct =
             matches!(query.body.as_ref(), SetExpr::Select(select) if select.distinct.is_some());
         self.body(&mut query.body, depth + 1)?;
@@ -1857,7 +2704,7 @@ impl Rewrite<'_> {
             let OrderByKind::Expressions(expressions) = &mut order.kind else {
                 return Err(unsupported("ORDER_BY_ALL"));
             };
-            for order in expressions {
+            for (order_index, order) in expressions.iter_mut().enumerate() {
                 if order.with_fill.is_some() {
                     return Err(unsupported("ORDER_WITH_FILL"));
                 }
@@ -1894,6 +2741,22 @@ impl Rewrite<'_> {
                         }
                     }
                     order.expr = call("mdd_sort_key", vec![take(&mut order.expr)]);
+                } else if let Some(Some(position)) = compound_positions.get(order_index) {
+                    // Check the original expression and its AST budget first.
+                    // Proof excludes input placeholders; literals rewritten
+                    // only for this discarded expression must not leave
+                    // orphan SQLite parameter slots.
+                    let parameter_start = self.parameters.len();
+                    let input_start = self.next_input;
+                    self.expr(&mut order.expr, depth + 1)?;
+                    if self.next_input != input_start {
+                        return Err(invalid("INTERNAL_COMPOUND_ORDER_INPUT_CHANGED"));
+                    }
+                    self.parameters.truncate(parameter_start);
+                    let ordinal = position
+                        .checked_add(1)
+                        .ok_or_else(|| quota("COMPOUND_ORDER_ORDINAL"))?;
+                    order.expr = Expr::Value(Value::Number(ordinal.to_string(), false).into());
                 } else if positional_ordinal(&order.expr)?.is_none() {
                     self.expr(&mut order.expr, depth + 1)?;
                 }
@@ -2147,7 +3010,31 @@ impl Rewrite<'_> {
                 let dependencies = self.query(query, depth + 1)?;
                 self.dependencies.extend(dependencies);
             }
-            SetExpr::SetOperation { left, right, .. } => {
+            SetExpr::SetOperation {
+                left,
+                right,
+                op,
+                set_quantifier,
+            } => {
+                // SQLite performs UNION/INTERSECT/EXCEPT equality on the raw
+                // SQLite carriers. Numeric and byte carriers can differ even
+                // when our logical SQL comparison says equal. Only admit a
+                // set operation when each output column has a proven shared
+                // equality-preserving carrier. UNION ALL does not deduplicate.
+                let union_all = *op == SetOperator::Union && *set_quantifier == SetQuantifier::All;
+                if !union_all {
+                    let left_types = self.compound_carriers(left, depth + 1)?;
+                    let right_types = self.compound_carriers(right, depth + 1)?;
+                    let proven = matches!((&left_types, &right_types), (Some(left), Some(right))
+                        if left.len() == right.len() && left.iter().zip(right).all(|(&a, &b)|
+                            a != CompoundCarrier::Unknown && b != CompoundCarrier::Unknown
+                            && merge_compound_carrier(a, b) != CompoundCarrier::Unknown));
+                    if !proven {
+                        return Err(unsupported("COMPOUND_SET_CARRIER_NOT_PROVEN")
+                            .detail("confirm_sqlite_syntax", true)
+                            .detail("validate_bare_parameters", true));
+                    }
+                }
                 self.body(left, depth + 1)?;
                 self.body(right, depth + 1)?;
             }
@@ -3223,7 +4110,11 @@ impl Rewrite<'_> {
                         .iter()
                         .position(|v| v.to_string() == expr)
                 }
-                .ok_or_else(|| invalid("COMPOUND_ORDER_NOT_OUTPUT_EXPRESSION"))?;
+                .ok_or_else(|| {
+                    unsupported("COMPOUND_ORDER_BINDING_NOT_PROVEN")
+                        .detail("confirm_sqlite_syntax", true)
+                        .detail("validate_bare_parameters", true)
+                })?;
                 let column = internal
                     .get(position)
                     .ok_or_else(|| invalid("ORDER_ORDINAL_OUT_OF_RANGE"))?
@@ -3273,6 +4164,33 @@ fn order_identifier(mut expression: &Expr) -> Option<&Ident> {
 #[cfg(test)]
 mod aggregate_scan_tests {
     use super::*;
+
+    #[test]
+    fn compound_carrier_nested_parentheses_charge_every_visit() {
+        let mut expr = Expr::Value(Value::Number("1".into(), false).into());
+        for _ in 0..4 {
+            expr = Expr::Nested(Box::new(expr));
+        }
+        let budget = AggregateScan {
+            depth_limit: 16,
+            remaining: Cell::new(9),
+        };
+        assert!(charged_compound_expression(&expr, 0, &budget).is_ok());
+        let error = charged_compound_expression(&expr, 0, &budget)
+            .err()
+            .unwrap();
+        assert_eq!(error.code, ErrorCode::QuotaExceeded);
+        assert_eq!(error.message, "SQL_AGGREGATE_DETECTION_NODES");
+        let shallow = AggregateScan {
+            depth_limit: 2,
+            remaining: Cell::new(100),
+        };
+        let error = charged_compound_expression(&expr, 0, &shallow)
+            .err()
+            .unwrap();
+        assert_eq!(error.code, ErrorCode::QuotaExceeded);
+        assert_eq!(error.message, "SQL_AGGREGATE_DETECTION_DEPTH");
+    }
 
     #[test]
     fn affinity_parentheses_use_bounded_stack() {

@@ -1,0 +1,17 @@
+{
+  "synthetic": true,
+  "signature_byte_offset": 1000,
+  "name_string_index": 45,
+  "long_name_string_index": 44,
+  "long_name": "v_infinity_float",
+  "surrogate_name_utf16": [
+    118,
+    55296,
+    101
+  ],
+  "sha256": {
+    "valid.dex": "65380a8b23601e17339379be211e417d8b4c8383b686b6d173f800656b985360",
+    "long-name.dex": "f7c2ad641a40f6db9428432754ccd382718191919797cbeef07ed661e374a422",
+    "surrogate-name.dex": "0492425273e20e20e90f4f04ecde96682eed5694664f09ea60dfd75d1039d24c"
+  }
+}

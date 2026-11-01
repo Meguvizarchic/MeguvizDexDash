@@ -1,0 +1,18 @@
+
+running 13 tests
+test dialects::ast::aggregate_scan_tests::compound_carrier_nested_parentheses_charge_every_visit ... ok
+test bridge::tests::compound_carrier_proof_charges_schema_before_scope_clone ... ok
+test bridge::tests::compound_carrier_proof_bounds_repeated_scope_lookup ... ok
+test bridge::tests::compound_text_supplementary_order_is_native_utf16_legacy_unqualified ... ok
+test bridge::tests::compound_order_quoted_unbound_identifier_keeps_configured_binding_error ... ok
+test bridge::tests::compound_order_uses_earlier_wildcard_before_later_alias ... ok
+test bridge::tests::compound_order_alias_matches_first_branch_with_name ... ok
+test bridge::tests::compound_order_expression_resolves_identifier_case ... ok
+test bridge::tests::compound_carrier_guard_preserves_parameter_errors ... ok
+test bridge::tests::compound_mixed_storage_order_keeps_sql_order_and_value_types ... ok
+test bridge::tests::compound_order_expression_binding_preserves_original_sqlite_rules ... ok
+test bridge::tests::compound_set_carrier_source_types_and_binding_errors ... ok
+test bridge::tests::compound_set_carriers_fail_closed_and_preserve_proven_cases ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 175 filtered out; finished in 0.04s
+

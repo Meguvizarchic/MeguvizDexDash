@@ -1,0 +1,226 @@
+{
+  "task": "MDD-031",
+  "finding": "SQLite compound set operators compare raw BLOB carriers instead of logical numeric/byte equality. A real synthetic differential showed UNION duplicated 1 and 1.0, INTERSECT omitted them and EXCEPT retained them in all three dialects.",
+  "fix": "For compound UNION/INTERSECT/EXCEPT, admit only columns whose possible SQLite carrier classes are statically proven equality-compatible; INTEGER and U64 may compare equal with different carriers, and F64/provider Bytes are unproven. Disjoint INTEGER/U64 versus TEXT/known Bytes are admitted; raw UNION ALL remains unchanged. Original SQL is prepared to distinguish syntax, binding and bare parameter errors before UnsupportedQuery.",
+  "supported": "NULL, proven INTEGER/Bool, homogeneous U64, Text, or Bytes literal/cast carriers, and pairwise-disjoint class combinations, in direct projections and certain single-table wildcards. Direct length() gives I64/NULL. NativeV1 i64::MIN unary is proven I64; legacy i64::MIN remains unproven due to its F64 intermediate. UNION ALL remains unchanged.",
+  "unsupported": "F64 including signed zero, mixed INTEGER/U64 carriers, provider Bytes that may include DexMutf8, untyped parameters/derived or other expressions and complex scopes when proof is unavailable. This partial guard prevents known silent wrong rows but does not implement complete compound equality.",
+  "runs": {
+    "red": {
+      "record": "red/record.json",
+      "exit": 101,
+      "tests_run": 1,
+      "observation": "NativeV1 1 UNION 1.0 yielded 2 rows vs SQLite 1."
+    },
+    "red2": {
+      "record": "red2/record.json",
+      "exit": 101,
+      "tests_run": 1,
+      "observation": "All three dialects show wrong rows for UNION, INTERSECT and EXCEPT; NULL UNION and UNION ALL had no recorded difference. The original red test patch is retained in red2/test.patch."
+    },
+    "guard1": {
+      "record": "guard1/record.json",
+      "exit": 101,
+      "observation": "Compilation failed: sqlparser VALUES row is Parens; changed iteration to .iter()."
+    },
+    "guard4": {
+      "record": "guard4/record.json",
+      "exit": 0,
+      "tests_passed": 2
+    },
+    "final_union": {
+      "record": "final-union/record.json",
+      "exit": 0,
+      "tests_passed": 1
+    },
+    "final_independent": {
+      "record": "final-independent/record.json",
+      "exit": 0,
+      "tests_passed": 1
+    },
+    "final_correlated": {
+      "record": "final-correlated/record.json",
+      "exit": 0,
+      "tests_passed": 1
+    },
+    "param_red": {
+      "record": "param-red/record.json",
+      "exit": 101,
+      "tests_run": 1,
+      "observation": "New guard returned UnsupportedQuery for missing bare parameters; corrected using SQLite statement metadata."
+    },
+    "param_final2": {
+      "record": "param-final2/record.json",
+      "exit": 0,
+      "tests_passed": 1,
+      "coverage": "bare missing/extra, numbered/named parameters, comments/quoted question marks, CTE and real missing column; sparse ?30000 is bounded by token budget."
+    },
+    "final8": [
+      {
+        "record": "final8-carriers/record.json",
+        "exit": 0,
+        "tests_passed": 2
+      },
+      {
+        "record": "final8-budget/record.json",
+        "exit": 0,
+        "tests_passed": 2
+      },
+      {
+        "record": "final8-union/record.json",
+        "exit": 0,
+        "tests_passed": 1
+      },
+      {
+        "record": "final8-independent/record.json",
+        "exit": 0,
+        "tests_passed": 1
+      },
+      {
+        "record": "final8-correlated/record.json",
+        "exit": 0,
+        "tests_passed": 1
+      },
+      {
+        "record": "final8-cte/record.json",
+        "exit": 0,
+        "tests_passed": 1
+      },
+      {
+        "record": "final8-scope/record.json",
+        "exit": 0,
+        "tests_passed": 1
+      }
+    ],
+    "mixed3": {
+      "record": "mixed3/record.json",
+      "exit": 0,
+      "tests_passed": 7,
+      "coverage": "single/multi-branch distinct set operators, NULL, F64, Bytes/DexMutf8 rejection, i64 min Native/legacy, U64, disjoint storage classes, bound-scope budget, parameter binding, explicit compound order; includes the new tests."
+    },
+    "mixed3_regressions": [
+      {
+        "record": "mixed3-union/record.json",
+        "exit": 0,
+        "tests_passed": 1
+      },
+      {
+        "record": "mixed3-independent/record.json",
+        "exit": 0,
+        "tests_passed": 1
+      },
+      {
+        "record": "mixed3-correlated/record.json",
+        "exit": 0,
+        "tests_passed": 1
+      },
+      {
+        "record": "mixed3-scope/record.json",
+        "exit": 0,
+        "tests_passed": 1
+      },
+      {
+        "record": "mixed3-cte/record.json",
+        "exit": 0,
+        "tests_passed": 1
+      }
+    ],
+    "order_red": {
+      "record": "order-red/record.json",
+      "exit": 101,
+      "tests_run": 1,
+      "observation": "Four valid SQLite cases misclassified InvalidArgument in all three dialects. Red test patch retained."
+    },
+    "wildcard_red": {
+      "record": "wildcard-red/record.json",
+      "exit": 101,
+      "tests_run": 1,
+      "observation": "Existing COMPOUND_WILDCARD_SCHEMA limitation; HEAD source confirms it predates this patch. Test patch retained; no claim of support."
+    },
+    "alias_red": {
+      "record": "alias-red/record.json",
+      "exit": 101,
+      "tests_run": 1,
+      "observation": "Valid SQLite alias from first matching non-leftmost branch misclassified InvalidArgument."
+    },
+    "order_final": [
+      {
+        "record": "order2-compound/record.json",
+        "exit": 0,
+        "tests_passed": 9
+      },
+      {
+        "record": "order2-union/record.json",
+        "exit": 0,
+        "tests_passed": 1
+      },
+      {
+        "record": "order2-independent/record.json",
+        "exit": 0,
+        "tests_passed": 1
+      },
+      {
+        "record": "order2-correlated/record.json",
+        "exit": 0,
+        "tests_passed": 1
+      },
+      {
+        "record": "order2-scope/record.json",
+        "exit": 0,
+        "tests_passed": 1
+      },
+      {
+        "record": "order2-cte/record.json",
+        "exit": 0,
+        "tests_passed": 1
+      }
+    ],
+    "wildcard_middle_red": {
+      "record": "wildcard-middle-red/record.json",
+      "exit": 101,
+      "tests_run": 1,
+      "observation": "Ignoring an earlier wildcard arm returned first-column order [7,0,3,2] instead of SQLite [0,2,3,7]; only first dialect/case reached."
+    },
+    "case_red": {
+      "record": "case-red/record.json",
+      "exit": 101,
+      "tests_run": 1,
+      "observation": "SQLite accepts id+1 ordered by ID+1; bridge reported InvalidArgument."
+    },
+    "final9": [
+      {
+        "record": "final9-compound/record.json",
+        "exit": 0,
+        "tests_passed": 13
+      },
+      {
+        "record": "final9-union/record.json",
+        "exit": 0,
+        "tests_passed": 1
+      },
+      {
+        "record": "final9-independent/record.json",
+        "exit": 0,
+        "tests_passed": 1
+      },
+      {
+        "record": "final9-correlated/record.json",
+        "exit": 0,
+        "tests_passed": 1
+      },
+      {
+        "record": "final9-scope/record.json",
+        "exit": 0,
+        "tests_passed": 1
+      },
+      {
+        "record": "final9-cte/record.json",
+        "exit": 0,
+        "tests_passed": 1
+      }
+    ]
+  },
+  "limits": "Synthetic provider and bundled SQLite 3.53.2 only; no actual HostLab/A0/A1, full SQL grammar, full equality, source completeness, Linux or performance qualification. Original DexSQL 0.1.0/0.1.1 behavior was not sampled. NativeV1 signed-min and ordinary INTEGER/TEXT/bytes cases compare SQLite values; U64 ordering/types use explicit hand expectations because SQLite has no native U64 carrier. Native compound TEXT ordering follows UTF-16 and differs from SQLite UTF-8 BINARY for supplementary-plane vs BMP; legacy DexSQL supplementary ordering is unqualified. Carrier proof charges schema entries, parenthesis peeling and repeated scope/alias lookup against shared logical scan budget; existing schema setup, string bytes, allocator/RSS and SQLite memory are outside that bound. Guard may reject previously accepted queries, including floating point, unknown types or mixed INTEGER/U64; complete compound equality remains unimplemented. Complex LEFT BETWEEN and wildcard as the first compound ORDER projection remain unresolved. ORDER proof covers bounded placeholder-free supported AST expression shapes, explicit aliases, and a sole provable single-table wildcard; complex wildcard/unknown scopes are Unsupported after original SQLite verification. Bare parameter metadata validation is added only to these new guard paths; other unsupported paths retain prior boundaries.",
+  "order_finding": "Valid compound ORDER BY literals, scalar expressions and aliases from later SELECT arms were wrongly rejected because separate AST rewrites produced different bound-parameter slots and the old matching inspected the first arm only. A separate wildcard ORDER query remains an existing unsupported path, as confirmed by HEAD source.",
+  "order_fix": "Before rewriting a compound SELECT, resolve bounded placeholder-free ORDER expressions or aliases by SQLite left-to-right branch order (each arm aliases before expressions). Proven single-table wildcard expansion is considered; wildcard scopes that cannot be established are checked against original SQL and explicitly unsupported. Identifier/function name comparisons use structured AST with ASCII case-insensitive identifier matching; literals and operators remain exact. Original expression is checked and its temporary internal bindings discarded before substituting the output ordinal. User parameter slots remain independent.",
+  "dqs_boundary": "A controlled query with an unbound double-quoted identifier is accepted by default SQLite DQS but rejected with SQLITE_DBCONFIG_DQS_DML=false, which is the bridge execution and binding-check configuration. Fixed DexSQL 0.1.0/0.1.1 DQS policy is not established; this is not a legacy equivalence claim."
+}

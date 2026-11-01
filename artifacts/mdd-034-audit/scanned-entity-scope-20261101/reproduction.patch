@@ -1,0 +1,129 @@
+diff --git a/crates/mdd-query/src/executor/runtime_tests.rs b/crates/mdd-query/src/executor/runtime_tests.rs
+index cc84893..6aff690 100644
+--- a/crates/mdd-query/src/executor/runtime_tests.rs
++++ b/crates/mdd-query/src/executor/runtime_tests.rs
+@@ -14,6 +14,124 @@ use mdd_types::{
+ };
+ use std::{path::PathBuf, sync::Arc};
+ 
++#[test]
++fn scan_rejects_entity_that_source_catalog_does_not_contain() {
++    use crate::executor::facts::{NativeCatalog, OccurrenceFacts};
++    use mdd_dex::strings::StringLimits;
++    use mdd_facts::{EntityKind, EntityRef, MetadataFacts};
++    use mdd_input::archive::{ArchiveInventory, ArchiveLimits, InventoryPolicy};
++
++    struct CorruptScan(NativeCatalog);
++    impl FactSource for CorruptScan {
++        fn identity(&self) -> &str {
++            self.0.identity()
++        }
++        fn snapshot_id(&self) -> &str {
++            self.0.snapshot_id()
++        }
++        fn catalog_epoch(&self) -> DecimalU64 {
++            self.0.catalog_epoch()
++        }
++        fn relation_schema(&self, relation: &str) -> MddResult<RelationSchema> {
++            self.0.relation_schema(relation)
++        }
++        fn require_layers(&self, layers: &BTreeSet<FactLayer>) -> MddResult<()> {
++            self.0.require_layers(layers)
++        }
++        fn validate_entity(&self, entity: &EntityRef) -> MddResult<()> {
++            self.0.validate_entity(entity)
++        }
++        fn scan<'a>(
++            &'a self,
++            relation: &str,
++        ) -> MddResult<Box<dyn Iterator<Item = MddResult<Row>> + 'a>> {
++            let rows = self.0.scan(relation)?;
++            Ok(Box::new(rows.map(|row| {
++                row.map(|mut row| {
++                    if let Some(Value::Entity(entity)) = row.first_mut() {
++                        entity.dex_occurrence_id = "missing-occurrence".into();
++                    }
++                    row
++                })
++            })))
++        }
++        fn read_code_bytes(&self, entity: &EntityRef) -> MddResult<Option<&[u8]>> {
++            self.0.read_code_bytes(entity)
++        }
++    }
++
++    let snapshot = Snapshot::capture(
++        &[InputSpec {
++            path: PathBuf::from(env!("CARGO_MANIFEST_DIR"))
++                .join("../../tests/fixtures/generated/structured-035.dex"),
++            kind: InputKind::RawDex,
++            expected_sha256: None,
++        }],
++        CaptureLimits::default(),
++    )
++    .unwrap();
++    let inventory = ArchiveInventory::build(
++        &snapshot.sources()[0],
++        InventoryPolicy::default(),
++        ArchiveLimits::default(),
++    )
++    .unwrap();
++    let metadata = MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default()).unwrap();
++    assert!(!metadata.strings().is_empty());
++    let snapshot_id = snapshot.manifest().snapshot_id.clone();
++    let native = NativeCatalog::new(
++        snapshot_id.clone(),
++        DecimalU64(7),
++        vec![OccurrenceFacts {
++            metadata: Arc::new(metadata),
++            definitions: None,
++            code: None,
++        }],
++    )
++    .unwrap();
++    let source = CorruptScan(native);
++    let ghost = EntityRef {
++        snapshot_id: snapshot_id.clone(),
++        dex_occurrence_id: "missing-occurrence".into(),
++        kind: EntityKind::String,
++        local_index: 0,
++    };
++    assert!(source.validate_entity(&ghost).is_err());
++    let prepared = prepare(
++        QueryIr {
++            schema_version: IR_VERSION.into(),
++            text_semantics: TEXT_VERSION.into(),
++            snapshot_id,
++            catalog_epoch: DecimalU64(7),
++            require_stable_order: false,
++            root: Node::Scan {
++                relation: "strings".into(),
++            },
++        },
++        &source,
++    )
++    .unwrap();
++    let mut accepted = Vec::new();
++    for mode in [
++        ExecutionMode::Streaming,
++        ExecutionMode::MaterializedReference,
++    ] {
++        let result = execute(
++            &prepared,
++            &source,
++            mode,
++            &mut Control::new(ExecutionLimits::default()),
++        );
++        if result.is_ok() {
++            accepted.push(format!("{mode:?}"));
++        }
++    }
++    assert!(
++        accepted.is_empty(),
++        "provider rejected source identity but scans succeeded: {accepted:?}"
++    );
++}
++
+ struct Fixture {
+     lifecycle: Lifecycle,
+     session: SessionHandle,

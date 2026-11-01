@@ -1,0 +1,9 @@
+test_mapping_uses_one_copy_of_the_observed_inventory (__main__.BindingChecks.test_mapping_uses_one_copy_of_the_observed_inventory) ... ok
+test_observed_row_budget_is_distinct_from_physical_members (__main__.BindingChecks.test_observed_row_budget_is_distinct_from_physical_members) ... ok
+test_occurrences_and_observed_order_are_preserved (__main__.BindingChecks.test_occurrences_and_observed_order_are_preserved) ... ok
+test_wrong_inventory_and_raw_dex_do_not_bind (__main__.BindingChecks.test_wrong_inventory_and_raw_dex_do_not_bind) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.051s
+
+OK

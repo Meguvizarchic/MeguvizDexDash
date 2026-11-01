@@ -1,0 +1,6 @@
+{
+  "benchmarks/a2_input_inventory.py": "be2eeee7c304e9ea0ad3ffe9b2fe98d4675b85fc8541d1dc0bb0aecf6dc4af0b",
+  "tests/fixtures/generated/structured-035.dex": "108cf907d330b823c6e32d38eaab8f23709fe493f52537688bbd09ba3e271605",
+  "artifacts/mdd-005/a2-observed-row-budget-20261101/probe.py": "51b6d81fda5e634d6913d36b15c7082d002e3206ca3372b22e1e746ac6ee6948",
+  "artifacts/mdd-005/a2-physical-member-digest-20261101/probe.py": "ec2e6eacc046e225069153ef660343ed572f590a1e1cabae1c3d0fcd679ed151"
+}

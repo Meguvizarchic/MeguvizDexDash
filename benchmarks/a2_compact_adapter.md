@@ -2,7 +2,7 @@
 
 输入 inventory 可对选定 APK DEX 成员读取至 EOF，核对 Python ZIP 读取器执行的 CRC，并按 central-directory 顺序记录物理成员序号、解压长度和 SHA-256；重复内容保留为多个成员，Python 规范化过的成员名称会被该摘要入口拒绝。该候选在读取前后复核来源，但不证明中间不可变、压缩流/ZIP64 全格式、逻辑 DEX 完整性或生产者快照。合成 stored/deflate、NUL 名称和 CRC 反例见 `artifacts/mdd-005/a2-physical-member-digest-20261101/`；完整读取和哈希的开销须计入后续测量。
 
-`bind_observed_members` 可将一次冻结的生产者文件行与上述 APK 物理成员摘要关联，保留每个 file ID、原始 entry name、行次序和物理成员位置，不按相同内容去重。名称后缀仅按固定 HostLab 约定关联；它不验证逻辑 DEX 偏移或数量，不证明生产者实际读取了被哈希的成员。原始 DEX 不具备 APK 成员，不能使用该映射。合成两成员、多文件行及调用方字典变更检查见 `artifacts/mdd-005/a2-observed-member-binding-20261101/`。
+`bind_observed_members` 可将一次冻结的生产者文件行与上述 APK 物理成员摘要关联，保留每个 file ID、原始 entry name、行次序和物理成员位置，不按相同内容去重。文件行数量由独立的 `max_observed_rows` 约束，默认 100000，不与 ZIP 物理成员额度混用；并发修改可能在复制后复核前产生临时分配，不能视为 RSS 硬上限。名称后缀仅按固定 HostLab 约定关联；它不验证逻辑 DEX 偏移或数量，不证明生产者实际读取了被哈希的成员。原始 DEX 不具备 APK 成员，不能使用该映射。合成两成员、多文件行及调用方字典变更检查见 `artifacts/mdd-005/a2-observed-member-binding-20261101/`。
 
 等待 compact 查询锁也受会话期限约束；未发送的等待请求超时不会释放正在使用的锁，也不会将另一个请求的会话标为失败。定向反例及页面终态回归见 `artifacts/mdd-005/a2-query-lock-deadline-20261101/`；这不证明真实生产者并发语义或 A2 资格。
 

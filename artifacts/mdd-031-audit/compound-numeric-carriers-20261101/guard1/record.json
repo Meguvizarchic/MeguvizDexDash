@@ -1,0 +1,33 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "-p",
+    "mdd-sql",
+    "compound_set_carriers_fail_closed_and_preserve_proven_cases",
+    "--",
+    "--nocapture"
+  ],
+  "exit": 101,
+  "listed_sources_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "crates/mdd-sql/src/bridge.rs": "2bbeeb07321cd33bb506caa523a83bfdd744910090c1ab19427fbf1615c516ac",
+    "crates/mdd-sql/src/dialects/ast.rs": "c6bcca51c6e6e567b45602b2b154c88211a20e0c87bbb60a9f61fda134e8868e",
+    "crates/mdd-sql/src/dialects/functions.rs": "a799661c4a0b140f3045c03bb59b9e6f949ca94389be652cae1033c4826bcf88",
+    "crates/mdd-sql/src/values.rs": "ad87d663986bdec1b4f98710d170e911fd1be67695a9d1b53abc62c54e50c9f8",
+    "crates/mdd-query/src/budget.rs": "407485782a7ea3fbec62905a2cf7641822ac4f9ad3046f568da5d751f023d891",
+    "crates/mdd-facts/src/annotations.rs": "d0adc242f1b347c15701c94c031589fbd509834727f81af6bca7b568f2985b9c"
+  },
+  "listed_sources_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "crates/mdd-sql/src/bridge.rs": "2bbeeb07321cd33bb506caa523a83bfdd744910090c1ab19427fbf1615c516ac",
+    "crates/mdd-sql/src/dialects/ast.rs": "c6bcca51c6e6e567b45602b2b154c88211a20e0c87bbb60a9f61fda134e8868e",
+    "crates/mdd-sql/src/dialects/functions.rs": "a799661c4a0b140f3045c03bb59b9e6f949ca94389be652cae1033c4826bcf88",
+    "crates/mdd-sql/src/values.rs": "ad87d663986bdec1b4f98710d170e911fd1be67695a9d1b53abc62c54e50c9f8",
+    "crates/mdd-query/src/budget.rs": "407485782a7ea3fbec62905a2cf7641822ac4f9ad3046f568da5d751f023d891",
+    "crates/mdd-facts/src/annotations.rs": "d0adc242f1b347c15701c94c031589fbd509834727f81af6bca7b568f2985b9c"
+  },
+  "stable": true,
+  "scope": "Synthetic focused SQL checks only; no HostLab/profile qualification."
+}
