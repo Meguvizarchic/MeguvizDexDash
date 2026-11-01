@@ -1,0 +1,8 @@
+   Compiling mdd-query v0.1.0-dev (<workspace>\crates\mdd-query)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 30.85s
+     Running unittests src\lib.rs (target\debug\deps\mdd_query-82579f4092cfd058.exe)
+
+thread 'executor::scoped::tests::scoped_references_accept_rebuilt_identical_dex_under_budget' (44108) panicked at crates\mdd-query\src\executor\scoped.rs:772:9:
+same captured occurrence and bytes must accept rebuilt reference facts
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p mdd-query --lib`

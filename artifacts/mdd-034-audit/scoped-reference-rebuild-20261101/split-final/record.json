@@ -1,0 +1,44 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "mdd-query",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "1",
+    "scoped_references_accept_rebuilt_identical_dex_under_budget",
+    "--",
+    "--nocapture"
+  ],
+  "started_utc": "2026-11-01T03:52:05.615197+00:00",
+  "finished_utc": "2026-11-01T03:52:09.518957+00:00",
+  "exit_code": 0,
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-query/src/executor.rs": "ec6b20c95c76d6bd7a53450f30dd0db9a72392029816b79f1e046cac1332c206",
+    "crates/mdd-query/src/executor/scoped.rs": "ec759cac6b22655a6aae7b48cc89ce17e5f62567da833b52dbd524a6ac2f0118",
+    "crates/mdd-query/src/executor/facts.rs": "7690598fb6da19bda465627c737d3b4582a0a55f99d026df43f250a0153c1292",
+    "crates/mdd-facts/src/references.rs": "51cc6630028bf2d14489320f3fce94c0970d096ea69512db6e0332dce075c254",
+    "crates/mdd-facts/src/definitions.rs": "7a2ac801d7ebc89647888f501493ec9629d95b176125a09abddb239e489ac40a",
+    "crates/mdd-facts/src/code.rs": "cc2f104eb4aa806cce2e5b9244be0a9e3e9f3095abef899be17dad40ab9c95ec",
+    "tests/fixtures/generated/multidex-deflated.apk": "d063e89802d9cc0445c547f91b22deeeda3574ee17be8bcd3190ee6ae3113697"
+  },
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-query/src/executor.rs": "ec6b20c95c76d6bd7a53450f30dd0db9a72392029816b79f1e046cac1332c206",
+    "crates/mdd-query/src/executor/scoped.rs": "ec759cac6b22655a6aae7b48cc89ce17e5f62567da833b52dbd524a6ac2f0118",
+    "crates/mdd-query/src/executor/facts.rs": "7690598fb6da19bda465627c737d3b4582a0a55f99d026df43f250a0153c1292",
+    "crates/mdd-facts/src/references.rs": "51cc6630028bf2d14489320f3fce94c0970d096ea69512db6e0332dce075c254",
+    "crates/mdd-facts/src/definitions.rs": "7a2ac801d7ebc89647888f501493ec9629d95b176125a09abddb239e489ac40a",
+    "crates/mdd-facts/src/code.rs": "cc2f104eb4aa806cce2e5b9244be0a9e3e9f3095abef899be17dad40ab9c95ec",
+    "tests/fixtures/generated/multidex-deflated.apk": "d063e89802d9cc0445c547f91b22deeeda3574ee17be8bcd3190ee6ae3113697"
+  },
+  "raw_stdout_sha256": "e878301beed32841d6199d4b58129ab12a4cc826563ed485bdc50b4b42c5be1f",
+  "raw_stderr_sha256": "88fa09e31de8aa5918e09d6b06fa5087fd96d585221f945bf804d913f780ec55",
+  "redaction": "workspace path replaced; raw logs retained in ignored local artifacts",
+  "scope": "single synthetic same-snapshot three-inventory reference lease and cumulative byte-budget check; no full qualification"
+}

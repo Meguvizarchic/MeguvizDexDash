@@ -3344,6 +3344,108 @@ mod tests {
         }
     }
 
+    #[test]
+    fn hostlab_q15_descriptor_concat_order_matches_sqlite() {
+        use mdd_query::ir::Signed64;
+        let columns = [
+            ("file_id", SqlType::I64),
+            ("class", SqlType::Text),
+            ("name", SqlType::Text),
+            ("proto", SqlType::Text),
+            ("descriptor", SqlType::Text),
+        ]
+        .into_iter()
+        .map(|(name, data_type)| SqlColumn {
+            id: name.into(),
+            name: name.into(),
+            data_type,
+            nullable: true,
+        })
+        .collect();
+        // The stored descriptor intentionally sorts opposite to the projected
+        // descriptor, so the fixture detects accidental source-column binding.
+        let input = [
+            (0, Some("Lfixture/B;"), Some("f"), Some("()V"), Some("a")),
+            (0, Some("Lfixture/A;"), Some("f"), Some("()V"), Some("z")),
+            (0, Some("Lfixture/A;"), Some("f"), Some("()V"), Some("z")),
+            (0, None, Some("f"), Some("()V"), Some("m")),
+            (
+                0,
+                Some("Lfixture/C;"),
+                Some("other"),
+                Some("()V"),
+                Some("m"),
+            ),
+            (1, Some("Lfixture/A;"), Some("f"), Some("(I)V"), Some("a")),
+        ];
+        let text = |value: Option<&str>| value.map_or(SqlValue::Null, SqlValue::text);
+        let provider = Arc::new(RowsProvider {
+            binding: SqlBinding {
+                provider_identity: "q15-synthetic".into(),
+                snapshot_id: "q15-snapshot".into(),
+                catalog_epoch: DecimalU64(0),
+            },
+            rows: input
+                .iter()
+                .map(|(file, class, name, proto, descriptor)| {
+                    vec![
+                        SqlValue::I64(Signed64(*file)),
+                        text(*class),
+                        text(*name),
+                        text(*proto),
+                        text(*descriptor),
+                    ]
+                })
+                .collect(),
+            columns,
+        });
+        let sqlite = rusqlite::Connection::open_in_memory().unwrap();
+        sqlite
+            .execute_batch("CREATE TABLE vals(file_id INTEGER,class TEXT,name TEXT,proto TEXT,descriptor TEXT)")
+            .unwrap();
+        for (file, class, name, proto, descriptor) in input {
+            sqlite
+                .execute(
+                    "INSERT INTO vals VALUES (?1,?2,?3,?4,?5)",
+                    (file, class, name, proto, descriptor),
+                )
+                .unwrap();
+        }
+        let sql = "SELECT file_id,class||'->'||name||proto AS descriptor FROM vals WHERE name='f' ORDER BY file_id,descriptor";
+        let expected: Vec<(i64, Option<String>)> = sqlite
+            .prepare(sql)
+            .unwrap()
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap();
+        assert_eq!(expected.len(), 5);
+        for dialect in [SqlDialect::DexSql010, SqlDialect::DexSql011] {
+            let bridge = SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+            let result = bridge.query(sql).unwrap();
+            assert_eq!(result.columns(), &["file_id", "descriptor"]);
+            let actual: Vec<_> = result
+                .rows()
+                .iter()
+                .map(|row| {
+                    let file = match &row[0] {
+                        SqlValue::I64(v) => v.0,
+                        SqlValue::U64(v) => i64::try_from(v.0).unwrap(),
+                        other => panic!("unexpected file identity: {other:?}"),
+                    };
+                    let descriptor = match &row[1] {
+                        SqlValue::Null => None,
+                        SqlValue::Text(v) => Some(v.strict_utf8().unwrap()),
+                        other => panic!("unexpected descriptor: {other:?}"),
+                    };
+                    (file, descriptor)
+                })
+                .collect();
+            assert_eq!(actual, expected, "{dialect:?}");
+            assert_eq!(bridge.query("SELECT file_id,class||'->'||missing||proto AS descriptor FROM vals ORDER BY file_id,descriptor").unwrap_err().code, ErrorCode::InvalidArgument);
+        }
+    }
+
     fn like_shadow_fixture() -> (Arc<RowsProvider>, rusqlite::Connection) {
         use mdd_query::ir::Signed64;
         let provider = Arc::new(RowsProvider {

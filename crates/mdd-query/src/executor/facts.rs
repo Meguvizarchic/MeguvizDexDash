@@ -306,6 +306,25 @@ impl AnnotationCatalog {
 }
 impl ReferenceCatalog {
     pub fn new(native: NativeCatalog, references: Vec<Arc<ReferenceFacts>>) -> MddResult<Self> {
+        Self::build(native, references, None)
+    }
+
+    /// Scoped catalogs supply the already-used comparison counter and bound.
+    /// The ordinary public constructor retains its strict same-lease contract.
+    pub(super) fn new_scoped_verified(
+        native: NativeCatalog,
+        references: Vec<Arc<ReferenceFacts>>,
+        compared: &mut u64,
+        limit: u64,
+    ) -> MddResult<Self> {
+        Self::build(native, references, Some((compared, limit)))
+    }
+
+    fn build(
+        native: NativeCatalog,
+        references: Vec<Arc<ReferenceFacts>>,
+        mut compare: Option<(&mut u64, u64)>,
+    ) -> MddResult<Self> {
         if references.len() != native.occurrences.len() {
             return Err(incomplete(FactLayer::References));
         }
@@ -325,11 +344,27 @@ impl ReferenceCatalog {
                 .remove(&occurrence.metadata.source().dex_occurrence_id)
                 .ok_or_else(|| incomplete(FactLayer::References))?;
             if !same(occurrence.metadata.source(), facts.source())
-                || !Arc::ptr_eq(
-                    &occurrence.metadata.lease(),
-                    &facts.definitions().metadata().lease(),
-                )
-                || !Arc::ptr_eq(&occurrence.metadata.lease(), &facts.code().lease())
+                || !same(occurrence.metadata.source(), facts.code().source())
+            {
+                return Err(invalid("NATIVE_REFERENCE_SOURCE_OR_LEASE"));
+            }
+            let native_bytes = occurrence.metadata.lease();
+            let reference_bytes = facts.definitions().metadata().lease();
+            let code_bytes = facts.code().lease();
+            if let Some((compared, limit)) = compare.as_mut() {
+                super::scoped::compare_dex_bytes(
+                    &native_bytes,
+                    &reference_bytes,
+                    compared,
+                    *limit,
+                )?;
+                // Definitions and code commonly share a captured allocation;
+                // a second byte comparison is necessary only when they do not.
+                if !Arc::ptr_eq(&reference_bytes, &code_bytes) {
+                    super::scoped::compare_dex_bytes(&native_bytes, &code_bytes, compared, *limit)?;
+                }
+            } else if !Arc::ptr_eq(&native_bytes, &reference_bytes)
+                || !Arc::ptr_eq(&native_bytes, &code_bytes)
             {
                 return Err(invalid("NATIVE_REFERENCE_SOURCE_OR_LEASE"));
             }

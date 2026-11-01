@@ -1,0 +1,46 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "mdd-facts",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "1",
+    "encoded_parameter_slots_preserve_zero_shared_and_absent_lists",
+    "--",
+    "--nocapture"
+  ],
+  "started_utc": "2026-11-01T03:47:23.072410+00:00",
+  "finished_utc": "2026-11-01T03:47:41.551195+00:00",
+  "exit_code": 0,
+  "source_before": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-facts/Cargo.toml": "92fab489949ecf2c0429ceec0ba5f5ff1e054ff90879f4e2d31cf597131bb29c",
+    "crates/mdd-facts/src/annotations.rs": "e7a781de337ea65a6f5b251cbe1e0d3c3dc55aabfa6de5de3dad651fcc285d85",
+    "crates/mdd-facts/src/definitions.rs": "7a2ac801d7ebc89647888f501493ec9629d95b176125a09abddb239e489ac40a",
+    "crates/mdd-dex/src/annotations.rs": "f4bf544d7782eeead95a0d98dc5277d18f95992baf7257d4a4d775e8f9be5c74",
+    "tests/fixtures/annotations/generated/parameter-long-nonzero-proto.dex": "2766a32a0b66fecfb9471d9bef7873b671f2a2d31f85d3bd412fbd371bfea396",
+    "tests/fixtures/annotations/generated/parameter-empty-zero-proto.dex": "80ee3c0a1425bfb14e88ab2e72244a3da464a3e0e14d7497297f3124dacccfd8",
+    "tests/fixtures/annotations/generated/parameter-orphan-empty-no-binding.dex": "345aa3f5e1dd938ea04171dd1a9137a8e6990f6218179b883f6cbd28eda53907"
+  },
+  "source_after": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-facts/Cargo.toml": "92fab489949ecf2c0429ceec0ba5f5ff1e054ff90879f4e2d31cf597131bb29c",
+    "crates/mdd-facts/src/annotations.rs": "e7a781de337ea65a6f5b251cbe1e0d3c3dc55aabfa6de5de3dad651fcc285d85",
+    "crates/mdd-facts/src/definitions.rs": "7a2ac801d7ebc89647888f501493ec9629d95b176125a09abddb239e489ac40a",
+    "crates/mdd-dex/src/annotations.rs": "f4bf544d7782eeead95a0d98dc5277d18f95992baf7257d4a4d775e8f9be5c74",
+    "tests/fixtures/annotations/generated/parameter-long-nonzero-proto.dex": "2766a32a0b66fecfb9471d9bef7873b671f2a2d31f85d3bd412fbd371bfea396",
+    "tests/fixtures/annotations/generated/parameter-empty-zero-proto.dex": "80ee3c0a1425bfb14e88ab2e72244a3da464a3e0e14d7497297f3124dacccfd8",
+    "tests/fixtures/annotations/generated/parameter-orphan-empty-no-binding.dex": "345aa3f5e1dd938ea04171dd1a9137a8e6990f6218179b883f6cbd28eda53907"
+  },
+  "raw_stdout_sha256": "d39dffaa8a1205dded8c2b49d32be012b358f7815f2cd824686bec67cbfe10c0",
+  "raw_stderr_sha256": "f0cc1165d5a394e74ba9a9a7e218e9b420881089714413a48da6ebaeb7c6ac60",
+  "redaction": "workspace path replaced; raw logs retained under ignored local artifacts",
+  "scope": "single synthetic physical parameter slot test; dangling identity injected; only listed sources fixed; no full MDD-022 qualification"
+}

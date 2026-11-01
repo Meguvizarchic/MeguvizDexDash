@@ -1,0 +1,38 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "mdd-query",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "1",
+    "scoped_references_accept_rebuilt_identical_dex_under_budget",
+    "--",
+    "--nocapture"
+  ],
+  "started_utc": "2026-11-01T03:48:12.598837+00:00",
+  "finished_utc": "2026-11-01T03:48:44.469893+00:00",
+  "exit_code": 101,
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-query/src/executor/scoped.rs": "238ffbed4e88f5444924619b74a2de5b081ec89b1b8cdeaeb5680ab013999787",
+    "crates/mdd-query/src/executor/facts.rs": "81468f74e85197b8e69a1b04f3a4f746a9a62828ca3e9320399d40a3a1fa6e70",
+    "crates/mdd-facts/src/references.rs": "51cc6630028bf2d14489320f3fce94c0970d096ea69512db6e0332dce075c254",
+    "tests/fixtures/generated/multidex-deflated.apk": "d063e89802d9cc0445c547f91b22deeeda3574ee17be8bcd3190ee6ae3113697"
+  },
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-query/src/executor/scoped.rs": "238ffbed4e88f5444924619b74a2de5b081ec89b1b8cdeaeb5680ab013999787",
+    "crates/mdd-query/src/executor/facts.rs": "81468f74e85197b8e69a1b04f3a4f746a9a62828ca3e9320399d40a3a1fa6e70",
+    "crates/mdd-facts/src/references.rs": "51cc6630028bf2d14489320f3fce94c0970d096ea69512db6e0332dce075c254",
+    "tests/fixtures/generated/multidex-deflated.apk": "d063e89802d9cc0445c547f91b22deeeda3574ee17be8bcd3190ee6ae3113697"
+  },
+  "stdout_raw_sha256": "aec21ea6bd63e82a3d230f69108fa87f2dbe620ef0a14f339b048bee539ba685",
+  "stderr_raw_sha256": "b1c325839e46f7a3210b49113c713fd22264e0a5eee3fdac52cb5079e4e4d61b",
+  "scope": "synthetic same-snapshot rebuilt reference facts; expected red before fix; listed sources only",
+  "redaction": "workspace path replaced; raw logs retained under ignored local artifacts"
+}

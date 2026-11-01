@@ -87,7 +87,7 @@ fn error(code: ErrorCode, message: &'static str) -> MddError {
     MddError::new(code, "query.scoped", message)
 }
 
-fn compare_dex_bytes(
+pub(super) fn compare_dex_bytes(
     captured: &Arc<[u8]>,
     facts: &Arc<[u8]>,
     compared: &mut u64,
@@ -266,7 +266,12 @@ impl ScopedCatalog {
             ));
         }
         let base = match references {
-            Some(values) => ScopedBase::References(ReferenceCatalog::new(native, values)?),
+            Some(values) => ScopedBase::References(ReferenceCatalog::new_scoped_verified(
+                native,
+                values,
+                &mut compared,
+                limits.max_identity_compare_bytes,
+            )?),
             None => ScopedBase::Native(native),
         };
         Ok(Self {
@@ -722,6 +727,188 @@ mod tests {
                 exact
             )
             .is_ok()
+        );
+    }
+
+    #[test]
+    fn scoped_references_accept_rebuilt_identical_dex_under_budget() {
+        let input = InputSpec {
+            path: PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../tests/fixtures/generated/multidex-deflated.apk"),
+            kind: InputKind::Apk,
+            expected_sha256: None,
+        };
+        let snapshot = Snapshot::capture(&[input], CaptureLimits::default()).unwrap();
+        let first = ArchiveInventory::build(
+            &snapshot.sources()[0],
+            InventoryPolicy::default(),
+            ArchiveLimits::default(),
+        )
+        .unwrap();
+        let rebuilt = ArchiveInventory::build(
+            &snapshot.sources()[0],
+            InventoryPolicy::default(),
+            ArchiveLimits::default(),
+        )
+        .unwrap();
+        assert_eq!(first.selected_dexes().len(), 2);
+        let make_facts = |inventory: &ArchiveInventory| {
+            (0..inventory.selected_dexes().len())
+                .map(|index| {
+                    let metadata =
+                        MetadataFacts::build(&snapshot, inventory, index, StringLimits::default())
+                            .unwrap();
+                    let definitions =
+                        DefinitionFacts::build(metadata.clone(), DefinitionLimits::default())
+                            .unwrap();
+                    let code = CodeFacts::build_all_code_items(
+                        &snapshot,
+                        inventory,
+                        index,
+                        CodeLimits::default(),
+                    )
+                    .unwrap();
+                    (metadata, definitions, code)
+                })
+                .collect::<Vec<_>>()
+        };
+        let native_facts = make_facts(&first);
+        let rebuilt_facts = make_facts(&rebuilt);
+        let references = rebuilt_facts
+            .iter()
+            .map(|(_, definitions, code)| {
+                Arc::new(
+                    ReferenceFacts::build(
+                        definitions.clone(),
+                        code.clone(),
+                        ReferenceLimits::default(),
+                    )
+                    .unwrap(),
+                )
+            })
+            .collect::<Vec<_>>();
+        let make_native = || {
+            NativeCatalog::new(
+                snapshot.manifest().snapshot_id.clone(),
+                DecimalU64(0),
+                native_facts
+                    .iter()
+                    .map(
+                        |(metadata, definitions, code)| super::super::facts::OccurrenceFacts {
+                            metadata: Arc::new(metadata.clone()),
+                            definitions: Some(Arc::new(definitions.clone())),
+                            code: Some(Arc::new(code.clone())),
+                        },
+                    )
+                    .collect(),
+            )
+            .unwrap()
+        };
+        for ((left, _, _), (right, _, _)) in native_facts.iter().zip(&rebuilt_facts) {
+            assert!(!Arc::ptr_eq(&left.lease(), &right.lease()));
+            assert_eq!(&*left.lease(), &*right.lease());
+        }
+        let total = rebuilt
+            .selected_dexes()
+            .iter()
+            .map(|dex| dex.blob.lease().len() as u64)
+            .sum::<u64>();
+        let exact = ScopedLimits {
+            max_identity_compare_bytes: total,
+            ..limits()
+        };
+        assert_eq!(
+            ReferenceCatalog::new(make_native(), references.clone())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InvalidArgument
+        );
+        let result = ScopedCatalog::references(
+            &snapshot,
+            &[&first],
+            make_native(),
+            references.clone(),
+            InputSelection::AllCapturedInputs,
+            exact,
+        );
+        assert!(
+            result.is_ok(),
+            "same captured occurrence and bytes must accept rebuilt reference facts"
+        );
+        assert_eq!(
+            ScopedCatalog::references(
+                &snapshot,
+                &[&first],
+                make_native(),
+                references,
+                InputSelection::AllCapturedInputs,
+                ScopedLimits {
+                    max_identity_compare_bytes: total - 1,
+                    ..limits()
+                }
+            )
+            .err()
+            .unwrap()
+            .code,
+            ErrorCode::QuotaExceeded
+        );
+
+        // Definitions and code may be rebuilt independently from this same
+        // captured occurrence. Both distinct byte comparisons must be charged.
+        let third = ArchiveInventory::build(
+            &snapshot.sources()[0],
+            InventoryPolicy::default(),
+            ArchiveLimits::default(),
+        )
+        .unwrap();
+        let third_facts = make_facts(&third);
+        let split_references: Vec<_> = rebuilt_facts
+            .iter()
+            .zip(&third_facts)
+            .map(|((_, definitions, _), (_, _, code))| {
+                assert!(!Arc::ptr_eq(&definitions.metadata().lease(), &code.lease()));
+                Arc::new(
+                    ReferenceFacts::build(
+                        definitions.clone(),
+                        code.clone(),
+                        ReferenceLimits::default(),
+                    )
+                    .unwrap(),
+                )
+            })
+            .collect();
+        let double = total.checked_mul(2).unwrap();
+        assert!(
+            ScopedCatalog::references(
+                &snapshot,
+                &[&first],
+                make_native(),
+                split_references.clone(),
+                InputSelection::AllCapturedInputs,
+                ScopedLimits {
+                    max_identity_compare_bytes: double,
+                    ..limits()
+                }
+            )
+            .is_ok()
+        );
+        assert_eq!(
+            ScopedCatalog::references(
+                &snapshot,
+                &[&first],
+                make_native(),
+                split_references,
+                InputSelection::AllCapturedInputs,
+                ScopedLimits {
+                    max_identity_compare_bytes: double - 1,
+                    ..limits()
+                }
+            )
+            .err()
+            .unwrap()
+            .code,
+            ErrorCode::QuotaExceeded
         );
     }
 

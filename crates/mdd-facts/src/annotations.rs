@@ -179,6 +179,73 @@ pub struct EncodedParameterListFact<'a> {
     pub list: &'a AnnotationSetRefList,
     pub raw_encoded: &'a [u8],
 }
+
+/// One encoded list slot, not a proven prototype parameter position.
+/// `set == None` is an explicit zero offset; a present empty set remains
+/// `Some` and is not collapsed into an empty or missing list.
+pub struct EncodedParameterSlotFact<'a> {
+    pub ordinal: u32,
+    pub set: Option<&'a AnnotationSet>,
+}
+
+/// Borrowed slots for one physical method-to-list binding in one occurrence.
+/// The binding's coverage must be consulted before interpreting positions.
+pub struct EncodedParameterSlots<'a> {
+    pub source: &'a MetadataSource,
+    pub binding: &'a ParameterListBinding,
+    pub list: &'a AnnotationSetRefList,
+    sets: &'a [AnnotationSet],
+    bytes: &'a [u8],
+}
+
+impl<'a> EncodedParameterSlots<'a> {
+    /// Iterate encoded slots in order, retaining duplicates and explicit zeros.
+    /// The construction bound applies to each complete iterator pass.
+    pub fn iter(&self) -> impl Iterator<Item = MddResult<EncodedParameterSlotFact<'a>>> + '_ {
+        self.list
+            .annotation_set_offsets
+            .iter()
+            .enumerate()
+            .map(move |(ordinal, offset)| {
+                let broken = || {
+                    MddError::new(
+                        ErrorCode::InternalFault,
+                        "facts.parameters",
+                        "validated parameter set identity is inconsistent",
+                    )
+                };
+                let set = match offset {
+                    None => None,
+                    Some(offset) => {
+                        let mut matches = self.sets.iter().filter(|set| set.byte_offset == *offset);
+                        let set = matches.next().ok_or_else(broken)?;
+                        if matches.next().is_some()
+                            || set.encoded_range.byte_offset.0 != u64::from(*offset)
+                        {
+                            return Err(broken());
+                        }
+                        let start = usize::try_from(set.encoded_range.byte_offset.0)
+                            .map_err(|_| broken())?;
+                        let end = set
+                            .encoded_range
+                            .byte_offset
+                            .0
+                            .checked_add(set.encoded_range.byte_length.0)
+                            .and_then(|value| usize::try_from(value).ok())
+                            .ok_or_else(broken)?;
+                        if self.bytes.get(start..end).is_none() {
+                            return Err(broken());
+                        }
+                        Some(set)
+                    }
+                };
+                Ok(EncodedParameterSlotFact {
+                    ordinal: u32::try_from(ordinal).map_err(|_| broken())?,
+                    set,
+                })
+            })
+    }
+}
 impl<'a> MethodParameterFacts<'a> {
     pub fn source(&self) -> &'a MetadataSource {
         self.facts.source()
@@ -1072,6 +1139,66 @@ impl AnnotationFacts {
             binding,
             list,
             raw_encoded,
+        }))
+    }
+
+    /// Resolve the encoded slots for a method without inventing prototype
+    /// positions. `None` means no encoded binding; `Some` may contain zero
+    /// slots. `max_set_visits` bounds physical set entries scanned per complete
+    /// iterator pass, separately from the method/list and slot limits. These
+    /// are logical bounds and do not bound CPU, allocator overhead, or RSS.
+    pub fn method_encoded_parameter_slots(
+        &self,
+        method: &EntityRef,
+        limits: ParameterViewLimits,
+        max_set_visits: u64,
+    ) -> MddResult<Option<EncodedParameterSlots<'_>>> {
+        let Some(encoded) = self.method_encoded_parameter_list(method, limits)? else {
+            return Ok(None);
+        };
+        let nonzero = u64::try_from(
+            encoded
+                .list
+                .annotation_set_offsets
+                .iter()
+                .filter(|offset| offset.is_some())
+                .count(),
+        )
+        .map_err(|_| {
+            MddError::new(
+                ErrorCode::QuotaExceeded,
+                "facts.parameters",
+                "set scan overflow",
+            )
+        })?;
+        let visits = nonzero
+            .checked_mul(u64::try_from(self.data.sets.len()).map_err(|_| {
+                MddError::new(
+                    ErrorCode::QuotaExceeded,
+                    "facts.parameters",
+                    "set scan overflow",
+                )
+            })?)
+            .ok_or_else(|| {
+                MddError::new(
+                    ErrorCode::QuotaExceeded,
+                    "facts.parameters",
+                    "set scan overflow",
+                )
+            })?;
+        if visits > max_set_visits {
+            return Err(MddError::new(
+                ErrorCode::QuotaExceeded,
+                "facts.parameters",
+                "parameter set scan budget exceeded",
+            ));
+        }
+        Ok(Some(EncodedParameterSlots {
+            source: encoded.source,
+            binding: encoded.binding,
+            list: encoded.list,
+            sets: &self.data.sets,
+            bytes: self.bytes(),
         }))
     }
 
@@ -3026,6 +3153,114 @@ mod tests {
                 .unwrap()
                 .code,
             ErrorCode::InvalidArgument
+        );
+    }
+
+    #[test]
+    fn encoded_parameter_slots_preserve_zero_shared_and_absent_lists() {
+        let facts = build("tests/fixtures/annotations/generated/parameter-long-nonzero-proto.dex");
+        let method = facts
+            .definitions()
+            .entity(EntityKind::MethodReference, 0)
+            .unwrap();
+        let visits = u64::try_from(facts.data.sets.len()).unwrap() * 2;
+        let view = facts
+            .method_encoded_parameter_slots(&method, ParameterViewLimits::default(), visits)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            view.binding.prototype_position_coverage,
+            Completeness::Unknown
+        );
+        let slots = view.iter().collect::<MddResult<Vec<_>>>().unwrap();
+        assert_eq!(
+            slots.iter().map(|slot| slot.ordinal).collect::<Vec<_>>(),
+            vec![0, 1, 2]
+        );
+        assert!(slots[1].set.is_none());
+        let first = slots[0].set.unwrap();
+        let last = slots[2].set.unwrap();
+        assert!(std::ptr::eq(first, last));
+        let raw = &facts.bytes()[view.list.byte_offset as usize..];
+        assert_eq!(u32::from_le_bytes(raw[0..4].try_into().unwrap()), 3);
+        assert_eq!(
+            u32::from_le_bytes(raw[4..8].try_into().unwrap()),
+            first.byte_offset
+        );
+        assert_eq!(u32::from_le_bytes(raw[8..12].try_into().unwrap()), 0);
+        assert_eq!(
+            u32::from_le_bytes(raw[12..16].try_into().unwrap()),
+            last.byte_offset
+        );
+        assert_eq!(
+            facts
+                .method_encoded_parameter_slots(&method, ParameterViewLimits::default(), visits - 1)
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::QuotaExceeded
+        );
+        assert_eq!(
+            facts
+                .method_parameter_facts(&method, ParameterViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::IncompleteFacts
+        );
+
+        let empty = build("tests/fixtures/annotations/generated/parameter-empty-zero-proto.dex");
+        let empty_method = empty
+            .definitions()
+            .entity(EntityKind::MethodReference, 0)
+            .unwrap();
+        let empty_slots = empty
+            .method_encoded_parameter_slots(&empty_method, ParameterViewLimits::default(), 0)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            empty_slots.binding.prototype_position_coverage,
+            Completeness::Complete
+        );
+        assert_eq!(empty_slots.iter().count(), 0);
+        let absent =
+            build("tests/fixtures/annotations/generated/parameter-orphan-empty-no-binding.dex");
+        let absent_method = absent
+            .definitions()
+            .entity(EntityKind::MethodReference, 0)
+            .unwrap();
+        assert!(
+            absent
+                .method_encoded_parameter_slots(&absent_method, ParameterViewLimits::default(), 0)
+                .unwrap()
+                .is_none()
+        );
+        assert_eq!(
+            facts
+                .method_encoded_parameter_slots(
+                    &absent_method,
+                    ParameterViewLimits::default(),
+                    visits
+                )
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InvalidArgument
+        );
+
+        // Explicitly injected dangling set identity must fail rather than look empty.
+        let mut broken = facts.clone();
+        broken
+            .data
+            .sets
+            .retain(|set| set.byte_offset != first.byte_offset);
+        let invalid = broken
+            .method_encoded_parameter_slots(&method, ParameterViewLimits::default(), u64::MAX)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            invalid.iter().next().unwrap().err().unwrap().code,
+            ErrorCode::InternalFault
         );
     }
 }

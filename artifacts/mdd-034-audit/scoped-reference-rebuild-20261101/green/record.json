@@ -1,0 +1,110 @@
+{
+  "scope": "four targeted same-snapshot/occurrence and strict-public-constructor checks; listed sources only, no profile qualification",
+  "source_before": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-query/src/executor.rs": "ec6b20c95c76d6bd7a53450f30dd0db9a72392029816b79f1e046cac1332c206",
+    "crates/mdd-query/src/executor/scoped.rs": "d66ef9738dc30e7a81ef153797f9d5c48c854f13097e12dfd029cf14d9dfb1ce",
+    "crates/mdd-query/src/executor/facts.rs": "7690598fb6da19bda465627c737d3b4582a0a55f99d026df43f250a0153c1292",
+    "crates/mdd-facts/src/references.rs": "51cc6630028bf2d14489320f3fce94c0970d096ea69512db6e0332dce075c254",
+    "crates/mdd-facts/src/coverage.rs": "49244043a9ff68c38b0ba69fb1140f70a7728145a4a9d192bca82d6aa2b0eda7",
+    "tests/fixtures/generated/multidex-deflated.apk": "d063e89802d9cc0445c547f91b22deeeda3574ee17be8bcd3190ee6ae3113697",
+    "tests/fixtures/references/generated/poly-custom-038.dex": "25bc5a03641d31d87212a9a292d798e64c563e2666d03f579e7fc894ac8ee425"
+  },
+  "source_after": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-query/src/executor.rs": "ec6b20c95c76d6bd7a53450f30dd0db9a72392029816b79f1e046cac1332c206",
+    "crates/mdd-query/src/executor/scoped.rs": "d66ef9738dc30e7a81ef153797f9d5c48c854f13097e12dfd029cf14d9dfb1ce",
+    "crates/mdd-query/src/executor/facts.rs": "7690598fb6da19bda465627c737d3b4582a0a55f99d026df43f250a0153c1292",
+    "crates/mdd-facts/src/references.rs": "51cc6630028bf2d14489320f3fce94c0970d096ea69512db6e0332dce075c254",
+    "crates/mdd-facts/src/coverage.rs": "49244043a9ff68c38b0ba69fb1140f70a7728145a4a9d192bca82d6aa2b0eda7",
+    "tests/fixtures/generated/multidex-deflated.apk": "d063e89802d9cc0445c547f91b22deeeda3574ee17be8bcd3190ee6ae3113697",
+    "tests/fixtures/references/generated/poly-custom-038.dex": "25bc5a03641d31d87212a9a292d798e64c563e2666d03f579e7fc894ac8ee425"
+  },
+  "runs": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-query",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "scoped_references_accept_rebuilt_identical_dex_under_budget",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T03:50:24.140116+00:00",
+      "finished_utc": "2026-11-01T03:50:28.883763+00:00",
+      "exit_code": 0,
+      "stdout_raw_sha256": "d0ea7f9f78c08bd6066a36933baa66414a65c8796b3f9f9d62a8ee8fc8e202a1",
+      "stderr_raw_sha256": "dd369488d776d0968201ff962f2588921da0150eeb1365def0f1049dd8b9c044"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-query",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "same_snapshot_rebuilt_inventory_accepts_identical_dex_bytes",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T03:50:28.883789+00:00",
+      "finished_utc": "2026-11-01T03:50:29.440630+00:00",
+      "exit_code": 0,
+      "stdout_raw_sha256": "c53b0d9f4007760170d4294d4d797543ed5b4474a5c07a365a1bcf09f3335201",
+      "stderr_raw_sha256": "ae5b4809c18591cfd08054f3e3f8a589916f16929e960ea27417abf00d0cc330"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-query",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "scoped_references_derive_layers_from_the_actual_facts",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T03:50:29.440668+00:00",
+      "finished_utc": "2026-11-01T03:50:29.900484+00:00",
+      "exit_code": 0,
+      "stdout_raw_sha256": "bcdb5cbbcf42876ed678f4322e408267bc2bfdb1ee2e7f7171d7c4660565e66e",
+      "stderr_raw_sha256": "ecd4744f6bf75d35124a43314b1c163b7d5815ec44b727399ccc6fd30a136784"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-query",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "typed_reference_catalog_preserves_sites_and_joins_with_definitions",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T03:50:29.900525+00:00",
+      "finished_utc": "2026-11-01T03:50:30.345497+00:00",
+      "exit_code": 0,
+      "stdout_raw_sha256": "4fce866d11b8d6ae0185b537e1a4c7619c1d1856c3d33752aaef9bf7a2d78f8b",
+      "stderr_raw_sha256": "3e05c2d55d2248f817b6205224ed38e87982ccc21b2171d9699ff9f992440f73"
+    }
+  ],
+  "redaction": "workspace path replaced; original logs retained under ignored local artifacts"
+}
