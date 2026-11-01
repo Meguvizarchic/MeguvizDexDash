@@ -1794,11 +1794,11 @@ impl<T> BoundedSender<T> {
                 .protocol_fault_locked(&mut state, invalid("duplicate queue terminal")));
         }
         if state.receiver_closed {
-            return Err(MddError::new(
+            return Err(self.0.bound_query_failure(MddError::new(
                 ErrorCode::Cancelled,
                 "queue",
                 "consumer closed",
-            ));
+            )));
         }
         if owned && !state.bound_producer_active {
             return Err(invalid("bound producer lease is not active"));

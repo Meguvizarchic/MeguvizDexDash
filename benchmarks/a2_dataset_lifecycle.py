@@ -59,10 +59,20 @@ class A1DatasetLifecycle:
         self.abort_confirmed = False
 
     async def _abort(self):
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + self._abort_seconds
         result = self._abort_owned()
         if not inspect.isawaitable(result):
             raise DatasetLifecycleError('owner abort did not return an awaitable')
-        if await asyncio.wait_for(result, timeout=self._abort_seconds) is not True:
+        remaining = deadline - loop.time()
+        # If the callback blocked before returning its awaitable, still give
+        # cleanup a chance to run; an already expired deadline cannot qualify
+        # its result as an in-time confirmation.
+        timeout = remaining if remaining > 0 else self._abort_seconds
+        confirmed = await asyncio.wait_for(result, timeout=timeout)
+        if loop.time() >= deadline:
+            raise DatasetLifecycleError('owner abort exceeded its deadline')
+        if confirmed is not True:
             raise DatasetLifecycleError('owner did not confirm transport shutdown')
         self.abort_confirmed = True
 

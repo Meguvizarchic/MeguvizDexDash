@@ -1,0 +1,22 @@
+   Compiling mdd-facts v0.1.0-dev (<WORKSPACE>\crates\mdd-facts)
+   Compiling mdd-query v0.1.0-dev (<WORKSPACE>\crates\mdd-query)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 9.78s
+     Running unittests src\lib.rs (target\debug\deps\mdd_query-82579f4092cfd058.exe)
+
+running 1 test
+
+thread 'budget::tests::finish_after_receiver_close_preserves_prior_query_failure' (21820) panicked at crates\mdd-query\src\budget\tests.rs:23:9:
+assertion `left == right` failed
+  left: Cancelled
+ right: QuotaExceeded
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test budget::tests::finish_after_receiver_close_preserves_prior_query_failure ... FAILED
+
+failures:
+
+failures:
+    budget::tests::finish_after_receiver_close_preserves_prior_query_failure
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 168 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p mdd-query --lib`

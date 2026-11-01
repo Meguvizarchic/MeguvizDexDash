@@ -1,0 +1,33 @@
+{
+  "task": "MDD-005",
+  "red": {
+    "command": "python -B artifacts/mdd-005/a2-abort-deadline-20261101/probe.py",
+    "exit": 1,
+    "observation": "An async abort callback blocked the event loop past its deadline and still set abort_confirmed. Probe was subsequently extended; red-version source bytes and pre-fix source hash were not retained."
+  },
+  "green": {
+    "command": "python -B artifacts/mdd-005/a2-abort-deadline-20261101/probe.py",
+    "exit": 0,
+    "checks": 3,
+    "listed_sources_before": {
+      "benchmarks/a2_dataset_lifecycle.py": "c1d49bf14dc9a2912f15ea55e0ddfdfb25642a6a99cbae19442b3e2dd2d56df2",
+      "benchmarks/a2_dataset_open.py": "33ebd713d204c2f739255193050f3f4f328b0dd20747d211621ff0786eeaa19c",
+      "benchmarks/a2_dataset_close.py": "783091f6511bac0ac90ea4df50ea73b59856f3ae280522c01d55cf6652e9aa8d",
+      "artifacts/mdd-005/a2-abort-deadline-20261101/probe.py": "4355264c7271491b2375ad18cb5f790e6c0b1746d0bfe5c96fa92cc1cbaa69f2",
+      "artifacts/mdd-005/a2-dataset-lifecycle-20261030/probe2.py": "b32f84f212f5278f2e7cb4e291cef2e65f8c0b310ba683c28d4593f9f15ed96a"
+    },
+    "listed_sources_after": {
+      "benchmarks/a2_dataset_lifecycle.py": "c1d49bf14dc9a2912f15ea55e0ddfdfb25642a6a99cbae19442b3e2dd2d56df2",
+      "benchmarks/a2_dataset_open.py": "33ebd713d204c2f739255193050f3f4f328b0dd20747d211621ff0786eeaa19c",
+      "benchmarks/a2_dataset_close.py": "783091f6511bac0ac90ea4df50ea73b59856f3ae280522c01d55cf6652e9aa8d",
+      "artifacts/mdd-005/a2-abort-deadline-20261101/probe.py": "4355264c7271491b2375ad18cb5f790e6c0b1746d0bfe5c96fa92cc1cbaa69f2",
+      "artifacts/mdd-005/a2-dataset-lifecycle-20261030/probe2.py": "b32f84f212f5278f2e7cb4e291cef2e65f8c0b310ba683c28d4593f9f15ed96a"
+    }
+  },
+  "regression": {
+    "command": "python -B artifacts/mdd-005/a2-dataset-lifecycle-20261030/probe2.py",
+    "exit": 0,
+    "checks": 9
+  },
+  "limitations": "Synthetic callbacks and owner, not a real process. Blocking operations cannot be forcibly stopped; late factory gets one bounded cleanup attempt but cannot qualify as timely. No A2, HostLab, platform or performance qualification."
+}

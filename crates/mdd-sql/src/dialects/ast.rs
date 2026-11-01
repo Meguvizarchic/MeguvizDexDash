@@ -777,10 +777,12 @@ impl Rewrite<'_> {
         for frame in self.in_scopes.iter().rev() {
             // Unknown derived/CTE scope may shadow any outer column. Do not infer past it.
             let scope = frame.as_ref()?;
-            // Keep the prior conservative binding rule for a SELECT without
-            // a local FROM; the empty frame is only known for Boolean shadow
-            // checks and must not silently change IN column inference.
-            if scope.tables.is_empty() {
+            // A SELECT without FROM can still have output aliases that shadow
+            // an unqualified identifier. A qualified table.column cannot bind
+            // such an alias, so it can safely continue into the outer scope.
+            if scope.tables.is_empty()
+                && !matches!(left, Expr::CompoundIdentifier(ids) if ids.len() == 2)
+            {
                 return None;
             }
             match left {

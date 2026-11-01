@@ -80,6 +80,20 @@ pub struct EncodedArrayValueFact<'a> {
     pub raw_encoded: &'a [u8],
 }
 
+/// A value-node identity bound to one physical array in one DEX occurrence.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct EncodedArrayValueRef {
+    pub array: EncodedArrayRef,
+    pub node_id: u32,
+}
+
+pub struct EncodedArrayValueView<'a> {
+    pub source: &'a MetadataSource,
+    pub array: &'a EncodedArrayItem,
+    pub value: &'a EncodedValue,
+    pub raw_encoded: &'a [u8],
+}
+
 /// A physical reference to an encoded array in the same DEX occurrence.
 /// Static values describe only an encoded class binding; no field assignment,
 /// type compatibility, or runtime bootstrap behavior is inferred.
@@ -1361,6 +1375,122 @@ impl AnnotationFacts {
             bindings,
         })
     }
+    /// Resolve one node without materializing the complete array value view.
+    /// `None` means the node is not present in this physical array, including
+    /// when the same node ID refers to a value in another array. Limits count
+    /// scanned physical arrays and a node lookup, not CPU, bytes or RSS.
+    pub fn encoded_array_value(
+        &self,
+        reference: &EncodedArrayValueRef,
+        limits: AnnotationValueViewLimits,
+    ) -> MddResult<Option<EncodedArrayValueView<'_>>> {
+        let stage = "facts.encoded_array_value";
+        let source = self.source();
+        if reference.array.snapshot_id != source.snapshot_id
+            || reference.array.dex_occurrence_id != source.dex_occurrence_id
+        {
+            return Err(MddError::new(
+                ErrorCode::InvalidArgument,
+                stage,
+                "array belongs to another snapshot or occurrence",
+            ));
+        }
+        if self.annotation_coverage != Completeness::Complete
+            || self.definitions.definition_coverage() != Completeness::Complete
+            || self.definitions.metadata().metadata_coverage() != Completeness::Complete
+        {
+            return Err(MddError::new(
+                ErrorCode::IncompleteFacts,
+                stage,
+                "complete metadata, definitions and annotations are required",
+            ));
+        }
+        let quota = || {
+            MddError::new(
+                ErrorCode::QuotaExceeded,
+                stage,
+                "array value budget exceeded",
+            )
+        };
+        let inconsistent = || {
+            MddError::new(
+                ErrorCode::InternalFault,
+                stage,
+                "validated encoded array value is inconsistent",
+            )
+        };
+        let visits = u64::try_from(self.data.encoded_arrays.len())
+            .ok()
+            .and_then(|n| n.checked_add(1))
+            .ok_or_else(quota)?;
+        if visits > limits.max_scanned_entries {
+            return Err(quota());
+        }
+        let mut matches = self
+            .data
+            .encoded_arrays
+            .iter()
+            .filter(|array| array.byte_offset == reference.array.byte_offset);
+        let array = matches.next().ok_or_else(|| {
+            MddError::new(
+                ErrorCode::InvalidArgument,
+                stage,
+                "array offset is not a physical item start",
+            )
+        })?;
+        if matches.next().is_some()
+            || array.encoded_range.byte_offset.0 != u64::from(array.byte_offset)
+        {
+            return Err(inconsistent());
+        }
+        let start = array.encoded_range.byte_offset.0;
+        let end = start
+            .checked_add(array.encoded_range.byte_length.0)
+            .ok_or_else(inconsistent)?;
+        if start == end
+            || usize::try_from(end)
+                .ok()
+                .is_none_or(|end| end > self.bytes().len())
+        {
+            return Err(inconsistent());
+        }
+        let Some(value) = usize::try_from(reference.node_id)
+            .ok()
+            .and_then(|id| self.data.values.get(id))
+        else {
+            return Ok(None);
+        };
+        if value.node_id != reference.node_id {
+            return Err(inconsistent());
+        }
+        let value_start = value.encoded_range.byte_offset.0;
+        if value_start <= start || value_start >= end {
+            return Ok(None);
+        }
+        let value_end = value_start
+            .checked_add(value.encoded_range.byte_length.0)
+            .ok_or_else(inconsistent)?;
+        if value.annotation_byte_offset.is_some() || value_start == value_end || value_end > end {
+            return Err(inconsistent());
+        }
+        if limits.max_values == 0 {
+            return Err(quota());
+        }
+        let raw_encoded = self
+            .bytes()
+            .get(
+                usize::try_from(value_start).map_err(|_| inconsistent())?
+                    ..usize::try_from(value_end).map_err(|_| inconsistent())?,
+            )
+            .ok_or_else(inconsistent)?;
+        Ok(Some(EncodedArrayValueView {
+            source,
+            array,
+            value,
+            raw_encoded,
+        }))
+    }
+
     /// Resolve a physically walked encoded-array item and its value nodes.
     /// Limits bound logical visits and returned nodes, not memory or CPU time.
     /// Shared references do not duplicate the physical item in this view.
@@ -3008,6 +3138,148 @@ mod tests {
             ErrorCode::InvalidArgument
         );
     }
+    #[test]
+    fn nested_array_direct_value_is_source_bound_and_preserves_raw_tree() {
+        let facts = build("artifacts/mdd-022/nested-array-direct-20261101/nested.dex");
+        let expected: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../artifacts/mdd-022/nested-array-direct-20261101/fixture.json"
+        ))
+        .unwrap();
+        let array_ref = EncodedArrayRef {
+            snapshot_id: facts.source().snapshot_id.clone(),
+            dex_occurrence_id: facts.source().dex_occurrence_id.clone(),
+            byte_offset: expected["array_offset"].as_u64().unwrap() as u32,
+        };
+        let all = facts
+            .encoded_array_view(&array_ref, AnnotationValueViewLimits::default())
+            .unwrap();
+        assert_eq!(all.raw_encoded, &[1, 0x1c, 1, 0x1e]);
+        assert_eq!(all.values.len(), 2);
+        let parent_id = all.array.elements[0];
+        let parent_ref = EncodedArrayValueRef {
+            array: array_ref.clone(),
+            node_id: parent_id,
+        };
+        let parent = facts
+            .encoded_array_value(&parent_ref, AnnotationValueViewLimits::default())
+            .unwrap()
+            .unwrap();
+        assert_eq!(parent.source.dex_occurrence_id, array_ref.dex_occurrence_id);
+        assert_eq!(parent.value.kind, EncodedKind::Array);
+        assert_eq!(parent.value.depth, 0);
+        assert_eq!(parent.raw_encoded, &[0x1c, 1, 0x1e]);
+        assert_eq!(parent.value.children.len(), 1);
+        let child_ref = EncodedArrayValueRef {
+            array: array_ref.clone(),
+            node_id: parent.value.children[0],
+        };
+        let child = facts
+            .encoded_array_value(&child_ref, AnnotationValueViewLimits::default())
+            .unwrap()
+            .unwrap();
+        assert_eq!(child.value.kind, EncodedKind::Null);
+        assert_eq!(child.value.depth, 1);
+        assert_eq!(child.value.ordinal, 0);
+        assert_eq!(child.raw_encoded, &[0x1e]);
+        assert_eq!(all.values[1].value.node_id, child.value.node_id);
+        let visits = facts.data.encoded_arrays.len() as u64 + 1;
+        for limits in [
+            AnnotationValueViewLimits {
+                max_scanned_entries: visits - 1,
+                max_values: 1,
+            },
+            AnnotationValueViewLimits {
+                max_scanned_entries: visits,
+                max_values: 0,
+            },
+        ] {
+            assert_eq!(
+                facts
+                    .encoded_array_value(&child_ref, limits)
+                    .err()
+                    .unwrap()
+                    .code,
+                ErrorCode::QuotaExceeded
+            );
+        }
+        assert!(
+            facts
+                .encoded_array_value(
+                    &child_ref,
+                    AnnotationValueViewLimits {
+                        max_scanned_entries: visits,
+                        max_values: 1
+                    }
+                )
+                .unwrap()
+                .is_some()
+        );
+        let mut bad = child_ref.clone();
+        bad.array.byte_offset += 1;
+        assert_eq!(
+            facts
+                .encoded_array_value(&bad, AnnotationValueViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InvalidArgument
+        );
+        bad = child_ref.clone();
+        bad.array.dex_occurrence_id = "foreign".into();
+        assert_eq!(
+            facts
+                .encoded_array_value(&bad, AnnotationValueViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InvalidArgument
+        );
+        bad = child_ref.clone();
+        bad.node_id = u32::MAX;
+        assert!(
+            facts
+                .encoded_array_value(&bad, AnnotationValueViewLimits::default())
+                .unwrap()
+                .is_none()
+        );
+        bad.node_id = facts
+            .data
+            .values
+            .iter()
+            .find(|v| v.annotation_byte_offset.is_some())
+            .unwrap()
+            .node_id;
+        assert!(
+            facts
+                .encoded_array_value(&bad, AnnotationValueViewLimits::default())
+                .unwrap()
+                .is_none()
+        );
+        let mut partial = facts.clone();
+        partial.annotation_coverage = Completeness::Partial;
+        assert_eq!(
+            partial
+                .encoded_array_value(&child_ref, AnnotationValueViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::IncompleteFacts
+        );
+        let mut corrupted = facts.clone();
+        corrupted.data.values[child_ref.node_id as usize]
+            .encoded_range
+            .byte_length
+            .0 = 2;
+        assert_eq!(
+            corrupted
+                .encoded_array_value(&child_ref, AnnotationValueViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InternalFault
+        );
+    }
+
     #[test]
     fn encoded_array_bindings_keep_shared_classes_call_sites_and_orphans() {
         let facts = build("artifacts/mdd-022/array-bindings-20261101/shared-static-empty.dex");

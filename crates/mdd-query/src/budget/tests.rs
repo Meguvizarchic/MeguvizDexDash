@@ -3,6 +3,54 @@ use std::sync::mpsc;
 use std::thread;
 
 #[test]
+fn finish_after_receiver_close_preserves_prior_query_failure() {
+    for first in [
+        MddError::new(ErrorCode::QuotaExceeded, "test.quota", "budget exhausted")
+            .detail("resource", "query_steps"),
+        MddError::new(ErrorCode::WorkerLost, "test.worker", "worker failed")
+            .detail("worker", "test"),
+    ] {
+        let (_, _, _, _, runtime) = owned_queue_test_runtime(BudgetLimits::default());
+        let (sender, receiver) = bounded_channel::<()>(
+            runtime.pool().clone(),
+            Some(runtime.cancellation().clone()),
+            1,
+        )
+        .unwrap();
+        runtime.cancellation().fail(first.clone()).unwrap();
+        drop(receiver);
+        let returned = sender.finish(Ok(())).unwrap_err();
+        assert_eq!(returned.code, first.code);
+        assert_eq!(returned.stage, first.stage);
+        assert_eq!(returned.message, first.message);
+        assert_eq!(returned.retryable, first.retryable);
+        assert_eq!(returned.details, first.details);
+        let status = runtime.cancellation().status().unwrap();
+        assert!(!status.delivery_complete);
+        assert_eq!(status.error.unwrap().code, first.code);
+    }
+    let (_, _, _, _, runtime) = owned_queue_test_runtime(BudgetLimits::default());
+    let (sender, receiver) = bounded_channel::<()>(
+        runtime.pool().clone(),
+        Some(runtime.cancellation().clone()),
+        1,
+    )
+    .unwrap();
+    drop(receiver);
+    assert_eq!(
+        sender.finish(Ok(())).unwrap_err().code,
+        ErrorCode::Cancelled
+    );
+
+    let (sender, receiver) = bounded_channel::<()>(runtime.pool().clone(), None, 1).unwrap();
+    drop(receiver);
+    assert_eq!(
+        sender.finish(Ok(())).unwrap_err().code,
+        ErrorCode::Cancelled
+    );
+}
+
+#[test]
 fn sender_drop_terminal_preserves_prior_query_failure() {
     for first in [
         MddError::new(ErrorCode::Cancelled, "test.cancel", "caller cancelled")

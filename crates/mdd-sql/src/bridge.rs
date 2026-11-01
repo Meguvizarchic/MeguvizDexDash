@@ -2209,6 +2209,82 @@ mod tests {
     }
 
     #[test]
+    fn qualified_correlated_in_through_empty_scope_matches_sqlite() {
+        use mdd_query::ir::Signed64;
+        let provider = Arc::new(RowsProvider {
+            binding: SqlBinding {
+                provider_identity: "correlated-no-from".into(),
+                snapshot_id: "correlated-no-from-snapshot".into(),
+                catalog_epoch: DecimalU64(0),
+            },
+            rows: [None, Some(1), Some(1), Some(2), Some(3)]
+                .iter()
+                .map(|value| vec![value.map_or(SqlValue::Null, |n| SqlValue::I64(Signed64(n)))])
+                .collect(),
+            columns: vec![SqlColumn {
+                id: "id".into(),
+                name: "id".into(),
+                data_type: SqlType::I64,
+                nullable: true,
+            }],
+        });
+        let sqlite = rusqlite::Connection::open_in_memory().unwrap();
+        sqlite
+            .execute_batch(
+                "CREATE TABLE vals(id INTEGER); INSERT INTO vals VALUES(NULL),(1),(1),(2),(3)",
+            )
+            .unwrap();
+        let queries = [
+            "SELECT o.id FROM vals o WHERE EXISTS(SELECT 1 WHERE o.id IN (1,3,NULL)) ORDER BY o.id",
+            "SELECT o.id FROM vals o WHERE EXISTS(SELECT 1 WHERE o.id NOT IN (1,3)) ORDER BY o.id",
+            "SELECT o.id FROM vals o WHERE EXISTS(SELECT 1 WHERE EXISTS(SELECT 1 WHERE o.id IN (1,3))) ORDER BY o.id",
+            "SELECT o.id FROM vals o WHERE EXISTS(SELECT 1 FROM vals o WHERE EXISTS(SELECT 1 WHERE o.id IN (1,3))) ORDER BY o.id",
+        ];
+        for dialect in [
+            SqlDialect::NativeV1,
+            SqlDialect::DexSql010,
+            SqlDialect::DexSql011,
+        ] {
+            let bridge = SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+            for sql in queries {
+                let expected: Vec<Vec<SqlValue>> = sqlite
+                    .prepare(sql)
+                    .unwrap()
+                    .query_map([], |row| {
+                        row.get::<_, Option<i64>>(0)
+                            .map(|v| vec![v.map_or(SqlValue::Null, |n| SqlValue::I64(Signed64(n)))])
+                    })
+                    .unwrap()
+                    .map(Result::unwrap)
+                    .collect();
+                assert_eq!(
+                    bridge.query(sql).unwrap().rows(),
+                    expected,
+                    "{dialect:?}: {sql}"
+                );
+            }
+            for sql in [
+                "SELECT o.id FROM vals o WHERE EXISTS(SELECT 1 WHERE missing.id IN (1))",
+                "SELECT o.id FROM vals o WHERE EXISTS(SELECT 1 WHERE o.missing IN (1))",
+            ] {
+                assert_eq!(
+                    bridge.query(sql).unwrap_err().code,
+                    ErrorCode::InvalidArgument,
+                    "{dialect:?}: {sql}"
+                );
+            }
+            // Bare names can bind a projection alias in an empty inner scope.
+            // Do not infer them from the outer table as a side effect.
+            let shadow = "SELECT o.id FROM vals o WHERE EXISTS(SELECT 9 AS id WHERE id IN (1))";
+            assert_eq!(
+                bridge.query(shadow).unwrap_err().code,
+                ErrorCode::UnsupportedQuery,
+                "{dialect:?}: {shadow}"
+            );
+        }
+    }
+
+    #[test]
     fn correlated_in_resolves_only_proven_outer_scopes_and_respects_shadowing() {
         let (provider, _) = bridge();
         for dialect in [

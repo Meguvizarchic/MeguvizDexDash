@@ -1,0 +1,38 @@
+{
+  "task": "MDD-034",
+  "finding": "finish after receiver close returned new cancellation over an existing query first error.",
+  "change": "Resolve existing bound query failure before returning a receiver-closed error; unbound queue returns the original cancellation.",
+  "runs": {
+    "red": {
+      "before_after_identical": true,
+      "output": "red/output.txt",
+      "exit": 101,
+      "command": "cargo test --locked -p mdd-query finish_after_receiver_close_preserves_prior_query_failure -- --nocapture",
+      "tests_run": 1,
+      "observation": "Cancelled returned despite prior QuotaExceeded; second prior-error case did not run."
+    },
+    "green": {
+      "before_after_identical": true,
+      "output": "green/output.txt",
+      "exit": 0,
+      "command": "cargo test --locked -p mdd-query finish_after_receiver_close_preserves_prior_query_failure -- --nocapture",
+      "tests_passed": 1,
+      "coverage": "Prior QuotaExceeded and WorkerLost details, no-prior and unbound cancellation. Test source extended after red."
+    },
+    "regression": {
+      "before_after_identical": true,
+      "output": "regression/output.txt",
+      "exit": 0,
+      "command": "cargo test --locked -p mdd-query receiver_drop_ -- --nocapture",
+      "tests_passed": 2
+    },
+    "final_combined": {
+      "output": "final/output.txt",
+      "record": "final/record.json",
+      "exit": 0,
+      "tests_passed": 1,
+      "observation": "Repeated after final facts source was frozen; listed hashes match before and after."
+    }
+  },
+  "boundaries": "Synthetic in-process behavior, no exhaustive race, production IPC, all Rust transitive sources or performance qualification."
+}
