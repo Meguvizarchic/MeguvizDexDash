@@ -310,6 +310,39 @@ pub struct SignatureFact {
     pub parts: Vec<EntityRef>,
     pub utf16_units: Vec<u16>,
 }
+
+/// Interpretation of a Signature owner's encoded parameter slot. Unknown
+/// never implies that the slot ordinal is a proven prototype position.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SignatureParameterPosition {
+    NotParameter,
+    Known { ordinal: u32 },
+    Unknown { encoded_slot: u32 },
+}
+
+/// Separate logical limits for identity validation, physical owner lookup,
+/// and method-to-list resolution. These are not allocation, CPU, or RSS limits.
+#[derive(Clone, Copy, Debug)]
+pub struct SignaturePositionLimits {
+    pub max_signatures: u64,
+    /// Maximum logical bytes examined while comparing Signature identities and
+    /// contents; this is not allocator overhead, CPU time, or process RSS.
+    pub max_identity_bytes: u64,
+    pub owners: AnnotationOwnerViewLimits,
+    pub parameters: ParameterViewLimits,
+}
+
+impl Default for SignaturePositionLimits {
+    fn default() -> Self {
+        Self {
+            max_signatures: 4_000_000,
+            max_identity_bytes: 128 * 1024 * 1024,
+            owners: AnnotationOwnerViewLimits::default(),
+            parameters: ParameterViewLimits::default(),
+        }
+    }
+}
+
 impl SignatureFact {
     pub fn strict_utf8(&self) -> Result<String, std::string::FromUtf16Error> {
         String::from_utf16(&self.utf16_units)
@@ -1378,6 +1411,161 @@ impl AnnotationFacts {
     }
     pub fn signatures(&self) -> &[SignatureFact] {
         &self.signatures
+    }
+
+    /// Resolve one borrowed Signature owner's parameter-position status without
+    /// treating an encoded slot as a proven prototype position. The Signature
+    /// must match a stored Signature's stable source identity and full content;
+    /// an equivalent clone is accepted, while a foreign or changed value is
+    /// rejected. Repeated Signature occurrences remain separate.
+    pub fn signature_parameter_position(
+        &self,
+        signature: &SignatureFact,
+        limits: SignaturePositionLimits,
+    ) -> MddResult<SignatureParameterPosition> {
+        let quota = || {
+            MddError::new(
+                ErrorCode::QuotaExceeded,
+                "facts.signatures",
+                "signature identity scan budget exceeded",
+            )
+        };
+        let broken = || {
+            MddError::new(
+                ErrorCode::InternalFault,
+                "facts.signatures",
+                "signature owner and parameter list are inconsistent",
+            )
+        };
+        if self.annotation_coverage != Completeness::Complete
+            || self.definitions.definition_coverage() != Completeness::Complete
+            || self.definitions.metadata().metadata_coverage() != Completeness::Complete
+        {
+            return Err(MddError::new(
+                ErrorCode::IncompleteFacts,
+                "facts.signatures",
+                "complete metadata, definitions and annotations are required",
+            ));
+        }
+        if u64::try_from(self.signatures.len()).map_err(|_| quota())? > limits.max_signatures {
+            return Err(quota());
+        }
+        // Compare against the immutable stored facts rather than accepting the
+        // caller's fields as evidence. Bound variable-width comparisons before
+        // touching the corresponding contents, including every part identity.
+        let mut examined = 0u64;
+        let mut account = |amount: u64| -> MddResult<()> {
+            examined = examined.checked_add(amount).ok_or_else(quota)?;
+            if examined > limits.max_identity_bytes {
+                return Err(quota());
+            }
+            Ok(())
+        };
+        let mut account_signature = |item: &SignatureFact| -> MddResult<()> {
+            account(128)?;
+            account(
+                u64::try_from(item.utf16_units.len())
+                    .map_err(|_| quota())?
+                    .checked_mul(2)
+                    .ok_or_else(quota)?,
+            )?;
+            account(
+                u64::try_from(item.parts.len())
+                    .map_err(|_| quota())?
+                    .checked_mul(32)
+                    .ok_or_else(quota)?,
+            )?;
+            for text in [
+                &item.annotation.snapshot_id,
+                &item.annotation.dex_occurrence_id,
+                &item.owner.reference.snapshot_id,
+                &item.owner.reference.dex_occurrence_id,
+                &item.string_pool_id,
+            ] {
+                account(u64::try_from(text.len()).map_err(|_| quota())?)?;
+            }
+            if let Some(definition) = &item.owner.definition {
+                account(u64::try_from(definition.snapshot_id.len()).map_err(|_| quota())?)?;
+                account(u64::try_from(definition.dex_occurrence_id.len()).map_err(|_| quota())?)?;
+            }
+            for part in &item.parts {
+                account(u64::try_from(part.snapshot_id.len()).map_err(|_| quota())?)?;
+                account(u64::try_from(part.dex_occurrence_id.len()).map_err(|_| quota())?)?;
+            }
+            Ok(())
+        };
+        account_signature(signature)?;
+        let mut found = false;
+        for item in &self.signatures {
+            account_signature(item)?;
+            if item.annotation == signature.annotation
+                && item.owner.kind == signature.owner.kind
+                && item.owner.reference == signature.owner.reference
+                && item.owner.definition == signature.owner.definition
+                && item.owner.parameter_ordinal == signature.owner.parameter_ordinal
+                && item.string_pool_id == signature.string_pool_id
+                && item.parts == signature.parts
+                && item.utf16_units == signature.utf16_units
+            {
+                found = true;
+                break;
+            }
+        }
+        if !found {
+            return Err(MddError::new(
+                ErrorCode::InvalidArgument,
+                "facts.signatures",
+                "signature does not match this occurrence",
+            ));
+        }
+        if signature.owner.kind != AnnotationOwnerKind::Parameter {
+            if signature.owner.parameter_ordinal.is_some() {
+                return Err(broken());
+            }
+            return Ok(SignatureParameterPosition::NotParameter);
+        }
+        if signature.owner.reference.kind != EntityKind::MethodReference {
+            return Err(broken());
+        }
+        let slot = signature.owner.parameter_ordinal.ok_or_else(broken)?;
+        let owners = self.annotation_owner_facts(&signature.annotation, limits.owners)?;
+        let mut matches = owners.iter().filter(|item| {
+            item.owner.kind == AnnotationOwnerKind::Parameter
+                && item.owner.local_index == signature.owner.reference.local_index
+                && item.owner.parameter_ordinal == Some(slot)
+        });
+        let owner = matches.next().ok_or_else(broken)?;
+        if matches.next().is_some() {
+            return Err(broken());
+        }
+        let encoded = self
+            .method_encoded_parameter_list(&signature.owner.reference, limits.parameters)?
+            .ok_or_else(broken)?;
+        if encoded.binding.class_def_idx != owner.owner.class_def_idx
+            || encoded.list.annotation_set_offsets.get(slot as usize)
+                != Some(&owner.owner.annotation_set_offset)
+            || owner.owner.prototype_parameter_count
+                != Some(encoded.binding.prototype_parameter_count)
+        {
+            return Err(broken());
+        }
+        match encoded.binding.prototype_position_coverage {
+            Completeness::Complete
+                if slot < encoded.binding.prototype_parameter_count
+                    && owner.owner.parameter_position_in_prototype == Some(true) =>
+            {
+                Ok(SignatureParameterPosition::Known { ordinal: slot })
+            }
+            Completeness::Unknown if owner.owner.parameter_position_in_prototype.is_none() => {
+                Ok(SignatureParameterPosition::Unknown { encoded_slot: slot })
+            }
+            Completeness::Partial => Err(MddError::new(
+                ErrorCode::IncompleteFacts,
+                "facts.signatures",
+                "prototype parameter-position coverage is incomplete",
+            )),
+            _ => Err(broken()),
+        }
     }
 
     /// Borrow every encoded class, field, or method Signature for an exact
@@ -3153,6 +3341,253 @@ mod tests {
                 .unwrap()
                 .code,
             ErrorCode::InvalidArgument
+        );
+    }
+
+    #[test]
+    fn shared_parameter_signature_keeps_method_and_unknown_encoded_slots_distinct() {
+        let facts = build("tests/fixtures/annotations/generated/parameter-shared-signature.dex");
+        let expected: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../tests/fixtures/annotations/parameter-shared-signature.json"
+        ))
+        .unwrap();
+        let signature_offset = expected["signature_offset"].as_u64().unwrap() as u32;
+        let shared: Vec<_> = facts
+            .signatures()
+            .iter()
+            .filter(|signature| signature.annotation.annotation_byte_offset == signature_offset)
+            .collect();
+        // One method-level annotation plus two encoded slots on each method.
+        assert_eq!(shared.len(), 5);
+        let mut parameter_owners = Vec::new();
+        let mut method_owners = Vec::new();
+        for signature in &shared {
+            let fragments: Vec<_> = signature
+                .parts
+                .iter()
+                .map(|part| {
+                    let string =
+                        &facts.definitions().metadata().strings()[part.local_index as usize];
+                    assert_eq!(string.entity, *part);
+                    string.data.text.strict_utf8().unwrap()
+                })
+                .collect();
+            let expected_fragments: Vec<_> = expected["fragments"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|value| value.as_str().unwrap().to_owned())
+                .collect();
+            assert_eq!(fragments, expected_fragments);
+            assert_eq!(
+                signature.strict_utf8().unwrap(),
+                expected_fragments.concat()
+            );
+            assert_eq!(signature.annotation.snapshot_id, facts.source().snapshot_id);
+            assert_eq!(
+                signature.annotation.dex_occurrence_id,
+                facts.source().dex_occurrence_id
+            );
+            match signature.owner.kind {
+                AnnotationOwnerKind::Parameter => parameter_owners.push((
+                    signature.owner.reference.local_index,
+                    signature.owner.parameter_ordinal.unwrap(),
+                )),
+                AnnotationOwnerKind::Method => method_owners.push((
+                    signature.owner.reference.local_index,
+                    signature.owner.parameter_ordinal,
+                )),
+                _ => panic!("unexpected owner for shared Signature item"),
+            }
+        }
+        parameter_owners.sort_unstable();
+        assert_eq!(parameter_owners, vec![(0, 0), (0, 2), (1, 0), (1, 2)]);
+        assert_eq!(method_owners, vec![(0, None)]);
+        for method_idx in [0, 1] {
+            let method = facts
+                .definitions()
+                .entity(EntityKind::MethodReference, method_idx)
+                .unwrap();
+            let list = facts
+                .method_encoded_parameter_list(&method, ParameterViewLimits::default())
+                .unwrap()
+                .unwrap();
+            assert_eq!(
+                list.binding.prototype_position_coverage,
+                Completeness::Unknown
+            );
+            assert_eq!(
+                facts
+                    .method_parameter_facts(&method, ParameterViewLimits::default())
+                    .err()
+                    .unwrap()
+                    .code,
+                ErrorCode::IncompleteFacts
+            );
+            let method_only: Vec<_> = facts
+                .owner_signatures(&method, SignatureViewLimits::default())
+                .unwrap()
+                .collect();
+            assert_eq!(method_only.len(), usize::from(method_idx == 0));
+            assert!(
+                method_only
+                    .iter()
+                    .all(|item| item.owner.kind == AnnotationOwnerKind::Method)
+            );
+        }
+        assert!(
+            facts
+                .data()
+                .owner_bindings
+                .iter()
+                .filter(|owner| owner.kind == AnnotationOwnerKind::Parameter)
+                .all(|owner| owner.parameter_position_in_prototype.is_none())
+        );
+    }
+
+    #[test]
+    fn signature_parameter_position_distinguishes_unknown_and_proven_slots() {
+        let unknown = build("tests/fixtures/annotations/generated/parameter-shared-signature.dex");
+        let complete =
+            build("tests/fixtures/annotations/generated/parameter-shared-signature-complete.dex");
+        let mut counts = [0usize; 2];
+        for (facts, expected_unknown) in [(&unknown, true), (&complete, false)] {
+            for signature in facts.signatures() {
+                let position = facts
+                    .signature_parameter_position(signature, SignaturePositionLimits::default())
+                    .unwrap();
+                if signature.owner.kind == AnnotationOwnerKind::Parameter {
+                    let slot = signature.owner.parameter_ordinal.unwrap();
+                    if expected_unknown {
+                        assert_eq!(
+                            position,
+                            SignatureParameterPosition::Unknown { encoded_slot: slot }
+                        );
+                        counts[0] += 1;
+                    } else {
+                        assert_eq!(
+                            position,
+                            SignatureParameterPosition::Known { ordinal: slot }
+                        );
+                        counts[1] += 1;
+                    }
+                } else {
+                    assert_eq!(position, SignatureParameterPosition::NotParameter);
+                }
+            }
+        }
+        assert_eq!(counts, [4, 2]);
+        let signature = unknown
+            .signatures()
+            .iter()
+            .find(|value| value.owner.kind == AnnotationOwnerKind::Parameter)
+            .unwrap();
+        assert_eq!(
+            unknown
+                .signature_parameter_position(
+                    signature,
+                    SignaturePositionLimits {
+                        max_signatures: 0,
+                        ..SignaturePositionLimits::default()
+                    }
+                )
+                .unwrap_err()
+                .code,
+            ErrorCode::QuotaExceeded
+        );
+        assert_eq!(
+            unknown
+                .signature_parameter_position(
+                    signature,
+                    SignaturePositionLimits {
+                        owners: AnnotationOwnerViewLimits {
+                            max_scanned_entries: 0,
+                            ..AnnotationOwnerViewLimits::default()
+                        },
+                        ..SignaturePositionLimits::default()
+                    }
+                )
+                .unwrap_err()
+                .code,
+            ErrorCode::QuotaExceeded
+        );
+        let mut clone = signature.clone();
+        assert_eq!(
+            unknown
+                .signature_parameter_position(&clone, SignaturePositionLimits::default())
+                .unwrap(),
+            SignatureParameterPosition::Unknown {
+                encoded_slot: signature.owner.parameter_ordinal.unwrap()
+            }
+        );
+        assert_eq!(
+            unknown
+                .signature_parameter_position(
+                    &clone,
+                    SignaturePositionLimits {
+                        max_identity_bytes: 0,
+                        ..SignaturePositionLimits::default()
+                    }
+                )
+                .unwrap_err()
+                .code,
+            ErrorCode::QuotaExceeded
+        );
+        clone.utf16_units.push(0);
+        assert_eq!(
+            unknown
+                .signature_parameter_position(&clone, SignaturePositionLimits::default())
+                .unwrap_err()
+                .code,
+            ErrorCode::InvalidArgument
+        );
+        let foreign = build("tests/fixtures/annotations/generated/parameter-shared-signature.dex");
+        let foreign_signature = foreign
+            .signatures()
+            .iter()
+            .find(|value| value.owner.kind == AnnotationOwnerKind::Parameter)
+            .unwrap();
+        assert_ne!(
+            signature.annotation.snapshot_id,
+            foreign_signature.annotation.snapshot_id
+        );
+        assert_eq!(
+            unknown
+                .signature_parameter_position(foreign_signature, SignaturePositionLimits::default())
+                .unwrap_err()
+                .code,
+            ErrorCode::InvalidArgument
+        );
+        let mut inconsistent = unknown.clone();
+        let owner = inconsistent
+            .data
+            .owner_bindings
+            .iter_mut()
+            .find(|owner| {
+                owner.kind == AnnotationOwnerKind::Parameter
+                    && owner.local_index == signature.owner.reference.local_index
+                    && owner.parameter_ordinal == signature.owner.parameter_ordinal
+            })
+            .unwrap();
+        owner.parameter_position_in_prototype = Some(true);
+        let inconsistent_signature = inconsistent
+            .signatures()
+            .iter()
+            .find(|value| {
+                value.owner.kind == AnnotationOwnerKind::Parameter
+                    && value.owner.reference.local_index == signature.owner.reference.local_index
+                    && value.owner.parameter_ordinal == signature.owner.parameter_ordinal
+            })
+            .unwrap();
+        assert_eq!(
+            inconsistent
+                .signature_parameter_position(
+                    inconsistent_signature,
+                    SignaturePositionLimits::default()
+                )
+                .unwrap_err()
+                .code,
+            ErrorCode::InternalFault
         );
     }
 

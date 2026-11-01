@@ -1,0 +1,6 @@
+
+running 1 test
+test executor::scoped::tests::scope_rejects_missing_reordered_and_other_snapshot ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 151 filtered out; finished in 0.00s
+

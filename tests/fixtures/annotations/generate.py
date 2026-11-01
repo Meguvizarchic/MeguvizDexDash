@@ -157,8 +157,9 @@ def build(features=None):
         labels[name] = len(data)
         data.extend(value)
     align()
+    parameter_item = labels["method_signature"] if "parameter_shared_signature" in features else labels["values"]
     set_values = [("class_set", [labels["class_signature"], labels["values"]]), ("field_set", [labels["field_signature"]]),
-                  ("method_set", [labels["method_signature"]]), ("parameter_set", [labels["values"]])]
+                  ("method_set", [labels["method_signature"]]), ("parameter_set", [parameter_item])]
     if "parameter_empty_set_shared" in features:
         set_values.extend([("parameter_empty_set", []), ("parameter_orphan_empty_set", [])])
     if features & {"orphan_set","shared_empty_set","orphan_bad_set"}:

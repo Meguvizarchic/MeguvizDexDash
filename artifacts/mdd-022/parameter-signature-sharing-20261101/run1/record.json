@@ -1,0 +1,114 @@
+{
+  "started_utc": "2026-11-01T04:17:33.284785+00:00",
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-facts/src/annotations.rs": "6efaf7bb690cc77b2b00afa684acd86abc272a6042eb23ef5204b3f99b66dd55",
+    "crates/mdd-dex/src/annotations.rs": "f4bf544d7782eeead95a0d98dc5277d18f95992baf7257d4a4d775e8f9be5c74",
+    "tests/fixtures/annotations/generate.py": "6bed3eb45f8d0c887c600983a6470daca2be62d51a8b6a277294b3e18a622e22",
+    "tests/fixtures/annotations/generate_parameter_signature.py": "3f59bdb0f720ce81fead6a63c017ee456260524b0d795f24dcc036e99a479e83",
+    "tests/fixtures/annotations/generate_parameter_positions.py": "1b1e64e28e8eb0fe9260f122ebe2dfc7222cffed71c1e3a974aecfc9ba9ce5ac",
+    "tests/fixtures/annotations/generate_parameter_empty_set.py": "aa5b92ce1bb4aa548fb1d3de8114d441291d142a4db9ff9df20adbb912c2d5bb",
+    "tests/fixtures/annotations/generated/parameter-shared-signature.dex": "452e68a5702e119c48c5a55f20f3bd0011ae40f3f798b090ccdb557bbf440df8",
+    "tests/fixtures/annotations/parameter-shared-signature.json": "27a74dca8fb5afa91fbdf196f1e07c7fbb4532e2e4146987bd02362883cb4836",
+    "tests/fixtures/annotations/generated/annotations-038.dex": "65380a8b23601e17339379be211e417d8b4c8383b686b6d173f800656b985360",
+    "tests/fixtures/annotations/generated/parameter-shared-empty-set.dex": "a0178738ab6be08db3b2ac0d75d38a44f141add9df24a76b8d186a7a8f089609",
+    "tests/fixtures/annotations/parameter-position-fixtures.json": "e0a899e4e9b106a543a49e9a3f45f7ad27c758476d0fbcd7c4452f6ac6fb1f80"
+  },
+  "runs": [
+    {
+      "command": [
+        "python",
+        "-B",
+        "-O",
+        "tests/fixtures/annotations/generate_parameter_signature.py",
+        "--check"
+      ],
+      "started_utc": "2026-11-01T04:17:33.284797+00:00",
+      "finished_utc": "2026-11-01T04:17:33.413468+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "06c530017a989f2775fd70586c4d812f15d21ab6b9dc20a1723f65008173c066",
+      "raw_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": [
+        "python",
+        "-B",
+        "-O",
+        "tests/fixtures/annotations/generate_parameter_positions.py",
+        "--check"
+      ],
+      "started_utc": "2026-11-01T04:17:33.413486+00:00",
+      "finished_utc": "2026-11-01T04:17:33.560950+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "086860eb8204dd968bafc33b9adf8f030519d63d28e84481287d7e2591a6a002",
+      "raw_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": [
+        "python",
+        "-B",
+        "-O",
+        "tests/fixtures/annotations/generate_parameter_empty_set.py",
+        "--check"
+      ],
+      "started_utc": "2026-11-01T04:17:33.560977+00:00",
+      "finished_utc": "2026-11-01T04:17:33.720089+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "06c530017a989f2775fd70586c4d812f15d21ab6b9dc20a1723f65008173c066",
+      "raw_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": [
+        "python",
+        "-B",
+        "-O",
+        "-c",
+        "import importlib.util,pathlib; p=pathlib.Path('tests/fixtures/annotations/generate.py'); s=importlib.util.spec_from_file_location('m',p); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); data,_=m.build(); old=pathlib.Path('tests/fixtures/annotations/generated/annotations-038.dex').read_bytes(); print('default fixture unchanged' if data==old else 'fixture mismatch'); raise SystemExit(data!=old)"
+      ],
+      "started_utc": "2026-11-01T04:17:33.720113+00:00",
+      "finished_utc": "2026-11-01T04:17:33.860947+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "133eb034cdd9de64ddc0cc11df109666b20c7df9d4ef658a06966a17aa4b3fdc",
+      "raw_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-facts",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "shared_parameter_signature_keeps_method_and_unknown_encoded_slots_distinct",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T04:17:33.860973+00:00",
+      "finished_utc": "2026-11-01T04:17:43.407775+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "8cf27026b6d324ad59f576f57af23656865251fc7d48cfa9846619a2bb5d5376",
+      "raw_stderr_sha256": "f9b9055c080b35407e5882b446ef403c2464e895b5ea2bb67b9bc6db5adce44c"
+    }
+  ],
+  "scope": "Synthetic shared Signature method and unknown encoded parameter slots; byte-level fixture checks do not prove ART or full MDD-022 qualification.",
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-facts/src/annotations.rs": "6efaf7bb690cc77b2b00afa684acd86abc272a6042eb23ef5204b3f99b66dd55",
+    "crates/mdd-dex/src/annotations.rs": "f4bf544d7782eeead95a0d98dc5277d18f95992baf7257d4a4d775e8f9be5c74",
+    "tests/fixtures/annotations/generate.py": "6bed3eb45f8d0c887c600983a6470daca2be62d51a8b6a277294b3e18a622e22",
+    "tests/fixtures/annotations/generate_parameter_signature.py": "3f59bdb0f720ce81fead6a63c017ee456260524b0d795f24dcc036e99a479e83",
+    "tests/fixtures/annotations/generate_parameter_positions.py": "1b1e64e28e8eb0fe9260f122ebe2dfc7222cffed71c1e3a974aecfc9ba9ce5ac",
+    "tests/fixtures/annotations/generate_parameter_empty_set.py": "aa5b92ce1bb4aa548fb1d3de8114d441291d142a4db9ff9df20adbb912c2d5bb",
+    "tests/fixtures/annotations/generated/parameter-shared-signature.dex": "452e68a5702e119c48c5a55f20f3bd0011ae40f3f798b090ccdb557bbf440df8",
+    "tests/fixtures/annotations/parameter-shared-signature.json": "27a74dca8fb5afa91fbdf196f1e07c7fbb4532e2e4146987bd02362883cb4836",
+    "tests/fixtures/annotations/generated/annotations-038.dex": "65380a8b23601e17339379be211e417d8b4c8383b686b6d173f800656b985360",
+    "tests/fixtures/annotations/generated/parameter-shared-empty-set.dex": "a0178738ab6be08db3b2ac0d75d38a44f141add9df24a76b8d186a7a8f089609",
+    "tests/fixtures/annotations/parameter-position-fixtures.json": "e0a899e4e9b106a543a49e9a3f45f7ad27c758476d0fbcd7c4452f6ac6fb1f80"
+  },
+  "finished_utc": "2026-11-01T04:17:43.408962+00:00",
+  "redaction": "workspace path replaced in logs; originals retained in ignored local artifacts"
+}

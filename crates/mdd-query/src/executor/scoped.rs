@@ -18,7 +18,10 @@ use mdd_facts::{
     indexes::{FactView, SelectedScope},
     references::ReferenceFacts,
 };
-use mdd_input::{archive::ArchiveInventory, snapshot::Snapshot};
+use mdd_input::{
+    archive::{ArchiveInventory, DexSelection},
+    snapshot::Snapshot,
+};
 use mdd_types::{
     Coverage, ErrorCode, MddError, MddResult,
     result::{ResultIdentity, TerminalBuilder},
@@ -41,9 +44,9 @@ pub struct ScopedLimits {
     /// Maximum source, inventory, catalog, reference and selected DEX counts;
     /// each count is checked separately before constructing the selected scope.
     pub max_entries: u64,
-    /// Maximum reconstructed commitment preimage length. SelectedScope's
-    /// initial construction has its own allocations and is not memory-bounded
-    /// by this value; neither this nor entry counts are an RSS/CPU bound.
+    /// Maximum selected-scope commitment preimage length. Checked before
+    /// SelectedScope construction; its other allocations are not bounded by
+    /// this value. Neither this nor entry counts bound RSS or CPU.
     pub max_commitment_bytes: u64,
     /// Upper bound for comparing distinct captured-byte allocations. This is
     /// a logical byte count, not a bound on CPU, allocator overhead or RSS.
@@ -112,6 +115,88 @@ fn add_code_coverage_entries(used: u64, items: u64, offsets: u64, limit: u64) ->
         .detail("observed", next.to_string()));
     }
     Ok(next)
+}
+
+// Preserve SelectedScope's identity errors before applying the byte preflight.
+// The caller checks source and inventory counts before building these maps.
+fn validate_inventory_identities(
+    snapshot: &Snapshot,
+    inventories: &[&ArchiveInventory],
+) -> MddResult<()> {
+    let captured: BTreeMap<_, _> = snapshot
+        .sources()
+        .iter()
+        .map(|source| (source.identity().occurrence_id.as_str(), source.identity()))
+        .collect();
+    let mut seen = BTreeSet::new();
+    for inventory in inventories {
+        let manifest = inventory.manifest();
+        let source = captured
+            .get(manifest.source_occurrence_id.as_str())
+            .ok_or_else(|| {
+                MddError::new(
+                    ErrorCode::InvalidArgument,
+                    "facts.index_scope",
+                    "inventory is outside snapshot",
+                )
+            })?;
+        if source.content_id != manifest.source_content_id
+            || !seen.insert(manifest.source_occurrence_id.as_str())
+        {
+            return Err(MddError::new(
+                ErrorCode::InvalidArgument,
+                "facts.index_scope",
+                "inventory identity mismatch or duplicate source",
+            ));
+        }
+    }
+    Ok(())
+}
+
+// Mirror the fixed v1 framing without constructing its bytes. Inventory order
+// does not affect the total length; source/order/identity validation remains
+// the responsibility of SelectedScope::from_inventories.
+fn preflight_commitment_bytes(
+    snapshot: &Snapshot,
+    inventories: &[&ArchiveInventory],
+    limit: u64,
+) -> MddResult<u64> {
+    let quota = || {
+        error(
+            ErrorCode::QuotaExceeded,
+            "scope commitment byte budget exceeded",
+        )
+    };
+    let mut total = u64::try_from(b"mdd-selected-scope-v1".len()).map_err(|_| quota())?;
+    let mut frame = |length: usize| -> MddResult<()> {
+        let length = u64::try_from(length).map_err(|_| quota())?;
+        total = total
+            .checked_add(8)
+            .and_then(|v| v.checked_add(length))
+            .ok_or_else(quota)?;
+        if total > limit {
+            return Err(quota());
+        }
+        Ok(())
+    };
+    for inventory in inventories {
+        let manifest = inventory.manifest();
+        let policy = match manifest.selection {
+            DexSelection::TopLevelClasses => "top-level-classes-v1",
+            DexSelection::AllDexMembers => "all-dex-members-v1",
+            DexSelection::ResourcesOnly => "resources-only-v1",
+        };
+        frame(8)?; // source ordinal
+        frame(manifest.source_content_id.len())?;
+        frame(policy.len())?;
+        for dex in inventory.selected_dexes() {
+            frame(dex.blob.content_id.len())?;
+            frame(8)?; // archive member ordinal
+            frame(8)?; // logical DEX header offset
+        }
+    }
+    frame(snapshot.manifest().snapshot_id.len())?;
+    Ok(total)
 }
 
 pub(super) fn compare_dex_bytes(
@@ -211,6 +296,16 @@ impl ScopedCatalog {
         {
             return Err(quota());
         }
+        // Reject the empty selection with the existing scope validation error.
+        if inventories.is_empty() {
+            return Err(MddError::new(
+                ErrorCode::InvalidArgument,
+                "facts.index_scope",
+                "explicit selected scope requires inventories; use pending while unbuilt",
+            ));
+        }
+        validate_inventory_identities(snapshot, inventories)?;
+        preflight_commitment_bytes(snapshot, inventories, limits.max_commitment_bytes)?;
         let scope = SelectedScope::from_inventories(snapshot, inventories)?;
         if matches!(selection, InputSelection::AllCapturedInputs)
             && !scope.covers_all_captured_sources()
@@ -563,6 +658,165 @@ mod tests {
             max_entries: 16,
             max_commitment_bytes: 16384,
             max_identity_compare_bytes: 16384,
+        }
+    }
+
+    #[test]
+    fn scope_commitment_budget_is_checked_before_scope_construction() {
+        let (snapshot, inventories, metadata) = fixture();
+        for indices in [&[0usize][..], &[0usize, 1usize][..]] {
+            let selected: Vec<_> = indices.iter().map(|index| &inventories[*index]).collect();
+            let facts: Vec<_> = indices
+                .iter()
+                .map(|index| metadata[*index].as_ref())
+                .collect();
+            let scope = SelectedScope::from_inventories(&snapshot, &selected).unwrap();
+            let bytes = scope
+                .commitment_preimage(&snapshot, &selected, &facts, 16, 16384)
+                .unwrap();
+            let exact = u64::try_from(bytes.len()).unwrap();
+            assert_eq!(
+                preflight_commitment_bytes(&snapshot, &selected, exact).unwrap(),
+                exact
+            );
+            assert_eq!(
+                preflight_commitment_bytes(&snapshot, &selected, exact - 1)
+                    .unwrap_err()
+                    .code,
+                ErrorCode::QuotaExceeded
+            );
+            let bound = ScopedLimits {
+                max_commitment_bytes: exact - 1,
+                ..limits()
+            };
+            let sources = indices
+                .iter()
+                .map(|index| Arc::clone(&metadata[*index]))
+                .collect::<Vec<_>>();
+            assert_eq!(
+                ScopedCatalog::native(
+                    &snapshot,
+                    &selected,
+                    native(&snapshot, &sources),
+                    InputSelection::SelectedInputs,
+                    bound
+                )
+                .err()
+                .unwrap()
+                .code,
+                ErrorCode::QuotaExceeded
+            );
+        }
+    }
+
+    #[test]
+    fn commitment_preflight_covers_inventory_policies_and_empty_selection() {
+        let input = InputSpec {
+            path: PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../tests/fixtures/generated/multidex-stored.apk"),
+            kind: InputKind::Apk,
+            expected_sha256: None,
+        };
+        let snapshot = Snapshot::capture(&[input], CaptureLimits::default()).unwrap();
+        for (selection, policy, expected_dexes) in [
+            (
+                DexSelection::TopLevelClasses,
+                "top-level-classes-v1",
+                2usize,
+            ),
+            (DexSelection::AllDexMembers, "all-dex-members-v1", 2usize),
+            (DexSelection::ResourcesOnly, "resources-only-v1", 0usize),
+        ] {
+            let inventory = ArchiveInventory::build(
+                &snapshot.sources()[0],
+                InventoryPolicy {
+                    dex_selection: selection,
+                    require_dex: false,
+                    ..InventoryPolicy::default()
+                },
+                ArchiveLimits::default(),
+            )
+            .unwrap();
+            assert_eq!(inventory.selected_dexes().len(), expected_dexes);
+            let scope = SelectedScope::from_inventories(&snapshot, &[&inventory]).unwrap();
+            let source = snapshot.sources()[0].identity();
+            let mut data = b"mdd-selected-scope-v1".to_vec();
+            let append = |bytes: &mut Vec<u8>, value: &[u8]| {
+                bytes.extend_from_slice(&(value.len() as u64).to_le_bytes());
+                bytes.extend_from_slice(value);
+            };
+            append(&mut data, &source.input_ordinal.0.to_le_bytes());
+            append(&mut data, source.content_id.as_bytes());
+            append(&mut data, policy.as_bytes());
+            for dex in inventory.selected_dexes() {
+                append(&mut data, dex.blob.content_id.as_bytes());
+                append(
+                    &mut data,
+                    &dex.blob
+                        .identity
+                        .archive_member_ordinal
+                        .map_or(u64::MAX, |v| v.0)
+                        .to_le_bytes(),
+                );
+                append(&mut data, &dex.logical_header_byte_offset.0.to_le_bytes());
+            }
+            assert_eq!(mdd_types::content_id(&data), scope.scope_content_key());
+            append(&mut data, snapshot.manifest().snapshot_id.as_bytes());
+            assert_eq!(mdd_types::content_id(&data), scope.scope_id());
+            let exact = u64::try_from(data.len()).unwrap();
+            assert_eq!(
+                preflight_commitment_bytes(&snapshot, &[&inventory], exact).unwrap(),
+                exact
+            );
+            assert_eq!(
+                preflight_commitment_bytes(&snapshot, &[&inventory], exact - 1)
+                    .unwrap_err()
+                    .code,
+                ErrorCode::QuotaExceeded
+            );
+        }
+    }
+
+    #[test]
+    fn commitment_preflight_keeps_invalid_inventory_identity_before_byte_quota() {
+        let (snapshot, inventories, metadata) = fixture();
+        let (_, foreign, _) = fixture();
+        let bound = ScopedLimits {
+            max_commitment_bytes: 1,
+            ..limits()
+        };
+        let expected_empty = SelectedScope::from_inventories(&snapshot, &[])
+            .err()
+            .unwrap();
+        let actual_empty = ScopedCatalog::native(
+            &snapshot,
+            &[],
+            native(&snapshot, &metadata),
+            InputSelection::SelectedInputs,
+            bound,
+        )
+        .err()
+        .unwrap();
+        assert_eq!(actual_empty.code, expected_empty.code);
+        assert_eq!(actual_empty.stage, expected_empty.stage);
+        assert_eq!(actual_empty.message, expected_empty.message);
+        for selected in [vec![&inventories[0], &inventories[0]], vec![&foreign[0]]] {
+            let expected = SelectedScope::from_inventories(&snapshot, &selected)
+                .err()
+                .unwrap();
+            assert_eq!(expected.code, ErrorCode::InvalidArgument);
+            let actual = ScopedCatalog::native(
+                &snapshot,
+                &selected,
+                native(&snapshot, &metadata),
+                InputSelection::SelectedInputs,
+                bound,
+            )
+            .err()
+            .unwrap();
+            assert_eq!(actual.code, expected.code);
+            assert_eq!(actual.stage, expected.stage);
+            assert_eq!(actual.message, expected.message);
         }
     }
 

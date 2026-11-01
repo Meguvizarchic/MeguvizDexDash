@@ -1,0 +1,29 @@
+{
+  "schema_version": "mdd.parameter-signature-fixture.v1",
+  "scope": "Synthetic encoded layout; no ART or profile qualification.",
+  "file": "parameter-shared-signature-complete.dex",
+  "sha256": "4bb9458a5fc0bcc1b977d74df814d8ab873a6602902297ed9ee6e084ac008ce9",
+  "bytes": 1452,
+  "signature_offset": 1132,
+  "parameter_set_offset": 1180,
+  "parameter_list_offset": 1188,
+  "slots": [
+    1180,
+    null
+  ],
+  "methods": [
+    0,
+    1
+  ],
+  "prototype_parameter_count": 2,
+  "prototype_position_coverage": "complete",
+  "fragments": [
+    "(",
+    "Ljava/util/List<",
+    "Ljava/lang/String;",
+    ">;I)",
+    "Ljava/util/List<",
+    "Ljava/lang/String;",
+    ">;"
+  ]
+}

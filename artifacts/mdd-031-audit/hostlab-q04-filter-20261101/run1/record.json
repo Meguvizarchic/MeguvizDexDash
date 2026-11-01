@@ -1,0 +1,52 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "mdd-sql",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "1",
+    "hostlab_q04_annotation_filters_match_sqlite_with_duplicate_occurrences",
+    "--",
+    "--nocapture"
+  ],
+  "started_utc": "2026-11-01T04:24:15.639937+00:00",
+  "finished_utc": "2026-11-01T04:24:30.832457+00:00",
+  "exit_code": 0,
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-sql/src/bridge.rs": "6368e757d59f322773f7eb6be775e5c71c3b824a6c67588aceaa21ac08c65159",
+    "crates/mdd-sql/src/dialects/ast.rs": "02202959965839ca25e12a9d61a5b8a3224fda3f91e8596b03477bff14dd7a58",
+    "crates/mdd-sql/src/dialects/functions.rs": "f4aca963abe8d9ef73003d1860111b8a6da14505be7f9f0c1eddec6f9fe3015c",
+    "crates/mdd-query/src/executor.rs": "ec6b20c95c76d6bd7a53450f30dd0db9a72392029816b79f1e046cac1332c206",
+    "crates/mdd-query/src/executor/scoped.rs": "67c258c94e32c25b8f0632d4d9d32675cbf09e8e112272eda1a5b342245b41e8",
+    "crates/mdd-query/src/executor/facts.rs": "7690598fb6da19bda465627c737d3b4582a0a55f99d026df43f250a0153c1292",
+    "crates/mdd-query/src/budget.rs": "99b013a1e3ac90ced738d4a6ec678b4357a7a7b807e319d0789ffdde1a331ba4",
+    "crates/mdd-facts/src/annotations.rs": "d422585df89e0e4aa897530935ec579311eb5d6e92c8562cb9fe1db8a749381e",
+    "crates/mdd-dex/src/annotations.rs": "f4bf544d7782eeead95a0d98dc5277d18f95992baf7257d4a4d775e8f9be5c74",
+    "crates/mdd-types/src/lib.rs": "59e6f5df23325ac7828b275d8701acacf47b3a75726f59eab3ec6e740df8cd38",
+    "conformance/corpus/hostlab/queries.jsonl": "e6a94471466af10c2482d851358296c1a5fcc3809c8eb3c7531a9262af2391b4"
+  },
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-sql/src/bridge.rs": "6368e757d59f322773f7eb6be775e5c71c3b824a6c67588aceaa21ac08c65159",
+    "crates/mdd-sql/src/dialects/ast.rs": "02202959965839ca25e12a9d61a5b8a3224fda3f91e8596b03477bff14dd7a58",
+    "crates/mdd-sql/src/dialects/functions.rs": "f4aca963abe8d9ef73003d1860111b8a6da14505be7f9f0c1eddec6f9fe3015c",
+    "crates/mdd-query/src/executor.rs": "ec6b20c95c76d6bd7a53450f30dd0db9a72392029816b79f1e046cac1332c206",
+    "crates/mdd-query/src/executor/scoped.rs": "67c258c94e32c25b8f0632d4d9d32675cbf09e8e112272eda1a5b342245b41e8",
+    "crates/mdd-query/src/executor/facts.rs": "7690598fb6da19bda465627c737d3b4582a0a55f99d026df43f250a0153c1292",
+    "crates/mdd-query/src/budget.rs": "99b013a1e3ac90ced738d4a6ec678b4357a7a7b807e319d0789ffdde1a331ba4",
+    "crates/mdd-facts/src/annotations.rs": "d422585df89e0e4aa897530935ec579311eb5d6e92c8562cb9fe1db8a749381e",
+    "crates/mdd-dex/src/annotations.rs": "f4bf544d7782eeead95a0d98dc5277d18f95992baf7257d4a4d775e8f9be5c74",
+    "crates/mdd-types/src/lib.rs": "59e6f5df23325ac7828b275d8701acacf47b3a75726f59eab3ec6e740df8cd38",
+    "conformance/corpus/hostlab/queries.jsonl": "e6a94471466af10c2482d851358296c1a5fcc3809c8eb3c7531a9262af2391b4"
+  },
+  "raw_stdout_sha256": "aea5fc6b9c49fd20941905ce877cf4864adf6e909fcd079e7be6ed5d65c3703c",
+  "raw_stderr_sha256": "507d5ffa419925c40c53cdb8a271a26eb464a9c513f6cb04a0ff041ee2ce1a11",
+  "redaction": "workspace path replaced; raw logs retained under ignored local artifacts",
+  "scope": "one synthetic Q04-like OR/IN comparison with SQLite, signed/unsigned carriers and three dialects; no full HostLab or independent DEX qualification"
+}

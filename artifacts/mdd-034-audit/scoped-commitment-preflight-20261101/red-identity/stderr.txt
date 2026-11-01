@@ -1,0 +1,10 @@
+   Compiling mdd-query v0.1.0-dev (<workspace>\crates\mdd-query)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 10.60s
+     Running unittests src\lib.rs (target\debug\deps\mdd_query-82579f4092cfd058.exe)
+
+thread 'executor::scoped::tests::commitment_preflight_keeps_invalid_inventory_identity_before_byte_quota' (42036) panicked at crates\mdd-query\src\executor\scoped.rs:764:13:
+assertion `left == right` failed
+  left: QuotaExceeded
+ right: InvalidArgument
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p mdd-query --lib`

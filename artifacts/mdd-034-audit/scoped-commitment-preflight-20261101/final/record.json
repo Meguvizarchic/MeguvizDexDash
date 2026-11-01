@@ -1,0 +1,116 @@
+{
+  "scope": "four targeted synthetic v1 framing, selection and identity-priority checks; no full profile, CPU or RSS qualification",
+  "started_utc": "2026-11-01T04:23:33.439947+00:00",
+  "finished_utc": "2026-11-01T04:23:42.800586+00:00",
+  "source_before": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-query/src/executor/scoped.rs": "67c258c94e32c25b8f0632d4d9d32675cbf09e8e112272eda1a5b342245b41e8",
+    "crates/mdd-query/src/executor.rs": "ec6b20c95c76d6bd7a53450f30dd0db9a72392029816b79f1e046cac1332c206",
+    "crates/mdd-query/src/executor/facts.rs": "7690598fb6da19bda465627c737d3b4582a0a55f99d026df43f250a0153c1292",
+    "crates/mdd-facts/src/indexes/scope.rs": "3fc13c036409a0abe526cb9a2da83f35f88f606a1b7f61d45bd3f38b689f84b3",
+    "crates/mdd-facts/src/annotations.rs": "d422585df89e0e4aa897530935ec579311eb5d6e92c8562cb9fe1db8a749381e",
+    "crates/mdd-input/src/archive/mod.rs": "8b950285850f05925d18e4876f176cb64583879bd24309a3b5bb97a31c339428",
+    "crates/mdd-input/src/snapshot/mod.rs": "7b5b2afd099609c2787a960e93cc6e104e0e7ce508a2d6c1820a3ea63fcf93a0",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae",
+    "tests/fixtures/generated/multidex-stored.apk": "6b88277747a49dfddcc91900c171ae6420449cc424d57ffd46f896891ad26098"
+  },
+  "source_after": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-query/src/executor/scoped.rs": "67c258c94e32c25b8f0632d4d9d32675cbf09e8e112272eda1a5b342245b41e8",
+    "crates/mdd-query/src/executor.rs": "ec6b20c95c76d6bd7a53450f30dd0db9a72392029816b79f1e046cac1332c206",
+    "crates/mdd-query/src/executor/facts.rs": "7690598fb6da19bda465627c737d3b4582a0a55f99d026df43f250a0153c1292",
+    "crates/mdd-facts/src/indexes/scope.rs": "3fc13c036409a0abe526cb9a2da83f35f88f606a1b7f61d45bd3f38b689f84b3",
+    "crates/mdd-facts/src/annotations.rs": "d422585df89e0e4aa897530935ec579311eb5d6e92c8562cb9fe1db8a749381e",
+    "crates/mdd-input/src/archive/mod.rs": "8b950285850f05925d18e4876f176cb64583879bd24309a3b5bb97a31c339428",
+    "crates/mdd-input/src/snapshot/mod.rs": "7b5b2afd099609c2787a960e93cc6e104e0e7ce508a2d6c1820a3ea63fcf93a0",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae",
+    "tests/fixtures/generated/multidex-stored.apk": "6b88277747a49dfddcc91900c171ae6420449cc424d57ffd46f896891ad26098"
+  },
+  "runs": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-query",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "scope_commitment_budget_is_checked_before_scope_construction",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T04:23:33.439959+00:00",
+      "finished_utc": "2026-11-01T04:23:42.056181+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "8862bebde070b97b615b4017c72f4ada770ccbb669987f32e652de7c30d2f302",
+      "raw_stderr_sha256": "9dd047fd7354d47f39fbd537d76c9ebd3856d9c22edf58d166e0914fce22f67f"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-query",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "commitment_preflight_covers_inventory_policies_and_empty_selection",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T04:23:42.056205+00:00",
+      "finished_utc": "2026-11-01T04:23:42.315864+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "92f0207285117e9c8b93554041b965ab50eb1483e371a6d780049714d562c732",
+      "raw_stderr_sha256": "469742c6bc05fba88d4a22cc339190bb617f29d4037b956157f258647227bc77"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-query",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "commitment_preflight_keeps_invalid_inventory_identity_before_byte_quota",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T04:23:42.315888+00:00",
+      "finished_utc": "2026-11-01T04:23:42.557483+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "bcdf9e948882657217f82209a5d0e298aa35163ee394d3471ef5a074a9ce778a",
+      "raw_stderr_sha256": "469742c6bc05fba88d4a22cc339190bb617f29d4037b956157f258647227bc77"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-query",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "scope_rejects_missing_reordered_and_other_snapshot",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T04:23:42.557507+00:00",
+      "finished_utc": "2026-11-01T04:23:42.799307+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "f13397dc1c670b188108887d2f4ca6531f4241ff8728b62db2172cd74be5d9b6",
+      "raw_stderr_sha256": "014064e7cd28208cca286f2a915cd5f76ec7beb9ffdbb1599c5ac8254fbb392c"
+    }
+  ],
+  "redaction": "workspace path replaced; raw logs retained in ignored local directory"
+}

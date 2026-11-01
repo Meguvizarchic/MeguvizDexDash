@@ -3673,6 +3673,129 @@ mod tests {
     }
 
     #[test]
+    fn hostlab_q04_annotation_filters_match_sqlite_with_duplicate_occurrences() {
+        use mdd_query::ir::Signed64;
+        let input = [
+            (0, 256, 0, 1, Some(10), Some("string")),
+            (0, 256, 0, 1, Some(10), Some("string")),
+            (0, 256, 1, 1, None, Some("string")),
+            (0, 512, 0, 2, Some(20), Some("string")),
+            (0, 512, 1, 1, Some(21), Some("int")),
+            (1, 512, 0, 1, Some(22), Some("string")),
+            (1, 256, 0, 1, Some(23), Some("string")),
+            (1, 512, 1, 1, Some(24), None),
+        ];
+        let sqlite = rusqlite::Connection::open_in_memory().unwrap();
+        sqlite.execute_batch("CREATE TABLE vals(file_id INTEGER,annotation_off INTEGER,ordinal INTEGER,depth INTEGER,value_index INTEGER,value_kind TEXT)").unwrap();
+        for row in input {
+            sqlite
+                .execute("INSERT INTO vals VALUES (?1,?2,?3,?4,?5,?6)", row)
+                .unwrap();
+        }
+        let sql = "SELECT file_id,annotation_off,ordinal,value_index FROM vals WHERE ((file_id=0 AND annotation_off IN (256,512)) OR (file_id=1 AND annotation_off IN (512))) AND depth=1 AND value_kind='string' ORDER BY file_id,annotation_off,ordinal";
+        let expected: Vec<(i64, i64, i64, Option<i64>)> = sqlite
+            .prepare(sql)
+            .unwrap()
+            .query_map([], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+            })
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap();
+        assert_eq!(
+            expected,
+            vec![
+                (0, 256, 0, Some(10)),
+                (0, 256, 0, Some(10)),
+                (0, 256, 1, None),
+                (1, 512, 0, Some(22))
+            ]
+        );
+        for integer_type in [SqlType::I64, SqlType::U64] {
+            let columns = [
+                "file_id",
+                "annotation_off",
+                "ordinal",
+                "depth",
+                "value_index",
+                "value_kind",
+            ]
+            .into_iter()
+            .map(|name| SqlColumn {
+                id: name.into(),
+                name: name.into(),
+                data_type: if name == "value_kind" {
+                    SqlType::Text
+                } else {
+                    integer_type
+                },
+                nullable: true,
+            })
+            .collect();
+            let number = |value: i64| match integer_type {
+                SqlType::I64 => SqlValue::I64(Signed64(value)),
+                SqlType::U64 => SqlValue::U64(DecimalU64(u64::try_from(value).unwrap())),
+                _ => unreachable!(),
+            };
+            let provider = Arc::new(RowsProvider {
+                binding: SqlBinding {
+                    provider_identity: "q04-synthetic".into(),
+                    snapshot_id: "q04-snapshot".into(),
+                    catalog_epoch: DecimalU64(0),
+                },
+                columns,
+                rows: input
+                    .iter()
+                    .map(|(file, offset, ordinal, depth, value, kind)| {
+                        vec![
+                            number(*file),
+                            number(*offset),
+                            number(*ordinal),
+                            number(*depth),
+                            value.map_or(SqlValue::Null, number),
+                            kind.map_or(SqlValue::Null, SqlValue::text),
+                        ]
+                    })
+                    .collect(),
+            });
+            for dialect in [
+                SqlDialect::NativeV1,
+                SqlDialect::DexSql010,
+                SqlDialect::DexSql011,
+            ] {
+                let bridge =
+                    SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+                let result = bridge.query(sql).unwrap();
+                assert_eq!(
+                    result.columns(),
+                    &["file_id", "annotation_off", "ordinal", "value_index"]
+                );
+                let actual: Vec<_> = result
+                    .rows()
+                    .iter()
+                    .map(|row| {
+                        let integer = |value: &SqlValue| match value {
+                            SqlValue::I64(v) => Some(v.0),
+                            SqlValue::U64(v) => Some(i64::try_from(v.0).unwrap()),
+                            SqlValue::Null => None,
+                            other => panic!("unexpected integer: {other:?}"),
+                        };
+                        (
+                            integer(&row[0]).unwrap(),
+                            integer(&row[1]).unwrap(),
+                            integer(&row[2]).unwrap(),
+                            integer(&row[3]),
+                        )
+                    })
+                    .collect();
+                assert_eq!(actual, expected, "{integer_type:?} {dialect:?}");
+                assert_eq!(bridge.query("SELECT file_id FROM vals WHERE ((file_id=0 AND annotation_off IN (256)) OR (file_id=1 AND missing IN (512))) AND depth=1").unwrap_err().code,
+                       ErrorCode::InvalidArgument);
+            }
+        }
+    }
+
+    #[test]
     fn hostlab_q10_group_count_and_order_match_sqlite_for_duplicate_calls() {
         use mdd_query::ir::Signed64;
         let columns = [

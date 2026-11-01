@@ -1,0 +1,42 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "mdd-query",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "1",
+    "commitment_preflight_keeps_invalid_inventory_identity_before_byte_quota",
+    "--",
+    "--nocapture"
+  ],
+  "started_utc": "2026-11-01T04:21:46.142958+00:00",
+  "finished_utc": "2026-11-01T04:21:57.315183+00:00",
+  "exit_code": 101,
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-query/src/executor/scoped.rs": "079ff3ad678ed9899abef4a4a2ce1d17934341eaad1906b89e893976556ca988",
+    "crates/mdd-query/src/executor/facts.rs": "7690598fb6da19bda465627c737d3b4582a0a55f99d026df43f250a0153c1292",
+    "crates/mdd-facts/src/indexes/scope.rs": "3fc13c036409a0abe526cb9a2da83f35f88f606a1b7f61d45bd3f38b689f84b3",
+    "crates/mdd-input/src/archive/mod.rs": "8b950285850f05925d18e4876f176cb64583879bd24309a3b5bb97a31c339428",
+    "crates/mdd-input/src/snapshot/mod.rs": "7b5b2afd099609c2787a960e93cc6e104e0e7ce508a2d6c1820a3ea63fcf93a0",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  },
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-query/src/executor/scoped.rs": "079ff3ad678ed9899abef4a4a2ce1d17934341eaad1906b89e893976556ca988",
+    "crates/mdd-query/src/executor/facts.rs": "7690598fb6da19bda465627c737d3b4582a0a55f99d026df43f250a0153c1292",
+    "crates/mdd-facts/src/indexes/scope.rs": "3fc13c036409a0abe526cb9a2da83f35f88f606a1b7f61d45bd3f38b689f84b3",
+    "crates/mdd-input/src/archive/mod.rs": "8b950285850f05925d18e4876f176cb64583879bd24309a3b5bb97a31c339428",
+    "crates/mdd-input/src/snapshot/mod.rs": "7b5b2afd099609c2787a960e93cc6e104e0e7ce508a2d6c1820a3ea63fcf93a0",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  },
+  "raw_stdout_sha256": "a8b2d68ad69601da56f0513fe3365e5f184c6bfb1763df0506e50c6e91ee98d0",
+  "raw_stderr_sha256": "ef15312b1905cb73f0459e2ead2fca98cf1b47414832a2c78a37444bb55ed72c",
+  "redaction": "workspace path replaced; originals retained under ignored local directory",
+  "scope": "identity versus byte-budget priority counterexample only"
+}

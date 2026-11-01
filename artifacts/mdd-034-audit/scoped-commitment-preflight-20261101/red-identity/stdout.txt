@@ -1,0 +1,11 @@
+
+running 1 test
+test executor::scoped::tests::commitment_preflight_keeps_invalid_inventory_identity_before_byte_quota ... FAILED
+
+failures:
+
+failures:
+    executor::scoped::tests::commitment_preflight_keeps_invalid_inventory_identity_before_byte_quota
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 152 filtered out; finished in 0.00s
+
