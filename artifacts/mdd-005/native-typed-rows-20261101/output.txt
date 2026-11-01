@@ -1,0 +1,23 @@
+test_entity_scope_and_base64_fail_closed (__main__.TypedRows.test_entity_scope_and_base64_fail_closed) ... ok
+test_hand_fixture_preserves_null_and_duplicates (__main__.TypedRows.test_hand_fixture_preserves_null_and_duplicates) ... ERROR
+test_limits_type_and_schema (__main__.TypedRows.test_limits_type_and_schema) ... ok
+test_numeric_types_and_boundaries (__main__.TypedRows.test_numeric_types_and_boundaries) ... ok
+test_utf16_null_and_bytes_are_distinct (__main__.TypedRows.test_utf16_null_and_bytes_are_distinct) ... ok
+
+======================================================================
+ERROR: test_hand_fixture_preserves_null_and_duplicates (__main__.TypedRows.test_hand_fixture_preserves_null_and_duplicates)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<WORKSPACE>\artifacts\mdd-005\native-typed-rows-20261101\probe.py", line 27, in test_hand_fixture_preserves_null_and_duplicates
+    result = self.check(rows, schema)
+  File "<WORKSPACE>\artifacts\mdd-005\native-typed-rows-20261101\probe.py", line 23, in check
+    return runner.verify_native_typed_rows(rows, schema, **args)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "<WORKSPACE>\benchmarks\run-existing-baselines.py", line 220, in verify_native_typed_rows
+    raise ValueError('invalid or foreign native entity')
+ValueError: invalid or foreign native entity
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.007s
+
+FAILED (errors=1)

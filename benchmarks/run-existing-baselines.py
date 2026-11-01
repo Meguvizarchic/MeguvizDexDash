@@ -8,6 +8,8 @@ running an engine on Windows fails closed before process creation.
 from __future__ import annotations
 
 import argparse
+import base64
+import binascii
 import copy
 import hashlib
 import json
@@ -115,7 +117,124 @@ def require_object_keys(value, required, label):
         raise ValueError('invalid ' + label + ' fields')
 
 
-def consume(output, expected_inputs, expected_request, required_layers, *, expected_identity):
+def verify_native_typed_rows(rows, schema, *, expected_snapshot_id, expected_occurrences,
+                             max_rows, max_cells, max_variable_bytes):
+    """Validate the native QueryIR row wire against a caller-trusted scope.
+
+    This checks the current typed JSON representation, not SQL legacy DTOs.
+    The caller must independently bind the supplied schema and occurrence
+    roster to its captured scope. A successful result does not prove input
+    coverage, computation, page consumption, or audit qualification. Limits
+    count rows, cells and logical variable-width bytes, not allocations/RSS.
+    """
+    types = {'bool', 'i64', 'u64', 'utf16', 'bytes', 'entity'}
+    kinds = {'string', 'type', 'prototype', 'class_definition', 'field_reference',
+             'field_definition', 'method_reference', 'method_definition'}
+    if (type(expected_snapshot_id) is not str or not expected_snapshot_id
+            or type(expected_occurrences) is not tuple
+            or any(type(item) is not str or not item for item in expected_occurrences)
+            or len(set(expected_occurrences)) != len(expected_occurrences)
+            or any(type(value) is not int or value < 0 or value > MAX_U64
+                   for value in (max_rows, max_cells, max_variable_bytes))):
+        raise ValueError('invalid trusted native row scope or limits')
+    try:
+        canonical(expected_snapshot_id)
+        canonical(list(expected_occurrences))
+    except UnicodeError as error:
+        raise ValueError('native scope contains invalid Unicode') from error
+    if type(schema) is not list or len(schema) > 256:
+        raise ValueError('invalid native schema')
+    seen = set()
+    for column in schema:
+        if (type(column) is not dict or set(column) != {'id', 'display_name', 'data_type', 'nullable'}
+                or type(column['id']) is not str or not column['id'] or column['id'] in seen
+                or type(column['display_name']) is not str
+                or type(column['data_type']) is not str or column['data_type'] not in types
+                or type(column['nullable']) is not bool):
+            raise ValueError('invalid native column')
+        seen.add(column['id'])
+    try:
+        canonical(schema)
+    except UnicodeError as error:
+        raise ValueError('native schema contains invalid Unicode') from error
+    if type(rows) is not list or len(rows) > max_rows or len(rows) * len(schema) > max_cells:
+        raise ValueError('native row/cell budget exceeded or rows invalid')
+    occurrences = set(expected_occurrences)
+    variable_bytes = 0
+
+    def charge(amount):
+        nonlocal variable_bytes
+        variable_bytes += amount
+        if variable_bytes > max_variable_bytes:
+            raise ValueError('native variable-byte budget exceeded')
+
+    def decimal_i64(value):
+        if type(value) is not str or len(value) > 20 or not value:
+            raise ValueError('invalid native i64')
+        try:
+            number = int(value)
+        except ValueError as error:
+            raise ValueError('invalid native i64') from error
+        if str(number) != value or not -(1 << 63) <= number < (1 << 63):
+            raise ValueError('noncanonical or overflowing native i64')
+
+    for row in rows:
+        if type(row) is not list or len(row) != len(schema):
+            raise ValueError('native row width differs')
+        for cell, column in zip(row, schema):
+            if type(cell) is not dict or type(cell.get('type')) is not str:
+                raise ValueError('invalid native value')
+            kind = cell['type']
+            if kind == 'null':
+                if set(cell) != {'type'} or not column['nullable']:
+                    raise ValueError('invalid native null')
+                continue
+            if set(cell) != {'type', 'value'} or kind != column['data_type']:
+                raise ValueError('native value type differs from column')
+            value = cell['value']
+            if kind == 'bool':
+                if type(value) is not bool:
+                    raise ValueError('invalid native bool')
+            elif kind == 'i64':
+                decimal_i64(value)
+            elif kind == 'u64':
+                if type(value) is not str or len(value) > 20:
+                    raise ValueError('invalid native u64')
+                decimal(value)
+            elif kind == 'utf16':
+                if type(value) is not list:
+                    raise ValueError('invalid native UTF-16')
+                charge(len(value) * 2)
+                if any(type(unit) is not int or not 0 <= unit <= 0xffff for unit in value):
+                    raise ValueError('invalid native UTF-16 unit')
+            elif kind == 'bytes':
+                if type(value) is not str or len(value) % 4:
+                    raise ValueError('invalid native base64')
+                if value.endswith('==='):
+                    raise ValueError('invalid native base64 padding')
+                padding = 2 if value.endswith('==') else 1 if value.endswith('=') else 0
+                charge(len(value) // 4 * 3 - padding)
+                try:
+                    decoded = base64.b64decode(value, validate=True)
+                except (ValueError, binascii.Error) as error:
+                    raise ValueError('invalid native base64') from error
+                if base64.b64encode(decoded).decode('ascii') != value:
+                    raise ValueError('noncanonical native base64')
+            else:
+                if (type(value) is not dict or set(value) != {'snapshot_id', 'dex_occurrence_id', 'kind', 'local_index'}
+                        or type(value['snapshot_id']) is not str or value['snapshot_id'] != expected_snapshot_id
+                        or type(value['dex_occurrence_id']) is not str or value['dex_occurrence_id'] not in occurrences
+                        or type(value['kind']) is not str or value['kind'] not in kinds
+                        or type(value['local_index']) is not int or not 0 <= value['local_index'] <= 0xffffffff):
+                    raise ValueError('invalid or foreign native entity')
+                charge(len(value['snapshot_id'].encode('utf-8', 'strict'))
+                       + len(value['dex_occurrence_id'].encode('utf-8', 'strict')))
+    return {'validated_rows': len(rows), 'validated_cells': len(rows) * len(schema),
+            'logical_variable_bytes': variable_bytes, 'qualification': False}
+
+
+def consume(output, expected_inputs, expected_request, required_layers, *, expected_identity,
+            native_contract=None):
     """Check materialization against caller-trusted input and result identities.
 
     The caller must obtain expected_identity independently of the result under
@@ -206,9 +325,10 @@ def consume(output, expected_inputs, expected_request, required_layers, *, expec
         # before it can be admitted as a complete benchmark output.
         raise ValueError("structured output completeness verifier is not implemented")
     data = output["final_dto"]
+    native_validation = None
     if mode in ("ordered", "bag"):
         schema = output["row_schema"]
-        if (not isinstance(schema, list) or any(
+        if (not isinstance(schema, list) or (native_contract is not None and len(schema) > 256) or any(
                 not isinstance(column, dict) or type(column.get("ordinal")) is not int
                 or column["ordinal"] != index or not isinstance(column.get("type"), str)
                 or not column["type"] for index, column in enumerate(schema))):
@@ -218,7 +338,22 @@ def consume(output, expected_inputs, expected_request, required_layers, *, expec
         rows = data["rows"]
         if len(rows) != int(response["total_rows"]):
             raise ValueError("not all rows materialized")
-        if any(not isinstance(row, list) or len(row) != len(schema) for row in rows):
+        if native_contract is not None:
+            keys = {'schema', 'occurrences', 'max_rows', 'max_cells', 'max_variable_bytes'}
+            if type(native_contract) is not dict or set(native_contract) != keys:
+                raise ValueError('invalid native row contract')
+            native_schema = native_contract['schema']
+            native_validation = verify_native_typed_rows(
+                rows, native_schema, expected_snapshot_id=expected_identity['snapshot_id'],
+                expected_occurrences=native_contract['occurrences'],
+                max_rows=native_contract['max_rows'], max_cells=native_contract['max_cells'],
+                max_variable_bytes=native_contract['max_variable_bytes'])
+            expected_schema = [{'ordinal': index, 'id': column['id'],
+                                'display_name': column['display_name'], 'type': column['data_type'],
+                                'nullable': column['nullable']} for index, column in enumerate(native_schema)]
+            if canonical(schema) != canonical(expected_schema):
+                raise ValueError('native row schema differs from trusted contract')
+        elif any(not isinstance(row, list) or len(row) != len(schema) for row in rows):
             raise ValueError("row shape differs from declared schema")
         if mode == "bag":
             data = dict(data, rows=sorted(rows, key=canonical))
@@ -237,13 +372,16 @@ def consume(output, expected_inputs, expected_request, required_layers, *, expec
         "warnings": result["warnings"],
     }
     payload = canonical(semantic)
-    return {"canonical_sha256": hashlib.sha256(payload).hexdigest(),
-            "canonical_bytes": len(payload), "complete_output": True,
-            "comparison_mode": mode}
+    receipt = {"canonical_sha256": hashlib.sha256(payload).hexdigest(),
+               "canonical_bytes": len(payload), "complete_output": True,
+               "comparison_mode": mode}
+    if native_validation is not None:
+        receipt['native_typed_validation'] = native_validation
+    return receipt
 
 
 def compare_complete_rows(left, right, expected_inputs, expected_request, required_layers, *,
-                          left_identity, right_identity, source_column_ids=()):
+                          left_identity, right_identity, source_column_ids=(), native_contract=None):
     """Diagnose complete materialized row differences under the existing codec.
 
     Each side must first satisfy ``consume`` against independently supplied
@@ -251,18 +389,33 @@ def compare_complete_rows(left, right, expected_inputs, expected_request, requir
     types against the declared schema, establish real page consumption, or
     grant audit/performance qualification. Bag locations refer to canonical
     sorted positions, not the producer's original row number. Optional source
-    columns are caller-selected row values, not authenticated provenance.
+    columns are caller-selected row values, not authenticated provenance. An
+    optional native contract validates typed cells using caller-trusted schema
+    and occurrence rosters; it is not an authentication or audit certificate.
     """
+    left_native = right_native = None
+    if native_contract is not None:
+        keys = {'schema', 'left_occurrences', 'right_occurrences',
+                'max_rows', 'max_cells', 'max_variable_bytes'}
+        if type(native_contract) is not dict or set(native_contract) != keys:
+            raise ValueError('invalid native comparison contract')
+        shared = {key: native_contract[key] for key in ('schema', 'max_rows', 'max_cells', 'max_variable_bytes')}
+        left_native = dict(shared, occurrences=native_contract['left_occurrences'])
+        right_native = dict(shared, occurrences=native_contract['right_occurrences'])
     left_certificate = consume(left, expected_inputs, expected_request, required_layers,
-                               expected_identity=left_identity)
+                               expected_identity=left_identity, native_contract=left_native)
     right_certificate = consume(right, expected_inputs, expected_request, required_layers,
-                                expected_identity=right_identity)
+                                expected_identity=right_identity, native_contract=right_native)
     common = {"comparison_codec": "mdd-canonical-json-v1-required-layers-set-v1",
               "left_sha256": left_certificate["canonical_sha256"],
               "right_sha256": right_certificate["canonical_sha256"],
               "comparison_left_sha256": left_certificate["canonical_sha256"],
               "comparison_right_sha256": right_certificate["canonical_sha256"],
               "qualification": False}
+    if native_contract is not None:
+        common['native_typed_validation'] = {
+            'left': left_certificate['native_typed_validation'],
+            'right': right_certificate['native_typed_validation']}
     # The v1 receipt preserves array order. Comparison treats required layers
     # as a set, matching the uniqueness and set-equality admission checks.
     # Normalize each side even when another difference returns early, so the

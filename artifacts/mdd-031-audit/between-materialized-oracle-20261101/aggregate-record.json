@@ -1,0 +1,24 @@
+{
+  "scope": "Standalone SQLite synthetic counterexample; not bridge implementation or qualification",
+  "build_command": "rustc --edition 2024 artifacts/mdd-031-audit/between-materialized-oracle-20261101/aggregate_oracle.rs --extern rusqlite=target/debug/deps/librusqlite-a265e946e2b31789.rlib -L dependency=target/debug/deps -L native=target/debug/build/libsqlite3-sys-98e906563a302ec1/out -o artifacts/local/between-materialized-oracle-20261101/aggregate.exe",
+  "build_exit": 0,
+  "execution_exit": 0,
+  "binary_sha256": "f7f71dd5548d4fb0216d5b83c21b3b07dbcb1523eba956e58175db98ec16c6a0",
+  "compiler": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-pc-windows-msvc\nrelease: 1.99.0\nLLVM version: 23.1.1",
+  "sqlite_version": "3.53.2",
+  "observation": "Moving COUNT(*) into a MATERIALIZED scalar CTE changes aggregate scope: native returns 1 row, candidate returns 3 rows.",
+  "listed_sources_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "artifacts/mdd-031-audit/between-materialized-oracle-20261101/aggregate_oracle.rs": "1888853f7cb270843f3c04dc1b1c658850c714d705e6fd3893cb54346d356c5c",
+    "target/debug/deps/librusqlite-a265e946e2b31789.rlib": "939a3ee298d321fbc889e45b5290cb7b94b6277219a5571571446bee711c968a",
+    "target/debug/build/libsqlite3-sys-98e906563a302ec1/out/libsqlite3.a": "0c065158c8993d372c241361c223f6cbb2ebb207d06a70150c49188d09ed865b"
+  },
+  "listed_sources_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "artifacts/mdd-031-audit/between-materialized-oracle-20261101/aggregate_oracle.rs": "1888853f7cb270843f3c04dc1b1c658850c714d705e6fd3893cb54346d356c5c",
+    "target/debug/deps/librusqlite-a265e946e2b31789.rlib": "939a3ee298d321fbc889e45b5290cb7b94b6277219a5571571446bee711c968a",
+    "target/debug/build/libsqlite3-sys-98e906563a302ec1/out/libsqlite3.a": "0c065158c8993d372c241361c223f6cbb2ebb207d06a70150c49188d09ed865b"
+  },
+  "stable": true,
+  "limits": "Only listed linked inputs are hashed. This is a synthetic SQLite counterexample, not a production bridge execution; no general conclusion on cases without same-level aggregates and no HostLab/performance qualification."
+}

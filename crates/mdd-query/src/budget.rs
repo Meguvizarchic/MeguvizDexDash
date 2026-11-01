@@ -1644,8 +1644,11 @@ impl<T> BoundedSender<T> {
     ) -> MddResult<()> {
         self.0
             .pool
-            .check_individual(Resource::QueueBytes, wire_bytes)?;
-        let memory = self.reserve_payload(resident_bytes)?;
+            .check_individual(Resource::QueueBytes, wire_bytes)
+            .map_err(|error| self.0.bound_query_failure(error))?;
+        let memory = self
+            .reserve_payload(resident_bytes)
+            .map_err(|error| self.0.bound_query_failure(error))?;
         self.send_reserved(payload, wire_bytes, memory)
     }
     pub(crate) fn reserve_payload(&self, resident_bytes: u64) -> MddResult<Reservation> {
@@ -1680,7 +1683,13 @@ impl<T> BoundedSender<T> {
         memory: Reservation,
         producer: Option<&BoundProducerLease<T>>,
     ) -> MddResult<()> {
-        let _send = self.begin_bound_send(producer)?;
+        let _send = self.begin_bound_send(producer).map_err(|error| {
+            if error.code == ErrorCode::InvalidArgument {
+                error
+            } else {
+                self.0.bound_query_failure(error)
+            }
+        })?;
         // Produced rows each own an independent payload allocation. An
         // aliased reservation could otherwise account for several such rows
         // only once; shared-key reservations can also be reacquired later.
@@ -1699,92 +1708,167 @@ impl<T> BoundedSender<T> {
         wire_bytes: u64,
         memory: Reservation,
     ) -> MddResult<()> {
-        self.0
-            .pool
-            .check_individual(Resource::QueueBytes, wire_bytes)?;
-        if memory.0.resource != Resource::QueryWorkspaceBytes
-            || !Arc::ptr_eq(&memory.0.pool.state, &self.0.pool.state)
-            || memory.0.pool.owner != self.0.pool.owner
-        {
-            return Err(invalid("payload reservation belongs to another budget"));
-        }
         // Pending senders own live payload memory even while there is no queue slot.
         let mut payload = Some(Budgeted {
             payload,
             _memory: memory,
             acknowledgement: None,
         });
-        loop {
-            self.0.checkpoint()?;
-            #[cfg(test)]
-            tests::pause_after_send_checkpoint();
-            let mut state = self
-                .0
-                .state
-                .lock()
-                .map_err(|_| fault("queue mutex poisoned"))?;
-            // The query may have been cancelled while this sender waited for
-            // the queue mutex after its previous checkpoint.
-            self.0.checkpoint()?;
-            if state.receiver_closed {
-                return Err(MddError::new(
-                    ErrorCode::Cancelled,
-                    "queue",
-                    "consumer closed before complete delivery",
-                ));
+        let result = (|| -> MddResult<()> {
+            self.0
+                .pool
+                .check_individual(Resource::QueueBytes, wire_bytes)?;
+            let memory = &payload
+                .as_ref()
+                .ok_or_else(|| fault("queue payload missing"))?
+                ._memory;
+            if memory.0.resource != Resource::QueryWorkspaceBytes
+                || !Arc::ptr_eq(&memory.0.pool.state, &self.0.pool.state)
+                || memory.0.pool.owner != self.0.pool.owner
+            {
+                return Err(invalid("payload reservation belongs to another budget"));
             }
-            if state.terminal.is_some() || state.end_delivered {
-                return Err(self
+            loop {
+                self.0.checkpoint()?;
+                #[cfg(test)]
+                tests::pause_after_send_checkpoint();
+                let mut state = self
                     .0
-                    .protocol_fault_locked(&mut state, invalid("send after terminal")));
-            }
-            if state.entries.len() < self.0.capacity {
-                let reservations = (|| {
-                    let queued = self.0.pool.reserve(Resource::QueueBytes, wire_bytes)?;
-                    let item = self.0.pool.reserve(Resource::QueueItems, 1)?;
-                    Ok::<_, MddError>((queued, item))
-                })();
-                match reservations {
-                    Ok((queued, item)) => {
-                        if let Some(tracker) = &self.0.delivery {
-                            let mut delivery = tracker
-                                .state
-                                .lock()
-                                .map_err(|_| fault("delivery tracking mutex poisoned"))?;
-                            if delivery.abandoned {
-                                return Err(invalid("delivery is abandoned"));
-                            }
-                            let sequence = delivery.sent;
-                            delivery.sent = delivery
-                                .sent
-                                .checked_add(1)
-                                .ok_or_else(|| fault("delivery packet count overflow"))?;
-                            payload.as_mut().unwrap().acknowledgement =
-                                Some(PacketAcknowledgement {
-                                    tracker: Arc::clone(tracker),
-                                    sequence,
-                                    confirmed: false,
-                                });
-                        }
-                        state.entries.push_back(Entry {
-                            packet: payload.take().unwrap(),
-                            _queued: queued,
-                            _item: item,
-                        });
-                        self.0.changed.notify_all();
-                        return Ok(());
-                    }
-                    Err(error) if error.code == ErrorCode::QuotaExceeded => (),
-                    Err(error) => return Err(error),
+                    .state
+                    .lock()
+                    .map_err(|_| fault("queue mutex poisoned"))?;
+                // The query may have been cancelled while this sender waited for
+                // the queue mutex after its previous checkpoint.
+                self.0.checkpoint()?;
+                #[cfg(test)]
+                tests::pause_after_locked_send_checkpoint();
+                if state.receiver_closed {
+                    return Err(MddError::new(
+                        ErrorCode::Cancelled,
+                        "queue",
+                        "consumer closed before complete delivery",
+                    ));
                 }
+                if state.terminal.is_some() || state.end_delivered {
+                    return Err(self
+                        .0
+                        .protocol_fault_locked(&mut state, invalid("send after terminal")));
+                }
+                if state.entries.len() < self.0.capacity {
+                    let reservations = (|| {
+                        let queued = self.0.pool.reserve(Resource::QueueBytes, wire_bytes)?;
+                        let item = self.0.pool.reserve(Resource::QueueItems, 1)?;
+                        Ok::<_, MddError>((queued, item))
+                    })();
+                    match reservations {
+                        Ok((queued, item)) => {
+                            // Allocate the queue slot and prepare all fallible
+                            // bookkeeping before holding the lifecycle lock.
+                            state.entries.try_reserve(1).map_err(|_| {
+                                MddError::new(
+                                    ErrorCode::QuotaExceeded,
+                                    "queue",
+                                    "queue entry allocation failed",
+                                )
+                            })?;
+                            let deadline = self
+                                .0
+                                .cancel
+                                .as_ref()
+                                .map(|_| self.0.pool.delivery_deadline())
+                                .transpose()?;
+                            let mut delivery = match &self.0.delivery {
+                                Some(tracker) => {
+                                    let delivery = tracker
+                                        .state
+                                        .lock()
+                                        .map_err(|_| fault("delivery tracking mutex poisoned"))?;
+                                    if delivery.abandoned {
+                                        return Err(invalid("delivery is abandoned"));
+                                    }
+                                    let next = delivery
+                                        .sent
+                                        .checked_add(1)
+                                        .ok_or_else(|| fault("delivery packet count overflow"))?;
+                                    Some((tracker, delivery, next))
+                                }
+                                None => None,
+                            };
+                            // Prepare the acknowledgement while holding the
+                            // tracker. A rejected publication rolls it back before
+                            // dropping any generic payload or reservation.
+                            if let Some((tracker, delivery, next)) = &mut delivery {
+                                let sequence = delivery.sent;
+                                delivery.sent = *next;
+                                payload.as_mut().unwrap().acknowledgement =
+                                    Some(PacketAcknowledgement {
+                                        tracker: Arc::clone(*tracker),
+                                        sequence,
+                                        confirmed: false,
+                                    });
+                            }
+                            let entry = Entry {
+                                packet: payload.take().unwrap(),
+                                _queued: queued,
+                                _item: item,
+                            };
+                            // queue -> tracker -> lifecycle is the existing lock
+                            // order. The fixed publication operation moves exactly
+                            // one item; no user callback or destructor runs under
+                            // the lifecycle lock.
+                            let result = match (&self.0.cancel, &deadline) {
+                                (Some(cancel), Some(deadline)) => cancel
+                                    .publish_to_queue_with_budget(
+                                        deadline,
+                                        &mut state.entries,
+                                        entry,
+                                    ),
+                                (None, None) => match self.0.pool.checkpoint() {
+                                    Ok(()) => {
+                                        state.entries.push_back(entry);
+                                        Ok(())
+                                    }
+                                    Err(error) => Err((error, entry)),
+                                },
+                                _ => Err((
+                                    fault("queue cancellation binding is inconsistent"),
+                                    entry,
+                                )),
+                            };
+                            if let Err((error, mut entry)) = result {
+                                if let Some((_, delivery, next)) = &mut delivery {
+                                    delivery.sent = *next - 1;
+                                }
+                                if let Some(ack) = &mut entry.packet.acknowledgement {
+                                    // This packet never left the producer and must
+                                    // not be treated as an abandoned delivery.
+                                    ack.confirmed = true;
+                                }
+                                drop(delivery);
+                                drop(state);
+                                let error = self.0.bound_query_failure(error);
+                                drop(entry);
+                                return Err(error);
+                            }
+                            drop(delivery);
+                            self.0.changed.notify_all();
+                            return Ok(());
+                        }
+                        Err(error) if error.code == ErrorCode::QuotaExceeded => (),
+                        Err(error) => return Err(error),
+                    }
+                }
+                drop(
+                    self.0
+                        .changed
+                        .wait_timeout(state, Duration::from_millis(5))
+                        .map_err(|_| fault("queue mutex poisoned"))?,
+                );
             }
-            drop(
-                self.0
-                    .changed
-                    .wait_timeout(state, Duration::from_millis(5))
-                    .map_err(|_| fault("queue mutex poisoned"))?,
-            );
-        }
+        })();
+        // Record an actual send fault before dropping the still-owned generic
+        // payload: its destructor may itself cancel or fail this query.
+        result.map_err(|error| self.0.bound_query_failure(error))
     }
     pub fn finish(&self, result: MddResult<()>) -> MddResult<()> {
         self.finish_checked(result, None)

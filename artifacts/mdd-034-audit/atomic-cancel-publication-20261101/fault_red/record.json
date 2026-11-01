@@ -1,0 +1,31 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "-p",
+    "mdd-query",
+    "send_quota_failure_precedes_payload_drop_cancellation",
+    "--",
+    "--nocapture"
+  ],
+  "exit": 101,
+  "listed_sources_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "crates/mdd-query/src/budget.rs": "1733105c66662bdb9519219b00af08729834f78d80c2a86ebb90dd0b35b327c5",
+    "crates/mdd-query/src/budget/tests.rs": "bc36b9b62aec9f9978ef57718bd683a9a14b600492c3ef8a438190dea65676d6",
+    "crates/mdd-session/src/cancellation.rs": "7049c729bd27166e128a0e4e8182021c9ec84964d355adda90222b2e2455e066",
+    "crates/mdd-session/src/lib.rs": "afda23d2dbb014680afa204ed7574387c017740223c6d5f68431c4b5f893efdd",
+    "crates/mdd-facts/src/annotations.rs": "9ec1e654998a8d69a2b30bd3506d07b3e4d7e98d2df784685e6261993ccc82f5"
+  },
+  "listed_sources_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "crates/mdd-query/src/budget.rs": "1733105c66662bdb9519219b00af08729834f78d80c2a86ebb90dd0b35b327c5",
+    "crates/mdd-query/src/budget/tests.rs": "bc36b9b62aec9f9978ef57718bd683a9a14b600492c3ef8a438190dea65676d6",
+    "crates/mdd-session/src/cancellation.rs": "7049c729bd27166e128a0e4e8182021c9ec84964d355adda90222b2e2455e066",
+    "crates/mdd-session/src/lib.rs": "afda23d2dbb014680afa204ed7574387c017740223c6d5f68431c4b5f893efdd",
+    "crates/mdd-facts/src/annotations.rs": "9ec1e654998a8d69a2b30bd3506d07b3e4d7e98d2df784685e6261993ccc82f5"
+  },
+  "listed_sources_stable": true,
+  "scope": "controlled query queue scenario; no full concurrency, IPC or performance qualification"
+}

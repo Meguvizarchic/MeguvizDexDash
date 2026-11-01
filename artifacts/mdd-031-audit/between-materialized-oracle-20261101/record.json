@@ -1,0 +1,24 @@
+{
+  "scope": "Standalone SQLite oracle with synthetic callbacks, not bridge implementation or qualification",
+  "build_command": "rustc --edition 2024 artifacts/mdd-031-audit/between-materialized-oracle-20261101/oracle.rs --extern rusqlite=target/debug/deps/librusqlite-a265e946e2b31789.rlib -L dependency=target/debug/deps -L native=target/debug/build/libsqlite3-sys-98e906563a302ec1/out -o artifacts/local/between-materialized-oracle-20261101/oracle.exe",
+  "build_exit": 0,
+  "execution_exit": 0,
+  "binary_sha256": "ebd3b20f7f7523adf894efce5db3268670b749ca94cbfbef6920cf059e94254e",
+  "compiler": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-pc-windows-msvc\nrelease: 1.99.0\nLLVM version: 23.1.1",
+  "sqlite_version": "3.53.2",
+  "observations": 5,
+  "listed_sources_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "artifacts/mdd-031-audit/between-materialized-oracle-20261101/oracle.rs": "faaa84d0f5ed5ba0c983f5929197e4db2ab86dbb576d73baf3bc590f8fd801e9",
+    "target/debug/deps/librusqlite-a265e946e2b31789.rlib": "939a3ee298d321fbc889e45b5290cb7b94b6277219a5571571446bee711c968a",
+    "target/debug/build/libsqlite3-sys-98e906563a302ec1/out/libsqlite3.a": "0c065158c8993d372c241361c223f6cbb2ebb207d06a70150c49188d09ed865b"
+  },
+  "listed_sources_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "artifacts/mdd-031-audit/between-materialized-oracle-20261101/oracle.rs": "faaa84d0f5ed5ba0c983f5929197e4db2ab86dbb576d73baf3bc590f8fd801e9",
+    "target/debug/deps/librusqlite-a265e946e2b31789.rlib": "939a3ee298d321fbc889e45b5290cb7b94b6277219a5571571446bee711c968a",
+    "target/debug/build/libsqlite3-sys-98e906563a302ec1/out/libsqlite3.a": "0c065158c8993d372c241361c223f6cbb2ebb207d06a70150c49188d09ed865b"
+  },
+  "stable": true,
+  "limitations": "Controlled SQLite callbacks including intentional errors, not admitted bridge functions. Only listed dependencies hashed. This proves five SELECT/direct WHERE shapes on synthetic SQL; not nested Boolean contexts, dynamic bounds, full null semantics, query-scope capture, concurrency, SQL-control budgets, actual HostLab or performance."
+}

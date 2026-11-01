@@ -1,0 +1,6 @@
+{
+  "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+  "artifacts/mdd-031-audit/between-materialized-oracle-20261101/oracle.rs": "faaa84d0f5ed5ba0c983f5929197e4db2ab86dbb576d73baf3bc590f8fd801e9",
+  "target/debug/deps/librusqlite-a265e946e2b31789.rlib": "939a3ee298d321fbc889e45b5290cb7b94b6277219a5571571446bee711c968a",
+  "target/debug/build/libsqlite3-sys-98e906563a302ec1/out/libsqlite3.a": "0c065158c8993d372c241361c223f6cbb2ebb207d06a70150c49188d09ed865b"
+}

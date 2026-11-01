@@ -1,0 +1,14 @@
+   Compiling mdd-query v0.1.0-dev (<WORKSPACE>\crates\mdd-query)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.38s
+     Running unittests src\lib.rs (target\debug\deps\mdd_query-82579f4092cfd058.exe)
+
+running 2 tests
+
+thread '<unnamed>' (40696) panicked at crates\mdd-query\src\budget\tests.rs:168:13:
+controlled queue mutex poison
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test budget::tests::send_quota_failure_precedes_payload_drop_cancellation ... ok
+test budget::tests::send_reserved_lock_fault_precedes_payload_drop_cancellation ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 179 filtered out; finished in 0.00s
+

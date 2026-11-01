@@ -1,0 +1,19 @@
+   Compiling mdd-query v0.1.0-dev (<WORKSPACE>\crates\mdd-query)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.43s
+     Running unittests src\lib.rs (target\debug\deps\mdd_query-82579f4092cfd058.exe)
+
+running 1 test
+
+thread 'budget::tests::cancellation_before_publication_is_not_a_successful_send' (45120) panicked at crates\mdd-query\src\budget\tests.rs:54:10:
+cancelled packet was published: ()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test budget::tests::cancellation_before_publication_is_not_a_successful_send ... FAILED
+
+failures:
+
+failures:
+    budget::tests::cancellation_before_publication_is_not_a_successful_send
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 177 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p mdd-query --lib`

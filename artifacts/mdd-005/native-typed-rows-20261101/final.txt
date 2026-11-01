@@ -1,0 +1,10 @@
+test_entity_scope_and_base64_fail_closed (__main__.TypedRows.test_entity_scope_and_base64_fail_closed) ... ok
+test_hand_fixture_preserves_null_and_duplicates (__main__.TypedRows.test_hand_fixture_preserves_null_and_duplicates) ... ok
+test_limits_type_and_schema (__main__.TypedRows.test_limits_type_and_schema) ... ok
+test_numeric_types_and_boundaries (__main__.TypedRows.test_numeric_types_and_boundaries) ... ok
+test_utf16_null_and_bytes_are_distinct (__main__.TypedRows.test_utf16_null_and_bytes_are_distinct) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.003s
+
+OK

@@ -2,6 +2,7 @@
 use crate::{CursorHandle, Lifecycle, QueryHandle, QueryPhase, QueryStatus, SessionHandle};
 use mdd_types::{ErrorCode, MddError, MddResult};
 use serde::Serialize;
+use std::collections::VecDeque;
 use std::time::Instant;
 
 /// Immutable deadline copied by the query runtime from its budget tree.
@@ -105,6 +106,7 @@ pub struct QueryCancellation {
     lifecycle: Lifecycle,
     query: QueryHandle,
 }
+
 #[derive(Clone, Debug, Serialize)]
 pub struct CancelOutcome {
     pub profile: String,
@@ -231,6 +233,65 @@ impl QueryCancellation {
                 "query is not active",
             ));
         }
+        Ok(())
+    }
+    /// Atomically publish one already prepared item against query cancellation.
+    ///
+    /// The caller owns the queue's synchronization. On failure the item is
+    /// returned untouched, so it can be released after the caller's locks.
+    /// This operation does not confirm delivery and never invokes callbacks or
+    /// drops the item while the lifecycle lock is held.
+    #[doc(hidden)]
+    pub fn publish_to_queue_with_budget<T>(
+        &self,
+        budget: &DeliveryBudgetDeadline,
+        queue: &mut VecDeque<T>,
+        item: T,
+    ) -> Result<(), (MddError, T)> {
+        if budget.owner() != self.query.id() {
+            return Err((
+                MddError::new(
+                    ErrorCode::InvalidArgument,
+                    "cancel.checkpoint",
+                    "budget belongs to another query",
+                ),
+                item,
+            ));
+        }
+        if queue.try_reserve(1).is_err() {
+            return Err((
+                MddError::new(
+                    ErrorCode::QuotaExceeded,
+                    "cancel.publish",
+                    "queue entry allocation failed",
+                ),
+                item,
+            ));
+        }
+        let mut state = match self.lifecycle.lock_query(&self.query) {
+            Ok(state) => state,
+            Err(error) => return Err((error, item)),
+        };
+        if let Err(error) = state.checkpoint_delivery(&self.query, Some(budget)) {
+            return Err((error, item));
+        }
+        match state.query(&self.query) {
+            Ok(entry) if entry.status.phase == QueryPhase::Active => (),
+            Ok(_) => {
+                return Err((
+                    MddError::new(
+                        ErrorCode::InvalidArgument,
+                        "cancel.checkpoint",
+                        "query is not active",
+                    ),
+                    item,
+                ));
+            }
+            Err(error) => return Err((error, item)),
+        }
+        #[cfg(test)]
+        tests::pause_before_atomic_publication();
+        queue.push_back(item);
         Ok(())
     }
     /// Permit processing already-delivered partial data only while both query
@@ -387,7 +448,120 @@ mod tests {
     use super::*;
     use crate::{QueryBinding, ResourceLimits};
     use mdd_input::snapshot::{CaptureLimits, InputKind, InputSpec, Snapshot};
-    use std::{path::PathBuf, sync::Arc};
+    use std::{
+        cell::RefCell,
+        path::PathBuf,
+        sync::{Arc, Mutex, mpsc},
+        thread,
+        time::Duration,
+    };
+
+    thread_local! {
+        static PUBLICATION_PAUSE: RefCell<Option<(mpsc::Sender<()>, mpsc::Receiver<()>)>> =
+            const { RefCell::new(None) };
+    }
+
+    pub(super) fn pause_before_atomic_publication() {
+        PUBLICATION_PAUSE.with(|hook| {
+            if let Some((reached, resume)) = hook.borrow_mut().take() {
+                reached.send(()).unwrap();
+                resume.recv_timeout(Duration::from_secs(3)).unwrap();
+            }
+        });
+    }
+
+    #[test]
+    fn atomic_publication_orders_cancellation_after_committed_item() {
+        let (lifecycle, session) = runtime();
+        let cancel = query(&lifecycle, &session);
+        let now = Instant::now();
+        let deadline = DeliveryBudgetDeadline::new(
+            now,
+            now + Duration::from_secs(20),
+            now + Duration::from_secs(30),
+            cancel.query_handle().id().into(),
+        )
+        .unwrap();
+        let queue = Arc::new(Mutex::new(VecDeque::new()));
+        let publisher_cancel = cancel.clone();
+        let publisher_queue = Arc::clone(&queue);
+        let (reached_tx, reached_rx) = mpsc::channel();
+        let (resume_tx, resume_rx) = mpsc::channel();
+        let publisher = thread::spawn(move || {
+            PUBLICATION_PAUSE.with(|hook| *hook.borrow_mut() = Some((reached_tx, resume_rx)));
+            let mut queue = publisher_queue.lock().unwrap();
+            publisher_cancel.publish_to_queue_with_budget(&deadline, &mut queue, 7)
+        });
+        reached_rx.recv_timeout(Duration::from_secs(3)).unwrap();
+        let cancel_worker_token = cancel.clone();
+        let (started_tx, started_rx) = mpsc::channel();
+        let (finished_tx, finished_rx) = mpsc::channel();
+        let cancel_worker = thread::spawn(move || {
+            started_tx.send(()).unwrap();
+            finished_tx.send(cancel_worker_token.cancel()).unwrap();
+        });
+        started_rx.recv_timeout(Duration::from_secs(3)).unwrap();
+        assert!(
+            matches!(
+                finished_rx.recv_timeout(Duration::from_millis(100)),
+                Err(mpsc::RecvTimeoutError::Timeout)
+            ),
+            "cancellation returned while publication held the lifecycle lock"
+        );
+        resume_tx.send(()).unwrap();
+        publisher.join().unwrap().unwrap();
+        let status = finished_rx
+            .recv_timeout(Duration::from_secs(3))
+            .unwrap()
+            .unwrap();
+        assert_eq!(status.error.unwrap().code, ErrorCode::Cancelled);
+        cancel_worker.join().unwrap();
+        assert_eq!(queue.lock().unwrap().as_slices().0, &[7]);
+    }
+
+    #[test]
+    fn rejected_publication_returns_item_after_releasing_lifecycle_lock() {
+        struct Reentrant {
+            token: QueryCancellation,
+            done: mpsc::Sender<()>,
+        }
+        impl Drop for Reentrant {
+            fn drop(&mut self) {
+                self.token.status().unwrap();
+                self.done.send(()).unwrap();
+            }
+        }
+        let (lifecycle, session) = runtime();
+        let cancel = query(&lifecycle, &session);
+        let now = Instant::now();
+        let deadline = DeliveryBudgetDeadline::new(
+            now,
+            now + Duration::from_secs(20),
+            now + Duration::from_secs(30),
+            cancel.query_handle().id().into(),
+        )
+        .unwrap();
+        cancel.cancel().unwrap();
+        let (done, finished) = mpsc::channel();
+        thread::spawn(move || {
+            let item = Reentrant {
+                token: cancel.clone(),
+                done,
+            };
+            let mut queue = VecDeque::new();
+            let (error, item) = cancel
+                .publish_to_queue_with_budget(&deadline, &mut queue, item)
+                .err()
+                .expect("cancelled query accepted a publication");
+            assert_eq!(error.code, ErrorCode::Cancelled);
+            assert!(queue.is_empty());
+            drop(item);
+        });
+        finished
+            .recv_timeout(Duration::from_secs(3))
+            .expect("item drop retained the lifecycle lock");
+    }
+
     fn runtime() -> (Lifecycle, SessionHandle) {
         let snapshot = Snapshot::capture(
             &[InputSpec {

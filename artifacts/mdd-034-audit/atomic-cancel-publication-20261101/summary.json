@@ -1,0 +1,57 @@
+{
+  "task": "MDD-034",
+  "finding": "A query cancellation completed after the final pre-lock checkpoint but before queue insertion could still allow a successful send. A separate actual quota error could be masked by payload destruction triggering cancellation.",
+  "design": "The session exposes a fixed single-item VecDeque publication operation rather than a lifecycle lock guard or callback. It reserves a slot before the lifecycle lock and moves the item only while the same lifecycle lock as query cancellation is held. Failed publication returns ownership; queue code rolls back tracker state and disables acknowledgement, releases tracker and queue locks, records first failure, then drops the item.",
+  "red": {
+    "record": "red/record.json",
+    "exit": 101,
+    "tests_run": 1,
+    "observation": "Cancellation completed before insertion but send returned Ok."
+  },
+  "fault_red": {
+    "record": "fault_red/record.json",
+    "exit": 101,
+    "tests_run": 1,
+    "observation": "QuotaExceeded was masked by cancellation from a generic payload destructor."
+  },
+  "final_runs": [
+    {
+      "record": "final_cancel/record.json",
+      "exit": 0,
+      "tests_passed": 1
+    },
+    {
+      "record": "final_unpublished/record.json",
+      "exit": 0,
+      "tests_passed": 2
+    },
+    {
+      "record": "final_fault/record.json",
+      "exit": 0,
+      "tests_passed": 2
+    },
+    {
+      "record": "final_owned2/record.json",
+      "exit": 0,
+      "tests_passed": 4
+    },
+    {
+      "record": "final_wait2/record.json",
+      "exit": 0,
+      "tests_passed": 2
+    },
+    {
+      "record": "final_session2/record.json",
+      "exit": 0,
+      "tests_passed": 1
+    },
+    {
+      "record": "final_return2/record.json",
+      "exit": 0,
+      "tests_passed": 1
+    }
+  ],
+  "final_tests_passed": 13,
+  "prior_prototype": "Early green/final/owned_regression/wait_regression records describe an abandoned public lock-guard prototype, not the final implementation; the public guard was removed. Subsequent fixed1, reentrant, session and combined records precede later source/test changes and are retained as history.",
+  "limitations": "Tests use controlled in-process interleavings and one injected mutex poison. The session ordering test uses a bounded wait and does not establish exhaustive scheduling. Query/session locks serialize the observed publication and cancellation, but no production IPC, all lifecycle paths, RSS, platform or performance qualification follows. The deadline check is an instantaneous admission check, not a guarantee that a wall-clock deadline cannot pass immediately before insertion. The queue entry allocation and input byte work are not proven as RSS limits."
+}

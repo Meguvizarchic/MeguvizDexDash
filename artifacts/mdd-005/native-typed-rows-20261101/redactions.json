@@ -1,0 +1,47 @@
+[
+  {
+    "path": "artifacts/mdd-005/native-typed-rows-20261101/output.txt",
+    "original_sha256": "6107f16bb68eafc2448fd12a4f386fa7f6b56383e52e8b6090be52d955e9c428",
+    "redacted_sha256": "6559524a1ac7b225a3c285c5ab75826af621149dbccaad10788c2662adc7d3a4"
+  },
+  {
+    "path": "artifacts/mdd-034-audit/atomic-cancel-publication-20261101/fault_green/output.txt",
+    "original_sha256": "30fd371e3044a37be29a1dc391231ac940976cd2f1438d717dafd546e9673884",
+    "redacted_sha256": "c5dee713e06a85aeec29cabf5c8dc625d7ce1d5d4759e063141e8bd5a70dc74a"
+  },
+  {
+    "path": "artifacts/mdd-034-audit/atomic-cancel-publication-20261101/fault_red/output.txt",
+    "original_sha256": "2e379a082be4c3ec501f8c1bfe5371d4f0ecfa0f4046e76a5f4df3b0047863a0",
+    "redacted_sha256": "15d73358a14ab5d464e691f233ff83c2c355090e723b73345c38c5187bd8a278"
+  },
+  {
+    "path": "artifacts/mdd-034-audit/atomic-cancel-publication-20261101/final/output.txt",
+    "original_sha256": "d7fc8e5e613e8bfb87b93a0e897a0787e730c49b4c612c853df34d5747d5ca46",
+    "redacted_sha256": "473b741942a23b3b53c57c5b4657189221fe526c8056a16d9e655020db0d1b20"
+  },
+  {
+    "path": "artifacts/mdd-034-audit/atomic-cancel-publication-20261101/final_unpublished/output.txt",
+    "original_sha256": "a5d4fa98c809e17de4d6242cbb5c6f719bd165f13bc3dc89f6e4525ae33473df",
+    "redacted_sha256": "558a26f767184112b482abb8b4538ba6c2a669abfeecfe6278d38f7ebddbb645"
+  },
+  {
+    "path": "artifacts/mdd-034-audit/atomic-cancel-publication-20261101/fixed1/output.txt",
+    "original_sha256": "9c3c5f29965c5d35d467337bbf76eb78e136f92e0df9a78d5216a1b8d00ad663",
+    "redacted_sha256": "048276e2b1879e1b9b99b37e7d5192c21999b5c4dfca80d77126d6d79d25d720"
+  },
+  {
+    "path": "artifacts/mdd-034-audit/atomic-cancel-publication-20261101/green/output.txt",
+    "original_sha256": "58441660d6cd5886def1a336c65207d766fdd7475c702fc7747688d2d15e9e4e",
+    "redacted_sha256": "8ceff2226f1bcf2857e62d3590676825a51108ccee69a4be7858bf46b5db3cb3"
+  },
+  {
+    "path": "artifacts/mdd-034-audit/atomic-cancel-publication-20261101/red/output.txt",
+    "original_sha256": "72101a6b88ed1de59db497b9e2e4cf962424f89e490da6b18f9fac18aa167f72",
+    "redacted_sha256": "4437b614750dd3edb2fadc1900eb43e16bbf4568065f946276a69b2f7b1906b4"
+  },
+  {
+    "path": "artifacts/mdd-034-audit/atomic-cancel-publication-20261101/session/output.txt",
+    "original_sha256": "7e1b55325bd907e148ea1aec514fbc77c3326e113ee217c4dcec5826f18e9bf1",
+    "redacted_sha256": "fdb167a50c12278e56fac0c36b24261fa610e45294f32f4affcc4e102138e35e"
+  }
+]

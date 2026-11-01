@@ -1,0 +1,6 @@
+select_false: same result and call counts
+where_false: same result and call counts
+where_null: same result and call counts
+where_not: same result and call counts
+correlated_rows: same result and call counts
+sqlite_version=3.53.2 observations=5 qualification=false

@@ -1,0 +1,94 @@
+{
+  "task": "MDD-005",
+  "scope": "Opt-in current native QueryIR JSON row type/scope validation; not legacy DTO or workload qualification",
+  "initial": {
+    "output": "output.txt",
+    "exit": 1,
+    "tests_run": 5,
+    "observation": "Fixture includes dex-B but initial trusted occurrence roster listed only dex-A; validator correctly rejected it. Test roster corrected, original failure retained."
+  },
+  "final": {
+    "command": "python -B artifacts/mdd-005/native-typed-rows-20261101/probe.py",
+    "output": "final3.txt",
+    "exit": 0,
+    "tests_passed": 6,
+    "listed_sources_before": {
+      "benchmarks/run-existing-baselines.py": "d292170417a7f0c6c0da2d2855b907e1a48956d73f6b84720a78b4318da0a34d",
+      "tests/fixtures/query/cases.json": "aa5b16f4b105a336c6a4c7763c2eced57d64d51620b64c4a81b2c4e9af56babf",
+      "artifacts/mdd-005/native-typed-rows-20261101/probe.py": "5b1fcb485c94ff9844d912f4cb266f6dc46f586718ae12066e1dc96543ac8cd8"
+    },
+    "listed_sources_after": {
+      "benchmarks/run-existing-baselines.py": "d292170417a7f0c6c0da2d2855b907e1a48956d73f6b84720a78b4318da0a34d",
+      "tests/fixtures/query/cases.json": "aa5b16f4b105a336c6a4c7763c2eced57d64d51620b64c4a81b2c4e9af56babf",
+      "artifacts/mdd-005/native-typed-rows-20261101/probe.py": "5b1fcb485c94ff9844d912f4cb266f6dc46f586718ae12066e1dc96543ac8cd8"
+    },
+    "stable": true
+  },
+  "regressions": [
+    {
+      "command": "python -B artifacts/mdd-005/row-difference-20261101/probe.py",
+      "output": "rows3.txt",
+      "exit": 0,
+      "tests_passed": 6
+    },
+    {
+      "command": "python -B artifacts/mdd-005/row-difference-provenance-20261101/probe.py",
+      "output": "source3.txt",
+      "exit": 0,
+      "tests_passed": 3
+    },
+    {
+      "command": "python -B artifacts/mdd-005/required-layer-order-20261101/probe.py",
+      "output": "layers3.txt",
+      "exit": 0,
+      "tests_passed": 4
+    },
+    {
+      "command": "python -B benchmarks/run-existing-baselines.py --self-test",
+      "output": "contracts3.txt",
+      "exit": 0,
+      "tests_passed": 19
+    }
+  ],
+  "limits": "Caller must independently authenticate expected schema, snapshot and DEX occurrence rosters; entity local index existence, real paging/delivery and coverage are not verified. Logical row/cell/variable-byte limits exclude parsing, metadata, allocation and RSS. No actual HostLab, A0/A1, full suite or performance qualification.",
+  "final5": {
+    "command": "python -B artifacts/mdd-005/native-typed-rows-20261101/probe.py",
+    "output": "final5.txt",
+    "exit": 0,
+    "tests_passed": 6,
+    "listed_sources_before": {
+      "benchmarks/run-existing-baselines.py": "37e4255fcf8a8dfd3ebfb0cd90d7d5fc8171738e8904444706252b65a02a073c",
+      "tests/fixtures/query/cases.json": "aa5b16f4b105a336c6a4c7763c2eced57d64d51620b64c4a81b2c4e9af56babf",
+      "artifacts/mdd-005/native-typed-rows-20261101/probe.py": "0e32bd44da32258463f0fec1b30a228e71b4a47a506cf704ebf63c0db1e697bd"
+    },
+    "listed_sources_after": {
+      "benchmarks/run-existing-baselines.py": "37e4255fcf8a8dfd3ebfb0cd90d7d5fc8171738e8904444706252b65a02a073c",
+      "tests/fixtures/query/cases.json": "aa5b16f4b105a336c6a4c7763c2eced57d64d51620b64c4a81b2c4e9af56babf",
+      "artifacts/mdd-005/native-typed-rows-20261101/probe.py": "0e32bd44da32258463f0fec1b30a228e71b4a47a506cf704ebf63c0db1e697bd"
+    },
+    "stable": true,
+    "regressions": [
+      {
+        "output": "rows5.txt",
+        "tests_passed": 6,
+        "exit": 0
+      },
+      {
+        "output": "source5.txt",
+        "tests_passed": 3,
+        "exit": 0
+      },
+      {
+        "output": "layers5.txt",
+        "tests_passed": 4,
+        "exit": 0
+      },
+      {
+        "output": "contracts5.txt",
+        "tests_passed": 19,
+        "exit": 0
+      }
+    ],
+    "change": "Native row limits and type validation now occur before row canonicalization and bag sorting; incomplete request checks remain prior."
+  }
+}

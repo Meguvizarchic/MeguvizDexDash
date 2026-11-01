@@ -1,0 +1,5 @@
+{
+  "benchmarks/run-existing-baselines.py": "b1f5abb6ec797079acf569c36a7619e550bf6e0484315c124ae2d5161458ca7a",
+  "tests/fixtures/query/cases.json": "aa5b16f4b105a336c6a4c7763c2eced57d64d51620b64c4a81b2c4e9af56babf",
+  "artifacts/mdd-005/native-typed-rows-20261101/probe.py": "5b1fcb485c94ff9844d912f4cb266f6dc46f586718ae12066e1dc96543ac8cd8"
+}

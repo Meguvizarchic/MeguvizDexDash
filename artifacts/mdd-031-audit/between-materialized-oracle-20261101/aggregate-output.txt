@@ -1,0 +1,2 @@
+aggregate_scope: native_rows=1 candidate_rows=3
+sqlite_version=3.53.2 qualification=false

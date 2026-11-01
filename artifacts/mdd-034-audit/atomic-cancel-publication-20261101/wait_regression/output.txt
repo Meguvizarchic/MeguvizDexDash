@@ -1,0 +1,9 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.15s
+     Running unittests src\lib.rs (target\debug\deps\mdd_query-82579f4092cfd058.exe)
+
+running 2 tests
+test budget::tests::sender_waiting_for_queue_lock_observes_query_cancellation ... ok
+test budget::tests::producer_waiting_for_queue_lock_observes_query_cancellation ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 177 filtered out; finished in 0.00s
+

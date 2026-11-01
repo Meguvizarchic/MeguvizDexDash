@@ -6,6 +6,8 @@ use std::thread;
 thread_local! {
     static SEND_CHECKPOINT_PAUSE: RefCell<Option<(mpsc::Sender<()>, mpsc::Receiver<()>)>> =
         const { RefCell::new(None) };
+    static LOCKED_SEND_CHECKPOINT_PAUSE: RefCell<Option<(mpsc::Sender<()>, mpsc::Receiver<()>)>> =
+        const { RefCell::new(None) };
 }
 
 pub(super) fn pause_after_send_checkpoint() {
@@ -15,6 +17,212 @@ pub(super) fn pause_after_send_checkpoint() {
             resume.recv_timeout(Duration::from_secs(3)).unwrap();
         }
     });
+}
+
+pub(super) fn pause_after_locked_send_checkpoint() {
+    LOCKED_SEND_CHECKPOINT_PAUSE.with(|hook| {
+        if let Some((reached, resume)) = hook.borrow_mut().take() {
+            reached.send(()).unwrap();
+            resume.recv_timeout(Duration::from_secs(3)).unwrap();
+        }
+    });
+}
+
+#[test]
+fn cancellation_before_publication_is_not_a_successful_send() {
+    let (_, _, _, _, runtime) = owned_queue_test_runtime(BudgetLimits::default());
+    let (sender, _receiver) = bounded_channel::<u8>(
+        runtime.pool().clone(),
+        Some(runtime.cancellation().clone()),
+        1,
+    )
+    .unwrap();
+    let producer = sender.try_clone().unwrap();
+    let (reached_tx, reached_rx) = mpsc::channel();
+    let (resume_tx, resume_rx) = mpsc::channel();
+    let worker = thread::spawn(move || {
+        LOCKED_SEND_CHECKPOINT_PAUSE
+            .with(|hook| *hook.borrow_mut() = Some((reached_tx, resume_rx)));
+        producer.send(7, 1)
+    });
+    reached_rx.recv_timeout(Duration::from_secs(3)).unwrap();
+    let first = runtime.cancellation().cancel().unwrap().error.unwrap();
+    resume_tx.send(()).unwrap();
+    let actual = worker
+        .join()
+        .unwrap()
+        .expect_err("cancelled packet was published");
+    assert_eq!(
+        (actual.code, actual.stage, actual.message, actual.details),
+        (first.code, first.stage, first.message, first.details)
+    );
+    assert!(sender.0.state.lock().unwrap().entries.is_empty());
+    let tracker = sender.0.delivery.as_ref().unwrap();
+    let delivery = tracker.state.lock().unwrap();
+    assert_eq!((delivery.sent, delivery.acknowledged), (0, 0));
+    assert!(!delivery.abandoned);
+    drop(delivery);
+    for resource in [
+        Resource::QueueItems,
+        Resource::QueueBytes,
+        Resource::QueryWorkspaceBytes,
+    ] {
+        assert_eq!(used(runtime.pool(), resource), 0);
+    }
+    assert!(!runtime.cancellation().status().unwrap().delivery_complete);
+}
+
+#[test]
+fn cancelled_unpublished_reentrant_payload_releases_after_queue_unlock() {
+    let (_, _, _, _, runtime) = owned_queue_test_runtime(BudgetLimits::default());
+    let (sender, _receiver) = bounded_channel::<Box<dyn Send>>(
+        runtime.pool().clone(),
+        Some(runtime.cancellation().clone()),
+        1,
+    )
+    .unwrap();
+    let producer = sender.try_clone().unwrap();
+    // Dropping this payload drops another sender and reenters the queue lock.
+    let payload = Box::new(sender.try_clone().unwrap());
+    let (reached_tx, reached_rx) = mpsc::channel();
+    let (resume_tx, resume_rx) = mpsc::channel();
+    let (finished_tx, finished_rx) = mpsc::channel();
+    thread::spawn(move || {
+        LOCKED_SEND_CHECKPOINT_PAUSE
+            .with(|hook| *hook.borrow_mut() = Some((reached_tx, resume_rx)));
+        finished_tx.send(producer.send(payload, 1)).unwrap();
+    });
+    reached_rx.recv_timeout(Duration::from_secs(3)).unwrap();
+    let first = runtime.cancellation().cancel().unwrap().error.unwrap();
+    resume_tx.send(()).unwrap();
+    let error = finished_rx
+        .recv_timeout(Duration::from_secs(3))
+        .expect("unpublished payload drop reentered a locked queue")
+        .unwrap_err();
+    assert_eq!(
+        (error.code, error.stage, error.message),
+        (first.code, first.stage, first.message)
+    );
+    assert!(sender.0.state.lock().unwrap().entries.is_empty());
+    let delivery = sender.0.delivery.as_ref().unwrap().state.lock().unwrap();
+    assert_eq!((delivery.sent, delivery.acknowledged), (0, 0));
+    assert!(!delivery.abandoned);
+    drop(delivery);
+    for resource in [
+        Resource::QueueItems,
+        Resource::QueueBytes,
+        Resource::QueryWorkspaceBytes,
+    ] {
+        assert_eq!(used(runtime.pool(), resource), 0);
+    }
+}
+
+#[test]
+fn cancelled_unpublished_owned_batch_releases_after_queue_unlock() {
+    let (_, _, _, _, runtime) = owned_queue_test_runtime(BudgetLimits::default());
+    let (sender, _receiver) = bounded_owned_batch_channel(&runtime, 1).unwrap();
+    let producer = sender.try_clone().unwrap();
+    let worker_runtime = runtime.clone();
+    let (reached_tx, reached_rx) = mpsc::channel();
+    let (resume_tx, resume_rx) = mpsc::channel();
+    let (finished_tx, finished_rx) = mpsc::channel();
+    thread::spawn(move || {
+        LOCKED_SEND_CHECKPOINT_PAUSE
+            .with(|hook| *hook.borrow_mut() = Some((reached_tx, resume_rx)));
+        finished_tx
+            .send(producer.send(&worker_runtime, Box::new([1, 2, 3])))
+            .unwrap();
+    });
+    reached_rx.recv_timeout(Duration::from_secs(3)).unwrap();
+    let first = runtime.cancellation().cancel().unwrap().error.unwrap();
+    resume_tx.send(()).unwrap();
+    let error = finished_rx
+        .recv_timeout(Duration::from_secs(3))
+        .expect("unpublished owned batch did not release")
+        .unwrap_err();
+    assert_eq!(
+        (error.code, error.stage, error.message),
+        (first.code, first.stage, first.message)
+    );
+    assert!(sender.0.0.state.lock().unwrap().entries.is_empty());
+    let tracker = sender.0.0.delivery.as_ref().unwrap();
+    let delivery = tracker.state.lock().unwrap();
+    assert_eq!((delivery.sent, delivery.acknowledged), (0, 0));
+    assert!(!delivery.abandoned);
+    drop(delivery);
+    for resource in [
+        Resource::QueueItems,
+        Resource::QueueBytes,
+        Resource::QueryWorkspaceBytes,
+    ] {
+        assert_eq!(used(runtime.pool(), resource), 0);
+    }
+    assert!(!runtime.cancellation().status().unwrap().delivery_complete);
+}
+
+#[test]
+fn send_quota_failure_precedes_payload_drop_cancellation() {
+    struct CancelOnDrop(QueryCancellation);
+    impl Drop for CancelOnDrop {
+        fn drop(&mut self) {
+            self.0.cancel().unwrap();
+        }
+    }
+    let (_, _, _, _, runtime) =
+        owned_queue_test_runtime(BudgetLimits::default().with(Resource::QueueBytes, 1));
+    let (sender, _receiver) = bounded_channel::<CancelOnDrop>(
+        runtime.pool().clone(),
+        Some(runtime.cancellation().clone()),
+        1,
+    )
+    .unwrap();
+    let error = sender
+        .send(CancelOnDrop(runtime.cancellation().clone()), 2)
+        .err()
+        .unwrap();
+    assert_eq!(error.code, ErrorCode::QuotaExceeded);
+    let actual = runtime.cancellation().status().unwrap().error.unwrap();
+    assert_eq!(actual.code, error.code);
+    assert_eq!(actual.stage, error.stage);
+    assert_eq!(actual.details, error.details);
+    assert!(sender.0.state.lock().unwrap().entries.is_empty());
+}
+
+#[test]
+fn send_reserved_lock_fault_precedes_payload_drop_cancellation() {
+    struct CancelOnDrop(QueryCancellation);
+    impl Drop for CancelOnDrop {
+        fn drop(&mut self) {
+            self.0.cancel().unwrap();
+        }
+    }
+    let (_, _, _, _, runtime) = owned_queue_test_runtime(BudgetLimits::default());
+    let (sender, _receiver) = bounded_channel::<CancelOnDrop>(
+        runtime.pool().clone(),
+        Some(runtime.cancellation().clone()),
+        1,
+    )
+    .unwrap();
+    let memory = sender.reserve_payload(1).unwrap();
+    let shared = Arc::clone(&sender.0);
+    assert!(
+        thread::spawn(move || {
+            let _guard = shared.state.lock().unwrap();
+            panic!("controlled queue mutex poison");
+        })
+        .join()
+        .is_err()
+    );
+    let error = sender
+        .send_reserved(CancelOnDrop(runtime.cancellation().clone()), 1, memory)
+        .err()
+        .unwrap();
+    assert_eq!(error.code, ErrorCode::InternalFault);
+    let actual = runtime.cancellation().status().unwrap().error.unwrap();
+    assert_eq!(actual.code, error.code);
+    assert_eq!(actual.stage, error.stage);
+    assert_eq!(actual.message, error.message);
+    assert_eq!(used(runtime.pool(), Resource::QueryWorkspaceBytes), 0);
 }
 
 #[test]
