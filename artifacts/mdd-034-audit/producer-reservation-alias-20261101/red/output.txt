@@ -1,0 +1,25 @@
+   Compiling mdd-query v0.1.0-dev (<WORKSPACE>\crates\mdd-query)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 8.02s
+     Running unittests src\lib.rs (target\debug\deps\mdd_query-82579f4092cfd058.exe)
+
+running 3 tests
+
+thread 'budget::tests::owned_batch_producer_rejects_reservation_reused_across_batches' (3024) panicked at crates\mdd-query\src\budget\tests.rs:586:13:
+two distinct four-byte batches reused one four-byte reservation
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'budget::tests::owned_batch_producer_rejects_shared_reservation_reacquired_for_second_batch' (27416) panicked at crates\mdd-query\src\budget\tests.rs:611:13:
+two independent batches reused a reacquired shared reservation
+test budget::tests::owned_batch_producer_rejects_reservation_reused_across_batches ... FAILED
+test budget::tests::owned_batch_producer_rejects_shared_reservation_reacquired_for_second_batch ... FAILED
+test budget::tests::owned_batch_producer_rejects_duplicate_reservation_identity ... ok
+
+failures:
+
+failures:
+    budget::tests::owned_batch_producer_rejects_reservation_reused_across_batches
+    budget::tests::owned_batch_producer_rejects_shared_reservation_reacquired_for_second_batch
+
+test result: FAILED. 1 passed; 2 failed; 0 ignored; 0 measured; 169 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p mdd-query --lib`

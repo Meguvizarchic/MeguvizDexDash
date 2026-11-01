@@ -1,0 +1,31 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "-p",
+    "mdd-sql",
+    "distinct_ungrouped_count_matches_sqlite",
+    "--",
+    "--nocapture"
+  ],
+  "exit": 101,
+  "listed_sources_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "crates/mdd-sql/src/bridge.rs": "7a912e737076c53b1246c683460d2c37b7fba58c7c8e8adfe86de76a98b5d695",
+    "crates/mdd-sql/src/dialects/ast.rs": "40a726edcca7c9d2ffbb9f660dbc0d232d9ea9a0a07cc7ee23b800763fd4cbd1",
+    "crates/mdd-sql/src/values.rs": "ad87d663986bdec1b4f98710d170e911fd1be67695a9d1b53abc62c54e50c9f8",
+    "crates/mdd-query/src/budget.rs": "0a613809883210f3af84618237db244d1962c21302dd1f346d74bee5c52b2e5b",
+    "crates/mdd-facts/src/annotations.rs": "f81f651411c4d61ffad2c4a7e3194cc4c062d93bc5382519e5c2dd5bb45d6273"
+  },
+  "listed_sources_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "crates/mdd-sql/src/bridge.rs": "7a912e737076c53b1246c683460d2c37b7fba58c7c8e8adfe86de76a98b5d695",
+    "crates/mdd-sql/src/dialects/ast.rs": "40a726edcca7c9d2ffbb9f660dbc0d232d9ea9a0a07cc7ee23b800763fd4cbd1",
+    "crates/mdd-sql/src/values.rs": "ad87d663986bdec1b4f98710d170e911fd1be67695a9d1b53abc62c54e50c9f8",
+    "crates/mdd-query/src/budget.rs": "0a613809883210f3af84618237db244d1962c21302dd1f346d74bee5c52b2e5b",
+    "crates/mdd-facts/src/annotations.rs": "f81f651411c4d61ffad2c4a7e3194cc4c062d93bc5382519e5c2dd5bb45d6273"
+  },
+  "listed_sources_stable": true,
+  "scope": "targeted synthetic SQLite comparison, no HostLab/A0/A1/profile qualification"
+}

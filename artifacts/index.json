@@ -3238,6 +3238,61 @@
       "sha256": "6aa704dc4dc05ac9035c6204ff876ada0ef1891dbaf1110c22410c32d5619661"
     },
     {
+      "path": "artifacts/mdd-005/a2-final-page-deadline-20261101/after.json",
+      "bytes": 375,
+      "sha256": "47580bcb116f45f6e328e713efb3fdd005c7a6e838b328b378854ff953ffcb85"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-final-page-deadline-20261101/before.json",
+      "bytes": 375,
+      "sha256": "47580bcb116f45f6e328e713efb3fdd005c7a6e838b328b378854ff953ffcb85"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-final-page-deadline-20261101/green-exit.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-final-page-deadline-20261101/green.txt",
+      "bytes": 347,
+      "sha256": "92dd3a4c6d653ba7415242872ea06dc73ba3896fe0c53795b5b28241bbc1ae74"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-final-page-deadline-20261101/probe.py",
+      "bytes": 2232,
+      "sha256": "834d9e6d411cd168458beed068aaf4c620cc5d8ef8141c4a275fb260166c8ddc"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-final-page-deadline-20261101/record.json",
+      "bytes": 1926,
+      "sha256": "24a5c67b83a2701b0ac94165a910699d01a35b16ad6aa20746722b4a1b288943"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-final-page-deadline-20261101/red-exit.txt",
+      "bytes": 3,
+      "sha256": "f1b2f662800122bed0ff255693df89c4487fbdcf453d3524a42d4ec20c3d9c04"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-final-page-deadline-20261101/red.txt",
+      "bytes": 2237,
+      "sha256": "896f1359bac092696c9235163406db8fdf022ec567ae5d0af99cb52ccb50fbbb"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-final-page-deadline-20261101/redactions.json",
+      "bytes": 1957,
+      "sha256": "81ea21974b1d17ccee58d297c7d0189e1f98ab2b6ce76a39bea24c117d39bc67"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-final-page-deadline-20261101/regression-exit.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-005/a2-final-page-deadline-20261101/regression.txt",
+      "bytes": 105,
+      "sha256": "680ad4140300c6bb7bf7b4f56bdcc9e87c73236eab522e31d95b7af0e85fc5b2"
+    },
+    {
       "path": "artifacts/mdd-005/a2-input-inventory-20261030/probe.py",
       "bytes": 4570,
       "sha256": "856fc5f98a2ba4c6b03cc7a14590b1ad1b2417682b520d75c08f8e3bf4c5b37c"
@@ -6891,6 +6946,46 @@
       "path": "artifacts/mdd-022/reproduce.py",
       "bytes": 12716,
       "sha256": "22a9827a874f356237ad6187fbc0eba51a0a278f77a02ac023ca36c958d7ce86"
+    },
+    {
+      "path": "artifacts/mdd-022/shared-callsite-view-20261101/final/output.txt",
+      "bytes": 865,
+      "sha256": "a607e974480e815356cfb37b7f8984dde17389699df718b329a4b58a5510e929"
+    },
+    {
+      "path": "artifacts/mdd-022/shared-callsite-view-20261101/final/record.json",
+      "bytes": 2768,
+      "sha256": "39b3c4264e005c278a004193fbcc3013f399b288d5ff54ed6f2ad81aa6536815"
+    },
+    {
+      "path": "artifacts/mdd-022/shared-callsite-view-20261101/fixture.json",
+      "bytes": 190,
+      "sha256": "5f6d4793176e336af2f81945ee45aa7b8d77428821d7b1708a9764b9695a9812"
+    },
+    {
+      "path": "artifacts/mdd-022/shared-callsite-view-20261101/generate.py",
+      "bytes": 1555,
+      "sha256": "9b63886d99f1e2b46bcfe2989c0339228e8ff9194eebfdbe48bb21558edcc36c"
+    },
+    {
+      "path": "artifacts/mdd-022/shared-callsite-view-20261101/output.txt",
+      "bytes": 865,
+      "sha256": "576f64328557cd8f996de37a41497325bb3c460e644956729b60e900cd69b950"
+    },
+    {
+      "path": "artifacts/mdd-022/shared-callsite-view-20261101/record.json",
+      "bytes": 2780,
+      "sha256": "8be0fbf6236b21f65399efbbef0191cef4ac8cb85df364f442a8b13f0bf37dee"
+    },
+    {
+      "path": "artifacts/mdd-022/shared-callsite-view-20261101/run.py",
+      "bytes": 1626,
+      "sha256": "ba7557ea156b8a45b11cf5295470a27a3f3cf14ad0739ab332afbe9ccb9d7f72"
+    },
+    {
+      "path": "artifacts/mdd-022/shared-callsite-view-20261101/shared.dex",
+      "bytes": 1700,
+      "sha256": "85192faed724d9313393dbc02bd645c209568e596574a117cb2a865abeb5d1b9"
     },
     {
       "path": "artifacts/mdd-022/validation/20261028T105548144184Z/A0-compare.json",
@@ -27253,6 +27348,51 @@
       "sha256": "65e395d3b8c3e64dfb752638394376e3cfa457bfcc9b3551520d3285b5b0944d"
     },
     {
+      "path": "artifacts/mdd-031-audit/ungrouped-distinct-count-20261101/distinct_regression/output.txt",
+      "bytes": 355,
+      "sha256": "5579d7b13ba6b8c57edebaeea266c8ea0e37023f8f1b0d159c338f6f18a2f2e7"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/ungrouped-distinct-count-20261101/distinct_regression/record.json",
+      "bytes": 1657,
+      "sha256": "65c8f89cec9b60bdd949fd381d9ff3cab65d2b3a86ceb2ebe40367fb544d029d"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/ungrouped-distinct-count-20261101/green/output.txt",
+      "bytes": 463,
+      "sha256": "68bb5d2988163e4c9c6ac97f7e5f51cda2377eda3883fa623f046c5de69eb7dd"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/ungrouped-distinct-count-20261101/green/record.json",
+      "bytes": 1639,
+      "sha256": "dd9c85a73fb3d3d5f5bbb80a0ac5a9258cb0e6eadb854b8bda521cd9381e37e2"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/ungrouped-distinct-count-20261101/red/output.txt",
+      "bytes": 1141,
+      "sha256": "676664985b9ea9d3b69c1473173542bb7ad17fa059baff085919cb6c74a73e75"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/ungrouped-distinct-count-20261101/red/record.json",
+      "bytes": 1641,
+      "sha256": "f89348961173ca8e0130a79892b903a81aaa77ce194ac6a81d2e358796054e52"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/ungrouped-distinct-count-20261101/regression/output.txt",
+      "bytes": 364,
+      "sha256": "23a1ce18417cc98f6c2b76afcba1ff3af7e496065f6e5fd79d5292f339beebd3"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/ungrouped-distinct-count-20261101/regression/record.json",
+      "bytes": 1666,
+      "sha256": "d1998c9988b569159cc8cec6826efb156285b1b67e6c279889f11fd519af40ce"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/ungrouped-distinct-count-20261101/run.py",
+      "bytes": 1413,
+      "sha256": "da8d207d823940de3cbc99301bcadadd77fd9f33dda8259ab7981f7d7143eea2"
+    },
+    {
       "path": "artifacts/mdd-031-audit/using-probe/Cargo.first-resolution.lock",
       "bytes": 11272,
       "sha256": "70c50b8756b31a9762489a303d788ec12dc1c4cf2b2055c512a8ebdc14411d90"
@@ -36341,6 +36481,66 @@
       "path": "artifacts/mdd-034-audit/prequeue-resident-fixed-20261030/runs/20261030T015618057401Z/probe/supervisor.json",
       "bytes": 896,
       "sha256": "a5bf571f7ab297c3403b3f0373be556c336f403ce57841e8592beebf93f713c2"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/producer-reservation-alias-20261101/green/output.txt",
+      "bytes": 618,
+      "sha256": "6a9ef8a62de3bbdb6317514cc9a65534d84eede88916d653599661edde9bd474"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/producer-reservation-alias-20261101/green/record.json",
+      "bytes": 1877,
+      "sha256": "597a68b5073687cd8c35fd60c6c99833030fdb5e1f0e9b7d39ee87c6b8c1bc41"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/producer-reservation-alias-20261101/producer/output.txt",
+      "bytes": 362,
+      "sha256": "6e9e91d413830977d5cd54c89a21204873b0db51cb2bf431a2b01c393398059f"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/producer-reservation-alias-20261101/producer/record.json",
+      "bytes": 1901,
+      "sha256": "761b743508ab3f5eb2fea4d3af37a23f76007c7ce129ef185bef18a3d4fe586d"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/producer-reservation-alias-20261101/red/output.txt",
+      "bytes": 1407,
+      "sha256": "4a8d6845bf435edcb212a007529a0748521bf21cb612bcbb61754b2b47e8096f"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/producer-reservation-alias-20261101/red/record.json",
+      "bytes": 1879,
+      "sha256": "0a368404a0803342105fd7e726e0ba8b47a733af84ce733862ce840196f2a417"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/producer-reservation-alias-20261101/retention/output.txt",
+      "bytes": 359,
+      "sha256": "77a7a02808c6ab37d2f87068c6e8d1b2f41b63c494fc4b0236800b5909a2eda5"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/producer-reservation-alias-20261101/retention/record.json",
+      "bytes": 1908,
+      "sha256": "479b89c6b58b8715561ac3066032915ec70ca4314690432f3c4ef1219ffcd3f2"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/producer-reservation-alias-20261101/run.py",
+      "bytes": 1593,
+      "sha256": "ce1a5791da1b7779187806900719ad1f4b285d82fb0de8bbe3ae51369cf19d5f"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/producer-reservation-alias-20261101/splitting/output.txt",
+      "bytes": 358,
+      "sha256": "f6382e4b2a79940613d11cf6560a4a419423959c9d6ea6ea14885e614228976e"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/producer-reservation-alias-20261101/splitting/record.json",
+      "bytes": 1897,
+      "sha256": "6be8cbc193201c47bf72eb0326e3173ba40559126736366aea06ce5adbfca4a0"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/producer-reservation-alias-20261101/summary.json",
+      "bytes": 1191,
+      "sha256": "9520cef5b0bd94bc9a1fda401b6477f16ab9018f956b85bd94210a98ecacc434"
     },
     {
       "path": "artifacts/mdd-034-audit/queue-deadline-20261030/green-first-terminal/record.json",

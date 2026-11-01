@@ -110,6 +110,23 @@ pub struct EncodedArrayBindings<'a> {
     pub bindings: Vec<EncodedArrayBinding<'a>>,
 }
 
+/// Identity of an encoded call_site_id within a captured DEX occurrence.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct EncodedCallSiteRef {
+    pub snapshot_id: String,
+    pub dex_occurrence_id: String,
+    pub call_site_idx: u32,
+}
+
+/// One encoded call-site binding and its physical array. Bootstrap resolution
+/// and the runtime callee remain unknown.
+pub struct EncodedCallSiteView<'a> {
+    pub source: &'a MetadataSource,
+    pub binding: &'a CallSiteArrayBinding,
+    pub array: &'a EncodedArrayItem,
+    pub raw_encoded: &'a [u8],
+}
+
 /// Logical entry-visit and result bounds for a physical annotation value view.
 /// These do not represent allocation, byte-scan, cancellation, or RSS limits.
 #[derive(Clone, Copy, Debug)]
@@ -1273,6 +1290,88 @@ impl AnnotationFacts {
                     raw_encoded,
                 })
             }))
+    }
+    /// Resolve one encoded call_site_id without scanning all bindings. A
+    /// missing index returns None only for complete facts in this occurrence.
+    /// The limits count two logical lookups and one returned binding, not CPU,
+    /// bytes, allocation, cancellation or RSS.
+    pub fn encoded_call_site(
+        &self,
+        reference: &EncodedCallSiteRef,
+        limits: AnnotationOwnerViewLimits,
+    ) -> MddResult<Option<EncodedCallSiteView<'_>>> {
+        let stage = "facts.encoded_call_site";
+        let source = self.source();
+        if reference.snapshot_id != source.snapshot_id
+            || reference.dex_occurrence_id != source.dex_occurrence_id
+        {
+            return Err(MddError::new(
+                ErrorCode::InvalidArgument,
+                stage,
+                "call site belongs to another snapshot or occurrence",
+            ));
+        }
+        if self.annotation_coverage != Completeness::Complete
+            || self.definitions.definition_coverage() != Completeness::Complete
+            || self.definitions.metadata().metadata_coverage() != Completeness::Complete
+        {
+            return Err(MddError::new(
+                ErrorCode::IncompleteFacts,
+                stage,
+                "complete metadata, definitions and annotations are required",
+            ));
+        }
+        let quota = || {
+            MddError::new(
+                ErrorCode::QuotaExceeded,
+                stage,
+                "call-site view budget exceeded",
+            )
+        };
+        let inconsistent = || {
+            MddError::new(
+                ErrorCode::InternalFault,
+                stage,
+                "validated call-site binding is inconsistent",
+            )
+        };
+        if limits.max_scanned_entries < 1 {
+            return Err(quota());
+        }
+        let Some(binding) = usize::try_from(reference.call_site_idx)
+            .ok()
+            .and_then(|index| self.data.call_site_arrays.get(index))
+        else {
+            return Ok(None);
+        };
+        if limits.max_scanned_entries < 2 || limits.max_matches < 1 {
+            return Err(quota());
+        }
+        if binding.call_site_idx != reference.call_site_idx {
+            return Err(inconsistent());
+        }
+        let array = usize::try_from(binding.encoded_array_index)
+            .ok()
+            .and_then(|index| self.data.encoded_arrays.get(index))
+            .ok_or_else(inconsistent)?;
+        if array.byte_offset != binding.encoded_array_byte_offset
+            || array.encoded_range.byte_offset.0 != u64::from(array.byte_offset)
+            || array.encoded_range.byte_length.0 == 0
+        {
+            return Err(inconsistent());
+        }
+        let start =
+            usize::try_from(array.encoded_range.byte_offset.0).map_err(|_| inconsistent())?;
+        let length =
+            usize::try_from(array.encoded_range.byte_length.0).map_err(|_| inconsistent())?;
+        let end = start.checked_add(length).ok_or_else(inconsistent)?;
+        let raw_encoded = self.bytes().get(start..end).ok_or_else(inconsistent)?;
+        Ok(Some(EncodedCallSiteView {
+            source,
+            binding,
+            array,
+            raw_encoded,
+        }))
     }
     /// Return encoded references to one physical array without deduplicating
     /// classes or call sites. An empty result means this complete occurrence
@@ -3136,6 +3235,117 @@ mod tests {
                 .unwrap()
                 .code,
             ErrorCode::InvalidArgument
+        );
+    }
+    #[test]
+    fn shared_call_sites_retain_independent_identity_and_physical_bytes() {
+        let facts = build("artifacts/mdd-022/shared-callsite-view-20261101/shared.dex");
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../artifacts/mdd-022/shared-callsite-view-20261101/fixture.json"
+        ))
+        .unwrap();
+        let array_offset = fixture["array_offset"].as_u64().unwrap() as u32;
+        let section_offset = fixture["call_site_ids_offset"].as_u64().unwrap() as usize;
+        let make = |call_site_idx| EncodedCallSiteRef {
+            snapshot_id: facts.source().snapshot_id.clone(),
+            dex_occurrence_id: facts.source().dex_occurrence_id.clone(),
+            call_site_idx,
+        };
+        let limits = AnnotationOwnerViewLimits {
+            max_scanned_entries: 2,
+            max_matches: 1,
+        };
+        for index in 0..2 {
+            let view = facts
+                .encoded_call_site(&make(index), limits)
+                .unwrap()
+                .unwrap();
+            assert_eq!(
+                view.source.dex_occurrence_id,
+                facts.source().dex_occurrence_id
+            );
+            assert_eq!(view.binding.call_site_idx, index);
+            assert_eq!(view.array.byte_offset, array_offset);
+            let at = section_offset + 4 * index as usize;
+            assert_eq!(&facts.bytes()[at..at + 4], &array_offset.to_le_bytes());
+            assert_eq!(view.raw_encoded.len(), 7);
+            assert_eq!(view.raw_encoded[0], 3);
+            assert_eq!(view.raw_encoded[1], 0x16);
+            assert_eq!(view.raw_encoded[3], 0x17);
+            assert_eq!(view.raw_encoded[5], 0x15);
+            assert_eq!(
+                view.binding.bootstrap_method_handle_idx,
+                u32::from(view.raw_encoded[2])
+            );
+            assert_eq!(view.binding.name_string_idx, u32::from(view.raw_encoded[4]));
+            assert_eq!(view.binding.method_type_idx, u32::from(view.raw_encoded[6]));
+        }
+        let array_ref = EncodedArrayRef {
+            snapshot_id: facts.source().snapshot_id.clone(),
+            dex_occurrence_id: facts.source().dex_occurrence_id.clone(),
+            byte_offset: array_offset,
+        };
+        let reverse = facts
+            .encoded_array_bindings(&array_ref, AnnotationOwnerViewLimits::default())
+            .unwrap();
+        let indices: Vec<_> = reverse
+            .bindings
+            .iter()
+            .map(|binding| match binding {
+                EncodedArrayBinding::CallSite(call) => call.call_site_idx,
+                _ => panic!("unexpected static array binding"),
+            })
+            .collect();
+        assert_eq!(indices, [0, 1]);
+        assert!(facts.encoded_call_site(&make(2), limits).unwrap().is_none());
+        for invalid_limits in [
+            AnnotationOwnerViewLimits {
+                max_scanned_entries: 1,
+                max_matches: 1,
+            },
+            AnnotationOwnerViewLimits {
+                max_scanned_entries: 2,
+                max_matches: 0,
+            },
+        ] {
+            assert_eq!(
+                facts
+                    .encoded_call_site(&make(0), invalid_limits)
+                    .err()
+                    .unwrap()
+                    .code,
+                ErrorCode::QuotaExceeded
+            );
+        }
+        let mut foreign = make(0);
+        foreign.dex_occurrence_id = "foreign".into();
+        assert_eq!(
+            facts
+                .encoded_call_site(&foreign, limits)
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InvalidArgument
+        );
+        let mut partial = facts.clone();
+        partial.annotation_coverage = Completeness::Partial;
+        assert_eq!(
+            partial
+                .encoded_call_site(&make(2), limits)
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::IncompleteFacts
+        );
+        let mut corrupted = facts.clone();
+        corrupted.data.call_site_arrays[1].encoded_array_index = u32::MAX;
+        assert_eq!(
+            corrupted
+                .encoded_call_site(&make(1), limits)
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InternalFault
         );
     }
     #[test]

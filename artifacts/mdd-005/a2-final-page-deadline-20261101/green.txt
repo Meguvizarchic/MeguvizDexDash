@@ -1,0 +1,7 @@
+test_final_page_expiry_never_returns_complete_rows (__main__.DeadlineTests.test_final_page_expiry_never_returns_complete_rows) ... ok
+test_page_decoding_expiry_is_rejected (__main__.DeadlineTests.test_page_decoding_expiry_is_rejected) ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.093s
+
+OK

@@ -1488,11 +1488,33 @@ impl Rewrite<'_> {
                     if !grouping.is_empty() || select.having.is_some() {
                         return Err(unsupported("DISTINCT_AFTER_GROUP_REQUIRES_OUTER_SCOPE"));
                     }
-                    let expressions = self.select_expressions(select)?;
-                    grouping = expressions
-                        .into_iter()
-                        .map(|expr| call("mdd_key", vec![expr]))
-                        .collect();
+                    // An ungrouped direct COUNT makes this SELECT an aggregate
+                    // with at most one output row. DISTINCT is redundant;
+                    // grouping by COUNT would instead be invalid SQLite SQL.
+                    let direct_count = select.projection.iter().any(|item| {
+                        let expr = match item {
+                            SelectItem::UnnamedExpr(expr)
+                            | SelectItem::ExprWithAlias { expr, .. } => expr,
+                            _ => return false,
+                        };
+                        match expr {
+                            Expr::Function(function)
+                                if function.name.0.len() == 1 && function.over.is_none() =>
+                            {
+                                function.name.0[0]
+                                    .as_ident()
+                                    .is_some_and(|name| name.value.eq_ignore_ascii_case("count"))
+                            }
+                            _ => false,
+                        }
+                    });
+                    if !direct_count {
+                        let expressions = self.select_expressions(select)?;
+                        grouping = expressions
+                            .into_iter()
+                            .map(|expr| call("mdd_key", vec![expr]))
+                            .collect();
+                    }
                     select.distinct = None;
                 }
                 select.group_by = GroupByExpr::Expressions(grouping, Vec::new());

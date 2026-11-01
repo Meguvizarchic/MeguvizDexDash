@@ -110,14 +110,20 @@ class CompactRowsAdapter:
         """Time remaining in the adapter's shared monotonic deadline."""
         return max(0.0, self._deadline - time.monotonic())
 
+    def _checkpoint(self):
+        if time.monotonic() >= self._deadline:
+            raise TimeoutError("A2 compact dataset deadline exhausted")
+
     def verify_binding(self) -> None:
         """Invoke the caller's source and producer-generation checks."""
+        self._checkpoint()
         self._verify_source()
         self._verify_snapshot_binding(self._dataset)
         if self.remaining_seconds() <= 0:
             raise TimeoutError("A2 compact dataset deadline exhausted during source verification")
 
     async def _page(self, sql: str, offset: int, limit: int, max_bytes: int):
+        self._checkpoint()
         self._verify_source()
         self._verify_snapshot_binding(self._dataset)
         remaining = self._deadline - time.monotonic()
@@ -174,6 +180,7 @@ class CompactRowsAdapter:
         elif (type(cursor) is not int or cursor != offset + len(rows) or cursor <= offset
               or cursor >= total or cursor > 100000):
             raise CompactAdapterError("compact cursor invalid or did not advance")
+        self._checkpoint()
         return columns, rows, total, cursor
 
     async def rows(self, sql: str, *, page_size: int = 1000, max_rows: int = 500000,
@@ -199,6 +206,7 @@ class CompactRowsAdapter:
 
     async def _rows(self, sql: str, page_size: int, max_rows: int,
                     max_bytes: int, max_page_bytes: int):
+        self._checkpoint()
         if not isinstance(sql, str) or not sql.strip() or len(sql.encode("utf-8")) > 256 * 1024:
             raise ValueError("invalid SQL or SQL byte budget exceeded")
         if "ORDER BY" not in sql.upper():
@@ -220,6 +228,7 @@ class CompactRowsAdapter:
         if len(statement.encode("utf-8")) > 256 * 1024:
             raise CompactAdapterError("projected SQL exceeds HostLab byte budget")
         self._verify_ordering(source_sql, statement)
+        self._checkpoint()
         offset, total, result, used, pages = 0, None, [], 0, 0
         page_limit = page_size
         while True:
@@ -253,8 +262,10 @@ class CompactRowsAdapter:
             if total > max_rows:
                 raise CompactAdapterError("HostLab complete row budget exceeded")
             for cells in rows:
+                self._checkpoint()
                 decoded = []
                 for cell in cells:
+                    self._checkpoint()
                     if not isinstance(cell, str):
                         raise CompactAdapterError("projected compact cell is not text")
                     if cell == "N":
@@ -269,11 +280,14 @@ class CompactRowsAdapter:
                         raise CompactAdapterError("HostLab complete byte budget exceeded")
                     decoded.append(value)
                 result.append(dict(zip(names, decoded)))
+            self._checkpoint()
             if cursor is None:
                 if len(result) != total:
                     raise CompactAdapterError("not all rows were consumed")
+                complete = CompleteRows(names, result, total, pages)
+                self._checkpoint()
                 self.queries += 1
-                return CompleteRows(names, result, total, pages)
+                return complete
             reason = self._continuation_reason(source_sql)
             if reason is not None:
                 raise CompactAdapterError("unsafe compact continuation: " + str(reason))

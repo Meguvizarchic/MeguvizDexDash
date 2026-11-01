@@ -1,0 +1,37 @@
+[
+  {
+    "path": "artifacts/mdd-005/a2-final-page-deadline-20261101/red.txt",
+    "original_sha256": "3d2dc2961bd8455ed164bef73f5e68401873dc88db62af3faea4840109afbb56",
+    "redacted_sha256": "896f1359bac092696c9235163406db8fdf022ec567ae5d0af99cb52ccb50fbbb"
+  },
+  {
+    "path": "artifacts/mdd-022/shared-callsite-view-20261101/final/output.txt",
+    "original_sha256": "4503f763f072218db175325cb785c9136c2ba3ed4f042094c3c4bf0062b31d2a",
+    "redacted_sha256": "a607e974480e815356cfb37b7f8984dde17389699df718b329a4b58a5510e929"
+  },
+  {
+    "path": "artifacts/mdd-022/shared-callsite-view-20261101/output.txt",
+    "original_sha256": "c767df9c8cc1b229c56622e703b152407600488ae1a9f37ac7249716d8becc39",
+    "redacted_sha256": "576f64328557cd8f996de37a41497325bb3c460e644956729b60e900cd69b950"
+  },
+  {
+    "path": "artifacts/mdd-031-audit/ungrouped-distinct-count-20261101/green/output.txt",
+    "original_sha256": "138b0be1d1f2a27f920c92f61c94e615b7995fa19a34e10fac828874001505d3",
+    "redacted_sha256": "68bb5d2988163e4c9c6ac97f7e5f51cda2377eda3883fa623f046c5de69eb7dd"
+  },
+  {
+    "path": "artifacts/mdd-031-audit/ungrouped-distinct-count-20261101/red/output.txt",
+    "original_sha256": "917ccd6fca3b9c80cf53ae8685428099172c1a8aa2aa5a94beead20e77a11b85",
+    "redacted_sha256": "676664985b9ea9d3b69c1473173542bb7ad17fa059baff085919cb6c74a73e75"
+  },
+  {
+    "path": "artifacts/mdd-034-audit/producer-reservation-alias-20261101/green/output.txt",
+    "original_sha256": "bb3e43db08e6ba4b7d8e2036e04cbdb12de543def510aaf290d1cf963df47023",
+    "redacted_sha256": "6a9ef8a62de3bbdb6317514cc9a65534d84eede88916d653599661edde9bd474"
+  },
+  {
+    "path": "artifacts/mdd-034-audit/producer-reservation-alias-20261101/red/output.txt",
+    "original_sha256": "feab79494cf6a2abbe34e8774c8114c404bdc6537fd42d3069970e444e84d059",
+    "redacted_sha256": "4a8d6845bf435edcb212a007529a0748521bf21cb612bcbb61754b2b47e8096f"
+  }
+]

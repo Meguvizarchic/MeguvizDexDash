@@ -1,0 +1,21 @@
+   Compiling mdd-facts v0.1.0-dev (<WORKSPACE>\crates\mdd-facts)
+   Compiling mdd-query v0.1.0-dev (<WORKSPACE>\crates\mdd-query)
+   Compiling mdd-sql v0.1.0-dev (<WORKSPACE>\crates\mdd-sql)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 11.04s
+     Running unittests src\lib.rs (target\debug\deps\mdd_sql-46977fcd4387e316.exe)
+
+running 1 test
+
+thread 'bridge::tests::distinct_ungrouped_count_matches_sqlite' (3152) panicked at crates\mdd-sql\src\bridge.rs:4241:43:
+called `Result::unwrap()` on an `Err` value: MddError { code: InvalidArgument, stage: "sql.sqlite", message: "aggregate functions are not allowed in the GROUP BY clause", retryable: false, details: {"sqlite_code": String("Unknown"), "sqlite_extended_code": Number(1)} }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test bridge::tests::distinct_ungrouped_count_matches_sqlite ... FAILED
+
+failures:
+
+failures:
+    bridge::tests::distinct_ungrouped_count_matches_sqlite
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 151 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p mdd-sql --lib`

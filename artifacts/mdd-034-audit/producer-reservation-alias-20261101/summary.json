@@ -1,0 +1,29 @@
+{
+  "finding": "Independent owned batch allocations could share one cloned reservation, or reacquire the same reservation through reserve_arc and reuse it, while logical workspace charged only once.",
+  "fix": "Accept only exclusively held, non-shared-key workspace reservations for produced batches; existing retained batch clones still share the same actual owned byte allocation.",
+  "runs": {
+    "red": {
+      "record": "red/record.json",
+      "tests_run": 3,
+      "tests_failed": 2,
+      "tests_passed": 1
+    },
+    "green": {
+      "record": "green/record.json",
+      "tests_passed": 3
+    },
+    "json_producer": {
+      "record": "producer/record.json",
+      "tests_passed": 1
+    },
+    "json_splitting": {
+      "record": "splitting/record.json",
+      "tests_passed": 1
+    },
+    "retained_clone": {
+      "record": "retention/record.json",
+      "tests_passed": 1
+    }
+  },
+  "limits": "Synthetic internal API counterexamples; current production JSON assembler already allocates separate reservations, so no claim that the real workflow triggered this. No complete workspace, production IPC, exhaustive concurrency or RSS qualification."
+}

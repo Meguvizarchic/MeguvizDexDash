@@ -5,8 +5,12 @@ use std::thread;
 #[test]
 fn receipt_rejection_preserves_existing_query_failure() {
     for first in [
-        MddError::new(ErrorCode::QuotaExceeded, "test.quota", "output budget exhausted")
-            .detail("resource", "output_bytes"),
+        MddError::new(
+            ErrorCode::QuotaExceeded,
+            "test.quota",
+            "output budget exhausted",
+        )
+        .detail("resource", "output_bytes"),
         MddError::new(ErrorCode::WorkerLost, "test.worker", "worker terminated")
             .detail("worker", "test"),
     ] {
@@ -563,6 +567,79 @@ fn owned_batch_queue_preserves_consumption_and_retained_budget() {
     assert_eq!(used(runtime.pool(), Resource::QueryWorkspaceBytes), 5);
     drop(clone);
     assert_eq!(used(runtime.pool(), Resource::QueryWorkspaceBytes), 0);
+}
+
+#[test]
+fn owned_batch_producer_rejects_reservation_reused_across_batches() {
+    let limits = BudgetLimits::default()
+        .with(Resource::QueryWorkspaceBytes, 4)
+        .with(Resource::ResidentBytes, 4)
+        .with(Resource::QueueBytes, 8);
+    let (life, _, _, query, runtime) = owned_queue_test_runtime(limits);
+    let (sender, _receiver) = bounded_owned_batch_channel(&runtime, 2).unwrap();
+    let mut producer = sender.claim_producer().unwrap();
+    producer.arm();
+    let reservation = sender.reserve_payload(4).unwrap();
+    let reused = reservation.clone();
+    let first = sender.send_produced(
+        &runtime,
+        Box::new([1, 2, 3, 4]),
+        vec![reservation],
+        &producer,
+    );
+    match first {
+        Err(error) => assert_eq!(error.code, ErrorCode::InvalidArgument),
+        Ok(()) => {
+            assert_eq!(used(runtime.pool(), Resource::QueryWorkspaceBytes), 4);
+            let second =
+                sender.send_produced(&runtime, Box::new([5, 6, 7, 8]), vec![reused], &producer);
+            assert!(
+                second.is_err(),
+                "two distinct four-byte batches reused one four-byte reservation"
+            );
+        }
+    }
+    assert!(!life.query_status(&query).unwrap().delivery_complete);
+}
+
+#[test]
+fn owned_batch_producer_rejects_shared_reservation_reacquired_for_second_batch() {
+    let limits = BudgetLimits::default()
+        .with(Resource::QueryWorkspaceBytes, 4)
+        .with(Resource::ResidentBytes, 4)
+        .with(Resource::QueueBytes, 8);
+    let (life, _, _, query, runtime) = owned_queue_test_runtime(limits);
+    let (sender, _receiver) = bounded_owned_batch_channel(&runtime, 2).unwrap();
+    let mut producer = sender.claim_producer().unwrap();
+    producer.arm();
+    let source = Arc::new([0u8; 4]);
+    let reservation = runtime
+        .pool()
+        .reserve_arc(&source, Resource::QueryWorkspaceBytes, 4)
+        .unwrap();
+    let first = sender.send_produced(
+        &runtime,
+        Box::new([1, 2, 3, 4]),
+        vec![reservation],
+        &producer,
+    );
+    match first {
+        Err(error) => assert_eq!(error.code, ErrorCode::InvalidArgument),
+        Ok(()) => {
+            let alias = runtime
+                .pool()
+                .reserve_arc(&source, Resource::QueryWorkspaceBytes, 4)
+                .unwrap();
+            assert_eq!(used(runtime.pool(), Resource::QueryWorkspaceBytes), 4);
+            let second =
+                sender.send_produced(&runtime, Box::new([5, 6, 7, 8]), vec![alias], &producer);
+            assert!(
+                second.is_err(),
+                "two independent batches reused a reacquired shared reservation"
+            );
+        }
+    }
+    assert!(!life.query_status(&query).unwrap().delivery_complete);
 }
 
 #[test]

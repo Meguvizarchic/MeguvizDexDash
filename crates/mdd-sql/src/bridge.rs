@@ -4197,6 +4197,64 @@ mod tests {
     }
 
     #[test]
+    fn distinct_ungrouped_count_matches_sqlite() {
+        use mdd_query::ir::Signed64;
+        for ids in [vec![], vec![None, Some(1), Some(1), Some(2)]] {
+            let provider = Arc::new(RowsProvider {
+                binding: SqlBinding {
+                    provider_identity: "distinct-count".into(),
+                    snapshot_id: "distinct-count-snapshot".into(),
+                    catalog_epoch: DecimalU64(0),
+                },
+                rows: ids
+                    .iter()
+                    .map(|id| vec![id.map_or(SqlValue::Null, |n| SqlValue::I64(Signed64(n)))])
+                    .collect(),
+                columns: vec![SqlColumn {
+                    id: "id".into(),
+                    name: "id".into(),
+                    data_type: SqlType::I64,
+                    nullable: true,
+                }],
+            });
+            let sqlite = rusqlite::Connection::open_in_memory().unwrap();
+            sqlite
+                .execute_batch("CREATE TABLE vals(id INTEGER)")
+                .unwrap();
+            for id in &ids {
+                sqlite.execute("INSERT INTO vals VALUES (?)", [id]).unwrap();
+            }
+            for dialect in [
+                SqlDialect::NativeV1,
+                SqlDialect::DexSql010,
+                SqlDialect::DexSql011,
+            ] {
+                let bridge =
+                    SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+                for sql in [
+                    "SELECT COUNT(*) AS n FROM vals ORDER BY n",
+                    "SELECT DISTINCT COUNT(*) AS n FROM vals ORDER BY n",
+                    "SELECT DISTINCT COUNT(id) AS n FROM vals WHERE id > 0 ORDER BY n",
+                    "SELECT DISTINCT COUNT(DISTINCT id) AS n FROM vals ORDER BY n",
+                ] {
+                    let expected: i64 = sqlite.query_row(sql, [], |row| row.get(0)).unwrap();
+                    assert_eq!(
+                        bridge.query(sql).unwrap().rows(),
+                        &[vec![SqlValue::I64(Signed64(expected))]],
+                        "{dialect:?}: {sql}"
+                    );
+                }
+                let window = "SELECT DISTINCT COUNT(*) OVER() FROM vals";
+                assert_eq!(
+                    bridge.query(window).unwrap_err().code,
+                    ErrorCode::UnsupportedQuery,
+                    "{dialect:?}: {window}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn hostlab_q10_group_count_and_order_match_sqlite_for_duplicate_calls() {
         use mdd_query::ir::Signed64;
         let columns = [

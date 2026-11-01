@@ -1060,6 +1060,13 @@ impl OwnedBatchSender {
                 {
                     return Err(invalid("batch reservation belongs to another budget"));
                 }
+                // Each independent encoded batch needs exclusive resident
+                // accounting. A pre-existing clone could back another batch;
+                // shared-key reservations can also be reacquired via Weak
+                // after this check, even when they currently have one owner.
+                if reservation.0.shared_key.is_some() || Arc::strong_count(&reservation.0) != 1 {
+                    return Err(invalid("batch reservation must be exclusive"));
+                }
                 identities.push(Arc::as_ptr(&reservation.0) as usize);
                 reserved = reserved.checked_add(reservation.amount()).ok_or_else(|| {
                     MddError::new(
@@ -1969,9 +1976,8 @@ impl<T> BoundedReceiver<T> {
                 || !queue.entries.is_empty()
                 || queue.receipt_issued
             {
-                let error = invalid(
-                    "queue delivery requires acknowledged packets and explicit End",
-                );
+                let error =
+                    invalid("queue delivery requires acknowledged packets and explicit End");
                 // This method consumes the receiver, so its failed return
                 // cannot be retried. Keep an earlier query failure visible
                 // instead of replacing it with the later receipt rejection.

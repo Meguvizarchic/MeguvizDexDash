@@ -1,0 +1,39 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "-p",
+    "mdd-facts",
+    "annotations::tests::shared_call_sites_retain_independent_identity_and_physical_bytes",
+    "--",
+    "--exact"
+  ],
+  "exit": 0,
+  "listed_sources_before": {
+    "crates/mdd-facts/src/annotations.rs": "70fca33f2c50a2eaa75b3673fbe2e8105c4d8605c5c38cc49a7dbe18a24f7025",
+    "crates/mdd-facts/src/definitions.rs": "7a2ac801d7ebc89647888f501493ec9629d95b176125a09abddb239e489ac40a",
+    "crates/mdd-facts/src/metadata.rs": "e5fafa598807cc23d011570e7411ee53e1129391362c08b5cef5a38afe040357",
+    "crates/mdd-dex/src/annotations.rs": "f4bf544d7782eeead95a0d98dc5277d18f95992baf7257d4a4d775e8f9be5c74",
+    "crates/mdd-dex/src/definitions.rs": "ccebdce7db90d5ba87bb02e69446b27d4920c5bb3671f9208f7e93e130c259a3",
+    "tests/fixtures/annotations/generate.py": "6bed3eb45f8d0c887c600983a6470daca2be62d51a8b6a277294b3e18a622e22",
+    "artifacts/mdd-022/shared-callsite-view-20261101/generate.py": "9b63886d99f1e2b46bcfe2989c0339228e8ff9194eebfdbe48bb21558edcc36c",
+    "artifacts/mdd-022/shared-callsite-view-20261101/shared.dex": "85192faed724d9313393dbc02bd645c209568e596574a117cb2a865abeb5d1b9",
+    "artifacts/mdd-022/shared-callsite-view-20261101/fixture.json": "5f6d4793176e336af2f81945ee45aa7b8d77428821d7b1708a9764b9695a9812",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089"
+  },
+  "listed_sources_after": {
+    "crates/mdd-facts/src/annotations.rs": "70fca33f2c50a2eaa75b3673fbe2e8105c4d8605c5c38cc49a7dbe18a24f7025",
+    "crates/mdd-facts/src/definitions.rs": "7a2ac801d7ebc89647888f501493ec9629d95b176125a09abddb239e489ac40a",
+    "crates/mdd-facts/src/metadata.rs": "e5fafa598807cc23d011570e7411ee53e1129391362c08b5cef5a38afe040357",
+    "crates/mdd-dex/src/annotations.rs": "f4bf544d7782eeead95a0d98dc5277d18f95992baf7257d4a4d775e8f9be5c74",
+    "crates/mdd-dex/src/definitions.rs": "ccebdce7db90d5ba87bb02e69446b27d4920c5bb3671f9208f7e93e130c259a3",
+    "tests/fixtures/annotations/generate.py": "6bed3eb45f8d0c887c600983a6470daca2be62d51a8b6a277294b3e18a622e22",
+    "artifacts/mdd-022/shared-callsite-view-20261101/generate.py": "9b63886d99f1e2b46bcfe2989c0339228e8ff9194eebfdbe48bb21558edcc36c",
+    "artifacts/mdd-022/shared-callsite-view-20261101/shared.dex": "85192faed724d9313393dbc02bd645c209568e596574a117cb2a865abeb5d1b9",
+    "artifacts/mdd-022/shared-callsite-view-20261101/fixture.json": "5f6d4793176e336af2f81945ee45aa7b8d77428821d7b1708a9764b9695a9812",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089"
+  },
+  "listed_sources_stable": true,
+  "scope": "Synthetic shared call-site array, not runtime bootstrap, ART or full format qualification."
+}
