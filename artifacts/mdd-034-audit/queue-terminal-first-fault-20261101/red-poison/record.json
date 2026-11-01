@@ -1,0 +1,6 @@
+{
+  "command": "cargo test -p mdd-query protocol_fault_reports_poisoned_tracker_before_success_end",
+  "source_sha256_after": "254A11E0FFEC7D4A33ABF7362395FCF63B9CD118F9111505EFFD7A10DFA45666",
+  "exit_code": 101,
+  "source_sha256_before": "254A11E0FFEC7D4A33ABF7362395FCF63B9CD118F9111505EFFD7A10DFA45666"
+}

@@ -3219,10 +3219,12 @@ fn json_batches_post_computation_cancel_and_worker_loss_remain_errors() {
             2
         );
         packet.acknowledge_partial(&first).unwrap();
-        assert!(matches!(
-            receiver.receive().unwrap(),
-            OwnedBatchEvent::End(Ok(()))
-        ));
+        let OwnedBatchEvent::End(Err(end)) = receiver.receive().unwrap() else {
+            panic!("late failure must be reflected in the unconsumed terminal")
+        };
+        assert_eq!(end.code, first.code);
+        assert_eq!(end.stage, first.stage);
+        assert_eq!(end.message, first.message);
         let mut receipt = receiver.into_delivery_receipt().unwrap();
         let envelope = receipt.finish_json_batches(&mut pending).unwrap();
         assert_eq!(envelope.error.unwrap().code, first.code);

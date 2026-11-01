@@ -1,0 +1,8 @@
+   Compiling mdd-query v0.1.0-dev (<workspace>\crates\mdd-query)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.61s
+     Running unittests src\lib.rs (target\debug\deps\mdd_query-82579f4092cfd058.exe)
+
+thread 'budget::tests::duplicate_terminal_replaces_unconsumed_success_with_failure' (37516) panicked at crates\mdd-query\src\budget\tests.rs:76:9:
+a protocol failure must replace an unconsumed successful terminal
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p mdd-query --lib`

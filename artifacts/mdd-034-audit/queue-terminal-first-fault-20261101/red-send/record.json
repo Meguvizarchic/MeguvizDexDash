@@ -1,0 +1,64 @@
+{
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-query/src/budget.rs": "d97aa6589bbe5e6b0557c15f8e54a6bc07be5a5fef3c8f4c8f7b68bba17be637",
+    "crates/mdd-query/src/budget/tests.rs": "c463a09544624ba6c0e6024eccf3136d7eac1b3805718ffd01c2782bab849ee9",
+    "crates/mdd-session/src/lib.rs": "afda23d2dbb014680afa204ed7574387c017740223c6d5f68431c4b5f893efdd",
+    "crates/mdd-session/src/cancellation.rs": "7e3636d5e62cf4de567fb55088f186e5130eb024ddd0517a535e15bcad669114",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  },
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-query/src/budget.rs": "d97aa6589bbe5e6b0557c15f8e54a6bc07be5a5fef3c8f4c8f7b68bba17be637",
+    "crates/mdd-query/src/budget/tests.rs": "c463a09544624ba6c0e6024eccf3136d7eac1b3805718ffd01c2782bab849ee9",
+    "crates/mdd-session/src/lib.rs": "afda23d2dbb014680afa204ed7574387c017740223c6d5f68431c4b5f893efdd",
+    "crates/mdd-session/src/cancellation.rs": "7e3636d5e62cf4de567fb55088f186e5130eb024ddd0517a535e15bcad669114",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  },
+  "runs": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-query",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "unbound_send_after_terminal_cannot_leave_successful_end",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T04:33:59.248002+00:00",
+      "finished_utc": "2026-11-01T04:34:03.512514+00:00",
+      "exit_code": 101,
+      "stdout_raw_sha256": "19881321af1647be4f703bb7dd0c313e9e8a47aec824b6e6cae20a1670df1fdb",
+      "stderr_raw_sha256": "ba10a5208470299bea15af217ce667e7ea290bad901c802525f6f7aeea9588b0"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-query",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "bound_send_inner_invalidates_pending_success_before_returning",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T04:34:03.512541+00:00",
+      "finished_utc": "2026-11-01T04:34:04.047694+00:00",
+      "exit_code": 101,
+      "stdout_raw_sha256": "1c51e0be62345e823fb7f1454de60c0c44d6da5f1a14c564bae4ecf543c42a74",
+      "stderr_raw_sha256": "30ab052032e112445c1ac3c40d423a4003d6d6cff7e0d3750baa2df2104c4907"
+    }
+  ],
+  "scope": "unbound public send and controlled bound send inner linearization; no claim of naturally scheduled concurrent reproduction",
+  "redaction": "workspace paths replaced; originals retained in ignored local evidence"
+}

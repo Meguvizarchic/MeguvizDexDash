@@ -1,0 +1,102 @@
+{
+  "scope": "synthetic native provider interface and return-discovery joins; no full HostLab or profile qualification",
+  "source_before": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-sql/src/provider/metadata.rs": "f14a69f032a58fd3e168d3481e322106f36b083038619ec1de7a04c42590fa4f",
+    "crates/mdd-sql/src/bridge.rs": "6368e757d59f322773f7eb6be775e5c71c3b824a6c67588aceaa21ac08c65159",
+    "crates/mdd-sql/src/dialects/ast.rs": "02202959965839ca25e12a9d61a5b8a3224fda3f91e8596b03477bff14dd7a58",
+    "crates/mdd-query/src/executor.rs": "ec6b20c95c76d6bd7a53450f30dd0db9a72392029816b79f1e046cac1332c206",
+    "crates/mdd-query/src/executor/facts.rs": "7690598fb6da19bda465627c737d3b4582a0a55f99d026df43f250a0153c1292",
+    "crates/mdd-query/src/budget.rs": "b7f19b1999a878994a4e79ae6d61e66e8ae2a4e236d2af1a3b83ed89d92f99d2",
+    "crates/mdd-session/src/lib.rs": "afda23d2dbb014680afa204ed7574387c017740223c6d5f68431c4b5f893efdd",
+    "crates/mdd-session/src/cancellation.rs": "7e3636d5e62cf4de567fb55088f186e5130eb024ddd0517a535e15bcad669114",
+    "crates/mdd-types/src/lib.rs": "59e6f5df23325ac7828b275d8701acacf47b3a75726f59eab3ec6e740df8cd38",
+    "crates/mdd-dex/src/definitions.rs": "ccebdce7db90d5ba87bb02e69446b27d4920c5bb3671f9208f7e93e130c259a3",
+    "crates/mdd-facts/src/definitions.rs": "7a2ac801d7ebc89647888f501493ec9629d95b176125a09abddb239e489ac40a",
+    "tests/fixtures/definitions/generated/definitions-035.dex": "4e8f9e8deedf44c8793e10d99f2614e0bed705dcac617c0d74137e7b2bd459cc",
+    "tests/fixtures/definitions/expected.json": "fe3ec0d314b9b42e7fe842b305898dcea9dfc908ed90c0cad4c44346c8eeb81c"
+  },
+  "source_after": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-sql/src/provider/metadata.rs": "f14a69f032a58fd3e168d3481e322106f36b083038619ec1de7a04c42590fa4f",
+    "crates/mdd-sql/src/bridge.rs": "6368e757d59f322773f7eb6be775e5c71c3b824a6c67588aceaa21ac08c65159",
+    "crates/mdd-sql/src/dialects/ast.rs": "02202959965839ca25e12a9d61a5b8a3224fda3f91e8596b03477bff14dd7a58",
+    "crates/mdd-query/src/executor.rs": "ec6b20c95c76d6bd7a53450f30dd0db9a72392029816b79f1e046cac1332c206",
+    "crates/mdd-query/src/executor/facts.rs": "7690598fb6da19bda465627c737d3b4582a0a55f99d026df43f250a0153c1292",
+    "crates/mdd-query/src/budget.rs": "b7f19b1999a878994a4e79ae6d61e66e8ae2a4e236d2af1a3b83ed89d92f99d2",
+    "crates/mdd-session/src/lib.rs": "afda23d2dbb014680afa204ed7574387c017740223c6d5f68431c4b5f893efdd",
+    "crates/mdd-session/src/cancellation.rs": "7e3636d5e62cf4de567fb55088f186e5130eb024ddd0517a535e15bcad669114",
+    "crates/mdd-types/src/lib.rs": "59e6f5df23325ac7828b275d8701acacf47b3a75726f59eab3ec6e740df8cd38",
+    "crates/mdd-dex/src/definitions.rs": "ccebdce7db90d5ba87bb02e69446b27d4920c5bb3671f9208f7e93e130c259a3",
+    "crates/mdd-facts/src/definitions.rs": "7a2ac801d7ebc89647888f501493ec9629d95b176125a09abddb239e489ac40a",
+    "tests/fixtures/definitions/generated/definitions-035.dex": "4e8f9e8deedf44c8793e10d99f2614e0bed705dcac617c0d74137e7b2bd459cc",
+    "tests/fixtures/definitions/expected.json": "fe3ec0d314b9b42e7fe842b305898dcea9dfc908ed90c0cad4c44346c8eeb81c"
+  },
+  "runs": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-sql",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "native_class_interface_join_keeps_distinct_occurrences",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T04:39:38.962544+00:00",
+      "finished_utc": "2026-11-01T04:39:44.144476+00:00",
+      "exit_code": 0,
+      "stdout_raw_sha256": "f3bd4cad8fab94ba92f4b1d6d91317e2a39f22001ce3d8cb5d9586bbede27cab",
+      "stderr_raw_sha256": "cb5c234ef3e16e36f5a13b5efcff040e2cd6766995c0bd75b985da93a2142308"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-sql",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "native_return_discovery_keeps_occurrences_and_distinct_classes",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T04:39:44.144520+00:00",
+      "finished_utc": "2026-11-01T04:39:44.721481+00:00",
+      "exit_code": 0,
+      "stdout_raw_sha256": "7ad916532a76b96135a42c0cdc1c47350617905bebc3d9f21dbf49a770527c46",
+      "stderr_raw_sha256": "df09dff11ae27f0db2d663f88c70b7d21f46fbd792f35862d56d58b22ba503ea"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-sql",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "short_circuit_cannot_skip_required_layers_and_unused_cte_does_not_build_them",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T04:39:44.721520+00:00",
+      "finished_utc": "2026-11-01T04:39:44.954109+00:00",
+      "exit_code": 0,
+      "stdout_raw_sha256": "c632ac8f0cd02c4b21182afe88df7da38daebb7e75a06be39a429979efdc1d5c",
+      "stderr_raw_sha256": "d7ca7cafe5a3d75afe30b1d973453f53745f2e5564d26287e7fb6dea82f13170"
+    }
+  ],
+  "redaction": "workspace paths replaced; raw logs retained in ignored local artifacts"
+}

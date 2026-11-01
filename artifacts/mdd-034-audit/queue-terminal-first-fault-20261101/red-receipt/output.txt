@@ -1,0 +1,22 @@
+   Compiling mdd-query v0.1.0-dev (<workspace>\crates\mdd-query)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.53s
+     Running unittests src\lib.rs (target\debug\deps\mdd_query-82579f4092cfd058.exe)
+
+running 1 test
+test executor::runtime_tests::json_batches_post_computation_cancel_and_worker_loss_remain_errors ... FAILED
+
+failures:
+
+---- executor::runtime_tests::json_batches_post_computation_cancel_and_worker_loss_remain_errors stdout ----
+
+thread 'executor::runtime_tests::json_batches_post_computation_cancel_and_worker_loss_remain_errors' (41724) panicked at crates\mdd-query\src\executor\runtime_tests.rs:3229:66:
+called `Result::unwrap()` on an `Err` value: MddError { code: InvalidArgument, stage: "query.ir", message: "DELIVERY_RECEIPT_QUEUE_OR_QUERY_MISMATCH", retryable: false, details: {"reason": String("DELIVERY_RECEIPT_QUEUE_OR_QUERY_MISMATCH")} }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    executor::runtime_tests::json_batches_post_computation_cancel_and_worker_loss_remain_errors
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 163 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p mdd-query --lib`

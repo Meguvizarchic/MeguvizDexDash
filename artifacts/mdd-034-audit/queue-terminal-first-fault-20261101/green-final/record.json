@@ -1,0 +1,85 @@
+{
+  "command_template": "cargo test -p mdd-query <filter>",
+  "runs": [
+    {
+      "exit_code": 0,
+      "filter": "duplicate_terminal_keeps_first_query_failure",
+      "output": "duplicate_terminal_keeps_first_query_failure.txt"
+    },
+    {
+      "exit_code": 0,
+      "filter": "read_after_terminal_keeps_first_query_failure",
+      "output": "read_after_terminal_keeps_first_query_failure.txt"
+    },
+    {
+      "exit_code": 0,
+      "filter": "duplicate_successful_terminal_is_still_protocol_error",
+      "output": "duplicate_successful_terminal_is_still_protocol_error.txt"
+    },
+    {
+      "exit_code": 0,
+      "filter": "duplicate_terminal_replaces_unconsumed_success_with_failure",
+      "output": "duplicate_terminal_replaces_unconsumed_success_with_failure.txt"
+    },
+    {
+      "exit_code": 0,
+      "filter": "unbound_send_after_terminal_cannot_leave_successful_end",
+      "output": "unbound_send_after_terminal_cannot_leave_successful_end.txt"
+    },
+    {
+      "exit_code": 0,
+      "filter": "bound_send_inner_invalidates_pending_success_before_returning",
+      "output": "bound_send_inner_invalidates_pending_success_before_returning.txt"
+    },
+    {
+      "exit_code": 0,
+      "filter": "pending_success_terminal_does_not_hide_late_cancellation",
+      "output": "pending_success_terminal_does_not_hide_late_cancellation.txt"
+    },
+    {
+      "exit_code": 0,
+      "filter": "pending_success_terminal_does_not_hide_late_worker_loss",
+      "output": "pending_success_terminal_does_not_hide_late_worker_loss.txt"
+    },
+    {
+      "exit_code": 0,
+      "filter": "protocol_fault_reports_poisoned_tracker_before_success_end",
+      "output": "protocol_fault_reports_poisoned_tracker_before_success_end.txt"
+    },
+    {
+      "exit_code": 0,
+      "filter": "poisoned_tracker_preserves_recorded_worker_loss",
+      "output": "poisoned_tracker_preserves_recorded_worker_loss.txt"
+    },
+    {
+      "exit_code": 0,
+      "filter": "delivered_success_cannot_be_retracted_but_receipt_is_rejected",
+      "output": "delivered_success_cannot_be_retracted_but_receipt_is_rejected.txt"
+    },
+    {
+      "exit_code": 0,
+      "filter": "late_failure_receipt_requires_exact_first_error_and_binding",
+      "output": "late_failure_receipt_requires_exact_first_error_and_binding.txt"
+    },
+    {
+      "exit_code": 0,
+      "filter": "owned_batch_queue_",
+      "output": "owned_batch_queue_.txt"
+    },
+    {
+      "exit_code": 0,
+      "filter": "json_batches_",
+      "output": "json_batches_.txt"
+    }
+  ],
+  "source_sha256_before": {
+    "crates/mdd-query/src/executor/runtime_tests.rs": "A54CD55AA5DB2B080442C7776524F14452FC58FE0558991E03D50DBAFE5A865B",
+    "crates/mdd-query/src/budget/tests.rs": "2AB19F24C8732D3891C60C24D61FF83295F78A9B100EAEE9170FBD874E7BBEB8",
+    "crates/mdd-query/src/budget.rs": "B7F19B1999A878994A4E79AE6D61E66E8AE2A4E236D2AF1A3B83ED89D92F99D2"
+  },
+  "source_sha256_after": {
+    "crates/mdd-query/src/executor/runtime_tests.rs": "A54CD55AA5DB2B080442C7776524F14452FC58FE0558991E03D50DBAFE5A865B",
+    "crates/mdd-query/src/budget/tests.rs": "2AB19F24C8732D3891C60C24D61FF83295F78A9B100EAEE9170FBD874E7BBEB8",
+    "crates/mdd-query/src/budget.rs": "B7F19B1999A878994A4E79AE6D61E66E8AE2A4E236D2AF1A3B83ED89D92F99D2"
+  }
+}

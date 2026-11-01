@@ -2,6 +2,285 @@ use super::*;
 use std::sync::mpsc;
 use std::thread;
 
+#[test]
+fn duplicate_terminal_keeps_first_query_failure() {
+    let (_, _, _, _, runtime) = owned_queue_test_runtime(BudgetLimits::default());
+    let (sender, _receiver) = bounded_channel::<()>(
+        runtime.pool().clone(),
+        Some(runtime.cancellation().clone()),
+        1,
+    )
+    .unwrap();
+    let first = MddError::new(ErrorCode::WorkerLost, "test.worker", "worker stopped");
+    sender.finish(Err(first.clone())).unwrap();
+    let actual = sender.finish(Ok(())).unwrap_err();
+    assert_eq!(actual.code, first.code);
+    assert_eq!(actual.stage, first.stage);
+    assert_eq!(actual.message, first.message);
+}
+
+#[test]
+fn read_after_terminal_keeps_first_query_failure() {
+    let (_, _, _, _, runtime) = owned_queue_test_runtime(BudgetLimits::default());
+    let (sender, mut receiver) = bounded_channel::<()>(
+        runtime.pool().clone(),
+        Some(runtime.cancellation().clone()),
+        1,
+    )
+    .unwrap();
+    let first = MddError::new(ErrorCode::Cancelled, "test.cancel", "cancelled by caller");
+    sender.finish(Err(first.clone())).unwrap();
+    let QueueEvent::End(Err(end)) = receiver.receive().unwrap() else {
+        panic!("expected the original failure terminal")
+    };
+    assert_eq!(end.code, first.code);
+    let actual = receiver.receive().err().unwrap();
+    assert_eq!(actual.code, first.code);
+    assert_eq!(actual.stage, first.stage);
+    assert_eq!(actual.message, first.message);
+}
+
+#[test]
+fn duplicate_successful_terminal_is_still_protocol_error() {
+    let (_, _, _, _, runtime) = owned_queue_test_runtime(BudgetLimits::default());
+    let (sender, _receiver) = bounded_channel::<()>(
+        runtime.pool().clone(),
+        Some(runtime.cancellation().clone()),
+        1,
+    )
+    .unwrap();
+    sender.finish(Ok(())).unwrap();
+    assert_eq!(
+        sender.finish(Ok(())).unwrap_err().code,
+        ErrorCode::InvalidArgument
+    );
+    assert_eq!(
+        runtime.cancellation().status().unwrap().error.unwrap().code,
+        ErrorCode::InvalidArgument
+    );
+}
+
+#[test]
+fn duplicate_terminal_replaces_unconsumed_success_with_failure() {
+    let (_, _, _, _, runtime) = owned_queue_test_runtime(BudgetLimits::default());
+    let (sender, mut receiver) = bounded_channel::<()>(
+        runtime.pool().clone(),
+        Some(runtime.cancellation().clone()),
+        1,
+    )
+    .unwrap();
+    sender.finish(Ok(())).unwrap();
+    let first = sender.finish(Ok(())).unwrap_err();
+    assert_eq!(first.code, ErrorCode::InvalidArgument);
+    let QueueEvent::End(Err(end)) = receiver.receive().unwrap() else {
+        panic!("a protocol failure must replace an unconsumed successful terminal")
+    };
+    assert_eq!(end.code, first.code);
+    assert_eq!(end.stage, first.stage);
+    assert_eq!(end.message, first.message);
+}
+
+#[test]
+fn unbound_send_after_terminal_cannot_leave_successful_end() {
+    let pool = BudgetPool::global("unbound-terminal".into(), BudgetLimits::default()).unwrap();
+    let (sender, mut receiver) = bounded_channel::<()>(pool, None, 1).unwrap();
+    sender.finish(Ok(())).unwrap();
+    assert_eq!(
+        sender.send((), 0).unwrap_err().code,
+        ErrorCode::InvalidArgument
+    );
+    let QueueEvent::End(Err(end)) = receiver.receive().unwrap() else {
+        panic!("send after terminal must not leave an unconsumed successful End")
+    };
+    assert_eq!(end.code, ErrorCode::InvalidArgument);
+}
+
+#[test]
+fn bound_send_inner_invalidates_pending_success_before_returning() {
+    let (_, _, _, _, runtime) = owned_queue_test_runtime(BudgetLimits::default());
+    let (sender, mut receiver) = bounded_channel::<()>(
+        runtime.pool().clone(),
+        Some(runtime.cancellation().clone()),
+        1,
+    )
+    .unwrap();
+    sender.finish(Ok(())).unwrap();
+    let lease = sender.reserve_payload(0).unwrap();
+    assert_eq!(
+        sender.send_reserved_inner((), 0, lease).unwrap_err().code,
+        ErrorCode::InvalidArgument
+    );
+    let QueueEvent::End(Err(end)) = receiver.receive().unwrap() else {
+        panic!("inner send must invalidate an unconsumed successful End")
+    };
+    assert_eq!(end.code, ErrorCode::InvalidArgument);
+}
+
+#[test]
+fn pending_success_terminal_does_not_hide_late_cancellation() {
+    let (_, _, _, _, runtime) = owned_queue_test_runtime(BudgetLimits::default());
+    let (sender, mut receiver) = bounded_channel::<()>(
+        runtime.pool().clone(),
+        Some(runtime.cancellation().clone()),
+        1,
+    )
+    .unwrap();
+    sender.finish(Ok(())).unwrap();
+    runtime.cancellation().cancel().unwrap();
+    let QueueEvent::End(Err(end)) = receiver.receive().unwrap() else {
+        panic!("an unconsumed terminal must report the recorded cancellation")
+    };
+    assert_eq!(end.code, ErrorCode::Cancelled);
+}
+
+#[test]
+fn pending_success_terminal_does_not_hide_late_worker_loss() {
+    let (lifecycle, _, _, _, runtime) = owned_queue_test_runtime(BudgetLimits::default());
+    let (sender, mut receiver) = bounded_channel::<()>(
+        runtime.pool().clone(),
+        Some(runtime.cancellation().clone()),
+        1,
+    )
+    .unwrap();
+    sender.finish(Ok(())).unwrap();
+    lifecycle
+        .worker_lost("worker was lost after producer finished")
+        .unwrap();
+    let QueueEvent::End(Err(end)) = receiver.receive().unwrap() else {
+        panic!("an unconsumed terminal must report the recorded worker loss")
+    };
+    assert_eq!(end.code, ErrorCode::WorkerLost);
+}
+
+#[test]
+fn protocol_fault_reports_poisoned_tracker_before_success_end() {
+    let (_, _, _, _, runtime) = owned_queue_test_runtime(BudgetLimits::default());
+    let (sender, mut receiver) = bounded_channel::<()>(
+        runtime.pool().clone(),
+        Some(runtime.cancellation().clone()),
+        1,
+    )
+    .unwrap();
+    sender.finish(Ok(())).unwrap();
+    let tracker = Arc::clone(sender.0.delivery.as_ref().unwrap());
+    assert!(
+        thread::spawn(move || {
+            let _guard = tracker.state.lock().unwrap();
+            panic!("inject delivery tracker poisoning");
+        })
+        .join()
+        .is_err()
+    );
+    let error = sender.finish(Ok(())).unwrap_err();
+    assert_eq!(error.code, ErrorCode::InternalFault);
+    assert_eq!(
+        runtime.cancellation().status().unwrap().error.unwrap().code,
+        ErrorCode::InternalFault
+    );
+    // A poisoned tracker also prevents safely delivering a terminal; it must
+    // surface the first internal fault rather than a successful End.
+    assert_eq!(
+        receiver.receive().err().unwrap().code,
+        ErrorCode::InternalFault
+    );
+}
+
+#[test]
+fn poisoned_tracker_preserves_recorded_worker_loss() {
+    let (_, _, _, _, runtime) = owned_queue_test_runtime(BudgetLimits::default());
+    let (sender, mut receiver) = bounded_channel::<()>(
+        runtime.pool().clone(),
+        Some(runtime.cancellation().clone()),
+        1,
+    )
+    .unwrap();
+    let first = MddError::new(ErrorCode::WorkerLost, "test.worker", "worker stopped");
+    sender.finish(Err(first.clone())).unwrap();
+    let tracker = Arc::clone(sender.0.delivery.as_ref().unwrap());
+    assert!(
+        thread::spawn(move || {
+            let _guard = tracker.state.lock().unwrap();
+            panic!("inject delivery tracker poisoning");
+        })
+        .join()
+        .is_err()
+    );
+    let actual = sender.finish(Ok(())).unwrap_err();
+    assert_eq!(actual.code, first.code);
+    assert_eq!(actual.stage, first.stage);
+    assert_eq!(actual.message, first.message);
+    assert_eq!(
+        receiver.receive().err().unwrap().code,
+        ErrorCode::WorkerLost
+    );
+}
+
+#[test]
+fn delivered_success_cannot_be_retracted_but_receipt_is_rejected() {
+    let (_, _, _, _, runtime) = owned_queue_test_runtime(BudgetLimits::default());
+    let (sender, mut receiver) = bounded_channel::<()>(
+        runtime.pool().clone(),
+        Some(runtime.cancellation().clone()),
+        1,
+    )
+    .unwrap();
+    sender.finish(Ok(())).unwrap();
+    assert!(matches!(
+        receiver.receive().unwrap(),
+        QueueEvent::End(Ok(()))
+    ));
+    assert_eq!(
+        sender.finish(Ok(())).unwrap_err().code,
+        ErrorCode::InvalidArgument
+    );
+    assert!(receiver.into_delivery_receipt().is_err());
+    assert_eq!(
+        runtime.cancellation().status().unwrap().error.unwrap().code,
+        ErrorCode::InvalidArgument
+    );
+}
+
+#[test]
+fn late_failure_receipt_requires_exact_first_error_and_binding() {
+    let (_, _, _, _, runtime) = owned_queue_test_runtime(BudgetLimits::default());
+    let (sender, mut receiver) = bounded_channel::<()>(
+        runtime.pool().clone(),
+        Some(runtime.cancellation().clone()),
+        1,
+    )
+    .unwrap();
+    sender.finish(Ok(())).unwrap();
+    runtime.cancellation().cancel().unwrap();
+    let first = runtime.cancellation().status().unwrap().error.unwrap();
+    assert!(matches!(
+        receiver.receive().unwrap(),
+        QueueEvent::End(Err(_))
+    ));
+    let receipt = receiver.into_delivery_receipt().unwrap();
+    assert!(receipt.matches(&sender, &runtime, 0, None).unwrap());
+    assert!(!receipt.matches(&sender, &runtime, 1, None).unwrap());
+    let (_, _, _, _, foreign) = owned_queue_test_runtime(BudgetLimits::default());
+    assert!(!receipt.matches(&sender, &foreign, 0, None).unwrap());
+    let mut variants = Vec::new();
+    let mut other = first.clone();
+    other.code = ErrorCode::WorkerLost;
+    variants.push(other);
+    let mut other = first.clone();
+    other.stage.push_str(".other");
+    variants.push(other);
+    let mut other = first.clone();
+    other.message.push_str(" other");
+    variants.push(other);
+    let mut other = first.clone();
+    other.retryable = !other.retryable;
+    variants.push(other);
+    variants.push(first.clone().detail("other", "value"));
+    for other in variants {
+        receipt.tracker.state.lock().unwrap().end_error = Some(other);
+        assert!(!receipt.matches(&sender, &runtime, 0, None).unwrap());
+    }
+}
+
 fn owned_queue_test_runtime(
     limits: BudgetLimits,
 ) -> (

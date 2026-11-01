@@ -1,0 +1,64 @@
+{
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-query/src/budget.rs": "d97aa6589bbe5e6b0557c15f8e54a6bc07be5a5fef3c8f4c8f7b68bba17be637",
+    "crates/mdd-query/src/budget/tests.rs": "87137fab0f2d1e1df357db76eea6c56b478af119689b018596be2514597e93cf",
+    "crates/mdd-session/src/lib.rs": "afda23d2dbb014680afa204ed7574387c017740223c6d5f68431c4b5f893efdd",
+    "crates/mdd-session/src/cancellation.rs": "7e3636d5e62cf4de567fb55088f186e5130eb024ddd0517a535e15bcad669114",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  },
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-query/src/budget.rs": "d97aa6589bbe5e6b0557c15f8e54a6bc07be5a5fef3c8f4c8f7b68bba17be637",
+    "crates/mdd-query/src/budget/tests.rs": "87137fab0f2d1e1df357db76eea6c56b478af119689b018596be2514597e93cf",
+    "crates/mdd-session/src/lib.rs": "afda23d2dbb014680afa204ed7574387c017740223c6d5f68431c4b5f893efdd",
+    "crates/mdd-session/src/cancellation.rs": "7e3636d5e62cf4de567fb55088f186e5130eb024ddd0517a535e15bcad669114",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  },
+  "runs": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-query",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "pending_success_terminal_does_not_hide_late_cancellation",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T04:34:42.106008+00:00",
+      "finished_utc": "2026-11-01T04:34:45.203883+00:00",
+      "exit_code": 101,
+      "stdout_raw_sha256": "ad5902a7b50d651281943beba3ded397a9c31b4046b8bee18151a5d0c6639376",
+      "stderr_raw_sha256": "51dbee5bee4c4c72786ff7707dda6211fc27c973142d034d84e9074047293631"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-query",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "pending_success_terminal_does_not_hide_late_worker_loss",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T04:34:45.203908+00:00",
+      "finished_utc": "2026-11-01T04:34:45.422498+00:00",
+      "exit_code": 101,
+      "stdout_raw_sha256": "f8525fc42d4e1c300ff8c18628545d8a7d4601a1ef2bdd2a3d006a84c5d89cda",
+      "stderr_raw_sha256": "a7617967ec711fa4d5b5ff70649a7c86c3949fdf7331448c1992e173f0fca746"
+    }
+  ],
+  "scope": "public bound queue; producer Ok End followed by explicit cancel or injected worker loss before receive",
+  "redaction": "workspace paths replaced; originals retained in ignored local evidence"
+}

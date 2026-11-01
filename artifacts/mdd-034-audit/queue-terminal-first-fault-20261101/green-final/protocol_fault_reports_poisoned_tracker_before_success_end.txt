@@ -1,0 +1,8 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.11s
+     Running unittests src\lib.rs (target\debug\deps\mdd_query-82579f4092cfd058.exe)
+
+running 1 test
+test budget::tests::protocol_fault_reports_poisoned_tracker_before_success_end ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 164 filtered out; finished in 0.00s
+

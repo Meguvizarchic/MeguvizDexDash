@@ -4294,6 +4294,177 @@ mod tests {
         assert!(saw_absent_data && saw_empty_data);
     }
     #[test]
+    fn native_class_interface_join_keeps_distinct_occurrences() {
+        use mdd_dex::definitions::DefinitionLimits;
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/definitions/generated/definitions-035.dex");
+        let input = InputSpec {
+            path,
+            kind: InputKind::RawDex,
+            expected_sha256: None,
+        };
+        let snapshot =
+            Snapshot::capture(&[input.clone(), input], CaptureLimits::default()).unwrap();
+        let mut facts = Vec::new();
+        for source in snapshot.sources() {
+            let inventory = ArchiveInventory::build(
+                source,
+                InventoryPolicy::default(),
+                ArchiveLimits::default(),
+            )
+            .unwrap();
+            let metadata =
+                MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default()).unwrap();
+            facts.push(Arc::new(
+                DefinitionFacts::build(metadata, DefinitionLimits::default()).unwrap(),
+            ));
+        }
+        let oracle: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/definitions/expected.json"
+        ))
+        .unwrap();
+        let mut expected = Vec::new();
+        for item in &facts {
+            let occurrence = item.metadata().source().dex_occurrence_id.clone();
+            for triple in oracle["definitions-035"]["interfaces"].as_array().unwrap() {
+                expected.push((
+                    occurrence.clone(),
+                    triple[0].as_str().unwrap().to_owned(),
+                    triple[2].as_str().unwrap().to_owned(),
+                    triple[1].as_u64().unwrap(),
+                ));
+            }
+        }
+        expected.sort();
+        assert_eq!(expected.len(), 4);
+        assert_ne!(
+            facts[0].metadata().source().dex_occurrence_id,
+            facts[1].metadata().source().dex_occurrence_id
+        );
+        let provider = Arc::new(DefinitionSqlProvider::new(facts, DecimalU64(0)).unwrap());
+        let sql = "SELECT i.dex_occurrence_id,c.descriptor,i.descriptor,i.ordinal FROM native_class_interfaces i JOIN native_classes c ON c.dex_occurrence_id=i.dex_occurrence_id AND c.type_idx=i.class_type_idx WHERE c.descriptor IN ('Lfixture/I1;','Lfixture/Base;') ORDER BY i.dex_occurrence_id,i.class_type_idx,i.ordinal";
+        for dialect in [
+            SqlDialect::NativeV1,
+            SqlDialect::DexSql010,
+            SqlDialect::DexSql011,
+        ] {
+            let bridge = SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+            let result = bridge.query(sql).unwrap();
+            let mut actual = result
+                .rows()
+                .iter()
+                .map(|row| {
+                    let text = |value: &SqlValue| match value {
+                        SqlValue::Text(value) => value.strict_utf8().unwrap(),
+                        other => panic!("unexpected text: {other:?}"),
+                    };
+                    let SqlValue::U64(DecimalU64(ordinal)) = row[3] else {
+                        panic!("unexpected interface ordinal: {:?}", row[3]);
+                    };
+                    (text(&row[0]), text(&row[1]), text(&row[2]), ordinal)
+                })
+                .collect::<Vec<_>>();
+            actual.sort();
+            assert_eq!(actual, expected, "{dialect:?}");
+        }
+    }
+    #[test]
+    fn native_return_discovery_keeps_occurrences_and_distinct_classes() {
+        use mdd_dex::definitions::DefinitionLimits;
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/definitions/generated/definitions-035.dex");
+        let input = InputSpec {
+            path,
+            kind: InputKind::RawDex,
+            expected_sha256: None,
+        };
+        let snapshot =
+            Snapshot::capture(&[input.clone(), input], CaptureLimits::default()).unwrap();
+        let mut metadata = Vec::new();
+        let mut definitions = Vec::new();
+        for source in snapshot.sources() {
+            let inventory = ArchiveInventory::build(
+                source,
+                InventoryPolicy::default(),
+                ArchiveLimits::default(),
+            )
+            .unwrap();
+            let facts =
+                MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default()).unwrap();
+            definitions.push(Arc::new(
+                DefinitionFacts::build(facts.clone(), DefinitionLimits::default()).unwrap(),
+            ));
+            metadata.push(Arc::new(facts));
+        }
+        let oracle: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/definitions/expected.json"
+        ))
+        .unwrap();
+        let mut expected_methods = Vec::new();
+        let mut expected_classes = std::collections::BTreeSet::new();
+        for method in oracle["definitions-035"]["methods"].as_array().unwrap() {
+            let descriptor = method[0].as_str().unwrap();
+            if descriptor.ends_with(")I") {
+                let (owner, name_and_proto) = descriptor.split_once("->").unwrap();
+                let name = name_and_proto.split_once('(').unwrap().0;
+                expected_classes.insert(owner.to_owned());
+                for item in &metadata {
+                    expected_methods.push((
+                        item.source().dex_occurrence_id.clone(),
+                        owner.to_owned(),
+                        name.to_owned(),
+                    ));
+                }
+            }
+        }
+        expected_methods.sort();
+        assert_eq!(expected_methods.len(), 4);
+        let meta = Arc::new(MetadataSqlProvider::new(metadata, DecimalU64(0)).unwrap());
+        let defs = Arc::new(DefinitionSqlProvider::new(definitions, DecimalU64(0)).unwrap());
+        let provider = Arc::new(CombinedSqlProvider::new(meta, defs).unwrap());
+        let join = " FROM native_method_definitions d JOIN native_method_references m ON d.dex_occurrence_id=m.dex_occurrence_id AND d.method_idx=m.method_idx JOIN native_prototypes p ON m.dex_occurrence_id=p.dex_occurrence_id AND m.prototype_idx=p.proto_idx JOIN native_types t ON p.dex_occurrence_id=t.dex_occurrence_id AND p.return_type_idx=t.type_idx";
+        let text = |value: &SqlValue| match value {
+            SqlValue::Text(value) => value.strict_utf8().unwrap(),
+            other => panic!("unexpected text: {other:?}"),
+        };
+        for dialect in [
+            SqlDialect::NativeV1,
+            SqlDialect::DexSql010,
+            SqlDialect::DexSql011,
+        ] {
+            let bridge = SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+            let sql = format!(
+                "SELECT d.dex_occurrence_id,m.dex_occurrence_id,p.dex_occurrence_id,t.dex_occurrence_id,m.class_descriptor,m.name{join} WHERE t.descriptor='I'"
+            );
+            let result = bridge.query(&sql).unwrap();
+            let mut actual = Vec::new();
+            for row in result.rows() {
+                let occurrence = text(&row[0]);
+                for source in &row[1..4] {
+                    assert_eq!(text(source), occurrence, "cross-source join in {dialect:?}");
+                }
+                actual.push((occurrence, text(&row[4]), text(&row[5])));
+            }
+            actual.sort();
+            assert_eq!(actual, expected_methods, "{dialect:?}");
+            let distinct = bridge.query(&format!("SELECT DISTINCT m.class_descriptor{join} WHERE t.descriptor='I' ORDER BY m.class_descriptor")).unwrap();
+            let classes = distinct
+                .rows()
+                .iter()
+                .map(|row| text(&row[0]))
+                .collect::<Vec<_>>();
+            assert_eq!(
+                classes,
+                expected_classes.iter().cloned().collect::<Vec<_>>(),
+                "{dialect:?}"
+            );
+            let outer = "SELECT d.dex_occurrence_id,t.descriptor FROM native_method_definitions d LEFT JOIN native_types t ON d.dex_occurrence_id=t.dex_occurrence_id AND d.class_type_idx=t.type_idx AND t.descriptor='Lfixture/Missing;' WHERE t.descriptor IS NULL";
+            let rows = bridge.query(outer).unwrap();
+            assert_eq!(rows.rows().len(), 20, "{dialect:?}");
+            assert!(rows.rows().iter().all(|row| row[1] == SqlValue::Null));
+        }
+    }
+    #[test]
     fn native_class_relations_preserve_sources_nulls_and_interfaces() {
         use mdd_dex::definitions::DefinitionLimits;
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");

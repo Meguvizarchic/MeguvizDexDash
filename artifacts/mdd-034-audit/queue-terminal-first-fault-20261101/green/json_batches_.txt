@@ -1,0 +1,26 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+     Running unittests src\lib.rs (target\debug\deps\mdd_query-82579f4092cfd058.exe)
+
+running 6 tests
+test executor::runtime_tests::json_batches_invalid_source_row_reports_truncation ... ok
+test executor::runtime_tests::json_batches_post_computation_cancel_and_worker_loss_remain_errors ... FAILED
+test executor::runtime_tests::json_batches_partial_failure_preserves_consumed_rows_and_error ... ok
+test executor::runtime_tests::json_batches_byte_limit_splits_rows_without_loss ... ok
+test executor::runtime_tests::json_batches_execute_multiple_rows_and_bind_delivery ... ok
+test executor::runtime_tests::json_batches_zero_partial_and_limits_never_fake_complete ... ok
+
+failures:
+
+---- executor::runtime_tests::json_batches_post_computation_cancel_and_worker_loss_remain_errors stdout ----
+
+thread 'executor::runtime_tests::json_batches_post_computation_cancel_and_worker_loss_remain_errors' (28532) panicked at crates\mdd-query\src\executor\runtime_tests.rs:3222:9:
+assertion failed: matches!(receiver.receive().unwrap(), OwnedBatchEvent::End(Ok(())))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    executor::runtime_tests::json_batches_post_computation_cancel_and_worker_loss_remain_errors
+
+test result: FAILED. 5 passed; 1 failed; 0 ignored; 0 measured; 158 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p mdd-query --lib`

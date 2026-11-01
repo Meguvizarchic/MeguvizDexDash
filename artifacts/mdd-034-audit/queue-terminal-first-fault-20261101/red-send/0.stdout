@@ -1,0 +1,11 @@
+
+running 1 test
+test budget::tests::unbound_send_after_terminal_cannot_leave_successful_end ... FAILED
+
+failures:
+
+failures:
+    budget::tests::unbound_send_after_terminal_cannot_leave_successful_end
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 158 filtered out; finished in 0.00s
+

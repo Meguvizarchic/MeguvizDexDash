@@ -1,0 +1,9 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.23s
+     Running unittests src\lib.rs (target\debug\deps\mdd_query-82579f4092cfd058.exe)
+
+thread 'budget::tests::read_after_terminal_keeps_first_query_failure' (18176) panicked at crates\mdd-query\src\budget\tests.rs:38:5:
+assertion `left == right` failed
+  left: InvalidArgument
+ right: Cancelled
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p mdd-query --lib`

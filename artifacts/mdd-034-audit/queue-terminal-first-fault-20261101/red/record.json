@@ -1,0 +1,64 @@
+{
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-query/src/budget.rs": "99b013a1e3ac90ced738d4a6ec678b4357a7a7b807e319d0789ffdde1a331ba4",
+    "crates/mdd-query/src/budget/tests.rs": "f7975208088fbf1945156f7d36512eda6d94984578165829be427f32a3324821",
+    "crates/mdd-session/src/lib.rs": "afda23d2dbb014680afa204ed7574387c017740223c6d5f68431c4b5f893efdd",
+    "crates/mdd-session/src/cancellation.rs": "7e3636d5e62cf4de567fb55088f186e5130eb024ddd0517a535e15bcad669114",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  },
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-query/src/budget.rs": "99b013a1e3ac90ced738d4a6ec678b4357a7a7b807e319d0789ffdde1a331ba4",
+    "crates/mdd-query/src/budget/tests.rs": "f7975208088fbf1945156f7d36512eda6d94984578165829be427f32a3324821",
+    "crates/mdd-session/src/lib.rs": "afda23d2dbb014680afa204ed7574387c017740223c6d5f68431c4b5f893efdd",
+    "crates/mdd-session/src/cancellation.rs": "7e3636d5e62cf4de567fb55088f186e5130eb024ddd0517a535e15bcad669114",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  },
+  "runs": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-query",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "duplicate_terminal_keeps_first_query_failure",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T04:30:37.928633+00:00",
+      "finished_utc": "2026-11-01T04:31:02.181030+00:00",
+      "exit_code": 101,
+      "stdout_raw_sha256": "a1a6408ddfcdac7e16fa7095fb2dc70939b711fba74b94a311c5c947b37662ce",
+      "stderr_raw_sha256": "43becf96ce6dac22ac7ffe073972191dd8a4086b69850f5498545d032b588819"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-query",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "read_after_terminal_keeps_first_query_failure",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T04:31:02.181067+00:00",
+      "finished_utc": "2026-11-01T04:31:02.621376+00:00",
+      "exit_code": 101,
+      "stdout_raw_sha256": "2d3310f7e99cc9ae0c1858999e06da0c2aaceb544b84149720f7194a28dd1a9d",
+      "stderr_raw_sha256": "1890a1008e3bd56a434b2ddcc286906a331e8f2b405562d9e44bfce3ab1eb5cf"
+    }
+  ],
+  "scope": "two controlled query-bound queue first-failure counterexamples; no full qualification",
+  "redaction": "workspace paths replaced; originals retained in ignored local evidence"
+}

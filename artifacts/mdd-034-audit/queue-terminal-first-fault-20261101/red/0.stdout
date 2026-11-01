@@ -1,0 +1,11 @@
+
+running 1 test
+test budget::tests::duplicate_terminal_keeps_first_query_failure ... FAILED
+
+failures:
+
+failures:
+    budget::tests::duplicate_terminal_keeps_first_query_failure
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 155 filtered out; finished in 0.00s
+

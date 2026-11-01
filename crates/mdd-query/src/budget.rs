@@ -1399,12 +1399,29 @@ impl<T> Channel<T> {
     }
     fn protocol_fault(&self, error: MddError) -> MddError {
         if let Some(tracker) = &self.delivery {
-            if let Ok(mut state) = tracker.state.lock() {
-                state.abandoned = true;
-            }
-            let _ = tracker.cancel.fail(error.clone());
+            let candidate = match tracker.state.lock() {
+                Ok(mut state) => {
+                    state.abandoned = true;
+                    error
+                }
+                Err(_) => fault("delivery tracking mutex poisoned"),
+            };
+            return match tracker.cancel.fail(candidate.clone()) {
+                Ok(status) => status.error.unwrap_or(candidate),
+                Err(failure) => failure,
+            };
         }
         error
+    }
+    // The queue lock is held by the caller. A protocol error observed before
+    // End delivery must not leave a successful terminal available to receive.
+    fn protocol_fault_locked(&self, state: &mut QueueState<T>, error: MddError) -> MddError {
+        let first = self.protocol_fault(error);
+        if !state.end_delivered && state.terminal.as_ref().is_some_and(Result::is_ok) {
+            state.terminal = Some(Err(first.clone()));
+            self.changed.notify_all();
+        }
+        first
     }
     fn bound_query_failure(&self, error: MddError) -> MddError {
         match &self.cancel {
@@ -1688,8 +1705,9 @@ impl<T> BoundedSender<T> {
                 ));
             }
             if state.terminal.is_some() || state.end_delivered {
-                drop(state);
-                return Err(self.0.protocol_fault(invalid("send after terminal")));
+                return Err(self
+                    .0
+                    .protocol_fault_locked(&mut state, invalid("send after terminal")));
             }
             if state.entries.len() < self.0.capacity {
                 let reservations = (|| {
@@ -1771,8 +1789,9 @@ impl<T> BoundedSender<T> {
             .lock()
             .map_err(|_| self.0.bound_query_failure(fault("queue mutex poisoned")))?;
         if state.terminal.is_some() || state.end_delivered {
-            drop(state);
-            return Err(self.0.protocol_fault(invalid("duplicate queue terminal")));
+            return Err(self
+                .0
+                .protocol_fault_locked(&mut state, invalid("duplicate queue terminal")));
         }
         if state.receiver_closed {
             return Err(MddError::new(
@@ -1853,13 +1872,10 @@ impl<T> BoundedReceiver<T> {
                 return Err(self.0.protocol_fault(invalid("read after queue terminal")));
             }
             if let Some(mut end) = state.terminal.take() {
-                // An unbound queue has no later delivery receipt at which to
-                // recheck its budget. Confirm the deadline when the consumer
-                // actually receives a successful End, while retaining any
-                // error already published by the producer. Bound queues use
-                // their query receipt for the final delivery decision.
+                // Recheck when End is received so late cancellation, worker
+                // loss or an expired budget cannot appear as a successful
+                // terminal. Already-published failures retain their first error.
                 if end.is_ok()
-                    && self.0.delivery.is_none()
                     && let Err(error) = self.0.checkpoint()
                 {
                     end = Err(error);
@@ -1974,15 +1990,26 @@ impl QueueDeliveryReceipt {
                 Err(failure) => failure,
             }
         })?;
+        let same_error_fields = |actual: &MddError, expected: &MddError| {
+            actual.code == expected.code
+                && actual.stage == expected.stage
+                && actual.message == expected.message
+                && actual.retryable == expected.retryable
+                && actual.details == expected.details
+        };
         let same_error = match (state.end_error.as_ref(), error) {
             (None, None) => true,
-            (Some(actual), Some(expected)) => {
-                actual.code == expected.code
-                    && actual.stage == expected.stage
-                    && actual.message == expected.message
-                    && actual.retryable == expected.retryable
-                    && actual.details == expected.details
-            }
+            (Some(actual), Some(expected)) => same_error_fields(actual, expected),
+            // A failure can be recorded after production succeeds but before
+            // the receiver observes End. Accept only the query's exact first
+            // failure; the normal finalization path still emits a failure.
+            (Some(actual), None) => self
+                .tracker
+                .cancel
+                .status()?
+                .error
+                .as_ref()
+                .is_some_and(|first| same_error_fields(actual, first)),
             _ => false,
         };
         Ok(!self.consumed

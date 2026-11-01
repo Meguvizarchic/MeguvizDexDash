@@ -1,0 +1,11 @@
+
+running 1 test
+test budget::tests::duplicate_terminal_replaces_unconsumed_success_with_failure ... FAILED
+
+failures:
+
+failures:
+    budget::tests::duplicate_terminal_replaces_unconsumed_success_with_failure
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 156 filtered out; finished in 0.00s
+

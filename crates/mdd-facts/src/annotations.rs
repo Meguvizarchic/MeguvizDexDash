@@ -128,6 +128,17 @@ pub struct AnnotationOwnerFact<'a> {
     pub set_ordinal: u32,
 }
 
+/// One encoded owner binding and its physical annotation entries. An absent
+/// set is an explicit zero offset; a present set can contain no entries.
+/// Parameter ordinals refer only to encoded slots, not necessarily prototype
+/// positions. An absent binding does not prove runtime annotation absence.
+pub struct OwnerAnnotationFacts<'a> {
+    pub source: &'a MetadataSource,
+    pub owner: &'a AnnotationOwnerBinding,
+    pub set: Option<&'a AnnotationSet>,
+    pub annotations: Vec<AnnotationOwnerFact<'a>>,
+}
+
 /// Logical limits for a single method's borrowed parameter view, not an RSS bound.
 #[derive(Clone, Copy, Debug)]
 pub struct ParameterViewLimits {
@@ -788,6 +799,184 @@ impl AnnotationFacts {
             }
         }
     }
+    /// Resolve a single encoded owner binding to its physical annotation items.
+    /// `parameter_slot` selects an encoded method-parameter slot; `None` selects
+    /// class, field, or method annotations themselves. For a parameter slot,
+    /// consult `owner.parameter_position_in_prototype` before interpreting it as
+    /// a prototype position. `None` means no matching encoded owner binding in
+    /// this occurrence; use `method_encoded_parameter_list` when a caller must
+    /// distinguish an absent list from a present list without that slot.
+    ///
+    /// The limits cover logical scans and returned entries, not allocation
+    /// overhead, CPU time or RSS. Empty sets and explicit zero slots remain
+    /// distinct, and repeated physical entries are never deduplicated.
+    pub fn owner_annotation_facts(
+        &self,
+        owner: &EntityRef,
+        parameter_slot: Option<u32>,
+        limits: AnnotationOwnerViewLimits,
+    ) -> MddResult<Option<OwnerAnnotationFacts<'_>>> {
+        let source = self.source();
+        if owner.snapshot_id != source.snapshot_id
+            || owner.dex_occurrence_id != source.dex_occurrence_id
+        {
+            return Err(MddError::new(
+                ErrorCode::InvalidArgument,
+                "facts.owner_annotations",
+                "owner belongs to another snapshot or occurrence",
+            ));
+        }
+        if self.annotation_coverage != Completeness::Complete
+            || self.definitions.definition_coverage() != Completeness::Complete
+            || self.definitions.metadata().metadata_coverage() != Completeness::Complete
+        {
+            return Err(MddError::new(
+                ErrorCode::IncompleteFacts,
+                "facts.owner_annotations",
+                "complete metadata, definitions and annotations are required",
+            ));
+        }
+        let definitions = self.definitions.definitions();
+        let (kind, definition_scan) = match (owner.kind, parameter_slot) {
+            (EntityKind::ClassDefinition, None) => (AnnotationOwnerKind::Class, 0),
+            (EntityKind::FieldReference, None) => (AnnotationOwnerKind::Field, 0),
+            (EntityKind::FieldDefinition, None) => (
+                AnnotationOwnerKind::Field,
+                definitions.field_definitions.len(),
+            ),
+            (EntityKind::MethodReference, None) => (AnnotationOwnerKind::Method, 0),
+            (EntityKind::MethodDefinition, None) => (
+                AnnotationOwnerKind::Method,
+                definitions.method_definitions.len(),
+            ),
+            (EntityKind::MethodReference, Some(_)) => (AnnotationOwnerKind::Parameter, 0),
+            (EntityKind::MethodDefinition, Some(_)) => (
+                AnnotationOwnerKind::Parameter,
+                definitions.method_definitions.len(),
+            ),
+            _ => {
+                return Err(MddError::new(
+                    ErrorCode::InvalidArgument,
+                    "facts.owner_annotations",
+                    "owner kind and parameter slot are incompatible",
+                ));
+            }
+        };
+        let quota = || {
+            MddError::new(
+                ErrorCode::QuotaExceeded,
+                "facts.owner_annotations",
+                "owner annotation view budget exceeded",
+            )
+        };
+        let broken = || {
+            MddError::new(
+                ErrorCode::InternalFault,
+                "facts.owner_annotations",
+                "validated owner annotation facts are inconsistent",
+            )
+        };
+        let in_captured_bytes = |offset: u64, length: u64| -> bool {
+            let Some(end) = offset.checked_add(length) else {
+                return false;
+            };
+            let (Ok(start), Ok(end)) = (usize::try_from(offset), usize::try_from(end)) else {
+                return false;
+            };
+            self.bytes().get(start..end).is_some()
+        };
+        let mut visits = u64::try_from(definition_scan).map_err(|_| quota())?;
+        if visits > limits.max_scanned_entries {
+            return Err(quota());
+        }
+        self.definitions.entity(owner.kind, owner.local_index)?;
+        let mut tick = || -> MddResult<()> {
+            visits = visits.checked_add(1).ok_or_else(quota)?;
+            if visits > limits.max_scanned_entries {
+                return Err(quota());
+            }
+            Ok(())
+        };
+        let mut binding = None;
+        for candidate in &self.data.owner_bindings {
+            tick()?;
+            if candidate.kind == kind
+                && candidate.local_index == owner.local_index
+                && candidate.parameter_ordinal == parameter_slot
+                && binding.replace(candidate).is_some()
+            {
+                return Err(broken());
+            }
+        }
+        let Some(binding) = binding else {
+            return Ok(None);
+        };
+        let Some(offset) = binding.annotation_set_offset else {
+            if kind != AnnotationOwnerKind::Parameter {
+                return Err(broken());
+            }
+            return Ok(Some(OwnerAnnotationFacts {
+                source,
+                owner: binding,
+                set: None,
+                annotations: Vec::new(),
+            }));
+        };
+        let mut selected = None;
+        for set in &self.data.sets {
+            tick()?;
+            if set.byte_offset == offset && selected.replace(set).is_some() {
+                return Err(broken());
+            }
+        }
+        let set = selected.ok_or_else(broken)?;
+        if set.encoded_range.byte_offset.0 != u64::from(offset)
+            || !in_captured_bytes(
+                set.encoded_range.byte_offset.0,
+                set.encoded_range.byte_length.0,
+            )
+        {
+            return Err(broken());
+        }
+        let mut annotations = Vec::new();
+        for (ordinal, offset) in set.annotation_offsets.iter().enumerate() {
+            tick()?;
+            let mut item = None;
+            for candidate in &self.data.annotation_items {
+                tick()?;
+                if candidate.byte_offset == *offset && item.replace(candidate).is_some() {
+                    return Err(broken());
+                }
+            }
+            let item = item.ok_or_else(broken)?;
+            if item.encoded_range.byte_offset.0 != u64::from(*offset)
+                || !in_captured_bytes(
+                    item.encoded_range.byte_offset.0,
+                    item.encoded_range.byte_length.0,
+                )
+            {
+                return Err(broken());
+            }
+            if u64::try_from(annotations.len()).map_err(|_| quota())? >= limits.max_matches {
+                return Err(quota());
+            }
+            annotations.try_reserve(1).map_err(|_| quota())?;
+            annotations.push(AnnotationOwnerFact {
+                source,
+                owner: binding,
+                set,
+                annotation: item,
+                set_ordinal: u32::try_from(ordinal).map_err(|_| quota())?,
+            });
+        }
+        Ok(Some(OwnerAnnotationFacts {
+            source,
+            owner: binding,
+            set: Some(set),
+            annotations,
+        }))
+    }
+
     /// Reverse lookup of one validated physical item across encoded owners in
     /// this DEX occurrence. An empty result proves only that this item has no
     /// encoded owner in these complete facts, not absence from other inputs.
@@ -2102,6 +2291,205 @@ mod tests {
                 .unwrap()
                 .code,
             ErrorCode::InternalFault
+        );
+    }
+
+    #[test]
+    fn owner_annotation_view_preserves_slots_sets_and_occurrences() {
+        let input = InputSpec {
+            path: PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../tests/fixtures/annotations/generated/parameter-shared-signature.dex"),
+            kind: InputKind::RawDex,
+            expected_sha256: None,
+        };
+        let snapshot =
+            Snapshot::capture(&[input.clone(), input], CaptureLimits::default()).unwrap();
+        let occurrences: Vec<_> = snapshot
+            .sources()
+            .iter()
+            .map(|source| {
+                let inventory = ArchiveInventory::build(
+                    source,
+                    InventoryPolicy::default(),
+                    ArchiveLimits::default(),
+                )
+                .unwrap();
+                let metadata =
+                    MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default())
+                        .unwrap();
+                let definitions =
+                    DefinitionFacts::build(metadata, DefinitionLimits::default()).unwrap();
+                AnnotationFacts::build(definitions, AnnotationLimits::default()).unwrap()
+            })
+            .collect();
+        let expected: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../tests/fixtures/annotations/parameter-shared-signature.json"
+        ))
+        .unwrap();
+        let expected_set = expected["parameter_set_offset"].as_u64().unwrap() as u32;
+        let expected_item = expected["signature_offset"].as_u64().unwrap() as u32;
+        for facts in &occurrences {
+            for method_index in [0, 1] {
+                let method = facts
+                    .definitions()
+                    .entity(EntityKind::MethodReference, method_index)
+                    .unwrap();
+                for slot in [0, 2] {
+                    let view = facts
+                        .owner_annotation_facts(
+                            &method,
+                            Some(slot),
+                            AnnotationOwnerViewLimits::default(),
+                        )
+                        .unwrap()
+                        .unwrap();
+                    assert_eq!(
+                        view.source.dex_occurrence_id,
+                        facts.source().dex_occurrence_id
+                    );
+                    assert_eq!(view.owner.parameter_ordinal, Some(slot));
+                    assert_eq!(view.owner.parameter_position_in_prototype, None);
+                    assert_eq!(view.set.unwrap().byte_offset, expected_set);
+                    assert_eq!(view.annotations.len(), 1);
+                    assert_eq!(view.annotations[0].annotation.byte_offset, expected_item);
+                    assert_eq!(view.annotations[0].set_ordinal, 0);
+                }
+                let zero = facts
+                    .owner_annotation_facts(&method, Some(1), AnnotationOwnerViewLimits::default())
+                    .unwrap()
+                    .unwrap();
+                assert!(zero.set.is_none());
+                assert!(zero.annotations.is_empty());
+                assert!(
+                    facts
+                        .owner_annotation_facts(
+                            &method,
+                            Some(3),
+                            AnnotationOwnerViewLimits::default()
+                        )
+                        .unwrap()
+                        .is_none()
+                );
+                assert_eq!(
+                    facts
+                        .owner_annotation_facts(
+                            &method,
+                            Some(0),
+                            AnnotationOwnerViewLimits {
+                                max_scanned_entries: u64::MAX,
+                                max_matches: 0,
+                            }
+                        )
+                        .err()
+                        .unwrap()
+                        .code,
+                    ErrorCode::QuotaExceeded
+                );
+                assert_eq!(
+                    facts
+                        .owner_annotation_facts(
+                            &method,
+                            Some(0),
+                            AnnotationOwnerViewLimits {
+                                max_scanned_entries: 0,
+                                max_matches: u64::MAX,
+                            }
+                        )
+                        .err()
+                        .unwrap()
+                        .code,
+                    ErrorCode::QuotaExceeded
+                );
+            }
+            let method = facts
+                .definitions()
+                .entity(EntityKind::MethodReference, 0)
+                .unwrap();
+            let direct = facts
+                .owner_annotation_facts(&method, None, AnnotationOwnerViewLimits::default())
+                .unwrap()
+                .unwrap();
+            assert_eq!(direct.owner.kind, AnnotationOwnerKind::Method);
+            assert_eq!(direct.annotations.len(), 1);
+            assert_eq!(direct.annotations[0].annotation.byte_offset, expected_item);
+        }
+        let foreign = occurrences[1]
+            .definitions()
+            .entity(EntityKind::MethodReference, 0)
+            .unwrap();
+        assert_eq!(
+            occurrences[0]
+                .owner_annotation_facts(&foreign, Some(0), AnnotationOwnerViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InvalidArgument
+        );
+
+        let mut broken = occurrences[0].clone();
+        let method = broken
+            .definitions()
+            .entity(EntityKind::MethodReference, 0)
+            .unwrap();
+        broken
+            .data
+            .sets
+            .iter_mut()
+            .find(|set| set.byte_offset == expected_set)
+            .unwrap()
+            .encoded_range
+            .byte_length = DecimalU64(u64::MAX);
+        assert_eq!(
+            broken
+                .owner_annotation_facts(&method, Some(0), AnnotationOwnerViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InternalFault
+        );
+        let mut broken = occurrences[0].clone();
+        broken
+            .data
+            .annotation_items
+            .iter_mut()
+            .find(|item| item.byte_offset == expected_item)
+            .unwrap()
+            .encoded_range
+            .byte_length = DecimalU64(u64::MAX);
+        assert_eq!(
+            broken
+                .owner_annotation_facts(&method, Some(0), AnnotationOwnerViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InternalFault
+        );
+
+        let facts = build("tests/fixtures/annotations/generated/parameter-shared-empty-set.dex");
+        let method = facts
+            .definitions()
+            .entity(EntityKind::MethodReference, 0)
+            .unwrap();
+        let empty = facts
+            .owner_annotation_facts(&method, Some(0), AnnotationOwnerViewLimits::default())
+            .unwrap()
+            .unwrap();
+        assert!(empty.set.is_some());
+        assert!(empty.annotations.is_empty());
+        let zero = facts
+            .owner_annotation_facts(&method, Some(1), AnnotationOwnerViewLimits::default())
+            .unwrap()
+            .unwrap();
+        assert!(zero.set.is_none());
+        let mut partial = facts.clone();
+        partial.annotation_coverage = Completeness::Unknown;
+        assert_eq!(
+            partial
+                .owner_annotation_facts(&method, Some(0), AnnotationOwnerViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::IncompleteFacts
         );
     }
 

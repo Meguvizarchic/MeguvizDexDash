@@ -1,0 +1,11 @@
+
+running 1 test
+test budget::tests::pending_success_terminal_does_not_hide_late_worker_loss ... FAILED
+
+failures:
+
+failures:
+    budget::tests::pending_success_terminal_does_not_hide_late_worker_loss
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 160 filtered out; finished in 0.00s
+

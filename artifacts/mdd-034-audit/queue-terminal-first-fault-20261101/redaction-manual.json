@@ -1,0 +1,8 @@
+{
+  "scope": "Workspace path replaced; original bytes retained under ignored artifacts/local/queue-terminal-raw-20261101-manual.",
+  "raw_sha256": {
+    "green/duplicate_terminal_keeps_first_query_failure.txt": "76bfc091d87c15d14a3e6943982c60895fafb8f24f35d4a50afb5145267e664f",
+    "green-final/duplicate_terminal_keeps_first_query_failure.txt": "c2dfe2b7511dfd816796be3200daf2afbe3ee97f191c69e70946e32fb7f20605",
+    "red-receipt/output.txt": "3906f0ef1ad26decea3b90b8ac72f50603625256f54089a106a93a295104c76a"
+  }
+}

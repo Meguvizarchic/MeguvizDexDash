@@ -1,0 +1,44 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "mdd-facts",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "1",
+    "owner_annotation_view_preserves_slots_sets_and_occurrences",
+    "--",
+    "--nocapture"
+  ],
+  "started_utc": "2026-11-01T04:32:09.391967+00:00",
+  "finished_utc": "2026-11-01T04:32:18.951970+00:00",
+  "exit_code": 0,
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-facts/src/annotations.rs": "253e13da2ebf9b24a872afd0c33fedba5dc576c645a538e20291c3ae798cb6a4",
+    "crates/mdd-facts/src/definitions.rs": "7a2ac801d7ebc89647888f501493ec9629d95b176125a09abddb239e489ac40a",
+    "crates/mdd-facts/src/metadata.rs": "e5fafa598807cc23d011570e7411ee53e1129391362c08b5cef5a38afe040357",
+    "crates/mdd-dex/src/annotations.rs": "f4bf544d7782eeead95a0d98dc5277d18f95992baf7257d4a4d775e8f9be5c74",
+    "tests/fixtures/annotations/generated/parameter-shared-signature.dex": "452e68a5702e119c48c5a55f20f3bd0011ae40f3f798b090ccdb557bbf440df8",
+    "tests/fixtures/annotations/parameter-shared-signature.json": "27a74dca8fb5afa91fbdf196f1e07c7fbb4532e2e4146987bd02362883cb4836",
+    "tests/fixtures/annotations/generated/parameter-shared-empty-set.dex": "a0178738ab6be08db3b2ac0d75d38a44f141add9df24a76b8d186a7a8f089609"
+  },
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-facts/src/annotations.rs": "253e13da2ebf9b24a872afd0c33fedba5dc576c645a538e20291c3ae798cb6a4",
+    "crates/mdd-facts/src/definitions.rs": "7a2ac801d7ebc89647888f501493ec9629d95b176125a09abddb239e489ac40a",
+    "crates/mdd-facts/src/metadata.rs": "e5fafa598807cc23d011570e7411ee53e1129391362c08b5cef5a38afe040357",
+    "crates/mdd-dex/src/annotations.rs": "f4bf544d7782eeead95a0d98dc5277d18f95992baf7257d4a4d775e8f9be5c74",
+    "tests/fixtures/annotations/generated/parameter-shared-signature.dex": "452e68a5702e119c48c5a55f20f3bd0011ae40f3f798b090ccdb557bbf440df8",
+    "tests/fixtures/annotations/parameter-shared-signature.json": "27a74dca8fb5afa91fbdf196f1e07c7fbb4532e2e4146987bd02362883cb4836",
+    "tests/fixtures/annotations/generated/parameter-shared-empty-set.dex": "a0178738ab6be08db3b2ac0d75d38a44f141add9df24a76b8d186a7a8f089609"
+  },
+  "raw_stdout_sha256": "6c418ef8c7bcf0a0d4cbcb49b288a89862c17c76ef4fc9995dfbdcd7bbdffbe9",
+  "raw_stderr_sha256": "2f12672f25d23b7711689b561feae3b8dd64af6ed58483cc0ffabc0ba322c87d",
+  "redaction": "workspace path replaced; raw logs retained in ignored local artifacts",
+  "scope": "one synthetic same-snapshot dual-occurrence owner-to-physical-annotation test; no full MDD-022 qualification"
+}

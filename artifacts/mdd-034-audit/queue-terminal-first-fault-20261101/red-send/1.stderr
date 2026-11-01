@@ -1,0 +1,7 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+     Running unittests src\lib.rs (target\debug\deps\mdd_query-82579f4092cfd058.exe)
+
+thread 'budget::tests::bound_send_inner_invalidates_pending_success_before_returning' (41892) panicked at crates\mdd-query\src\budget\tests.rs:114:9:
+inner send must invalidate an unconsumed successful End
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p mdd-query --lib`

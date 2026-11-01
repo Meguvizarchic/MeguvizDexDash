@@ -1,0 +1,11 @@
+
+running 1 test
+test budget::tests::bound_send_inner_invalidates_pending_success_before_returning ... FAILED
+
+failures:
+
+failures:
+    budget::tests::bound_send_inner_invalidates_pending_success_before_returning
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 158 filtered out; finished in 0.00s
+

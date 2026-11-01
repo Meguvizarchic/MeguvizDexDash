@@ -1,0 +1,40 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "mdd-query",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "1",
+    "duplicate_terminal_replaces_unconsumed_success_with_failure",
+    "--",
+    "--nocapture"
+  ],
+  "started_utc": "2026-11-01T04:32:36.434809+00:00",
+  "finished_utc": "2026-11-01T04:32:41.901528+00:00",
+  "exit_code": 101,
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-query/src/budget.rs": "73bed85919a672de89f0dfb5ebcc67d8fe2a09798cba845f1271bbd0a8fe5f69",
+    "crates/mdd-query/src/budget/tests.rs": "2569dc2485145565f37616052f806a4e9ca963ee4149b707e5c1eed5cba7428d",
+    "crates/mdd-session/src/lib.rs": "afda23d2dbb014680afa204ed7574387c017740223c6d5f68431c4b5f893efdd",
+    "crates/mdd-session/src/cancellation.rs": "7e3636d5e62cf4de567fb55088f186e5130eb024ddd0517a535e15bcad669114",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  },
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-query/src/budget.rs": "73bed85919a672de89f0dfb5ebcc67d8fe2a09798cba845f1271bbd0a8fe5f69",
+    "crates/mdd-query/src/budget/tests.rs": "2569dc2485145565f37616052f806a4e9ca963ee4149b707e5c1eed5cba7428d",
+    "crates/mdd-session/src/lib.rs": "afda23d2dbb014680afa204ed7574387c017740223c6d5f68431c4b5f893efdd",
+    "crates/mdd-session/src/cancellation.rs": "7e3636d5e62cf4de567fb55088f186e5130eb024ddd0517a535e15bcad669114",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  },
+  "stdout_raw_sha256": "64b74d4cbb857bbba9c01f946cad3464e093d12cd3ea4119cb9ee098ebc9e692",
+  "stderr_raw_sha256": "0a06168f8694f0fecd16b15eba96aaa694b30b46146725b7a6d3b3b19e71b518",
+  "scope": "controlled duplicate terminal before consumption; no full qualification",
+  "redaction": "workspace paths replaced; originals retained in ignored local evidence"
+}

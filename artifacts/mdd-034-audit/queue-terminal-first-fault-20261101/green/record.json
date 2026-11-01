@@ -1,0 +1,78 @@
+{
+  "command_template": "cargo test -p mdd-query <filter>",
+  "runs": [
+    {
+      "filter": "duplicate_terminal_keeps_first_query_failure",
+      "exit_code": 0,
+      "output": "duplicate_terminal_keeps_first_query_failure.txt"
+    },
+    {
+      "filter": "read_after_terminal_keeps_first_query_failure",
+      "exit_code": 0,
+      "output": "read_after_terminal_keeps_first_query_failure.txt"
+    },
+    {
+      "filter": "duplicate_successful_terminal_is_still_protocol_error",
+      "exit_code": 0,
+      "output": "duplicate_successful_terminal_is_still_protocol_error.txt"
+    },
+    {
+      "filter": "duplicate_terminal_replaces_unconsumed_success_with_failure",
+      "exit_code": 0,
+      "output": "duplicate_terminal_replaces_unconsumed_success_with_failure.txt"
+    },
+    {
+      "filter": "unbound_send_after_terminal_cannot_leave_successful_end",
+      "exit_code": 0,
+      "output": "unbound_send_after_terminal_cannot_leave_successful_end.txt"
+    },
+    {
+      "filter": "bound_send_inner_invalidates_pending_success_before_returning",
+      "exit_code": 0,
+      "output": "bound_send_inner_invalidates_pending_success_before_returning.txt"
+    },
+    {
+      "filter": "pending_success_terminal_does_not_hide_late_cancellation",
+      "exit_code": 0,
+      "output": "pending_success_terminal_does_not_hide_late_cancellation.txt"
+    },
+    {
+      "filter": "pending_success_terminal_does_not_hide_late_worker_loss",
+      "exit_code": 0,
+      "output": "pending_success_terminal_does_not_hide_late_worker_loss.txt"
+    },
+    {
+      "filter": "protocol_fault_reports_poisoned_tracker_before_success_end",
+      "exit_code": 0,
+      "output": "protocol_fault_reports_poisoned_tracker_before_success_end.txt"
+    },
+    {
+      "filter": "poisoned_tracker_preserves_recorded_worker_loss",
+      "exit_code": 0,
+      "output": "poisoned_tracker_preserves_recorded_worker_loss.txt"
+    },
+    {
+      "filter": "delivered_success_cannot_be_retracted_but_receipt_is_rejected",
+      "exit_code": 0,
+      "output": "delivered_success_cannot_be_retracted_but_receipt_is_rejected.txt"
+    },
+    {
+      "filter": "owned_batch_queue_",
+      "exit_code": 0,
+      "output": "owned_batch_queue_.txt"
+    },
+    {
+      "filter": "json_batches_",
+      "exit_code": 101,
+      "output": "json_batches_.txt"
+    }
+  ],
+  "source_sha256_before": {
+    "crates/mdd-query/src/budget.rs": "E117D5DB99DD655A46E5FCFCF1C51EDD25BE211E27D551947B08F85DADF92F67",
+    "crates/mdd-query/src/budget/tests.rs": "62E201195AC501008756EB810CE548BFE9FF6616D57D661EC97F52ACFC8669C1"
+  },
+  "source_sha256_after": {
+    "crates/mdd-query/src/budget.rs": "E117D5DB99DD655A46E5FCFCF1C51EDD25BE211E27D551947B08F85DADF92F67",
+    "crates/mdd-query/src/budget/tests.rs": "62E201195AC501008756EB810CE548BFE9FF6616D57D661EC97F52ACFC8669C1"
+  }
+}
