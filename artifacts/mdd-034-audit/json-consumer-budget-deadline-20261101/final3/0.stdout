@@ -1,0 +1,17 @@
+
+running 12 tests
+test executor::runtime_tests::json_consumer_rejects_incorrect_partial_error_without_processing ... ok
+test executor::runtime_tests::json_consumer_rejects_other_query_with_equal_binding ... ok
+test executor::runtime_tests::json_consumer_rejects_equal_plan_from_other_session ... ok
+test executor::runtime_tests::json_consumer_rejects_actual_foreign_catalog_epoch ... ok
+test executor::runtime_tests::json_consumer_rejects_same_query_from_other_budget_tree ... ok
+test executor::runtime_tests::json_consumer_rejects_unknown_entity_in_same_snapshot ... ok
+test executor::runtime_tests::json_consumer_rejects_foreign_plan_or_source_before_callback ... ok
+test executor::runtime_tests::json_consumer_stops_when_budget_expires_during_callback ... ok
+test executor::runtime_tests::json_consumer_partial_deadline_preserves_earlier_worker_loss ... ok
+test executor::runtime_tests::json_consumer_partial_lifecycle_deadline_preserves_worker_loss ... ok
+test executor::runtime_tests::json_consumer_partial_lifecycle_expiry_after_callback_preserves_worker_loss ... ok
+test executor::runtime_tests::json_consumer_reports_the_earliest_expired_deadline ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 124 filtered out; finished in 2.21s
+

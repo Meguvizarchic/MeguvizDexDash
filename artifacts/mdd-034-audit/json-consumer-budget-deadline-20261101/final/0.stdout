@@ -1,0 +1,6 @@
+
+running 1 test
+test executor::runtime_tests::json_consumer_reports_the_earliest_expired_deadline ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 133 filtered out; finished in 2.20s
+

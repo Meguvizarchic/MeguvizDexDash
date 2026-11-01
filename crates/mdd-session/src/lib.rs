@@ -65,7 +65,28 @@ impl BatchHandle {
     /// Explicitly acknowledge this batch's consumption while its query is
     /// still active. Owning or dropping the handle alone is not an ack.
     pub fn acknowledge(&self) -> MddResult<()> {
+        self.acknowledge_checked(None)
+    }
+
+    /// Acknowledge with the query's immutable runtime deadline witness. The
+    /// caller must supply the witness belonging to this query's budget.
+    pub fn acknowledge_with_budget(
+        &self,
+        budget: &cancellation::DeliveryBudgetDeadline,
+    ) -> MddResult<()> {
+        self.acknowledge_checked(Some(budget))
+    }
+
+    fn acknowledge_checked(
+        &self,
+        budget: Option<&cancellation::DeliveryBudgetDeadline>,
+    ) -> MddResult<()> {
         let query = QueryHandle(self.0.query.clone());
+        if budget.is_some_and(|value| value.owner() != query.id()) {
+            return Err(invalid(
+                "batch acknowledgement budget belongs to another query",
+            ));
+        }
         let mut state = self.0.lifecycle.lock_query(&query)?;
         let entry = state
             .batches
@@ -75,7 +96,7 @@ impl BatchHandle {
         if entry.query_id != self.0.query.id {
             return Err(invalid("batch query binding mismatch"));
         }
-        state.checkpoint(&query)?;
+        state.checkpoint_delivery(&query, budget)?;
         if state.query(&query)?.status.phase != QueryPhase::Active {
             return Err(invalid("query is not active"));
         }
@@ -91,7 +112,30 @@ impl BatchHandle {
     /// this query has failed. The caller must supply the exact recorded first
     /// error. This cannot turn the failed query into a successful delivery.
     pub fn acknowledge_partial(&self, expected_error: &MddError) -> MddResult<()> {
+        self.acknowledge_partial_checked(expected_error, None)
+    }
+
+    /// Confirm a consumed partial batch while both the lifecycle and supplied
+    /// query-budget deadline remain open. Any pre-existing failure is retained.
+    pub fn acknowledge_partial_with_budget(
+        &self,
+        expected_error: &MddError,
+        budget: &cancellation::DeliveryBudgetDeadline,
+    ) -> MddResult<()> {
+        self.acknowledge_partial_checked(expected_error, Some(budget))
+    }
+
+    fn acknowledge_partial_checked(
+        &self,
+        expected_error: &MddError,
+        budget: Option<&cancellation::DeliveryBudgetDeadline>,
+    ) -> MddResult<()> {
         let query = QueryHandle(self.0.query.clone());
+        if budget.is_some_and(|value| value.owner() != query.id()) {
+            return Err(invalid(
+                "batch acknowledgement budget belongs to another query",
+            ));
+        }
         let mut state = self.0.lifecycle.lock_query_read(&query)?;
         let query_entry = state.query(&query)?;
         let actual = query_entry
@@ -113,6 +157,12 @@ impl BatchHandle {
             || actual.details != expected_error.details
         {
             return Err(invalid("partial acknowledgement error binding mismatch"));
+        }
+        if let Some(budget) = budget {
+            let now = Instant::now();
+            if now >= query_entry.deadline || now >= budget.soft() {
+                return Err(actual.clone());
+            }
         }
         let entry = state
             .batches
@@ -1980,6 +2030,37 @@ mod tests {
             ErrorCode::InvalidCursor
         );
         assert!(!runtime.query_status(&query).unwrap().delivery_complete);
+    }
+
+    #[test]
+    fn owned_batch_ack_rejects_foreign_budget_witness() {
+        let (runtime, _, session) = runtime(ResourceLimits::default());
+        let query = prepare(&runtime, &session);
+        runtime.start_query(&session, &query, 1).unwrap();
+        let batch = runtime.own_batch(&query, Box::new([1])).unwrap();
+        let now = Instant::now();
+        let later = now.checked_add(Duration::from_secs(60)).unwrap();
+        let foreign =
+            cancellation::DeliveryBudgetDeadline::new(now, later, later, "foreign-query".into())
+                .unwrap();
+        assert_eq!(
+            batch.acknowledge_with_budget(&foreign).unwrap_err().code,
+            ErrorCode::InvalidArgument
+        );
+        runtime.worker_lost("injected loss").unwrap();
+        let first = runtime.query_status(&query).unwrap().error.unwrap();
+        assert_eq!(
+            batch
+                .acknowledge_partial_with_budget(&first, &foreign)
+                .unwrap_err()
+                .code,
+            ErrorCode::InvalidArgument
+        );
+        assert_eq!(
+            runtime.query_status(&query).unwrap().error.unwrap().code,
+            ErrorCode::WorkerLost
+        );
+        batch.release().unwrap();
     }
 
     #[test]

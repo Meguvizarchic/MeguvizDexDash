@@ -1,0 +1,11 @@
+
+running 1 test
+test executor::runtime_tests::json_consumer_partial_lifecycle_deadline_preserves_worker_loss ... FAILED
+
+failures:
+
+failures:
+    executor::runtime_tests::json_consumer_partial_lifecycle_deadline_preserves_worker_loss
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 134 filtered out; finished in 0.40s
+

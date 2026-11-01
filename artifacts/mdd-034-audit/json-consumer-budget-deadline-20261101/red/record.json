@@ -1,0 +1,63 @@
+{
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-query/src/executor.rs": "cfc47fb4a0806da98fa33403d9d3da10e57aeb19cf85ded2994478d40c9f5388",
+    "crates/mdd-query/src/executor/runtime_tests.rs": "acfcc08fda850366d7ac54e5e5effa5e81233d0e7d9b768ba3bbea87cde2ed33",
+    "crates/mdd-query/src/budget.rs": "bda1ebd07fc79b3bf7c62a29df2b39c23a546981bf1cd1ac3f975612ad0fcaee",
+    "crates/mdd-session/src/lib.rs": "41eeb6e698e58db45abc9cb30120b50de3f7768500c2eba2ebccc186fec0eb47",
+    "crates/mdd-session/src/cancellation.rs": "b04d7294ce8a73cd17fdcfd1e6dbe7bcfb35aeef121cc27b1812840b78d0789c",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  },
+  "scope": "two controlled deadline counterexamples; no full runtime qualification",
+  "runs": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-query",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "json_consumer_stops_when_budget_expires_during_callback",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T02:28:49.701310+00:00",
+      "exit_code": 101,
+      "stdout_sha256": "75e97f5ba240f0acfd589ed9c9a18a6d8d177ab86ed0c64d66a7ebbf02b8098c",
+      "stderr_sha256": "fe53c175d6ecf7b7201e978755e1ac5de7a6c5092b7d9810763d5dfb45f83f84"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-query",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "json_consumer_partial_deadline_preserves_earlier_worker_loss",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T02:28:55.411057+00:00",
+      "exit_code": 101,
+      "stdout_sha256": "8cc6567b099b2fc43312e8dda8366c8a8648279f7af245614c62f2197d83671e",
+      "stderr_sha256": "218c2108259286029c427c34fc39b33cfb84c8870c4a79a110c49bdfa9b805ca"
+    }
+  ],
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-query/src/executor.rs": "cfc47fb4a0806da98fa33403d9d3da10e57aeb19cf85ded2994478d40c9f5388",
+    "crates/mdd-query/src/executor/runtime_tests.rs": "acfcc08fda850366d7ac54e5e5effa5e81233d0e7d9b768ba3bbea87cde2ed33",
+    "crates/mdd-query/src/budget.rs": "bda1ebd07fc79b3bf7c62a29df2b39c23a546981bf1cd1ac3f975612ad0fcaee",
+    "crates/mdd-session/src/lib.rs": "41eeb6e698e58db45abc9cb30120b50de3f7768500c2eba2ebccc186fec0eb47",
+    "crates/mdd-session/src/cancellation.rs": "b04d7294ce8a73cd17fdcfd1e6dbe7bcfb35aeef121cc27b1812840b78d0789c",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  }
+}

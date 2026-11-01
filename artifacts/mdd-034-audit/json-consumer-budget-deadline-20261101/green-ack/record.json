@@ -1,0 +1,65 @@
+{
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-query/src/executor.rs": "a664109676239f3e06846b9b79b64dffaa1b11cbd33a8bf9b5569671698ac2ae",
+    "crates/mdd-query/src/executor/runtime_tests.rs": "5284ef13ef650b4c498784bc1b16b4f1970e19edcd6b7315c02ce50e8a1f5f0a",
+    "crates/mdd-query/src/budget.rs": "3c3dd15c6deeecd90f59d020ff877ec69f87c63e419b946a4771e81dddede19c",
+    "crates/mdd-session/src/lib.rs": "2c22631de94d94654c77543b5c3077d0ed1afc54ee41d957108d8d0f488d884b",
+    "crates/mdd-session/src/cancellation.rs": "7e3636d5e62cf4de567fb55088f186e5130eb024ddd0517a535e15bcad669114",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  },
+  "scope": "controlled budget deadline between checkpoint and ordinary/partial ack; no hard realtime or complete concurrency proof",
+  "runs": [
+    {
+      "filter": "json_consumer_packet_ack_respects_budget_after_checkpoint",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-query",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "json_consumer_packet_ack_respects_budget_after_checkpoint",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T02:35:21.694256+00:00",
+      "exit_code": 0,
+      "stdout_sha256": "adec85eb312f9ee81820dbf4c72b85281e0f702141b67c345a676f924644aaaa",
+      "stderr_sha256": "a7e7cc8f115edad03a6d755d814ea5635b855d5cbc1db22e09e974749a8ab359"
+    },
+    {
+      "filter": "json_consumer_partial_ack_respects_budget_after_checkpoint",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-query",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "json_consumer_partial_ack_respects_budget_after_checkpoint",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T02:35:26.977988+00:00",
+      "exit_code": 0,
+      "stdout_sha256": "72067222deceddc63b387912503ba43a34e35bccbea3412d41034ae8a2bb705b",
+      "stderr_sha256": "014064e7cd28208cca286f2a915cd5f76ec7beb9ffdbb1599c5ac8254fbb392c"
+    }
+  ],
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-query/src/executor.rs": "a664109676239f3e06846b9b79b64dffaa1b11cbd33a8bf9b5569671698ac2ae",
+    "crates/mdd-query/src/executor/runtime_tests.rs": "5284ef13ef650b4c498784bc1b16b4f1970e19edcd6b7315c02ce50e8a1f5f0a",
+    "crates/mdd-query/src/budget.rs": "3c3dd15c6deeecd90f59d020ff877ec69f87c63e419b946a4771e81dddede19c",
+    "crates/mdd-session/src/lib.rs": "2c22631de94d94654c77543b5c3077d0ed1afc54ee41d957108d8d0f488d884b",
+    "crates/mdd-session/src/cancellation.rs": "7e3636d5e62cf4de567fb55088f186e5130eb024ddd0517a535e15bcad669114",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  }
+}

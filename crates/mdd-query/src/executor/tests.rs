@@ -1,8 +1,14 @@
-use super::facts::{MemoryCatalog, NativeCatalog, OccurrenceFacts, ReferenceCatalog, Table};
+use super::facts::{
+    AnnotationCatalog, MemoryCatalog, NativeCatalog, OccurrenceFacts, ReferenceCatalog, Table,
+};
 use super::*;
-use mdd_dex::{definitions::DefinitionLimits, instructions::CodeLimits, strings::StringLimits};
+use mdd_dex::{
+    annotations::AnnotationLimits, definitions::DefinitionLimits, instructions::CodeLimits,
+    strings::StringLimits,
+};
 use mdd_facts::{
     EntityKind, EntityRef, MetadataFacts,
+    annotations::AnnotationFacts,
     code::CodeFacts,
     definitions::DefinitionFacts,
     references::{ReferenceFacts, ReferenceLimits, TargetKind},
@@ -74,6 +80,252 @@ fn native_references_fixture(name: &str) -> (NativeCatalog, Vec<Arc<ReferenceFac
         .unwrap(),
         references,
     )
+}
+
+#[test]
+fn typed_signature_catalog_keeps_owner_fragments_and_occurrences() {
+    let input = InputSpec {
+        path: PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/annotations/generated/annotations-038.dex"),
+        kind: InputKind::RawDex,
+        expected_sha256: None,
+    };
+    let snapshot = Snapshot::capture(&[input.clone(), input], CaptureLimits::default()).unwrap();
+    let mut metadata = Vec::new();
+    let mut definitions = Vec::new();
+    let mut codes = Vec::new();
+    let mut annotations = Vec::new();
+    let mut references = Vec::new();
+    for source in snapshot.sources() {
+        let inventory =
+            ArchiveInventory::build(source, InventoryPolicy::default(), ArchiveLimits::default())
+                .unwrap();
+        let meta = MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default()).unwrap();
+        let defs = DefinitionFacts::build(meta.clone(), DefinitionLimits::default()).unwrap();
+        let code = CodeFacts::build_all_code_items(&snapshot, &inventory, 0, CodeLimits::default())
+            .unwrap();
+        annotations.push(Arc::new(
+            AnnotationFacts::build(defs.clone(), AnnotationLimits::default()).unwrap(),
+        ));
+        references.push(Arc::new(
+            ReferenceFacts::build(defs.clone(), code.clone(), ReferenceLimits::default()).unwrap(),
+        ));
+        metadata.push(Arc::new(meta));
+        definitions.push(Arc::new(defs));
+        codes.push(Arc::new(code));
+    }
+    let make_native = || {
+        NativeCatalog::new(
+            snapshot.manifest().snapshot_id.clone(),
+            DecimalU64(7),
+            (0..2)
+                .map(|i| OccurrenceFacts {
+                    metadata: metadata[i].clone(),
+                    definitions: Some(definitions[i].clone()),
+                    code: Some(codes[i].clone()),
+                })
+                .collect(),
+        )
+        .unwrap()
+    };
+    assert_eq!(
+        AnnotationCatalog::new(make_native(), annotations[..1].to_vec())
+            .err()
+            .unwrap()
+            .code,
+        ErrorCode::IncompleteFacts
+    );
+    assert_eq!(
+        AnnotationCatalog::new(
+            make_native(),
+            vec![annotations[0].clone(), annotations[0].clone()]
+        )
+        .err()
+        .unwrap()
+        .code,
+        ErrorCode::InvalidArgument
+    );
+    let other = Snapshot::capture(
+        &[InputSpec {
+            path: PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../tests/fixtures/annotations/generated/annotations-038.dex"),
+            kind: InputKind::RawDex,
+            expected_sha256: None,
+        }],
+        CaptureLimits::default(),
+    )
+    .unwrap();
+    let inventory = ArchiveInventory::build(
+        &other.sources()[0],
+        InventoryPolicy::default(),
+        ArchiveLimits::default(),
+    )
+    .unwrap();
+    let other_meta = MetadataFacts::build(&other, &inventory, 0, StringLimits::default()).unwrap();
+    let other_defs = DefinitionFacts::build(other_meta, DefinitionLimits::default()).unwrap();
+    let other_ann =
+        Arc::new(AnnotationFacts::build(other_defs, AnnotationLimits::default()).unwrap());
+    assert!(
+        AnnotationCatalog::new(make_native(), vec![annotations[0].clone(), other_ann]).is_err()
+    );
+    let reference_catalog = ReferenceCatalog::new(make_native(), references).unwrap();
+    let catalog = AnnotationCatalog::with_references(
+        reference_catalog,
+        vec![annotations[1].clone(), annotations[0].clone()],
+    )
+    .unwrap();
+    let expected: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../tests/fixtures/annotations/expected.json"
+    ))
+    .unwrap();
+    let scan = |name: &str| Node::Scan {
+        relation: name.into(),
+    };
+    let headers = prepare(
+        query(
+            scan("annotation_signatures"),
+            catalog.snapshot_id(),
+            catalog.catalog_epoch(),
+        ),
+        &catalog,
+    )
+    .unwrap();
+    let parts = prepare(
+        query(
+            scan("annotation_signature_fragments"),
+            catalog.snapshot_id(),
+            catalog.catalog_epoch(),
+        ),
+        &catalog,
+    )
+    .unwrap();
+    assert!(headers.required_layers().contains(&FactLayer::Annotations));
+    for mode in [
+        ExecutionMode::Streaming,
+        ExecutionMode::MaterializedReference,
+    ] {
+        let header_rows = execute(
+            &headers,
+            &catalog,
+            mode,
+            &mut Control::new(ExecutionLimits::default()),
+        )
+        .unwrap();
+        let part_rows = execute(
+            &parts,
+            &catalog,
+            mode,
+            &mut Control::new(ExecutionLimits::default()),
+        )
+        .unwrap();
+        assert_eq!(header_rows.rows().len(), 8);
+        let mut reconstructed = BTreeMap::<(String, u64), Vec<(u64, Vec<u16>)>>::new();
+        for row in part_rows.rows() {
+            let (
+                Value::Utf16(source),
+                Value::U64(DecimalU64(signature)),
+                Value::Entity(owner),
+                Value::U64(DecimalU64(part)),
+                Value::Entity(string),
+                Value::Utf16(units),
+                Value::Bytes(raw),
+            ) = (
+                &row[0], &row[1], &row[3], &row[5], &row[6], &row[7], &row[8],
+            )
+            else {
+                panic!("unexpected fragment");
+            };
+            let source = String::from_utf16(source).unwrap();
+            assert_eq!(owner.dex_occurrence_id, source);
+            assert_eq!(string.dex_occurrence_id, source);
+            assert_eq!(owner.snapshot_id, string.snapshot_id);
+            assert_eq!(string.kind, EntityKind::String);
+            // This handwritten fixture's signature fragments are all ASCII.
+            assert_eq!(
+                String::from_utf16(units).unwrap().as_bytes(),
+                raw.0.as_slice()
+            );
+            reconstructed
+                .entry((source, *signature))
+                .or_default()
+                .push((*part, units.clone()));
+        }
+        let mut observed_sources = BTreeSet::new();
+        for row in header_rows.rows() {
+            let (
+                Value::Utf16(source),
+                Value::U64(DecimalU64(ordinal)),
+                Value::Utf16(kind),
+                Value::Entity(owner),
+                Value::Utf16(units),
+                Value::U64(DecimalU64(count)),
+            ) = (&row[0], &row[1], &row[3], &row[4], &row[8], &row[9])
+            else {
+                panic!("unexpected signature");
+            };
+            let source = String::from_utf16(source).unwrap();
+            let kind = String::from_utf16(kind).unwrap();
+            assert_eq!(owner.dex_occurrence_id, source);
+            assert_eq!(row[6], Value::Null);
+            let key = match kind.as_str() {
+                "class" => "class".to_owned(),
+                "field" | "method" => format!("{kind}:{}", owner.local_index),
+                _ => panic!("unexpected owner kind"),
+            };
+            assert_eq!(
+                String::from_utf16(units).unwrap(),
+                expected["signatures"][key].as_str().unwrap()
+            );
+            let fragments = reconstructed.get_mut(&(source.clone(), *ordinal)).unwrap();
+            fragments.sort_by_key(|entry| entry.0);
+            assert_eq!(fragments.len() as u64, *count);
+            assert!(
+                fragments
+                    .iter()
+                    .enumerate()
+                    .all(|(i, entry)| entry.0 == i as u64)
+            );
+            let combined: Vec<u16> = fragments
+                .iter()
+                .flat_map(|entry| entry.1.iter().copied())
+                .collect();
+            assert_eq!(&combined, units);
+            observed_sources.insert(source);
+        }
+        assert_eq!(observed_sources.len(), 2);
+        let join = Node::EquiJoin {
+            left: Box::new(scan("annotation_signatures")),
+            right: Box::new(scan("methods")),
+            left_keys: vec![4],
+            right_keys: vec![0],
+            kind: JoinKind::Inner,
+        };
+        let join_plan = prepare(
+            query(join, catalog.snapshot_id(), catalog.catalog_epoch()),
+            &catalog,
+        )
+        .unwrap();
+        let joined = execute(
+            &join_plan,
+            &catalog,
+            mode,
+            &mut Control::new(ExecutionLimits::default()),
+        )
+        .unwrap();
+        assert_eq!(joined.rows().len(), 2);
+        for row in joined.rows() {
+            assert_eq!(row[4], row[10]);
+        }
+    }
+    let base_only = AnnotationCatalog::new(make_native(), annotations).unwrap();
+    assert_eq!(
+        base_only
+            .relation_schema("reference_sites")
+            .err()
+            .unwrap()
+            .code,
+        ErrorCode::InvalidArgument
+    );
 }
 
 #[test]

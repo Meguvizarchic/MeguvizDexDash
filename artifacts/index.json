@@ -17288,6 +17288,51 @@
       "sha256": "cf1ceaf3facaa5794ffa511ed667c617670df2d51b9b6192812b29839849fab8"
     },
     {
+      "path": "artifacts/mdd-026/typed-signature-catalog-20261101/run1/record.json",
+      "bytes": 4064,
+      "sha256": "8539509d5a7ebfb299a36c226ae6d6c291626572b98018f2ceae49790e01f202"
+    },
+    {
+      "path": "artifacts/mdd-026/typed-signature-catalog-20261101/run1/stderr.txt",
+      "bytes": 223,
+      "sha256": "414635886e14f5b75d13898697ea4b9acefda29261c60546298121362b6a000c"
+    },
+    {
+      "path": "artifacts/mdd-026/typed-signature-catalog-20261101/run1/stdout.txt",
+      "bytes": 205,
+      "sha256": "e1bb51c0522b8b859ac6e5c0416cb8417f5c995a48964eb15f0a627a71db04ea"
+    },
+    {
+      "path": "artifacts/mdd-026/typed-signature-catalog-20261101/run2/record.json",
+      "bytes": 4064,
+      "sha256": "cadab345d1c159179c6cf6d2a245166539180b47c7e3cb40f1cf57ca73b70e9b"
+    },
+    {
+      "path": "artifacts/mdd-026/typed-signature-catalog-20261101/run2/stderr.txt",
+      "bytes": 158,
+      "sha256": "014064e7cd28208cca286f2a915cd5f76ec7beb9ffdbb1599c5ac8254fbb392c"
+    },
+    {
+      "path": "artifacts/mdd-026/typed-signature-catalog-20261101/run2/stdout.txt",
+      "bytes": 205,
+      "sha256": "f2cad9618b6a088174767a2a75abb8c34416adb60fe6401359a8bd4c00c24234"
+    },
+    {
+      "path": "artifacts/mdd-026/typed-signature-catalog-20261101/run3/record.json",
+      "bytes": 4064,
+      "sha256": "37d51703a46f464315ad209a4aee2d8daf1dcee049ae2d0353bf9c49844ecc04"
+    },
+    {
+      "path": "artifacts/mdd-026/typed-signature-catalog-20261101/run3/stderr.txt",
+      "bytes": 158,
+      "sha256": "b3823ff2d6aaed266a4371317a6d10cd73c30eb4a93b38a482fd16022e8c3537"
+    },
+    {
+      "path": "artifacts/mdd-026/typed-signature-catalog-20261101/run3/stdout.txt",
+      "bytes": 205,
+      "sha256": "5faaf2ac9a2d94531af851b0d1e40f096174a8c455902bec1d1c693c9874e973"
+    },
+    {
       "path": "artifacts/mdd-030/README.md",
       "bytes": 3952,
       "sha256": "a4a8b3f7b2b52e98c35dad2f34a4abd07f910afbeb1154f3e1cb2a3894ca8ecc"
@@ -24581,6 +24626,56 @@
       "path": "artifacts/mdd-031-audit/null-aggregate-independent-20261029/verify.py",
       "bytes": 6815,
       "sha256": "ed14c9a3afaa95685b3fb601f7d1b546b0df2b50f059c9d335a5556c83d9e4c3"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/numeric-between-text-20261101/run1/0.stderr",
+      "bytes": 283,
+      "sha256": "e4cd22f53b19746fe535e82d05077f03c846e39a24e684c9740a029e76e97347"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/numeric-between-text-20261101/run1/0.stdout",
+      "bytes": 198,
+      "sha256": "9fcc5bd45b071d3e9136dd038fae7af7cde61fc36476d351e2ed902ff8045467"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/numeric-between-text-20261101/run1/1.stderr",
+      "bytes": 156,
+      "sha256": "d7ca7cafe5a3d75afe30b1d973453f53745f2e5564d26287e7fb6dea82f13170"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/numeric-between-text-20261101/run1/1.stdout",
+      "bytes": 198,
+      "sha256": "e1fd050cd3799052f480e973ea161d2dd92ca384a62d291b5a0307eda45149e3"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/numeric-between-text-20261101/run1/record.json",
+      "bytes": 3856,
+      "sha256": "db617ef0988fa26d0dd76e1e53f1c9a3c02f655609342f77f1699e33702b1951"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/numeric-between-text-20261101/run2/0.stderr",
+      "bytes": 282,
+      "sha256": "5e52d73934819c66fb4ce144d7baccf8b4649f7b3d1eecec0213fe8c15b4c852"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/numeric-between-text-20261101/run2/0.stdout",
+      "bytes": 198,
+      "sha256": "9fcc5bd45b071d3e9136dd038fae7af7cde61fc36476d351e2ed902ff8045467"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/numeric-between-text-20261101/run2/1.stderr",
+      "bytes": 156,
+      "sha256": "a018fe47a92f6fd9ecc12a25b8c71fcc318e4ed65fb37abc70a8533307c4e96e"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/numeric-between-text-20261101/run2/1.stdout",
+      "bytes": 198,
+      "sha256": "e1fd050cd3799052f480e973ea161d2dd92ca384a62d291b5a0307eda45149e3"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/numeric-between-text-20261101/run2/record.json",
+      "bytes": 3859,
+      "sha256": "27fdea78e761fe67244cfb2f3749586b62c59b1d1d1e4c0599d5f01d0565323a"
     },
     {
       "path": "artifacts/mdd-031-audit/order-alias-20261029/after/record.json",
@@ -32871,6 +32966,331 @@
       "path": "artifacts/mdd-034-audit/json-batch-executor-20261030/run4/record.json",
       "bytes": 6465,
       "sha256": "50d6d86329f48606d6c86dc41a72906ff22131bb0a678b37479e2440456e77e0"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/final/0.stderr",
+      "bytes": 223,
+      "sha256": "9cccf04df07d0b26c6f20ee69e71d67b2d836d6e663d70fbedecc3753d112dde"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/final/0.stdout",
+      "bytes": 203,
+      "sha256": "0d7b2dfd6776114b9a158b840a3717e6732bcb62ec3e63c5dd661c018be10bcc"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/final/1.stderr",
+      "bytes": 158,
+      "sha256": "338bfb0587f5c5073abf01cd500631a76291a9c0c94e76580118e05f3108a3a8"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/final/1.stdout",
+      "bytes": 207,
+      "sha256": "a171edafc65b2c14cffd75cfd4468aad89d69f4afcccecf845e12569bf5a7562"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/final/2.stderr",
+      "bytes": 158,
+      "sha256": "014064e7cd28208cca286f2a915cd5f76ec7beb9ffdbb1599c5ac8254fbb392c"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/final/2.stdout",
+      "bytes": 212,
+      "sha256": "6249e5f483416cd056d69f43e6aea6e20048c50dd26f06cc73132df903b54e58"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/final/3.stderr",
+      "bytes": 158,
+      "sha256": "9b6991bedd71a8dca75639b520f459e55184216da6851dae90985ff5c229bc98"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/final/3.stdout",
+      "bytes": 416,
+      "sha256": "139c2228ea29c18609da4fcdc14ffb56ca4b6eee4a61c771deaa59b64836f63c"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/final/record.json",
+      "bytes": 4419,
+      "sha256": "5aa6d1184a83df3c183234f823f0d14ecf025a7fe10fb3ac6ca284ecf4cb55fc"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/final2/0.stderr",
+      "bytes": 158,
+      "sha256": "582dae0c095ee70b80091c07c730418b92262f9296887d0b3a1fc64ef681a164"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/final2/0.stdout",
+      "bytes": 203,
+      "sha256": "d47f12b3467abdcbe3547a083a36e3aeee3e5e2bd9b59bc4b62bcc4934d664b8"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/final2/1.stderr",
+      "bytes": 158,
+      "sha256": "ad4edcb139a41eb6e1b19f7a8740927209c90d7e3021755ac4969639fdcac8c5"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/final2/1.stdout",
+      "bytes": 207,
+      "sha256": "a171edafc65b2c14cffd75cfd4468aad89d69f4afcccecf845e12569bf5a7562"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/final2/2.stderr",
+      "bytes": 158,
+      "sha256": "79e19721c649a710cd5142e7a5a25f40f709547d673f9ccd94aadd3cce119112"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/final2/2.stdout",
+      "bytes": 212,
+      "sha256": "6249e5f483416cd056d69f43e6aea6e20048c50dd26f06cc73132df903b54e58"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/final2/3.stderr",
+      "bytes": 158,
+      "sha256": "469742c6bc05fba88d4a22cc339190bb617f29d4037b956157f258647227bc77"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/final2/3.stdout",
+      "bytes": 416,
+      "sha256": "139c2228ea29c18609da4fcdc14ffb56ca4b6eee4a61c771deaa59b64836f63c"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/final2/record.json",
+      "bytes": 4674,
+      "sha256": "afe15a35e696d73fcce8bfa9e10927786328092c68069345763307fc3c9f66a2"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/final3/0.stderr",
+      "bytes": 292,
+      "sha256": "b05c3717987690ecbdefeccef0e1bde3d5327d669c02b0b3aaa37f5eeb8afdb2"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/final3/0.stdout",
+      "bytes": 1261,
+      "sha256": "1e093cc1a1ec84e5767e098fca675332ceb8bc0bb49f08efbac8a07a86a1a9f1"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/final3/1.stderr",
+      "bytes": 158,
+      "sha256": "014064e7cd28208cca286f2a915cd5f76ec7beb9ffdbb1599c5ac8254fbb392c"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/final3/1.stdout",
+      "bytes": 416,
+      "sha256": "697e0acfcb957c653220feb6b8bb65162e8185c644d2d59f60bf5da912070bc7"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/final3/2.stderr",
+      "bytes": 158,
+      "sha256": "014064e7cd28208cca286f2a915cd5f76ec7beb9ffdbb1599c5ac8254fbb392c"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/final3/2.stdout",
+      "bytes": 214,
+      "sha256": "fcd98e4d45520423476c10bbafb5e0b29dc09da8ab70e8c85cf97a9e02f3ae56"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/final3/3.stderr",
+      "bytes": 229,
+      "sha256": "921fa85cdcbb6230d0a2ab80843c1ab90749886e5f2d06dad29154a157233fce"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/final3/3.stdout",
+      "bytes": 208,
+      "sha256": "bf201ed9bfa5e008f8908479f332be98bfc8a378187329782a873061265fdf0f"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/final3/record.json",
+      "bytes": 4623,
+      "sha256": "3dfc97583fc4314688ce3260431a75535f55f5ce022090321cecf8b9e7b74cf2"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/final4/0.stderr",
+      "bytes": 292,
+      "sha256": "d846c4a84b28eef356edcbff1a519f506cb2af117739a281b5af028b5c23c277"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/final4/0.stdout",
+      "bytes": 1543,
+      "sha256": "e31273218d77283bf7bcb3db3fa43fe4ffe78c26738035957c41d4e18f4c5fde"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/final4/1.stderr",
+      "bytes": 158,
+      "sha256": "ba1f28f030931b593ce1742dccfa3156e0898b33bae5b4fc13ea7249a4d6310a"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/final4/1.stdout",
+      "bytes": 416,
+      "sha256": "5f71b1da3c59b26ab75ba18a1308035ca46f534cbbf9902027f422541f9536b4"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/final4/2.stderr",
+      "bytes": 158,
+      "sha256": "79e19721c649a710cd5142e7a5a25f40f709547d673f9ccd94aadd3cce119112"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/final4/2.stdout",
+      "bytes": 214,
+      "sha256": "a3f0be58cfba58b897835e67a874bfd3a041fa421a463d2e0d2ee256d27ff3af"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/final4/3.stderr",
+      "bytes": 158,
+      "sha256": "9b6991bedd71a8dca75639b520f459e55184216da6851dae90985ff5c229bc98"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/final4/3.stdout",
+      "bytes": 461,
+      "sha256": "eab3e73e589bfdd42d7403405a0173fab46484c4bfd74ef54973b8e46e8fc00f"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/final4/4.stderr",
+      "bytes": 229,
+      "sha256": "6c4fadbda1b73fe1d4430281dce3f43f83cf3fc80609a738202d4d7da817aab9"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/final4/4.stdout",
+      "bytes": 566,
+      "sha256": "474c6028dc34979a1ec478cf07a89ae784a3854d3e91cbcac6b309ca48675daf"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/final4/5.stderr",
+      "bytes": 160,
+      "sha256": "ecb2af74b76b9f16d6818811701faf42b593f4b79941d8fc8bf20dd432b58554"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/final4/5.stdout",
+      "bytes": 208,
+      "sha256": "6142a8a4208c6ace14fab61943fbf7168d87066ab2660730c6647021b8ee11aa"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/final4/record.json",
+      "bytes": 5753,
+      "sha256": "95b71a1ee6bf88c3147926f8e1014c764fae5e39809e243db8a64eb2ca01a563"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/green-ack/0.stderr",
+      "bytes": 292,
+      "sha256": "fa3c9a0fce193c8574e47878ded1e2757257957f1c538da39c1d2dcedc674707"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/green-ack/0.stdout",
+      "bytes": 209,
+      "sha256": "adec85eb312f9ee81820dbf4c72b85281e0f702141b67c345a676f924644aaaa"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/green-ack/1.stderr",
+      "bytes": 158,
+      "sha256": "014064e7cd28208cca286f2a915cd5f76ec7beb9ffdbb1599c5ac8254fbb392c"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/green-ack/1.stdout",
+      "bytes": 210,
+      "sha256": "72067222deceddc63b387912503ba43a34e35bccbea3412d41034ae8a2bb705b"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/green-ack/record.json",
+      "bytes": 3218,
+      "sha256": "a5cbc4a1f74953149e8ba0dfbae4eb356de4c94230afb321c8b869b7d5e9378e"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/green/0.stderr",
+      "bytes": 223,
+      "sha256": "7a8e9be50d647e7cfb4b78a14312531ebf57fbb5de1195944419c2299db0d6fa"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/green/0.stdout",
+      "bytes": 207,
+      "sha256": "da2feed55772b6a596a74df41a92b92ef4c3c90aa2ab2931eba4aeb908c68d09"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/green/1.stderr",
+      "bytes": 223,
+      "sha256": "09ac609ab339cade4a0f03502cd75084df772d26558109024815c663f1ca6a00"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/green/1.stdout",
+      "bytes": 212,
+      "sha256": "70c5a2f8322d27b806dfd95611b24c8e0abfb8e8a0fa88b99e6039cb6cb5bb8b"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/green/2.stderr",
+      "bytes": 158,
+      "sha256": "79e19721c649a710cd5142e7a5a25f40f709547d673f9ccd94aadd3cce119112"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/green/2.stdout",
+      "bytes": 416,
+      "sha256": "bcbb2c0902d655c30b2357f323bfee7f7174d00595815ba4735ae1ac1d1a35d8"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/green/record.json",
+      "bytes": 3786,
+      "sha256": "302f2eff1e6af8233e819ffd534ffa310553a4b6e449c5b8fbca025e32539648"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/red-ack/0.stderr",
+      "bytes": 550,
+      "sha256": "416317734ffac62d1ab6456e5a89dbfd025b75e6041285f75fc4a85f0093d97d"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/red-ack/0.stdout",
+      "bytes": 326,
+      "sha256": "d341b386d801f2b41b46563acbd160c8acaf6f1d65e2bca16c6df3303fec9527"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/red-ack/1.stderr",
+      "bytes": 487,
+      "sha256": "373defc97bb6f44d2ef8da3c1208758f73be7890af7a551055b003cfab3a5aa2"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/red-ack/1.stdout",
+      "bytes": 328,
+      "sha256": "7f5755eb813c6c07102fc5b5a6a8a8dc175da7fb0069ca30fbb8588a5b1f4337"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/red-ack/record.json",
+      "bytes": 3187,
+      "sha256": "512bdbceb072e6087b6f0b237b26a6406e8faf8178534506f90e653bf578c04c"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/red-lifecycle/record.json",
+      "bytes": 2367,
+      "sha256": "6027d9c5023e23b5edfa1f08d44feb91b073411da6e4d6a86660a30b1795a32c"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/red-lifecycle/stderr",
+      "bytes": 554,
+      "sha256": "0a649a16151d95eec5c9b6195aa8a8b0bbffcd51a7409755ac5da8d0cd9f0a96"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/red-lifecycle/stdout",
+      "bytes": 336,
+      "sha256": "839ee015c2bc3c7fb163dc318523ef26cf908929eb1c20af52f646a57b406b75"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/red/0.stderr",
+      "bytes": 541,
+      "sha256": "145fef98d6ed1c4e99db5d16882669d39a650b6eef9efc99e0e36beb3a8220d3"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/red/0.stdout",
+      "bytes": 322,
+      "sha256": "75e97f5ba240f0acfd589ed9c9a18a6d8d177ab86ed0c64d66a7ebbf02b8098c"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/red/1.stderr",
+      "bytes": 488,
+      "sha256": "218c2108259286029c427c34fc39b33cfb84c8870c4a79a110c49bdfa9b805ca"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/red/1.stdout",
+      "bytes": 332,
+      "sha256": "8cc6567b099b2fc43312e8dda8366c8a8648279f7af245614c62f2197d83671e"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/json-consumer-budget-deadline-20261101/red/record.json",
+      "bytes": 3017,
+      "sha256": "6344bcfda2687594e442568a518137a087ac163cc395c1a27e92ab97d5ae93de"
     },
     {
       "path": "artifacts/mdd-034-audit/json-count-prototype-20261029/Cargo.lock",

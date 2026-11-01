@@ -1,0 +1,40 @@
+{
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-query/src/executor.rs": "1e57c605b196d718cb5c303050c2c122cefacaee14ca1eb643edc2bdf05e2251",
+    "crates/mdd-query/src/executor/runtime_tests.rs": "052c5dc621ca08f2bf3f59d8d2228b9b9b0988a0d77407c7dbf9688b7dfea82a",
+    "crates/mdd-query/src/budget.rs": "0a3f758047250ecd6ddb94279aaf8a52eecb5d52943e0ef69b732690d105a7f7",
+    "crates/mdd-session/src/lib.rs": "41eeb6e698e58db45abc9cb30120b50de3f7768500c2eba2ebccc186fec0eb47",
+    "crates/mdd-session/src/cancellation.rs": "b04d7294ce8a73cd17fdcfd1e6dbe7bcfb35aeef121cc27b1812840b78d0789c",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  },
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "mdd-query",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "1",
+    "json_consumer_partial_lifecycle_deadline_preserves_worker_loss",
+    "--",
+    "--nocapture"
+  ],
+  "scope": "controlled lifecycle deadline following earlier worker loss; not full qualification",
+  "started_utc": "2026-11-01T02:31:55.020108+00:00",
+  "exit_code": 101,
+  "stdout_sha256": "839ee015c2bc3c7fb163dc318523ef26cf908929eb1c20af52f646a57b406b75",
+  "stderr_sha256": "2bf2ea9e93e59298b1aa18b90e6d6560e0cabf78b8a8f244f3d3706f03eaf196",
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-query/src/executor.rs": "1e57c605b196d718cb5c303050c2c122cefacaee14ca1eb643edc2bdf05e2251",
+    "crates/mdd-query/src/executor/runtime_tests.rs": "052c5dc621ca08f2bf3f59d8d2228b9b9b0988a0d77407c7dbf9688b7dfea82a",
+    "crates/mdd-query/src/budget.rs": "0a3f758047250ecd6ddb94279aaf8a52eecb5d52943e0ef69b732690d105a7f7",
+    "crates/mdd-session/src/lib.rs": "41eeb6e698e58db45abc9cb30120b50de3f7768500c2eba2ebccc186fec0eb47",
+    "crates/mdd-session/src/cancellation.rs": "b04d7294ce8a73cd17fdcfd1e6dbe7bcfb35aeef121cc27b1812840b78d0789c",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  }
+}

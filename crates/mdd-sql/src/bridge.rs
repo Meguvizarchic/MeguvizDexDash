@@ -1323,6 +1323,85 @@ mod tests {
     }
 
     #[test]
+    fn legacy_numeric_column_between_converts_exact_text_bounds() {
+        use mdd_query::ir::Signed64;
+        let values = [None, Some(-1), Some(0), Some(1), Some(8), Some(9), Some(9)];
+        let provider = Arc::new(RowsProvider {
+            binding: SqlBinding {
+                provider_identity: "between-text-affinity".into(),
+                snapshot_id: "between-text-snapshot".into(),
+                catalog_epoch: DecimalU64(0),
+            },
+            rows: values
+                .iter()
+                .map(|value| vec![value.map_or(SqlValue::Null, |n| SqlValue::I64(Signed64(n)))])
+                .collect(),
+            columns: vec![SqlColumn {
+                id: "id".into(),
+                name: "id".into(),
+                data_type: SqlType::I64,
+                nullable: true,
+            }],
+        });
+        let sqlite = rusqlite::Connection::open_in_memory().unwrap();
+        sqlite.execute_batch("CREATE TABLE vals(id INTEGER); INSERT INTO vals VALUES(NULL),(-1),(0),(1),(8),(9),(9)").unwrap();
+        let cases = [
+            "SELECT id,id BETWEEN ' +01 ' AND '8e0' FROM vals ORDER BY id",
+            "SELECT id,id NOT BETWEEN ' +01 ' AND '8e0' FROM vals ORDER BY id",
+            "SELECT id,id BETWEEN NULL AND '8.0' FROM vals ORDER BY id",
+            "SELECT id,id BETWEEN '-1' AND NULL FROM vals ORDER BY id",
+            "SELECT v.id FROM vals v WHERE v.id BETWEEN '0' AND 8 ORDER BY v.id",
+        ];
+        for dialect in [SqlDialect::DexSql010, SqlDialect::DexSql011] {
+            let bridge = SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+            for sql in cases {
+                let mut statement = sqlite.prepare(sql).unwrap();
+                let width = statement.column_count();
+                let expected = statement
+                    .query_map([], |row| {
+                        (0..width)
+                            .map(|index| {
+                                row.get::<_, Option<i64>>(index).map(|value| {
+                                    value.map_or(SqlValue::Null, |n| SqlValue::I64(Signed64(n)))
+                                })
+                            })
+                            .collect::<rusqlite::Result<Vec<_>>>()
+                    })
+                    .unwrap()
+                    .collect::<rusqlite::Result<Vec<_>>>()
+                    .unwrap();
+                assert_eq!(
+                    bridge.query(sql).unwrap().rows(),
+                    expected,
+                    "{dialect:?}: {sql}"
+                );
+            }
+            assert_eq!(
+                bridge
+                    .query("SELECT missing BETWEEN '0' AND '1' FROM vals")
+                    .unwrap_err()
+                    .code,
+                ErrorCode::InvalidArgument
+            );
+            assert_eq!(
+                bridge
+                    .query("SELECT id BETWEEN '0.5' AND '1' FROM vals")
+                    .unwrap_err()
+                    .code,
+                ErrorCode::UnsupportedQuery
+            );
+        }
+        let native = SqlBridge::new(provider, SqlDialect::NativeV1, SqlLimits::default()).unwrap();
+        assert_eq!(
+            native
+                .query("SELECT id BETWEEN '1' AND '8' FROM vals")
+                .unwrap_err()
+                .code,
+            ErrorCode::UnsupportedQuery
+        );
+    }
+
+    #[test]
     fn literal_between_and_simple_case_preserve_storage_class_rules() {
         let (provider, _) = bridge();
         let sqlite = rusqlite::Connection::open_in_memory().unwrap();

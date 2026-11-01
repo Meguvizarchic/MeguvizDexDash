@@ -1,0 +1,85 @@
+{
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-query/src/executor.rs": "c826f12ca5f17050be226a41ead5c1f5030ee2074cf9f9885bb5af72c68077df",
+    "crates/mdd-query/src/executor/runtime_tests.rs": "8b769199d8f1fbe865754e837607fd35b12c0e0bf7882f89777ffa016fc20e84",
+    "crates/mdd-query/src/budget.rs": "bda1ebd07fc79b3bf7c62a29df2b39c23a546981bf1cd1ac3f975612ad0fcaee",
+    "crates/mdd-session/src/lib.rs": "41eeb6e698e58db45abc9cb30120b50de3f7768500c2eba2ebccc186fec0eb47",
+    "crates/mdd-session/src/cancellation.rs": "b04d7294ce8a73cd17fdcfd1e6dbe7bcfb35aeef121cc27b1812840b78d0789c",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  },
+  "scope": "targeted consumer deadline and existing JSON consumer regression; no hard realtime, RSS or full runtime qualification",
+  "runs": [
+    {
+      "filter": "json_consumer_stops_when_budget_expires_during_callback",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-query",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "json_consumer_stops_when_budget_expires_during_callback",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T02:29:35.291796+00:00",
+      "exit_code": 0,
+      "stdout_sha256": "da2feed55772b6a596a74df41a92b92ef4c3c90aa2ab2931eba4aeb908c68d09",
+      "stderr_sha256": "537e7d7dfc9993376b82327d2d07a7ffa6c1ec937d7743bbffedd86fc1df1fcc"
+    },
+    {
+      "filter": "json_consumer_partial_deadline_preserves_earlier_worker_loss",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-query",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "json_consumer_partial_deadline_preserves_earlier_worker_loss",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T02:29:42.563582+00:00",
+      "exit_code": 0,
+      "stdout_sha256": "70c5a2f8322d27b806dfd95611b24c8e0abfb8e8a0fa88b99e6039cb6cb5bb8b",
+      "stderr_sha256": "2cac63416cd7be21c7dd6638a618709e5b635a4ee5c490e4f9d167772e42a07a"
+    },
+    {
+      "filter": "json_batch_consumer_",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-query",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "json_batch_consumer_",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T02:29:45.572403+00:00",
+      "exit_code": 0,
+      "stdout_sha256": "bcbb2c0902d655c30b2357f323bfee7f7174d00595815ba4735ae1ac1d1a35d8",
+      "stderr_sha256": "79e19721c649a710cd5142e7a5a25f40f709547d673f9ccd94aadd3cce119112"
+    }
+  ],
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-query/src/executor.rs": "c826f12ca5f17050be226a41ead5c1f5030ee2074cf9f9885bb5af72c68077df",
+    "crates/mdd-query/src/executor/runtime_tests.rs": "8b769199d8f1fbe865754e837607fd35b12c0e0bf7882f89777ffa016fc20e84",
+    "crates/mdd-query/src/budget.rs": "bda1ebd07fc79b3bf7c62a29df2b39c23a546981bf1cd1ac3f975612ad0fcaee",
+    "crates/mdd-session/src/lib.rs": "41eeb6e698e58db45abc9cb30120b50de3f7768500c2eba2ebccc186fec0eb47",
+    "crates/mdd-session/src/cancellation.rs": "b04d7294ce8a73cd17fdcfd1e6dbe7bcfb35aeef121cc27b1812840b78d0789c",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  }
+}

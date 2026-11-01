@@ -1707,6 +1707,23 @@ impl Rewrite<'_> {
                 high,
                 negated,
             } => {
+                // The declared numeric column supplies affinity to each bound
+                // independently. Limit legacy conversion to the same exact
+                // decimal forms admitted by the existing numeric IN path.
+                // The value is a direct column, so its later duplication does
+                // not introduce an additional effectful evaluation.
+                if self.dialect != super::SqlDialect::NativeV1
+                    && matches!(
+                        self.in_column_type(child),
+                        Some(crate::values::SqlType::I64 | crate::values::SqlType::U64)
+                    )
+                {
+                    for bound in [&mut *low, &mut *high] {
+                        if let Some(value) = exact_i64_text_literal(bound) {
+                            replace_with_i64_literal(bound, value);
+                        }
+                    }
+                }
                 let low_no_affinity = no_affinity(child) && no_affinity(low);
                 let high_no_affinity = no_affinity(child) && no_affinity(high);
                 let low_text_integer = direct_text_integer_affinity(self.dialect, child, low);

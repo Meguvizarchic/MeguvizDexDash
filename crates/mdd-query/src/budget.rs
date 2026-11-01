@@ -820,9 +820,23 @@ impl Budgeted<QueuedOwnedBatch> {
                 Err(failure) => failure,
             });
         }
+        // Copy this queue's immutable budget witness, then test it under the
+        // same lifecycle lock that publishes the batch acknowledgement.
+        let budget = match self._memory.0.pool.delivery_deadline() {
+            Ok(value) => value,
+            Err(error) => {
+                return Err(match ack.tracker.cancel.fail(error.clone()) {
+                    Ok(status) => status.error.unwrap_or(error),
+                    Err(failure) => failure,
+                });
+            }
+        };
         let acknowledged = match partial_error {
-            Some(error) => self.payload.batch.acknowledge_partial(error),
-            None => self.payload.batch.acknowledge(),
+            Some(error) => self
+                .payload
+                .batch
+                .acknowledge_partial_with_budget(error, &budget),
+            None => self.payload.batch.acknowledge_with_budget(&budget),
         };
         if let Err(error) = acknowledged {
             return Err(match ack.tracker.cancel.fail(error.clone()) {
@@ -1192,10 +1206,6 @@ impl OwnedBatchPacket {
             self.0.payload.batch.snapshot_id(),
             ack.tracker.cancel.status()?.catalog_epoch,
         ))
-    }
-
-    pub(crate) fn checkpoint(&self) -> MddResult<()> {
-        self.0.payload.tracker.cancel.checkpoint()
     }
 
     pub(crate) fn check_partial_error(&self, expected: &MddError) -> MddResult<()> {

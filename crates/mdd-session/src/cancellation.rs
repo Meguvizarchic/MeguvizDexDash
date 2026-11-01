@@ -233,6 +233,52 @@ impl QueryCancellation {
         }
         Ok(())
     }
+    /// Permit processing already-delivered partial data only while both query
+    /// and budget deadlines remain open. The exact pre-existing query failure
+    /// remains authoritative when either deadline has elapsed.
+    pub fn checkpoint_partial_with_budget(
+        &self,
+        budget: &DeliveryBudgetDeadline,
+        expected_error: &MddError,
+    ) -> MddResult<()> {
+        if budget.owner() != self.query.id() {
+            return Err(MddError::new(
+                ErrorCode::InvalidArgument,
+                "cancel.checkpoint",
+                "budget belongs to another query",
+            ));
+        }
+        let state = self.lifecycle.lock_query_read(&self.query)?;
+        let entry = state.query(&self.query)?;
+        let actual = entry.status.error.as_ref().ok_or_else(|| {
+            MddError::new(
+                ErrorCode::InvalidArgument,
+                "cancel.checkpoint",
+                "partial processing requires a query failure",
+            )
+        })?;
+        if !matches!(
+            entry.status.phase,
+            QueryPhase::Failed | QueryPhase::Cancelled
+        ) || entry.status.delivery_complete
+            || actual.code != expected_error.code
+            || actual.stage != expected_error.stage
+            || actual.message != expected_error.message
+            || actual.retryable != expected_error.retryable
+            || actual.details != expected_error.details
+        {
+            return Err(MddError::new(
+                ErrorCode::InvalidArgument,
+                "cancel.checkpoint",
+                "partial processing error binding mismatch",
+            ));
+        }
+        let now = Instant::now();
+        if state.batch_fault.is_some() || now >= entry.deadline || now >= budget.soft() {
+            return Err(actual.clone());
+        }
+        Ok(())
+    }
     pub fn cancel(&self) -> MddResult<QueryStatus> {
         self.lifecycle.cancel_query(&self.query)?;
         self.status()

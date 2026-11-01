@@ -1,0 +1,65 @@
+{
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-query/src/executor.rs": "a664109676239f3e06846b9b79b64dffaa1b11cbd33a8bf9b5569671698ac2ae",
+    "crates/mdd-query/src/executor/runtime_tests.rs": "c4d1e7ae016313d3057ba082688c0a664ee7e76d425f2c29b3d62d6a815f6698",
+    "crates/mdd-query/src/budget.rs": "0a3f758047250ecd6ddb94279aaf8a52eecb5d52943e0ef69b732690d105a7f7",
+    "crates/mdd-session/src/lib.rs": "41eeb6e698e58db45abc9cb30120b50de3f7768500c2eba2ebccc186fec0eb47",
+    "crates/mdd-session/src/cancellation.rs": "7e3636d5e62cf4de567fb55088f186e5130eb024ddd0517a535e15bcad669114",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  },
+  "scope": "controlled gap between passing checkpoint and acknowledgement; not exhaustive races",
+  "runs": [
+    {
+      "filter": "json_consumer_packet_ack_respects_budget_after_checkpoint",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-query",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "json_consumer_packet_ack_respects_budget_after_checkpoint",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T02:34:42.470881+00:00",
+      "exit_code": 101,
+      "stdout_sha256": "d341b386d801f2b41b46563acbd160c8acaf6f1d65e2bca16c6df3303fec9527",
+      "stderr_sha256": "bb6227d5af03ea1d87b8ad6af249b7378137553e5428a2d2fd2ad2884840680f"
+    },
+    {
+      "filter": "json_consumer_partial_ack_respects_budget_after_checkpoint",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-query",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "json_consumer_partial_ack_respects_budget_after_checkpoint",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T02:34:46.418188+00:00",
+      "exit_code": 101,
+      "stdout_sha256": "7f5755eb813c6c07102fc5b5a6a8a8dc175da7fb0069ca30fbb8588a5b1f4337",
+      "stderr_sha256": "373defc97bb6f44d2ef8da3c1208758f73be7890af7a551055b003cfab3a5aa2"
+    }
+  ],
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-query/src/executor.rs": "a664109676239f3e06846b9b79b64dffaa1b11cbd33a8bf9b5569671698ac2ae",
+    "crates/mdd-query/src/executor/runtime_tests.rs": "c4d1e7ae016313d3057ba082688c0a664ee7e76d425f2c29b3d62d6a815f6698",
+    "crates/mdd-query/src/budget.rs": "0a3f758047250ecd6ddb94279aaf8a52eecb5d52943e0ef69b732690d105a7f7",
+    "crates/mdd-session/src/lib.rs": "41eeb6e698e58db45abc9cb30120b50de3f7768500c2eba2ebccc186fec0eb47",
+    "crates/mdd-session/src/cancellation.rs": "7e3636d5e62cf4de567fb55088f186e5130eb024ddd0517a535e15bcad669114",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae"
+  }
+}

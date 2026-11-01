@@ -1,0 +1,9 @@
+
+running 4 tests
+test budget::tests::owned_batch_queue_second_ack_failure_cannot_finish_delivery ... ok
+test budget::tests::owned_batch_queue_preserves_consumption_and_retained_budget ... ok
+test budget::tests::owned_batch_queue_rejects_unconsumed_and_foreign_runtime ... ok
+test budget::tests::owned_batch_queue_holds_backpressure_and_reports_worker_loss ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 135 filtered out; finished in 0.00s
+

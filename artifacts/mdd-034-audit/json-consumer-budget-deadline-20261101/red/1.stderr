@@ -1,0 +1,7 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.11s
+     Running unittests src\lib.rs (target\debug\deps\mdd_query-82579f4092cfd058.exe)
+
+thread 'executor::runtime_tests::json_consumer_partial_deadline_preserves_earlier_worker_loss' (36088) panicked at crates\mdd-query\src\executor\runtime_tests.rs:1938:29:
+expired partial accepted
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p mdd-query --lib`

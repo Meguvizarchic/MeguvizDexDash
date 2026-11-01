@@ -4,6 +4,7 @@ use crate::ir::*;
 use mdd_dex::definitions::MethodBody;
 use mdd_facts::{
     EntityKind, EntityRef, MetadataFacts, MetadataSource,
+    annotations::AnnotationFacts,
     code::CodeFacts,
     definitions::DefinitionFacts,
     references::{ReferenceFacts, TargetKind},
@@ -214,6 +215,94 @@ pub struct ReferenceCatalog {
     identity: String,
     native: NativeCatalog,
     references: Vec<Arc<ReferenceFacts>>,
+}
+
+/// Typed annotations over either a native or reference-backed catalog.
+/// The supplied occurrences are explicit and do not by themselves certify
+/// that every input in the captured snapshot was selected. Parameter slots in
+/// signature relations are encoded slots, not proven prototype positions.
+pub struct AnnotationCatalog {
+    identity: String,
+    base: AnnotationBase,
+    annotations: Vec<Arc<AnnotationFacts>>,
+}
+
+enum AnnotationBase {
+    Native(NativeCatalog),
+    References(ReferenceCatalog),
+}
+
+impl AnnotationBase {
+    fn native(&self) -> &NativeCatalog {
+        match self {
+            Self::Native(base) => base,
+            Self::References(base) => &base.native,
+        }
+    }
+
+    fn source(&self) -> &dyn FactSource {
+        match self {
+            Self::Native(base) => base,
+            Self::References(base) => base,
+        }
+    }
+}
+
+impl AnnotationCatalog {
+    pub fn new(native: NativeCatalog, annotations: Vec<Arc<AnnotationFacts>>) -> MddResult<Self> {
+        Self::build(AnnotationBase::Native(native), annotations)
+    }
+
+    pub fn with_references(
+        references: ReferenceCatalog,
+        annotations: Vec<Arc<AnnotationFacts>>,
+    ) -> MddResult<Self> {
+        Self::build(AnnotationBase::References(references), annotations)
+    }
+
+    fn build(base: AnnotationBase, annotations: Vec<Arc<AnnotationFacts>>) -> MddResult<Self> {
+        if annotations.len() != base.native().occurrences.len() {
+            return Err(incomplete(FactLayer::Annotations));
+        }
+        let mut by_occurrence = BTreeMap::new();
+        for facts in annotations {
+            if facts.annotation_coverage() != Completeness::Complete
+                || facts.definitions().definition_coverage() != Completeness::Complete
+                || facts.definitions().metadata().metadata_coverage() != Completeness::Complete
+            {
+                return Err(incomplete(FactLayer::Annotations));
+            }
+            if by_occurrence
+                .insert(facts.source().dex_occurrence_id.clone(), facts)
+                .is_some()
+            {
+                return Err(invalid("DUPLICATE_ANNOTATION_OCCURRENCE"));
+            }
+        }
+        let mut ordered = Vec::with_capacity(base.native().occurrences.len());
+        for occurrence in &base.native().occurrences {
+            let facts = by_occurrence
+                .remove(&occurrence.metadata.source().dex_occurrence_id)
+                .ok_or_else(|| incomplete(FactLayer::Annotations))?;
+            if !same(occurrence.metadata.source(), facts.source())
+                || !Arc::ptr_eq(
+                    &occurrence.metadata.lease(),
+                    &facts.definitions().metadata().lease(),
+                )
+            {
+                return Err(invalid("NATIVE_ANNOTATION_SOURCE_OR_LEASE"));
+            }
+            ordered.push(facts);
+        }
+        if !by_occurrence.is_empty() {
+            return Err(invalid("ANNOTATION_OUTSIDE_CATALOG"));
+        }
+        Ok(Self {
+            identity: opaque_id("query-annotation-catalog")?,
+            base,
+            annotations: ordered,
+        })
+    }
 }
 impl ReferenceCatalog {
     pub fn new(native: NativeCatalog, references: Vec<Arc<ReferenceFacts>>) -> MddResult<Self> {
@@ -707,6 +796,182 @@ impl FactSource for ReferenceCatalog {
     }
     fn read_code_bytes(&self, value: &EntityRef) -> MddResult<Option<&[u8]>> {
         self.native.read_code_bytes(value)
+    }
+}
+
+fn signature_schema(relation: &str) -> Option<RelationSchema> {
+    use DataType::*;
+    let columns = match relation {
+        "annotation_signatures" => vec![
+            column("dex_occurrence_id", Utf16, false),
+            column("signature_ordinal", U64, false),
+            column("annotation_offset", U64, false),
+            column("owner_kind", Utf16, false),
+            column("owner_reference", Entity, false),
+            column("owner_definition", Entity, true),
+            column("encoded_parameter_slot", U64, true),
+            column("string_pool_id", Utf16, false),
+            column("utf16", Utf16, false),
+            column("fragment_count", U64, false),
+        ],
+        "annotation_signature_fragments" => vec![
+            column("dex_occurrence_id", Utf16, false),
+            column("signature_ordinal", U64, false),
+            column("annotation_offset", U64, false),
+            column("owner_reference", Entity, false),
+            column("encoded_parameter_slot", U64, true),
+            column("fragment_ordinal", U64, false),
+            column("string_entity", Entity, false),
+            column("utf16", Utf16, false),
+            column("raw_mutf8", Bytes, false),
+        ],
+        _ => return None,
+    };
+    Some(RelationSchema {
+        columns,
+        required_layers: vec![
+            FactLayer::Metadata,
+            FactLayer::Structure,
+            FactLayer::Annotations,
+        ],
+    })
+}
+
+fn signature_ordinal(value: usize) -> MddResult<Value> {
+    Ok(Value::U64(DecimalU64(u64::try_from(value).map_err(
+        |_| {
+            MddError::new(
+                ErrorCode::QuotaExceeded,
+                "query.facts",
+                "signature ordinal overflow",
+            )
+        },
+    )?)))
+}
+
+impl FactSource for AnnotationCatalog {
+    fn identity(&self) -> &str {
+        &self.identity
+    }
+    fn snapshot_id(&self) -> &str {
+        self.base.source().snapshot_id()
+    }
+    fn catalog_epoch(&self) -> DecimalU64 {
+        self.base.source().catalog_epoch()
+    }
+    fn relation_schema(&self, relation: &str) -> MddResult<RelationSchema> {
+        match signature_schema(relation) {
+            Some(schema) => Ok(schema),
+            None => self.base.source().relation_schema(relation),
+        }
+    }
+    fn require_layers(&self, layers: &BTreeSet<FactLayer>) -> MddResult<()> {
+        if layers.contains(&FactLayer::Annotations)
+            && self
+                .annotations
+                .iter()
+                .any(|facts| facts.annotation_coverage() != Completeness::Complete)
+        {
+            return Err(incomplete(FactLayer::Annotations));
+        }
+        let base_layers = layers
+            .iter()
+            .copied()
+            .filter(|layer| *layer != FactLayer::Annotations)
+            .collect();
+        self.base.source().require_layers(&base_layers)
+    }
+    fn validate_entity(&self, entity_ref: &EntityRef) -> MddResult<()> {
+        self.base.source().validate_entity(entity_ref)
+    }
+    fn scan<'a>(
+        &'a self,
+        relation: &str,
+    ) -> MddResult<Box<dyn Iterator<Item = MddResult<Row>> + 'a>> {
+        let Some(schema) = signature_schema(relation) else {
+            return self.base.source().scan(relation);
+        };
+        self.require_layers(&schema.required_layers.into_iter().collect())?;
+        if relation == "annotation_signatures" {
+            return Ok(Box::new(self.annotations.iter().flat_map(|facts| {
+                facts
+                    .signatures()
+                    .iter()
+                    .enumerate()
+                    .map(move |(ordinal, signature)| {
+                        use mdd_dex::annotations::AnnotationOwnerKind;
+                        let kind = match signature.owner.kind {
+                            AnnotationOwnerKind::Class => "class",
+                            AnnotationOwnerKind::Field => "field",
+                            AnnotationOwnerKind::Method => "method",
+                            AnnotationOwnerKind::Parameter => "parameter",
+                        };
+                        Ok(vec![
+                            Value::text(&facts.source().dex_occurrence_id),
+                            signature_ordinal(ordinal)?,
+                            number(signature.annotation.annotation_byte_offset),
+                            Value::text(kind),
+                            Value::Entity(signature.owner.reference.clone()),
+                            signature
+                                .owner
+                                .definition
+                                .clone()
+                                .map_or(Value::Null, Value::Entity),
+                            signature
+                                .owner
+                                .parameter_ordinal
+                                .map_or(Value::Null, number),
+                            Value::text(&signature.string_pool_id),
+                            Value::Utf16(signature.utf16_units.clone()),
+                            signature_ordinal(signature.parts.len())?,
+                        ])
+                    })
+            })));
+        }
+        Ok(Box::new(self.annotations.iter().flat_map(|facts| {
+            facts
+                .signatures()
+                .iter()
+                .enumerate()
+                .flat_map(move |(ordinal, signature)| {
+                    signature
+                        .parts
+                        .iter()
+                        .enumerate()
+                        .map(move |(part_ordinal, part)| {
+                            let string = facts
+                                .definitions()
+                                .metadata()
+                                .strings()
+                                .get(part.local_index as usize)
+                                .filter(|string| string.entity == *part)
+                                .ok_or_else(|| {
+                                    MddError::new(
+                                        ErrorCode::InternalFault,
+                                        "query.facts",
+                                        "signature fragment identity is inconsistent",
+                                    )
+                                })?;
+                            Ok(vec![
+                                Value::text(&facts.source().dex_occurrence_id),
+                                signature_ordinal(ordinal)?,
+                                number(signature.annotation.annotation_byte_offset),
+                                Value::Entity(signature.owner.reference.clone()),
+                                signature
+                                    .owner
+                                    .parameter_ordinal
+                                    .map_or(Value::Null, number),
+                                signature_ordinal(part_ordinal)?,
+                                Value::Entity(part.clone()),
+                                Value::Utf16(string.data.text.utf16_units.clone()),
+                                Value::Bytes(Bytes(string.data.text.raw_mutf8.clone())),
+                            ])
+                        })
+                })
+        })))
+    }
+    fn read_code_bytes(&self, entity_ref: &EntityRef) -> MddResult<Option<&[u8]>> {
+        self.base.source().read_code_bytes(entity_ref)
     }
 }
 fn column(id: &str, ty: DataType, nullable: bool) -> Column {

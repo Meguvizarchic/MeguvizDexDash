@@ -1881,6 +1881,402 @@ fn json_batches_execute_multiple_rows_and_bind_delivery() {
 }
 
 #[test]
+fn json_consumer_ack_respects_lifecycle_after_checkpoint() {
+    for partial in [false, true] {
+        let f = setup_with_schema_and_lifecycle(
+            BudgetLimits::default().deadlines(5000, 10_000).unwrap(),
+            DataType::U64,
+            vec![vec![Value::U64(DecimalU64(0))]],
+            ResourceLimits {
+                deadline_ms: 900,
+                ..ResourceLimits::default()
+            },
+        );
+        let (sender, mut receiver) = bounded_owned_batch_channel(&f.runtime, 2).unwrap();
+        let rows = vec![vec![Value::U64(DecimalU64(0))]];
+        sender
+            .send(
+                &f.runtime,
+                serde_json::to_vec(&rows).unwrap().into_boxed_slice(),
+            )
+            .unwrap();
+        let OwnedBatchEvent::Data(packet) = receiver.receive().unwrap() else {
+            panic!("missing batch")
+        };
+        let original = if partial {
+            f.lifecycle
+                .worker_lost("injected before lifecycle deadline")
+                .unwrap();
+            Some(f.cancel.status().unwrap().error.unwrap())
+        } else {
+            None
+        };
+        json_consumer_checkpoint(&f.runtime, original.as_ref()).unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(1100));
+        assert!(
+            f.runtime.pool().checkpoint().is_ok(),
+            "budget must not yet expire"
+        );
+        let error = match &original {
+            Some(error) => packet.acknowledge_partial(error).err(),
+            None => packet.acknowledge().err(),
+        }
+        .expect("late packet acknowledged");
+        assert_eq!(
+            error.code,
+            if partial {
+                ErrorCode::WorkerLost
+            } else {
+                ErrorCode::DeadlineExceeded
+            }
+        );
+        let status = f.cancel.status().unwrap();
+        assert!(!status.delivery_complete);
+        assert_eq!(status.error.unwrap().code, error.code);
+    }
+}
+
+#[test]
+fn json_consumer_packet_ack_respects_budget_after_checkpoint() {
+    let f = setup_with_rows(BudgetLimits::default().deadlines(250, 5000).unwrap(), 1);
+    let (sender, mut receiver) = bounded_owned_batch_channel(&f.runtime, 2).unwrap();
+    let rows = vec![vec![Value::U64(DecimalU64(0))]];
+    sender
+        .send(
+            &f.runtime,
+            serde_json::to_vec(&rows).unwrap().into_boxed_slice(),
+        )
+        .unwrap();
+    let OwnedBatchEvent::Data(packet) = receiver.receive().unwrap() else {
+        panic!("missing batch")
+    };
+    json_consumer_checkpoint(&f.runtime, None).unwrap();
+    let limit = std::time::Instant::now() + std::time::Duration::from_secs(3);
+    while f.runtime.pool().checkpoint().is_ok() {
+        assert!(std::time::Instant::now() < limit, "budget did not expire");
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    }
+    assert_eq!(
+        packet
+            .acknowledge()
+            .err()
+            .expect("late packet acknowledged")
+            .code,
+        ErrorCode::DeadlineExceeded
+    );
+    let status = f.cancel.status().unwrap();
+    assert!(!status.delivery_complete);
+    assert_eq!(status.error.unwrap().code, ErrorCode::DeadlineExceeded);
+}
+
+#[test]
+fn json_consumer_partial_ack_respects_budget_after_checkpoint() {
+    let f = setup_with_rows(BudgetLimits::default().deadlines(250, 5000).unwrap(), 1);
+    let (sender, mut receiver) = bounded_owned_batch_channel(&f.runtime, 2).unwrap();
+    let rows = vec![vec![Value::U64(DecimalU64(0))]];
+    sender
+        .send(
+            &f.runtime,
+            serde_json::to_vec(&rows).unwrap().into_boxed_slice(),
+        )
+        .unwrap();
+    let OwnedBatchEvent::Data(packet) = receiver.receive().unwrap() else {
+        panic!("missing batch")
+    };
+    f.lifecycle
+        .worker_lost("injected before budget expiry")
+        .unwrap();
+    let original = f.cancel.status().unwrap().error.unwrap();
+    assert_eq!(original.code, ErrorCode::WorkerLost);
+    json_consumer_checkpoint(&f.runtime, Some(&original)).unwrap();
+    let limit = std::time::Instant::now() + std::time::Duration::from_secs(3);
+    while f.runtime.pool().checkpoint().is_ok() {
+        assert!(std::time::Instant::now() < limit, "budget did not expire");
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    }
+    assert_eq!(
+        packet
+            .acknowledge_partial(&original)
+            .err()
+            .expect("late partial acknowledged")
+            .code,
+        ErrorCode::WorkerLost
+    );
+    let status = f.cancel.status().unwrap();
+    assert!(!status.delivery_complete);
+    assert_eq!(status.error.unwrap().code, ErrorCode::WorkerLost);
+}
+
+#[test]
+fn json_consumer_reports_the_earliest_expired_deadline() {
+    for (budget_ms, lifecycle_ms, expected_stage, expected_budget) in [
+        (250, 900, "budget", "soft_deadline_ms"),
+        (900, 250, "lifecycle", "deadline_ms"),
+    ] {
+        let f = setup_with_schema_and_lifecycle(
+            BudgetLimits::default().deadlines(budget_ms, 5000).unwrap(),
+            DataType::U64,
+            vec![vec![Value::U64(DecimalU64(0))]],
+            ResourceLimits {
+                deadline_ms: lifecycle_ms,
+                ..ResourceLimits::default()
+            },
+        );
+        let (sender, mut receiver) = bounded_owned_batch_channel(&f.runtime, 2).unwrap();
+        let rows = vec![vec![Value::U64(DecimalU64(0))]];
+        sender
+            .send(
+                &f.runtime,
+                serde_json::to_vec(&rows).unwrap().into_boxed_slice(),
+            )
+            .unwrap();
+        let OwnedBatchEvent::Data(packet) = receiver.receive().unwrap() else {
+            panic!("missing batch")
+        };
+        std::thread::sleep(std::time::Duration::from_millis(1100));
+        let mut callbacks = 0;
+        let error = consume_json_batch(
+            packet,
+            &f.runtime,
+            &f.prepared,
+            &f.source,
+            JsonBatchConsumerLimits {
+                max_bytes: 4096,
+                max_rows: 1,
+                max_columns: 1,
+            },
+            None,
+            |_| {
+                callbacks += 1;
+                Ok(())
+            },
+        )
+        .err()
+        .expect("expired query accepted");
+        assert_eq!(error.code, ErrorCode::DeadlineExceeded);
+        assert_eq!(error.stage, expected_stage);
+        assert_eq!(error.details["budget"], expected_budget);
+        assert_eq!(callbacks, 0);
+        assert!(!f.cancel.status().unwrap().delivery_complete);
+    }
+}
+
+#[test]
+fn json_consumer_stops_when_budget_expires_during_callback() {
+    let limits = BudgetLimits::default().deadlines(250, 5000).unwrap();
+    let f = setup_with_rows(limits, 2);
+    let (sender, mut receiver) = bounded_owned_batch_channel(&f.runtime, 2).unwrap();
+    let rows = vec![
+        vec![Value::U64(DecimalU64(0))],
+        vec![Value::U64(DecimalU64(1))],
+    ];
+    sender
+        .send(
+            &f.runtime,
+            serde_json::to_vec(&rows).unwrap().into_boxed_slice(),
+        )
+        .unwrap();
+    let OwnedBatchEvent::Data(packet) = receiver.receive().unwrap() else {
+        panic!("missing batch")
+    };
+    let mut callbacks = 0;
+    let result = consume_json_batch(
+        packet,
+        &f.runtime,
+        &f.prepared,
+        &f.source,
+        JsonBatchConsumerLimits {
+            max_bytes: 4096,
+            max_rows: 2,
+            max_columns: 1,
+        },
+        None,
+        |_| {
+            callbacks += 1;
+            let limit = std::time::Instant::now() + std::time::Duration::from_secs(3);
+            while f.runtime.pool().checkpoint().is_ok() {
+                assert!(std::time::Instant::now() < limit, "budget did not expire");
+                std::thread::sleep(std::time::Duration::from_millis(2));
+            }
+            Ok(())
+        },
+    );
+    assert_eq!(
+        result.err().expect("deadline accepted").code,
+        ErrorCode::DeadlineExceeded
+    );
+    assert_eq!(callbacks, 1);
+    let status = f.cancel.status().unwrap();
+    assert!(!status.delivery_complete);
+    assert_eq!(status.error.unwrap().code, ErrorCode::DeadlineExceeded);
+}
+
+#[test]
+fn json_consumer_partial_lifecycle_expiry_after_callback_preserves_worker_loss() {
+    let f = setup_with_schema_and_lifecycle(
+        BudgetLimits::default().deadlines(5000, 10_000).unwrap(),
+        DataType::U64,
+        vec![vec![Value::U64(DecimalU64(0))]],
+        ResourceLimits {
+            deadline_ms: 900,
+            ..ResourceLimits::default()
+        },
+    );
+    let (sender, mut receiver) = bounded_owned_batch_channel(&f.runtime, 2).unwrap();
+    let rows = vec![vec![Value::U64(DecimalU64(0))]];
+    sender
+        .send(
+            &f.runtime,
+            serde_json::to_vec(&rows).unwrap().into_boxed_slice(),
+        )
+        .unwrap();
+    let OwnedBatchEvent::Data(packet) = receiver.receive().unwrap() else {
+        panic!("missing batch")
+    };
+    f.lifecycle
+        .worker_lost("injected before lifecycle deadline")
+        .unwrap();
+    let original = f.cancel.status().unwrap().error.unwrap();
+    let mut callbacks = 0;
+    let result = consume_json_batch(
+        packet,
+        &f.runtime,
+        &f.prepared,
+        &f.source,
+        JsonBatchConsumerLimits {
+            max_bytes: 4096,
+            max_rows: 1,
+            max_columns: 1,
+        },
+        Some(&original),
+        |_| {
+            callbacks += 1;
+            std::thread::sleep(std::time::Duration::from_millis(1100));
+            Ok(())
+        },
+    );
+    assert_eq!(
+        result.err().expect("expired partial accepted").code,
+        ErrorCode::WorkerLost
+    );
+    assert_eq!(callbacks, 1);
+    let status = f.cancel.status().unwrap();
+    assert!(!status.delivery_complete);
+    assert_eq!(status.error.unwrap().code, ErrorCode::WorkerLost);
+}
+
+#[test]
+fn json_consumer_partial_lifecycle_deadline_preserves_worker_loss() {
+    let f = setup_with_schema_and_lifecycle(
+        BudgetLimits::default().deadlines(5000, 10_000).unwrap(),
+        DataType::U64,
+        vec![vec![Value::U64(DecimalU64(0))]],
+        ResourceLimits {
+            deadline_ms: 250,
+            ..ResourceLimits::default()
+        },
+    );
+    let (sender, mut receiver) = bounded_owned_batch_channel(&f.runtime, 2).unwrap();
+    let rows = vec![vec![Value::U64(DecimalU64(0))]];
+    sender
+        .send(
+            &f.runtime,
+            serde_json::to_vec(&rows).unwrap().into_boxed_slice(),
+        )
+        .unwrap();
+    let OwnedBatchEvent::Data(packet) = receiver.receive().unwrap() else {
+        panic!("missing batch")
+    };
+    f.lifecycle
+        .worker_lost("injected before lifecycle deadline")
+        .unwrap();
+    let original = f.cancel.status().unwrap().error.unwrap();
+    assert_eq!(original.code, ErrorCode::WorkerLost);
+    std::thread::sleep(std::time::Duration::from_millis(400));
+    assert!(
+        f.runtime.pool().checkpoint().is_ok(),
+        "budget deadline should not yet be due"
+    );
+    let mut callbacks = 0;
+    let result = consume_json_batch(
+        packet,
+        &f.runtime,
+        &f.prepared,
+        &f.source,
+        JsonBatchConsumerLimits {
+            max_bytes: 4096,
+            max_rows: 1,
+            max_columns: 1,
+        },
+        Some(&original),
+        |_| {
+            callbacks += 1;
+            Ok(())
+        },
+    );
+    assert_eq!(
+        result.err().expect("expired partial accepted").code,
+        ErrorCode::WorkerLost
+    );
+    assert_eq!(callbacks, 0);
+    let status = f.cancel.status().unwrap();
+    assert!(!status.delivery_complete);
+    assert_eq!(status.error.unwrap().code, ErrorCode::WorkerLost);
+}
+
+#[test]
+fn json_consumer_partial_deadline_preserves_earlier_worker_loss() {
+    let limits = BudgetLimits::default().deadlines(250, 5000).unwrap();
+    let f = setup_with_rows(limits, 1);
+    let (sender, mut receiver) = bounded_owned_batch_channel(&f.runtime, 2).unwrap();
+    let rows = vec![vec![Value::U64(DecimalU64(0))]];
+    sender
+        .send(
+            &f.runtime,
+            serde_json::to_vec(&rows).unwrap().into_boxed_slice(),
+        )
+        .unwrap();
+    let OwnedBatchEvent::Data(packet) = receiver.receive().unwrap() else {
+        panic!("missing batch")
+    };
+    f.lifecycle
+        .worker_lost("injected before budget expiry")
+        .unwrap();
+    let original = f.cancel.status().unwrap().error.unwrap();
+    assert_eq!(original.code, ErrorCode::WorkerLost);
+    let limit = std::time::Instant::now() + std::time::Duration::from_secs(3);
+    while f.runtime.pool().checkpoint().is_ok() {
+        assert!(std::time::Instant::now() < limit, "budget did not expire");
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    }
+    let mut callbacks = 0;
+    let result = consume_json_batch(
+        packet,
+        &f.runtime,
+        &f.prepared,
+        &f.source,
+        JsonBatchConsumerLimits {
+            max_bytes: 4096,
+            max_rows: 1,
+            max_columns: 1,
+        },
+        Some(&original),
+        |_| {
+            callbacks += 1;
+            Ok(())
+        },
+    );
+    assert_eq!(
+        result.err().expect("expired partial accepted").code,
+        ErrorCode::WorkerLost
+    );
+    assert_eq!(callbacks, 0);
+    let status = f.cancel.status().unwrap();
+    assert!(!status.delivery_complete);
+    assert_eq!(status.error.unwrap().code, ErrorCode::WorkerLost);
+}
+
+#[test]
 fn json_batch_consumer_binds_and_acknowledges_only_after_every_row() {
     let rows = vec![
         vec![Value::Null],

@@ -1754,11 +1754,11 @@ impl<'de> serde::de::DeserializeSeed<'de> for JsonRowSeed<'_> {
 }
 
 struct JsonRowsSeed<'a, F> {
-    packet: &'a OwnedBatchPacket,
+    runtime: &'a RuntimeBudget,
     prepared: &'a PreparedQuery,
     source: &'a dyn FactSource,
     limits: JsonBatchConsumerLimits,
-    partial: bool,
+    partial: Option<&'a MddError>,
     consume: &'a mut F,
     failure: &'a mut Option<MddError>,
     count: &'a mut u64,
@@ -1781,6 +1781,10 @@ where
             fn visit_seq<A: serde::de::SeqAccess<'de>>(self, mut seq: A) -> Result<(), A::Error> {
                 use serde::de::Error as _;
                 loop {
+                    if let Err(error) = json_consumer_checkpoint(self.0.runtime, self.0.partial) {
+                        *self.0.failure = Some(error);
+                        return Err(A::Error::custom("JSON batch consumer stopped"));
+                    }
                     let Some(row) = seq.next_element_seed(JsonRowSeed {
                         width: self.0.prepared.output_schema.len(),
                         allowed: *self.0.count < self.0.limits.max_rows,
@@ -1790,9 +1794,7 @@ where
                         break;
                     };
                     let result = (|| {
-                        if !self.0.partial {
-                            self.0.packet.checkpoint()?;
-                        }
+                        json_consumer_checkpoint(self.0.runtime, self.0.partial)?;
                         validate_row(
                             &row,
                             &self.0.prepared.output_schema,
@@ -1803,7 +1805,8 @@ where
                                 self.0.source.validate_entity(entity)?;
                             }
                         }
-                        (self.0.consume)(&row)
+                        (self.0.consume)(&row)?;
+                        json_consumer_checkpoint(self.0.runtime, self.0.partial)
                     })();
                     if let Err(error) = result {
                         *self.0.failure = Some(error);
@@ -1815,6 +1818,23 @@ where
             }
         }
         deserializer.deserialize_seq(RowsVisitor(self))
+    }
+}
+
+// A failed query may still deliver already-produced partial batches. Its first
+// fault remains authoritative, while the budget's own deadline continues to
+// bound consumer work. A callback already invoked cannot be rolled back.
+fn json_consumer_checkpoint(runtime: &RuntimeBudget, partial: Option<&MddError>) -> MddResult<()> {
+    if let Some(error) = partial {
+        let deadline = runtime
+            .pool()
+            .delivery_deadline()
+            .map_err(|failure| runtime.stop(failure))?;
+        runtime
+            .cancellation()
+            .checkpoint_partial_with_budget(&deadline, error)
+    } else {
+        runtime.checkpoint()
     }
 }
 
@@ -1864,19 +1884,18 @@ where
         source.require_layers(&prepared.required_layers)?;
         if let Some(error) = partial_error {
             packet.check_partial_error(error)?;
-        } else {
-            packet.checkpoint()?;
         }
+        json_consumer_checkpoint(expected_runtime, partial_error)?;
         let mut count = 0;
         let mut failure = None;
         let mut decoder = serde_json::Deserializer::from_slice(packet.bytes());
         let result = serde::de::DeserializeSeed::deserialize(
             JsonRowsSeed {
-                packet: &packet,
+                runtime: expected_runtime,
                 prepared,
                 source,
                 limits,
-                partial: partial_error.is_some(),
+                partial: partial_error,
                 consume: &mut consume,
                 failure: &mut failure,
                 count: &mut count,
@@ -1896,6 +1915,7 @@ where
                 .detail("line", e.line())
                 .detail("column", e.column())
         })?;
+        json_consumer_checkpoint(expected_runtime, partial_error)?;
         Ok(count)
     })();
     let count = match process {

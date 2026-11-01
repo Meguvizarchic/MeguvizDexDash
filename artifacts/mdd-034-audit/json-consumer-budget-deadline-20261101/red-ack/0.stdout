@@ -1,0 +1,11 @@
+
+running 1 test
+test executor::runtime_tests::json_consumer_packet_ack_respects_budget_after_checkpoint ... FAILED
+
+failures:
+
+failures:
+    executor::runtime_tests::json_consumer_packet_ack_respects_budget_after_checkpoint
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 137 filtered out; finished in 0.25s
+
