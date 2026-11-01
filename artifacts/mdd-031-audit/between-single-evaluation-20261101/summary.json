@@ -1,0 +1,76 @@
+{
+  "task": "MDD-031",
+  "finding": "Rewriting BETWEEN into two comparisons duplicates the left operand; two controlled quota counterexamples involve LOWER and LENGTH. A generic three-argument scalar fix would eagerly evaluate upper bounds and alter SQLite WHERE short-circuiting.",
+  "scope": "Only syntactically proven length(...) with signed i64/NULL literal bounds retains SQLite native INTEGER/NULL BETWEEN. Original literal AST nodes are walked for limits and each proven integer replaces its existing parameter slot with I64, preserving SQL placeholder order. Other expressions keep previous rewrite.",
+  "runs": {
+    "lower_red": {
+      "exit": 101,
+      "tests_run": 1,
+      "output": "red/output.txt",
+      "limits": "Prior lower test failed on quota before its expected value type was reached; lower remains unresolved."
+    },
+    "numeric_red": {
+      "exit": 101,
+      "tests_run": 1,
+      "output": "numeric-red/output.txt",
+      "limits": "facts annotations source drifted during this run; not frozen evidence."
+    },
+    "numeric_red2": {
+      "exit": 101,
+      "tests_run": 1,
+      "output": "numeric-red2/output.txt",
+      "limits": "listed source hashes before/after match; first dialect failed before second executed."
+    },
+    "initial_green": {
+      "record": "green/record.json",
+      "tests_run": 2,
+      "tests_failed": 2,
+      "observation": "INTERNAL_UNWALKED_EXPRESSION; AST walker lacked BETWEEN support; corrected and retained."
+    },
+    "final": {
+      "record": "final/record.json",
+      "tests_passed": 4
+    },
+    "guard_repeat": {
+      "record": "final-guard/record.json",
+      "tests_passed": 1
+    },
+    "not_between": {
+      "record": "final-not-between/record.json",
+      "tests_passed": 2
+    },
+    "q15": {
+      "record": "final-q15/record.json",
+      "tests_passed": 1
+    },
+    "length": {
+      "record": "final-length/record.json",
+      "tests_passed": 1
+    },
+    "key_intermediate": {
+      "records": [
+        "green2/record.json",
+        "final/record.json"
+      ],
+      "observation": "Intermediate implementation used mdd_sort_key; replaced before final because key cells could introduce new small-cell/workspace quota failures."
+    },
+    "final2": {
+      "record": "final2/record.json",
+      "tests_passed": 5,
+      "coverage": "three dialects, positive/negative/i64 min/max, NULL and NOT, WHERE, errors, placeholders, cell-byte and AST-depth limits"
+    },
+    "final2_not_between": {
+      "record": "final2-not-between/record.json",
+      "tests_passed": 2
+    },
+    "final2_q15": {
+      "record": "final2-q15/record.json",
+      "tests_passed": 1
+    },
+    "final2_length": {
+      "record": "final2-length/record.json",
+      "tests_passed": 1
+    }
+  },
+  "boundaries": "Nine distinct final targeted tests, not full SQL, HostLab/A0/A1, Linux, formal performance or profile qualification. LOWER and other complex operands still have duplicated evaluation. Input nodes are checked before integer normalization; normal SQL/SQLite buffers and RSS remain outside this proof."
+}

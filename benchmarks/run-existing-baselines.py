@@ -243,14 +243,15 @@ def consume(output, expected_inputs, expected_request, required_layers, *, expec
 
 
 def compare_complete_rows(left, right, expected_inputs, expected_request, required_layers, *,
-                          left_identity, right_identity):
+                          left_identity, right_identity, source_column_ids=()):
     """Diagnose complete materialized row differences under the existing codec.
 
     Each side must first satisfy ``consume`` against independently supplied
     identities. This does not authenticate those expectations, validate cell
     types against the declared schema, establish real page consumption, or
     grant audit/performance qualification. Bag locations refer to canonical
-    sorted positions, not the producer's original row number.
+    sorted positions, not the producer's original row number. Optional source
+    columns are caller-selected row values, not authenticated provenance.
     """
     left_certificate = consume(left, expected_inputs, expected_request, required_layers,
                                expected_identity=left_identity)
@@ -266,6 +267,27 @@ def compare_complete_rows(left, right, expected_inputs, expected_request, requir
         return dict(common, equal_under_codec=False, difference={"kind": "comparison_mode"})
     if canonical(left["row_schema"]) != canonical(right["row_schema"]):
         return dict(common, equal_under_codec=False, difference={"kind": "row_schema"})
+    if (type(source_column_ids) is not tuple
+            or any(type(item) is not str or not item for item in source_column_ids)
+            or len(source_column_ids) != len(set(source_column_ids))):
+        raise ValueError("invalid source column identity list")
+    schema = left["row_schema"]
+    positions = {}
+    for index, column in enumerate(schema):
+        column_id = column.get("id")
+        if isinstance(column_id, str) and column_id:
+            positions.setdefault(column_id, []).append(index)
+    if any(len(positions.get(column_id, ())) != 1 for column_id in source_column_ids):
+        raise ValueError("source column identity missing or ambiguous")
+
+    def attach_sources(difference, left_row, right_row):
+        if source_column_ids:
+            for name, row in (("left_sources", left_row), ("right_sources", right_row)):
+                if row is not None:
+                    difference[name] = {column_id: copy.deepcopy(row[positions[column_id][0]])
+                                        for column_id in source_column_ids}
+        return difference
+
     left_rows = left["final_dto"]["rows"]
     right_rows = right["final_dto"]["rows"]
     mode = left["comparison_mode"]
@@ -275,12 +297,21 @@ def compare_complete_rows(left, right, expected_inputs, expected_request, requir
     for row_index, (left_row, right_row) in enumerate(zip(left_rows, right_rows)):
         for column_index, (left_value, right_value) in enumerate(zip(left_row, right_row)):
             if canonical(left_value) != canonical(right_value):
-                return dict(common, equal_under_codec=False, difference={
+                difference = {
                     "kind": "cell", "row_index": row_index, "column_index": column_index,
-                    "row_order": "canonical_bag" if mode == "bag" else "delivered"})
+                    "row_order": "canonical_bag" if mode == "bag" else "delivered"}
+                column_id = schema[column_index].get("id")
+                if isinstance(column_id, str) and len(positions.get(column_id, ())) == 1:
+                    difference["column_id"] = column_id
+                return dict(common, equal_under_codec=False,
+                            difference=attach_sources(difference, left_row, right_row))
     if len(left_rows) != len(right_rows):
-        return dict(common, equal_under_codec=False, difference={
-            "kind": "row_count", "left_count": len(left_rows), "right_count": len(right_rows)})
+        index = min(len(left_rows), len(right_rows))
+        difference = {"kind": "row_count", "left_count": len(left_rows),
+                      "right_count": len(right_rows)}
+        return dict(common, equal_under_codec=False, difference=attach_sources(
+            difference, left_rows[index] if index < len(left_rows) else None,
+            right_rows[index] if index < len(right_rows) else None))
     if left_certificate["canonical_sha256"] != right_certificate["canonical_sha256"]:
         return dict(common, equal_under_codec=False, difference={"kind": "result_context"})
     return dict(common, equal_under_codec=True, difference=None)

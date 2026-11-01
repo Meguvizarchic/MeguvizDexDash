@@ -1330,11 +1330,19 @@ impl OwnedBatchReceipt {
         runtime: &RuntimeBudget,
         expected_batches: u64,
     ) -> MddResult<()> {
+        let preserve_first = |error: MddError| match self.0.tracker.cancel.status() {
+            Ok(status) => status.error.unwrap_or(error),
+            Err(failure) => failure,
+        };
         if self.requires_terminal_envelope()? {
-            return Err(invalid("batch receipt requires pending terminal envelope"));
+            return Err(preserve_first(invalid(
+                "batch receipt requires pending terminal envelope",
+            )));
         }
         if !self.0.matches(&sender.0, runtime, expected_batches, None)? {
-            return Err(invalid("batch receipt queue, query or count mismatch"));
+            return Err(preserve_first(invalid(
+                "batch receipt queue, query or count mismatch",
+            )));
         }
         let deadline = runtime.pool().delivery_deadline()?;
         self.0.finish_cursor_with_budget(&deadline)

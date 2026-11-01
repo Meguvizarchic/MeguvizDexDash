@@ -1,0 +1,12 @@
+   Compiling mdd-sql v0.1.0-dev (<WORKSPACE>\crates\mdd-sql)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.04s
+     Running unittests src\lib.rs (target\debug\deps\mdd_sql-46977fcd4387e316.exe)
+
+running 4 tests
+test bridge::tests::between_length_deep_bound_preserves_ast_depth_quota ... ok
+test dialects::ast::aggregate_scan_tests::between_length_guard_limits_nested_preflight_without_recursion ... ok
+test bridge::tests::between_length_evaluates_left_once_under_step_budget ... ok
+test bridge::tests::between_length_integer_literals_match_sqlite_and_keep_errors ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 160 filtered out; finished in 0.02s
+

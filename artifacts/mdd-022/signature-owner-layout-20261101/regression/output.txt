@@ -1,0 +1,25 @@
+
+running 6 tests
+test annotations::tests::shared_parameter_signature_keeps_method_and_unknown_encoded_slots_distinct ... ok
+test annotations::tests::signature_owner_lookup_keeps_member_kinds_and_rejects_bad_layout ... ok
+test annotations::tests::signature_parts_keep_array_order_pool_and_owner_source ... ok
+test annotations::tests::signature_expansion_charges_every_retained_owner_identity ... ok
+test annotations::tests::signature_parameter_position_distinguishes_unknown_and_proven_slots ... ok
+test annotations::tests::owner_signature_view_preserves_reference_definition_and_occurrence ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 83 filtered out; finished in 0.01s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.13s
+     Running unittests src\lib.rs (target\debug\deps\mdd_facts-f5fcaccb54dddfd1.exe)
+     Running tests\opcode_projection.rs (target\debug\deps\opcode_projection-660a6c1d51f9b61c.exe)
+     Running tests\parameter_descriptors.rs (target\debug\deps\parameter_descriptors-74aef1c8ca19de1d.exe)

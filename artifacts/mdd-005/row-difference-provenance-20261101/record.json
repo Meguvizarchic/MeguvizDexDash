@@ -1,0 +1,28 @@
+{
+  "task": "MDD-005",
+  "scope": "Optional source-column localization for already materialized row diagnostics, not authenticated provenance or qualification",
+  "command": "python -B artifacts/mdd-005/row-difference-provenance-20261101/probe.py",
+  "exit": 0,
+  "tests_passed": 3,
+  "output": "output.txt",
+  "listed_sources_before": {
+    "benchmarks/run-existing-baselines.py": "76bb263678656ccb8334d9eedd1353952f9189b7589866b74c5f12e6a0856a0a",
+    "contracts/examples/result_complete.example.json": "46fe45fc09a8858435cbe8514fd3b9204e24a5f7616c51616998a6b2d48c2344",
+    "artifacts/mdd-005/row-difference-provenance-20261101/probe.py": "2ea2232d34cf7f268e83d3fb223817e1367e0e49b1c8cc89bf172f612d1f1d17",
+    "artifacts/mdd-005/row-difference-20261101/probe.py": "95d28cdb8a8f783a393a7cdd687f63fa7ba5d337027706b71acf98d29a933b36"
+  },
+  "listed_sources_after": {
+    "benchmarks/run-existing-baselines.py": "76bb263678656ccb8334d9eedd1353952f9189b7589866b74c5f12e6a0856a0a",
+    "contracts/examples/result_complete.example.json": "46fe45fc09a8858435cbe8514fd3b9204e24a5f7616c51616998a6b2d48c2344",
+    "artifacts/mdd-005/row-difference-provenance-20261101/probe.py": "2ea2232d34cf7f268e83d3fb223817e1367e0e49b1c8cc89bf172f612d1f1d17",
+    "artifacts/mdd-005/row-difference-20261101/probe.py": "95d28cdb8a8f783a393a7cdd687f63fa7ba5d337027706b71acf98d29a933b36"
+  },
+  "stable": true,
+  "regression": {
+    "command": "python -B artifacts/mdd-005/row-difference-20261101/probe.py",
+    "exit": 0,
+    "tests_passed": 6,
+    "output": "regression.txt"
+  },
+  "limitations": "Source values are caller-designated columns and are not authenticated against snapshot inventory. Bag indices refer to canonical ordering and do not establish matching entities. No complete HostLab, performance, page-consumption or typed-cell qualification."
+}

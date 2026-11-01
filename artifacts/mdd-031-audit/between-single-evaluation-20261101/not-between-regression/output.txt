@@ -1,0 +1,9 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.16s
+     Running unittests src\lib.rs (target\debug\deps\mdd_sql-46977fcd4387e316.exe)
+
+running 2 tests
+test bridge::tests::not_between_preserves_null_boundaries_and_duplicate_rows ... ok
+test bridge::tests::not_between_keeps_both_comparisons_inside_not ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 160 filtered out; finished in 0.01s
+

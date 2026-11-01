@@ -1,0 +1,24 @@
+   Compiling mdd-sql v0.1.0-dev (<WORKSPACE>\crates\mdd-sql)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.25s
+     Running unittests src\lib.rs (target\debug\deps\mdd_sql-46977fcd4387e316.exe)
+
+running 2 tests
+
+thread 'bridge::tests::between_length_evaluates_left_once_under_step_budget' (38564) panicked at crates\mdd-sql\src\bridge.rs:1091:18:
+called `Result::unwrap()` on an `Err` value: MddError { code: InvalidArgument, stage: "sql", message: "INTERNAL_UNWALKED_EXPRESSION", retryable: false, details: {} }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'bridge::tests::between_length_integer_literals_match_sqlite_and_keep_errors' (15176) panicked at crates\mdd-sql\src\bridge.rs:1128:39:
+called `Result::unwrap()` on an `Err` value: MddError { code: InvalidArgument, stage: "sql", message: "INTERNAL_UNWALKED_EXPRESSION", retryable: false, details: {} }
+test bridge::tests::between_length_evaluates_left_once_under_step_budget ... FAILED
+test bridge::tests::between_length_integer_literals_match_sqlite_and_keep_errors ... FAILED
+
+failures:
+
+failures:
+    bridge::tests::between_length_evaluates_left_once_under_step_budget
+    bridge::tests::between_length_integer_literals_match_sqlite_and_keep_errors
+
+test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 160 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p mdd-sql --lib`

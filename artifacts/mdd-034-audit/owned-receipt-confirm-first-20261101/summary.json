@@ -1,0 +1,27 @@
+{
+  "task": "MDD-034",
+  "finding": "Public owned batch receipt confirmation returned InvalidArgument for a count mismatch even after the query had already recorded a failure.",
+  "fix": "For count/queue mismatch and envelope-required rejection, return existing query first error when present; preserve ordinary retryable protocol rejection without one.",
+  "runs": {
+    "red": {
+      "record": "red/record.json",
+      "tests_run": 1,
+      "exit": 101,
+      "observation": "Prior QuotaExceeded was masked; test stopped at first case."
+    },
+    "final": {
+      "record": "final/record.json",
+      "tests_passed": 1,
+      "exit": 0,
+      "coverage": "Prior QuotaExceeded and WorkerLost full fields; producer-envelope rejection."
+    },
+    "final_regression": {
+      "record": "final_regression/record.json",
+      "tests_passed": 1,
+      "exit": 0,
+      "coverage": "No prior failure retains mismatch error, correct count can be retried; retained bytes remain charged."
+    }
+  },
+  "note": "Test was expanded after red; green/regression are retained earlier runs. Final source hashes were stable for listed files only.",
+  "limitations": "Synthetic in-process queue; no full concurrency, production IPC, cross-platform or performance qualification."
+}

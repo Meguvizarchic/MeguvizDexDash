@@ -1,0 +1,8 @@
+{
+  "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+  "crates/mdd-query/src/budget.rs": "87661d238ba7a8899376129aa643ee6b9f90b4331b96834c3ad8d6238d4d5cf0",
+  "crates/mdd-query/src/budget/tests.rs": "da672da98396ad6fbb818d3db20e4a8484c9117c6911013ae28afe9a4c8c2e6e",
+  "crates/mdd-session/src/cancellation.rs": "7e3636d5e62cf4de567fb55088f186e5130eb024ddd0517a535e15bcad669114",
+  "crates/mdd-session/src/lib.rs": "afda23d2dbb014680afa204ed7574387c017740223c6d5f68431c4b5f893efdd",
+  "crates/mdd-facts/src/annotations.rs": "9ec1e654998a8d69a2b30bd3506d07b3e4d7e98d2df784685e6261993ccc82f5"
+}

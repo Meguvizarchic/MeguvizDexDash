@@ -3,6 +3,57 @@ use std::sync::mpsc;
 use std::thread;
 
 #[test]
+fn owned_receipt_confirmation_preserves_prior_failure_on_count_mismatch() {
+    for first in [
+        MddError::new(
+            ErrorCode::QuotaExceeded,
+            "test.quota",
+            "output budget exhausted",
+        )
+        .detail("resource", "output_bytes"),
+        MddError::new(ErrorCode::WorkerLost, "test.worker", "worker lost").detail("worker", "test"),
+    ] {
+        let (_, _, _, _, runtime) = owned_queue_test_runtime(BudgetLimits::default());
+        let (sender, mut receiver) = bounded_owned_batch_channel(&runtime, 1).unwrap();
+        sender.finish(Err(first.clone())).unwrap();
+        let OwnedBatchEvent::End(Err(terminal)) = receiver.receive().unwrap() else {
+            panic!("expected failed terminal")
+        };
+        assert_eq!(terminal.code, first.code);
+        let mut receipt = receiver.into_delivery_receipt().unwrap();
+        let error = receipt.confirm(&sender, &runtime, 1).unwrap_err();
+        assert_eq!(error.code, first.code);
+        assert_eq!(error.stage, first.stage);
+        assert_eq!(error.message, first.message);
+        assert_eq!(error.retryable, first.retryable);
+        assert_eq!(error.details, first.details);
+        assert!(!runtime.cancellation().status().unwrap().delivery_complete);
+    }
+
+    // A producer-bound batch requires an envelope, but that later protocol
+    // rejection must still expose the query's already recorded first failure.
+    let (_, _, _, _, runtime) = owned_queue_test_runtime(BudgetLimits::default());
+    let (sender, mut receiver) = bounded_owned_batch_channel(&runtime, 1).unwrap();
+    let mut producer = sender.claim_producer().unwrap();
+    producer.arm();
+    let first = MddError::new(ErrorCode::QuotaExceeded, "test.quota", "budget exceeded");
+    sender
+        .finish_produced(&mut producer, Err(first.clone()))
+        .unwrap();
+    assert!(matches!(
+        receiver.receive().unwrap(),
+        OwnedBatchEvent::End(Err(_))
+    ));
+    let mut receipt = receiver.into_delivery_receipt().unwrap();
+    let actual = receipt.confirm(&sender, &runtime, 0).unwrap_err();
+    assert_eq!(
+        (actual.code, actual.stage, actual.message),
+        (first.code, first.stage, first.message)
+    );
+    assert!(!runtime.cancellation().status().unwrap().delivery_complete);
+}
+
+#[test]
 fn receipt_rejection_preserves_existing_query_failure() {
     for first in [
         MddError::new(

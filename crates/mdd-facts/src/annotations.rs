@@ -9,7 +9,7 @@ use mdd_dex::annotations::{
     EncodedValue, ExactFloat, ParameterListBinding, read_annotations,
 };
 use mdd_dex::{
-    definitions::{ClassDefinition, MethodDefinition, MethodReference},
+    definitions::{ClassDefinition, FieldKind, MethodDefinition, MethodKind, MethodReference},
     types::{DexPrototype, DexType},
 };
 use mdd_types::{Completeness, ErrorCode, MddError, MddResult, content_id};
@@ -507,19 +507,169 @@ pub struct AnnotationElementRow {
     pub value_f64: Option<ExactFloat>,
 }
 
-fn owner_has_definition(definitions: &DefinitionFacts, owner: &AnnotationOwnerBinding) -> bool {
+fn invalid_definition_layout() -> MddError {
+    MddError::new(
+        ErrorCode::InternalFault,
+        "facts.annotations",
+        "validated Signature owner definition layout is inconsistent",
+    )
+}
+
+// The DEX parser emits class groups in class_def order and each of the two
+// encoded member lists in strictly increasing index order. Verify this once
+// before using binary search; never treat corrupted layout as a missing owner.
+fn validate_owner_groups<T>(
+    classes: &[ClassDefinition],
+    members: &[T],
+    counts: impl Fn(&ClassDefinition) -> (u32, u32),
+    identity: impl Fn(&T) -> (u32, u32, bool, u32, u32),
+) -> MddResult<()> {
+    let mut cursor = 0usize;
+    for (class_index, class) in classes.iter().enumerate() {
+        if u32::try_from(class_index).ok() != Some(class.class_def_idx) {
+            return Err(invalid_definition_layout());
+        }
+        let (first, second) = counts(class);
+        for (is_first, count) in [(true, first), (false, second)] {
+            let end = cursor
+                .checked_add(usize::try_from(count).map_err(|_| invalid_definition_layout())?)
+                .ok_or_else(invalid_definition_layout)?;
+            let slice = members
+                .get(cursor..end)
+                .ok_or_else(invalid_definition_layout)?;
+            let mut previous = None;
+            for (ordinal, member) in slice.iter().enumerate() {
+                let (class_def, class_idx, actual_first, actual_ordinal, index) = identity(member);
+                if class_def != class.class_def_idx
+                    || class_idx != class.class_idx
+                    || actual_first != is_first
+                    || u32::try_from(ordinal).ok() != Some(actual_ordinal)
+                    || previous.is_some_and(|prior| prior >= index)
+                {
+                    return Err(invalid_definition_layout());
+                }
+                previous = Some(index);
+            }
+            cursor = end;
+        }
+    }
+    if cursor != members.len() {
+        return Err(invalid_definition_layout());
+    }
+    Ok(())
+}
+
+fn validate_owner_definition_layout(definitions: &DefinitionFacts) -> MddResult<()> {
+    let data = &definitions.definitions;
+    validate_owner_groups(
+        &data.classes,
+        &data.field_definitions,
+        |class| (class.static_fields_count, class.instance_fields_count),
+        |field| {
+            (
+                field.class_def_idx,
+                field.class_idx,
+                field.kind == FieldKind::Static,
+                field.ordinal,
+                field.field_idx,
+            )
+        },
+    )?;
+    validate_owner_groups(
+        &data.classes,
+        &data.method_definitions,
+        |class| (class.direct_methods_count, class.virtual_methods_count),
+        |method| {
+            (
+                method.class_def_idx,
+                method.class_idx,
+                method.kind == MethodKind::Direct,
+                method.ordinal,
+                method.method_idx,
+            )
+        },
+    )
+}
+
+fn owner_has_definition(
+    definitions: &DefinitionFacts,
+    owner: &AnnotationOwnerBinding,
+) -> MddResult<bool> {
+    let data = &definitions.definitions;
+    let class = data
+        .classes
+        .get(owner.class_def_idx as usize)
+        .ok_or_else(invalid_definition_layout)?;
+    if class.class_def_idx != owner.class_def_idx || class.class_idx != owner.class_idx {
+        return Err(invalid_definition_layout());
+    }
     match owner.kind {
-        AnnotationOwnerKind::Class => true,
-        AnnotationOwnerKind::Field => definitions
-            .definitions
-            .field_definitions
-            .iter()
-            .any(|field| field.field_idx == owner.local_index),
-        _ => definitions
-            .definitions
-            .method_definitions
-            .iter()
-            .any(|method| method.method_idx == owner.local_index),
+        AnnotationOwnerKind::Class => {
+            if owner.local_index != owner.class_def_idx {
+                return Err(invalid_definition_layout());
+            }
+            Ok(true)
+        }
+        AnnotationOwnerKind::Field => {
+            if data
+                .field_references
+                .get(owner.local_index as usize)
+                .map(|r| r.class_idx)
+                != Some(owner.class_idx)
+            {
+                return Err(invalid_definition_layout());
+            }
+            let members = &data.field_definitions;
+            let first = members.partition_point(|f| f.class_def_idx < owner.class_def_idx);
+            let middle = first
+                .checked_add(class.static_fields_count as usize)
+                .ok_or_else(invalid_definition_layout)?;
+            let end = middle
+                .checked_add(class.instance_fields_count as usize)
+                .ok_or_else(invalid_definition_layout)?;
+            let static_fields = members
+                .get(first..middle)
+                .ok_or_else(invalid_definition_layout)?;
+            let instance_fields = members
+                .get(middle..end)
+                .ok_or_else(invalid_definition_layout)?;
+            Ok(static_fields
+                .binary_search_by_key(&owner.local_index, |f| f.field_idx)
+                .is_ok()
+                || instance_fields
+                    .binary_search_by_key(&owner.local_index, |f| f.field_idx)
+                    .is_ok())
+        }
+        _ => {
+            if data
+                .method_references
+                .get(owner.local_index as usize)
+                .map(|r| r.class_idx)
+                != Some(owner.class_idx)
+            {
+                return Err(invalid_definition_layout());
+            }
+            let members = &data.method_definitions;
+            let first = members.partition_point(|m| m.class_def_idx < owner.class_def_idx);
+            let middle = first
+                .checked_add(class.direct_methods_count as usize)
+                .ok_or_else(invalid_definition_layout)?;
+            let end = middle
+                .checked_add(class.virtual_methods_count as usize)
+                .ok_or_else(invalid_definition_layout)?;
+            let direct = members
+                .get(first..middle)
+                .ok_or_else(invalid_definition_layout)?;
+            let virtuals = members
+                .get(middle..end)
+                .ok_or_else(invalid_definition_layout)?;
+            Ok(direct
+                .binary_search_by_key(&owner.local_index, |m| m.method_idx)
+                .is_ok()
+                || virtuals
+                    .binary_search_by_key(&owner.local_index, |m| m.method_idx)
+                    .is_ok())
+        }
     }
 }
 
@@ -536,12 +686,14 @@ fn owner_ref(
     let reference = definitions.entity(kind, owner.local_index)?;
     let definition = match owner.kind {
         AnnotationOwnerKind::Class => Some(reference.clone()),
-        AnnotationOwnerKind::Field => has_definition
-            .then(|| definitions.entity(EntityKind::FieldDefinition, owner.local_index))
-            .transpose()?,
-        _ => has_definition
-            .then(|| definitions.entity(EntityKind::MethodDefinition, owner.local_index))
-            .transpose()?,
+        AnnotationOwnerKind::Field => has_definition.then(|| EntityRef {
+            kind: EntityKind::FieldDefinition,
+            ..reference.clone()
+        }),
+        _ => has_definition.then(|| EntityRef {
+            kind: EntityKind::MethodDefinition,
+            ..reference.clone()
+        }),
     };
     Ok(AnnotationOwnerRef {
         kind: owner.kind,
@@ -597,6 +749,7 @@ impl AnnotationFacts {
         let mut remaining = limits
             .max_decoded_bytes
             .saturating_sub(data.usage.decoded_bytes);
+        let mut owner_layout_validated = false;
         for owner in &data.owner_bindings {
             let Some(set) = owner.annotation_set_offset else {
                 continue;
@@ -654,7 +807,11 @@ impl AnnotationFacts {
                         "Signature allocation size overflow",
                     ))
                 };
-                let has_definition = owner_has_definition(&definitions, owner);
+                if !owner_layout_validated {
+                    validate_owner_definition_layout(&definitions).map_err(bind)?;
+                    owner_layout_validated = true;
+                }
+                let has_definition = owner_has_definition(&definitions, owner).map_err(bind)?;
                 let identity_bytes = u64::try_from(source.snapshot_id.len())
                     .ok()
                     .and_then(|size| {
@@ -2642,6 +2799,188 @@ mod tests {
         let definitions = DefinitionFacts::build(metadata, DefinitionLimits::default()).unwrap();
         AnnotationFacts::build(definitions, AnnotationLimits::default()).unwrap()
     }
+    #[test]
+    fn signature_owner_lookup_keeps_member_kinds_and_rejects_bad_layout() {
+        let facts = build("artifacts/mdd-022/signature-owner-layout-20261101/mixed-members.dex");
+        let definitions = &facts.definitions;
+        validate_owner_definition_layout(definitions).unwrap();
+        assert_eq!(definitions.definitions.classes[0].static_fields_count, 1);
+        assert_eq!(definitions.definitions.classes[0].instance_fields_count, 1);
+        assert_eq!(definitions.definitions.classes[0].direct_methods_count, 1);
+        assert_eq!(definitions.definitions.classes[0].virtual_methods_count, 1);
+        let mut field_count = 0;
+        let mut method_count = 0;
+        for owner in &facts.data.owner_bindings {
+            let expected = match owner.kind {
+                AnnotationOwnerKind::Class => true,
+                AnnotationOwnerKind::Field => {
+                    field_count += 1;
+                    definitions
+                        .definitions
+                        .field_definitions
+                        .iter()
+                        .any(|item| item.field_idx == owner.local_index)
+                }
+                _ => {
+                    method_count += 1;
+                    definitions
+                        .definitions
+                        .method_definitions
+                        .iter()
+                        .any(|item| item.method_idx == owner.local_index)
+                }
+            };
+            let actual = owner_has_definition(definitions, owner).unwrap();
+            assert_eq!(actual, expected);
+            let projected = owner_ref(definitions, owner, actual).unwrap();
+            if let Some(definition) = projected.definition {
+                assert_eq!(
+                    definition,
+                    definitions
+                        .entity(definition.kind, owner.local_index)
+                        .unwrap()
+                );
+                assert_eq!(definition.snapshot_id, facts.source().snapshot_id);
+                assert_eq!(
+                    definition.dex_occurrence_id,
+                    facts.source().dex_occurrence_id
+                );
+            }
+        }
+        assert!(field_count >= 2 && method_count >= 2);
+
+        // Simulated partial definition lists preserve reference-only members;
+        // the original physical fixture above always contains all four kinds.
+        let mut reference_only = definitions.clone();
+        reference_only.definitions.field_definitions.remove(1);
+        reference_only.definitions.classes[0].instance_fields_count = 0;
+        reference_only.definitions.method_definitions.remove(1);
+        reference_only.definitions.classes[0].virtual_methods_count = 0;
+        validate_owner_definition_layout(&reference_only).unwrap();
+        for owner in &facts.data.owner_bindings {
+            if owner.local_index == 1 && owner.kind != AnnotationOwnerKind::Class {
+                assert!(!owner_has_definition(&reference_only, owner).unwrap());
+                assert!(
+                    owner_ref(&reference_only, owner, false)
+                        .unwrap()
+                        .definition
+                        .is_none()
+                );
+            }
+        }
+
+        // Synthetic in-memory identities stress interleaved index domains:
+        // the two individual lists are sorted, but their concatenation is not.
+        let mut interleaved = definitions.clone();
+        let field_static = interleaved.definitions.field_definitions[0].clone();
+        let field_instance = interleaved.definitions.field_definitions[1].clone();
+        let method_direct = interleaved.definitions.method_definitions[0].clone();
+        let method_virtual = interleaved.definitions.method_definitions[1].clone();
+        interleaved.definitions.classes[0].static_fields_count = 2;
+        interleaved.definitions.classes[0].instance_fields_count = 2;
+        interleaved.definitions.classes[0].direct_methods_count = 2;
+        interleaved.definitions.classes[0].virtual_methods_count = 2;
+        interleaved.definitions.field_definitions =
+            [(0, 0, true), (3, 1, true), (1, 0, false), (2, 1, false)]
+                .into_iter()
+                .map(|(index, ordinal, first)| {
+                    let mut item = if first {
+                        field_static.clone()
+                    } else {
+                        field_instance.clone()
+                    };
+                    item.field_idx = index;
+                    item.ordinal = ordinal;
+                    item
+                })
+                .collect();
+        interleaved.definitions.method_definitions =
+            [(0, 0, true), (3, 1, true), (1, 0, false), (2, 1, false)]
+                .into_iter()
+                .map(|(index, ordinal, first)| {
+                    let mut item = if first {
+                        method_direct.clone()
+                    } else {
+                        method_virtual.clone()
+                    };
+                    item.method_idx = index;
+                    item.ordinal = ordinal;
+                    item
+                })
+                .collect();
+        let field_reference = interleaved.definitions.field_references[0].clone();
+        let method_reference = interleaved.definitions.method_references[0].clone();
+        interleaved.definitions.field_references = (0..5)
+            .map(|index| {
+                let mut item = field_reference.clone();
+                item.field_idx = index;
+                item
+            })
+            .collect();
+        interleaved.definitions.method_references = (0..5)
+            .map(|index| {
+                let mut item = method_reference.clone();
+                item.method_idx = index;
+                item
+            })
+            .collect();
+        validate_owner_definition_layout(&interleaved).unwrap();
+        let field_owner = facts
+            .data
+            .owner_bindings
+            .iter()
+            .find(|owner| owner.kind == AnnotationOwnerKind::Field)
+            .unwrap();
+        let method_owner = facts
+            .data
+            .owner_bindings
+            .iter()
+            .find(|owner| owner.kind == AnnotationOwnerKind::Parameter)
+            .unwrap();
+        for owner in [field_owner, method_owner] {
+            for index in 0..5 {
+                let mut candidate = owner.clone();
+                candidate.local_index = index;
+                let expected = index < 4;
+                assert_eq!(
+                    owner_has_definition(&interleaved, &candidate).unwrap(),
+                    expected
+                );
+                assert_eq!(
+                    owner_ref(&interleaved, &candidate, expected)
+                        .unwrap()
+                        .definition
+                        .is_some(),
+                    expected
+                );
+            }
+        }
+        let mut empty = definitions.clone();
+        empty.definitions.classes.clear();
+        empty.definitions.field_definitions.clear();
+        empty.definitions.method_definitions.clear();
+        validate_owner_definition_layout(&empty).unwrap();
+        assert_eq!(
+            owner_has_definition(&empty, field_owner).unwrap_err().code,
+            ErrorCode::InternalFault
+        );
+
+        let mut broken = definitions.clone();
+        broken.definitions.field_definitions.swap(0, 1);
+        assert_eq!(
+            validate_owner_definition_layout(&broken).unwrap_err().code,
+            ErrorCode::InternalFault
+        );
+        let mut foreign = facts.data.owner_bindings[0].clone();
+        foreign.class_idx = u32::MAX;
+        assert_eq!(
+            owner_has_definition(definitions, &foreign)
+                .unwrap_err()
+                .code,
+            ErrorCode::InternalFault
+        );
+    }
+
     #[test]
     fn signature_expansion_charges_every_retained_owner_identity() {
         let facts = build("tests/fixtures/annotations/generated/parameter-shared-signature.dex");

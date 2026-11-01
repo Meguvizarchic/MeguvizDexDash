@@ -1,0 +1,15 @@
+// Exact test body at the time of red/output.txt. This text is historical only.
+#[test]
+fn between_evaluates_complex_left_once_under_step_budget() {
+    let (_, bridge) = bridge();
+    let input = SqlValue::text(&"M".repeat(4096));
+    let prepared = bridge
+        .prepare_with_parameters("SELECT lower(?) BETWEEN 'a' AND 'z'", &[input])
+        .unwrap();
+    let limits = SqlLimits {
+        max_steps: 6000,
+        ..SqlLimits::default()
+    };
+    let output = prepared.execute(SqlControl::new(limits, None)).unwrap();
+    assert_eq!(output.rows(), &[vec![SqlValue::Bool(true)]]);
+}

@@ -1080,6 +1080,140 @@ mod tests {
             SqlBridge::new(provider.clone(), SqlDialect::NativeV1, SqlLimits::default()).unwrap();
         (provider, bridge)
     }
+    #[test]
+    fn between_length_evaluates_left_once_under_step_budget() {
+        for dialect in [SqlDialect::DexSql010, SqlDialect::DexSql011] {
+            let (provider, _) = bridge();
+            let bridge = SqlBridge::new(provider, dialect, SqlLimits::default()).unwrap();
+            let input = SqlValue::text(&"M".repeat(4096));
+            let prepared = bridge
+                .prepare_with_parameters("SELECT length(?) BETWEEN 1 AND 5000", &[input])
+                .unwrap();
+            let limits = SqlLimits {
+                max_steps: 6000,
+                ..SqlLimits::default()
+            };
+            let output = prepared.execute(SqlControl::new(limits, None)).unwrap();
+            assert_eq!(
+                output.rows(),
+                &[vec![SqlValue::I64(mdd_query::ir::Signed64(1))]]
+            );
+        }
+    }
+    #[test]
+    fn between_length_integer_literals_match_sqlite_and_keep_errors() {
+        use mdd_query::ir::Signed64;
+        let sqlite = Connection::open_in_memory().unwrap();
+        let queries = [
+            "SELECT length('abcd') BETWEEN -1 AND 4",
+            "SELECT length('abcd') NOT BETWEEN 5 AND 10",
+            "SELECT length('abcd') BETWEEN NULL AND 3",
+            "SELECT length('abcd') BETWEEN NULL AND 5",
+            "SELECT length(NULL) BETWEEN 1 AND 5",
+            "SELECT length('abcd') NOT BETWEEN 0 AND NULL",
+            "SELECT length('a') BETWEEN -9223372036854775808 AND 9223372036854775807",
+            "SELECT length('a') BETWEEN -9223372036854775808 AND -9223372036854775808",
+            "SELECT length('a') BETWEEN 9223372036854775807 AND 9223372036854775807",
+            "SELECT length('') BETWEEN -1 AND 0",
+        ];
+        for dialect in [
+            SqlDialect::NativeV1,
+            SqlDialect::DexSql010,
+            SqlDialect::DexSql011,
+        ] {
+            let (provider, _) = bridge();
+            let bridge = SqlBridge::new(provider, dialect, SqlLimits::default()).unwrap();
+            for sql in queries {
+                let expected: Option<i64> = sqlite.query_row(sql, [], |row| row.get(0)).unwrap();
+                let expected = expected.map_or(SqlValue::Null, |v| SqlValue::I64(Signed64(v)));
+                assert_eq!(
+                    bridge.query(sql).unwrap().rows(),
+                    &[vec![expected]],
+                    "{dialect:?}: {sql}"
+                );
+            }
+            let rows = bridge
+                .query("SELECT id FROM facts WHERE length(value) BETWEEN 0 AND 3 ORDER BY id")
+                .unwrap();
+            assert_eq!(rows.rows().len(), 3, "{dialect:?}");
+            assert_eq!(
+                bridge
+                    .query("SELECT length('a') BETWEEN 'x' AND 'z'")
+                    .unwrap_err()
+                    .code,
+                ErrorCode::UnsupportedQuery,
+                "{dialect:?}"
+            );
+            assert_eq!(
+                bridge
+                    .query("SELECT length(missing) BETWEEN 0 AND 3 FROM facts")
+                    .unwrap_err()
+                    .code,
+                ErrorCode::InvalidArgument,
+                "{dialect:?}"
+            );
+            let aggregate = bridge
+                .query("SELECT DISTINCT length(count(*)) BETWEEN 1 AND 2 FROM facts")
+                .unwrap();
+            assert_eq!(
+                aggregate.rows(),
+                &[vec![SqlValue::I64(Signed64(1))]],
+                "{dialect:?}"
+            );
+            let prepared = bridge
+                .prepare_with_parameters(
+                    "SELECT ?, length(?) BETWEEN -9223372036854775808 AND 5, ?",
+                    &[
+                        SqlValue::I64(Signed64(9)),
+                        SqlValue::text("abc"),
+                        SqlValue::I64(Signed64(10)),
+                    ],
+                )
+                .unwrap();
+            let actual = prepared
+                .execute(SqlControl::new(SqlLimits::default(), None))
+                .unwrap();
+            assert_eq!(
+                actual.rows(),
+                &[vec![
+                    SqlValue::I64(Signed64(9)),
+                    SqlValue::I64(Signed64(1)),
+                    SqlValue::I64(Signed64(10))
+                ]],
+                "{dialect:?}"
+            );
+        }
+    }
+    #[test]
+    fn between_length_deep_bound_preserves_ast_depth_quota() {
+        let (provider, _) = bridge();
+        let limits = SqlLimits {
+            max_ast_depth: 12,
+            ..SqlLimits::default()
+        };
+        let bridge = SqlBridge::new(provider, SqlDialect::NativeV1, limits).unwrap();
+        let sql = format!(
+            "SELECT length('a') BETWEEN {}1{} AND 3",
+            "(".repeat(30),
+            ")".repeat(30)
+        );
+        let error = bridge.query(&sql).unwrap_err();
+        assert_eq!(error.code, ErrorCode::QuotaExceeded);
+    }
+    #[test]
+    fn between_length_does_not_add_numeric_key_cell_quota() {
+        let (provider, _) = bridge();
+        let limits = SqlLimits {
+            max_cell_bytes: 16,
+            ..SqlLimits::default()
+        };
+        let bridge = SqlBridge::new(provider, SqlDialect::NativeV1, limits).unwrap();
+        let result = bridge.query("SELECT length('a') BETWEEN 0 AND 2").unwrap();
+        assert_eq!(
+            result.rows(),
+            &[vec![SqlValue::I64(mdd_query::ir::Signed64(1))]]
+        );
+    }
     fn schema_test_connection(prepared: &PreparedSql, control: &SqlControl) -> Connection {
         let db = Connection::open_in_memory().unwrap();
         db.set_limit(Limit::SQLITE_LIMIT_ATTACHED, 0).unwrap();

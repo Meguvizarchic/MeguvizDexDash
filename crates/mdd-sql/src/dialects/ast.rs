@@ -114,6 +114,9 @@ fn current_aggregate(expr: &Expr, depth: usize, budget: &AggregateScan) -> MddRe
         | Expr::IsNotFalse(expr)
         | Expr::UnaryOp { expr, .. } => child(expr),
         Expr::BinaryOp { left, right, .. } => Ok(child(left)? || child(right)?),
+        Expr::Between {
+            expr, low, high, ..
+        } => Ok(child(expr)? || child(low)? || child(high)?),
         Expr::InList { expr, list, .. } => {
             if child(expr)? {
                 return Ok(true);
@@ -191,6 +194,9 @@ fn possible_outer_column(
         | Expr::IsNotFalse(expr)
         | Expr::UnaryOp { expr, .. } => child(expr),
         Expr::BinaryOp { left, right, .. } => Ok(child(left)? || child(right)?),
+        Expr::Between {
+            expr, low, high, ..
+        } => Ok(child(expr)? || child(low)? || child(high)?),
         Expr::Function(function) => match &function.args {
             FunctionArguments::List(arguments) => {
                 for arg in &arguments.args {
@@ -284,6 +290,9 @@ fn nested_aggregate_needs_binding(
         | Expr::IsNotFalse(expr)
         | Expr::UnaryOp { expr, .. } => child(expr),
         Expr::BinaryOp { left, right, .. } => Ok(child(left)? || child(right)?),
+        Expr::Between {
+            expr, low, high, ..
+        } => Ok(child(expr)? || child(low)? || child(high)?),
         Expr::InList { expr, list, .. } => {
             if child(expr)? {
                 return Ok(true);
@@ -736,9 +745,11 @@ fn replace_with_i64_literal(expr: &mut Expr, value: i64) {
 // SQLite TEXT affinity renders an integer literal as canonical decimal text.
 // Only accept syntactic integers that fit i64: real literals and integers
 // beyond SQLite's signed range require a separately proven formatting rule.
-fn exact_i64_numeric_literal(expr: &Expr) -> Option<i64> {
+fn exact_i64_numeric_literal(mut expr: &Expr) -> Option<i64> {
+    while let Expr::Nested(inner) = expr {
+        expr = inner;
+    }
     match expr {
-        Expr::Nested(inner) => exact_i64_numeric_literal(inner),
         Expr::Value(value) => match &value.value {
             Value::Number(number, _) if number.bytes().all(|b| b.is_ascii_digit()) => {
                 number.parse::<i64>().ok()
@@ -766,6 +777,58 @@ fn exact_i64_numeric_literal(expr: &Expr) -> Option<i64> {
         }
         _ => None,
     }
+}
+
+// Only a bare length() call and integer/NULL literal bounds have proven
+// numeric classes here. In particular, TRUE/FALSE may bind to columns and
+// parameters or decimal literals require separate affinity evidence.
+fn length_with_integer_between_bounds(
+    value: &Expr,
+    low: &Expr,
+    high: &Expr,
+    max_depth: usize,
+) -> bool {
+    fn integer_or_null(mut expr: &Expr, max_depth: usize) -> bool {
+        let mut depth = 0;
+        while let Expr::Nested(inner) = expr {
+            if depth >= max_depth {
+                return false;
+            }
+            depth += 1;
+            expr = inner;
+        }
+        match expr {
+            Expr::Value(value) if matches!(value.value, Value::Null) => true,
+            Expr::Value(value) if matches!(value.value, Value::Number(_, _)) => {
+                exact_i64_numeric_literal(expr).is_some()
+            }
+            Expr::UnaryOp { op, .. }
+                if matches!(op, UnaryOperator::Plus | UnaryOperator::Minus) =>
+            {
+                exact_i64_numeric_literal(expr).is_some()
+            }
+            _ => false,
+        }
+    }
+    let mut value = value;
+    let mut depth = 0;
+    while let Expr::Nested(inner) = value {
+        if depth >= max_depth {
+            return false;
+        }
+        depth += 1;
+        value = inner;
+    }
+    matches!(value, Expr::Function(function)
+        if function.name.0.len() == 1
+        && function.name.0[0].as_ident().is_some_and(|name| name.value.eq_ignore_ascii_case("length"))
+        && function.over.is_none()
+        && function.filter.is_none()
+        && matches!(&function.args, FunctionArguments::List(arguments)
+            if arguments.duplicate_treatment.is_none() && arguments.clauses.is_empty()
+            && matches!(arguments.args.as_slice(), [FunctionArg::Unnamed(FunctionArgExpr::Expr(_))])))
+        && integer_or_null(low, max_depth)
+        && integer_or_null(high, max_depth)
 }
 fn direct_text_integer_affinity(dialect: super::SqlDialect, left: &Expr, right: &Expr) -> bool {
     dialect != super::SqlDialect::NativeV1
@@ -2480,6 +2543,15 @@ impl Rewrite<'_> {
                 high,
                 negated,
             } => {
+                // length() and the admitted signed literal bounds are SQLite
+                // INTEGERs (or NULL), so native BETWEEN preserves their order,
+                // evaluates length() once and retains SQLite short circuiting.
+                let single_length = length_with_integer_between_bounds(
+                    child,
+                    low,
+                    high,
+                    self.limits.max_ast_depth.saturating_sub(depth),
+                );
                 // The declared numeric column supplies affinity to each bound
                 // independently. Limit legacy conversion to the same exact
                 // decimal forms admitted by the existing numeric IN path.
@@ -2502,6 +2574,25 @@ impl Rewrite<'_> {
                 let low_text_integer = direct_text_integer_affinity(self.dialect, child, low);
                 let high_text_integer = direct_text_integer_affinity(self.dialect, child, high);
                 self.expr(child, depth + 1)?;
+                if single_length {
+                    for bound in [&mut *low, &mut *high] {
+                        let integer = exact_i64_numeric_literal(bound);
+                        let parameter = self.parameters.len();
+                        // Walk the original expression first so nested nodes
+                        // and depth remain accounted for before normalizing.
+                        self.expr(bound, depth + 1)?;
+                        if let Some(integer) = integer {
+                            if self.parameters.len() != parameter + 1 {
+                                return Err(invalid("INTERNAL_BETWEEN_INTEGER_PARAMETER"));
+                            }
+                            self.parameters[parameter] = SqlValue::I64(Signed64(integer));
+                            **bound = Expr::Value(
+                                Value::Placeholder(format!("?{}", parameter + 1)).into(),
+                            );
+                        }
+                    }
+                    return Ok(());
+                }
                 self.expr(low, depth + 1)?;
                 self.expr(high, depth + 1)?;
                 // Repeating a value expression is safe only for this deterministic
@@ -3185,6 +3276,37 @@ mod aggregate_scan_tests {
     use super::*;
 
     #[test]
+    fn between_length_guard_limits_nested_preflight_without_recursion() {
+        let number = || Expr::Value(Value::Number("1".into(), false).into());
+        let mut value = call("length", vec![number()]);
+        let mut bound = number();
+        for _ in 0..5000 {
+            value = Expr::Nested(Box::new(value));
+            bound = Expr::Nested(Box::new(bound));
+        }
+        assert!(!length_with_integer_between_bounds(
+            &value,
+            &number(),
+            &number(),
+            16
+        ));
+        assert!(!length_with_integer_between_bounds(
+            &call("length", vec![number()]),
+            &bound,
+            &number(),
+            16
+        ));
+        assert_eq!(exact_i64_numeric_literal(&bound), Some(1));
+        // Unwrap iteratively so dropping the fixture itself cannot recurse.
+        while let Expr::Nested(inner) = value {
+            value = *inner;
+        }
+        while let Expr::Nested(inner) = bound {
+            bound = *inner;
+        }
+    }
+
+    #[test]
     fn aggregate_reference_scan_obeys_depth_and_visit_budgets() {
         let mut expr = Expr::Value(Value::Number("1".into(), false).into());
         for _ in 0..10 {
@@ -3412,6 +3534,13 @@ fn validate_iterative(query: &Query, limits: SqlLimits) -> MddResult<usize> {
                 Expr::BinaryOp { left, right, .. } => {
                     stack.push((Node::Expr(left), depth + 1));
                     stack.push((Node::Expr(right), depth + 1));
+                }
+                Expr::Between {
+                    expr, low, high, ..
+                } => {
+                    stack.push((Node::Expr(expr), depth + 1));
+                    stack.push((Node::Expr(low), depth + 1));
+                    stack.push((Node::Expr(high), depth + 1));
                 }
                 Expr::InList { expr, list, .. } => {
                     stack.push((Node::Expr(expr), depth + 1));

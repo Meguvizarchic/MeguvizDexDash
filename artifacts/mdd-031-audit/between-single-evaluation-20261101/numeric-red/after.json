@@ -1,0 +1,8 @@
+{
+  "crates/mdd-sql/src/bridge.rs": "bab3eabc27b49dd381c68271c8b24aa6ff03adecdec27b70569e45e2d2060b21",
+  "crates/mdd-sql/src/dialects/ast.rs": "dcfdaa2b8b6bdc77c01772c2ee16f4345f54d2f16fad78f5743c74bfadacd880",
+  "crates/mdd-sql/src/dialects/functions.rs": "f4aca963abe8d9ef73003d1860111b8a6da14505be7f9f0c1eddec6f9fe3015c",
+  "crates/mdd-query/src/budget.rs": "87661d238ba7a8899376129aa643ee6b9f90b4331b96834c3ad8d6238d4d5cf0",
+  "crates/mdd-facts/src/annotations.rs": "9ec1e654998a8d69a2b30bd3506d07b3e4d7e98d2df784685e6261993ccc82f5",
+  "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089"
+}
