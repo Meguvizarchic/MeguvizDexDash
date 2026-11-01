@@ -4197,6 +4197,168 @@ mod tests {
     }
 
     #[test]
+    fn aggregate_filter_truth_matches_sqlite_for_text_carriers() {
+        use mdd_query::ir::Signed64;
+        let values = [
+            None,
+            Some(""),
+            Some("0"),
+            Some("1"),
+            Some("2"),
+            Some("-1"),
+            Some("1e0"),
+            Some("1.5"),
+            Some("not numeric"),
+        ];
+        let provider = Arc::new(RowsProvider {
+            binding: SqlBinding {
+                provider_identity: "filter-truth".into(),
+                snapshot_id: "filter-truth-snapshot".into(),
+                catalog_epoch: DecimalU64(0),
+            },
+            rows: values
+                .iter()
+                .map(|value| vec![value.map_or(SqlValue::Null, SqlValue::text)])
+                .collect(),
+            columns: vec![SqlColumn {
+                id: "v".into(),
+                name: "v".into(),
+                data_type: SqlType::Text,
+                nullable: true,
+            }],
+        });
+        let sqlite = rusqlite::Connection::open_in_memory().unwrap();
+        sqlite.execute_batch("CREATE TABLE vals(v TEXT)").unwrap();
+        for value in values {
+            sqlite
+                .execute("INSERT INTO vals VALUES (?)", [value])
+                .unwrap();
+        }
+        for sql in [
+            "SELECT COUNT(*) FILTER (WHERE v) FROM vals",
+            "SELECT COUNT(*) FILTER (WHERE v), COUNT(*) FILTER (WHERE v IS NOT NULL) FROM vals",
+            "SELECT COUNT(*) FILTER (WHERE '1') FROM vals",
+        ] {
+            let mut statement = sqlite.prepare(sql).unwrap();
+            let width = statement.column_count();
+            let expected = statement
+                .query_map([], |row| {
+                    (0..width)
+                        .map(|i| row.get::<_, i64>(i).map(|n| SqlValue::I64(Signed64(n))))
+                        .collect::<rusqlite::Result<Vec<_>>>()
+                })
+                .unwrap()
+                .collect::<rusqlite::Result<Vec<_>>>()
+                .unwrap();
+            for dialect in [
+                SqlDialect::NativeV1,
+                SqlDialect::DexSql010,
+                SqlDialect::DexSql011,
+            ] {
+                let bridge =
+                    SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+                assert_eq!(
+                    bridge.query(sql).unwrap().rows(),
+                    expected,
+                    "{dialect:?}: {sql}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn aggregate_filter_truth_for_numeric_carriers_and_invalid_filter() {
+        use mdd_query::ir::Signed64;
+        let fixtures = [
+            (
+                SqlType::U64,
+                vec![
+                    SqlValue::U64(DecimalU64(0)),
+                    SqlValue::U64(DecimalU64(1)),
+                    SqlValue::U64(DecimalU64(u64::MAX)),
+                ],
+                2,
+            ),
+            (
+                SqlType::F64,
+                vec![
+                    SqlValue::F64(DecimalU64(0.0f64.to_bits())),
+                    SqlValue::F64(DecimalU64((-0.0f64).to_bits())),
+                    SqlValue::F64(DecimalU64(1.5f64.to_bits())),
+                    SqlValue::F64(DecimalU64((-2.0f64).to_bits())),
+                ],
+                2,
+            ),
+        ];
+        for (kind, values, expected) in fixtures {
+            let sqlite = rusqlite::Connection::open_in_memory().unwrap();
+            sqlite.execute_batch("CREATE TABLE vals(v REAL)").unwrap();
+            for value in &values {
+                let numeric = match value {
+                    SqlValue::U64(value) => value.0 as f64,
+                    SqlValue::F64(bits) => f64::from_bits(bits.0),
+                    _ => panic!("unexpected numeric fixture"),
+                };
+                sqlite
+                    .execute("INSERT INTO vals VALUES (?)", [numeric])
+                    .unwrap();
+            }
+            assert_eq!(
+                sqlite
+                    .query_row("SELECT COUNT(*) FILTER (WHERE v) FROM vals", [], |row| row
+                        .get::<_, i64>(
+                        0
+                    ))
+                    .unwrap(),
+                expected
+            );
+            assert!(
+                sqlite
+                    .prepare("SELECT lower(v) FILTER (WHERE v) FROM vals")
+                    .is_err()
+            );
+            let provider = Arc::new(RowsProvider {
+                binding: SqlBinding {
+                    provider_identity: "filter-numeric".into(),
+                    snapshot_id: "filter-numeric-snapshot".into(),
+                    catalog_epoch: DecimalU64(0),
+                },
+                rows: values.into_iter().map(|value| vec![value]).collect(),
+                columns: vec![SqlColumn {
+                    id: "v".into(),
+                    name: "v".into(),
+                    data_type: kind,
+                    nullable: false,
+                }],
+            });
+            for dialect in [
+                SqlDialect::NativeV1,
+                SqlDialect::DexSql010,
+                SqlDialect::DexSql011,
+            ] {
+                let bridge =
+                    SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+                assert_eq!(
+                    bridge
+                        .query("SELECT COUNT(*) FILTER (WHERE v) FROM vals")
+                        .unwrap()
+                        .rows(),
+                    &[vec![SqlValue::I64(Signed64(expected))]],
+                    "{kind:?} {dialect:?}"
+                );
+                assert_eq!(
+                    bridge
+                        .query("SELECT lower(v) FILTER (WHERE v) FROM vals")
+                        .unwrap_err()
+                        .code,
+                    ErrorCode::InvalidArgument,
+                    "{kind:?} {dialect:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn distinct_independent_union_scalar_subquery_matches_sqlite() {
         use mdd_query::ir::Signed64;
         let provider = Arc::new(RowsProvider {

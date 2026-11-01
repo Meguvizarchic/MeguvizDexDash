@@ -2764,6 +2764,9 @@ impl Rewrite<'_> {
                 }
                 if let Some(filter) = &mut function.filter {
                     self.expr(filter, depth + 1)?;
+                    // Encoded lossless carriers are BLOBs to SQLite. FILTER
+                    // must apply the same truth coercion as WHERE/HAVING.
+                    **filter = call("mdd_truth_input", vec![take(filter)]);
                 }
                 if let Some(name) = replacement {
                     function.name = ObjectName::from(vec![Ident::new(name)]);

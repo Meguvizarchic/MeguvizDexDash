@@ -1,0 +1,10 @@
+test_bag_preserves_duplicates_and_ignores_order (__main__.ComparatorChecks.test_bag_preserves_duplicates_and_ignores_order) ... ok
+test_count_schema_and_context_are_not_silently_equal (__main__.ComparatorChecks.test_count_schema_and_context_are_not_silently_equal) ... ok
+test_equal_ordered_and_null_are_not_qualification (__main__.ComparatorChecks.test_equal_ordered_and_null_are_not_qualification) ... ok
+test_incomplete_side_is_rejected_before_comparison (__main__.ComparatorChecks.test_incomplete_side_is_rejected_before_comparison) ... ok
+test_ordered_difference_finds_cell (__main__.ComparatorChecks.test_ordered_difference_finds_cell) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.003s
+
+OK

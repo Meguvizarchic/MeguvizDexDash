@@ -1,0 +1,27 @@
+[
+  {
+    "path": "artifacts/mdd-022/signature-identity-budget-20261101/green/output.txt",
+    "original_sha256": "97034193273dc1a68d69a6620beb6e83e734bc74a7da6e94f21f57d0549580b3",
+    "redacted_sha256": "c43fcb064fc45c6a64d41d1327baf2d3df5c8ebc0e1f2e219b4ef96c34813bf4"
+  },
+  {
+    "path": "artifacts/mdd-022/signature-identity-budget-20261101/red/output.txt",
+    "original_sha256": "45fe7979864988642c0029a2f9cb1809e766459c57fee5fc0fee35ad655b9138",
+    "redacted_sha256": "cff523545a0c8da6c0b4e9dde1517f52435cdcd893f57e9fce5c92668c54caed"
+  },
+  {
+    "path": "artifacts/mdd-031-audit/aggregate-filter-truth-20261101/green/output.txt",
+    "original_sha256": "97756d188750d6c874c4b319f95a7090422e4548799b53968ab4ab99441ab63c",
+    "redacted_sha256": "178661b08e40a01e8697bab87d0b203f30422c2a7cce4aab00d48651ca9a943a"
+  },
+  {
+    "path": "artifacts/mdd-031-audit/aggregate-filter-truth-20261101/numeric/output.txt",
+    "original_sha256": "eb0c7865d4dcfd0fec2e05a20822b9bcbf9b078da89ce615687ee6b0a4e08a7c",
+    "redacted_sha256": "ebd7d5cb68d3ded0d6606bfb87a54ad56d079d76236bba40bdb8458a4398dc8b"
+  },
+  {
+    "path": "artifacts/mdd-031-audit/aggregate-filter-truth-20261101/red/output.txt",
+    "original_sha256": "1d14b94e30d040d078c6248beef2c2754efa7e791a9bc720e93d2907d594d225",
+    "redacted_sha256": "148ea7d0b9d26a4baaab246dd9aa55047ffcf63ab75f358b1a8cd61a67aeac7e"
+  }
+]

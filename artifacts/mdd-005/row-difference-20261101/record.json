@@ -1,0 +1,49 @@
+{
+  "task": "MDD-005",
+  "scope": "Synthetic diagnostic for materialized ordered or bag rows, not an audit or benchmark certificate",
+  "command": "python -B artifacts/mdd-005/row-difference-20261101/probe.py",
+  "exit": 0,
+  "tests_passed": 5,
+  "output": "output.txt",
+  "listed_sources_before": {
+    "benchmarks/run-existing-baselines.py": "9c5bb00766b714afe6ee50b50b2c0c9602b5b0bb1251150d9d98afc10f1bfec8",
+    "contracts/examples/result_complete.example.json": "46fe45fc09a8858435cbe8514fd3b9204e24a5f7616c51616998a6b2d48c2344",
+    "artifacts/mdd-005/row-difference-20261101/probe.py": "5dad9c9d1174f266eb99ecbd23797f8b35bb59926c6d4a655d48ddd873fc3e87"
+  },
+  "listed_sources_after": {
+    "benchmarks/run-existing-baselines.py": "9c5bb00766b714afe6ee50b50b2c0c9602b5b0bb1251150d9d98afc10f1bfec8",
+    "contracts/examples/result_complete.example.json": "46fe45fc09a8858435cbe8514fd3b9204e24a5f7616c51616998a6b2d48c2344",
+    "artifacts/mdd-005/row-difference-20261101/probe.py": "5dad9c9d1174f266eb99ecbd23797f8b35bb59926c6d4a655d48ddd873fc3e87"
+  },
+  "listed_sources_stable": true,
+  "regression": {
+    "command": "python -B benchmarks/run-existing-baselines.py --self-test",
+    "exit": 0,
+    "tests_passed": 19,
+    "output": "regression.txt"
+  },
+  "limitations": "Both inputs and their independent expected identities are caller supplied; completeness relies on consume checks and does not authenticate actual page consumption. Cell types are not validated against schema. Row/column location does not identify source provenance. Bag mode sorts and duplicates are retained. Not wired to production workload and does not qualify performance. Coverage required_layers order remains part of the canonical comparison and may yield false differences; comparison validates matching operation explicitly.",
+  "final": {
+    "command": "python -B artifacts/mdd-005/row-difference-20261101/probe.py",
+    "exit": 0,
+    "tests_passed": 6,
+    "output": "final.txt",
+    "listed_sources_before": {
+      "benchmarks/run-existing-baselines.py": "823cea307854aa73e73383198b8bcf0b7e6b5d18f05c85fb52ce980167529bfa",
+      "contracts/examples/result_complete.example.json": "46fe45fc09a8858435cbe8514fd3b9204e24a5f7616c51616998a6b2d48c2344",
+      "artifacts/mdd-005/row-difference-20261101/probe.py": "95d28cdb8a8f783a393a7cdd687f63fa7ba5d337027706b71acf98d29a933b36"
+    },
+    "listed_sources_after": {
+      "benchmarks/run-existing-baselines.py": "823cea307854aa73e73383198b8bcf0b7e6b5d18f05c85fb52ce980167529bfa",
+      "contracts/examples/result_complete.example.json": "46fe45fc09a8858435cbe8514fd3b9204e24a5f7616c51616998a6b2d48c2344",
+      "artifacts/mdd-005/row-difference-20261101/probe.py": "95d28cdb8a8f783a393a7cdd687f63fa7ba5d337027706b71acf98d29a933b36"
+    },
+    "stable": true,
+    "regression": {
+      "command": "python -B benchmarks/run-existing-baselines.py --self-test",
+      "exit": 0,
+      "tests_passed": 19,
+      "output": "final-regression.txt"
+    }
+  }
+}

@@ -507,9 +507,26 @@ pub struct AnnotationElementRow {
     pub value_f64: Option<ExactFloat>,
 }
 
+fn owner_has_definition(definitions: &DefinitionFacts, owner: &AnnotationOwnerBinding) -> bool {
+    match owner.kind {
+        AnnotationOwnerKind::Class => true,
+        AnnotationOwnerKind::Field => definitions
+            .definitions
+            .field_definitions
+            .iter()
+            .any(|field| field.field_idx == owner.local_index),
+        _ => definitions
+            .definitions
+            .method_definitions
+            .iter()
+            .any(|method| method.method_idx == owner.local_index),
+    }
+}
+
 fn owner_ref(
     definitions: &DefinitionFacts,
     owner: &AnnotationOwnerBinding,
+    has_definition: bool,
 ) -> MddResult<AnnotationOwnerRef> {
     let kind = match owner.kind {
         AnnotationOwnerKind::Class => EntityKind::ClassDefinition,
@@ -519,18 +536,10 @@ fn owner_ref(
     let reference = definitions.entity(kind, owner.local_index)?;
     let definition = match owner.kind {
         AnnotationOwnerKind::Class => Some(reference.clone()),
-        AnnotationOwnerKind::Field => definitions
-            .definitions
-            .field_definitions
-            .iter()
-            .any(|field| field.field_idx == owner.local_index)
+        AnnotationOwnerKind::Field => has_definition
             .then(|| definitions.entity(EntityKind::FieldDefinition, owner.local_index))
             .transpose()?,
-        _ => definitions
-            .definitions
-            .method_definitions
-            .iter()
-            .any(|method| method.method_idx == owner.local_index)
+        _ => has_definition
             .then(|| definitions.entity(EntityKind::MethodDefinition, owner.local_index))
             .transpose()?,
     };
@@ -638,24 +647,36 @@ impl AnnotationFacts {
                             ))
                         })?;
                 }
-                let identity_bytes =
-                    (source.snapshot_id.len() + source.dex_occurrence_id.len() + 32) as u64;
+                let size_overflow = || {
+                    bind(MddError::new(
+                        ErrorCode::QuotaExceeded,
+                        "facts.annotations",
+                        "Signature allocation size overflow",
+                    ))
+                };
+                let has_definition = owner_has_definition(&definitions, owner);
+                let identity_bytes = u64::try_from(source.snapshot_id.len())
+                    .ok()
+                    .and_then(|size| {
+                        size.checked_add(u64::try_from(source.dex_occurrence_id.len()).ok()?)
+                    })
+                    .and_then(|size| size.checked_add(32))
+                    .ok_or_else(size_overflow)?;
+                let identity_count = u64::try_from(value.children.len())
+                    .ok()
+                    .and_then(|count| count.checked_add(2))
+                    .and_then(|count| count.checked_add(u64::from(has_definition)))
+                    .ok_or_else(size_overflow)?;
                 let cost = total_units
                     .checked_mul(2)
-                    .and_then(|n| n.checked_add(value.children.len() as u64 * identity_bytes))
-                    .and_then(|n| {
-                        n.checked_add(
-                            2 * identity_bytes
-                                + definitions.metadata.string_pool.string_pool_id.len() as u64,
+                    .and_then(|size| size.checked_add(identity_count.checked_mul(identity_bytes)?))
+                    .and_then(|size| {
+                        size.checked_add(
+                            u64::try_from(definitions.metadata.string_pool.string_pool_id.len())
+                                .ok()?,
                         )
                     })
-                    .ok_or_else(|| {
-                        bind(MddError::new(
-                            ErrorCode::QuotaExceeded,
-                            "facts.annotations",
-                            "Signature allocation size overflow",
-                        ))
-                    })?;
+                    .ok_or_else(size_overflow)?;
                 remaining = remaining.checked_sub(cost).ok_or_else(|| {
                     bind(
                         MddError::new(
@@ -667,13 +688,15 @@ impl AnnotationFacts {
                     )
                 })?;
                 let mut units = Vec::new();
-                units.try_reserve_exact(total_units as usize).map_err(|_| {
-                    bind(MddError::new(
-                        ErrorCode::QuotaExceeded,
-                        "facts.annotations",
-                        "Signature allocation failed",
-                    ))
-                })?;
+                units
+                    .try_reserve_exact(usize::try_from(total_units).map_err(|_| size_overflow())?)
+                    .map_err(|_| {
+                        bind(MddError::new(
+                            ErrorCode::QuotaExceeded,
+                            "facts.annotations",
+                            "Signature allocation failed",
+                        ))
+                    })?;
                 let mut parts = Vec::new();
                 parts.try_reserve_exact(value.children.len()).map_err(|_| {
                     bind(MddError::new(
@@ -705,7 +728,7 @@ impl AnnotationFacts {
                         dex_occurrence_id: source.dex_occurrence_id.clone(),
                         annotation_byte_offset: *offset,
                     },
-                    owner: owner_ref(&definitions, owner).map_err(bind)?,
+                    owner: owner_ref(&definitions, owner, has_definition).map_err(bind)?,
                     string_pool_id: definitions.metadata.string_pool.string_pool_id.clone(),
                     parts,
                     utf16_units: units,
@@ -2618,6 +2641,51 @@ mod tests {
             MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default()).unwrap();
         let definitions = DefinitionFacts::build(metadata, DefinitionLimits::default()).unwrap();
         AnnotationFacts::build(definitions, AnnotationLimits::default()).unwrap()
+    }
+    #[test]
+    fn signature_expansion_charges_every_retained_owner_identity() {
+        let facts = build("tests/fixtures/annotations/generated/parameter-shared-signature.dex");
+        let source = facts.source();
+        let identity_bytes =
+            (source.snapshot_id.len() + source.dex_occurrence_id.len() + 32) as u64;
+        let mut old_total = facts.data.usage.decoded_bytes;
+        let mut missing_identities = 0u64;
+        for signature in facts.signatures() {
+            old_total += (signature.utf16_units.len() as u64) * 2
+                + (signature.parts.len() as u64) * identity_bytes
+                + 2 * identity_bytes
+                + signature.string_pool_id.len() as u64;
+            missing_identities += u64::from(signature.owner.definition.is_some());
+        }
+        assert!(
+            missing_identities > 0,
+            "fixture must retain owner definitions"
+        );
+        let exact_total = old_total + missing_identities * identity_bytes;
+        let limited = AnnotationLimits {
+            max_decoded_bytes: exact_total - 1,
+            ..AnnotationLimits::default()
+        };
+        let failure = AnnotationFacts::build(facts.definitions.clone(), limited)
+            .err()
+            .expect("missing identity budget must not be admitted");
+        assert_eq!(failure.code, ErrorCode::QuotaExceeded);
+        assert_eq!(
+            failure
+                .details
+                .get("reason")
+                .and_then(|value| value.as_str()),
+            Some("SIGNATURE_BYTE_BUDGET")
+        );
+        let exact = AnnotationFacts::build(
+            facts.definitions.clone(),
+            AnnotationLimits {
+                max_decoded_bytes: exact_total,
+                ..limited
+            },
+        )
+        .unwrap();
+        assert_eq!(exact.signatures.len(), facts.signatures.len());
     }
     #[test]
     fn physical_collection_views_preserve_bytes_nulls_and_scope() {

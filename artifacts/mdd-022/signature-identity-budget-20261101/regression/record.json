@@ -1,0 +1,29 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "-p",
+    "mdd-facts",
+    "shared_parameter_signature_keeps_method_and_unknown_encoded_slots_distinct",
+    "--",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "listed_sources_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "crates/mdd-facts/src/annotations.rs": "444cc70035832a741c3ae11becfe05301d92a617b35f95eb505575ca844c512a",
+    "crates/mdd-facts/src/definitions.rs": "7a2ac801d7ebc89647888f501493ec9629d95b176125a09abddb239e489ac40a",
+    "crates/mdd-dex/src/annotations.rs": "f4bf544d7782eeead95a0d98dc5277d18f95992baf7257d4a4d775e8f9be5c74",
+    "tests/fixtures/annotations/generated/parameter-shared-signature.dex": "452e68a5702e119c48c5a55f20f3bd0011ae40f3f798b090ccdb557bbf440df8"
+  },
+  "listed_sources_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "crates/mdd-facts/src/annotations.rs": "444cc70035832a741c3ae11becfe05301d92a617b35f95eb505575ca844c512a",
+    "crates/mdd-facts/src/definitions.rs": "7a2ac801d7ebc89647888f501493ec9629d95b176125a09abddb239e489ac40a",
+    "crates/mdd-dex/src/annotations.rs": "f4bf544d7782eeead95a0d98dc5277d18f95992baf7257d4a4d775e8f9be5c74",
+    "tests/fixtures/annotations/generated/parameter-shared-signature.dex": "452e68a5702e119c48c5a55f20f3bd0011ae40f3f798b090ccdb557bbf440df8"
+  },
+  "listed_sources_stable": true,
+  "scope": "targeted synthetic Signature budget; not full format qualification"
+}

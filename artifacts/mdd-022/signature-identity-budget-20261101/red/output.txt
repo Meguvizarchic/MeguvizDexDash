@@ -1,0 +1,19 @@
+   Compiling mdd-facts v0.1.0-dev (<WORKSPACE>\crates\mdd-facts)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.02s
+     Running unittests src\lib.rs (target\debug\deps\mdd_facts-f5fcaccb54dddfd1.exe)
+
+running 1 test
+
+thread 'annotations::tests::signature_expansion_charges_every_retained_owner_identity' (41004) panicked at crates\mdd-facts\src\annotations.rs:2644:14:
+missing identity budget must not be admitted
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test annotations::tests::signature_expansion_charges_every_retained_owner_identity ... FAILED
+
+failures:
+
+failures:
+    annotations::tests::signature_expansion_charges_every_retained_owner_identity
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 87 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p mdd-facts --lib`

@@ -242,6 +242,50 @@ def consume(output, expected_inputs, expected_request, required_layers, *, expec
             "comparison_mode": mode}
 
 
+def compare_complete_rows(left, right, expected_inputs, expected_request, required_layers, *,
+                          left_identity, right_identity):
+    """Diagnose complete materialized row differences under the existing codec.
+
+    Each side must first satisfy ``consume`` against independently supplied
+    identities. This does not authenticate those expectations, validate cell
+    types against the declared schema, establish real page consumption, or
+    grant audit/performance qualification. Bag locations refer to canonical
+    sorted positions, not the producer's original row number.
+    """
+    left_certificate = consume(left, expected_inputs, expected_request, required_layers,
+                               expected_identity=left_identity)
+    right_certificate = consume(right, expected_inputs, expected_request, required_layers,
+                                expected_identity=right_identity)
+    common = {"comparison_codec": "mdd-canonical-json-v1",
+              "left_sha256": left_certificate["canonical_sha256"],
+              "right_sha256": right_certificate["canonical_sha256"],
+              "qualification": False}
+    if left["result"]["operation"] != right["result"]["operation"]:
+        return dict(common, equal_under_codec=False, difference={"kind": "operation"})
+    if left["comparison_mode"] != right["comparison_mode"]:
+        return dict(common, equal_under_codec=False, difference={"kind": "comparison_mode"})
+    if canonical(left["row_schema"]) != canonical(right["row_schema"]):
+        return dict(common, equal_under_codec=False, difference={"kind": "row_schema"})
+    left_rows = left["final_dto"]["rows"]
+    right_rows = right["final_dto"]["rows"]
+    mode = left["comparison_mode"]
+    if mode == "bag":
+        left_rows = sorted(left_rows, key=canonical)
+        right_rows = sorted(right_rows, key=canonical)
+    for row_index, (left_row, right_row) in enumerate(zip(left_rows, right_rows)):
+        for column_index, (left_value, right_value) in enumerate(zip(left_row, right_row)):
+            if canonical(left_value) != canonical(right_value):
+                return dict(common, equal_under_codec=False, difference={
+                    "kind": "cell", "row_index": row_index, "column_index": column_index,
+                    "row_order": "canonical_bag" if mode == "bag" else "delivered"})
+    if len(left_rows) != len(right_rows):
+        return dict(common, equal_under_codec=False, difference={
+            "kind": "row_count", "left_count": len(left_rows), "right_count": len(right_rows)})
+    if left_certificate["canonical_sha256"] != right_certificate["canonical_sha256"]:
+        return dict(common, equal_under_codec=False, difference={"kind": "result_context"})
+    return dict(common, equal_under_codec=True, difference=None)
+
+
 def preflight(plan):
     blockers = []
     if plan.get("readiness") != "ready":
