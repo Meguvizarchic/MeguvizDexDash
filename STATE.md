@@ -279,3 +279,5 @@ DISTINCT/GROUP/ORDER文本或字节键构造现逐单元计步骤并检查取消
 旧版 NULL 单元包含 `value: null`，当前原生 SQL 单元仅含 `type: null`，固定 HostLab 消费者会读取 `value`；适配层必须明确补齐并验证。字面 CAST 的非负结果与DEX列 CAST 的类型不同，不能仅按数值正负推断旧类型。扩展旧版类型采样两次在打开样本时超时，未执行查询；错误保留于 artifacts/mdd-031-audit/dto-type-observations/，不能由此推断规则。
 
 检查点862b3dd的 Windows 和 Linux CI 均通过，各161项测试、10条构建/检查/Clippy/探针命令原始记录已核验；有限 Linux ASan/fuzz workflow 通过，但本次执行次数尚未回读。见 artifacts/integration/20261029/ci-862b3dd.json。后续源码修改须另行验证，不能继承此检查点的CI结论。
+
+2026-11-01 本轮修正后暂停：MDD-022 同来源物理 encoded array 借用视图提供原始字节和值节点，孤儿空/非空及调用点数组定向1项通过；嵌套和真实共享未独立验证，MDD-022 仍 in_progress，MDD-026 依赖未满足。MDD-034 队列接收端关闭时，载荷在锁外释放以避免重入死锁，已关闭接收端释放最后 sender 不再误记 WorkerLost；两项关闭测试与一项生产者丢失回归通过，红例保留，完整并发与生产 IPC 未验证。MDD-031 旧方言简单 CASE 对已证明数值列采用既有精确文本亲和性，三项 SQLite 对照/回归通过；修前红例仅在会话观察，未持久化原始输出，不签 A0/A1、HostLab 或 profile 资格。运行命令、证据、事后源码摘要及脱敏前摘要见 artifacts/integration/20261101-round-correction/record.json；未运行全量、跨平台或性能验证，用户既有 A2 修改保留。

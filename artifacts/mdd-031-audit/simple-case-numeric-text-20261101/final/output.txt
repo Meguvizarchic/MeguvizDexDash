@@ -1,0 +1,10 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.11s
+     Running unittests src\lib.rs (target\debug\deps\mdd_sql-46977fcd4387e316.exe)
+
+running 3 tests
+test bridge::tests::literal_between_and_simple_case_preserve_storage_class_rules ... ok
+test bridge::tests::legacy_simple_case_numeric_column_uses_exact_text_affinity ... ok
+test bridge::tests::legacy_literal_text_affinity_in_between_and_simple_case ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 145 filtered out; finished in 0.01s
+

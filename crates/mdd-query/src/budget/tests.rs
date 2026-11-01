@@ -3,6 +3,78 @@ use std::sync::mpsc;
 use std::thread;
 
 #[test]
+fn receiver_drop_releases_reentrant_payload_without_losing_first_error() {
+    let (done, finished) = mpsc::channel();
+    thread::spawn(move || {
+        let (_, _, _, _, runtime) = owned_queue_test_runtime(BudgetLimits::default());
+        let (sender, receiver) = bounded_channel::<Box<dyn Send>>(
+            runtime.pool().clone(),
+            Some(runtime.cancellation().clone()),
+            1,
+        )
+        .unwrap();
+        // Dropping this queued payload drops a sender for the same queue.
+        sender
+            .send(Box::new(sender.try_clone().unwrap()), 7)
+            .unwrap();
+        let first = MddError::new(ErrorCode::WorkerLost, "test.worker", "original failure");
+        runtime.cancellation().fail(first.clone()).unwrap();
+        drop(receiver);
+        let actual = runtime.cancellation().status().unwrap().error.unwrap();
+        assert_eq!(
+            (actual.code, actual.stage, actual.message),
+            (first.code, first.stage, first.message)
+        );
+        for resource in [
+            Resource::QueueItems,
+            Resource::QueueBytes,
+            Resource::QueryWorkspaceBytes,
+        ] {
+            assert_eq!(used(runtime.pool(), resource), 0);
+        }
+        done.send(()).unwrap();
+    });
+    finished
+        .recv_timeout(Duration::from_secs(2))
+        .expect("receiver drop did not finish before deadline");
+}
+
+#[test]
+fn receiver_drop_last_queued_sender_is_cancelled_not_worker_lost() {
+    let (done, finished) = mpsc::channel();
+    thread::spawn(move || {
+        let (_, _, _, _, runtime) = owned_queue_test_runtime(BudgetLimits::default());
+        let (sender, receiver) = bounded_channel::<Box<dyn Send>>(
+            runtime.pool().clone(),
+            Some(runtime.cancellation().clone()),
+            1,
+        )
+        .unwrap();
+        sender
+            .send(Box::new(sender.try_clone().unwrap()), 7)
+            .unwrap();
+        // Only the queued payload still owns a sender.
+        drop(sender);
+        drop(receiver);
+        let status = runtime.cancellation().status().unwrap();
+        assert_eq!(status.error.unwrap().code, ErrorCode::Cancelled);
+        assert!(!status.delivery_complete);
+        assert!(runtime.cancellation().delivery_abandoned().unwrap());
+        for resource in [
+            Resource::QueueItems,
+            Resource::QueueBytes,
+            Resource::QueryWorkspaceBytes,
+        ] {
+            assert_eq!(used(runtime.pool(), resource), 0);
+        }
+        done.send(()).unwrap();
+    });
+    finished
+        .recv_timeout(Duration::from_secs(2))
+        .expect("receiver drop did not finish before deadline");
+}
+
+#[test]
 fn duplicate_terminal_keeps_first_query_failure() {
     let (_, _, _, _, runtime) = owned_queue_test_runtime(BudgetLimits::default());
     let (sender, _receiver) = bounded_channel::<()>(

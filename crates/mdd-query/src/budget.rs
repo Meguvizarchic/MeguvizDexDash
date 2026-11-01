@@ -1839,7 +1839,13 @@ impl<T> Drop for BoundedSender<T> {
         let mut lost = None;
         if let Ok(mut state) = self.0.state.lock() {
             state.senders -= 1;
-            if state.senders == 0 && state.terminal.is_none() && !state.end_delivered {
+            // Receiver shutdown may release the last sender as part of a
+            // queued payload. That is cancellation, not producer loss.
+            if state.senders == 0
+                && !state.receiver_closed
+                && state.terminal.is_none()
+                && !state.end_delivered
+            {
                 let error = MddError::new(
                     ErrorCode::WorkerLost,
                     "queue",
@@ -1910,12 +1916,16 @@ impl<T> BoundedReceiver<T> {
 impl<T> Drop for BoundedReceiver<T> {
     fn drop(&mut self) {
         let mut receipt_issued = false;
+        let mut entries = VecDeque::new();
         if let Ok(mut state) = self.0.state.lock() {
             state.receiver_closed = true;
-            state.entries.clear();
+            // A generic payload can itself own a sender for this channel.
+            // Its destructor must not run while holding the queue mutex.
+            entries = std::mem::take(&mut state.entries);
             receipt_issued = state.receipt_issued;
             self.0.changed.notify_all();
         }
+        drop(entries);
         if !receipt_issued
             && let Some(cancel) = &self.0.cancel
             && !cancel.status().is_ok_and(|s| s.delivery_complete)

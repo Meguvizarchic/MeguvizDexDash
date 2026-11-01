@@ -1,0 +1,9 @@
+   Compiling mdd-facts v0.1.0-dev (<WORKSPACE>\crates\mdd-facts)
+   Compiling mdd-query v0.1.0-dev (<WORKSPACE>\crates\mdd-query)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 9.68s
+     Running unittests src\lib.rs (target\debug\deps\mdd_query-82579f4092cfd058.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 166 filtered out; finished in 0.00s
+

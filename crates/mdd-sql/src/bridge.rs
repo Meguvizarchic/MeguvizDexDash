@@ -1627,6 +1627,131 @@ mod tests {
     }
 
     #[test]
+    fn legacy_simple_case_numeric_column_uses_exact_text_affinity() {
+        use mdd_query::ir::Signed64;
+        let values = [None, Some(-1), Some(0), Some(1), Some(8), Some(9), Some(9)];
+        let provider = Arc::new(RowsProvider {
+            binding: SqlBinding {
+                provider_identity: "case-text-affinity".into(),
+                snapshot_id: "case-text-snapshot".into(),
+                catalog_epoch: DecimalU64(0),
+            },
+            rows: values
+                .iter()
+                .map(|value| {
+                    vec![
+                        value.map_or(SqlValue::Null, |n| SqlValue::I64(Signed64(n))),
+                        SqlValue::text("2"),
+                    ]
+                })
+                .collect(),
+            columns: vec![
+                SqlColumn {
+                    id: "id".into(),
+                    name: "id".into(),
+                    data_type: SqlType::I64,
+                    nullable: true,
+                },
+                SqlColumn {
+                    id: "txt".into(),
+                    name: "txt".into(),
+                    data_type: SqlType::Text,
+                    nullable: false,
+                },
+            ],
+        });
+        let sqlite = rusqlite::Connection::open_in_memory().unwrap();
+        sqlite.execute_batch("CREATE TABLE vals(id INTEGER, txt TEXT); INSERT INTO vals VALUES(NULL,'2'),(-1,'2'),(0,'2'),(1,'2'),(8,'2'),(9,'2'),(9,'2')").unwrap();
+        let cases = [
+            "SELECT id,CASE id WHEN NULL THEN 90 WHEN ' +01 ' THEN 1 WHEN '8e0' THEN 8 ELSE 99 END FROM vals ORDER BY id",
+            "SELECT v.id,CASE v.id WHEN '-1' THEN 1 WHEN '0.0' THEN NULL WHEN '9' THEN 9 ELSE 0 END FROM vals v ORDER BY v.id",
+            "SELECT id FROM vals WHERE CASE id WHEN '9.0' THEN 1 ELSE 0 END ORDER BY id",
+            "SELECT id AS n FROM vals WHERE CASE n WHEN ' +01 ' THEN 1 ELSE 0 END ORDER BY id",
+            "SELECT id,CASE id WHEN '1' THEN 7 WHEN '0.5' THEN 8 ELSE 9 END FROM vals WHERE id=1",
+        ];
+        for dialect in [SqlDialect::DexSql010, SqlDialect::DexSql011] {
+            let bridge = SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+            for sql in cases {
+                let mut statement = sqlite.prepare(sql).unwrap();
+                let width = statement.column_count();
+                let expected = statement
+                    .query_map([], |row| {
+                        (0..width)
+                            .map(|index| {
+                                row.get::<_, Option<i64>>(index).map(|value| {
+                                    value.map_or(SqlValue::Null, |n| SqlValue::I64(Signed64(n)))
+                                })
+                            })
+                            .collect::<rusqlite::Result<Vec<_>>>()
+                    })
+                    .unwrap()
+                    .collect::<rusqlite::Result<Vec<_>>>()
+                    .unwrap();
+                assert_eq!(
+                    bridge.query(sql).unwrap().rows(),
+                    expected,
+                    "{dialect:?}: {sql}"
+                );
+            }
+            let scoped = "WITH t AS (SELECT txt FROM vals) SELECT o.id,(SELECT i.txt AS id FROM t i WHERE CASE id WHEN '2' THEN 1 ELSE 0 END LIMIT 1) FROM vals o ORDER BY o.id";
+            let expected = sqlite
+                .prepare(scoped)
+                .unwrap()
+                .query_map([], |row| {
+                    Ok((
+                        row.get::<_, Option<i64>>(0)?,
+                        row.get::<_, Option<String>>(1)?,
+                    ))
+                })
+                .unwrap()
+                .collect::<rusqlite::Result<Vec<_>>>()
+                .unwrap();
+            let actual: Vec<_> = bridge
+                .query(scoped)
+                .unwrap()
+                .rows()
+                .iter()
+                .map(|row| {
+                    let id = match row[0] {
+                        SqlValue::Null => None,
+                        SqlValue::I64(Signed64(n)) => Some(n),
+                        _ => panic!("unexpected id"),
+                    };
+                    let text = match &row[1] {
+                        SqlValue::Null => None,
+                        SqlValue::Text(value) => Some(value.strict_utf8().unwrap()),
+                        _ => panic!("unexpected text"),
+                    };
+                    (id, text)
+                })
+                .collect();
+            assert_eq!(actual, expected, "{dialect:?}: {scoped}");
+            assert_eq!(
+                bridge
+                    .query("SELECT CASE missing WHEN '1' THEN 1 ELSE 0 END FROM vals")
+                    .unwrap_err()
+                    .code,
+                ErrorCode::InvalidArgument
+            );
+            assert_eq!(
+                bridge
+                    .query("SELECT CASE id WHEN '0.5' THEN 1 ELSE 0 END FROM vals")
+                    .unwrap_err()
+                    .code,
+                ErrorCode::UnsupportedQuery
+            );
+        }
+        let native = SqlBridge::new(provider, SqlDialect::NativeV1, SqlLimits::default()).unwrap();
+        assert_eq!(
+            native
+                .query("SELECT CASE id WHEN '1' THEN 1 ELSE 0 END FROM vals")
+                .unwrap_err()
+                .code,
+            ErrorCode::UnsupportedQuery
+        );
+    }
+
+    #[test]
     fn legacy_numeric_column_comparison_applies_exact_text_affinity() {
         use mdd_query::ir::Signed64;
         let values = [None, Some(-1), Some(0), Some(1), Some(8), Some(9), Some(9)];

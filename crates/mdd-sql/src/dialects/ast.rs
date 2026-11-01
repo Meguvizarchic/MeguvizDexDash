@@ -1872,6 +1872,26 @@ impl Rewrite<'_> {
                 else_result,
                 ..
             } => {
+                // A simple CASE compares its operand to each WHEN with the
+                // same affinity as equality. Only a proven direct numeric
+                // column and the exact legacy text forms already admitted by
+                // ordinary equality are safe to convert here. The operand is
+                // a column, so cloning it below does not repeat an effectful
+                // expression; unresolved or shadowed bindings remain guarded.
+                if self.dialect != super::SqlDialect::NativeV1
+                    && operand.as_ref().is_some_and(|value| {
+                        matches!(
+                            self.in_column_type(value),
+                            Some(crate::values::SqlType::I64 | crate::values::SqlType::U64)
+                        )
+                    })
+                {
+                    for condition in conditions.iter_mut() {
+                        if let Some(value) = exact_i64_text_literal(&condition.condition) {
+                            replace_with_i64_literal(&mut condition.condition, value);
+                        }
+                    }
+                }
                 let comparison_kinds: Vec<(bool, bool)> = conditions
                     .iter()
                     .map(|condition| {

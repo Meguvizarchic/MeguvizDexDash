@@ -5,7 +5,7 @@ use crate::{
 };
 use mdd_dex::annotations::{
     AnnotationItem, AnnotationLimits, AnnotationOwnerBinding, AnnotationOwnerKind, AnnotationSet,
-    AnnotationSetRefList, DexAnnotations, EncodedKind, EncodedValue, ExactFloat,
+    AnnotationSetRefList, DexAnnotations, EncodedArrayItem, EncodedKind, EncodedValue, ExactFloat,
     ParameterListBinding, read_annotations,
 };
 use mdd_dex::{
@@ -57,6 +57,27 @@ pub struct AnnotationOwnerRef {
     pub reference: EntityRef,
     pub definition: Option<EntityRef>,
     pub parameter_ordinal: Option<u32>,
+}
+
+/// Physical encoded-array identity within a captured DEX occurrence.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct EncodedArrayRef {
+    pub snapshot_id: String,
+    pub dex_occurrence_id: String,
+    pub byte_offset: u32,
+}
+
+/// Physical array and value nodes, including nested values. No ownership,
+/// field assignment, or runtime call-site semantics are inferred.
+pub struct EncodedArrayView<'a> {
+    pub source: &'a MetadataSource,
+    pub array: &'a EncodedArrayItem,
+    pub raw_encoded: &'a [u8],
+    pub values: Vec<EncodedArrayValueFact<'a>>,
+}
+pub struct EncodedArrayValueFact<'a> {
+    pub value: &'a EncodedValue,
+    pub raw_encoded: &'a [u8],
 }
 
 /// Logical entry-visit and result bounds for a physical annotation value view.
@@ -1222,6 +1243,159 @@ impl AnnotationFacts {
                     raw_encoded,
                 })
             }))
+    }
+    /// Resolve a physically walked encoded-array item and its value nodes.
+    /// Limits bound logical visits and returned nodes, not memory or CPU time.
+    /// Shared references do not duplicate the physical item in this view.
+    pub fn encoded_array_view(
+        &self,
+        reference: &EncodedArrayRef,
+        limits: AnnotationValueViewLimits,
+    ) -> MddResult<EncodedArrayView<'_>> {
+        let stage = "facts.encoded_array";
+        let source = self.source();
+        if reference.snapshot_id != source.snapshot_id
+            || reference.dex_occurrence_id != source.dex_occurrence_id
+        {
+            return Err(MddError::new(
+                ErrorCode::InvalidArgument,
+                stage,
+                "array belongs to another snapshot or occurrence",
+            ));
+        }
+        if self.annotation_coverage != Completeness::Complete
+            || self.definitions.definition_coverage() != Completeness::Complete
+            || self.definitions.metadata().metadata_coverage() != Completeness::Complete
+        {
+            return Err(MddError::new(
+                ErrorCode::IncompleteFacts,
+                stage,
+                "complete metadata, definitions and annotations are required",
+            ));
+        }
+        let quota = || {
+            MddError::new(
+                ErrorCode::QuotaExceeded,
+                stage,
+                "encoded array view entry budget exceeded",
+            )
+        };
+        let inconsistent = || {
+            MddError::new(
+                ErrorCode::InternalFault,
+                stage,
+                "validated encoded array is inconsistent",
+            )
+        };
+        let arrays = u64::try_from(self.data.encoded_arrays.len()).map_err(|_| quota())?;
+        if arrays > limits.max_scanned_entries {
+            return Err(quota());
+        }
+        let mut matches = self
+            .data
+            .encoded_arrays
+            .iter()
+            .filter(|array| array.byte_offset == reference.byte_offset);
+        let array = matches.next().ok_or_else(|| {
+            MddError::new(
+                ErrorCode::InvalidArgument,
+                stage,
+                "array offset is not a physical item start",
+            )
+        })?;
+        if matches.next().is_some()
+            || array.encoded_range.byte_offset.0 != u64::from(array.byte_offset)
+        {
+            return Err(inconsistent());
+        }
+        let visits = u64::try_from(self.data.values.len())
+            .ok()
+            .and_then(|v| v.checked_mul(2))
+            .and_then(|v| v.checked_add(arrays))
+            .and_then(|v| v.checked_add(u64::try_from(array.elements.len()).ok()?))
+            .ok_or_else(quota)?;
+        if visits > limits.max_scanned_entries {
+            return Err(quota());
+        }
+        let start = array.encoded_range.byte_offset.0;
+        let end = start
+            .checked_add(array.encoded_range.byte_length.0)
+            .ok_or_else(inconsistent)?;
+        if start == end {
+            return Err(inconsistent());
+        }
+        let start_usize = usize::try_from(start).map_err(|_| inconsistent())?;
+        let end_usize = usize::try_from(end).map_err(|_| inconsistent())?;
+        let raw_encoded = self
+            .bytes()
+            .get(start_usize..end_usize)
+            .ok_or_else(inconsistent)?;
+        for (ordinal, id) in array.elements.iter().enumerate() {
+            let node = self
+                .data
+                .values
+                .get(*id as usize)
+                .ok_or_else(inconsistent)?;
+            if node.node_id != *id
+                || node.annotation_byte_offset.is_some()
+                || node.depth != 0
+                || node.name_idx.is_some()
+                || u32::try_from(ordinal).ok() != Some(node.ordinal)
+                || node.encoded_range.byte_offset.0 <= start
+                || node.encoded_range.byte_offset.0 >= end
+            {
+                return Err(inconsistent());
+            }
+        }
+        let in_array = |node: &&EncodedValue| {
+            node.annotation_byte_offset.is_none()
+                && node.encoded_range.byte_offset.0 > start
+                && node.encoded_range.byte_offset.0 < end
+        };
+        let count = self.data.values.iter().filter(in_array).count();
+        if u64::try_from(count).map_err(|_| quota())? > limits.max_values {
+            return Err(quota());
+        }
+        if count < array.elements.len() {
+            return Err(inconsistent());
+        }
+        let mut values = Vec::new();
+        values.try_reserve_exact(count).map_err(|_| quota())?;
+        for (ordinal, value) in self
+            .data
+            .values
+            .iter()
+            .enumerate()
+            .filter(|(_, value)| in_array(value))
+        {
+            let value_start = value.encoded_range.byte_offset.0;
+            let value_end = value_start
+                .checked_add(value.encoded_range.byte_length.0)
+                .ok_or_else(inconsistent)?;
+            if u32::try_from(ordinal).ok() != Some(value.node_id)
+                || value_start == value_end
+                || value_end > end
+            {
+                return Err(inconsistent());
+            }
+            let raw = self
+                .bytes()
+                .get(
+                    usize::try_from(value_start).map_err(|_| inconsistent())?
+                        ..usize::try_from(value_end).map_err(|_| inconsistent())?,
+                )
+                .ok_or_else(inconsistent)?;
+            values.push(EncodedArrayValueFact {
+                value,
+                raw_encoded: raw,
+            });
+        }
+        Ok(EncodedArrayView {
+            source,
+            array,
+            raw_encoded,
+            values,
+        })
     }
     /// Resolve the physical encoded parameter-annotation list for one method.
     /// `None` means no such binding was encoded in this complete DEX occurrence;
@@ -2715,6 +2889,144 @@ mod tests {
                 .unwrap()
                 .code,
             ErrorCode::InvalidArgument
+        );
+    }
+    #[test]
+    fn encoded_array_view_retains_physical_items_and_enforces_scope() {
+        let facts = build("tests/fixtures/annotations/generated/valid-orphan-arrays.dex");
+        assert_eq!(facts.data.encoded_arrays.len(), 2);
+        let reference = |offset| EncodedArrayRef {
+            snapshot_id: facts.source().snapshot_id.clone(),
+            dex_occurrence_id: facts.source().dex_occurrence_id.clone(),
+            byte_offset: offset,
+        };
+        let empty = reference(facts.data.encoded_arrays[0].byte_offset);
+        let populated = reference(facts.data.encoded_arrays[1].byte_offset);
+        let view = facts
+            .encoded_array_view(&empty, AnnotationValueViewLimits::default())
+            .unwrap();
+        assert_eq!(view.raw_encoded, &[0]);
+        assert!(view.values.is_empty());
+        let view = facts
+            .encoded_array_view(&populated, AnnotationValueViewLimits::default())
+            .unwrap();
+        assert_eq!(view.source.dex_occurrence_id, populated.dex_occurrence_id);
+        assert_eq!(view.raw_encoded.len(), 3);
+        assert_eq!(view.raw_encoded[0..2], [1, 0x17]);
+        assert_eq!(view.values.len(), 1);
+        assert_eq!(view.values[0].value.kind, EncodedKind::String);
+        assert_eq!(view.values[0].raw_encoded, &view.raw_encoded[1..]);
+        let visits =
+            facts.data.encoded_arrays.len() as u64 + 2 * facts.data.values.len() as u64 + 1;
+        assert_eq!(
+            facts
+                .encoded_array_view(
+                    &populated,
+                    AnnotationValueViewLimits {
+                        max_scanned_entries: visits - 1,
+                        max_values: 1
+                    }
+                )
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::QuotaExceeded
+        );
+        assert_eq!(
+            facts
+                .encoded_array_view(
+                    &populated,
+                    AnnotationValueViewLimits {
+                        max_scanned_entries: visits,
+                        max_values: 0
+                    }
+                )
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::QuotaExceeded
+        );
+        assert_eq!(
+            facts
+                .encoded_array_view(
+                    &populated,
+                    AnnotationValueViewLimits {
+                        max_scanned_entries: visits,
+                        max_values: 1
+                    }
+                )
+                .unwrap()
+                .values
+                .len(),
+            1
+        );
+        let mut invalid = populated.clone();
+        invalid.byte_offset += 1;
+        assert_eq!(
+            facts
+                .encoded_array_view(&invalid, AnnotationValueViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InvalidArgument
+        );
+        invalid = populated.clone();
+        invalid.dex_occurrence_id = "foreign".into();
+        assert_eq!(
+            facts
+                .encoded_array_view(&invalid, AnnotationValueViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InvalidArgument
+        );
+        let mut partial = facts.clone();
+        partial.annotation_coverage = Completeness::Partial;
+        assert_eq!(
+            partial
+                .encoded_array_view(&populated, AnnotationValueViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::IncompleteFacts
+        );
+        let mut corrupted = facts.clone();
+        let root = corrupted.data.encoded_arrays[1].elements[0] as usize;
+        corrupted.data.values[root].ordinal = 42;
+        assert_eq!(
+            corrupted
+                .encoded_array_view(&populated, AnnotationValueViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InternalFault
+        );
+
+        let call = build("tests/fixtures/annotations/generated/valid-call-site-array.dex");
+        let item = &call.data.encoded_arrays[0];
+        let reference = EncodedArrayRef {
+            snapshot_id: call.source().snapshot_id.clone(),
+            dex_occurrence_id: call.source().dex_occurrence_id.clone(),
+            byte_offset: item.byte_offset,
+        };
+        let view = call
+            .encoded_array_view(&reference, AnnotationValueViewLimits::default())
+            .unwrap();
+        assert_eq!(view.raw_encoded[0], 3);
+        assert_eq!(
+            view.values
+                .iter()
+                .map(|value| value.value.kind)
+                .collect::<Vec<_>>(),
+            vec![
+                EncodedKind::MethodHandle,
+                EncodedKind::String,
+                EncodedKind::MethodType
+            ]
+        );
+        assert_eq!(
+            call.data.call_site_arrays[0].encoded_array_byte_offset,
+            view.array.byte_offset
         );
     }
     #[test]

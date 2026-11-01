@@ -1,0 +1,87 @@
+{
+  "scope": "Current correction only; no full validation or qualification",
+  "source_sha256_observed_after_tests": {
+    "crates/mdd-facts/src/annotations.rs": "f98772bd54dc723f67e29b4f3c86f72e4f0c2eee7eb47336f909c7a3d7a4de55",
+    "crates/mdd-query/src/budget.rs": "79cb3d70ec1b5adbf1f4f877cdcf766450770f3855dd6d4bf31bc1b3491b73ff",
+    "crates/mdd-query/src/budget/tests.rs": "3afa5732e836ce9679d1d5a6e13681164aeb6c268359d6226490a12eec64d935",
+    "crates/mdd-sql/src/dialects/ast.rs": "8c3bb71af61f7126cffb506bad7c4e8ab6bf38331e4938ee2c739fae2d1e783c",
+    "crates/mdd-sql/src/bridge.rs": "7f16203111ea215ff7a319da2b2cfc8294515d340fb58db8ff1f8ed9b5300014",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089"
+  },
+  "source_identity_note": "These hashes were recorded after the tests, not before them. Facts run2 separately recorded matching before and after hashes for its listed inputs.",
+  "runs": [
+    {
+      "command": "cargo test --locked -p mdd-facts annotations::tests::encoded_array_view_retains_physical_items_and_enforces_scope -- --exact",
+      "exit": 0,
+      "passed": 1,
+      "evidence": "artifacts/mdd-022/encoded-array-view-20261101/run2/output.txt"
+    },
+    {
+      "command": "cargo test -p mdd-query receiver_drop_ -- --nocapture",
+      "exit": 0,
+      "passed": 2,
+      "evidence": "artifacts/mdd-034-audit/receiver-close-last-sender-20261101/green/output.txt"
+    },
+    {
+      "command": "cargo test -p mdd-query producer_drop_after_prefix_is_worker_lost_and_explicit_failure_stays_failure -- --nocapture",
+      "exit": 0,
+      "passed": 1,
+      "evidence": "artifacts/mdd-034-audit/receiver-close-last-sender-20261101/worker-loss/output.txt"
+    },
+    {
+      "command": "cargo test --locked -p mdd-sql simple_case -- --nocapture",
+      "exit": 0,
+      "passed": 3,
+      "evidence": "artifacts/mdd-031-audit/simple-case-numeric-text-20261101/final/output.txt"
+    }
+  ],
+  "earlier_observations": "SQL test before fix was observed failing with UnsupportedQuery/MIXED_CLASS_AFFINITY_NOT_IMPLEMENTED, but its console output was not persisted; it is not a retained raw record. Zero-test filters in facts and runtime evidence and the SQL session are not counted as passed.",
+  "redactions": [
+    {
+      "path": "artifacts/mdd-022/encoded-array-view-20261101/run1/after-hashes.json",
+      "original_sha256": "e741f79db0a90a015825d21275b382be9888f9fc096ad68815cd70937b6763f4",
+      "redacted_sha256": "ea7f27b91ea3a321586e695190eb2c5794061c9d584debd285f639377fdb0958"
+    },
+    {
+      "path": "artifacts/mdd-022/encoded-array-view-20261101/run1/before-hashes.json",
+      "original_sha256": "e741f79db0a90a015825d21275b382be9888f9fc096ad68815cd70937b6763f4",
+      "redacted_sha256": "ea7f27b91ea3a321586e695190eb2c5794061c9d584debd285f639377fdb0958"
+    },
+    {
+      "path": "artifacts/mdd-022/encoded-array-view-20261101/run1/output.txt",
+      "original_sha256": "01215e14f692026cf97081940bf52bdc46b4561d1d456245855c6ca04bf000e9",
+      "redacted_sha256": "e91e01bdbdf51a228f93e110d21759ca1683fc95bdde1ef93ee3c5c306243014"
+    },
+    {
+      "path": "artifacts/mdd-022/encoded-array-view-20261101/run2/after-hashes.json",
+      "original_sha256": "e741f79db0a90a015825d21275b382be9888f9fc096ad68815cd70937b6763f4",
+      "redacted_sha256": "ea7f27b91ea3a321586e695190eb2c5794061c9d584debd285f639377fdb0958"
+    },
+    {
+      "path": "artifacts/mdd-022/encoded-array-view-20261101/run2/before-hashes.json",
+      "original_sha256": "e741f79db0a90a015825d21275b382be9888f9fc096ad68815cd70937b6763f4",
+      "redacted_sha256": "ea7f27b91ea3a321586e695190eb2c5794061c9d584debd285f639377fdb0958"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/reentrant-receiver-drop-20261101/green/output.txt",
+      "original_sha256": "f179bec19b6c993e125c1bbfb50fa9ea9ee8a63655a93100c0224ec15e28df54",
+      "redacted_sha256": "126e998630633d640ba7eb6fe987a1c75f62dda038de237a9a02f6b311f5d529"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/reentrant-receiver-drop-20261101/red/output.txt",
+      "original_sha256": "2dbbc4dc00897e13c37ea15ec547e4e409b7c26dd7b812ee51a4d7fd82a130e4",
+      "redacted_sha256": "52871de34c02d6ea35a12291c043c2b594038b33f4def130daa6fd1d7587195e"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/receiver-close-last-sender-20261101/green/output.txt",
+      "original_sha256": "29f8a2078b4f5bce3ab52f627bd396cc60d632e9257ebd7177f3b823aefdd53f",
+      "redacted_sha256": "5c5171da7a352512e3b97fc5a5fb63f62dbe5912d8c99425d3355a1c9fbaf36f"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/receiver-close-last-sender-20261101/red/output.txt",
+      "original_sha256": "3ec824472e35705f1da24e8d3492ac7bad370bcdd0482d2f4936390ee97d0ced",
+      "redacted_sha256": "ce3bd7294f159ec802e8363e59f77ace5b60e6810d2f4d91c71a9adb1b7b567b"
+    }
+  ],
+  "limits": "No complete format, production IPC, HostLab, A0/A1, cross-platform or performance qualification; concurrency is not exhaustive."
+}

@@ -2648,6 +2648,11 @@
       "sha256": "0f0f48da8666f41a1f8f8b918e25fb86334ed3e42e069fa0bdeeaa697851e591"
     },
     {
+      "path": "artifacts/integration/20261101-round-correction/record.json",
+      "bytes": 5077,
+      "sha256": "53d1ff3cfec86812ac73384e645a599af33ca9750fb220bba8dee1ce1c522cd1"
+    },
+    {
       "path": "artifacts/mdd-001/acceptance-review.json",
       "bytes": 1373,
       "sha256": "8dde9caace779aab784401f880746dbcf93c80079ba22bab7f4e60d4776408d3"
@@ -6111,6 +6116,46 @@
       "path": "artifacts/mdd-022/annotation-conformance.json",
       "bytes": 12596,
       "sha256": "7f40e25567836b3b6dff62aad7841cda84069ae98720e732069d57a54ab27f53"
+    },
+    {
+      "path": "artifacts/mdd-022/encoded-array-view-20261101/run1/after-hashes.json",
+      "bytes": 779,
+      "sha256": "ea7f27b91ea3a321586e695190eb2c5794061c9d584debd285f639377fdb0958"
+    },
+    {
+      "path": "artifacts/mdd-022/encoded-array-view-20261101/run1/before-hashes.json",
+      "bytes": 779,
+      "sha256": "ea7f27b91ea3a321586e695190eb2c5794061c9d584debd285f639377fdb0958"
+    },
+    {
+      "path": "artifacts/mdd-022/encoded-array-view-20261101/run1/exit.txt",
+      "bytes": 13,
+      "sha256": "a9f58776a09b5dac438049683f24bf85764e0ff8e7455952456165c68c158627"
+    },
+    {
+      "path": "artifacts/mdd-022/encoded-array-view-20261101/run1/output.txt",
+      "bytes": 789,
+      "sha256": "e91e01bdbdf51a228f93e110d21759ca1683fc95bdde1ef93ee3c5c306243014"
+    },
+    {
+      "path": "artifacts/mdd-022/encoded-array-view-20261101/run2/after-hashes.json",
+      "bytes": 779,
+      "sha256": "ea7f27b91ea3a321586e695190eb2c5794061c9d584debd285f639377fdb0958"
+    },
+    {
+      "path": "artifacts/mdd-022/encoded-array-view-20261101/run2/before-hashes.json",
+      "bytes": 779,
+      "sha256": "ea7f27b91ea3a321586e695190eb2c5794061c9d584debd285f639377fdb0958"
+    },
+    {
+      "path": "artifacts/mdd-022/encoded-array-view-20261101/run2/exit.txt",
+      "bytes": 13,
+      "sha256": "a9f58776a09b5dac438049683f24bf85764e0ff8e7455952456165c68c158627"
+    },
+    {
+      "path": "artifacts/mdd-022/encoded-array-view-20261101/run2/output.txt",
+      "bytes": 816,
+      "sha256": "58180be61823f40bb8d98ed6784a2466289984e0ba9db0f16ffbf7e1d5ffb60d"
     },
     {
       "path": "artifacts/mdd-022/encoded-parameter-slots-20261101/run1/record.json",
@@ -26363,6 +26408,16 @@
       "sha256": "6bf1846549c1ffba3ea1e24e2eb02248d71a92115c3e70d31c8cbbfda010cb03"
     },
     {
+      "path": "artifacts/mdd-031-audit/simple-case-numeric-text-20261101/final/exit-code.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/simple-case-numeric-text-20261101/final/output.txt",
+      "bytes": 538,
+      "sha256": "2e77b0a93a8c87481d486ebffa311758a1e1811fd24399668c25655ba63b25c5"
+    },
+    {
       "path": "artifacts/mdd-031-audit/substr-differential/Cargo.lock",
       "bytes": 11258,
       "sha256": "121b91b524831200462716eeb129ef29447cb3662def641c8f7417da1e19b5ab"
@@ -36336,6 +36391,66 @@
       "path": "artifacts/mdd-034-audit/receipt-match-fault-20261030/red/record.json",
       "bytes": 886,
       "sha256": "990ef341f3001061819fc349205432a185a2bf0bdbe6cf7f4077385d0eef1e60"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/receiver-close-last-sender-20261101/green/exit-code.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/receiver-close-last-sender-20261101/green/output.txt",
+      "bytes": 532,
+      "sha256": "5c5171da7a352512e3b97fc5a5fb63f62dbe5912d8c99425d3355a1c9fbaf36f"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/receiver-close-last-sender-20261101/red/exit-code.txt",
+      "bytes": 5,
+      "sha256": "bdc830287616dae1818ced3e7c186e1387155900ad30d5983ec02da1519c4a95"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/receiver-close-last-sender-20261101/red/output.txt",
+      "bytes": 1057,
+      "sha256": "ce3bd7294f159ec802e8363e59f77ace5b60e6810d2f4d91c71a9adb1b7b567b"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/receiver-close-last-sender-20261101/worker-loss/exit-code.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/receiver-close-last-sender-20261101/worker-loss/output.txt",
+      "bytes": 384,
+      "sha256": "21162dc41cb6f5963d065437f8da02230fada8f8eb447314045131e9017e5d50"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/reentrant-receiver-drop-20261101/green/exit-code.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/reentrant-receiver-drop-20261101/green/output.txt",
+      "bytes": 441,
+      "sha256": "126e998630633d640ba7eb6fe987a1c75f62dda038de237a9a02f6b311f5d529"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/reentrant-receiver-drop-20261101/red/exit-code.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/reentrant-receiver-drop-20261101/red/output.txt",
+      "bytes": 412,
+      "sha256": "52871de34c02d6ea35a12291c043c2b594038b33f4def130daa6fd1d7587195e"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/reentrant-receiver-drop-20261101/red2/exit-code.txt",
+      "bytes": 5,
+      "sha256": "bdc830287616dae1818ced3e7c186e1387155900ad30d5983ec02da1519c4a95"
+    },
+    {
+      "path": "artifacts/mdd-034-audit/reentrant-receiver-drop-20261101/red2/output.txt",
+      "bytes": 846,
+      "sha256": "490bb005e14d1c89e50ff25a28ef0da7d1fbaac61c69da5f98f8c7b5867c0546"
     },
     {
       "path": "artifacts/mdd-034-audit/remaining-resident-20261030/run1/record.json",
