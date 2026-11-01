@@ -3679,6 +3679,131 @@ mod tests {
         );
     }
     #[test]
+    fn text_truth_conversion_obeys_work_budget() {
+        let (provider, _) = bridge();
+        for dialect in [
+            SqlDialect::NativeV1,
+            SqlDialect::DexSql010,
+            SqlDialect::DexSql011,
+        ] {
+            let bridge = SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+            for sql in ["SELECT 1 WHERE ?", "SELECT CASE WHEN ? THEN 1 ELSE 0 END"] {
+                let prepared = bridge
+                    .prepare_with_parameters(sql, &[SqlValue::text(&"1".repeat(4096))])
+                    .unwrap();
+                let limits = SqlLimits {
+                    max_steps: 64,
+                    ..SqlLimits::default()
+                };
+                let error = prepared
+                    .execute(SqlControl::new(limits, None))
+                    .expect_err("long truth conversion must consume its step budget");
+                assert_eq!(error.code, ErrorCode::QuotaExceeded, "{dialect:?}: {sql}");
+            }
+        }
+    }
+
+    #[test]
+    fn text_truth_conversion_keeps_sqlite_numeric_coercion() {
+        use mdd_query::ir::Signed64;
+        let (provider, _) = bridge();
+        let sqlite = rusqlite::Connection::open_in_memory().unwrap();
+        for dialect in [
+            SqlDialect::NativeV1,
+            SqlDialect::DexSql010,
+            SqlDialect::DexSql011,
+        ] {
+            let bridge = SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+            for units in [
+                vec![],
+                vec![0],
+                vec![0x30],
+                vec![0x31],
+                vec![0x20, 0x2d, 0x31, 0x2e, 0x35],
+                vec![0x31, 0, 0x39],
+                vec![0x31, 0xd800, 0x39],
+                vec![0xd800],
+                vec![0xd83d, 0xde00],
+            ] {
+                let expected: i64 = sqlite
+                    .query_row(
+                        "SELECT CASE WHEN ?1 THEN 1 ELSE 0 END",
+                        [String::from_utf16_lossy(&units)],
+                        |row| row.get(0),
+                    )
+                    .unwrap();
+                let prepared = bridge
+                    .prepare_with_parameters(
+                        "SELECT CASE WHEN ? THEN 1 ELSE 0 END",
+                        &[SqlValue::Text(crate::values::SqlText {
+                            utf16: units.clone(),
+                            original_mutf8: None,
+                        })],
+                    )
+                    .unwrap();
+                let actual = prepared
+                    .execute(SqlControl::new(SqlLimits::default(), None))
+                    .unwrap();
+                assert_eq!(
+                    actual.rows()[0][0],
+                    SqlValue::I64(Signed64(expected)),
+                    "{dialect:?}: {units:?}"
+                );
+            }
+            for number in [0.0, -0.0, f64::INFINITY, f64::NEG_INFINITY, f64::NAN] {
+                let expected: i64 = sqlite
+                    .query_row("SELECT CASE WHEN ?1 THEN 1 ELSE 0 END", [number], |row| {
+                        row.get(0)
+                    })
+                    .unwrap();
+                let prepared = bridge
+                    .prepare_with_parameters(
+                        "SELECT CASE WHEN ? THEN 1 ELSE 0 END",
+                        &[SqlValue::F64(DecimalU64(number.to_bits()))],
+                    )
+                    .unwrap();
+                let actual = prepared
+                    .execute(SqlControl::new(SqlLimits::default(), None))
+                    .unwrap();
+                assert_eq!(
+                    actual.rows()[0][0],
+                    SqlValue::I64(Signed64(expected)),
+                    "{dialect:?}: {number:?}"
+                );
+            }
+            for bytes in [
+                vec![],
+                vec![0],
+                b"0".to_vec(),
+                b"1".to_vec(),
+                vec![b'1', 0, b'9'],
+            ] {
+                let expected: i64 = sqlite
+                    .query_row(
+                        "SELECT CASE WHEN ?1 THEN 1 ELSE 0 END",
+                        [bytes.clone()],
+                        |row| row.get(0),
+                    )
+                    .unwrap();
+                let prepared = bridge
+                    .prepare_with_parameters(
+                        "SELECT CASE WHEN ? THEN 1 ELSE 0 END",
+                        &[SqlValue::Bytes(bytes.clone())],
+                    )
+                    .unwrap();
+                let actual = prepared
+                    .execute(SqlControl::new(SqlLimits::default(), None))
+                    .unwrap();
+                assert_eq!(
+                    actual.rows()[0][0],
+                    SqlValue::I64(Signed64(expected)),
+                    "{dialect:?}: {bytes:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn long_sql_comparisons_are_bounded_in_scalar_and_aggregate_paths() {
         let (provider, _) = bridge();
         for dialect in [

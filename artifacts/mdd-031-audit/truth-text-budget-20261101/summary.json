@@ -1,0 +1,48 @@
+{
+  "task": "MDD-031",
+  "finding": "Truth coercion of a long UTF-16 carrier previously performed a full decode and lossy UTF-8 conversion while charging one step; a 4096-unit input with max_steps=64 returned complete success.",
+  "change": "Borrow tagged UTF-16 carrier and perform an exact lossy UTF-8 length pass plus output pass; both charge UTF-16 units and cancellation. Reserve exactly the logical output bytes through SQLite ToSql; empty output takes no reservation. Native UTF-8 input precharges byte validation and counts output units. Invalid carriers remain errors and bytes/numeric follow their separate paths.",
+  "red": {
+    "record": "red/record.json",
+    "exit": 101,
+    "tests_run": 1,
+    "observation": "NativeV1 SELECT 1 WHERE long text succeeded with only 64 SQL steps; test stopped at first case."
+  },
+  "final": [
+    {
+      "record": "final3-conversion/record.json",
+      "tests_passed": 2
+    },
+    {
+      "record": "final3-text/record.json",
+      "tests_passed": 3
+    },
+    {
+      "record": "final3-utf8/record.json",
+      "tests_passed": 1
+    },
+    {
+      "record": "final3-empty/record.json",
+      "tests_passed": 1
+    },
+    {
+      "record": "final3-surrogate/record.json",
+      "tests_passed": 1
+    },
+    {
+      "record": "final3-filter/record.json",
+      "tests_passed": 2
+    },
+    {
+      "record": "final3-key/record.json",
+      "tests_passed": 1
+    }
+  ],
+  "final_tests_passed": 11,
+  "intermediate": {
+    "exact-workspace": "One test failed when 10000 was assumed sufficient but 14096 was observed; 4096 is another concurrent logical reservation of unproven origin.",
+    "empty-red": "One test failed when a zero-byte output attempted the 10001st live reservation.",
+    "surrogate-boundary": "Test compilation failed because unwrap_err required Reservation: Debug; corrected test and retained."
+  },
+  "limits": "Synthetic bridge and session checks; not actual HostLab/A0/A1 or full SQL qualification. UTF-8 validation is a synchronous precharged scan and is not hard-interruptible. UTF-16 exact-size prepass and output pass both charge work and add processing; no performance measurement. In the tested query 14095 bytes failed and 14096 succeeded because 4096 other logical bytes coexisted; their precise origin was not measured. Input/provider/SQLite buffers, other carrier decoding, allocator overhead and RSS are outside this proof. SQLite truth is checked on explicitly lossy display, not raw MUTF-8 identity."
+}

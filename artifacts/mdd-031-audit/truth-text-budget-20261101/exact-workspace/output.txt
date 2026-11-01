@@ -1,0 +1,19 @@
+   Compiling mdd-sql v0.1.0-dev (<WORKSPACE>\crates\mdd-sql)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.74s
+     Running unittests src\lib.rs (target\debug\deps\mdd_sql-46977fcd4387e316.exe)
+
+running 1 test
+
+thread 'runtime_tests::truth_text_workspace_is_bounded_and_released' (45508) panicked at crates\mdd-sql\src\runtime_tests.rs:289:38:
+called `Result::unwrap()` on an `Err` value: MddError { code: QuotaExceeded, stage: "budget", message: "budget exhausted", retryable: false, details: {"budget": String("query_workspace_bytes"), "limit": String("10000"), "observed": String("14096"), "owner": String("query-f8362cb7c07ff1a4e236fdfc7508e38d664ec9577b84782e255d7d2b08001173")} }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test runtime_tests::truth_text_workspace_is_bounded_and_released ... FAILED
+
+failures:
+
+failures:
+    runtime_tests::truth_text_workspace_is_bounded_and_released
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 170 filtered out; finished in 0.14s
+
+error: test failed, to rerun pass `-p mdd-sql --lib`

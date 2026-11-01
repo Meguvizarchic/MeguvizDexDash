@@ -1,0 +1,19 @@
+
+running 1 test
+test budget::tests::cancellation_before_terminal_publication_is_not_a_successful_finish ... FAILED
+
+failures:
+
+failures:
+    budget::tests::cancellation_before_terminal_publication_is_not_a_successful_finish
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 182 filtered out; finished in 0.00s
+
+   Compiling mdd-query v0.1.0-dev (<WORKSPACE>\crates\mdd-query)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.56s
+     Running unittests src\lib.rs (target\debug\deps\mdd_query-82579f4092cfd058.exe)
+
+thread 'budget::tests::cancellation_before_terminal_publication_is_not_a_successful_finish' (4080) panicked at crates\mdd-query\src\budget\tests.rs:61:41:
+cancelled finish was reported successful: ()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p mdd-query --lib`

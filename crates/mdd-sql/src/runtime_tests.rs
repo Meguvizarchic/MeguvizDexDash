@@ -257,6 +257,139 @@ fn assert_key_obeys_workspace_budget(sql: &str, values: Vec<crate::values::SqlVa
 }
 
 #[test]
+fn truth_text_workspace_is_bounded_and_released() {
+    use crate::values::SqlValue;
+    use mdd_query::ir::Signed64;
+    for dialect in [
+        SqlDialect::NativeV1,
+        SqlDialect::DexSql010,
+        SqlDialect::DexSql011,
+    ] {
+        for (workspace, succeeds) in [
+            (8192, false),
+            (14_095, false),
+            (14_096, true),
+            (20_000, true),
+            (128 * 1024, true),
+        ] {
+            let (lifecycle, session, _, bridge) = setup_with_dialect(dialect);
+            let prepared = bridge
+                .prepare_with_parameters("SELECT 1 WHERE ?", &[SqlValue::text(&"1".repeat(10_000))])
+                .unwrap();
+            let (runtime, token) = runtime(
+                &lifecycle,
+                &session,
+                &prepared,
+                BudgetLimits::default().with(Resource::QueryWorkspaceBytes, workspace),
+            );
+            let pool = runtime.pool().clone();
+            let bound = prepared.bind_runtime(&runtime).unwrap();
+            let outcome =
+                bound.execute(SqlControl::new(SqlLimits::default(), None).with_runtime(runtime));
+            if succeeds {
+                let result = outcome.unwrap();
+                assert_eq!(
+                    result.rows(),
+                    &[vec![SqlValue::I64(Signed64(1))]],
+                    "{dialect:?}"
+                );
+                assert!(token.status().unwrap().execution_complete);
+                drop(result);
+            } else {
+                let error = outcome.unwrap_err();
+                assert_eq!(error.code, ErrorCode::QuotaExceeded, "{dialect:?}");
+                if workspace == 14_095 {
+                    assert_eq!(
+                        error.details.get("observed").and_then(|v| v.as_str()),
+                        Some("14096")
+                    );
+                }
+                assert!(!token.status().unwrap().execution_complete);
+            }
+            assert_eq!(
+                pool.usage()
+                    .unwrap()
+                    .used
+                    .get(&Resource::QueryWorkspaceBytes)
+                    .map_or(0, |v| v.0),
+                0,
+                "{dialect:?}: workspace {workspace}"
+            );
+            eprintln!("{dialect:?}: workspace={workspace}, success={succeeds}, remaining=0");
+        }
+    }
+}
+
+#[test]
+fn truth_empty_text_needs_no_reservation_slot() {
+    let (lifecycle, session, _, bridge) = setup();
+    let prepared = bridge.prepare("SELECT 1").unwrap();
+    let (runtime, token) = runtime(&lifecycle, &session, &prepared, BudgetLimits::default());
+    let pool = runtime.pool().clone();
+    let mut occupied = Vec::with_capacity(10_000);
+    for _ in 0..10_000 {
+        occupied.push(pool.reserve(Resource::QueryWorkspaceBytes, 0).unwrap());
+    }
+    let control = SqlControl::new(SqlLimits::default(), None).with_runtime(runtime);
+    let (text, lease) = crate::dialects::functions::truth_output_with_lease(0, &control)
+        .expect("empty text requires no output allocation or live reservation");
+    assert!(text.is_empty());
+    assert!(lease.is_none());
+    assert!(token.status().unwrap().error.is_none());
+    drop(occupied);
+    assert_eq!(
+        pool.usage()
+            .unwrap()
+            .used
+            .get(&Resource::QueryWorkspaceBytes)
+            .map_or(0, |v| v.0),
+        0
+    );
+}
+
+#[test]
+fn truth_surrogate_output_uses_exact_workspace() {
+    for (workspace, succeeds) in [(8, false), (9, true)] {
+        let (lifecycle, session, _, bridge) = setup();
+        let prepared = bridge.prepare("SELECT 1").unwrap();
+        let (runtime, _) = runtime(
+            &lifecycle,
+            &session,
+            &prepared,
+            BudgetLimits::default().with(Resource::QueryWorkspaceBytes, workspace),
+        );
+        let pool = runtime.pool().clone();
+        let control = SqlControl::new(SqlLimits::default(), None).with_runtime(runtime);
+        let units = [0x31u16, 0xd800, 0x31, 0xd83d, 0xde00];
+        let bytes: Vec<u8> = units.iter().flat_map(|unit| unit.to_be_bytes()).collect();
+        let result = crate::dialects::functions::truth_text_carrier_with_lease(&bytes, &control);
+        if succeeds {
+            let (text, lease) = result.unwrap();
+            assert_eq!(text, "1�1😀");
+            assert_eq!(text.len(), 9);
+            assert_eq!(
+                pool.usage().unwrap().used[&Resource::QueryWorkspaceBytes].0,
+                9
+            );
+            drop(lease);
+        } else {
+            assert_eq!(
+                result.err().expect("short workspace must fail").code,
+                ErrorCode::QuotaExceeded
+            );
+        }
+        assert_eq!(
+            pool.usage()
+                .unwrap()
+                .used
+                .get(&Resource::QueryWorkspaceBytes)
+                .map_or(0, |v| v.0),
+            0
+        );
+    }
+}
+
+#[test]
 fn key_workspace_distinct_text_respects_budget() {
     use crate::values::SqlValue;
     assert_key_obeys_workspace_budget(

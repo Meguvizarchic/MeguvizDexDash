@@ -1,0 +1,11 @@
+   Compiling mdd-sql v0.1.0-dev (<WORKSPACE>\crates\mdd-sql)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.89s
+     Running unittests src\lib.rs (target\debug\deps\mdd_sql-46977fcd4387e316.exe)
+
+running 3 tests
+test dialects::functions::like_budget_tests::truth_text_rejects_malformed_carrier_before_interpretation ... ok
+test dialects::functions::like_budget_tests::truth_text_lease_survives_sqlite_to_sql_callback ... ok
+test runtime_tests::truth_text_workspace_is_bounded_and_released ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 168 filtered out; finished in 0.24s
+

@@ -1,0 +1,41 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "-p",
+    "mdd-sql",
+    "truth_text_workspace_is_bounded_and_released",
+    "--",
+    "--nocapture"
+  ],
+  "exit": 101,
+  "listed_sources_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "crates/mdd-sql/src/bridge.rs": "a5d35501aae29ad598db3d6f209809e3d37a190387c92f5b29d34d22d3b3509a",
+    "crates/mdd-sql/src/dialects/ast.rs": "618a32c2b95f21268ba4990252434c5d29448f6d66dadd48b85ee96eacc5bdd5",
+    "crates/mdd-sql/src/dialects/functions.rs": "0f1c505c575b5c25cfa8275a5ce8bf1c6bf6faf26364e4b63b9c1f064745675a",
+    "crates/mdd-sql/src/control.rs": "1d05ce1f95771e5797ffc8677134bbd6fed009501291ec1a86adad97273e374a",
+    "crates/mdd-sql/src/values.rs": "ad87d663986bdec1b4f98710d170e911fd1be67695a9d1b53abc62c54e50c9f8",
+    "crates/mdd-sql/src/runtime_tests.rs": "47a2bbb189d64530f6faa2d5214aa9d0b60ed19c25310078f6caba13ebe7a135",
+    "crates/mdd-query/src/budget.rs": "407485782a7ea3fbec62905a2cf7641822ac4f9ad3046f568da5d751f023d891",
+    "crates/mdd-session/src/cancellation.rs": "069a9dc557bfce6a77ee4766de64450dd0d9f906e71880c0c84be3027ae4e003",
+    "crates/mdd-facts/src/annotations.rs": "9ec1e654998a8d69a2b30bd3506d07b3e4d7e98d2df784685e6261993ccc82f5",
+    "tests/fixtures/references/generated/nonscalar-string-035.dex": "d2bc2a79ed9d2304a3ffeb9bc0c762fccc5460019a280ab923901b84ddd9510a"
+  },
+  "listed_sources_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "crates/mdd-sql/src/bridge.rs": "a5d35501aae29ad598db3d6f209809e3d37a190387c92f5b29d34d22d3b3509a",
+    "crates/mdd-sql/src/dialects/ast.rs": "618a32c2b95f21268ba4990252434c5d29448f6d66dadd48b85ee96eacc5bdd5",
+    "crates/mdd-sql/src/dialects/functions.rs": "0f1c505c575b5c25cfa8275a5ce8bf1c6bf6faf26364e4b63b9c1f064745675a",
+    "crates/mdd-sql/src/control.rs": "1d05ce1f95771e5797ffc8677134bbd6fed009501291ec1a86adad97273e374a",
+    "crates/mdd-sql/src/values.rs": "ad87d663986bdec1b4f98710d170e911fd1be67695a9d1b53abc62c54e50c9f8",
+    "crates/mdd-sql/src/runtime_tests.rs": "47a2bbb189d64530f6faa2d5214aa9d0b60ed19c25310078f6caba13ebe7a135",
+    "crates/mdd-query/src/budget.rs": "407485782a7ea3fbec62905a2cf7641822ac4f9ad3046f568da5d751f023d891",
+    "crates/mdd-session/src/cancellation.rs": "069a9dc557bfce6a77ee4766de64450dd0d9f906e71880c0c84be3027ae4e003",
+    "crates/mdd-facts/src/annotations.rs": "9ec1e654998a8d69a2b30bd3506d07b3e4d7e98d2df784685e6261993ccc82f5",
+    "tests/fixtures/references/generated/nonscalar-string-035.dex": "d2bc2a79ed9d2304a3ffeb9bc0c762fccc5460019a280ab923901b84ddd9510a"
+  },
+  "listed_sources_stable": true,
+  "scope": "Synthetic SQL bridge; not full HostLab, performance or profile qualification."
+}

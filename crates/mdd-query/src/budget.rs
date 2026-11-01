@@ -1934,11 +1934,39 @@ impl<T> BoundedSender<T> {
             }
             return Err(error);
         }
+        #[cfg(test)]
+        if result.is_ok() {
+            tests::pause_after_finish_checkpoint();
+        }
         if let (Some(cancel), Err(error)) = (&self.0.cancel, &result) {
             let status = cancel.fail(error.clone())?;
             result = Err(status.error.unwrap_or_else(|| error.clone()));
         }
-        state.terminal = Some(result);
+        if result.is_ok()
+            && let Some(cancel) = &self.0.cancel
+        {
+            let deadline = self
+                .0
+                .pool
+                .delivery_deadline()
+                .map_err(|error| self.0.bound_query_failure(error));
+            let publication = deadline.and_then(|deadline| {
+                cancel
+                    .publish_to_empty_slot_with_budget(&deadline, &mut state.terminal, result)
+                    .map_err(|(error, _unpublished)| error)
+            });
+            if let Err(error) = publication {
+                // A producer lease retains its existing contract: it must
+                // publish its explicit error terminal and failure envelope.
+                if !owned {
+                    state.terminal = Some(Err(error.clone()));
+                    self.0.changed.notify_all();
+                }
+                return Err(error);
+            }
+        } else {
+            state.terminal = Some(result);
+        }
         if let Some(lease) = producer {
             state.bound_producer_active = false;
             lease.active = false;

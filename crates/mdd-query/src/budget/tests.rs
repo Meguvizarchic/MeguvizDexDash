@@ -8,6 +8,8 @@ thread_local! {
         const { RefCell::new(None) };
     static LOCKED_SEND_CHECKPOINT_PAUSE: RefCell<Option<(mpsc::Sender<()>, mpsc::Receiver<()>)>> =
         const { RefCell::new(None) };
+    static FINISH_CHECKPOINT_PAUSE: RefCell<Option<(mpsc::Sender<()>, mpsc::Receiver<()>)>> =
+        const { RefCell::new(None) };
 }
 
 pub(super) fn pause_after_send_checkpoint() {
@@ -26,6 +28,104 @@ pub(super) fn pause_after_locked_send_checkpoint() {
             resume.recv_timeout(Duration::from_secs(3)).unwrap();
         }
     });
+}
+
+pub(super) fn pause_after_finish_checkpoint() {
+    FINISH_CHECKPOINT_PAUSE.with(|hook| {
+        if let Some((reached, resume)) = hook.borrow_mut().take() {
+            reached.send(()).unwrap();
+            resume.recv_timeout(Duration::from_secs(3)).unwrap();
+        }
+    });
+}
+
+#[test]
+fn cancellation_before_terminal_publication_is_not_a_successful_finish() {
+    let (_, _, _, _, runtime) = owned_queue_test_runtime(BudgetLimits::default());
+    let (sender, mut receiver) = bounded_channel::<u8>(
+        runtime.pool().clone(),
+        Some(runtime.cancellation().clone()),
+        1,
+    )
+    .unwrap();
+    let producer = sender.try_clone().unwrap();
+    let (reached_tx, reached_rx) = mpsc::channel();
+    let (resume_tx, resume_rx) = mpsc::channel();
+    let worker = thread::spawn(move || {
+        FINISH_CHECKPOINT_PAUSE.with(|hook| *hook.borrow_mut() = Some((reached_tx, resume_rx)));
+        producer.finish(Ok(()))
+    });
+    reached_rx.recv_timeout(Duration::from_secs(3)).unwrap();
+    let first = runtime.cancellation().cancel().unwrap().error.unwrap();
+    resume_tx.send(()).unwrap();
+    let actual = worker
+        .join()
+        .unwrap()
+        .expect_err("cancelled finish was reported successful");
+    assert_eq!(
+        (actual.code, actual.stage, actual.message, actual.details),
+        (
+            first.code,
+            first.stage.clone(),
+            first.message.clone(),
+            first.details.clone()
+        )
+    );
+    let QueueEvent::End(Err(end)) = receiver.receive().unwrap() else {
+        panic!("cancellation must remain an explicit failure terminal")
+    };
+    assert_eq!(
+        (end.code, end.stage, end.message, end.details),
+        (first.code, first.stage, first.message, first.details)
+    );
+    assert!(!runtime.cancellation().status().unwrap().delivery_complete);
+}
+
+#[test]
+fn producer_cancelled_before_terminal_publishes_explicit_failure() {
+    let (_, _, _, _, runtime) = owned_queue_test_runtime(BudgetLimits::default());
+    let (sender, mut receiver) = bounded_channel::<u8>(
+        runtime.pool().clone(),
+        Some(runtime.cancellation().clone()),
+        1,
+    )
+    .unwrap();
+    let producer = sender.try_clone().unwrap();
+    let mut lease = sender.claim_producer().unwrap();
+    lease.arm();
+    let (reached_tx, reached_rx) = mpsc::channel();
+    let (resume_tx, resume_rx) = mpsc::channel();
+    let worker = thread::spawn(move || {
+        FINISH_CHECKPOINT_PAUSE.with(|hook| *hook.borrow_mut() = Some((reached_tx, resume_rx)));
+        let error = producer
+            .finish_produced(&mut lease, Ok(()))
+            .expect_err("cancelled producer finish was reported successful");
+        producer
+            .finish_produced(&mut lease, Err(error.clone()))
+            .unwrap();
+        error
+    });
+    reached_rx.recv_timeout(Duration::from_secs(3)).unwrap();
+    let first = runtime.cancellation().cancel().unwrap().error.unwrap();
+    resume_tx.send(()).unwrap();
+    let actual = worker.join().unwrap();
+    assert_eq!(
+        (actual.code, actual.stage, actual.message, actual.details),
+        (
+            first.code,
+            first.stage.clone(),
+            first.message.clone(),
+            first.details.clone()
+        )
+    );
+    let QueueEvent::End(Err(end)) = receiver.receive().unwrap() else {
+        panic!("producer must publish an explicit failed terminal")
+    };
+    assert_eq!(
+        (end.code, end.stage, end.message, end.details),
+        (first.code, first.stage, first.message, first.details)
+    );
+    assert!(!runtime.cancellation().status().unwrap().delivery_complete);
 }
 
 #[test]

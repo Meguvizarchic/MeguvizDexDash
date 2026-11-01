@@ -1,0 +1,67 @@
+[
+  {
+    "path": "artifacts/mdd-031-audit/truth-text-budget-20261101/empty-red/output.txt",
+    "original_sha256": "e0b3190683217e6d6531600f15c21f5f72e58215cf5e5830ef334979dc371f8d",
+    "redacted_sha256": "e4336d6f96d3a24801035ae02a71832d161e61893b9740bfd8d06ebdcfc4ee33"
+  },
+  {
+    "path": "artifacts/mdd-031-audit/truth-text-budget-20261101/exact-workspace/output.txt",
+    "original_sha256": "bb012fe36e20afbe608c88d16cdde09935531a73314787aa7e4f422de840d373",
+    "redacted_sha256": "02e25a3b14f224ea35a63df4816147ff5d21492f4f309f16ef911f37a767de7a"
+  },
+  {
+    "path": "artifacts/mdd-031-audit/truth-text-budget-20261101/exact-workspace2/output.txt",
+    "original_sha256": "8543c4b210bf52c6f865e47ff8460ecd525c10f40fe44f3fe16cbc3686ec860a",
+    "redacted_sha256": "7480605d68d5fc20e8a30cb69d5da7546470a5f8c08fd06e66adf7caaf55c7cb"
+  },
+  {
+    "path": "artifacts/mdd-031-audit/truth-text-budget-20261101/final2-text-tests/output.txt",
+    "original_sha256": "203d4c8d33e52281ca436771e4226fc07e83bd32b8d68700c5214e348b022415",
+    "redacted_sha256": "041622d2312318f136d7192c93afd07acc2240b1f437e757140fc9d91e9a43db"
+  },
+  {
+    "path": "artifacts/mdd-031-audit/truth-text-budget-20261101/green/output.txt",
+    "original_sha256": "9c2fb3977ed17e1b1b17cc29881631e3b2ce221c5c90ba45c316329cb378e47f",
+    "redacted_sha256": "6947a909ce6033ef6f4cb7fbfa1139e52636f13ae7fda7f399517f2e00f0c69e"
+  },
+  {
+    "path": "artifacts/mdd-031-audit/truth-text-budget-20261101/red/output.txt",
+    "original_sha256": "cafa4637249553597cefaa0a1bcad00a14bcc2c255358d403b5b31df756bcc7a",
+    "redacted_sha256": "4df0738f20d22e0a0cfb87ca266fc38900d1bb83fb77b54fa531e7d58e4c19e1"
+  },
+  {
+    "path": "artifacts/mdd-031-audit/truth-text-budget-20261101/surrogate-boundary/output.txt",
+    "original_sha256": "23fb891bb4a32c8c337d8a51c41bee0f1f024ce9ac6e93449d8183f109ab0639",
+    "redacted_sha256": "80423d83672ec9c0406212b8f800345cc85e8197cb71f29fd8e1e5f801c74c89"
+  },
+  {
+    "path": "artifacts/mdd-031-audit/truth-text-budget-20261101/surrogate-boundary2/output.txt",
+    "original_sha256": "1297a2bed3a07a0d3380d5e86d0faa4a1e0935db96cac79d215a47ef862e94f1",
+    "redacted_sha256": "721e74808a3a33e3c14bac9c3dfb6b8f1f64c3b8c5cc69149b0b0001d901313f"
+  },
+  {
+    "path": "artifacts/mdd-031-audit/truth-text-budget-20261101/utf8/output.txt",
+    "original_sha256": "45711ea18efc3b5c483c8549a64755057f8dac90371f14ccb7e4f5ce57eb2937",
+    "redacted_sha256": "a1fe545e67aefffa212ceecbc9f41edee555f3ea07c0c95f87a725a69d8f4293"
+  },
+  {
+    "path": "artifacts/mdd-034-audit/terminal-cancel-atomic-20261101/final1/output.txt",
+    "original_sha256": "fff9aa1c732c34bdb915e436c44107f23bc3b7ac12b0fd6d81f6fa9ccac68153",
+    "redacted_sha256": "ca6b346ea405aa72d3d03cb943adf61de72e70ef1af8c110da8b559f8392af06"
+  },
+  {
+    "path": "artifacts/mdd-034-audit/terminal-cancel-atomic-20261101/green/output.txt",
+    "original_sha256": "81045f0a1c24984fa03c42833dfb8993a22b4a69e44d35f8dccbd037db059305",
+    "redacted_sha256": "d7875c3b0f19122f180b04b3920ac2974d30dda73d1405ff25137256926cb08c"
+  },
+  {
+    "path": "artifacts/mdd-034-audit/terminal-cancel-atomic-20261101/red/output.txt",
+    "original_sha256": "b7677dc10399ba855dd57b9d30ad2ed680a42e49a9553105ed17ace994202d5c",
+    "redacted_sha256": "eedc3310a93c0d39b5386ec0187c961c142690ccf1aaf14a29b05a640251546d"
+  },
+  {
+    "path": "artifacts/mdd-034-audit/terminal-cancel-atomic-20261101/slot/output.txt",
+    "original_sha256": "a845e8b1ae5ee16bf67e15a047c13eabcb37ba619900e5dd2dd0827cdbbf9b2a",
+    "redacted_sha256": "6475fff9b05c0e765c82190da0887da82e7be41b183ae218d28e082f4791e6a7"
+  }
+]

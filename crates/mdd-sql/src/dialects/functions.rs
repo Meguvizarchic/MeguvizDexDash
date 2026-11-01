@@ -9,7 +9,7 @@ use mdd_types::{DecimalU64, MddError, MddResult};
 use rusqlite::{
     Connection,
     functions::{Aggregate, Context, FunctionFlags},
-    types::{ToSql, ToSqlOutput, Value as Cell},
+    types::{ToSql, ToSqlOutput, Value as Cell, ValueRef},
 };
 use std::{borrow::Cow, cmp::Ordering};
 
@@ -342,17 +342,105 @@ fn reserve_key_workspace(value: &SqlValue, control: &SqlControl) -> MddResult<Op
         .transpose()
 }
 
-// rusqlite's sql_result keeps the returned object alive across ToSql and
-// sqlite3_result_blob64(..., SQLITE_TRANSIENT()).  The lease therefore remains
-// live until the copy call returns; it does not account for SQLite's copy.
-struct SqlCellWithKeyLease {
+// rusqlite keeps the returned object alive across ToSql and the transient
+// SQLite copy. The lease lasts until that copy returns; it does not account
+// for SQLite's own copy or later storage.
+struct SqlCellWithWorkspaceLease {
     value: Cell,
     _workspace: Option<Reservation>,
 }
-impl ToSql for SqlCellWithKeyLease {
+impl ToSql for SqlCellWithWorkspaceLease {
     fn to_sql(&self) -> rusqlite::Result<ToSqlOutput<'_>> {
         self.value.to_sql()
     }
+}
+
+pub(crate) fn truth_output_with_lease(
+    capacity: usize,
+    control: &SqlControl,
+) -> MddResult<(String, Option<Reservation>)> {
+    if capacity == 0 {
+        return Ok((String::new(), None));
+    }
+    let bytes =
+        u64::try_from(capacity).map_err(|_| control.fail(quota("TRUTH_TEXT_CAPACITY_OVERFLOW")))?;
+    let lease = control
+        .runtime()
+        .map(|runtime| {
+            runtime
+                .pool()
+                .reserve(mdd_query::budget::Resource::QueryWorkspaceBytes, bytes)
+                .map_err(|error| control.fail(error))
+        })
+        .transpose()?;
+    let mut text = String::new();
+    text.try_reserve_exact(capacity)
+        .map_err(|_| control.fail(quota("TRUTH_TEXT_ALLOCATION")))?;
+    Ok((text, lease))
+}
+
+pub(crate) fn truth_text_carrier_with_lease(
+    bytes: &[u8],
+    control: &SqlControl,
+) -> MddResult<(String, Option<Reservation>)> {
+    if !bytes.len().is_multiple_of(2) {
+        return Err(invalid("INVALID_TEXT_CARRIER"));
+    }
+    // First count the exact lossy UTF-8 size under the same work and
+    // cancellation budget. Reserving a 3-byte-per-unit upper bound would
+    // incorrectly reject ASCII values whose actual output fits the budget.
+    let mut capacity = 0usize;
+    let units = bytes
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|pair| u16::from_be_bytes(*pair));
+    for decoded in char::decode_utf16(units) {
+        let character = decoded.unwrap_or(char::REPLACEMENT_CHARACTER);
+        control.checkpoint(character.len_utf16() as u64, false)?;
+        capacity = capacity
+            .checked_add(character.len_utf8())
+            .ok_or_else(|| control.fail(quota("TRUTH_TEXT_CAPACITY_OVERFLOW")))?;
+    }
+    let (mut text, lease) = truth_output_with_lease(capacity, control)?;
+    let units = bytes
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|pair| u16::from_be_bytes(*pair));
+    for decoded in char::decode_utf16(units) {
+        let character = decoded.unwrap_or(char::REPLACEMENT_CHARACTER);
+        control.checkpoint(character.len_utf16() as u64, false)?;
+        text.push(character);
+    }
+    if text.len() != capacity {
+        return Err(MddError::new(
+            mdd_types::ErrorCode::InternalFault,
+            "sql.truth",
+            "truth text length changed",
+        ));
+    }
+    Ok((text, lease))
+}
+
+fn truth_utf8_with_lease(
+    bytes: &[u8],
+    control: &SqlControl,
+) -> MddResult<(String, Option<Reservation>)> {
+    // UTF-8 validation scans the borrowed bytes. Charge that scan before it
+    // happens; it remains a synchronous operation rather than a hard interrupt.
+    control.checkpoint(
+        u64::try_from(bytes.len())
+            .map_err(|_| control.fail(quota("TRUTH_TEXT_CAPACITY_OVERFLOW")))?,
+        false,
+    )?;
+    let input = std::str::from_utf8(bytes).map_err(|_| invalid("INVALID_UTF8_FROM_SQLITE"))?;
+    let (mut text, lease) = truth_output_with_lease(bytes.len(), control)?;
+    for character in input.chars() {
+        control.checkpoint(character.len_utf16() as u64, false)?;
+        text.push(character);
+    }
+    Ok((text, lease))
 }
 
 fn equality_key(value: &SqlValue, control: &SqlControl) -> MddResult<Vec<u8>> {
@@ -1520,18 +1608,44 @@ pub(crate) fn register(
         truth_control
             .checkpoint(1, false)
             .map_err(|e| failure(&truth_control, e))?;
-        let value =
-            SqlValue::from_sqlite(context.get_raw(0)).map_err(|e| failure(&truth_control, e))?;
-        Ok(match value {
-            SqlValue::Null => Cell::Null,
-            SqlValue::Bool(v) => Cell::Integer(i64::from(v)),
-            SqlValue::I64(v) => Cell::Integer(v.0),
-            SqlValue::U64(v) => {
-                i64::try_from(v.0).map_or_else(|_| Cell::Real(v.0 as f64), Cell::Integer)
+        let raw = context.get_raw(0);
+        let (value, workspace) = match raw {
+            ValueRef::Text(bytes) => {
+                let (text, lease) = truth_utf8_with_lease(bytes, &truth_control)
+                    .map_err(|e| failure(&truth_control, e))?;
+                (Cell::Text(text), lease)
             }
-            SqlValue::F64(v) => Cell::Real(f64::from_bits(v.0)),
-            SqlValue::Text(v) => Cell::Text(String::from_utf16_lossy(&v.utf16)),
-            SqlValue::Bytes(v) | SqlValue::DexMutf8 { bytes: v, .. } => Cell::Blob(v),
+            ValueRef::Blob(bytes) if bytes.starts_with(TEXT) => {
+                let (text, lease) =
+                    truth_text_carrier_with_lease(&bytes[TEXT.len()..], &truth_control)
+                        .map_err(|e| failure(&truth_control, e))?;
+                (Cell::Text(text), lease)
+            }
+            other => match SqlValue::from_sqlite(other).map_err(|e| failure(&truth_control, e))? {
+                SqlValue::Null => (Cell::Null, None),
+                SqlValue::Bool(v) => (Cell::Integer(i64::from(v)), None),
+                SqlValue::I64(v) => (Cell::Integer(v.0), None),
+                SqlValue::U64(v) => (
+                    i64::try_from(v.0).map_or_else(|_| Cell::Real(v.0 as f64), Cell::Integer),
+                    None,
+                ),
+                SqlValue::F64(v) => (Cell::Real(f64::from_bits(v.0)), None),
+                SqlValue::Bytes(v) | SqlValue::DexMutf8 { bytes: v, .. } => (Cell::Blob(v), None),
+                SqlValue::Text(_) => {
+                    return Err(failure(
+                        &truth_control,
+                        MddError::new(
+                            mdd_types::ErrorCode::InternalFault,
+                            "sql.truth",
+                            "unexpected text carrier",
+                        ),
+                    ));
+                }
+            },
+        };
+        Ok(SqlCellWithWorkspaceLease {
+            value,
+            _workspace: workspace,
         })
     })?;
     for (name, count) in [
@@ -1608,7 +1722,7 @@ pub(crate) fn register(
                     .map_err(|e| failure(&control, e))?;
                 (value, workspace)
             };
-            Ok(SqlCellWithKeyLease {
+            Ok(SqlCellWithWorkspaceLease {
                 value,
                 _workspace: key_workspace.or(result_workspace),
             })
@@ -1684,6 +1798,155 @@ mod like_budget_tests {
     use super::*;
     use crate::control::SqlLimits;
     use mdd_types::ErrorCode;
+
+    #[test]
+    fn truth_text_rejects_malformed_carrier_before_interpretation() {
+        let db = Connection::open_in_memory().unwrap();
+        let control = SqlControl::new(SqlLimits::default(), None);
+        register(&db, SqlDialect::NativeV1, control.clone()).unwrap();
+        let mut raw = TEXT.to_vec();
+        raw.push(0x31); // A UTF-16 carrier must contain complete big-endian units.
+        let result = db.query_row("SELECT mdd_truth_input(?1)", [Cell::Blob(raw)], |row| {
+            row.get::<_, Option<i64>>(0)
+        });
+        assert!(result.is_err());
+        let error = control.error().unwrap();
+        assert_eq!(error.code, ErrorCode::InvalidArgument);
+        assert_eq!(error.message, "INVALID_TEXT_CARRIER");
+    }
+
+    #[test]
+    fn truth_utf8_checks_work_cancel_and_invalid_bytes() {
+        let db = Connection::open_in_memory().unwrap();
+        let reference = Connection::open_in_memory().unwrap();
+        let control = SqlControl::new(SqlLimits::default(), None);
+        register(&db, SqlDialect::NativeV1, control).unwrap();
+        for input in ["", "0", "1", "1\0x", "-0.1", "1😀"] {
+            let expected: i64 = reference
+                .query_row("SELECT CASE WHEN ?1 THEN 1 ELSE 0 END", [input], |row| {
+                    row.get(0)
+                })
+                .unwrap();
+            let actual: i64 = db
+                .query_row(
+                    "SELECT CASE WHEN mdd_truth_input(?1) THEN 1 ELSE 0 END",
+                    [input],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(actual, expected, "{input:?}");
+        }
+        for (limits, cancelled, sql, expected) in [
+            (
+                SqlLimits {
+                    max_steps: 64,
+                    ..SqlLimits::default()
+                },
+                false,
+                "SELECT mdd_truth_input(?1)",
+                ErrorCode::QuotaExceeded,
+            ),
+            (
+                SqlLimits::default(),
+                true,
+                "SELECT mdd_truth_input(?1)",
+                ErrorCode::Cancelled,
+            ),
+            (
+                SqlLimits::default(),
+                false,
+                "SELECT mdd_truth_input(CAST(X'FF' AS TEXT))",
+                ErrorCode::InvalidArgument,
+            ),
+        ] {
+            let db = Connection::open_in_memory().unwrap();
+            let control = SqlControl::new(limits, None);
+            register(&db, SqlDialect::NativeV1, control.clone()).unwrap();
+            if cancelled {
+                control.cancel().unwrap();
+            }
+            let outcome = if sql.contains("?1") {
+                db.query_row(sql, [&"1".repeat(4096)], |row| row.get::<_, Option<i64>>(0))
+            } else {
+                db.query_row(sql, [], |row| row.get::<_, Option<i64>>(0))
+            };
+            assert!(outcome.is_err());
+            assert_eq!(control.error().unwrap().code, expected);
+        }
+    }
+
+    #[test]
+    fn truth_text_lease_survives_sqlite_to_sql_callback() {
+        use mdd_query::budget::{BudgetLimits, BudgetPool, Resource};
+        use std::sync::{
+            Arc,
+            atomic::{AtomicU64, Ordering},
+        };
+
+        struct ObservedCell {
+            inner: SqlCellWithWorkspaceLease,
+            pool: BudgetPool,
+            observed: Arc<AtomicU64>,
+        }
+        impl ToSql for ObservedCell {
+            fn to_sql(&self) -> rusqlite::Result<ToSqlOutput<'_>> {
+                let used = self
+                    .pool
+                    .usage()
+                    .unwrap()
+                    .used
+                    .get(&Resource::QueryWorkspaceBytes)
+                    .map_or(0, |value| value.0);
+                self.observed.store(used, Ordering::Release);
+                self.inner.to_sql()
+            }
+        }
+        let pool = BudgetPool::global(
+            "truth-to-sql-test".into(),
+            BudgetLimits::default().with(Resource::QueryWorkspaceBytes, 4096),
+        )
+        .unwrap();
+        let observed = Arc::new(AtomicU64::new(0));
+        let callback_pool = pool.clone();
+        let callback_observed = Arc::clone(&observed);
+        let db = Connection::open_in_memory().unwrap();
+        db.create_scalar_function(
+            "truth_lease_probe",
+            0,
+            FunctionFlags::SQLITE_UTF8,
+            move |_| {
+                let lease = callback_pool
+                    .reserve(Resource::QueryWorkspaceBytes, 64)
+                    .unwrap();
+                Ok(ObservedCell {
+                    inner: SqlCellWithWorkspaceLease {
+                        value: Cell::Text("1".to_owned()),
+                        _workspace: Some(lease),
+                    },
+                    pool: callback_pool.clone(),
+                    observed: Arc::clone(&callback_observed),
+                })
+            },
+        )
+        .unwrap();
+        let truth: i64 = db
+            .query_row(
+                "SELECT CASE WHEN truth_lease_probe() THEN 1 ELSE 0 END",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(truth, 1);
+        assert_eq!(observed.load(Ordering::Acquire), 64);
+        assert_eq!(
+            pool.usage()
+                .unwrap()
+                .used
+                .get(&Resource::QueryWorkspaceBytes)
+                .map_or(0, |value| value.0),
+            0
+        );
+    }
 
     #[test]
     fn text_decode_obeys_step_budget_and_cancellation() {
@@ -1959,7 +2222,7 @@ mod like_budget_tests {
         };
 
         struct ObservedCell {
-            inner: SqlCellWithKeyLease,
+            inner: SqlCellWithWorkspaceLease,
             pool: BudgetPool,
             observed: Arc<AtomicU64>,
         }
@@ -1995,7 +2258,7 @@ mod like_budget_tests {
                     .reserve(Resource::QueryWorkspaceBytes, 64)
                     .unwrap();
                 Ok(ObservedCell {
-                    inner: SqlCellWithKeyLease {
+                    inner: SqlCellWithWorkspaceLease {
                         value: Cell::Blob(vec![0, 1, 0xff]),
                         _workspace: Some(lease),
                     },

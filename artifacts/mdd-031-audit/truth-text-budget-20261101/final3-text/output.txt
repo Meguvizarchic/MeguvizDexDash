@@ -1,0 +1,25 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+     Running unittests src\lib.rs (target\debug\deps\mdd_sql-46977fcd4387e316.exe)
+
+running 3 tests
+test dialects::functions::like_budget_tests::truth_text_rejects_malformed_carrier_before_interpretation ... ok
+test dialects::functions::like_budget_tests::truth_text_lease_survives_sqlite_to_sql_callback ... ok
+NativeV1: workspace=8192, success=false, remaining=0
+NativeV1: workspace=14095, success=false, remaining=0
+NativeV1: workspace=14096, success=true, remaining=0
+NativeV1: workspace=20000, success=true, remaining=0
+NativeV1: workspace=131072, success=true, remaining=0
+DexSql010: workspace=8192, success=false, remaining=0
+DexSql010: workspace=14095, success=false, remaining=0
+DexSql010: workspace=14096, success=true, remaining=0
+DexSql010: workspace=20000, success=true, remaining=0
+DexSql010: workspace=131072, success=true, remaining=0
+DexSql011: workspace=8192, success=false, remaining=0
+DexSql011: workspace=14095, success=false, remaining=0
+DexSql011: workspace=14096, success=true, remaining=0
+DexSql011: workspace=20000, success=true, remaining=0
+DexSql011: workspace=131072, success=true, remaining=0
+test runtime_tests::truth_text_workspace_is_bounded_and_released ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 170 filtered out; finished in 0.95s
+

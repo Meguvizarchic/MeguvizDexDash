@@ -118,14 +118,17 @@ def require_object_keys(value, required, label):
 
 
 def verify_native_typed_rows(rows, schema, *, expected_snapshot_id, expected_occurrences,
-                             max_rows, max_cells, max_variable_bytes):
+                             max_rows, max_cells, max_variable_bytes,
+                             expected_entities=None, max_entities=None):
     """Validate the native QueryIR row wire against a caller-trusted scope.
 
     This checks the current typed JSON representation, not SQL legacy DTOs.
-    The caller must independently bind the supplied schema and occurrence
-    roster to its captured scope. A successful result does not prove input
-    coverage, computation, page consumption, or audit qualification. Limits
-    count rows, cells and logical variable-width bytes, not allocations/RSS.
+    The caller must independently bind the supplied schema, occurrence roster,
+    and optional entity roster to its captured scope. Entity keys are tuples
+    of (DEX occurrence, entity kind, local index) within expected_snapshot_id.
+    Success does not prove roster authenticity, input coverage, computation,
+    page consumption, or audit qualification. Limits count rows, cells, roster
+    entries and logical variable-width bytes, not allocations/RSS.
     """
     types = {'bool', 'i64', 'u64', 'utf16', 'bytes', 'entity'}
     kinds = {'string', 'type', 'prototype', 'class_definition', 'field_reference',
@@ -160,6 +163,22 @@ def verify_native_typed_rows(rows, schema, *, expected_snapshot_id, expected_occ
     if type(rows) is not list or len(rows) > max_rows or len(rows) * len(schema) > max_cells:
         raise ValueError('native row/cell budget exceeded or rows invalid')
     occurrences = set(expected_occurrences)
+    entity_lookup = None
+    if expected_entities is not None:
+        if (type(expected_entities) is not tuple or type(max_entities) is not int
+                or not 0 <= max_entities <= MAX_U64 or len(expected_entities) > max_entities):
+            raise ValueError('invalid or over-budget native entity roster')
+        for entry in expected_entities:
+            if (type(entry) is not tuple or len(entry) != 3
+                    or type(entry[0]) is not str or entry[0] not in occurrences
+                    or type(entry[1]) is not str or entry[1] not in kinds
+                    or type(entry[2]) is not int or not 0 <= entry[2] <= 0xffffffff):
+                raise ValueError('invalid trusted native entity identity')
+        entity_lookup = set(expected_entities)
+        if len(entity_lookup) != len(expected_entities):
+            raise ValueError('duplicate trusted native entity identity')
+    elif max_entities is not None:
+        raise ValueError('native entity budget requires a roster')
     variable_bytes = 0
 
     def charge(amount):
@@ -227,10 +246,15 @@ def verify_native_typed_rows(rows, schema, *, expected_snapshot_id, expected_occ
                         or type(value['kind']) is not str or value['kind'] not in kinds
                         or type(value['local_index']) is not int or not 0 <= value['local_index'] <= 0xffffffff):
                     raise ValueError('invalid or foreign native entity')
+                if (entity_lookup is not None
+                        and (value['dex_occurrence_id'], value['kind'], value['local_index'])
+                        not in entity_lookup):
+                    raise ValueError('native entity absent from trusted roster')
                 charge(len(value['snapshot_id'].encode('utf-8', 'strict'))
                        + len(value['dex_occurrence_id'].encode('utf-8', 'strict')))
     return {'validated_rows': len(rows), 'validated_cells': len(rows) * len(schema),
-            'logical_variable_bytes': variable_bytes, 'qualification': False}
+            'logical_variable_bytes': variable_bytes,
+            'entity_membership_checked': expected_entities is not None, 'qualification': False}
 
 
 def consume(output, expected_inputs, expected_request, required_layers, *, expected_identity,
@@ -340,14 +364,21 @@ def consume(output, expected_inputs, expected_request, required_layers, *, expec
             raise ValueError("not all rows materialized")
         if native_contract is not None:
             keys = {'schema', 'occurrences', 'max_rows', 'max_cells', 'max_variable_bytes'}
-            if type(native_contract) is not dict or set(native_contract) != keys:
+            optional = {'entities', 'max_entities'}
+            if (type(native_contract) is not dict or not keys <= set(native_contract)
+                    or set(native_contract) - keys - optional
+                    or (bool(set(native_contract) & optional) and not optional <= set(native_contract))):
                 raise ValueError('invalid native row contract')
+            if optional <= set(native_contract) and native_contract['entities'] is None:
+                raise ValueError('native entity roster must be explicit')
             native_schema = native_contract['schema']
             native_validation = verify_native_typed_rows(
                 rows, native_schema, expected_snapshot_id=expected_identity['snapshot_id'],
                 expected_occurrences=native_contract['occurrences'],
                 max_rows=native_contract['max_rows'], max_cells=native_contract['max_cells'],
-                max_variable_bytes=native_contract['max_variable_bytes'])
+                max_variable_bytes=native_contract['max_variable_bytes'],
+                expected_entities=native_contract.get('entities'),
+                max_entities=native_contract.get('max_entities'))
             expected_schema = [{'ordinal': index, 'id': column['id'],
                                 'display_name': column['display_name'], 'type': column['data_type'],
                                 'nullable': column['nullable']} for index, column in enumerate(native_schema)]
@@ -397,11 +428,22 @@ def compare_complete_rows(left, right, expected_inputs, expected_request, requir
     if native_contract is not None:
         keys = {'schema', 'left_occurrences', 'right_occurrences',
                 'max_rows', 'max_cells', 'max_variable_bytes'}
-        if type(native_contract) is not dict or set(native_contract) != keys:
+        optional = {'left_entities', 'right_entities', 'max_entities'}
+        if (type(native_contract) is not dict or not keys <= set(native_contract)
+                or set(native_contract) - keys - optional
+                or (bool(set(native_contract) & optional) and not optional <= set(native_contract))):
             raise ValueError('invalid native comparison contract')
+        if optional <= set(native_contract) and (
+                native_contract['left_entities'] is None or native_contract['right_entities'] is None):
+            raise ValueError('native comparison entity rosters must be explicit')
         shared = {key: native_contract[key] for key in ('schema', 'max_rows', 'max_cells', 'max_variable_bytes')}
         left_native = dict(shared, occurrences=native_contract['left_occurrences'])
         right_native = dict(shared, occurrences=native_contract['right_occurrences'])
+        if optional <= set(native_contract):
+            left_native.update(entities=native_contract['left_entities'],
+                               max_entities=native_contract['max_entities'])
+            right_native.update(entities=native_contract['right_entities'],
+                                max_entities=native_contract['max_entities'])
     left_certificate = consume(left, expected_inputs, expected_request, required_layers,
                                expected_identity=left_identity, native_contract=left_native)
     right_certificate = consume(right, expected_inputs, expected_request, required_layers,

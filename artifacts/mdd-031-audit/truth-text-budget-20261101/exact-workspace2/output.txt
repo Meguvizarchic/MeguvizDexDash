@@ -1,0 +1,24 @@
+   Compiling mdd-sql v0.1.0-dev (<WORKSPACE>\crates\mdd-sql)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.80s
+     Running unittests src\lib.rs (target\debug\deps\mdd_sql-46977fcd4387e316.exe)
+
+running 1 test
+NativeV1: workspace=8192, success=false, remaining=0
+NativeV1: workspace=14095, success=false, remaining=0
+NativeV1: workspace=14096, success=true, remaining=0
+NativeV1: workspace=20000, success=true, remaining=0
+NativeV1: workspace=131072, success=true, remaining=0
+DexSql010: workspace=8192, success=false, remaining=0
+DexSql010: workspace=14095, success=false, remaining=0
+DexSql010: workspace=14096, success=true, remaining=0
+DexSql010: workspace=20000, success=true, remaining=0
+DexSql010: workspace=131072, success=true, remaining=0
+DexSql011: workspace=8192, success=false, remaining=0
+DexSql011: workspace=14095, success=false, remaining=0
+DexSql011: workspace=14096, success=true, remaining=0
+DexSql011: workspace=20000, success=true, remaining=0
+DexSql011: workspace=131072, success=true, remaining=0
+test runtime_tests::truth_text_workspace_is_bounded_and_released ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 171 filtered out; finished in 1.04s
+

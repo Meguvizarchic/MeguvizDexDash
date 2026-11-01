@@ -1,0 +1,82 @@
+{
+  "task": "MDD-005",
+  "scope": "Optional caller-trusted native entity roster checks; not snapshot or audit qualification",
+  "command": "python -B artifacts/mdd-005/native-entity-roster-20261101/probe.py",
+  "exit": 0,
+  "tests_passed": 3,
+  "output": "output.txt",
+  "listed_sources_before": {
+    "benchmarks/run-existing-baselines.py": "0f1c059fd7b57369ef85693c037d03a7f3ca103663c3b720fad3ef9a156a1b17",
+    "tests/fixtures/query/cases.json": "aa5b16f4b105a336c6a4c7763c2eced57d64d51620b64c4a81b2c4e9af56babf",
+    "artifacts/mdd-005/native-entity-roster-20261101/probe.py": "21952fd00aec93e6b2563edce7d9268f4537096f07de59ad5711536ad95bfab6",
+    "artifacts/mdd-005/native-typed-rows-20261101/probe.py": "0e32bd44da32258463f0fec1b30a228e71b4a47a506cf704ebf63c0db1e697bd"
+  },
+  "listed_sources_after": {
+    "benchmarks/run-existing-baselines.py": "0f1c059fd7b57369ef85693c037d03a7f3ca103663c3b720fad3ef9a156a1b17",
+    "tests/fixtures/query/cases.json": "aa5b16f4b105a336c6a4c7763c2eced57d64d51620b64c4a81b2c4e9af56babf",
+    "artifacts/mdd-005/native-entity-roster-20261101/probe.py": "21952fd00aec93e6b2563edce7d9268f4537096f07de59ad5711536ad95bfab6",
+    "artifacts/mdd-005/native-typed-rows-20261101/probe.py": "0e32bd44da32258463f0fec1b30a228e71b4a47a506cf704ebf63c0db1e697bd"
+  },
+  "stable": true,
+  "regressions": [
+    {
+      "command": "python -B artifacts/mdd-005/native-typed-rows-20261101/probe.py",
+      "exit": 0,
+      "tests_passed": 6,
+      "output": "typed.txt"
+    },
+    {
+      "command": "python -B artifacts/mdd-005/row-difference-20261101/probe.py",
+      "exit": 0,
+      "tests_passed": 6,
+      "output": "rows.txt"
+    },
+    {
+      "command": "python -B benchmarks/run-existing-baselines.py --self-test",
+      "exit": 0,
+      "tests_passed": 19,
+      "output": "contracts.txt"
+    }
+  ],
+  "limits": "Caller must independently construct and authenticate rosters for the expected snapshot. Keys separate DEX occurrence, reference/definition kind and local index; existence means only membership in supplied roster. No proof of complete facts, bytes, provenance, pages, RSS, HostLab or performance.",
+  "final": {
+    "command": "python -B artifacts/mdd-005/native-entity-roster-20261101/probe.py",
+    "exit": 0,
+    "tests_passed": 3,
+    "output": "final.txt",
+    "listed_sources_before": {
+      "benchmarks/run-existing-baselines.py": "02157df1cfeeccefdf253471b9b2ef85184c8c98ec8f07045a04cc7b9496a3d8",
+      "tests/fixtures/query/cases.json": "aa5b16f4b105a336c6a4c7763c2eced57d64d51620b64c4a81b2c4e9af56babf",
+      "artifacts/mdd-005/native-entity-roster-20261101/probe.py": "ef56ab77bc4e6e502590c827c771cd4100dd85dc1e3dfe6785e121aae665e677",
+      "artifacts/mdd-005/native-typed-rows-20261101/probe.py": "0e32bd44da32258463f0fec1b30a228e71b4a47a506cf704ebf63c0db1e697bd"
+    },
+    "listed_sources_after": {
+      "benchmarks/run-existing-baselines.py": "02157df1cfeeccefdf253471b9b2ef85184c8c98ec8f07045a04cc7b9496a3d8",
+      "tests/fixtures/query/cases.json": "aa5b16f4b105a336c6a4c7763c2eced57d64d51620b64c4a81b2c4e9af56babf",
+      "artifacts/mdd-005/native-entity-roster-20261101/probe.py": "ef56ab77bc4e6e502590c827c771cd4100dd85dc1e3dfe6785e121aae665e677",
+      "artifacts/mdd-005/native-typed-rows-20261101/probe.py": "0e32bd44da32258463f0fec1b30a228e71b4a47a506cf704ebf63c0db1e697bd"
+    },
+    "stable": true,
+    "regressions": [
+      {
+        "command": "python -B artifacts/mdd-005/native-typed-rows-20261101/probe.py",
+        "tests_passed": 6,
+        "output": "typed-final.txt",
+        "exit": 0
+      },
+      {
+        "command": "python -B artifacts/mdd-005/row-difference-20261101/probe.py",
+        "tests_passed": 6,
+        "output": "rows-final.txt",
+        "exit": 0
+      },
+      {
+        "command": "python -B benchmarks/run-existing-baselines.py --self-test",
+        "tests_passed": 19,
+        "output": "contracts-final.txt",
+        "exit": 0
+      }
+    ],
+    "change": "Roster input is an immutable tuple validated before set construction; malformed bool/int and duplicate entries are rejected rather than being silently collapsed."
+  }
+}

@@ -1,0 +1,8 @@
+test_comparison_opt_in_validates_both_rosters (__main__.RosterChecks.test_comparison_opt_in_validates_both_rosters) ... ok
+test_membership_distinguishes_occurrence_and_entity_kind (__main__.RosterChecks.test_membership_distinguishes_occurrence_and_entity_kind) ... ok
+test_roster_shape_and_budget_are_strict (__main__.RosterChecks.test_roster_shape_and_budget_are_strict) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.004s
+
+OK

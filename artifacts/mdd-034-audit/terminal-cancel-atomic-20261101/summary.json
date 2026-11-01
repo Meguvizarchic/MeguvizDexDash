@@ -1,0 +1,41 @@
+{
+  "task": "MDD-034",
+  "finding": "A query cancelled after terminal checkpoint but before terminal publication could still have finish(Ok) return success, even though later receipt checks prevented complete delivery.",
+  "fix": "Use a fixed empty-slot publication with the same lifecycle lock as cancellation. On rejection the unowned sender publishes the exact failure terminal; an owned producer retains the lease to publish its explicit error terminal.",
+  "runs": {
+    "red": {
+      "record": "red/record.json",
+      "exit": 101,
+      "tests_run": 1,
+      "observation": "Cancellation completed before publication, but finish returned Ok."
+    },
+    "final_public": {
+      "record": "final1/record.json",
+      "exit": 0,
+      "tests_passed": 1
+    },
+    "final_owned": {
+      "record": "final2/record.json",
+      "exit": 0,
+      "tests_passed": 1
+    },
+    "slot_reentrant": {
+      "record": "slot/record.json",
+      "exit": 0,
+      "tests_passed": 1
+    },
+    "terminal_regression": {
+      "record": "terminal_regression/record.json",
+      "exit": 0,
+      "tests_passed": 19,
+      "note": "Includes both new query tests; do not add them again as distinct tests."
+    },
+    "owned_batch_regression": {
+      "record": "queue_regression/record.json",
+      "exit": 0,
+      "tests_passed": 4
+    }
+  },
+  "early_runs": "green and producer records predate the additional session test and are retained as history.",
+  "limitations": "Controlled in-process interleavings, not exhaustive concurrency, IPC, cross-platform, RSS or performance qualification. Deadline is an instantaneous admission check. No user callback is executed while locked; empty slot is checked before the lock and a rejected item is returned."
+}

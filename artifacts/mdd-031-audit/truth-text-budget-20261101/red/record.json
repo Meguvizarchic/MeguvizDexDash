@@ -1,0 +1,35 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "-p",
+    "mdd-sql",
+    "text_truth_conversion_obeys_work_budget",
+    "--",
+    "--nocapture"
+  ],
+  "exit": 101,
+  "listed_sources_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "crates/mdd-sql/src/bridge.rs": "02fc5e368b89b0375ff617da2b8dbf143958ce46f1b56983a5eecd08d34d68c9",
+    "crates/mdd-sql/src/dialects/ast.rs": "618a32c2b95f21268ba4990252434c5d29448f6d66dadd48b85ee96eacc5bdd5",
+    "crates/mdd-sql/src/dialects/functions.rs": "f4aca963abe8d9ef73003d1860111b8a6da14505be7f9f0c1eddec6f9fe3015c",
+    "crates/mdd-sql/src/control.rs": "1d05ce1f95771e5797ffc8677134bbd6fed009501291ec1a86adad97273e374a",
+    "crates/mdd-sql/src/values.rs": "ad87d663986bdec1b4f98710d170e911fd1be67695a9d1b53abc62c54e50c9f8",
+    "crates/mdd-query/src/budget.rs": "39307976c2c2c3bf37cdf6fd3e660982f665f8c35024d8d7a102d2c9c0ea782c",
+    "crates/mdd-facts/src/annotations.rs": "9ec1e654998a8d69a2b30bd3506d07b3e4d7e98d2df784685e6261993ccc82f5"
+  },
+  "listed_sources_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "crates/mdd-sql/src/bridge.rs": "02fc5e368b89b0375ff617da2b8dbf143958ce46f1b56983a5eecd08d34d68c9",
+    "crates/mdd-sql/src/dialects/ast.rs": "618a32c2b95f21268ba4990252434c5d29448f6d66dadd48b85ee96eacc5bdd5",
+    "crates/mdd-sql/src/dialects/functions.rs": "f4aca963abe8d9ef73003d1860111b8a6da14505be7f9f0c1eddec6f9fe3015c",
+    "crates/mdd-sql/src/control.rs": "1d05ce1f95771e5797ffc8677134bbd6fed009501291ec1a86adad97273e374a",
+    "crates/mdd-sql/src/values.rs": "ad87d663986bdec1b4f98710d170e911fd1be67695a9d1b53abc62c54e50c9f8",
+    "crates/mdd-query/src/budget.rs": "39307976c2c2c3bf37cdf6fd3e660982f665f8c35024d8d7a102d2c9c0ea782c",
+    "crates/mdd-facts/src/annotations.rs": "9ec1e654998a8d69a2b30bd3506d07b3e4d7e98d2df784685e6261993ccc82f5"
+  },
+  "listed_sources_stable": true,
+  "scope": "Synthetic SQL bridge; not full HostLab, performance or profile qualification."
+}

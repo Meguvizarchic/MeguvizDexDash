@@ -1,0 +1,19 @@
+   Compiling mdd-sql v0.1.0-dev (<WORKSPACE>\crates\mdd-sql)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.40s
+     Running unittests src\lib.rs (target\debug\deps\mdd_sql-46977fcd4387e316.exe)
+
+running 1 test
+
+thread 'runtime_tests::truth_empty_text_needs_no_reservation_slot' (27316) panicked at crates\mdd-sql\src\runtime_tests.rs:335:10:
+empty text requires no output allocation or live reservation: MddError { code: QuotaExceeded, stage: "budget", message: "live reservation metadata capacity exhausted", retryable: false, details: {"budget": String("live_reservations"), "limit": String("10000"), "observed": String("10001")} }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test runtime_tests::truth_empty_text_needs_no_reservation_slot ... FAILED
+
+failures:
+
+failures:
+    runtime_tests::truth_empty_text_needs_no_reservation_slot
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 171 filtered out; finished in 0.07s
+
+error: test failed, to rerun pass `-p mdd-sql --lib`

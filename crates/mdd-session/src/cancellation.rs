@@ -294,6 +294,60 @@ impl QueryCancellation {
         queue.push_back(item);
         Ok(())
     }
+    /// Atomically publish one prepared value to an empty slot against query
+    /// cancellation. No callback or value destructor runs while locked; a
+    /// rejected value is returned to the caller for cleanup after its locks.
+    #[doc(hidden)]
+    pub fn publish_to_empty_slot_with_budget<T>(
+        &self,
+        budget: &DeliveryBudgetDeadline,
+        slot: &mut Option<T>,
+        item: T,
+    ) -> Result<(), (MddError, T)> {
+        if budget.owner() != self.query.id() {
+            return Err((
+                MddError::new(
+                    ErrorCode::InvalidArgument,
+                    "cancel.checkpoint",
+                    "budget belongs to another query",
+                ),
+                item,
+            ));
+        }
+        if slot.is_some() {
+            return Err((
+                MddError::new(
+                    ErrorCode::InvalidArgument,
+                    "cancel.publish",
+                    "publication slot is not empty",
+                ),
+                item,
+            ));
+        }
+        let mut state = match self.lifecycle.lock_query(&self.query) {
+            Ok(state) => state,
+            Err(error) => return Err((error, item)),
+        };
+        if let Err(error) = state.checkpoint_delivery(&self.query, Some(budget)) {
+            return Err((error, item));
+        }
+        match state.query(&self.query) {
+            Ok(entry) if entry.status.phase == QueryPhase::Active => (),
+            Ok(_) => {
+                return Err((
+                    MddError::new(
+                        ErrorCode::InvalidArgument,
+                        "cancel.checkpoint",
+                        "query is not active",
+                    ),
+                    item,
+                ));
+            }
+            Err(error) => return Err((error, item)),
+        }
+        *slot = Some(item);
+        Ok(())
+    }
     /// Permit processing already-delivered partial data only while both query
     /// and budget deadlines remain open. The exact pre-existing query failure
     /// remains authoritative when either deadline has elapsed.
@@ -468,6 +522,58 @@ mod tests {
                 resume.recv_timeout(Duration::from_secs(3)).unwrap();
             }
         });
+    }
+
+    #[test]
+    fn empty_slot_publication_rejects_existing_and_releases_reentrant_item() {
+        let (lifecycle, session) = runtime();
+        let cancel = query(&lifecycle, &session);
+        let now = Instant::now();
+        let deadline = DeliveryBudgetDeadline::new(
+            now,
+            now + Duration::from_secs(20),
+            now + Duration::from_secs(30),
+            cancel.query_handle().id().into(),
+        )
+        .unwrap();
+        let mut occupied = Some(7);
+        let (error, item) = cancel
+            .publish_to_empty_slot_with_budget(&deadline, &mut occupied, 9)
+            .unwrap_err();
+        assert_eq!(error.code, ErrorCode::InvalidArgument);
+        assert_eq!(item, 9);
+        assert_eq!(occupied, Some(7));
+        assert!(cancel.status().unwrap().error.is_none());
+
+        struct Reentrant {
+            token: QueryCancellation,
+            done: mpsc::Sender<()>,
+        }
+        impl Drop for Reentrant {
+            fn drop(&mut self) {
+                self.token.status().unwrap();
+                self.done.send(()).unwrap();
+            }
+        }
+        cancel.cancel().unwrap();
+        let (done, finished) = mpsc::channel();
+        thread::spawn(move || {
+            let item = Reentrant {
+                token: cancel.clone(),
+                done,
+            };
+            let mut slot = None;
+            let (error, item) = cancel
+                .publish_to_empty_slot_with_budget(&deadline, &mut slot, item)
+                .err()
+                .expect("cancelled query accepted a publication");
+            assert_eq!(error.code, ErrorCode::Cancelled);
+            assert!(slot.is_none());
+            drop(item);
+        });
+        finished
+            .recv_timeout(Duration::from_secs(3))
+            .expect("rejected item drop retained the lifecycle lock");
     }
 
     #[test]

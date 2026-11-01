@@ -1,0 +1,35 @@
+
+running 19 tests
+test budget::tests::unbound_send_after_terminal_cannot_leave_successful_end ... ok
+test budget::tests::pending_success_terminal_does_not_hide_late_cancellation ... ok
+test budget::tests::duplicate_successful_terminal_is_still_protocol_error ... ok
+test budget::tests::duplicate_terminal_keeps_first_query_failure ... ok
+test budget::tests::read_after_terminal_keeps_first_query_failure ... ok
+test budget::tests::cancellation_before_terminal_publication_is_not_a_successful_finish ... ok
+test budget::tests::pending_success_terminal_does_not_hide_late_worker_loss ... ok
+test budget::tests::duplicate_terminal_replaces_unconsumed_success_with_failure ... ok
+test budget::tests::poisoned_terminal_tracking_preserves_first_fault ... ok
+test budget::tests::producer_cancelled_before_terminal_publishes_explicit_failure ... ok
+test budget::tests::sender_drop_terminal_preserves_prior_query_failure ... ok
+test executor::runtime_tests::queue_receive_deadline_keeps_original_terminal_after_receiver_drop ... ok
+test executor::runtime_tests::json_count_cancel_preserves_terminal_and_no_output_charge ... ok
+{"accepted":[[{"type":"u64","value":"0"}],[{"type":"u64","value":"1"}]],"case":"quota-after-two-accepted-rows","mode":"streaming","status":{"catalog_epoch":"0","delivery_complete":false,"error":{"code":"QUOTA_EXCEEDED","details":{"budget":"output_rows","limit":"2","observed":"3","reason":"MAX_OUTPUT_ROWS"},"message":"MAX_OUTPUT_ROWS","retryable":false,"stage":"query.execute"},"execution_complete":false,"phase":"failed"},"terminal":{"catalog_epoch":"0","coverage":{"facts":"complete","input":"complete","issues":[],"required_layers":["structure"],"scope_id":"generic-owned-test-table"},"data":null,"error":{"code":"QUOTA_EXCEEDED","details":{"budget":"output_rows","emitted_rows":"2","execution_complete":false,"limit":"2","observed":"3","reason":"MAX_OUTPUT_ROWS","scope_id":"generic-owned-test-table"},"message":"MAX_OUTPUT_ROWS","retryable":false,"stage":"query.execute"},"execution":{"complete":false},"operation":"query","operation_status":"error","profile":"mdd-native-v1-unqualified","query_id":"query-2a989ea15cf0b43e481c3bb45d2aeaf2d5c11878cbf08aa35e6f2d9b061ac9df","request_id":"runtime-request","response":{"emitted_rows":"2","more_available":false,"next_cursor":null,"schema_id":"mdd.rows.v1:b905d0d31699ce3162cc7ae59b799b5c7acacfe7efad757d7f986e5f7df88eca","total_rows":null,"total_rows_exact":false,"truncated":true},"schema_version":"mdd.result.v1","session_id":"session-fb07abc2b59a1a5e549678d4defbc2fe26832aa5f8cc359b33f32361591ea8d8","snapshot_id":"snapshot-b7894005f66793faf02cbf2b6664c0594f28dc0b7e561568db9c7803029d8dfe","sql_dialect":null,"warnings":[]}}
+test executor::runtime_tests::inconsistent_terminal_count_never_fabricates_an_envelope ... ok
+test executor::runtime_tests::wrong_terminal_binding_does_not_poison_or_claim_the_original_queue ... ok
+{"accepted":[[{"type":"u64","value":"0"}],[{"type":"u64","value":"1"}]],"case":"quota-after-two-accepted-rows","mode":"materialized_reference","status":{"catalog_epoch":"0","delivery_complete":false,"error":{"code":"QUOTA_EXCEEDED","details":{"budget":"output_rows","limit":"2","observed":"3","reason":"MAX_OUTPUT_ROWS"},"message":"MAX_OUTPUT_ROWS","retryable":false,"stage":"query.execute"},"execution_complete":true,"phase":"failed"},"terminal":{"catalog_epoch":"0","coverage":{"facts":"complete","input":"complete","issues":[],"required_layers":["structure"],"scope_id":"generic-owned-test-table"},"data":null,"error":{"code":"QUOTA_EXCEEDED","details":{"budget":"output_rows","emitted_rows":"2","execution_complete":true,"limit":"2","observed":"3","reason":"MAX_OUTPUT_ROWS","scope_id":"generic-owned-test-table"},"message":"MAX_OUTPUT_ROWS","retryable":false,"stage":"query.execute"},"execution":{"complete":true},"operation":"query","operation_status":"error","profile":"mdd-native-v1-unqualified","query_id":"query-4e8b5d65e75091d7159e2a7f70098602b0b5ca35119ccfef30e64eb0a51d8dbf","request_id":"runtime-request","response":{"emitted_rows":"2","more_available":false,"next_cursor":null,"schema_id":"mdd.rows.v1:b905d0d31699ce3162cc7ae59b799b5c7acacfe7efad757d7f986e5f7df88eca","total_rows":"4","total_rows_exact":true,"truncated":true},"schema_version":"mdd.result.v1","session_id":"session-74634815708bd5b7a03965b8259305d4ba494dbe760e2198661fa32002b17a71","snapshot_id":"snapshot-e4eb1d561851ec6b351df4e51ce24cd974b998d9d7e30ec9c53b2906de190b41","sql_dialect":null,"warnings":[]}}
+test executor::runtime_tests::quota_after_rows_has_failure_terminal_and_preserves_real_compute_axis ... ok
+test executor::runtime_tests::nonpristine_terminal_is_rejected_before_queue_claim ... ok
+test budget::tests::unbound_terminal_preserves_prior_error_after_deadline ... ok
+test budget::tests::unbound_terminal_delivered_after_deadline_is_not_success ... ok
+
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 165 filtered out; finished in 0.30s
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+     Running unittests src\lib.rs (target\debug\deps\mdd_query-82579f4092cfd058.exe)
+
+thread 'budget::tests::poisoned_terminal_tracking_preserves_first_fault' (43004) panicked at crates\mdd-query\src\budget\tests.rs:1819:17:
+injected tracker poisoning
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'budget::tests::poisoned_terminal_tracking_preserves_first_fault' (43004) panicked at crates\mdd-query\src\budget\tests.rs:1819:17:
+injected tracker poisoning
