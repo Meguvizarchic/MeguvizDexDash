@@ -3263,4 +3263,105 @@ mod tests {
             ErrorCode::InternalFault
         );
     }
+
+    #[test]
+    fn encoded_slots_distinguish_shared_physical_empty_set_zero_and_orphan() {
+        let facts = build("tests/fixtures/annotations/generated/parameter-shared-empty-set.dex");
+        let expected: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../tests/fixtures/annotations/parameter-shared-empty-set.json"
+        ))
+        .unwrap();
+        let empty_offset = expected["empty_set_offset"].as_u64().unwrap() as u32;
+        let orphan_offset = expected["orphan_set_offset"].as_u64().unwrap() as u32;
+        assert_ne!(empty_offset, orphan_offset);
+        assert_eq!(
+            &facts.bytes()[empty_offset as usize..empty_offset as usize + 4],
+            &[0, 0, 0, 0]
+        );
+        assert_eq!(
+            &facts.bytes()[orphan_offset as usize..orphan_offset as usize + 4],
+            &[0, 0, 0, 0]
+        );
+        let mut previous_set = None;
+        for method_idx in [0, 1] {
+            let method = facts
+                .definitions()
+                .entity(EntityKind::MethodReference, method_idx)
+                .unwrap();
+            let budget = u64::try_from(facts.data.sets.len()).unwrap() * 2;
+            let view = facts
+                .method_encoded_parameter_slots(&method, ParameterViewLimits::default(), budget)
+                .unwrap()
+                .unwrap();
+            assert_eq!(
+                view.binding.prototype_position_coverage,
+                Completeness::Unknown
+            );
+            let slots = view.iter().collect::<MddResult<Vec<_>>>().unwrap();
+            assert_eq!(
+                slots.iter().map(|slot| slot.ordinal).collect::<Vec<_>>(),
+                [0, 1, 2]
+            );
+            let set = slots[0]
+                .set
+                .expect("nonzero offset must resolve to a physical set");
+            assert_eq!(set.byte_offset, empty_offset);
+            assert!(set.annotation_offsets.is_empty());
+            assert!(slots[1].set.is_none());
+            assert!(std::ptr::eq(set, slots[2].set.unwrap()));
+            if let Some(previous) = previous_set {
+                assert!(std::ptr::eq(previous, set));
+            }
+            previous_set = Some(set);
+            assert_eq!(
+                facts
+                    .method_parameter_facts(&method, ParameterViewLimits::default())
+                    .err()
+                    .unwrap()
+                    .code,
+                ErrorCode::IncompleteFacts
+            );
+        }
+        let matching = facts
+            .data
+            .owner_bindings
+            .iter()
+            .filter(|owner| {
+                owner.kind == AnnotationOwnerKind::Parameter
+                    && owner.annotation_set_offset == Some(empty_offset)
+            })
+            .count();
+        assert_eq!(matching, 4);
+        assert!(
+            !facts
+                .data
+                .owner_bindings
+                .iter()
+                .any(|owner| owner.annotation_set_offset == Some(orphan_offset))
+        );
+        assert!(
+            !facts
+                .data
+                .ref_lists
+                .iter()
+                .flat_map(|list| list.annotation_set_offsets.iter())
+                .any(|offset| *offset == Some(orphan_offset))
+        );
+        let reference = AnnotationCollectionRef {
+            snapshot_id: facts.source().snapshot_id.clone(),
+            dex_occurrence_id: facts.source().dex_occurrence_id.clone(),
+            byte_offset: orphan_offset,
+            kind: AnnotationCollectionKind::Set,
+        };
+        let AnnotationCollectionView::Set {
+            item, raw_encoded, ..
+        } = facts
+            .collection_by_ref(&reference, facts.data.sets.len() as u64, 0)
+            .unwrap()
+        else {
+            panic!("orphan collection is not a set")
+        };
+        assert!(item.annotation_offsets.is_empty());
+        assert_eq!(raw_encoded, &[0, 0, 0, 0]);
+    }
 }

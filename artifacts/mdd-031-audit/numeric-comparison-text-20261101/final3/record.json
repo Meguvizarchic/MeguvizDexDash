@@ -1,0 +1,214 @@
+{
+  "scope": "nine targeted SQLite direct numeric comparison, WHERE/JOIN/GROUP alias and related IN/BETWEEN/order/boolean/Q10 regressions; U64 high boundary handwritten; not A0/A1 or HostLab qualification",
+  "source_before": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-sql/src/bridge.rs": "31322a1d0388474a04c7f0ed0d784b933aa82d3d536eefac5d1d5216f46bbf75",
+    "crates/mdd-sql/src/dialects/ast.rs": "02202959965839ca25e12a9d61a5b8a3224fda3f91e8596b03477bff14dd7a58",
+    "crates/mdd-sql/src/dialects/functions.rs": "f4aca963abe8d9ef73003d1860111b8a6da14505be7f9f0c1eddec6f9fe3015c",
+    "crates/mdd-query/src/executor.rs": "ec6b20c95c76d6bd7a53450f30dd0db9a72392029816b79f1e046cac1332c206",
+    "crates/mdd-query/src/executor/scoped.rs": "b7c8cde531d696a679001fbc4f67ee9f724a8371c49f82d3390d1fd906ccdb15",
+    "crates/mdd-query/src/budget.rs": "99b013a1e3ac90ced738d4a6ec678b4357a7a7b807e319d0789ffdde1a331ba4",
+    "crates/mdd-session/src/lib.rs": "afda23d2dbb014680afa204ed7574387c017740223c6d5f68431c4b5f893efdd",
+    "crates/mdd-facts/src/annotations.rs": "18ee8d22a1f196f35e95890504a1f944dd03e29c616ec0242746c40762edf39c",
+    "crates/mdd-dex/src/annotations.rs": "f4bf544d7782eeead95a0d98dc5277d18f95992baf7257d4a4d775e8f9be5c74"
+  },
+  "source_after": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-sql/src/bridge.rs": "31322a1d0388474a04c7f0ed0d784b933aa82d3d536eefac5d1d5216f46bbf75",
+    "crates/mdd-sql/src/dialects/ast.rs": "02202959965839ca25e12a9d61a5b8a3224fda3f91e8596b03477bff14dd7a58",
+    "crates/mdd-sql/src/dialects/functions.rs": "f4aca963abe8d9ef73003d1860111b8a6da14505be7f9f0c1eddec6f9fe3015c",
+    "crates/mdd-query/src/executor.rs": "ec6b20c95c76d6bd7a53450f30dd0db9a72392029816b79f1e046cac1332c206",
+    "crates/mdd-query/src/executor/scoped.rs": "b7c8cde531d696a679001fbc4f67ee9f724a8371c49f82d3390d1fd906ccdb15",
+    "crates/mdd-query/src/budget.rs": "99b013a1e3ac90ced738d4a6ec678b4357a7a7b807e319d0789ffdde1a331ba4",
+    "crates/mdd-session/src/lib.rs": "afda23d2dbb014680afa204ed7574387c017740223c6d5f68431c4b5f893efdd",
+    "crates/mdd-facts/src/annotations.rs": "18ee8d22a1f196f35e95890504a1f944dd03e29c616ec0242746c40762edf39c",
+    "crates/mdd-dex/src/annotations.rs": "f4bf544d7782eeead95a0d98dc5277d18f95992baf7257d4a4d775e8f9be5c74"
+  },
+  "runs": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-sql",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "legacy_numeric_affinity_does_not_cross_inner_group_alias",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T04:08:07.967503+00:00",
+      "finished_utc": "2026-11-01T04:08:08.195236+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "446e0a69474de7b186b00c5a440f3a26a00a47bfd57d58c41622bc3445f864c1",
+      "raw_stderr_sha256": "d7ca7cafe5a3d75afe30b1d973453f53745f2e5564d26287e7fb6dea82f13170"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-sql",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "legacy_numeric_affinity_does_not_cross_inner_alias",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T04:08:08.195272+00:00",
+      "finished_utc": "2026-11-01T04:08:08.408113+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "2a0dd3cf2d06c6b10ea18c94229b2d65e64794b4e33abc7406b079ae32b2a7b8",
+      "raw_stderr_sha256": "3a044e3dec0ae1c7940d59d1e666f6d47a1702cfd9323f552536dbf3f8f39720"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-sql",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "legacy_numeric_affinity_does_not_cross_inner_join_alias",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T04:08:08.408144+00:00",
+      "finished_utc": "2026-11-01T04:08:08.632779+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "b4a72eac62d664d7e2deef30c7d64192cef22373a27e4eb894022da10c6b0aee",
+      "raw_stderr_sha256": "3a044e3dec0ae1c7940d59d1e666f6d47a1702cfd9323f552536dbf3f8f39720"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-sql",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "legacy_numeric_column_comparison_applies_exact_text_affinity",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T04:08:08.632808+00:00",
+      "finished_utc": "2026-11-01T04:08:08.858211+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "2b606586c8a7dded04cdd1bc4a1b150dba640932549f10aeff4f247ec133e17a",
+      "raw_stderr_sha256": "3a044e3dec0ae1c7940d59d1e666f6d47a1702cfd9323f552536dbf3f8f39720"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-sql",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "legacy_integer_in_exact_real_syntax_text_matches_sqlite",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T04:08:08.858241+00:00",
+      "finished_utc": "2026-11-01T04:08:09.079837+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "fd42f8634ac2c34e26caf14694128997f12a0a62d3802a6b29349a7f7d0f6eaa",
+      "raw_stderr_sha256": "3a044e3dec0ae1c7940d59d1e666f6d47a1702cfd9323f552536dbf3f8f39720"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-sql",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "legacy_numeric_column_between_converts_exact_text_bounds",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T04:08:09.079867+00:00",
+      "finished_utc": "2026-11-01T04:08:09.325506+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "f7a16f8cd53a6af8ca41ee1051fe84523eb74311a4a8d46c7a52229c16ab2dcd",
+      "raw_stderr_sha256": "df09dff11ae27f0db2d663f88c70b7d21f46fbd792f35862d56d58b22ba503ea"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-sql",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "order_in_subquery_respects_current_scope_and_unknown_shadow",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T04:08:09.325536+00:00",
+      "finished_utc": "2026-11-01T04:08:09.553421+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "f8da24361da6fd1412471837a6e9bd5929c0fc2c356d4baf3049d3a618aabb12",
+      "raw_stderr_sha256": "d7ca7cafe5a3d75afe30b1d973453f53745f2e5564d26287e7fb6dea82f13170"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-sql",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "boolean_tokens_respect_shadowing_in_general_expressions",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T04:08:09.553455+00:00",
+      "finished_utc": "2026-11-01T04:08:09.804511+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "2d2ccbe28ec1f465cabc53eca4dac06d671599e65c02b22dbce36e2486fb4aa8",
+      "raw_stderr_sha256": "d7ca7cafe5a3d75afe30b1d973453f53745f2e5564d26287e7fb6dea82f13170"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-sql",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "hostlab_q10_group_count_and_order_match_sqlite_for_duplicate_calls",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T04:08:09.804540+00:00",
+      "finished_utc": "2026-11-01T04:08:10.062600+00:00",
+      "exit_code": 0,
+      "raw_stdout_sha256": "2ac06c3c0ed638795a7bdecf72a0eac94fe84d7c5fba32d6a60d0edc3a66966a",
+      "raw_stderr_sha256": "a018fe47a92f6fd9ecc12a25b8c71fcc318e4ed65fb37abc70a8533307c4e96e"
+    }
+  ],
+  "redaction": "workspace path replaced; raw logs retained under ignored local artifacts"
+}

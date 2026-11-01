@@ -1323,6 +1323,441 @@ mod tests {
     }
 
     #[test]
+    fn legacy_numeric_affinity_does_not_cross_inner_alias() {
+        use mdd_query::ir::Signed64;
+        let provider = Arc::new(RowsProvider {
+            binding: SqlBinding {
+                provider_identity: "comparison-alias-shadow".into(),
+                snapshot_id: "comparison-alias-snapshot".into(),
+                catalog_epoch: DecimalU64(0),
+            },
+            rows: vec![
+                vec![SqlValue::I64(Signed64(1)), SqlValue::text("2")],
+                vec![SqlValue::I64(Signed64(2)), SqlValue::text("2")],
+            ],
+            columns: vec![
+                SqlColumn {
+                    id: "id".into(),
+                    name: "id".into(),
+                    data_type: SqlType::I64,
+                    nullable: false,
+                },
+                SqlColumn {
+                    id: "txt".into(),
+                    name: "txt".into(),
+                    data_type: SqlType::Text,
+                    nullable: false,
+                },
+            ],
+        });
+        let sqlite = rusqlite::Connection::open_in_memory().unwrap();
+        sqlite
+            .execute_batch(
+                "CREATE TABLE vals(id INTEGER,txt TEXT); INSERT INTO vals VALUES(1,'2'),(2,'2')",
+            )
+            .unwrap();
+        let sql = "WITH t AS (SELECT txt FROM vals) SELECT o.id,(SELECT i.txt AS id FROM t i WHERE id='2' LIMIT 1) FROM vals o ORDER BY o.id";
+        let expected: Vec<(i64, Option<String>)> = sqlite
+            .prepare(sql)
+            .unwrap()
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap();
+        assert_eq!(expected, vec![(1, Some("2".into())), (2, Some("2".into()))]);
+        for dialect in [SqlDialect::DexSql010, SqlDialect::DexSql011] {
+            let bridge = SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+            let result = bridge.query(sql).unwrap();
+            let actual: Vec<_> = result
+                .rows()
+                .iter()
+                .map(|row| {
+                    let SqlValue::I64(Signed64(id)) = row[0] else {
+                        panic!("unexpected integer")
+                    };
+                    let text = match &row[1] {
+                        SqlValue::Text(value) => Some(value.strict_utf8().unwrap()),
+                        SqlValue::Null => None,
+                        _ => panic!("unexpected text"),
+                    };
+                    (id, text)
+                })
+                .collect();
+            assert_eq!(actual, expected, "{dialect:?}");
+
+            // A local physical column takes priority over a same-named alias
+            // in WHERE; a distinct direct-column alias retains its type.
+            let local = "SELECT txt AS id FROM vals WHERE id='1' ORDER BY txt";
+            let expected_local: Vec<String> = sqlite
+                .prepare(local)
+                .unwrap()
+                .query_map([], |row| row.get(0))
+                .unwrap()
+                .collect::<rusqlite::Result<_>>()
+                .unwrap();
+            let actual_local: Vec<_> = bridge
+                .query(local)
+                .unwrap()
+                .rows()
+                .iter()
+                .map(|row| match &row[0] {
+                    SqlValue::Text(value) => value.strict_utf8().unwrap(),
+                    _ => panic!("unexpected local alias value"),
+                })
+                .collect();
+            assert_eq!(actual_local, expected_local, "{dialect:?}");
+            for direct_alias in [
+                "SELECT id AS n FROM vals WHERE n=' 01 ' ORDER BY id",
+                "SELECT id AS n FROM vals WHERE n IN (' 01 ') ORDER BY id",
+            ] {
+                let expected_alias: Vec<i64> = sqlite
+                    .prepare(direct_alias)
+                    .unwrap()
+                    .query_map([], |row| row.get(0))
+                    .unwrap()
+                    .collect::<rusqlite::Result<_>>()
+                    .unwrap();
+                let actual_alias: Vec<_> = bridge
+                    .query(direct_alias)
+                    .unwrap()
+                    .rows()
+                    .iter()
+                    .map(|row| match row[0] {
+                        SqlValue::I64(Signed64(value)) => value,
+                        _ => panic!("unexpected numeric alias value"),
+                    })
+                    .collect();
+                assert_eq!(actual_alias, expected_alias, "{dialect:?}: {direct_alias}");
+            }
+            assert_eq!(
+                bridge
+                    .query("SELECT id AS x,txt AS x FROM vals WHERE x='1'")
+                    .unwrap_err()
+                    .code,
+                ErrorCode::UnsupportedQuery
+            );
+            assert_eq!(
+                bridge
+                    .query("SELECT id FROM vals WHERE missing='1'")
+                    .unwrap_err()
+                    .code,
+                ErrorCode::InvalidArgument
+            );
+        }
+    }
+
+    #[test]
+    fn legacy_numeric_affinity_does_not_cross_inner_group_alias() {
+        use mdd_query::ir::Signed64;
+        let provider = Arc::new(RowsProvider {
+            binding: SqlBinding {
+                provider_identity: "group-alias-shadow".into(),
+                snapshot_id: "group-alias-snapshot".into(),
+                catalog_epoch: DecimalU64(0),
+            },
+            rows: vec![
+                vec![SqlValue::I64(Signed64(1)), SqlValue::text("no")],
+                vec![SqlValue::I64(Signed64(2)), SqlValue::text("2")],
+            ],
+            columns: vec![
+                SqlColumn {
+                    id: "id".into(),
+                    name: "id".into(),
+                    data_type: SqlType::I64,
+                    nullable: false,
+                },
+                SqlColumn {
+                    id: "txt".into(),
+                    name: "txt".into(),
+                    data_type: SqlType::Text,
+                    nullable: false,
+                },
+            ],
+        });
+        let sqlite = rusqlite::Connection::open_in_memory().unwrap();
+        sqlite
+            .execute_batch(
+                "CREATE TABLE vals(id INTEGER,txt TEXT); INSERT INTO vals VALUES(1,'no'),(2,'2')",
+            )
+            .unwrap();
+        let sql = "WITH t AS (SELECT txt FROM vals) SELECT o.id,(SELECT i.txt AS id FROM t i GROUP BY (id='2') ORDER BY (id='2') DESC LIMIT 1) FROM vals o ORDER BY o.id";
+        let expected: Vec<(i64, Option<String>)> = sqlite
+            .prepare(sql)
+            .unwrap()
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap();
+        assert_eq!(expected, vec![(1, Some("2".into())), (2, Some("2".into()))]);
+        for dialect in [SqlDialect::DexSql010, SqlDialect::DexSql011] {
+            let bridge = SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+            let result = bridge.query(sql).unwrap();
+            let actual: Vec<_> = result
+                .rows()
+                .iter()
+                .map(|row| {
+                    let SqlValue::I64(Signed64(id)) = row[0] else {
+                        panic!("unexpected integer")
+                    };
+                    let text = match &row[1] {
+                        SqlValue::Text(value) => Some(value.strict_utf8().unwrap()),
+                        SqlValue::Null => None,
+                        _ => panic!("unexpected text"),
+                    };
+                    (id, text)
+                })
+                .collect();
+            assert_eq!(actual, expected, "{dialect:?}");
+            let local = "SELECT COUNT(*) AS n,txt AS id FROM vals GROUP BY (id='1') ORDER BY n,id";
+            let expected_local: Vec<(i64, String)> = sqlite
+                .prepare(local)
+                .unwrap()
+                .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+                .unwrap()
+                .collect::<rusqlite::Result<_>>()
+                .unwrap();
+            let actual_local: Vec<_> = bridge
+                .query(local)
+                .unwrap()
+                .rows()
+                .iter()
+                .map(|row| {
+                    let SqlValue::I64(Signed64(count)) = row[0] else {
+                        panic!("unexpected count")
+                    };
+                    let SqlValue::Text(text) = &row[1] else {
+                        panic!("unexpected text")
+                    };
+                    (count, text.strict_utf8().unwrap())
+                })
+                .collect();
+            assert_eq!(actual_local, expected_local, "{dialect:?}");
+            let direct = "SELECT id AS n,COUNT(*) FROM vals GROUP BY (n=' 01 ') ORDER BY n";
+            let expected_direct: Vec<(i64, i64)> = sqlite
+                .prepare(direct)
+                .unwrap()
+                .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+                .unwrap()
+                .collect::<rusqlite::Result<_>>()
+                .unwrap();
+            let actual_direct: Vec<_> = bridge
+                .query(direct)
+                .unwrap()
+                .rows()
+                .iter()
+                .map(|row| {
+                    let SqlValue::I64(Signed64(id)) = row[0] else {
+                        panic!("unexpected id")
+                    };
+                    let SqlValue::I64(Signed64(count)) = row[1] else {
+                        panic!("unexpected count")
+                    };
+                    (id, count)
+                })
+                .collect();
+            assert_eq!(actual_direct, expected_direct, "{dialect:?}");
+            assert_eq!(bridge.query("WITH t AS (SELECT txt FROM vals) SELECT txt AS id FROM t GROUP BY missing='2'").unwrap_err().code, ErrorCode::InvalidArgument);
+        }
+    }
+
+    #[test]
+    fn legacy_numeric_affinity_does_not_cross_inner_join_alias() {
+        use mdd_query::ir::Signed64;
+        let provider = Arc::new(RowsProvider {
+            binding: SqlBinding {
+                provider_identity: "join-alias-shadow".into(),
+                snapshot_id: "join-alias-snapshot".into(),
+                catalog_epoch: DecimalU64(0),
+            },
+            rows: vec![
+                vec![SqlValue::I64(Signed64(1)), SqlValue::text("2")],
+                vec![SqlValue::I64(Signed64(2)), SqlValue::text("2")],
+            ],
+            columns: vec![
+                SqlColumn {
+                    id: "id".into(),
+                    name: "id".into(),
+                    data_type: SqlType::I64,
+                    nullable: false,
+                },
+                SqlColumn {
+                    id: "txt".into(),
+                    name: "txt".into(),
+                    data_type: SqlType::Text,
+                    nullable: false,
+                },
+            ],
+        });
+        let sqlite = rusqlite::Connection::open_in_memory().unwrap();
+        sqlite
+            .execute_batch(
+                "CREATE TABLE vals(id INTEGER,txt TEXT); INSERT INTO vals VALUES(1,'2'),(2,'2')",
+            )
+            .unwrap();
+        let sql = "WITH t AS (SELECT txt FROM vals) SELECT o.id,(SELECT i.txt AS id FROM t i JOIN t j ON id='2' LIMIT 1) FROM vals o ORDER BY o.id";
+        let expected: Vec<(i64, Option<String>)> = sqlite
+            .prepare(sql)
+            .unwrap()
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap();
+        assert_eq!(expected, vec![(1, Some("2".into())), (2, Some("2".into()))]);
+        for dialect in [SqlDialect::DexSql010, SqlDialect::DexSql011] {
+            let bridge = SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+            let result = bridge.query(sql).unwrap();
+            let actual: Vec<_> = result
+                .rows()
+                .iter()
+                .map(|row| {
+                    let SqlValue::I64(Signed64(id)) = row[0] else {
+                        panic!("unexpected integer")
+                    };
+                    let text = match &row[1] {
+                        SqlValue::Text(value) => Some(value.strict_utf8().unwrap()),
+                        SqlValue::Null => None,
+                        _ => panic!("unexpected text"),
+                    };
+                    (id, text)
+                })
+                .collect();
+            assert_eq!(actual, expected, "{dialect:?}");
+            assert_eq!(bridge.query("WITH t AS (SELECT txt FROM vals) SELECT i.txt AS id FROM t i JOIN t j ON missing='2'").unwrap_err().code, ErrorCode::InvalidArgument);
+        }
+    }
+
+    #[test]
+    fn legacy_numeric_column_comparison_applies_exact_text_affinity() {
+        use mdd_query::ir::Signed64;
+        let values = [None, Some(-1), Some(0), Some(1), Some(8), Some(9), Some(9)];
+        let provider = Arc::new(RowsProvider {
+            binding: SqlBinding {
+                provider_identity: "comparison-text-affinity".into(),
+                snapshot_id: "comparison-text-snapshot".into(),
+                catalog_epoch: DecimalU64(0),
+            },
+            rows: values
+                .iter()
+                .map(|value| vec![value.map_or(SqlValue::Null, |n| SqlValue::I64(Signed64(n)))])
+                .collect(),
+            columns: vec![SqlColumn {
+                id: "id".into(),
+                name: "id".into(),
+                data_type: SqlType::I64,
+                nullable: true,
+            }],
+        });
+        let sqlite = rusqlite::Connection::open_in_memory().unwrap();
+        sqlite.execute_batch("CREATE TABLE vals(id INTEGER); INSERT INTO vals VALUES(NULL),(-1),(0),(1),(8),(9),(9)").unwrap();
+        let cases = [
+            "SELECT id,id=' +01 ',id<>'8e0',id<'8.0',id<='8e0',id>'-1',id>='1' FROM vals ORDER BY id",
+            "SELECT id,' +01 '=id,'8e0'<>id,'8.0'<id,'8e0'<=id,'-1'>id,'1'>=id FROM vals ORDER BY id",
+            "SELECT id FROM vals WHERE id=' 0001 ' ORDER BY id",
+            "SELECT v.id FROM vals v WHERE '8.0' >= v.id ORDER BY v.id",
+        ];
+        for dialect in [SqlDialect::DexSql010, SqlDialect::DexSql011] {
+            let bridge = SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+            for sql in cases {
+                let mut statement = sqlite.prepare(sql).unwrap();
+                let width = statement.column_count();
+                let expected = statement
+                    .query_map([], |row| {
+                        (0..width)
+                            .map(|index| {
+                                row.get::<_, Option<i64>>(index).map(|value| {
+                                    value.map_or(SqlValue::Null, |n| SqlValue::I64(Signed64(n)))
+                                })
+                            })
+                            .collect::<rusqlite::Result<Vec<_>>>()
+                    })
+                    .unwrap()
+                    .collect::<rusqlite::Result<Vec<_>>>()
+                    .unwrap();
+                assert_eq!(
+                    bridge.query(sql).unwrap().rows(),
+                    expected,
+                    "{dialect:?}: {sql}"
+                );
+            }
+            assert_eq!(
+                bridge
+                    .query("SELECT missing='1' FROM vals")
+                    .unwrap_err()
+                    .code,
+                ErrorCode::InvalidArgument
+            );
+            for sql in [
+                "SELECT id='0.5' FROM vals",
+                "SELECT id='9223372036854775808' FROM vals",
+            ] {
+                assert_eq!(
+                    bridge.query(sql).unwrap_err().code,
+                    ErrorCode::UnsupportedQuery
+                );
+            }
+            let prepared = bridge
+                .prepare_with_parameters(
+                    "SELECT id FROM vals WHERE id=? ORDER BY id",
+                    &[SqlValue::I64(Signed64(1))],
+                )
+                .unwrap();
+            assert_eq!(
+                prepared
+                    .execute(SqlControl::new(SqlLimits::default(), None))
+                    .unwrap()
+                    .rows(),
+                &[vec![SqlValue::I64(Signed64(1))]],
+            );
+        }
+        // SQLite cannot represent u64::MAX as an INTEGER. These boundary
+        // expectations exercise this engine's exact mathematical semantics,
+        // rather than claiming an independent old-engine comparison.
+        let unsigned = Arc::new(RowsProvider {
+            binding: SqlBinding {
+                provider_identity: "comparison-unsigned".into(),
+                snapshot_id: "comparison-unsigned-snapshot".into(),
+                catalog_epoch: DecimalU64(0),
+            },
+            rows: vec![
+                vec![SqlValue::Null],
+                vec![SqlValue::U64(DecimalU64(0))],
+                vec![SqlValue::U64(DecimalU64(1))],
+                vec![SqlValue::U64(DecimalU64(u64::MAX))],
+            ],
+            columns: vec![SqlColumn {
+                id: "id".into(),
+                name: "id".into(),
+                data_type: SqlType::U64,
+                nullable: true,
+            }],
+        });
+        for dialect in [SqlDialect::DexSql010, SqlDialect::DexSql011] {
+            let bridge = SqlBridge::new(unsigned.clone(), dialect, SqlLimits::default()).unwrap();
+            let result = bridge
+                .query("SELECT id='1',id>'9223372036854775807','-1'<id FROM vals ORDER BY id")
+                .unwrap();
+            let n = SqlValue::Null;
+            let zero = SqlValue::I64(Signed64(0));
+            let one = SqlValue::I64(Signed64(1));
+            assert_eq!(
+                result.rows(),
+                &[
+                    vec![n.clone(), n.clone(), n],
+                    vec![zero.clone(), zero.clone(), one.clone()],
+                    vec![one.clone(), zero.clone(), one.clone()],
+                    vec![zero, one.clone(), one],
+                ],
+                "{dialect:?}"
+            );
+        }
+        let native = SqlBridge::new(provider, SqlDialect::NativeV1, SqlLimits::default()).unwrap();
+        assert_eq!(
+            native.query("SELECT id='1' FROM vals").unwrap_err().code,
+            ErrorCode::UnsupportedQuery
+        );
+    }
+
+    #[test]
     fn legacy_numeric_column_between_converts_exact_text_bounds() {
         use mdd_query::ir::Signed64;
         let values = [None, Some(-1), Some(0), Some(1), Some(8), Some(9), Some(9)];

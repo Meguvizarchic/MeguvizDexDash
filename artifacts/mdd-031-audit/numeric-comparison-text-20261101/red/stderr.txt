@@ -1,0 +1,9 @@
+   Compiling mdd-query v0.1.0-dev (<workspace>\crates\mdd-query)
+   Compiling mdd-sql v0.1.0-dev (<workspace>\crates\mdd-sql)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 8.66s
+     Running unittests src\lib.rs (target\debug\deps\mdd_sql-46977fcd4387e316.exe)
+
+thread 'bridge::tests::legacy_numeric_column_comparison_applies_exact_text_affinity' (37388) panicked at crates\mdd-sql\src\bridge.rs:1373:39:
+called `Result::unwrap()` on an `Err` value: MddError { code: UnsupportedQuery, stage: "sql.affinity", message: "MIXED_CLASS_AFFINITY_NOT_IMPLEMENTED", retryable: false, details: {} }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p mdd-sql --lib`

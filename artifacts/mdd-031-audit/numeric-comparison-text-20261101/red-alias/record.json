@@ -1,0 +1,46 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "mdd-sql",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "1",
+    "legacy_numeric_affinity_does_not_cross_inner_alias",
+    "--",
+    "--nocapture"
+  ],
+  "started_utc": "2026-11-01T04:00:58.550914+00:00",
+  "finished_utc": "2026-11-01T04:01:15.506652+00:00",
+  "exit_code": 101,
+  "source_before": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-sql/src/bridge.rs": "8b0d7c43bdf1ba5862fe881e7aff6171583a5311f37f0bb0a49141652f2fb765",
+    "crates/mdd-sql/src/dialects/ast.rs": "8525bdfdc7296846bbf227e7df98a901da61dc72cee4470f0616cf56f985bc15",
+    "crates/mdd-sql/src/dialects/functions.rs": "f4aca963abe8d9ef73003d1860111b8a6da14505be7f9f0c1eddec6f9fe3015c",
+    "crates/mdd-query/src/executor.rs": "ec6b20c95c76d6bd7a53450f30dd0db9a72392029816b79f1e046cac1332c206",
+    "crates/mdd-query/src/executor/scoped.rs": "b7c8cde531d696a679001fbc4f67ee9f724a8371c49f82d3390d1fd906ccdb15",
+    "crates/mdd-query/src/budget.rs": "99b013a1e3ac90ced738d4a6ec678b4357a7a7b807e319d0789ffdde1a331ba4",
+    "crates/mdd-session/src/lib.rs": "afda23d2dbb014680afa204ed7574387c017740223c6d5f68431c4b5f893efdd"
+  },
+  "source_after": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-sql/src/bridge.rs": "8b0d7c43bdf1ba5862fe881e7aff6171583a5311f37f0bb0a49141652f2fb765",
+    "crates/mdd-sql/src/dialects/ast.rs": "8525bdfdc7296846bbf227e7df98a901da61dc72cee4470f0616cf56f985bc15",
+    "crates/mdd-sql/src/dialects/functions.rs": "f4aca963abe8d9ef73003d1860111b8a6da14505be7f9f0c1eddec6f9fe3015c",
+    "crates/mdd-query/src/executor.rs": "ec6b20c95c76d6bd7a53450f30dd0db9a72392029816b79f1e046cac1332c206",
+    "crates/mdd-query/src/executor/scoped.rs": "b7c8cde531d696a679001fbc4f67ee9f724a8371c49f82d3390d1fd906ccdb15",
+    "crates/mdd-query/src/budget.rs": "99b013a1e3ac90ced738d4a6ec678b4357a7a7b807e319d0789ffdde1a331ba4",
+    "crates/mdd-session/src/lib.rs": "afda23d2dbb014680afa204ed7574387c017740223c6d5f68431c4b5f893efdd"
+  },
+  "raw_stdout_sha256": "1bf756dfcd6ee1dd5ac6ffeb414f01bc26bdf8be87b1e5d14d4fd9833d529dce",
+  "raw_stderr_sha256": "eb1176f3a343aaf66752e0285571fca6ee751d7a740c70f9436aac376ecaa061",
+  "redaction": "workspace path replaced; raw logs retained under ignored local artifacts",
+  "scope": "correlated inner projection alias vs outer numeric column; SQLite synthetic oracle"
+}

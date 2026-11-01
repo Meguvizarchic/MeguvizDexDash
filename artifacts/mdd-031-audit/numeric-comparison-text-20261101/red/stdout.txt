@@ -1,0 +1,11 @@
+
+running 1 test
+test bridge::tests::legacy_numeric_column_comparison_applies_exact_text_affinity ... FAILED
+
+failures:
+
+failures:
+    bridge::tests::legacy_numeric_column_comparison_applies_exact_text_affinity
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 140 filtered out; finished in 0.00s
+

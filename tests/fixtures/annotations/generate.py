@@ -159,6 +159,8 @@ def build(features=None):
     align()
     set_values = [("class_set", [labels["class_signature"], labels["values"]]), ("field_set", [labels["field_signature"]]),
                   ("method_set", [labels["method_signature"]]), ("parameter_set", [labels["values"]])]
+    if "parameter_empty_set_shared" in features:
+        set_values.extend([("parameter_empty_set", []), ("parameter_orphan_empty_set", [])])
     if features & {"orphan_set","shared_empty_set","orphan_bad_set"}:
         set_values.append(("orphan_set",[labels["class_signature"]+1] if "orphan_bad_set" in features else []))
     map_entries.append((0x1003, len(set_values), len(data)))
@@ -167,12 +169,14 @@ def build(features=None):
         data.extend(struct.pack("<I" + "I" * len(offsets), len(offsets), *offsets))
     labels["parameter_ref_list"] = len(data)
     map_entries.append((0x1002, 2 if features & {"orphan_ref","orphan_bad_ref"} else 1, len(data)))
-    require(not ({"parameter_slots_empty", "parameter_slots_long"} <= features),
+    require(len(features & {"parameter_slots_empty", "parameter_slots_long", "parameter_empty_set_shared"}) <= 1,
             "parameter list modes are mutually exclusive")
     if "parameter_slots_empty" in features:
         parameter_slots = []
     elif "parameter_slots_long" in features:
         parameter_slots = [labels["parameter_set"], 0, labels["parameter_set"]]
+    elif "parameter_empty_set_shared" in features:
+        parameter_slots = [labels["parameter_empty_set"], 0, labels["parameter_empty_set"]]
     else:
         parameter_slots = [labels["parameter_set"], 0]
     data.extend(struct.pack("<I" + "I" * len(parameter_slots), len(parameter_slots), *parameter_slots))

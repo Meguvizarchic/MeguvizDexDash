@@ -54,6 +54,11 @@ pub struct ScopedLimits {
 /// capability is admitted by this identifier.
 pub const SCOPED_UNQUALIFIED_PROFILE: &str = "native-unqualified";
 
+/// Default logical limit for the physical-code coverage pass, counting both
+/// available code items and declared code offsets across selected occurrences.
+/// Large scopes may opt into a different limit via `prepare_with_code_coverage_limit`.
+pub const DEFAULT_COVERAGE_CODE_ENTRIES: u64 = 8_000_000;
+
 struct EvidenceOccurrence {
     metadata: Arc<mdd_facts::MetadataFacts>,
     definitions: Option<Arc<mdd_facts::definitions::DefinitionFacts>>,
@@ -85,6 +90,28 @@ pub struct ScopedCatalog {
 
 fn error(code: ErrorCode, message: &'static str) -> MddError {
     MddError::new(code, "query.scoped", message)
+}
+
+fn add_code_coverage_entries(used: u64, items: u64, offsets: u64, limit: u64) -> MddResult<u64> {
+    let next = used
+        .checked_add(items)
+        .and_then(|value| value.checked_add(offsets))
+        .ok_or_else(|| {
+            error(
+                ErrorCode::QuotaExceeded,
+                "code coverage entry count overflow",
+            )
+        })?;
+    if next > limit {
+        return Err(error(
+            ErrorCode::QuotaExceeded,
+            "code coverage entry budget exceeded",
+        )
+        .detail("budget", "max_coverage_code_entries")
+        .detail("limit", limit.to_string())
+        .detail("observed", next.to_string()));
+    }
+    Ok(next)
 }
 
 pub(super) fn compare_dex_bytes(
@@ -290,7 +317,20 @@ impl ScopedCatalog {
 
     /// Build a query with coverage evaluated from the exact facts of this catalog.
     /// Annotation and resource layers are intentionally not admitted here.
+    /// Physical-code coverage is bounded by `DEFAULT_COVERAGE_CODE_ENTRIES`;
+    /// the limit is logical, not a bound on CPU, allocator overhead or RSS.
     pub fn prepare(&self, query: QueryIr) -> MddResult<ScopedPrepared<'_>> {
+        self.prepare_with_code_coverage_limit(query, DEFAULT_COVERAGE_CODE_ENTRIES)
+    }
+
+    /// As `prepare`, with an explicit limit for available code items plus
+    /// declared offsets visited by the physical-code coverage pass. A larger
+    /// scope can choose a different limit without changing `ScopedLimits`.
+    pub fn prepare_with_code_coverage_limit(
+        &self,
+        query: QueryIr,
+        max_coverage_code_entries: u64,
+    ) -> MddResult<ScopedPrepared<'_>> {
         let prepared = prepare(query, self.base.source())?;
         let mut requested = BTreeSet::new();
         for layer in prepared.required_layers() {
@@ -306,6 +346,31 @@ impl ScopedCatalog {
                     ));
                 }
             });
+        }
+        if requested.contains(&EvidenceLayer::AllPhysicalCode) {
+            let mut used = 0u64;
+            for occurrence in &self.evidence {
+                let code = occurrence.code.as_ref().ok_or_else(|| {
+                    error(
+                        ErrorCode::IncompleteFacts,
+                        "physical code facts not available",
+                    )
+                })?;
+                let items = u64::try_from(code.items().len()).map_err(|_| {
+                    error(
+                        ErrorCode::QuotaExceeded,
+                        "code coverage entry count overflow",
+                    )
+                })?;
+                let offsets =
+                    u64::try_from(code.declared_code_item_byte_offsets().len()).map_err(|_| {
+                        error(
+                            ErrorCode::QuotaExceeded,
+                            "code coverage entry count overflow",
+                        )
+                    })?;
+                used = add_code_coverage_entries(used, items, offsets, max_coverage_code_entries)?;
+            }
         }
         let views: Vec<_> = self
             .evidence
@@ -913,6 +978,28 @@ mod tests {
     }
 
     #[test]
+    fn scoped_code_coverage_limit_keeps_missing_layer_error() {
+        let (snapshot, inventories, metadata) = fixture();
+        let inv = [&inventories[0], &inventories[1]];
+        let catalog = ScopedCatalog::native(
+            &snapshot,
+            &inv,
+            native(&snapshot, &metadata),
+            InputSelection::AllCapturedInputs,
+            limits(),
+        )
+        .unwrap();
+        assert_eq!(
+            catalog
+                .prepare_with_code_coverage_limit(scan(&snapshot, "code_items"), 0)
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::IncompleteFacts
+        );
+    }
+
+    #[test]
     fn scoped_references_derive_layers_from_the_actual_facts() {
         let input = InputSpec {
             path: PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -1010,6 +1097,51 @@ mod tests {
             limits(),
         )
         .unwrap();
+        // Each occurrence contributes both its available code items and the
+        // physical offsets against which they are checked.
+        let work: Vec<u64> = catalog
+            .evidence
+            .iter()
+            .map(|item| {
+                let code = item.code.as_ref().unwrap();
+                (code.items().len() + code.declared_code_item_byte_offsets().len()) as u64
+            })
+            .collect();
+        assert_eq!(work.len(), 2);
+        assert!(work.iter().all(|value| *value > 0));
+        let combined = work.iter().sum::<u64>();
+        let plan = catalog
+            .prepare_with_code_coverage_limit(scan(&snapshot, "reference_sites"), combined)
+            .unwrap();
+        assert_eq!(plan.coverage_report().facts, Completeness::Complete);
+        assert_eq!(
+            catalog
+                .prepare_with_code_coverage_limit(scan(&snapshot, "reference_sites"), combined - 1)
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::QuotaExceeded
+        );
+        assert_eq!(
+            catalog
+                .prepare_with_code_coverage_limit(scan(&snapshot, "reference_sites"), work[0])
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::QuotaExceeded
+        );
+        assert!(
+            catalog
+                .prepare_with_code_coverage_limit(scan(&snapshot, "dex_occurrences"), 0)
+                .is_ok()
+        );
+        assert_eq!(add_code_coverage_entries(0, 0, 0, 0).unwrap(), 0);
+        assert_eq!(
+            add_code_coverage_entries(u64::MAX, 1, 0, u64::MAX)
+                .unwrap_err()
+                .code,
+            ErrorCode::QuotaExceeded
+        );
         let plan = catalog.prepare(scan(&snapshot, "reference_sites")).unwrap();
         assert_eq!(plan.coverage_report().input, Completeness::Complete);
         assert_eq!(plan.coverage_report().facts, Completeness::Complete);

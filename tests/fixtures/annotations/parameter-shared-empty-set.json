@@ -1,0 +1,30 @@
+{
+  "schema_version": "mdd.parameter-empty-set-fixture.v1",
+  "scope": "Synthetic physical layout; no runtime or full-format qualification.",
+  "file": "parameter-shared-empty-set.dex",
+  "sha256": "a0178738ab6be08db3b2ac0d75d38a44f141add9df24a76b8d186a7a8f089609",
+  "bytes": 1464,
+  "set_map_count": 6,
+  "set_starts": [
+    1152,
+    1164,
+    1172,
+    1180,
+    1188,
+    1192
+  ],
+  "empty_set_offset": 1188,
+  "orphan_set_offset": 1192,
+  "parameter_list_offset": 1196,
+  "slot_offsets": [
+    1188,
+    0,
+    1188
+  ],
+  "method_bindings": [
+    0,
+    1
+  ],
+  "prototype_parameter_count": 2,
+  "expected_position_coverage": "unknown"
+}

@@ -1,0 +1,44 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "-p",
+    "mdd-sql",
+    "--locked",
+    "--offline",
+    "--jobs",
+    "1",
+    "legacy_numeric_affinity_does_not_cross_inner_group_alias",
+    "--",
+    "--nocapture"
+  ],
+  "started_utc": "2026-11-01T04:06:33.910595+00:00",
+  "finished_utc": "2026-11-01T04:06:40.521043+00:00",
+  "exit_code": 101,
+  "source_before": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-sql/src/bridge.rs": "d59077439c249c46d8c7b7ce62053541acd89039d4ef74e2b743ad4358fe50cb",
+    "crates/mdd-sql/src/dialects/ast.rs": "2da3c9c64243f9a5e2be5b8f03e1a58e844c9f7d6ced7402fa079a9570231b5b",
+    "crates/mdd-sql/src/dialects/functions.rs": "f4aca963abe8d9ef73003d1860111b8a6da14505be7f9f0c1eddec6f9fe3015c",
+    "crates/mdd-query/src/executor.rs": "ec6b20c95c76d6bd7a53450f30dd0db9a72392029816b79f1e046cac1332c206",
+    "crates/mdd-query/src/executor/scoped.rs": "b7c8cde531d696a679001fbc4f67ee9f724a8371c49f82d3390d1fd906ccdb15",
+    "crates/mdd-query/src/budget.rs": "99b013a1e3ac90ced738d4a6ec678b4357a7a7b807e319d0789ffdde1a331ba4",
+    "crates/mdd-session/src/lib.rs": "afda23d2dbb014680afa204ed7574387c017740223c6d5f68431c4b5f893efdd"
+  },
+  "source_after": {
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-sql/src/bridge.rs": "d59077439c249c46d8c7b7ce62053541acd89039d4ef74e2b743ad4358fe50cb",
+    "crates/mdd-sql/src/dialects/ast.rs": "2da3c9c64243f9a5e2be5b8f03e1a58e844c9f7d6ced7402fa079a9570231b5b",
+    "crates/mdd-sql/src/dialects/functions.rs": "f4aca963abe8d9ef73003d1860111b8a6da14505be7f9f0c1eddec6f9fe3015c",
+    "crates/mdd-query/src/executor.rs": "ec6b20c95c76d6bd7a53450f30dd0db9a72392029816b79f1e046cac1332c206",
+    "crates/mdd-query/src/executor/scoped.rs": "b7c8cde531d696a679001fbc4f67ee9f724a8371c49f82d3390d1fd906ccdb15",
+    "crates/mdd-query/src/budget.rs": "99b013a1e3ac90ced738d4a6ec678b4357a7a7b807e319d0789ffdde1a331ba4",
+    "crates/mdd-session/src/lib.rs": "afda23d2dbb014680afa204ed7574387c017740223c6d5f68431c4b5f893efdd"
+  },
+  "raw_stdout_sha256": "8531793ed2061cba75710890d5b28b7f6bdf2978db2bcd6ff4e1841504f0befe",
+  "raw_stderr_sha256": "e476701eb3285ed5d8007b3c6fdb235f5a13b4b3b6cbf37a8375e4764fa10457",
+  "scope": "correlated GROUP BY projection alias vs outer numeric column; synthetic SQLite oracle",
+  "redaction": "workspace path replaced; raw logs retained under ignored local artifacts"
+}

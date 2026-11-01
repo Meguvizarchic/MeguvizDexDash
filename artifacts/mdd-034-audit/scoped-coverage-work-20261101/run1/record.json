@@ -1,0 +1,76 @@
+{
+  "source_before": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-query/src/executor.rs": "ec6b20c95c76d6bd7a53450f30dd0db9a72392029816b79f1e046cac1332c206",
+    "crates/mdd-query/src/executor/scoped.rs": "b7c8cde531d696a679001fbc4f67ee9f724a8371c49f82d3390d1fd906ccdb15",
+    "crates/mdd-query/src/executor/facts.rs": "7690598fb6da19bda465627c737d3b4582a0a55f99d026df43f250a0153c1292",
+    "crates/mdd-facts/src/coverage.rs": "49244043a9ff68c38b0ba69fb1140f70a7728145a4a9d192bca82d6aa2b0eda7",
+    "crates/mdd-facts/src/code.rs": "cc2f104eb4aa806cce2e5b9244be0a9e3e9f3095abef899be17dad40ab9c95ec",
+    "crates/mdd-facts/src/references.rs": "51cc6630028bf2d14489320f3fce94c0970d096ea69512db6e0332dce075c254",
+    "crates/mdd-session/src/lib.rs": "afda23d2dbb014680afa204ed7574387c017740223c6d5f68431c4b5f893efdd",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae",
+    "tests/fixtures/references/generated/poly-custom-038.dex": "25bc5a03641d31d87212a9a292d798e64c563e2666d03f579e7fc894ac8ee425"
+  },
+  "source_after": {
+    "Cargo.toml": "02880b4608d3dd392f2ef67d7bbb165c0f1ffa715409902c8d127e698472354a",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-query/src/executor.rs": "ec6b20c95c76d6bd7a53450f30dd0db9a72392029816b79f1e046cac1332c206",
+    "crates/mdd-query/src/executor/scoped.rs": "b7c8cde531d696a679001fbc4f67ee9f724a8371c49f82d3390d1fd906ccdb15",
+    "crates/mdd-query/src/executor/facts.rs": "7690598fb6da19bda465627c737d3b4582a0a55f99d026df43f250a0153c1292",
+    "crates/mdd-facts/src/coverage.rs": "49244043a9ff68c38b0ba69fb1140f70a7728145a4a9d192bca82d6aa2b0eda7",
+    "crates/mdd-facts/src/code.rs": "cc2f104eb4aa806cce2e5b9244be0a9e3e9f3095abef899be17dad40ab9c95ec",
+    "crates/mdd-facts/src/references.rs": "51cc6630028bf2d14489320f3fce94c0970d096ea69512db6e0332dce075c254",
+    "crates/mdd-session/src/lib.rs": "afda23d2dbb014680afa204ed7574387c017740223c6d5f68431c4b5f893efdd",
+    "tests/fixtures/generated/minimal-035.dex": "e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae",
+    "tests/fixtures/references/generated/poly-custom-038.dex": "25bc5a03641d31d87212a9a292d798e64c563e2666d03f579e7fc894ac8ee425"
+  },
+  "runs": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-query",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "scoped_references_derive_layers_from_the_actual_facts",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T03:57:11.871598+00:00",
+      "finished_utc": "2026-11-01T03:57:17.260654+00:00",
+      "exit_code": 0,
+      "one_pass": true,
+      "raw_stdout_sha256": "50fa18a33acb4fcb1e15f42c619fbbdfd70403273e1b13ab4fbeafc1daf93fe2",
+      "raw_stderr_sha256": "8f47b119e895c705232eb1c646600202a0d378c549989af27f681e0f2b2cd95d"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-query",
+        "--locked",
+        "--offline",
+        "--jobs",
+        "1",
+        "scoped_code_coverage_limit_keeps_missing_layer_error",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-11-01T03:57:17.260686+00:00",
+      "finished_utc": "2026-11-01T03:57:17.652693+00:00",
+      "exit_code": 0,
+      "one_pass": true,
+      "raw_stdout_sha256": "d5120533bf84d08943c3ca9783addc2e1362b6ff56713d1a6f0305696a562f39",
+      "raw_stderr_sha256": "338bfb0587f5c5073abf01cd500631a76291a9c0c94e76580118e05f3108a3a8"
+    }
+  ],
+  "scope": "two synthetic scoped coverage-budget tests; listed sources only; no full qualification",
+  "redaction": "workspace path replaced; raw logs retained in ignored local artifacts"
+}

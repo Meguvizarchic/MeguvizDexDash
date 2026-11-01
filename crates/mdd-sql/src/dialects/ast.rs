@@ -539,6 +539,8 @@ struct InScope {
     tables: BTreeMap<String, BTreeMap<String, crate::values::SqlType>>,
     order_aliases: BTreeSet<String>,
     boolean_aliases: BTreeSet<String>,
+    select_aliases: BTreeMap<String, Option<crate::values::SqlType>>,
+    aliases_visible: bool,
 }
 impl Rewrite<'_> {
     fn single_cte_literal_text_scope(&self, select: &Select) -> Option<(String, String)> {
@@ -628,10 +630,48 @@ impl Rewrite<'_> {
                 _ => None,
             })
             .collect();
+        let mut select_aliases = BTreeMap::new();
+        for item in &select.projection {
+            let SelectItem::ExprWithAlias { expr, alias } = item else {
+                continue;
+            };
+            let mut expr = expr;
+            while let Expr::Nested(inner) = expr {
+                expr = inner;
+            }
+            let data_type = match expr {
+                Expr::Identifier(id) => {
+                    let name = id.value.to_ascii_lowercase();
+                    let mut matches = tables.values().filter_map(|columns| columns.get(&name));
+                    let first = matches.next().copied();
+                    if matches.next().is_some() {
+                        None
+                    } else {
+                        first
+                    }
+                }
+                Expr::CompoundIdentifier(ids) if ids.len() == 2 => tables
+                    .get(&ids[0].value.to_ascii_lowercase())
+                    .and_then(|columns| columns.get(&ids[1].value.to_ascii_lowercase()))
+                    .copied(),
+                _ => None,
+            };
+            let name = alias.value.to_ascii_lowercase();
+            match select_aliases.entry(name) {
+                std::collections::btree_map::Entry::Vacant(entry) => {
+                    entry.insert(data_type);
+                }
+                std::collections::btree_map::Entry::Occupied(mut entry) => {
+                    entry.insert(None);
+                }
+            }
+        }
         Some(InScope {
             tables,
             order_aliases: BTreeSet::new(),
             boolean_aliases,
+            select_aliases,
+            aliases_visible: false,
         })
     }
 
@@ -759,6 +799,14 @@ impl Rewrite<'_> {
                         } else {
                             None
                         };
+                    }
+                    // SQLite can bind an otherwise unresolved WHERE name to
+                    // this SELECT's output alias before an outer column.
+                    // Alias expression affinity is not proven by this map.
+                    if scope.aliases_visible
+                        && let Some(data_type) = scope.select_aliases.get(&name)
+                    {
+                        return *data_type;
                     }
                 }
                 Expr::CompoundIdentifier(ids) if ids.len() == 2 => {
@@ -1246,7 +1294,17 @@ impl Rewrite<'_> {
                         };
                         match constraint {
                             JoinConstraint::On(expr) => {
+                                // SQLite permits this SELECT's output aliases
+                                // in JOIN ON after real source columns have
+                                // been considered. Restrict alias inference to
+                                // the ON expression, not the table source.
+                                if let Some(Some(scope)) = self.in_scopes.last_mut() {
+                                    scope.aliases_visible = true;
+                                }
                                 self.expr(expr, depth + 1)?;
+                                if let Some(Some(scope)) = self.in_scopes.last_mut() {
+                                    scope.aliases_visible = false;
+                                }
                                 *expr = call("mdd_truth_input", vec![take(expr)]);
                             }
                             JoinConstraint::Using(columns) => {
@@ -1293,6 +1351,11 @@ impl Rewrite<'_> {
                         _ => return Err(unsupported("SELECT_WILDCARD_EXTENSION")),
                     }
                 }
+                // SQLite accepts SELECT aliases in WHERE/HAVING/GROUP BY.
+                // They are not visible to sibling projection expressions.
+                if let Some(Some(scope)) = self.in_scopes.last_mut() {
+                    scope.aliases_visible = true;
+                }
                 if let Some(selection) = &mut select.selection {
                     self.expr(selection, depth + 1)?;
                     *selection = call("mdd_truth_input", vec![take(selection)]);
@@ -1320,6 +1383,9 @@ impl Rewrite<'_> {
                         self.expr(expr, depth + 1)?;
                     }
                     *expr = call("mdd_key", vec![take(expr)]);
+                }
+                if let Some(Some(scope)) = self.in_scopes.last_mut() {
+                    scope.aliases_visible = false;
                 }
                 if let Some(distinct) = &select.distinct {
                     if !matches!(distinct, Distinct::Distinct) {
@@ -1546,6 +1612,37 @@ impl Rewrite<'_> {
                 return Ok(());
             }
             Expr::BinaryOp { left, op, right } => {
+                // A direct numeric column supplies SQLite NUMERIC affinity to
+                // a text literal on the opposite side. Reuse the restricted
+                // exact conversion admitted by IN/BETWEEN; expressions,
+                // non-integral or unproven numeric text keep their existing
+                // guarded comparator behavior.
+                if self.dialect != super::SqlDialect::NativeV1
+                    && matches!(
+                        op,
+                        BinaryOperator::Eq
+                            | BinaryOperator::NotEq
+                            | BinaryOperator::Gt
+                            | BinaryOperator::GtEq
+                            | BinaryOperator::Lt
+                            | BinaryOperator::LtEq
+                    )
+                {
+                    if matches!(
+                        self.in_column_type(left),
+                        Some(crate::values::SqlType::I64 | crate::values::SqlType::U64)
+                    ) {
+                        if let Some(value) = exact_i64_text_literal(right) {
+                            replace_with_i64_literal(right, value);
+                        }
+                    } else if matches!(
+                        self.in_column_type(right),
+                        Some(crate::values::SqlType::I64 | crate::values::SqlType::U64)
+                    ) && let Some(value) = exact_i64_text_literal(left)
+                    {
+                        replace_with_i64_literal(left, value);
+                    }
+                }
                 // Parameters and literal values have no SQLite affinity.
                 // A column, CAST or derived expression cannot be assumed to
                 // share this property; those retain the guarded comparator.
