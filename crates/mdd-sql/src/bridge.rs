@@ -4105,6 +4105,98 @@ mod tests {
     }
 
     #[test]
+    fn hostlab_q06_candidates_two_like_and_distinct_match_sqlite() {
+        use mdd_query::ir::Signed64;
+        let input = [
+            (0, 1, Some("class/a"), Some("ordinary: one")),
+            (0, 1, Some("class/a"), Some("ordinary: one")),
+            (0, 2, Some("class/b"), Some("pref_option_key")),
+            (0, 3, Some("class/b"), Some("prefXoptionXkey")),
+            (0, 4, Some("class/c"), Some("ordinary: one")),
+            (0, 5, Some("class/a"), None),
+            (0, 6, None, Some("ordinary: one")),
+            (1, 2, Some("class/b"), Some("pref_option_key")),
+        ];
+        let text = |value: Option<&str>| value.map_or(SqlValue::Null, SqlValue::text);
+        let provider = Arc::new(RowsProvider {
+            binding: SqlBinding {
+                provider_identity: "q06-synthetic".into(),
+                snapshot_id: "q06-snapshot".into(),
+                catalog_epoch: DecimalU64(0),
+            },
+            rows: input
+                .iter()
+                .map(|(file, method, class, value)| {
+                    vec![
+                        SqlValue::I64(Signed64(*file)),
+                        SqlValue::I64(Signed64(*method)),
+                        text(*class),
+                        text(*value),
+                    ]
+                })
+                .collect(),
+            columns: [
+                ("file_id", SqlType::I64),
+                ("method_idx", SqlType::I64),
+                ("method_class", SqlType::Text),
+                ("value", SqlType::Text),
+            ]
+            .into_iter()
+            .map(|(name, data_type)| SqlColumn {
+                id: name.into(),
+                name: name.into(),
+                data_type,
+                nullable: true,
+            })
+            .collect(),
+        });
+        let sqlite = rusqlite::Connection::open_in_memory().unwrap();
+        sqlite.execute_batch("CREATE TABLE vals(file_id INTEGER, method_idx INTEGER, method_class TEXT, value TEXT)").unwrap();
+        for (file, method, class, value) in input {
+            sqlite
+                .execute(
+                    "INSERT INTO vals VALUES (?1,?2,?3,?4)",
+                    (file, method, class, value),
+                )
+                .unwrap();
+        }
+        let sql = "SELECT DISTINCT file_id,method_idx,value FROM vals WHERE method_class IN ('class/a','class/b') AND (value LIKE '%ordinary:%' OR value LIKE '%pref\\_option\\_key%' ESCAPE '\\') ORDER BY file_id,method_idx,value";
+        let expected: Vec<(i64, i64, String)> = sqlite
+            .prepare(sql)
+            .unwrap()
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap();
+        assert_eq!(expected.len(), 3);
+        for dialect in [
+            SqlDialect::NativeV1,
+            SqlDialect::DexSql010,
+            SqlDialect::DexSql011,
+        ] {
+            let bridge = SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+            let result = bridge.query(sql).unwrap();
+            let actual: Vec<_> = result
+                .rows()
+                .iter()
+                .map(|row| {
+                    let text = |cell: &SqlValue| match cell {
+                        SqlValue::Text(value) => value.strict_utf8().unwrap(),
+                        other => panic!("unexpected value {other:?}"),
+                    };
+                    let integer = |cell: &SqlValue| match cell {
+                        SqlValue::I64(value) => value.0,
+                        SqlValue::U64(value) => i64::try_from(value.0).unwrap(),
+                        other => panic!("unexpected integer {other:?}"),
+                    };
+                    (integer(&row[0]), integer(&row[1]), text(&row[2]))
+                })
+                .collect();
+            assert_eq!(actual, expected, "{dialect:?}");
+        }
+    }
+
+    #[test]
     fn hostlab_q10_group_count_and_order_match_sqlite_for_duplicate_calls() {
         use mdd_query::ir::Signed64;
         let columns = [

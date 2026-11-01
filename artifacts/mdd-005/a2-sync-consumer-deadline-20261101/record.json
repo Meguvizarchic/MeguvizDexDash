@@ -1,0 +1,36 @@
+{
+  "task": "MDD-005",
+  "finding": "A consumer that times out after receiving a row could receive further rows; an empty result whose receipt preparation timed out was recorded as delivered.",
+  "red": {
+    "command": "python -B artifacts/mdd-005/a2-sync-consumer-deadline-20261101/probe.py",
+    "exit": 1,
+    "tests_run": 2,
+    "tests_failed": 2,
+    "output": "red.txt",
+    "source_identity_note": "Pre-fix source and probe hashes were not recorded at red time."
+  },
+  "green": {
+    "command": "python -B artifacts/mdd-005/a2-sync-consumer-deadline-20261101/probe.py",
+    "exit": 0,
+    "tests_passed": 2,
+    "output": "green.txt",
+    "before": {
+      "benchmarks/a2_hostlab_session.py": "ad2ac054c0ab03f5ef666547f1ede05d5d6aa95fd518eb3b21d6c521a2a2c361",
+      "artifacts/mdd-005/a2-sync-consumer-deadline-20261101/probe.py": "5d8c643623d43b7d80e85d515fc9e336c4da3b2649f45f2bbe700bfb15898efd",
+      "artifacts/mdd-005/a2-sync-unstarted-20261030/probe.py": "f4f0266756ec3e4aac11273af44dbcd3716e86554e1064d03e695a4f8e84d61c"
+    },
+    "after": {
+      "benchmarks/a2_hostlab_session.py": "ad2ac054c0ab03f5ef666547f1ede05d5d6aa95fd518eb3b21d6c521a2a2c361",
+      "artifacts/mdd-005/a2-sync-consumer-deadline-20261101/probe.py": "5d8c643623d43b7d80e85d515fc9e336c4da3b2649f45f2bbe700bfb15898efd",
+      "artifacts/mdd-005/a2-sync-unstarted-20261030/probe.py": "f4f0266756ec3e4aac11273af44dbcd3716e86554e1064d03e695a4f8e84d61c"
+    },
+    "listed_sources_stable": true
+  },
+  "regression": {
+    "command": "python -B artifacts/mdd-005/a2-sync-unstarted-20261030/probe.py",
+    "exit": 0,
+    "tests_passed": 4,
+    "output": "regression.txt"
+  },
+  "limits": "Synthetic synchronous consumer; no real producer, input snapshot, A2 or performance qualification. Row decoding and user callbacks cannot be forcibly interrupted."
+}

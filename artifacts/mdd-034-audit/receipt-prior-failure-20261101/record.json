@@ -1,0 +1,30 @@
+{
+  "task": "MDD-034",
+  "finding": "After query first failure, receipt rejection returned a later InvalidArgument when packet delivery was abandoned.",
+  "fix": "Resolve prior query status during non-retryable receipt rejection; preserve the original InvalidArgument when no prior failure exists.",
+  "runs": {
+    "red": {
+      "record": "red/record.json",
+      "tests_run": 1,
+      "exit": 101,
+      "observation": "Actual QuotaExceeded was masked as InvalidArgument; red stopped at first case."
+    },
+    "green": {
+      "record": "green/record.json",
+      "tests_passed": 1,
+      "exit": 0,
+      "coverage": "QuotaExceeded and WorkerLost full error fields; no prior error retains InvalidArgument."
+    },
+    "queue_regression": {
+      "record": "queue_regression/record.json",
+      "tests_passed": 4,
+      "exit": 0
+    },
+    "receipt_regression": {
+      "record": "receipt_regression/record.json",
+      "tests_passed": 1,
+      "exit": 0
+    }
+  },
+  "limitations": "Synthetic in-process scenarios; no exhaustive concurrency, full workspace, production IPC, HostLab or performance qualification. Red test source was subsequently expanded with a no-prior case. Listed source hashes alone do not fix every transitive input."
+}

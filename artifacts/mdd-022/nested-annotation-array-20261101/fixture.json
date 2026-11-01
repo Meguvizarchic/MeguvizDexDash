@@ -1,0 +1,10 @@
+{
+  "synthetic": true,
+  "first_array_offset": 1000,
+  "second_array_offset": 1003,
+  "nested_type_index": 4,
+  "element_name_index": 45,
+  "first_bytes_hex": "01042a",
+  "second_bytes_hex": "011d04012d1c021e3f",
+  "sha256": "f463b87d40072735b82d6aed1acce5a407f954a839a773a06c32994394ed1236"
+}

@@ -1,0 +1,39 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "-p",
+    "mdd-facts",
+    "annotations::tests::nested_annotation_in_array_keeps_tree_and_cross_array_identity",
+    "--",
+    "--exact"
+  ],
+  "exit": 0,
+  "listed_sources_before": {
+    "crates/mdd-facts/src/annotations.rs": "cf952c3707ab7abca509d4402659986304aab083420df6c9687f1f181d5b3819",
+    "crates/mdd-facts/src/definitions.rs": "7a2ac801d7ebc89647888f501493ec9629d95b176125a09abddb239e489ac40a",
+    "crates/mdd-facts/src/metadata.rs": "e5fafa598807cc23d011570e7411ee53e1129391362c08b5cef5a38afe040357",
+    "crates/mdd-dex/src/annotations.rs": "f4bf544d7782eeead95a0d98dc5277d18f95992baf7257d4a4d775e8f9be5c74",
+    "crates/mdd-dex/src/definitions.rs": "ccebdce7db90d5ba87bb02e69446b27d4920c5bb3671f9208f7e93e130c259a3",
+    "tests/fixtures/annotations/generate.py": "6bed3eb45f8d0c887c600983a6470daca2be62d51a8b6a277294b3e18a622e22",
+    "artifacts/mdd-022/nested-annotation-array-20261101/generate.py": "325398faa2d6cdb839525a3fe9c65dbe00558d8166420b2b8a4c4e584f3b9290",
+    "artifacts/mdd-022/nested-annotation-array-20261101/nested.dex": "f463b87d40072735b82d6aed1acce5a407f954a839a773a06c32994394ed1236",
+    "artifacts/mdd-022/nested-annotation-array-20261101/fixture.json": "22d55d88a582e2bc6add18d92ed81255c9eb6478e98abdbc597604de0b5a5eb9",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089"
+  },
+  "listed_sources_after": {
+    "crates/mdd-facts/src/annotations.rs": "cf952c3707ab7abca509d4402659986304aab083420df6c9687f1f181d5b3819",
+    "crates/mdd-facts/src/definitions.rs": "7a2ac801d7ebc89647888f501493ec9629d95b176125a09abddb239e489ac40a",
+    "crates/mdd-facts/src/metadata.rs": "e5fafa598807cc23d011570e7411ee53e1129391362c08b5cef5a38afe040357",
+    "crates/mdd-dex/src/annotations.rs": "f4bf544d7782eeead95a0d98dc5277d18f95992baf7257d4a4d775e8f9be5c74",
+    "crates/mdd-dex/src/definitions.rs": "ccebdce7db90d5ba87bb02e69446b27d4920c5bb3671f9208f7e93e130c259a3",
+    "tests/fixtures/annotations/generate.py": "6bed3eb45f8d0c887c600983a6470daca2be62d51a8b6a277294b3e18a622e22",
+    "artifacts/mdd-022/nested-annotation-array-20261101/generate.py": "325398faa2d6cdb839525a3fe9c65dbe00558d8166420b2b8a4c4e584f3b9290",
+    "artifacts/mdd-022/nested-annotation-array-20261101/nested.dex": "f463b87d40072735b82d6aed1acce5a407f954a839a773a06c32994394ed1236",
+    "artifacts/mdd-022/nested-annotation-array-20261101/fixture.json": "22d55d88a582e2bc6add18d92ed81255c9eb6478e98abdbc597604de0b5a5eb9",
+    "Cargo.lock": "fcf51a7765c73af5e97f4aefd238fa0020c6c303ab42c20d48fbc55d8a56c089"
+  },
+  "listed_sources_stable": true,
+  "scope": "Synthetic physical arrays only; not ART or complete MDD-022 qualification."
+}

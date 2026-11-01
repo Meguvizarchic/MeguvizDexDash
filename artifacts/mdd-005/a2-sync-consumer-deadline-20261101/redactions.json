@@ -1,0 +1,32 @@
+[
+  {
+    "path": "artifacts/mdd-005/a2-sync-consumer-deadline-20261101/red.txt",
+    "original_sha256": "37d193c50562d4e8e552bc9037c2ebb34aef92e0a022fae06dd2030cbf858fab",
+    "redacted_sha256": "5ce4a77b8a27d92574746362783c986cf24bc9f3815b37a5c5cd9f08f36c6c3c"
+  },
+  {
+    "path": "artifacts/mdd-022/nested-annotation-array-20261101/output.txt",
+    "original_sha256": "8645dd8eba3a0c1dad011cfbfbf38beda08c76e02a3991728667ebd516d6bee3",
+    "redacted_sha256": "3aa9a0bad0183aba24c3429f6c389889399cb340147f7bd61fbcccedfc066a37"
+  },
+  {
+    "path": "artifacts/mdd-031-audit/hostlab-q06-filter-20261101/run1/output.txt",
+    "original_sha256": "6a785295af2e5d47189d0b2e89bea51f6bf4d33e3622194d2424d5cde97f7be2",
+    "redacted_sha256": "c2975463b2d9cd85ebb4e4024897eee59bbd8c5c6bf5169b8930262cf5527271"
+  },
+  {
+    "path": "artifacts/mdd-031-audit/hostlab-q06-filter-20261101/run2/output.txt",
+    "original_sha256": "a49cf52925be3c0d8121c1ced7cca0e27c88f96d3c9f03424cb4acb69dbbe54a",
+    "redacted_sha256": "f005201f17bf456c6a64d00510402884efb01091da51d474bc35425e22dc8246"
+  },
+  {
+    "path": "artifacts/mdd-034-audit/receipt-prior-failure-20261101/green/output.txt",
+    "original_sha256": "b4b1608db89b9ea5eeef71af7e8bcefd77e8a97abb033219930ed0d4a84f16c8",
+    "redacted_sha256": "6a4ca7d52167ef35aa8bd1c089694a77788a3df3b5f65d31f4094d26849c26e1"
+  },
+  {
+    "path": "artifacts/mdd-034-audit/receipt-prior-failure-20261101/red/output.txt",
+    "original_sha256": "4cc59a028275f1ddc603e5ae2f1b4a88ec0ee313bd5f18873cd70dd74731a150",
+    "redacted_sha256": "560b15ee92afad369f7069a4850a5659d7c8fda29edd9e499e40e855e0324033"
+  }
+]

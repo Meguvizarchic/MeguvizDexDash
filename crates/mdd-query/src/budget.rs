@@ -1969,9 +1969,16 @@ impl<T> BoundedReceiver<T> {
                 || !queue.entries.is_empty()
                 || queue.receipt_issued
             {
-                return Err(invalid(
+                let error = invalid(
                     "queue delivery requires acknowledged packets and explicit End",
-                ));
+                );
+                // This method consumes the receiver, so its failed return
+                // cannot be retried. Keep an earlier query failure visible
+                // instead of replacing it with the later receipt rejection.
+                return Err(match tracker.cancel.status() {
+                    Ok(status) => status.error.unwrap_or(error),
+                    Err(failure) => failure,
+                });
             }
             queue.receipt_issued = true;
         }

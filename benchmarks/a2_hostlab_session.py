@@ -11,6 +11,7 @@ import asyncio
 from concurrent.futures import CancelledError, TimeoutError as FutureTimeout
 from dataclasses import dataclass
 import hashlib
+import math
 from pathlib import Path
 import threading
 import time
@@ -132,12 +133,17 @@ class HostlabCompactSession:
         if not allow_stopped and not self._loop.is_running():
             raise HostlabSessionError("MCP owner event loop is not running")
 
+    def _checkpoint(self):
+        remaining = self._adapter.remaining_seconds()
+        if (not isinstance(remaining, (int, float)) or isinstance(remaining, bool)
+                or not math.isfinite(remaining) or remaining <= 0):
+            raise TimeoutError("HostLab compact session deadline exhausted or invalid")
+        return remaining
+
     def _wait(self, coroutine):
         try:
             self._check_thread()
-            remaining = self._adapter.remaining_seconds()
-            if remaining <= 0:
-                raise TimeoutError("HostLab compact session deadline exhausted")
+            remaining = self._checkpoint()
             future = asyncio.run_coroutine_threadsafe(coroutine, self._loop)
         except BaseException:
             coroutine.close()
@@ -209,6 +215,7 @@ class HostlabCompactSession:
                 raise HostlabSessionError("compact session closed before query consumption")
             result = self._wait(self._adapter.result(sql, page_size=page_size,
                                                      max_rows=max_rows, max_bytes=max_bytes))
+            self._checkpoint()
             records = getattr(result, 'rows', None)
             columns = getattr(result, 'columns', None)
             total = getattr(result, 'total_rows', None)
@@ -221,13 +228,19 @@ class HostlabCompactSession:
             for record in records:
                 if self._closed or self._failed:
                     raise HostlabSessionError("compact session closed before row consumption")
+                self._checkpoint()
                 prepared = digest.prepare(record)
+                self._checkpoint()
                 yield record
                 # Only a consumer that advances past this row acknowledges it.
                 # The digest was prepared before yielding, so caller mutation
                 # does not alter what the producer actually delivered.
+                self._checkpoint()
                 digest.acknowledge(prepared)
-            self._deliveries.append(digest.receipt())
+            self._checkpoint()
+            receipt = digest.receipt()
+            self._checkpoint()
+            self._deliveries.append(receipt)
             exhausted = True
             self.queries += 1
         finally:

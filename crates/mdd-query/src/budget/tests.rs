@@ -3,6 +3,48 @@ use std::sync::mpsc;
 use std::thread;
 
 #[test]
+fn receipt_rejection_preserves_existing_query_failure() {
+    for first in [
+        MddError::new(ErrorCode::QuotaExceeded, "test.quota", "output budget exhausted")
+            .detail("resource", "output_bytes"),
+        MddError::new(ErrorCode::WorkerLost, "test.worker", "worker terminated")
+            .detail("worker", "test"),
+    ] {
+        let (_, _, _, _, runtime) = owned_queue_test_runtime(BudgetLimits::default());
+        let (sender, mut receiver) = bounded_channel::<u8>(
+            runtime.pool().clone(),
+            Some(runtime.cancellation().clone()),
+            1,
+        )
+        .unwrap();
+        sender.send(7, 1).unwrap();
+        let QueueEvent::Data(packet) = receiver.receive().unwrap() else {
+            panic!("expected queued packet")
+        };
+        runtime.cancellation().fail(first.clone()).unwrap();
+        drop(packet);
+        let actual = receiver.into_delivery_receipt().err().unwrap();
+        assert_eq!(actual.code, first.code);
+        assert_eq!(actual.stage, first.stage);
+        assert_eq!(actual.message, first.message);
+        assert_eq!(actual.retryable, first.retryable);
+        assert_eq!(actual.details, first.details);
+        assert!(!runtime.cancellation().status().unwrap().delivery_complete);
+    }
+    let (_, _, _, _, runtime) = owned_queue_test_runtime(BudgetLimits::default());
+    let (_sender, receiver) = bounded_channel::<u8>(
+        runtime.pool().clone(),
+        Some(runtime.cancellation().clone()),
+        1,
+    )
+    .unwrap();
+    assert_eq!(
+        receiver.into_delivery_receipt().err().unwrap().code,
+        ErrorCode::InvalidArgument
+    );
+}
+
+#[test]
 fn finish_after_receiver_close_preserves_prior_query_failure() {
     for first in [
         MddError::new(ErrorCode::QuotaExceeded, "test.quota", "budget exhausted")

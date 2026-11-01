@@ -3139,6 +3139,77 @@ mod tests {
         );
     }
     #[test]
+    fn nested_annotation_in_array_keeps_tree_and_cross_array_identity() {
+        let facts = build("artifacts/mdd-022/nested-annotation-array-20261101/nested.dex");
+        let expected: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../artifacts/mdd-022/nested-annotation-array-20261101/fixture.json"
+        ))
+        .unwrap();
+        let make = |field: &str| EncodedArrayRef {
+            snapshot_id: facts.source().snapshot_id.clone(),
+            dex_occurrence_id: facts.source().dex_occurrence_id.clone(),
+            byte_offset: expected[field].as_u64().unwrap() as u32,
+        };
+        let first = make("first_array_offset");
+        let second = make("second_array_offset");
+        let limits = AnnotationValueViewLimits::default();
+        let first_view = facts.encoded_array_view(&first, limits).unwrap();
+        let view = facts.encoded_array_view(&second, limits).unwrap();
+        let ty = expected["nested_type_index"].as_u64().unwrap() as u8;
+        let name = expected["element_name_index"].as_u64().unwrap() as u8;
+        assert_eq!(first_view.raw_encoded, &[1, 0x04, 0x2a]);
+        assert_eq!(
+            view.raw_encoded,
+            &[1, 0x1d, ty, 1, name, 0x1c, 2, 0x1e, 0x3f]
+        );
+        assert_eq!(view.values.len(), 4);
+        let root = &view.values[0];
+        let nested = &view.values[1];
+        let null = &view.values[2];
+        let boolean = &view.values[3];
+        assert_eq!(root.value.kind, EncodedKind::Annotation);
+        assert_eq!(root.value.value_index, Some(u32::from(ty)));
+        assert_eq!(root.value.depth, 0);
+        assert_eq!(root.value.children, vec![nested.value.node_id]);
+        assert_eq!(root.raw_encoded, &view.raw_encoded[1..]);
+        assert_eq!(nested.value.kind, EncodedKind::Array);
+        assert_eq!(nested.value.name_idx, Some(u32::from(name)));
+        assert_eq!(nested.value.depth, 1);
+        assert_eq!(
+            nested.value.children,
+            vec![null.value.node_id, boolean.value.node_id]
+        );
+        assert_eq!(nested.raw_encoded, &[0x1c, 2, 0x1e, 0x3f]);
+        assert_eq!(null.value.kind, EncodedKind::Null);
+        assert_eq!(null.value.depth, 2);
+        assert_eq!(null.raw_encoded, &[0x1e]);
+        assert_eq!(boolean.value.kind, EncodedKind::Boolean);
+        assert_eq!(boolean.value.depth, 2);
+        assert_eq!(boolean.value.ordinal, 1);
+        assert_eq!(boolean.value.value_i64.as_deref(), Some("1"));
+        assert_eq!(boolean.raw_encoded, &[0x3f]);
+        let ref_for = |array: EncodedArrayRef, node_id| EncodedArrayValueRef { array, node_id };
+        let nested_ref = ref_for(second.clone(), nested.value.node_id);
+        let direct = facts
+            .encoded_array_value(&nested_ref, limits)
+            .unwrap()
+            .unwrap();
+        assert_eq!(direct.raw_encoded, nested.raw_encoded);
+        assert!(
+            facts
+                .encoded_array_value(&ref_for(first.clone(), nested.value.node_id), limits)
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            facts
+                .encoded_array_value(&ref_for(second, first_view.values[0].value.node_id), limits)
+                .unwrap()
+                .is_none()
+        );
+        assert_eq!(first_view.values[0].value.value_i64.as_deref(), Some("42"));
+    }
+    #[test]
     fn nested_array_direct_value_is_source_bound_and_preserves_raw_tree() {
         let facts = build("artifacts/mdd-022/nested-array-direct-20261101/nested.dex");
         let expected: serde_json::Value = serde_json::from_str(include_str!(
