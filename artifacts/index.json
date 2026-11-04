@@ -29316,6 +29316,76 @@
       "path": "artifacts/public-progress-20261104/summary.json",
       "bytes": 1379,
       "sha256": "0d25bf82791654711b12a98e464d1f06c8becb016e55bfdc86f16aa2545e516a"
+    },
+    {
+      "path": "artifacts/mdd-022/signature-name-units-20261101/fixture.json",
+      "bytes": 515,
+      "sha256": "530ea300bb32c8a9a741903914757a9f44d322140454402f93e533853ec6dfda"
+    },
+    {
+      "path": "artifacts/mdd-022/signature-name-units-20261101/valid.dex",
+      "bytes": 1452,
+      "sha256": "65380a8b23601e17339379be211e417d8b4c8383b686b6d173f800656b985360"
+    },
+    {
+      "path": "artifacts/mdd-022/signature-name-units-20261101/long-name.dex",
+      "bytes": 1452,
+      "sha256": "f7c2ad641a40f6db9428432754ccd382718191919797cbeef07ed661e374a422"
+    },
+    {
+      "path": "artifacts/mdd-022/signature-name-units-20261101/surrogate-name.dex",
+      "bytes": 1452,
+      "sha256": "0492425273e20e20e90f4f04ecde96682eed5694664f09ea60dfd75d1039d24c"
+    },
+    {
+      "path": "artifacts/mdd-022/signature-owner-layout-20261101/mixed-members.dex",
+      "bytes": 1452,
+      "sha256": "0b433779ff78937a7d8ec08352b14bd4e0ebd755d5a7a47c5a4e94a6790671e8"
+    },
+    {
+      "path": "artifacts/mdd-022/shared-callsite-view-20261101/fixture.json",
+      "bytes": 190,
+      "sha256": "5f6d4793176e336af2f81945ee45aa7b8d77428821d7b1708a9764b9695a9812"
+    },
+    {
+      "path": "artifacts/mdd-022/shared-callsite-view-20261101/shared.dex",
+      "bytes": 1700,
+      "sha256": "85192faed724d9313393dbc02bd645c209568e596574a117cb2a865abeb5d1b9"
+    },
+    {
+      "path": "artifacts/mdd-022/nested-annotation-array-20261101/fixture.json",
+      "bytes": 304,
+      "sha256": "22d55d88a582e2bc6add18d92ed81255c9eb6478e98abdbc597604de0b5a5eb9"
+    },
+    {
+      "path": "artifacts/mdd-022/nested-annotation-array-20261101/nested.dex",
+      "bytes": 1476,
+      "sha256": "f463b87d40072735b82d6aed1acce5a407f954a839a773a06c32994394ed1236"
+    },
+    {
+      "path": "artifacts/mdd-022/nested-array-direct-20261101/fixture.json",
+      "bytes": 161,
+      "sha256": "e1fc13c17b76d322273a1826bcc6f07d536e5bf403add0aea219b66791365e81"
+    },
+    {
+      "path": "artifacts/mdd-022/nested-array-direct-20261101/nested.dex",
+      "bytes": 1468,
+      "sha256": "aa9d0c935becd0950a82a6cd2b4e0b596157dadd70e5d5b7d18547178a212430"
+    },
+    {
+      "path": "artifacts/mdd-022/array-bindings-20261101/fixture.json",
+      "bytes": 214,
+      "sha256": "59425130c0f4deb37f3756a9ebfb823daeb8e6e523acf10a46972be59a65ba2b"
+    },
+    {
+      "path": "artifacts/mdd-022/array-bindings-20261101/shared-static-empty.dex",
+      "bytes": 1536,
+      "sha256": "015dba4c155200308536598673ec1b2af92319032e5557b5f86136dc47c02527"
+    },
+    {
+      "path": "artifacts/mdd-031-audit/native-code-handlers-20261030/typed-catch.dex",
+      "bytes": 404,
+      "sha256": "f0e0ccf16c417b5c1613f8f03b297400ddefbe42127936a7cebc3ebf3674aa06"
     }
   ]
 }
