@@ -40,5 +40,6 @@
     "HEX argument decoding now precedes output workspace reservation; the prior test no longer reached its stated target.",
     "Key workspace cancellation used a scheduling-sensitive polling loop and insufficient combined workspace."
   ],
-  "additional_checks": "Four Windows debug SQL tests passed: SQLite comparison for decimal text and JOIN, direct HEX workspace reservation, and deterministically synchronized cancellation with lease release; full workspace Clippy passed."
+  "additional_checks": "Four Windows debug SQL tests passed: SQLite comparison for decimal text and JOIN, direct HEX workspace reservation, and deterministically synchronized cancellation with lease release; full workspace Clippy passed.",
+  "linux_followup": "Linux CI exposed a scheduling-dependent HEX cancellation assertion. The test now pauses after the output reservation, cancels, resumes and checks lease release; targeted Windows test and workspace Clippy passed."
 }

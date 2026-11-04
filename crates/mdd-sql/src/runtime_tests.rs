@@ -1337,9 +1337,9 @@ fn hex_preserves_null_bytes_nul_and_surrogate_encoding() {
 }
 
 #[test]
-fn hex_cancelled_after_scan_starts_stays_failed() {
+fn hex_cancelled_after_workspace_reservation_stays_failed() {
     use crate::values::SqlValue;
-    use std::time::{Duration, Instant};
+    use std::{sync::mpsc, time::Duration};
     for dialect in [
         SqlDialect::NativeV1,
         SqlDialect::DexSql010,
@@ -1357,36 +1357,27 @@ fn hex_cancelled_after_scan_starts_stays_failed() {
                 runtime(&lifecycle, &session, &prepared, BudgetLimits::default());
             let pool = runtime.pool().clone();
             let bound = prepared.bind_runtime(&runtime).unwrap();
+            let (ready_tx, ready_rx) = mpsc::channel();
+            let (resume_tx, resume_rx) = mpsc::channel();
             let handle = std::thread::spawn(move || {
+                crate::dialects::functions::pause_next_hex_workspace(ready_tx, resume_rx);
                 bound.execute(SqlControl::new(SqlLimits::default(), None).with_runtime(runtime))
             });
-            let deadline = Instant::now() + Duration::from_secs(10);
-            loop {
-                let usage = pool.usage().unwrap();
-                let steps = usage
-                    .used
-                    .get(&Resource::QuerySteps)
-                    .map_or(0, |value| value.0);
-                if steps > 5_000 {
-                    if kind == "bytes" {
-                        assert!(
-                            usage
-                                .used
-                                .get(&Resource::QueryWorkspaceBytes)
-                                .map_or(0, |value| value.0)
-                                >= 800_009
-                        );
-                    }
-                    break;
-                }
-                if handle.is_finished() || Instant::now() >= deadline {
-                    let _ = token.cancel();
-                    let _ = handle.join();
-                    panic!("HEX scan was not observed before completion: {dialect:?} {kind}");
-                }
-                std::thread::yield_now();
-            }
+            ready_rx
+                .recv_timeout(Duration::from_secs(10))
+                .expect("HEX workspace was not reserved");
+            let used = pool
+                .usage()
+                .unwrap()
+                .used
+                .get(&Resource::QueryWorkspaceBytes)
+                .map_or(0, |value| value.0);
+            assert!(
+                used >= 800_009,
+                "HEX output lease missing: {dialect:?} {kind}"
+            );
             token.cancel().unwrap();
+            resume_tx.send(()).unwrap();
             assert_eq!(
                 handle.join().unwrap().unwrap_err().code,
                 ErrorCode::Cancelled

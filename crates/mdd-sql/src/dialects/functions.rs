@@ -321,8 +321,20 @@ fn key_workspace_amount(capacity: u64) -> MddResult<u64> {
 }
 
 #[cfg(test)]
+type TestPause = (std::sync::mpsc::Sender<()>, std::sync::mpsc::Receiver<()>);
+
+#[cfg(test)]
 thread_local! {
+    static HEX_WORKSPACE_TEST_PAUSE: std::cell::RefCell<Option<TestPause>> = const { std::cell::RefCell::new(None) };
     static KEY_WORKSPACE_TEST_PAUSE: std::cell::RefCell<Option<(std::sync::mpsc::Sender<()>, std::sync::mpsc::Receiver<()>)>> = const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+pub(crate) fn pause_next_hex_workspace(
+    ready: std::sync::mpsc::Sender<()>,
+    resume: std::sync::mpsc::Receiver<()>,
+) {
+    HEX_WORKSPACE_TEST_PAUSE.with(|hook| *hook.borrow_mut() = Some((ready, resume)));
 }
 
 #[cfg(test)]
@@ -1291,6 +1303,15 @@ pub(crate) fn hex_with_lease(
                 .map_err(|error| control.fail(error))
         })
         .transpose()?;
+    #[cfg(test)]
+    if lease.is_some() {
+        HEX_WORKSPACE_TEST_PAUSE.with(|hook| {
+            if let Some((ready, resume)) = hook.borrow_mut().take() {
+                ready.send(()).expect("hex workspace test receiver");
+                resume.recv().expect("hex workspace test resume");
+            }
+        });
+    }
     let mut carrier = Vec::new();
     carrier
         .try_reserve_exact(
