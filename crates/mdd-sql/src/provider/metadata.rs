@@ -741,7 +741,7 @@ impl SqlFactCursor for DefinitionCursor {
                     };
                     self.control.work(128)?;
                     let (offset, insns) = match method.body {
-                        mdd_dex::definitions::MethodBody::Present {
+                        mdd_facts::MethodBody::Present {
                             code_byte_offset,
                             declared_insns_size,
                         } => (
@@ -1306,7 +1306,7 @@ struct AnnotationCursor {
 }
 impl SqlFactCursor for AnnotationCursor {
     fn next_row(&mut self) -> MddResult<Option<SqlRow>> {
-        use mdd_dex::annotations::AnnotationOwnerKind;
+        use mdd_facts::AnnotationOwnerKind;
         let u = |v: u64| SqlValue::U64(DecimalU64(v));
         let optional = |v: Option<u32>| v.map_or(SqlValue::Null, |n| u(n.into()));
         while let Some(facts) = self.provider.occurrences.get(self.occurrence) {
@@ -2191,7 +2191,7 @@ struct DynamicReferenceCursor {
 }
 impl SqlFactCursor for DynamicReferenceCursor {
     fn next_row(&mut self) -> MddResult<Option<SqlRow>> {
-        use mdd_dex::instructions::InvokeKind;
+        use mdd_facts::InvokeKind;
         use mdd_facts::references::TargetKind;
         while let Some(facts) = self.provider.occurrences.get(self.occurrence) {
             self.control.checkpoint(1, false)?;
@@ -2247,7 +2247,7 @@ impl SqlFactCursor for DynamicReferenceCursor {
 }
 impl SqlFactCursor for ReferenceCursor {
     fn next_row(&mut self) -> MddResult<Option<SqlRow>> {
-        use mdd_dex::instructions::InvokeKind;
+        use mdd_facts::InvokeKind;
         use mdd_facts::references::TargetKind;
         while let Some(facts) = self.provider.occurrences.get(self.occurrence) {
             self.control.checkpoint(1, false)?;
