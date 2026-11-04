@@ -150,7 +150,24 @@ fn q03_join_resolves_qualified_source_and_preserves_duplicate_rows() {
     );
     let numeric = bridge.query("SELECT ci.ordinal FROM class_interfaces ci JOIN classes c ON c.file_id=ci.file_id AND c.class_idx=ci.class_idx WHERE ci.descriptor IN (1) ORDER BY ci.ordinal").unwrap();
     assert_eq!(numeric.rows().len(), 2);
-    assert_eq!(bridge.query("SELECT ci.ordinal FROM class_interfaces ci JOIN classes c ON c.file_id=ci.file_id AND c.class_idx=ci.class_idx WHERE ci.descriptor IN ('1')").unwrap_err().code, ErrorCode::UnsupportedQuery);
+    let sqlite = rusqlite::Connection::open_in_memory().unwrap();
+    sqlite.execute_batch("CREATE TABLE classes(file_id INTEGER, class_idx INTEGER); CREATE TABLE class_interfaces(file_id INTEGER, class_idx INTEGER, ordinal INTEGER, descriptor INTEGER); INSERT INTO classes VALUES (0,1),(0,2); INSERT INTO class_interfaces VALUES (0,1,0,1),(0,1,1,1),(0,1,2,2),(0,2,0,3);").unwrap();
+    let oracle_sql = "SELECT ci.ordinal FROM class_interfaces ci JOIN classes c ON c.file_id=ci.file_id AND c.class_idx=ci.class_idx WHERE ci.descriptor IN ('1') ORDER BY ci.ordinal";
+    let mut stmt = sqlite.prepare(oracle_sql).unwrap();
+    let expected: Vec<SqlValue> = stmt
+        .query_map([], |row| row.get::<_, u32>(0))
+        .unwrap()
+        .map(|n| uint(u64::from(n.unwrap())))
+        .collect();
+    let actual = bridge.query(oracle_sql).unwrap();
+    assert_eq!(
+        actual
+            .rows()
+            .iter()
+            .map(|row| row[0].clone())
+            .collect::<Vec<_>>(),
+        expected
+    );
     assert_eq!(bridge.query("SELECT descriptor IN ('1') FROM class_interfaces ci JOIN classes c ON c.file_id=ci.file_id AND c.class_idx=ci.class_idx").unwrap_err().code, ErrorCode::InvalidArgument);
     assert_eq!(bridge.query("SELECT z.descriptor IN ('1') FROM class_interfaces ci JOIN classes c ON c.file_id=ci.file_id AND c.class_idx=ci.class_idx").unwrap_err().code, ErrorCode::InvalidArgument);
 }

@@ -2283,9 +2283,19 @@ mod tests {
                     SqlValue::I64(Signed64(0)),
                 ]
             );
+            let sqlite = rusqlite::Connection::open_in_memory().unwrap();
+            sqlite
+                .execute_batch("CREATE TABLE facts(id INTEGER); INSERT INTO facts VALUES (1)")
+                .unwrap();
+            let expected: i64 = sqlite
+                .query_row("SELECT id IN ('1.0') FROM facts", [], |row| row.get(0))
+                .unwrap();
+            let actual = bridge
+                .query("SELECT id IN ('1.0') FROM facts WHERE id=1")
+                .unwrap();
+            assert_eq!(actual.rows()[0][0], SqlValue::I64(Signed64(expected)));
             for sql in [
                 "SELECT id IN ('9223372036854775808') FROM facts",
-                "SELECT id IN ('1.0') FROM facts",
                 "WITH x AS (SELECT '1' AS id) SELECT id IN ('1') FROM x",
             ] {
                 assert_eq!(

@@ -34,5 +34,11 @@
       "result": "10 passed before receipt-only fix"
     }
   ],
-  "limits": "Local checks are not HostLab replacement, production performance or release qualification. GitHub checks are tracked independently."
+  "limits": "Local checks are not HostLab replacement, production performance or release qualification. GitHub checks are tracked independently.",
+  "additional_ci_findings": [
+    "Two integer affinity assertions predated support for exact decimal text.",
+    "HEX argument decoding now precedes output workspace reservation; the prior test no longer reached its stated target.",
+    "Key workspace cancellation used a scheduling-sensitive polling loop and insufficient combined workspace."
+  ],
+  "additional_checks": "Four Windows debug SQL tests passed: SQLite comparison for decimal text and JOIN, direct HEX workspace reservation, and deterministically synchronized cancellation with lease release; full workspace Clippy passed."
 }

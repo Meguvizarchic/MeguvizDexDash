@@ -588,7 +588,7 @@ fn key_workspace_releases_temporary_lease_after_success_and_result_drop() {
 #[test]
 fn key_workspace_cancellation_releases_temporary_lease() {
     use crate::values::SqlValue;
-    use std::time::{Duration, Instant};
+    use std::{sync::mpsc, time::Duration};
     for dialect in [
         SqlDialect::NativeV1,
         SqlDialect::DexSql010,
@@ -605,32 +605,28 @@ fn key_workspace_cancellation_releases_temporary_lease() {
             &lifecycle,
             &session,
             &prepared,
-            BudgetLimits::default().with(Resource::QueryWorkspaceBytes, 1024 * 1024),
+            BudgetLimits::default().with(Resource::QueryWorkspaceBytes, 2 * 1024 * 1024),
         );
         let pool = runtime.pool().clone();
         let bound = prepared.bind_runtime(&runtime).unwrap();
+        let (ready_tx, ready_rx) = mpsc::channel();
+        let (resume_tx, resume_rx) = mpsc::channel();
         let handle = std::thread::spawn(move || {
+            crate::dialects::functions::pause_next_key_workspace(ready_tx, resume_rx);
             bound.execute(SqlControl::new(SqlLimits::default(), None).with_runtime(runtime))
         });
-        let deadline = Instant::now() + Duration::from_secs(10);
-        loop {
-            let usage = pool.usage().unwrap();
-            let used = usage
-                .used
-                .get(&Resource::QueryWorkspaceBytes)
-                .map_or(0, |v| v.0);
-            let steps = usage.used.get(&Resource::QuerySteps).map_or(0, |v| v.0);
-            if used > 700_000 && steps > 5_000 {
-                break;
-            }
-            if handle.is_finished() || Instant::now() >= deadline {
-                let _ = token.cancel();
-                let _ = handle.join();
-                panic!("key lease and scan were not observed before completion: {dialect:?}");
-            }
-            std::thread::yield_now();
-        }
+        ready_rx
+            .recv_timeout(Duration::from_secs(10))
+            .expect("key workspace was not reserved");
+        let used = pool
+            .usage()
+            .unwrap()
+            .used
+            .get(&Resource::QueryWorkspaceBytes)
+            .map_or(0, |v| v.0);
+        assert!(used > 700_000, "key workspace lease missing: {dialect:?}");
         token.cancel().unwrap();
+        resume_tx.send(()).unwrap();
         assert_eq!(
             handle.join().unwrap().unwrap_err().code,
             ErrorCode::Cancelled,
@@ -1175,18 +1171,19 @@ fn hex_result_workspace_is_reserved_before_output_construction() {
         ] {
             let (lifecycle, session, _, bridge) = setup_with_dialect(dialect);
             let prepared = bridge
-                .prepare_with_parameters("SELECT hex(?) AS v", &[value])
+                .prepare_with_parameters("SELECT hex(?) AS v", std::slice::from_ref(&value))
                 .unwrap();
             // Permit the result metadata reservation (~2 KiB) so this check
             // reaches the HEX callback rather than failing during setup.
             let limits = BudgetLimits::default().with(Resource::QueryWorkspaceBytes, 4096);
             let (runtime, token) = runtime(&lifecycle, &session, &prepared, limits);
             let pool = runtime.pool().clone();
-            let error = prepared
-                .bind_runtime(&runtime)
-                .unwrap()
-                .execute(SqlControl::new(SqlLimits::default(), None).with_runtime(runtime))
-                .unwrap_err();
+            let control = SqlControl::new(SqlLimits::default(), None).with_runtime(runtime);
+            let error = match crate::dialects::functions::hex_with_lease(&value, dialect, &control)
+            {
+                Ok(_) => panic!("HEX output allocation unexpectedly succeeded"),
+                Err(error) => error,
+            };
             assert_eq!(error.code, ErrorCode::QuotaExceeded, "{dialect:?}");
             assert_eq!(error.details["budget"], "query_workspace_bytes");
             let usage = pool.usage().unwrap();
