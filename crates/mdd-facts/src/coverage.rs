@@ -137,45 +137,6 @@ impl CoverageReport {
     }
 }
 
-#[cfg(test)]
-mod error_detail_tests {
-    use super::*;
-
-    #[test]
-    fn source_error_scope_detail_is_preserved() {
-        let original = MddError::new(ErrorCode::InvalidInput, "input", "bad input")
-            .detail("scope_id", "prior")
-            .detail("coverage_scope_id_0", "prior collision");
-        let report = CoverageReport {
-            snapshot_id: "snapshot".into(),
-            scope_id: "actual".into(),
-            scope_content_key: "key".into(),
-            covers_all_captured_sources: false,
-            selected_dex_occurrences: vec![],
-            input: Completeness::Partial,
-            facts: Completeness::Partial,
-            required_layers: vec![],
-            issues: vec![CoverageIssue {
-                occurrence: None,
-                layer: "input".into(),
-                column: None,
-                reason: "bad".into(),
-                blocking: true,
-                error: Some(original.clone()),
-            }],
-            native_facts_only: true,
-            profile_admitted: false,
-        };
-        let returned = report.require_complete().unwrap_err();
-        assert_eq!(returned.code, original.code);
-        assert_eq!(returned.stage, original.stage);
-        assert_eq!(returned.message, original.message);
-        for (key, value) in &original.details {
-            assert_eq!(returned.details.get(key), Some(value));
-        }
-        assert_eq!(returned.details["coverage_scope_id_1"], "actual");
-    }
-}
 pub struct CoverageLedger<'a> {
     scope: SelectedScope,
     views: BTreeMap<String, FactView<'a>>,
@@ -923,5 +884,45 @@ impl<'a> CoverageLedger<'a> {
                 .all(|column| column.domain == ColumnDomain::NativeAtoms),
             profile_admitted: false,
         })
+    }
+}
+
+#[cfg(test)]
+mod error_detail_tests {
+    use super::*;
+
+    #[test]
+    fn source_error_scope_detail_is_preserved() {
+        let original = MddError::new(ErrorCode::InvalidInput, "input", "bad input")
+            .detail("scope_id", "prior")
+            .detail("coverage_scope_id_0", "prior collision");
+        let report = CoverageReport {
+            snapshot_id: "snapshot".into(),
+            scope_id: "actual".into(),
+            scope_content_key: "key".into(),
+            covers_all_captured_sources: false,
+            selected_dex_occurrences: vec![],
+            input: Completeness::Partial,
+            facts: Completeness::Partial,
+            required_layers: vec![],
+            issues: vec![CoverageIssue {
+                occurrence: None,
+                layer: "input".into(),
+                column: None,
+                reason: "bad".into(),
+                blocking: true,
+                error: Some(original.clone()),
+            }],
+            native_facts_only: true,
+            profile_admitted: false,
+        };
+        let returned = report.require_complete().unwrap_err();
+        assert_eq!(returned.code, original.code);
+        assert_eq!(returned.stage, original.stage);
+        assert_eq!(returned.message, original.message);
+        for (key, value) in &original.details {
+            assert_eq!(returned.details.get(key), Some(value));
+        }
+        assert_eq!(returned.details["coverage_scope_id_1"], "actual");
     }
 }

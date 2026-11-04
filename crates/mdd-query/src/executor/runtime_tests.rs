@@ -2509,8 +2509,10 @@ fn json_batch_consumer_rejects_invalid_or_partially_processed_packets() {
 fn json_batch_consumer_accepts_only_bound_partial_first_error() {
     let f = setup_with_rows(BudgetLimits::default(), 3);
     let (sender, mut receiver) = bounded_owned_batch_channel(&f.runtime, 4).unwrap();
-    let mut execution_limits = ExecutionLimits::default();
-    execution_limits.max_output_rows = 2;
+    let execution_limits = ExecutionLimits {
+        max_output_rows: 2,
+        ..ExecutionLimits::default()
+    };
     let mut pending = execute_json_batches_into(
         &f.prepared,
         &f.source,
@@ -3097,8 +3099,10 @@ fn json_batches_invalid_source_row_reports_truncation() {
 fn json_batches_partial_failure_preserves_consumed_rows_and_error() {
     let f = setup_with_rows(BudgetLimits::default(), 3);
     let (sender, mut receiver) = bounded_owned_batch_channel(&f.runtime, 4).unwrap();
-    let mut execution_limits = ExecutionLimits::default();
-    execution_limits.max_output_rows = 2;
+    let execution_limits = ExecutionLimits {
+        max_output_rows: 2,
+        ..ExecutionLimits::default()
+    };
     let mut pending = execute_json_batches_into(
         &f.prepared,
         &f.source,

@@ -1636,19 +1636,19 @@ impl QueueDeliveryReceipt {
             .terminal
             .take()
             .ok_or_else(|| invalid("DELIVERY_ALREADY_FINALIZED"))?;
-        if pending.produced != 0 {
-            if let Err(error) = terminal.record_batch(0, pending.produced) {
-                // The builder rejected this count. Do not manufacture an
-                // envelope whose emitted count would omit consumed packets.
-                let first = pending
-                    .runtime
-                    .stop(error.detail("actual_consumed_rows", pending.produced.to_string()));
-                let first = Self::with_consumed_count(first, pending.produced);
-                return match self.finish_failed() {
-                    Ok(()) => Err(first),
-                    Err(cleanup) => Err(Self::with_cleanup_error(first, &cleanup)),
-                };
-            }
+        if pending.produced != 0
+            && let Err(error) = terminal.record_batch(0, pending.produced)
+        {
+            // The builder rejected this count. Do not manufacture an
+            // envelope whose emitted count would omit consumed packets.
+            let first = pending
+                .runtime
+                .stop(error.detail("actual_consumed_rows", pending.produced.to_string()));
+            let first = Self::with_consumed_count(first, pending.produced);
+            return match self.finish_failed() {
+                Ok(()) => Err(first),
+                Err(cleanup) => Err(Self::with_cleanup_error(first, &cleanup)),
+            };
         }
         if let Some(error) = pending.error.take() {
             if let Err(cleanup) = self.finish_failed() {

@@ -1584,7 +1584,12 @@ impl SqlFactProvider for AnnotationSqlProvider {
         &self.binding
     }
     fn relations(&self) -> MddResult<Vec<SqlRelation>> {
-        let specifications: [(&str, &[(&str, SqlType, bool)], AnnotationRelation); 11] = [
+        type Specification = (
+            &'static str,
+            &'static [(&'static str, SqlType, bool)],
+            AnnotationRelation,
+        );
+        let specifications: [Specification; 11] = [
             (
                 "native_annotation_items",
                 &[

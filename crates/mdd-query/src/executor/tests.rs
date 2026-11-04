@@ -492,8 +492,10 @@ fn typed_annotation_owner_sets_preserve_sources_and_shared_entries() {
                 .all(|indices| indices == &BTreeSet::from([0, 1]))
         );
     }
-    let mut limits = ExecutionLimits::default();
-    limits.max_output_rows = 1;
+    let limits = ExecutionLimits {
+        max_output_rows: 1,
+        ..ExecutionLimits::default()
+    };
     assert_eq!(
         execute(
             &entries,
@@ -709,7 +711,7 @@ fn typed_annotation_physical_values_keep_identity_bits_and_string_links() {
                 panic!("missing raw scalar")
             };
             assert!(start + length <= facts.bytes().len());
-            assert!(1 + raw.0.len() <= length);
+            assert!(raw.0.len() < length);
             assert_eq!(
                 raw.0.as_slice(),
                 &facts.bytes()[start + 1..start + 1 + raw.0.len()]
@@ -756,8 +758,10 @@ fn typed_annotation_physical_values_keep_identity_bits_and_string_links() {
         assert!(float_bits.contains(&0x7fc01234));
         assert!(float_bits.contains(&0x7ff8000000001234));
     }
-    let mut limits = ExecutionLimits::default();
-    limits.max_output_rows = 1;
+    let limits = ExecutionLimits {
+        max_output_rows: 1,
+        ..ExecutionLimits::default()
+    };
     assert_eq!(
         execute(
             &values,

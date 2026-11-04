@@ -812,6 +812,10 @@ impl<'scope> ScopedEntityAuthority<'scope> {
     }
 
     /// The confined wrapper cannot be reused with another query or budget.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "Preserve the existing checked query API"
+    )]
     pub fn execute_json_batches_checked(
         &self,
         prepared: &PreparedQuery,
@@ -1086,10 +1090,11 @@ impl Drop for EntityCheckedRows<'_, '_, '_> {
     fn drop(&mut self) {
         let was_active = !self.stopped;
         drop(self.inner.take());
-        if was_active && self.checked.runtime.is_some() {
-            if let Err(failure) = self.checked.check_provider_binding() {
-                self.checked.first_failure(failure);
-            }
+        if was_active
+            && self.checked.runtime.is_some()
+            && let Err(failure) = self.checked.check_provider_binding()
+        {
+            self.checked.first_failure(failure);
         }
     }
 }

@@ -1345,10 +1345,10 @@ impl AnnotationFacts {
         let mut item = None;
         for candidate in &self.data.annotation_items {
             tick()?;
-            if candidate.byte_offset == annotation.annotation_byte_offset {
-                if item.replace(candidate).is_some() {
-                    return Err(broken());
-                }
+            if candidate.byte_offset == annotation.annotation_byte_offset
+                && item.replace(candidate).is_some()
+            {
+                return Err(broken());
             }
         }
         let item = item.ok_or_else(|| {
@@ -3381,10 +3381,12 @@ mod tests {
                 item.annotation_offsets.len()
             );
             for (slot, expected) in raw_encoded[4..]
-                .chunks_exact(4)
+                .as_chunks::<4>()
+                .0
+                .iter()
                 .zip(&item.annotation_offsets)
             {
-                assert_eq!(u32::from_le_bytes(slot.try_into().unwrap()), *expected);
+                assert_eq!(u32::from_le_bytes(*slot), *expected);
             }
         }
         let mut saw_null = false;
@@ -3408,10 +3410,12 @@ mod tests {
                 item.annotation_set_offsets.len()
             );
             for (slot, expected) in raw_encoded[4..]
-                .chunks_exact(4)
+                .as_chunks::<4>()
+                .0
+                .iter()
                 .zip(&item.annotation_set_offsets)
             {
-                let raw = u32::from_le_bytes(slot.try_into().unwrap());
+                let raw = u32::from_le_bytes(*slot);
                 assert_eq!((raw != 0).then_some(raw), *expected);
                 saw_null |= expected.is_none();
             }

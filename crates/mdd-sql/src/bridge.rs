@@ -3890,10 +3890,7 @@ mod tests {
                 )
                 .unwrap();
             assert_eq!(
-                short
-                    .execute(SqlControl::new(limits.clone(), None))
-                    .unwrap()
-                    .rows()[0][0],
+                short.execute(SqlControl::new(limits, None)).unwrap().rows()[0][0],
                 SqlValue::text("AA"),
                 "{dialect:?}"
             );
@@ -3909,7 +3906,7 @@ mod tests {
                     .unwrap();
                 assert_eq!(
                     prepared
-                        .execute(SqlControl::new(limits.clone(), None))
+                        .execute(SqlControl::new(limits, None))
                         .unwrap_err()
                         .code,
                     ErrorCode::QuotaExceeded,
@@ -6343,7 +6340,8 @@ mod tests {
     #[test]
     fn in_subquery_bytes_and_bool_match_sqlite_with_null_and_duplicates() {
         use mdd_query::ir::Signed64;
-        let values: Vec<(Option<Vec<u8>>, Option<Vec<u8>>, Option<bool>, Option<bool>)> = vec![
+        type OptionalBytesBoolPair = (Option<Vec<u8>>, Option<Vec<u8>>, Option<bool>, Option<bool>);
+        let values: Vec<OptionalBytesBoolPair> = vec![
             (None, None, None, None),
             (Some(vec![]), Some(vec![0]), Some(false), Some(true)),
             (Some(vec![0]), Some(vec![]), Some(true), Some(false)),
@@ -6554,8 +6552,7 @@ mod tests {
             ) {
                 let error = bridge
                     .query(sql)
-                    .err()
-                    .expect("unproven carrier returned rows");
+                    .expect_err("unproven carrier returned rows");
                 assert_eq!(
                     error.code,
                     ErrorCode::UnsupportedQuery,
@@ -6794,8 +6791,7 @@ mod tests {
             ] {
                 let error = bridge
                     .query(sql)
-                    .err()
-                    .expect("unsafe set operation returned rows");
+                    .expect_err("unsafe set operation returned rows");
                 assert_eq!(
                     error.code,
                     ErrorCode::UnsupportedQuery,
@@ -7010,8 +7006,7 @@ mod tests {
             }
             sqlite
                 .prepare("SELECT 'a' UNION SELECT 'b' ORDER BY 'x'")
-                .err()
-                .expect("SQLite must reject a non-projected ordering expression");
+                .expect_err("SQLite must reject a non-projected ordering expression");
             let error = bridge
                 .query("SELECT 'a' UNION SELECT 'b' ORDER BY 'x'")
                 .unwrap_err();
@@ -7433,7 +7428,7 @@ mod tests {
             let quoted = bridge
                 .prepare_with_parameters(
                     "SELECT '?30000' UNION SELECT ? /* ?1 */",
-                    &[value.clone()],
+                    std::slice::from_ref(&value),
                 )
                 .err()
                 .unwrap();
@@ -7441,7 +7436,7 @@ mod tests {
             let cte = bridge
                 .prepare_with_parameters(
                     "WITH c AS (SELECT ? AS x) SELECT x FROM c UNION SELECT 1.0",
-                    &[value.clone()],
+                    std::slice::from_ref(&value),
                 )
                 .err()
                 .unwrap();

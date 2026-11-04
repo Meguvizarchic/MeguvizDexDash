@@ -1903,7 +1903,7 @@ pub(crate) fn register(
                     && dialect != SqlDialect::NativeV1
                     && !values.contains(&SqlValue::Null)
                 {
-                    legacy_concat(&values, &control).map_err(|e| failure(&control, e))?
+                    legacy_concat(values, &control).map_err(|e| failure(&control, e))?
                 } else if matches!(name, "mdd_lower" | "mdd_upper")
                     && matches!(&values[0], SqlValue::Text(_) | SqlValue::DexMutf8 { .. })
                 {
@@ -1911,7 +1911,7 @@ pub(crate) fn register(
                         .map_err(|e| failure(&control, e))?
                 } else {
                     (
-                        scalar(name, &values, dialect, &control)
+                        scalar(name, values, dialect, &control)
                             .map_err(|e| failure(&control, e))?,
                         None,
                     )
