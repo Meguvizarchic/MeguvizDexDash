@@ -1,0 +1,50 @@
+{
+  "schema_version": "mdd.parameter-position-fixtures.v1",
+  "scope": "Synthetic encoded annotation layouts; no Android runtime qualification.",
+  "fixtures": [
+    {
+      "file": "parameter-empty-nonzero-proto.dex",
+      "sha256": "b6d66276b679aaa54d06b5de3d312e19e200ba1ac74145ef2c412145784f82cc",
+      "bytes": 1444,
+      "parameter_list_offset": 1188,
+      "encoded_slots": [],
+      "prototype_parameter_count": 2,
+      "parameter_binding_count": 2,
+      "expected_position_coverage": "unknown"
+    },
+    {
+      "file": "parameter-long-nonzero-proto.dex",
+      "sha256": "2766a32a0b66fecfb9471d9bef7873b671f2a2d31f85d3bd412fbd371bfea396",
+      "bytes": 1456,
+      "parameter_list_offset": 1188,
+      "encoded_slots": [
+        1180,
+        0,
+        1180
+      ],
+      "prototype_parameter_count": 2,
+      "parameter_binding_count": 2,
+      "expected_position_coverage": "unknown"
+    },
+    {
+      "file": "parameter-empty-zero-proto.dex",
+      "sha256": "80ee3c0a1425bfb14e88ab2e72244a3da464a3e0e14d7497297f3124dacccfd8",
+      "bytes": 1448,
+      "parameter_list_offset": 1192,
+      "encoded_slots": [],
+      "prototype_parameter_count": 0,
+      "parameter_binding_count": 2,
+      "expected_position_coverage": "complete"
+    },
+    {
+      "file": "parameter-orphan-empty-no-binding.dex",
+      "sha256": "345aa3f5e1dd938ea04171dd1a9137a8e6990f6218179b883f6cbd28eda53907",
+      "bytes": 1432,
+      "parameter_list_offset": 1192,
+      "encoded_slots": [],
+      "prototype_parameter_count": 0,
+      "parameter_binding_count": 0,
+      "expected_position_coverage": "not_applicable"
+    }
+  ]
+}

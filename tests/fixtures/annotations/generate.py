@@ -45,7 +45,7 @@ def build(features=None):
     call_site = bool(features & {"call_site_array","call_site_short"})
     if call_site:
         descriptors.extend(["Lfixture/Bootstrap;","Ljava/lang/invoke/CallSite;","Ljava/lang/invoke/MethodHandles$Lookup;","Ljava/lang/invoke/MethodType;"])
-    strings = sorted(set(descriptors + names + field_fragments + method_fragments + class_fragments + ["LLI", "E", "f", "f2", "m", "m2", "value", "hello", "a", "z"] + (["LLLL","bootstrap"] if call_site else [])))
+    strings = sorted(set(descriptors + names + field_fragments + method_fragments + class_fragments + ["LLI", "E", "f", "f2", "m", "m2", "value", "hello", "a", "z"] + (["LLLL","bootstrap"] if call_site else []) + (["L"] if "parameter_zero_proto" in features else [])))
     sid = {value: index for index, value in enumerate(strings)}
     tid = {value: index for index, value in enumerate(sorted(descriptors, key=sid.__getitem__))}
     string_off = 112
@@ -87,7 +87,12 @@ def build(features=None):
     map_entries.append((0x1001, 2 if call_site else 1, len(data)))
     data.extend(struct.pack("<I2H", 2, tid["Ljava/util/List;"], tid["I"]))
     method_proto_index = 1 if call_site else 0
-    struct.pack_into("<III", data, proto_off+method_proto_index*12, sid["LLI"], tid["Ljava/util/List;"], labels["parameters"])
+    if "parameter_zero_proto" in features:
+        require(not call_site, "zero-prototype fixture does not support call sites")
+        # The existing type_list remains a valid unreferenced physical item.
+        struct.pack_into("<III", data, proto_off+method_proto_index*12, sid["L"], tid["Ljava/util/List;"], 0)
+    else:
+        struct.pack_into("<III", data, proto_off+method_proto_index*12, sid["LLI"], tid["Ljava/util/List;"], labels["parameters"])
     if call_site:
         labels["bootstrap_parameters"] = len(data)
         data.extend(struct.pack("<I3H",3,tid["Ljava/lang/invoke/MethodHandles$Lookup;"],tid["Ljava/lang/String;"],tid["Ljava/lang/invoke/MethodType;"]))
@@ -152,8 +157,11 @@ def build(features=None):
         labels[name] = len(data)
         data.extend(value)
     align()
+    parameter_item = labels["method_signature"] if "parameter_shared_signature" in features else labels["values"]
     set_values = [("class_set", [labels["class_signature"], labels["values"]]), ("field_set", [labels["field_signature"]]),
-                  ("method_set", [labels["method_signature"]]), ("parameter_set", [labels["values"]])]
+                  ("method_set", [labels["method_signature"]]), ("parameter_set", [parameter_item])]
+    if "parameter_empty_set_shared" in features:
+        set_values.extend([("parameter_empty_set", []), ("parameter_orphan_empty_set", [])])
     if features & {"orphan_set","shared_empty_set","orphan_bad_set"}:
         set_values.append(("orphan_set",[labels["class_signature"]+1] if "orphan_bad_set" in features else []))
     map_entries.append((0x1003, len(set_values), len(data)))
@@ -162,16 +170,27 @@ def build(features=None):
         data.extend(struct.pack("<I" + "I" * len(offsets), len(offsets), *offsets))
     labels["parameter_ref_list"] = len(data)
     map_entries.append((0x1002, 2 if features & {"orphan_ref","orphan_bad_ref"} else 1, len(data)))
-    data.extend(struct.pack("<3I", 2, labels["parameter_set"], 0))
+    require(len(features & {"parameter_slots_empty", "parameter_slots_long", "parameter_empty_set_shared"}) <= 1,
+            "parameter list modes are mutually exclusive")
+    if "parameter_slots_empty" in features:
+        parameter_slots = []
+    elif "parameter_slots_long" in features:
+        parameter_slots = [labels["parameter_set"], 0, labels["parameter_set"]]
+    elif "parameter_empty_set_shared" in features:
+        parameter_slots = [labels["parameter_empty_set"], 0, labels["parameter_empty_set"]]
+    else:
+        parameter_slots = [labels["parameter_set"], 0]
+    data.extend(struct.pack("<I" + "I" * len(parameter_slots), len(parameter_slots), *parameter_slots))
     if features & {"orphan_ref","orphan_bad_ref"}:
         labels["orphan_ref"] = len(data)
         data.extend(struct.pack("<II",1,labels["field_set"]+4) if "orphan_bad_ref" in features else struct.pack("<I",0))
     labels["directory"] = len(data)
     extra_directory = bool(features & {"orphan_directory","orphan_known_directory","orphan_external_directory","orphan_bad_directory","shared_empty_directory"})
     map_entries.append((0x2006, 2 if extra_directory else 1, len(data)))
-    data.extend(struct.pack("<4I", labels["class_set"], 2, 1, 2))
+    parameter_bindings = [] if "parameter_no_binding" in features else [(0, labels["parameter_ref_list"]), (1, labels["parameter_ref_list"])]
+    data.extend(struct.pack("<4I", labels["class_set"], 2, 1, len(parameter_bindings)))
     field_set = labels["orphan_set"] if "shared_empty_set" in features else labels["field_set"]
-    for index, offset in [(0, field_set), (1, field_set), (0, labels["method_set"]), (0, labels["parameter_ref_list"]), (1, labels["parameter_ref_list"])]:
+    for index, offset in [(0, field_set), (1, field_set), (0, labels["method_set"])] + parameter_bindings:
         data.extend(struct.pack("<II", index, offset))
     if extra_directory:
         labels["orphan_directory"] = len(data)

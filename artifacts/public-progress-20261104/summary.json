@@ -1,0 +1,20 @@
+{
+  "schema_version": "mdd.public-progress.v1",
+  "source_checkpoint": "71dfce9f81558e5f5af881cfeac62f8a38ab577e",
+  "scope": "Committed source and synthetic test fixtures; private and machine-specific execution records excluded. Uncommitted working-tree changes excluded.",
+  "implementation_state": "in_progress",
+  "profiles_admitted": false,
+  "task_state": "See tasks/backlog.json; MDD-022 remains in_progress and its downstream dependency is not qualified.",
+  "targeted_observations": {
+    "scoped_entity_checks": "21 passed on final combined Windows debug sources",
+    "sql_aggregate_and_related": "14 aggregate, 4 scalar materialization and 1 shared ToSql wrapper tests passed on Windows debug sources",
+    "annotation_signature": "10 signature-filtered tests passed on Windows debug sources",
+    "synchronous_member_binding": "6 focused tests passed; 6 repeated in optimized Python; 6 existing regressions passed"
+  },
+  "boundaries": [
+    "No full-workspace, cross-platform, real HostLab replacement or formal performance qualification is asserted by this publication.",
+    "Producer snapshot identity remains unproven by the optional physical-member callback.",
+    "Raw execution records and private inputs are retained locally and are not included in this progress snapshot.",
+    "Previous public repository history is not rewritten by this snapshot."
+  ]
+}

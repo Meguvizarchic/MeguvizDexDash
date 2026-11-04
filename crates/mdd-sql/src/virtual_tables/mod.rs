@@ -13,6 +13,11 @@ use std::{
     ffi::{CStr, CString, c_int},
     sync::Arc,
 };
+#[cfg(test)]
+thread_local! {
+    pub(crate) static TEST_CONNECTS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    pub(crate) static TEST_OPENS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
 
 pub(crate) struct Source {
     pub provider: Arc<dyn SqlFactProvider>,
@@ -58,6 +63,8 @@ unsafe impl<'vtab> VTab<'vtab> for FactTable {
         _: &[u8],
         _: &[&[u8]],
     ) -> Result<(Cow<'static, CStr>, Self)> {
+        #[cfg(test)]
+        TEST_CONNECTS.with(|count| count.set(count.get() + 1));
         let source = Arc::clone(aux.ok_or_else(|| error(crate::invalid("MISSING_FACT_PROVIDER")))?);
         let columns = source
             .relation
@@ -101,6 +108,8 @@ unsafe impl<'vtab> VTab<'vtab> for FactTable {
         Ok(true)
     }
     fn open(&mut self) -> Result<Cursor> {
+        #[cfg(test)]
+        TEST_OPENS.with(|count| count.set(count.get() + 1));
         let lease = self.source.control.reserve_cursor().map_err(error)?;
         Ok(Cursor {
             base: ffi::sqlite3_vtab_cursor::default(),

@@ -25,7 +25,7 @@
   ],
   "benchmark_runs": [],
   "qualifications": [],
-  "note": "Actual development records; no HostLab, full-format or performance qualification is implied.",
+  "note": "Published records plus sanitized progress summary; private local run records are excluded. No new qualification is implied.",
   "development_records": [
     {
       "path": "artifacts/bootstrap/20261028/environment.json",
@@ -29306,6 +29306,16 @@
       "path": "artifacts/mdd-034/supervisor-1/stdout.txt",
       "bytes": 2345,
       "sha256": "9d586d7a5e7ecdf0efca487cdb801024af42c69e4c135e21417f4fbacd94cf1e"
+    },
+    {
+      "path": "artifacts/mdd-022/signature-type-search-20261101/no-signature-shared-empty.dex",
+      "bytes": 1464,
+      "sha256": "bf1a909bcaa573ee6d13ede850aaf201b63acf2317005825bb85a5211b470b3c"
+    },
+    {
+      "path": "artifacts/public-progress-20261104/summary.json",
+      "bytes": 1379,
+      "sha256": "0d25bf82791654711b12a98e464d1f06c8becb016e55bfdc86f16aa2545e516a"
     }
   ]
 }

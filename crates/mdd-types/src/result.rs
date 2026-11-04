@@ -56,6 +56,14 @@ impl TerminalBuilder {
             Ok(())
         }
     }
+    /// A producer may bind only a builder that has not recorded batches or a terminal.
+    pub fn is_pristine(&self) -> bool {
+        self.emitted == 0
+            && self.next_sequence == 0
+            && !self.computed
+            && self.total.is_none()
+            && self.terminal.is_none()
+    }
     pub fn emitted_rows(&self) -> u64 {
         self.emitted
     }
@@ -160,14 +168,21 @@ impl TerminalBuilder {
         }
         self.envelope(None, false, Some(cursor), page_rows, data)
     }
-    pub fn succeed(&mut self, data: Option<Map<String, Value>>) -> MddResult<ResultEnvelope> {
+    fn success_envelope(&self, data: Option<Map<String, Value>>) -> MddResult<ResultEnvelope> {
         self.active()?;
         if !self.computed || self.total != Some(self.emitted) {
             return Err(invalid(
                 "success requires computation and all exact rows delivered",
             ));
         }
-        let envelope = self.envelope(None, false, None, self.emitted, data)?;
+        self.envelope(None, false, None, self.emitted, data)
+    }
+    /// Verify success can be constructed without exposing or committing an envelope.
+    pub fn validate_success(&self) -> MddResult<()> {
+        self.success_envelope(None).map(|_| ())
+    }
+    pub fn succeed(&mut self, data: Option<Map<String, Value>>) -> MddResult<ResultEnvelope> {
+        let envelope = self.success_envelope(data)?;
         self.terminal = Some(envelope.clone());
         Ok(envelope)
     }
@@ -179,10 +194,24 @@ impl TerminalBuilder {
     ) -> MddResult<ResultEnvelope> {
         self.active()?;
         let truncated = dropped_output || self.total.is_some_and(|total| self.emitted < total);
-        let error = error
-            .detail("emitted_rows", self.emitted.to_string())
-            .detail("execution_complete", self.computed)
-            .detail("scope_id", self.coverage.scope_id.clone());
+        let error = append_terminal_detail(
+            error,
+            "emitted_rows",
+            "terminal_emitted_rows_",
+            Value::String(self.emitted.to_string()),
+        );
+        let error = append_terminal_detail(
+            error,
+            "execution_complete",
+            "terminal_execution_complete_",
+            Value::Bool(self.computed),
+        );
+        let error = append_terminal_detail(
+            error,
+            "scope_id",
+            "terminal_scope_id_",
+            Value::String(self.coverage.scope_id.clone()),
+        );
         let envelope = self.envelope(Some(error), truncated, None, self.emitted, data)?;
         self.terminal = Some(envelope.clone());
         Ok(envelope)
@@ -190,6 +219,29 @@ impl TerminalBuilder {
     pub fn terminal(&self) -> Option<&ResultEnvelope> {
         self.terminal.as_ref()
     }
+}
+
+fn append_terminal_detail(mut error: MddError, name: &str, prefix: &str, value: Value) -> MddError {
+    match error.details.get(name) {
+        None => {
+            error.details.insert(name.to_owned(), value);
+            return error;
+        }
+        Some(existing) if existing == &value => return error,
+        Some(_) => (),
+    }
+    // Keep existing diagnostics intact even if they already use our fallback names.
+    let Some(attempts) = error.details.len().checked_add(1) else {
+        return error;
+    };
+    for ordinal in 0..attempts {
+        let candidate = format!("{prefix}{ordinal}");
+        if !error.details.contains_key(&candidate) {
+            error.details.insert(candidate, value);
+            return error;
+        }
+    }
+    error
 }
 
 /// A verified envelope still needs its scope manifest verified by the consuming integration.
@@ -317,7 +369,14 @@ impl StreamVerifier {
             self.fault = Some(error.clone());
             return Err(error);
         }
-        if envelope.is_complete_result()
+        // Check the final delivery claim independently from the complete-result
+        // predicate: a stricter predicate must not hide a contradictory exact
+        // total. Pages and error/truncated responses retain their own semantics.
+        if envelope.operation_status == OperationStatus::Ok
+            && envelope.execution.complete
+            && !envelope.response.truncated
+            && !envelope.response.more_available
+            && envelope.response.next_cursor.is_none()
             && envelope.response.total_rows_exact
             && envelope.response.total_rows != Some(DecimalU64(self.rows))
         {
@@ -412,6 +471,130 @@ mod tests {
     }
     fn verifier() -> StreamVerifier {
         StreamVerifier::new(identity(), "scope".into(), vec!["structure".into()]).unwrap()
+    }
+    #[test]
+    fn complete_result_requires_an_exact_matching_total() {
+        let mut builder = TerminalBuilder::new(identity(), coverage()).unwrap();
+        builder.computation_complete(1).unwrap();
+        builder.record_batch(0, 1).unwrap();
+        let valid = builder.succeed(None).unwrap();
+        assert!(valid.is_complete_result());
+
+        let mut inexact = valid.clone();
+        inexact.response.total_rows = None;
+        inexact.response.total_rows_exact = false;
+        inexact.validate().unwrap();
+        assert!(!inexact.is_complete_result());
+        let mut receiver = verifier();
+        receiver.batch(0, "rows-v1", 1).unwrap();
+        receiver.terminal(inexact).unwrap();
+        assert!(!receiver.finish().unwrap().is_complete_result());
+
+        let mut mismatch = valid;
+        mismatch.response.total_rows = Some(DecimalU64(2));
+        mismatch.validate().unwrap();
+        assert!(!mismatch.is_complete_result());
+        let mut receiver = verifier();
+        receiver.batch(0, "rows-v1", 1).unwrap();
+        assert_eq!(
+            receiver.terminal(mismatch).unwrap_err().code,
+            ErrorCode::InvalidArgument
+        );
+
+        let mut page = TerminalBuilder::new(identity(), coverage()).unwrap();
+        page.computation_complete(2).unwrap();
+        page.record_batch(0, 1).unwrap();
+        let page = page.page(1, "cursor".into(), None).unwrap();
+        page.validate().unwrap();
+        assert!(!page.is_complete_result());
+        let mut receiver = verifier();
+        receiver.batch(0, "rows-v1", 1).unwrap();
+        receiver.terminal(page).unwrap();
+        assert!(!receiver.finish().unwrap().is_complete_result());
+    }
+    #[test]
+    fn exact_total_larger_than_delivered_is_not_complete() {
+        let mut builder = TerminalBuilder::new(identity(), coverage()).unwrap();
+        builder.computation_complete(1).unwrap();
+        builder.record_batch(0, 1).unwrap();
+        let mut mismatch = builder.succeed(None).unwrap();
+        mismatch.response.total_rows = Some(DecimalU64(2));
+        mismatch.validate().unwrap();
+        assert!(!mismatch.is_complete_result());
+    }
+    #[test]
+    fn blocking_warning_cannot_be_a_complete_result() {
+        let mut builder = TerminalBuilder::new(identity(), coverage()).unwrap();
+        builder.computation_complete(0).unwrap();
+        let mut result = builder.succeed(None).unwrap();
+        result.warnings.push(crate::Issue {
+            layer: "delivery".into(),
+            reason: "consumer could not establish complete delivery".into(),
+            blocking: false,
+            entity_id: None,
+            member_id: None,
+            range: None,
+            details: None,
+        });
+        result.validate().unwrap();
+        assert!(result.is_complete_result());
+        result.warnings[0].blocking = true;
+        result.validate().unwrap();
+        assert!(!result.is_complete_result());
+        let mut receiver = verifier();
+        receiver.terminal(result).unwrap();
+        assert!(!receiver.finish().unwrap().is_complete_result());
+    }
+    #[test]
+    fn pristine_builder_rejects_even_a_recorded_zero_row_batch() {
+        let mut fresh = TerminalBuilder::new(identity(), coverage()).unwrap();
+        assert!(fresh.is_pristine());
+        fresh.record_batch(0, 0).unwrap();
+        assert!(!fresh.is_pristine());
+
+        let mut computed = TerminalBuilder::new(identity(), coverage()).unwrap();
+        computed.computation_complete(0).unwrap();
+        assert!(!computed.is_pristine());
+        computed.succeed(None).unwrap();
+        assert!(!computed.is_pristine());
+    }
+    #[test]
+    fn success_validation_does_not_commit_and_can_be_followed_by_failure() {
+        let mut builder = TerminalBuilder::new(identity(), coverage()).unwrap();
+        builder.computation_complete(0).unwrap();
+        builder.validate_success().unwrap();
+        assert!(builder.terminal().is_none());
+        let end = builder
+            .fail(
+                MddError::new(ErrorCode::DeadlineExceeded, "test", "delivery deadline"),
+                false,
+                None,
+            )
+            .unwrap();
+        assert_eq!(end.error.unwrap().code, ErrorCode::DeadlineExceeded);
+        assert!(end.execution.complete);
+        assert!(!builder.terminal().unwrap().is_complete_result());
+    }
+    #[test]
+    fn failure_terminal_preserves_existing_error_details() {
+        let mut builder = TerminalBuilder::new(identity(), coverage()).unwrap();
+        builder.record_batch(0, 2).unwrap();
+        let prior = MddError::new(ErrorCode::QuotaExceeded, "source", "quota")
+            .detail("emitted_rows", "original")
+            .detail("terminal_emitted_rows_0", "collision")
+            .detail("execution_complete", "source-value")
+            .detail("scope_id", "source-scope");
+        let end = builder.fail(prior.clone(), false, None).unwrap();
+        let error = end.error.unwrap();
+        assert_eq!(error.code, prior.code);
+        assert_eq!(error.stage, prior.stage);
+        assert_eq!(error.message, prior.message);
+        for (name, value) in &prior.details {
+            assert_eq!(error.details.get(name), Some(value));
+        }
+        assert_eq!(error.details["terminal_emitted_rows_1"], "2");
+        assert_eq!(error.details["terminal_execution_complete_0"], false);
+        assert_eq!(error.details["terminal_scope_id_0"], "scope");
     }
     #[test]
     fn part_rows_error_and_eof_never_complete() {

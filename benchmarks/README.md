@@ -5,8 +5,8 @@
 实际可用命令（工作目录为工程根）：
 
 ```powershell
-& 'C:\Users\Administrator\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' benchmarks/run-existing-baselines.py --self-test
-& 'C:\Users\Administrator\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' benchmarks/run-existing-baselines.py --preflight --output artifacts/mdd-005/preflight.json
+python benchmarks/run-existing-baselines.py --self-test
+python benchmarks/run-existing-baselines.py --preflight --output artifacts/mdd-005/preflight.json
 ```
 
 前一命令仅测试严格 JSON、完整结果消费和 canonical 规则。后一命令派给隔离baseline-venv中的真实preflight，核验固定来源/版本/SDK/静态导入，私有输入只按根代理完整SHA取得回执及未变stat核对，不做分析。`ready_for_qualification_window` 只表示准备完成，不能签发正式性能资格。
@@ -19,9 +19,35 @@ Windows Job监督已用微小父/孙进程实际验证：挂起创建、入Job�
 
 A2已实测A1原生MCP的12工具与query compact参数，未打开数据集；现有完整audit是CLI shape/hex/marker消费者，CLI无compact开关。完整MCP适配及20组结果等价尚未取得，A2不准入完整审计分母，不能只因存在compact就称最佳现成路径已验证。
 
+候选生命周期适配器对同时出现的文本和结构化回执按 JSON 类型逐项比对，打开后的列表回读也使用同样规则；布尔、整数和浮点数不能因 Python 相等规则而混同，非 JSON 值和非有限数字被拒绝。合成回归见 `artifacts/mdd-005/a2-lifecycle-json-20261030/`；该检查不建立真实生产者快照或 A2 资格，也不单独限制 JSON 解析时的内存。
+
 未来 driver 用参数数组执行，禁止 shell 字符串；其单个 `mdd.benchmark-output.v1` JSON 包含 `input_manifest`、稳定 `request_key`、`row_schema`、`comparison_mode`、`final_dto`、`fallback_count`、最终 `mdd.result.v1`。只有 input/facts complete、计算完成、全部交付、无截断/剩余cursor、零fallback及完全物化才可进入结果比较。输入manifest保留有序 occurrence，业务DTO与原始代码/资源指纹均不得删除。
 
+当前通用读取器尚无按工作负载核验嵌套 DTO 完整消费的实现，因此 `structured` 模式明确拒绝资格；不能仅凭响应中自报的行数证明 DTO 完整。`ordered`／`bag` 保持现有完整行数检查。此限制不改变最终验收，结构化验证器仍须后续实现。
+
+消费者检查查询身份、覆盖范围和结果 schema 字段是否存在，并拒绝重复事实层；这些字段存在并不证明 scope manifest 与实际输入匹配，实际来源绑定仍需独立验证。限定自检见 `artifacts/mdd-005/result-identity-20261030/`。
+
+`consume` 还要求调用方传入独立可信的 `expected_identity`，逐项匹配请求、查询、快照、范围、profile 和响应 schema 等身份。当前只有模块自测调用；匹配结果不认证期望值本身，也不能替代输入清单和实际分页消费证据，见 `artifacts/mdd-005/result-identity-binding-20261030/`。
+
+`scope_commitment.py` 可用调用方独立核验的有序输入与 DEX 清单、快照身份及捕获来源数检查 v1 预像和摘要；输入数、DEX 数及捕获来源数分别受条目额度限制。该检查不认证这些外部依据，也不证明覆盖、事实完整或结果交付，因此尚不授予基准资格。
+
+`snapshot_commitment.py` 可对照调用方独立提供的来源摘要、长度、种类和顺序，检查捕获清单并重算内容键；同内容的多次输入仍逐次保留。快照句柄和输入身份的可信性需另行建立，清单一致不证明生产者确实使用该快照或所有成员和页面已消费。
+
+`capture_scope_binding.py` 将上述捕获清单与 scope 预像的期望输入按 ordinal 和摘要关联，允许显式子范围；`all_captured_sources_selected` 只表示捕获来源均被选择，不表示所选策略覆盖了全部成员或事实。清单和 DEX 成员期望仍必须由调用方独立核验。
+
+结果信封及 coverage、execution、response 对象按现有契约检查必需和未知字段；结构检查不能替代实际 scope manifest、快照或工作负载证明。合成反例见 `artifacts/mdd-005/result-envelope-shape-20261030/`。
+
+覆盖问题与警告按结果契约检查必需字段、可选身份和数据类型；畸形或阻断性诊断不能作为完整输出，合成检查见 `artifacts/mdd-005/diagnostic-contract-20261030/`。此检查不证明诊断内容已覆盖所有真实错误。
+
+当前 `ordered`／`bag` 读取器要求有序列描述中的 ordinal 从零连续、type 非空，并要求每行是与列数一致的数组；形状检查不验证单元格类型、语义或来源。局部反例见 `artifacts/mdd-005/row-shape-20261030/`，真实工作负载的 schema 和完整性仍需单独冻结验证。
+
 `mdd-canonical-json-v1` 使用 UTF-8 严格 JSON、对象键按 Unicode 标量排序、无空白、数组保持次序。NULL、bool、整数、文本类型分明；拒绝浮点隐式编码、孤立代理和超 i64/u64 整数。原始位型、bytes和DEX文本必须先由稳定DTO标签编码。bag模式仅排序完整 typed row，重复行保留；ordered模式不排序。该保守codec是基准工具范围，不代替引擎未来的值codec。
+
+`compare_complete_rows` 在两侧分别经过现有完整物化检查后，定位有序结果或 bag 结果的首个不同单元格、行数、列 schema 或其余上下文；bag 的行号是规范化排序后的序号。不同操作不会被报告为相等；比较时覆盖层按集合规范化，原始 v1 摘要仍分别保留，不能把两种摘要混作同一编码版本。列表顺序不同时会重新进行规范化和摘要计算，后续测量需计入该工作。该诊断仍依赖调用者独立提供可信身份，不校验单元格与 schema 的类型一致性，不认证真实分页消费或来源，也不授予审计／性能资格。合成边界和现有自检见 `artifacts/mdd-005/row-difference-20261101/` 和 `artifacts/mdd-005/required-layer-order-20261101/`。
+
+调用方可用明确的唯一列 ID 指定来源列；差异记录按各侧结果返回这些列值，并在可无歧义识别时附稳定差异列 ID。返回的是调用方指定的行值而非经认证的来源证明；bag 中左右两行是规范排序位置，不保证实体配对。局部合成检查见 `artifacts/mdd-005/row-difference-provenance-20261101/`。
+
+比较器可选接收独立可信的原生 QueryIR schema、两侧 occurrence 清单与显式额度，检查行宽、NULL/列类型、有符号和无符号边界、UTF-16 code units、规范 base64 和实体来源身份；还可选提供两侧独立可信的实体名册，按 occurrence、引用／定义种类和本地索引核对成员，并显式限制实体名册条目数。实体名册以 tuple 提供，逐项核验并拒绝重复后才建立成员集合。未提供相应契约时沿用原有通用比较。此校验只适用于当前原生类型化 JSON 行，不覆盖旧版 SQL DTO；occurrence 清单大小不受实体名册额度约束，清单及名册的真实性、实际输入覆盖和分页交付仍须另证，逻辑额度也不是 RSS 上限。合成检查见 `artifacts/mdd-005/native-typed-rows-20261101/` 与 `artifacts/mdd-005/native-entity-roster-20261101/`。
 
 正式性能区间使用同输入/规则/最终DTO/缓存/总线程预算的交替配对，至少10对并在第二独立时间块复测；失败、超时、污染均保留。版本中位比与配对中位比分开，不由少样本生成p95。当前资格driver的E包含本地APK SDK身份/copy与原静态消费，缺少HF元数据/下载路径；与历史Linux E不是同一无条件窗口，必须独立登记归因与重校准。E/P/S/F/R/O不把重叠producer/consumer相加。历史37%/47%仅是条件目标。
 

@@ -1,6 +1,11 @@
 //! Snapshot-bound code layout facts; method ownership is a separate definition layer.
-use crate::MetadataSource;
+use crate::{
+    MetadataSource,
+    definitions::{DefinitionFacts, MethodFactView, MethodFactViews, MethodViewLimits},
+    metadata::EntityRef,
+};
 use mdd_dex::{
+    definitions::MethodBody,
     instructions::{
         CodeItem, CodeLimits, CodeSection, DebugPolicy, read_code_offsets, read_code_section,
     },
@@ -32,11 +37,392 @@ impl CodeFact {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::MetadataFacts;
+    use mdd_dex::{definitions::DefinitionLimits, strings::StringLimits};
     use mdd_input::{
         archive::{ArchiveLimits, InventoryPolicy},
         snapshot::{CaptureLimits, InputKind, InputSpec},
     };
     use std::fs;
+
+    #[test]
+    fn method_code_views_bind_exact_source_and_distinguish_body_states() {
+        fn build(
+            name: &str,
+        ) -> (
+            Snapshot,
+            Vec<ArchiveInventory>,
+            Vec<DefinitionFacts>,
+            Vec<CodeFacts>,
+        ) {
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../tests/fixtures/definitions/generated")
+                .join(name);
+            let input = InputSpec {
+                path,
+                kind: InputKind::RawDex,
+                expected_sha256: None,
+            };
+            let snapshot =
+                Snapshot::capture(&[input.clone(), input], CaptureLimits::default()).unwrap();
+            let inventories: Vec<_> = snapshot
+                .sources()
+                .iter()
+                .map(|source| {
+                    ArchiveInventory::build(
+                        source,
+                        InventoryPolicy::default(),
+                        ArchiveLimits::default(),
+                    )
+                    .unwrap()
+                })
+                .collect();
+            let definitions = inventories
+                .iter()
+                .map(|inventory| {
+                    let metadata =
+                        MetadataFacts::build(&snapshot, inventory, 0, StringLimits::default())
+                            .unwrap();
+                    DefinitionFacts::build(metadata, DefinitionLimits::default()).unwrap()
+                })
+                .collect();
+            let code = inventories
+                .iter()
+                .map(|inventory| {
+                    CodeFacts::build_all_code_items(&snapshot, inventory, 0, CodeLimits::default())
+                        .unwrap()
+                })
+                .collect();
+            (snapshot, inventories, definitions, code)
+        }
+        let (snapshot, inventories, definitions, codes) = build("definitions-035.dex");
+        for ordinal in 0..2 {
+            let view = MethodCodeFactViews::build(
+                &definitions[ordinal],
+                &codes[ordinal],
+                MethodCodeViewLimits::default(),
+            )
+            .unwrap();
+            let rows = view.iter().collect::<MddResult<Vec<_>>>().unwrap();
+            for row in &rows {
+                use crate::metadata::EntityKind;
+                let identity = definitions[ordinal]
+                    .entity(EntityKind::MethodReference, row.method.reference.method_idx)
+                    .unwrap();
+                let direct = view.get(&identity).unwrap();
+                assert_eq!(
+                    direct.method.reference.method_idx,
+                    row.method.reference.method_idx
+                );
+                match (&direct.body, &row.body) {
+                    (MethodCodeBody::ReferenceOnly, MethodCodeBody::ReferenceOnly)
+                    | (MethodCodeBody::Native, MethodCodeBody::Native)
+                    | (MethodCodeBody::Abstract, MethodCodeBody::Abstract) => (),
+                    (
+                        MethodCodeBody::Present {
+                            code: a,
+                            raw_insns: aa,
+                        },
+                        MethodCodeBody::Present {
+                            code: b,
+                            raw_insns: bb,
+                        },
+                    ) => {
+                        assert_eq!(a.code_item_id(), b.code_item_id());
+                        assert_eq!(aa, bb);
+                    }
+                    _ => panic!("direct lookup changed body state"),
+                }
+                let definition = EntityRef {
+                    kind: EntityKind::MethodDefinition,
+                    ..identity.clone()
+                };
+                assert_eq!(
+                    view.get(&definition).is_ok(),
+                    row.method.definition.is_some()
+                );
+                let foreign = EntityRef {
+                    dex_occurrence_id: "foreign".into(),
+                    ..identity
+                };
+                assert_eq!(
+                    view.get(&foreign).err().unwrap().code,
+                    ErrorCode::InvalidArgument
+                );
+            }
+            assert_eq!(
+                rows.len(),
+                definitions[ordinal].definitions().method_references.len()
+            );
+            assert!(rows.iter().all(|row| row.method.source.dex_occurrence_id
+                == codes[ordinal].source().dex_occurrence_id));
+            assert!(matches!(
+                rows.iter()
+                    .find(|r| r.method.reference.method_name == "externalCall")
+                    .unwrap()
+                    .body,
+                MethodCodeBody::ReferenceOnly
+            ));
+            assert!(matches!(
+                rows.iter()
+                    .find(|r| r.method.reference.method_name == "nativeCall")
+                    .unwrap()
+                    .body,
+                MethodCodeBody::Native
+            ));
+            assert!(matches!(
+                rows.iter()
+                    .find(|r| r.method.reference.method_name == "abstractCall")
+                    .unwrap()
+                    .body,
+                MethodCodeBody::Abstract
+            ));
+            let reference = rows
+                .iter()
+                .find(|r| r.method.reference.method_name == "externalCall")
+                .unwrap();
+            assert!(reference.body.decoded_opcode_bytes().is_none());
+            assert_eq!(
+                reference
+                    .body
+                    .opcode_text(OpcodeTextLimits::default())
+                    .unwrap(),
+                None
+            );
+            for name in ["nativeCall", "abstractCall"] {
+                let body = &rows
+                    .iter()
+                    .find(|r| r.method.reference.method_name == name)
+                    .unwrap()
+                    .body;
+                assert_eq!(body.decoded_opcode_bytes().unwrap().count(), 0);
+                assert_eq!(
+                    body.opcode_text(OpcodeTextLimits {
+                        max_opcodes: 0,
+                        max_text_bytes: 0
+                    })
+                    .unwrap(),
+                    Some(OpcodeText {
+                        count: 0,
+                        text: String::new()
+                    })
+                );
+            }
+            let init = rows
+                .iter()
+                .find(|r| r.method.reference.method_name == "<init>")
+                .unwrap();
+            assert_eq!(
+                init.body.opcode_text(OpcodeTextLimits::default()).unwrap(),
+                Some(OpcodeText {
+                    count: 2,
+                    text: "70 0e".into()
+                })
+            );
+            assert_eq!(
+                init.body
+                    .opcode_text(OpcodeTextLimits {
+                        max_opcodes: 1,
+                        max_text_bytes: 5
+                    })
+                    .unwrap_err()
+                    .code,
+                ErrorCode::QuotaExceeded
+            );
+            assert_eq!(
+                init.body
+                    .opcode_text(OpcodeTextLimits {
+                        max_opcodes: 2,
+                        max_text_bytes: 4
+                    })
+                    .unwrap_err()
+                    .code,
+                ErrorCode::QuotaExceeded
+            );
+            assert_eq!(
+                init.body
+                    .opcode_text(OpcodeTextLimits {
+                        max_opcodes: 2,
+                        max_text_bytes: 5
+                    })
+                    .unwrap()
+                    .unwrap()
+                    .text,
+                "70 0e"
+            );
+            let present = rows
+                .iter()
+                .find(|r| r.method.reference.method_name == "virtualCall")
+                .unwrap();
+            let MethodCodeBody::Present { code, raw_insns } = &present.body else {
+                panic!("present body lost")
+            };
+            assert_eq!(
+                raw_insns.len() as u64,
+                code.data().insns_range.byte_length.0
+            );
+            assert_eq!(*raw_insns, &[0x0e, 0]);
+            assert_eq!(
+                present
+                    .body
+                    .decoded_opcode_bytes()
+                    .unwrap()
+                    .collect::<Vec<_>>(),
+                [0x0e]
+            );
+        }
+        assert_ne!(
+            codes[0].source().dex_occurrence_id,
+            codes[1].source().dex_occurrence_id
+        );
+        assert_eq!(
+            MethodCodeFactViews::build(&definitions[0], &codes[1], MethodCodeViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InvalidArgument
+        );
+        let projection =
+            CodeFacts::build_offsets(&snapshot, &inventories[0], 0, &[], CodeLimits::default())
+                .unwrap();
+        assert_eq!(
+            MethodCodeFactViews::build(
+                &definitions[0],
+                &projection,
+                MethodCodeViewLimits::default()
+            )
+            .err()
+            .unwrap()
+            .code,
+            ErrorCode::IncompleteFacts
+        );
+        let mut partial = codes[0].clone();
+        partial.code_layout_coverage = Completeness::Partial;
+        assert_eq!(
+            MethodCodeFactViews::build(&definitions[0], &partial, MethodCodeViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::IncompleteFacts
+        );
+        let mut wrong_start = definitions[0].clone();
+        let method = wrong_start
+            .definitions
+            .method_definitions
+            .iter_mut()
+            .find(|method| matches!(method.body, MethodBody::Present { .. }))
+            .unwrap();
+        let MethodBody::Present {
+            code_byte_offset, ..
+        } = &mut method.body
+        else {
+            unreachable!()
+        };
+        *code_byte_offset = DecimalU64(1);
+        assert_eq!(
+            MethodCodeFactViews::build(&wrong_start, &codes[0], MethodCodeViewLimits::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InvalidInput
+        );
+        for limits in [
+            MethodCodeViewLimits {
+                max_code_items: 0,
+                ..MethodCodeViewLimits::default()
+            },
+            MethodCodeViewLimits {
+                max_code_index_bytes: 0,
+                ..MethodCodeViewLimits::default()
+            },
+        ] {
+            assert_eq!(
+                MethodCodeFactViews::build(&definitions[0], &codes[0], limits)
+                    .err()
+                    .unwrap()
+                    .code,
+                ErrorCode::QuotaExceeded
+            );
+        }
+        let (_, _, zero_definitions, zero_codes) = build("zero-insns-present.dex");
+        let zero = MethodCodeFactViews::build(
+            &zero_definitions[0],
+            &zero_codes[0],
+            MethodCodeViewLimits::default(),
+        )
+        .unwrap();
+        let empty = zero
+            .iter()
+            .find_map(|row| {
+                let row = row.unwrap();
+                (row.method.reference.method_name == "privateCall").then_some(row)
+            })
+            .unwrap();
+        assert_eq!(empty.body.decoded_opcode_bytes().unwrap().count(), 0);
+        assert_eq!(
+            empty.body.opcode_text(OpcodeTextLimits::default()).unwrap(),
+            Some(OpcodeText {
+                count: 0,
+                text: String::new()
+            })
+        );
+        assert!(matches!(
+            empty.body,
+            MethodCodeBody::Present { raw_insns: [], .. }
+        ));
+    }
+
+    #[test]
+    fn decoded_opcode_iteration_excludes_payload_words() {
+        for (name, expected) in [
+            ("packed-switch.dex", 0x2b),
+            ("sparse-switch.dex", 0x2c),
+            ("fill-array.dex", 0x26),
+        ] {
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../tests/fixtures/instructions/generated")
+                .join(name);
+            let snapshot = Snapshot::capture(
+                &[InputSpec {
+                    path,
+                    kind: InputKind::RawDex,
+                    expected_sha256: None,
+                }],
+                CaptureLimits::default(),
+            )
+            .unwrap();
+            let inventory = ArchiveInventory::build(
+                &snapshot.sources()[0],
+                InventoryPolicy::default(),
+                ArchiveLimits::default(),
+            )
+            .unwrap();
+            let code =
+                CodeFacts::build_all_code_items(&snapshot, &inventory, 0, CodeLimits::default())
+                    .unwrap();
+            assert_eq!(code.items()[0].data().payloads.len(), 1);
+            let body = MethodCodeBody::Present {
+                code: &code.items()[0],
+                raw_insns: code.raw_insns(0).unwrap(),
+            };
+            assert_eq!(
+                body.decoded_opcode_bytes().unwrap().collect::<Vec<_>>(),
+                [expected, 0x0e]
+            );
+            assert_eq!(
+                body.opcode_text(OpcodeTextLimits::default())
+                    .unwrap()
+                    .unwrap(),
+                OpcodeText {
+                    count: 2,
+                    text: format!("{expected:02x} 0e")
+                }
+            );
+            assert!(
+                code.raw_insns(0).unwrap().len() > 2 * body.decoded_opcode_bytes().unwrap().count()
+            );
+        }
+    }
 
     #[test]
     fn all_hand_fixtures_match_independent_python_oracle_fields_and_raw_bytes() {
@@ -464,5 +850,284 @@ impl CodeFacts {
             )
         })?;
         self.bytes_in(&item.data.raw_range)
+    }
+}
+
+/// Logical join limits. These are not an allocator or process RSS bound.
+#[derive(Clone, Copy, Debug)]
+pub struct MethodCodeViewLimits {
+    pub methods: MethodViewLimits,
+    pub max_code_items: u64,
+    pub max_code_index_bytes: u64,
+}
+impl Default for MethodCodeViewLimits {
+    fn default() -> Self {
+        Self {
+            methods: MethodViewLimits::default(),
+            max_code_items: 4_000_000,
+            max_code_index_bytes: 256 * 1024 * 1024,
+        }
+    }
+}
+
+/// These variants distinguish a reference from actual definitions without bodies.
+/// `Present` contains exact validated code facts, not a legacy opcode projection.
+pub enum MethodCodeBody<'a> {
+    ReferenceOnly,
+    Native,
+    Abstract,
+    Present {
+        code: &'a CodeFact,
+        raw_insns: &'a [u8],
+    },
+}
+
+/// Logical limits for a single opcode text projection; not an RSS bound.
+#[derive(Clone, Copy, Debug)]
+pub struct OpcodeTextLimits {
+    pub max_opcodes: u64,
+    pub max_text_bytes: u64,
+}
+impl Default for OpcodeTextLimits {
+    fn default() -> Self {
+        Self {
+            max_opcodes: 4_000_000,
+            max_text_bytes: 12_000_000,
+        }
+    }
+}
+
+/// Exact ordinary-instruction count and lower-case hexadecimal text, in order.
+/// The underlying `MethodCodeBody` retains the specific definition/body state.
+#[derive(Debug, Eq, PartialEq)]
+pub struct OpcodeText {
+    pub count: u32,
+    pub text: String,
+}
+
+impl MethodCodeBody<'_> {
+    /// Iterates decoded ordinary-instruction opcode bytes in code-unit order.
+    /// Payloads are separately represented by `CodeItem::payloads` and are not
+    /// instructions. The original body variant still distinguishes native,
+    /// abstract and present-empty; a reference has no defined opcode sequence.
+    /// This is not a legacy hexadecimal rendering or a profile qualification.
+    pub fn decoded_opcode_bytes(&self) -> Option<impl ExactSizeIterator<Item = u8> + '_> {
+        let instructions: &[mdd_dex::instructions::Instruction] = match self {
+            Self::ReferenceOnly => return None,
+            Self::Native | Self::Abstract => &[],
+            Self::Present { code, .. } => &code.data().instructions,
+        };
+        Some(instructions.iter().map(|instruction| instruction.opcode))
+    }
+
+    /// Render ordinary opcodes as two lower-case hex digits separated by a
+    /// single space. Reference-only methods return None; native, abstract and
+    /// present-empty definitions return a zero count and empty text. Payload
+    /// words are not included. Limits cover logical opcode/text bytes only.
+    pub fn opcode_text(&self, limits: OpcodeTextLimits) -> MddResult<Option<OpcodeText>> {
+        let Some(opcodes) = self.decoded_opcode_bytes() else {
+            return Ok(None);
+        };
+        let quota = || {
+            MddError::new(
+                ErrorCode::QuotaExceeded,
+                "facts.opcode_text",
+                "opcode text projection budget exceeded",
+            )
+        };
+        let count = u64::try_from(opcodes.len()).map_err(|_| quota())?;
+        let count_u32 = u32::try_from(count).map_err(|_| quota())?;
+        let bytes = count
+            .checked_mul(3)
+            .and_then(|value| {
+                if count == 0 {
+                    Some(0)
+                } else {
+                    value.checked_sub(1)
+                }
+            })
+            .ok_or_else(quota)?;
+        if count > limits.max_opcodes || bytes > limits.max_text_bytes {
+            return Err(quota());
+        }
+        let mut text = String::new();
+        text.try_reserve_exact(usize::try_from(bytes).map_err(|_| quota())?)
+            .map_err(|_| quota())?;
+        const HEX: &[u8; 16] = b"0123456789abcdef";
+        for (ordinal, opcode) in opcodes.enumerate() {
+            if ordinal != 0 {
+                text.push(' ');
+            }
+            text.push(char::from(HEX[usize::from(opcode >> 4)]));
+            text.push(char::from(HEX[usize::from(opcode & 0x0f)]));
+        }
+        Ok(Some(OpcodeText {
+            count: count_u32,
+            text,
+        }))
+    }
+}
+pub struct MethodCodeFactView<'a> {
+    pub method: MethodFactView<'a>,
+    pub body: MethodCodeBody<'a>,
+}
+pub struct MethodCodeFactViews<'a> {
+    methods: MethodFactViews<'a>,
+    code: &'a CodeFacts,
+    code_index: Vec<usize>,
+}
+impl<'a> MethodCodeFactViews<'a> {
+    /// Bind complete same-occurrence definitions and code layout. A scoped code
+    /// projection is accepted only when every present method body is included.
+    pub fn build(
+        definitions: &'a DefinitionFacts,
+        code: &'a CodeFacts,
+        limits: MethodCodeViewLimits,
+    ) -> MddResult<Self> {
+        let source = definitions.metadata().source();
+        let actual = code.source();
+        if source.snapshot_id != actual.snapshot_id
+            || source.dex_occurrence_id != actual.dex_occurrence_id
+            || source.physical_dex_id != actual.physical_dex_id
+            || source.member_id != actual.member_id
+            || source.source_occurrence_id != actual.source_occurrence_id
+            || source.content_id != actual.content_id
+        {
+            return Err(MddError::new(
+                ErrorCode::InvalidArgument,
+                "facts.method_code",
+                "definitions and code do not bind the same source generation",
+            ));
+        }
+        if code.code_layout_coverage() != Completeness::Complete {
+            return Err(MddError::new(
+                ErrorCode::IncompleteFacts,
+                "facts.method_code",
+                "complete code layout for requested items is required",
+            ));
+        }
+        let methods = definitions.method_fact_views(limits.methods)?;
+        let count = u64::try_from(code.items().len()).map_err(|_| {
+            MddError::new(
+                ErrorCode::QuotaExceeded,
+                "facts.method_code",
+                "code index count overflow",
+            )
+        })?;
+        let bytes = count
+            .checked_mul(std::mem::size_of::<usize>() as u64)
+            .ok_or_else(|| {
+                MddError::new(
+                    ErrorCode::QuotaExceeded,
+                    "facts.method_code",
+                    "code index byte overflow",
+                )
+            })?;
+        if count > limits.max_code_items || bytes > limits.max_code_index_bytes {
+            return Err(MddError::new(
+                ErrorCode::QuotaExceeded,
+                "facts.method_code",
+                "code index budget exceeded",
+            ));
+        }
+        let mut code_index = Vec::new();
+        code_index
+            .try_reserve_exact(code.items().len())
+            .map_err(|_| {
+                MddError::new(
+                    ErrorCode::QuotaExceeded,
+                    "facts.method_code",
+                    "code index allocation failed",
+                )
+            })?;
+        code_index.extend(0..code.items().len());
+        code_index
+            .sort_unstable_by_key(|&ordinal| code.items()[ordinal].data().raw_range.byte_offset.0);
+        let view = Self {
+            methods,
+            code,
+            code_index,
+        };
+        // Fail before exposing any rows if a selected projection omitted a real body.
+        for method in view.methods.iter() {
+            view.body(&method?)?;
+        }
+        Ok(view)
+    }
+
+    fn body(&self, method: &MethodFactView<'a>) -> MddResult<MethodCodeBody<'a>> {
+        let Some(definition) = method.definition else {
+            return Ok(MethodCodeBody::ReferenceOnly);
+        };
+        match &definition.body {
+            MethodBody::Native => Ok(MethodCodeBody::Native),
+            MethodBody::Abstract => Ok(MethodCodeBody::Abstract),
+            MethodBody::Present {
+                code_byte_offset,
+                declared_insns_size,
+            } => {
+                let at = code_byte_offset.0;
+                if !self.code.known_code_item_start(at) {
+                    return Err(MddError::new(
+                        ErrorCode::InvalidInput,
+                        "facts.method_code",
+                        "method body is not a physical code item start",
+                    )
+                    .detail("method_idx", definition.method_idx.to_string())
+                    .detail("code_item_byte_offset", at.to_string()));
+                }
+                let position = self
+                    .code_index
+                    .binary_search_by_key(&at, |&ordinal| {
+                        self.code.items()[ordinal].data().raw_range.byte_offset.0
+                    })
+                    .map_err(|_| {
+                        MddError::new(
+                            ErrorCode::IncompleteFacts,
+                            "facts.method_code",
+                            "method body absent from selected code projection",
+                        )
+                        .detail("method_idx", definition.method_idx.to_string())
+                        .detail("code_item_byte_offset", at.to_string())
+                    })?;
+                let ordinal = self.code_index[position];
+                let code: &'a CodeFacts = self.code;
+                let item = &code.items()[ordinal];
+                let data = item.data();
+                let expected = u64::from(*declared_insns_size) * 2;
+                if data.insns_size_code_units != *declared_insns_size
+                    || data.insns_range.byte_length.0 != expected
+                    || at.checked_add(16) != Some(data.insns_range.byte_offset.0)
+                {
+                    return Err(MddError::new(
+                        ErrorCode::InternalFault,
+                        "facts.method_code",
+                        "definition and code instruction intervals disagree",
+                    ));
+                }
+                let raw_insns = code.raw_insns(ordinal)?;
+                Ok(MethodCodeBody::Present {
+                    code: item,
+                    raw_insns,
+                })
+            }
+        }
+    }
+
+    /// Look up a method identity in the already validated source-bound view.
+    /// Reference-only, native, abstract and present bodies remain distinct.
+    pub fn get(&self, entity: &EntityRef) -> MddResult<MethodCodeFactView<'a>> {
+        let method = self.methods.get(entity)?;
+        let body = self.body(&method)?;
+        Ok(MethodCodeFactView { method, body })
+    }
+
+    /// Iterate every method reference in DEX order, including reference-only rows.
+    pub fn iter(&self) -> impl Iterator<Item = MddResult<MethodCodeFactView<'a>>> + '_ {
+        self.methods.iter().map(|method| {
+            let method = method?;
+            let body = self.body(&method)?;
+            Ok(MethodCodeFactView { method, body })
+        })
     }
 }

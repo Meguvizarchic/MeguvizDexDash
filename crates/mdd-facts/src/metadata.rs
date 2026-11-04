@@ -1,7 +1,7 @@
 use mdd_dex::{
     DexHeader,
     strings::{DexString, StringLimits, read_string_pool},
-    types::{DexPrototype, DexType, read_types_and_prototypes},
+    types::{DexPrototype, DexType, parse_type_descriptor, read_types_and_prototypes},
     validate_header,
 };
 use mdd_input::{
@@ -68,6 +68,99 @@ pub struct TypeFact {
     pub data: DexType,
 }
 
+/// Logical UTF-8 byte limits for a single rendered type name, not RSS or a deadline.
+#[derive(Clone, Copy, Debug)]
+pub struct TypeNameLimits {
+    pub max_descriptor_bytes: u64,
+    pub max_output_bytes: u64,
+}
+impl Default for TypeNameLimits {
+    fn default() -> Self {
+        Self {
+            max_descriptor_bytes: 1024 * 1024,
+            max_output_bytes: 1024 * 1024,
+        }
+    }
+}
+
+/// A derived display name tied to the same validated type and source occurrence.
+/// The original descriptor and string-pool fact remain available unchanged.
+#[derive(Debug)]
+pub struct JavaTypeName<'a> {
+    pub source: &'a MetadataSource,
+    pub entity: &'a EntityRef,
+    pub value: String,
+}
+
+fn java_type_name_value(
+    descriptor: &str,
+    version: &str,
+    limits: TypeNameLimits,
+) -> MddResult<String> {
+    let quota = || {
+        MddError::new(
+            ErrorCode::QuotaExceeded,
+            "facts.type_name",
+            "type name byte budget exceeded",
+        )
+    };
+    let descriptor_bytes = u64::try_from(descriptor.len()).map_err(|_| quota())?;
+    if descriptor_bytes > limits.max_descriptor_bytes {
+        return Err(quota());
+    }
+    // Reuse the actual DEX grammar, including version-specific name rules and
+    // the 255-dimension limit; never replace invalid text or guess a name.
+    let shape = parse_type_descriptor(descriptor, version, true)?;
+    let rest = &descriptor[usize::from(shape.array_dimensions)..];
+    let primitive = match rest {
+        "Z" => Some("boolean"),
+        "B" => Some("byte"),
+        "S" => Some("short"),
+        "C" => Some("char"),
+        "I" => Some("int"),
+        "J" => Some("long"),
+        "F" => Some("float"),
+        "D" => Some("double"),
+        "V" => Some("void"),
+        _ => None,
+    };
+    let base = if let Some(name) = primitive {
+        name
+    } else {
+        rest.strip_prefix('L')
+            .and_then(|value| value.strip_suffix(';'))
+            .ok_or_else(|| {
+                MddError::new(
+                    ErrorCode::InternalFault,
+                    "facts.type_name",
+                    "validated type shape is inconsistent",
+                )
+            })?
+    };
+    let output_len = u64::try_from(base.len())
+        .ok()
+        .and_then(|bytes| bytes.checked_add(u64::from(shape.array_dimensions).checked_mul(2)?))
+        .ok_or_else(quota)?;
+    if output_len > limits.max_output_bytes {
+        return Err(quota());
+    }
+    let mut value = String::new();
+    value
+        .try_reserve_exact(usize::try_from(output_len).map_err(|_| quota())?)
+        .map_err(|_| quota())?;
+    if primitive.is_some() {
+        value.push_str(base);
+    } else {
+        for ch in base.chars() {
+            value.push(if ch == '/' { '.' } else { ch });
+        }
+    }
+    for _ in 0..shape.array_dimensions {
+        value.push_str("[]");
+    }
+    Ok(value)
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PrototypeFact {
     pub entity: EntityRef,
@@ -97,6 +190,47 @@ pub struct MetadataFacts {
 }
 
 impl MetadataFacts {
+    /// Render one validated type descriptor without losing source identity.
+    /// This is a generic display value, not a legacy SQL relation admission.
+    pub fn java_type_name(
+        &self,
+        type_ref: &EntityRef,
+        limits: TypeNameLimits,
+    ) -> MddResult<JavaTypeName<'_>> {
+        if self.metadata_coverage != Completeness::Complete {
+            return Err(MddError::new(
+                ErrorCode::IncompleteFacts,
+                "facts.type_name",
+                "complete type metadata is required",
+            ));
+        }
+        if type_ref.snapshot_id != self.source.snapshot_id
+            || type_ref.dex_occurrence_id != self.source.dex_occurrence_id
+            || type_ref.kind != EntityKind::Type
+        {
+            return Err(MddError::new(
+                ErrorCode::InvalidArgument,
+                "facts.type_name",
+                "type is foreign or has the wrong identity kind",
+            ));
+        }
+        let fact = self
+            .types
+            .get(type_ref.local_index as usize)
+            .filter(|fact| fact.entity == *type_ref && fact.data.type_idx == type_ref.local_index)
+            .ok_or_else(|| {
+                MddError::new(
+                    ErrorCode::InvalidArgument,
+                    "facts.type_name",
+                    "type is outside this occurrence",
+                )
+            })?;
+        Ok(JavaTypeName {
+            source: &self.source,
+            entity: &fact.entity,
+            value: java_type_name_value(&fact.data.descriptor, &self.header.version, limits)?,
+        })
+    }
     pub fn source(&self) -> &MetadataSource {
         &self.source
     }
@@ -324,6 +458,151 @@ mod tests {
         snapshot::{CaptureLimits, InputKind, InputSpec},
     };
     use std::path::PathBuf;
+
+    #[test]
+    fn java_type_names_are_bounded_and_bound_to_occurrences() {
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/references/generated/type-names-035.dex");
+        let input = InputSpec {
+            path,
+            kind: InputKind::RawDex,
+            expected_sha256: None,
+        };
+        let snapshot =
+            Snapshot::capture(&[input.clone(), input], CaptureLimits::default()).unwrap();
+        let inventories: Vec<_> = snapshot
+            .sources()
+            .iter()
+            .map(|source| {
+                ArchiveInventory::build(
+                    source,
+                    InventoryPolicy::default(),
+                    ArchiveLimits::default(),
+                )
+                .unwrap()
+            })
+            .collect();
+        let left =
+            MetadataFacts::build(&snapshot, &inventories[0], 0, StringLimits::default()).unwrap();
+        let right =
+            MetadataFacts::build(&snapshot, &inventories[1], 0, StringLimits::default()).unwrap();
+        // These seven values are also observed in the fixed A0 fixture record.
+        for (descriptor, expected) in [
+            ("I", "int"),
+            ("Lfixture/A;", "fixture.A"),
+            ("Lfixture/External;", "fixture.External"),
+            ("Ljava/lang/Object;", "java.lang.Object"),
+            ("Ljava/lang/String;", "java.lang.String"),
+            ("V", "void"),
+            ("[I", "int[]"),
+        ] {
+            let fact = left
+                .types()
+                .iter()
+                .find(|fact| fact.data.descriptor == descriptor)
+                .unwrap();
+            let rendered = left
+                .java_type_name(&fact.entity, TypeNameLimits::default())
+                .unwrap();
+            assert_eq!(rendered.value, expected);
+            assert_eq!(rendered.entity, &fact.entity);
+            assert_eq!(
+                rendered.source.dex_occurrence_id,
+                left.source().dex_occurrence_id
+            );
+            assert_eq!(fact.data.descriptor, descriptor);
+            let other = &right.types()[fact.entity.local_index as usize];
+            assert_eq!(
+                left.java_type_name(&other.entity, TypeNameLimits::default())
+                    .unwrap_err()
+                    .code,
+                ErrorCode::InvalidArgument
+            );
+        }
+        for (descriptor, expected) in [
+            ("Z", "boolean"),
+            ("B", "byte"),
+            ("S", "short"),
+            ("C", "char"),
+            ("J", "long"),
+            ("F", "float"),
+            ("D", "double"),
+            ("[[Lpkg/Outer$Inner;", "pkg.Outer$Inner[][]"),
+            ("Lpkg/雪;", "pkg.雪"),
+        ] {
+            assert_eq!(
+                java_type_name_value(descriptor, "035", TypeNameLimits::default()).unwrap(),
+                expected
+            );
+        }
+        let output = java_type_name_value(
+            "[[I",
+            "035",
+            TypeNameLimits {
+                max_descriptor_bytes: 3,
+                max_output_bytes: 7,
+            },
+        )
+        .unwrap();
+        assert_eq!(output, "int[][]");
+        assert_eq!(
+            java_type_name_value(
+                "[[I",
+                "035",
+                TypeNameLimits {
+                    max_descriptor_bytes: 3,
+                    max_output_bytes: 6
+                }
+            )
+            .unwrap_err()
+            .code,
+            ErrorCode::QuotaExceeded
+        );
+        assert_eq!(
+            java_type_name_value(
+                "[[I",
+                "035",
+                TypeNameLimits {
+                    max_descriptor_bytes: 2,
+                    max_output_bytes: 100
+                }
+            )
+            .unwrap_err()
+            .code,
+            ErrorCode::QuotaExceeded
+        );
+        assert_eq!(
+            java_type_name_value("[V", "035", TypeNameLimits::default())
+                .unwrap_err()
+                .code,
+            ErrorCode::InvalidInput
+        );
+        assert_eq!(
+            java_type_name_value(
+                &format!("{}I", "[".repeat(256)),
+                "035",
+                TypeNameLimits::default()
+            )
+            .unwrap_err()
+            .code,
+            ErrorCode::InvalidInput
+        );
+        let mut incomplete = left.clone();
+        incomplete.metadata_coverage = Completeness::Partial;
+        assert_eq!(
+            incomplete
+                .java_type_name(&left.types()[0].entity, TypeNameLimits::default())
+                .unwrap_err()
+                .code,
+            ErrorCode::IncompleteFacts
+        );
+        assert_eq!(
+            left.java_type_name(&left.strings()[0].entity, TypeNameLimits::default())
+                .unwrap_err()
+                .code,
+            ErrorCode::InvalidArgument
+        );
+    }
 
     #[test]
     fn duplicate_content_occurrences_keep_distinct_refs_and_owned_leases() {
