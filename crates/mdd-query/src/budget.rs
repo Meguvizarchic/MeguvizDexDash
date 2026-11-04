@@ -1311,7 +1311,8 @@ impl OwnedBatchReceipt {
         if !self.requires_terminal_envelope()? {
             return Ok(false);
         }
-        self.0.matches(&sender.0, runtime, expected_batches, error)
+        self.0
+            .matches_for_pending(&sender.0, runtime, expected_batches, error)
     }
     pub(crate) fn finish_failed(&mut self) -> MddResult<()> {
         self.0.finish_failed()
@@ -2136,6 +2137,27 @@ impl QueueDeliveryReceipt {
         expected: u64,
         error: Option<&MddError>,
     ) -> MddResult<bool> {
+        self.match_delivery(sender, runtime, expected, error, false)
+    }
+
+    pub(crate) fn matches_for_pending<T>(
+        &self,
+        sender: &BoundedSender<T>,
+        runtime: &RuntimeBudget,
+        expected: u64,
+        error: Option<&MddError>,
+    ) -> MddResult<bool> {
+        self.match_delivery(sender, runtime, expected, error, true)
+    }
+
+    fn match_delivery<T>(
+        &self,
+        sender: &BoundedSender<T>,
+        runtime: &RuntimeBudget,
+        expected: u64,
+        error: Option<&MddError>,
+        allow_late_failure: bool,
+    ) -> MddResult<bool> {
         let Some(other) = &sender.0.delivery else {
             return Ok(false);
         };
@@ -2159,7 +2181,7 @@ impl QueueDeliveryReceipt {
             // A failure can be recorded after production succeeds but before
             // the receiver observes End. Accept only the query's exact first
             // failure; the normal finalization path still emits a failure.
-            (Some(actual), None) => self
+            (Some(actual), None) if allow_late_failure => self
                 .tracker
                 .cancel
                 .status()?

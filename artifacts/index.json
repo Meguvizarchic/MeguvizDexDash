@@ -29386,6 +29386,11 @@
       "path": "artifacts/mdd-031-audit/native-code-handlers-20261030/typed-catch.dex",
       "bytes": 404,
       "sha256": "f0e0ccf16c417b5c1613f8f03b297400ddefbe42127936a7cebc3ebf3674aa06"
+    },
+    {
+      "path": "artifacts/public-progress-20261104/merge-validation.json",
+      "bytes": 1559,
+      "sha256": "5be0f2f66709be21c83a1781a87bb1d07e8ac481329b4319b89bbc29d8b79f22"
     }
   ]
 }

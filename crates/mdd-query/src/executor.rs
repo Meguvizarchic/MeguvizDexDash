@@ -1619,7 +1619,7 @@ impl QueueDeliveryReceipt {
         &mut self,
         pending: &mut PendingDelivery,
     ) -> MddResult<mdd_types::ResultEnvelope> {
-        if !self.matches(
+        if !self.matches_for_pending(
             &pending.sender,
             &pending.runtime,
             pending.produced,

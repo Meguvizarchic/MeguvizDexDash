@@ -913,10 +913,23 @@ fn late_failure_receipt_requires_exact_first_error_and_binding() {
         QueueEvent::End(Err(_))
     ));
     let receipt = receiver.into_delivery_receipt().unwrap();
-    assert!(receipt.matches(&sender, &runtime, 0, None).unwrap());
-    assert!(!receipt.matches(&sender, &runtime, 1, None).unwrap());
+    assert!(!receipt.matches(&sender, &runtime, 0, None).unwrap());
+    assert!(
+        receipt
+            .matches_for_pending(&sender, &runtime, 0, None)
+            .unwrap()
+    );
+    assert!(
+        !receipt
+            .matches_for_pending(&sender, &runtime, 1, None)
+            .unwrap()
+    );
     let (_, _, _, _, foreign) = owned_queue_test_runtime(BudgetLimits::default());
-    assert!(!receipt.matches(&sender, &foreign, 0, None).unwrap());
+    assert!(
+        !receipt
+            .matches_for_pending(&sender, &foreign, 0, None)
+            .unwrap()
+    );
     let mut variants = Vec::new();
     let mut other = first.clone();
     other.code = ErrorCode::WorkerLost;
@@ -933,7 +946,11 @@ fn late_failure_receipt_requires_exact_first_error_and_binding() {
     variants.push(first.clone().detail("other", "value"));
     for other in variants {
         receipt.tracker.state.lock().unwrap().end_error = Some(other);
-        assert!(!receipt.matches(&sender, &runtime, 0, None).unwrap());
+        assert!(
+            !receipt
+                .matches_for_pending(&sender, &runtime, 0, None)
+                .unwrap()
+        );
     }
 }
 

@@ -1,0 +1,38 @@
+{
+  "schema_version": "mdd.public-merge-validation.v1",
+  "date": "2026-11-04",
+  "scope": "Merge candidate, Windows debug and targeted regression tests",
+  "findings": [
+    "Build snapshot initially omitted synthetic fixtures referenced by tests.",
+    "SQL used existing DEX types without a production dependency; the facts layer now re-exports these existing types.",
+    "A strict receipt and a pending delivery require distinct handling of late failure."
+  ],
+  "changes": [
+    "Included only synthetic fixtures needed by the tests.",
+    "Kept the current public API and production dependency graph.",
+    "Separated strict receipt matching from pending late-failure matching."
+  ],
+  "local_checks": [
+    {
+      "command": "cargo clippy --locked --offline --workspace --all-targets --keep-going -- -D warnings",
+      "result": "passed"
+    },
+    {
+      "command": "cargo test --locked --offline -p mdd-query receipt",
+      "result": "14 passed"
+    },
+    {
+      "command": "cargo test --locked --offline -p mdd-query late_delivery_failures",
+      "result": "1 passed"
+    },
+    {
+      "command": "cargo test --locked --offline -p mdd-sql aggregate_",
+      "result": "14 passed before receipt-only fix"
+    },
+    {
+      "command": "cargo test --locked --offline -p mdd-facts signature_",
+      "result": "10 passed before receipt-only fix"
+    }
+  ],
+  "limits": "Local checks are not HostLab replacement, production performance or release qualification. GitHub checks are tracked independently."
+}
