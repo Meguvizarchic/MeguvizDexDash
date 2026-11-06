@@ -1,4 +1,37 @@
+<div align="center">
+
+<img src="docs/brand/MeguvizDexDash.svg" width="96" height="96" alt="MeguvizDexDash">
+
 # MeguvizDexDash
+
+**面向桌面与云端的 DEX 静态分析引擎**
+
+Rust workspace · 不可变输入快照 · 类型化查询
+
+<br>
+
+[![Language](https://img.shields.io/badge/lang-Rust-DEA584?style=flat-square&labelColor=2d3a55)](https://github.com/Meguvizarchic/MeguvizDexDash)
+[![Issues](https://img.shields.io/github/issues/Meguvizarchic/MeguvizDexDash?style=flat-square&labelColor=2d3a55)](https://github.com/Meguvizarchic/MeguvizDexDash/issues)
+
+[当前开发版本](#当前开发版本) · [原始工程包与实施入口](#原始工程包与实施入口) · [阅读入口](#阅读入口) · [先验证本包](#先验证本包) · [当前性能口径](#当前性能口径) · [版本与证据](#版本与证据)
+
+</div>
+
+---
+
+<details>
+<summary><b>目录</b></summary>
+
+- [当前开发版本](#当前开发版本)
+- [原始工程包与实施入口](#原始工程包与实施入口)
+- [阅读入口](#阅读入口)
+- [先验证本包](#先验证本包)
+- [当前性能口径](#当前性能口径)
+- [版本与证据](#版本与证据)
+
+</details>
+
+---
 
 MeguvizDexDash 是面向桌面与云端、可嵌入且可服务化的 DEX 静态分析引擎。首个业务接入点是 `jichuo1/innocent-lab-host-analysis` 中 DexSQL 承担的职能。Android 进程内 DexKit 替换属于独立的 DexMeguviz 项目。
 
