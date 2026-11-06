@@ -1,3 +1,5 @@
+<p><img src="docs/brand/MeguvizDexDash.svg" width="96" alt="MeguvizDexDash 图标"></p>
+
 # MeguvizDexDash
 
 MeguvizDexDash 是面向桌面与云端、可嵌入且可服务化的 DEX 静态分析引擎。首个业务接入点是 `jichuo1/innocent-lab-host-analysis` 中 DexSQL 承担的职能。Android 进程内 DexKit 替换属于独立的 DexMeguviz 项目。
