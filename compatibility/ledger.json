@@ -479,6 +479,92 @@
           "evidence": "artifacts/mdd-032-audit/a0-differential-20261112/SUMMARY.md"
         }
       ]
+    },
+    "hostlab_sql_a0_golden": {
+      "reference": "Frozen A0 dexsql 0.1.0 (sha256 f354ebcf715de9a66ef8ebe08b2b36807ab58e25cd5a1c0812e497fc1fcfc448) driven through its own MCP server over three synthetic DEX fixtures",
+      "evidence": "artifacts/mdd-032/hostlab-query-matrix.json",
+      "golden": "conformance/corpus/hostlab/expected-results/hostlab-a0-golden.json",
+      "regression_test": "crates/mdd-sql/src/provider/hostlab/tests.rs::hostlab_variants_match_the_a0_golden_results",
+      "not_a_qualification": "Development comparison over synthetic fixtures only; no profile is admitted by it, and the real-APK corpus run remains separate",
+      "scope": "76 variants / 144 pages / 10 refused calls: Q01-Q15 templates and helpers (shape probe, hex wrapper, boundary marker), response windows independent of SQL LIMIT/OFFSET, value fidelity (NULL, empty, real, blob, negative), LIKE/ESCAPE, ordering, multiplicity, IN batches of 80 and 120, the 12000/12001-character boundary",
+      "entries": [
+        {
+          "id": "unaliased-expression-names",
+          "reference_behavior": "an unaliased expression is named `column` and a call after the function (lower case); SQLite numbers repeats only where names must be unique",
+          "engine_behavior": "identical for the DexSql010/DexSql011 dialects; NativeV1 keeps SQLite's own expression-text names",
+          "decision": "match_reference"
+        },
+        {
+          "id": "result-names-ascii-lower-case",
+          "reference_behavior": "result column names are folded to ASCII lower case; non-ASCII letters are left alone",
+          "engine_behavior": "identical for the DexSql dialects",
+          "decision": "match_reference"
+        },
+        {
+          "id": "nan-payload-not-in-mcp-json",
+          "reference_behavior": "the MCP JSON cannot carry a NaN payload",
+          "engine_behavior": "keeps the payload; the golden compares any NaN as `f:nan` and the payload bits stay covered by every_relation_matches_the_recorded_a0_readback_row_for_row",
+          "decision": "comparison_limit"
+        },
+        {
+          "id": "like-escape-backslash",
+          "reference_behavior": "ESCAPE '' is refused by the reference lexer (it treats backslash-quote as an escaped quote)",
+          "engine_behavior": "not pinned; the golden uses ESCAPE '!'",
+          "decision": "not_compared"
+        },
+        {
+          "id": "unsupported-operators",
+          "reference_behavior": "GLOB and recursive CTEs are answered",
+          "engine_behavior": "refused with BINARY_OPERATOR_NOT_IMPLEMENTED and RECURSIVE_CTE_NOT_YET_QUALIFIED; no frozen template uses either",
+          "decision": "open_gap_fail_closed"
+        },
+        {
+          "id": "call-shape-and-scripts",
+          "reference_behavior": "a query call carries 1..16 non-blank sql items of at most 64 KiB in all; each item is a script split at top-level semicolons (quotes, brackets and comments honoured; an unterminated block comment runs to the end; there is no cap on statements per item); an execution failure is reported at the flattened statement index, a lexing failure at the item",
+          "engine_behavior": "identical (window.rs script_statements, used by SqlBridge::query_batch and TempSqlSession::execute_batch); the 65536/65537-byte boundary is pinned",
+          "decision": "match_reference"
+        },
+        {
+          "id": "double-quoted-string-literals",
+          "reference_behavior": "an unknown double-quoted identifier falls back to a string literal (SQLite DQS)",
+          "engine_behavior": "refused as an unknown column; the hex-wrapper helper only double-quotes real column names",
+          "decision": "open_gap_fail_closed"
+        }
+      ]
+    },
+    "session_temp_catalog_a0_scenarios": {
+      "reference": "Frozen A0 dexsql 0.1.0 (sha256 f354ebcf715de9a66ef8ebe08b2b36807ab58e25cd5a1c0812e497fc1fcfc448), one dataset per session",
+      "evidence": "artifacts/mdd-033/paging-isolation.json",
+      "golden": "conformance/session/catalog-and-paging.json",
+      "regression_test": "crates/mdd-sql/src/provider/hostlab/temp_tests.rs",
+      "not_a_qualification": "Development comparison only; Q16 is outside hostlab-audit-v1 and no profile is admitted by it",
+      "scope": "22 scenarios / 158 steps: create, query, redefine, drop, IF NOT EXISTS, kind-checked DROP, unknown dependency, cycle, cross-session isolation, shadowing a provider relation, effects kept by a failed list, syntax outside the subset, bodies, windowed definitions and paging over a definition",
+      "entries": [
+        {
+          "id": "compat-offset-redefinition-is-refused",
+          "reference_behavior": "page 2 of a compatible-offset sequence is answered from the redefined TEMP definition, so one sequence mixes rows of two definitions",
+          "engine_behavior": "the page source identity carries the digest of the TEMP definitions the statement was expanded with; the sequence is refused as source_changed, and a native cursor keeps the definition it was prepared with",
+          "decision": "refuse_where_reference_stitches"
+        },
+        {
+          "id": "volatile-definition-bodies-are-refused",
+          "reference_behavior": "random() and CURRENT_TIMESTAMP in a definition body are refused",
+          "engine_behavior": "any volatile call or clock keyword in a body is refused before the catalog changes",
+          "decision": "match_reference_outcome"
+        },
+        {
+          "id": "definitions-are-late-bound",
+          "reference_behavior": "a TABLE defined over another table sees that table's later redefinition; nothing is materialized",
+          "engine_behavior": "identical",
+          "decision": "match_reference"
+        },
+        {
+          "id": "named-temp-queries",
+          "reference_behavior": "the query tool accepts named_temp_queries",
+          "engine_behavior": "not implemented",
+          "decision": "open_gap"
+        }
+      ]
     }
   }
 }

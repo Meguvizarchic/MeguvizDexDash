@@ -153,6 +153,40 @@
 - **更早提交里的 31 个带 Windows 用户目录路径的日志文件已用改写历史去掉**（用户决定）：对本分支相对 `origin/main` 的 77 个提交逐个过滤——删除 31 个证据文件（mdd-005 15 个、mdd-031-audit 15 个、mdd-026 1 个）、把历史版本 `benchmarks/README.md` 里的解释器绝对路径改为 `python`、并同步删去 `artifacts/index.json` 中对应的记录。改写后按内容重扫整段历史，含本机路径或应用类名且 `main` 上没有的文件内容为 0；77 个提交作者仍为 `jichuo1`，无任何附加署名；每个提交的索引记录都能在该提交的树里找到对应文件。提交号因此全部改变。`main` 上本来就有 258 个含此类路径的文件，未触碰。
 - 本地备份分支 `backup/pre-clean-20261112`、`backup/pre-withhold-20261112`、`backup/pre-history-rewrite-20261112` 已按用户决定删除，随后清空全部 reflog 并 `git gc --prune=now`：对象库由 16,776 个对象 / 14.78 MiB 降到 13,964 个 / 11.58 MiB，`git fsck --unreachable` 为 0，改写前的提交（包括被去掉的 31 个日志文件）已无法在本机恢复。同时被回收的还有一个 2026-11-04 的未引用草稿提交（与 main 的 02e3719 同主题、早 28 秒，已被 main 上的修订版取代）。此前就存在的 `archive/m2-unpublished-e024eca`（含不在本分支历史里的工作）保留未动。移到 `artifacts/local/` 的证据与 Bilibili 运行记录是独立文件副本，不受影响。
 
+## 2026-11-12 收口 MDD-032/033
+
+**结论**：两个任务各自的验收条款都有了对应的可复跑证据，但**状态仍是 `in_progress`**。原因不在 032/033 自身：`tools/check_progress.py` 拒绝「依赖未完成却标 done」，而二者都依赖 MDD-031（SQL 桥，`in_progress`）。验收条款一字未改。
+
+**032-B（Q13/Q14 与黄金比对）**
+- `crates/mdd-sql/src/window.rs`：响应窗口 `SqlWindow`/`SqlWindowReport`（limit 1..1000、offset+limit≤100000、总数不变量与参考校验器一致）、`split_statements`、`paging_blocker`/`is_volatile`。`SqlBridge::query_window`、`query_batch`（1–16 条，首个失败即停并带 `statement_index`）、`SqlResult::window()`/`schema_id()`、`PreparedSql::cursor_spec()`。窗口作用于每条语句自己的结果流，与 SQL 里的 LIMIT/OFFSET 无关，SQL 文本从不被改写。此前 `cursors.rs` 里「SQL 带 LIMIT 就拒绝分页」的规则与参考引擎相悖，已删除（参考引擎先做 SQL 的 LIMIT，再切窗口）。
+- **独立 oracle**：冻结的 A0（dexsql 0.1.0，sha256 f354ebcf…）通过它自己的 `mcp` 服务驱动，`conformance/corpus/hostlab/generate_golden.py` 记录 `required-variants.json` 的每个变体 → `expected-results/hostlab-a0-golden.json`（76 个变体、144 页、10 个被拒调用）。引擎逐页逐单元格一致（`hostlab_variants_match_the_a0_golden_results`）；原先内联的 29 个变体常量并入 JSON 并扩展：Q13 shape/hex 包装/边界标记/值保真，Q14 各类窗口与整页遍历，Q02 的 80/120 元素 IN 批、12000/12001 字符边界、跨 DEX 字符串自连接、逐 DEX 计数多重性、NULL/空串/实数/blob、LIKE/ESCAPE、排序与 NULL 排序。
+- `paging_blocker` 与冻结 Python（`analysis_paging.py`）在 53 个录制用例上一致（用例由 `generate_paging_cases.py` 从冻结源码生成，不取自 Rust）。
+- 比对**发现并修复了两个真实缺陷**（此前没有任何测试固定它们）：未加别名的表达式列，A0 命名为 `column`（函数调用则为小写函数名），引擎输出的是 SQLite 的表达式原文；结果列名 A0 一律折成 ASCII 小写，引擎保留原写法。两处只对 `DexSql010/011` 方言生效，`NativeV1` 保持 SQLite 原样。
+- 过程中确认的**未支持项（失败即关闭，不是静默错答）**：`GLOB` 运算符（`BINARY_OPERATOR_NOT_IMPLEMENTED`）、递归 CTE（`RECURSIVE_CTE_NOT_YET_QUALIFIED`）、未知双引号标识符回退成字符串字面量（SQLite DQS，引擎按未知列拒绝）。冻结模板不使用二者，故不影响验收，但记入台账为开放缺口。
+- 一次调用的形状也按参考工具对齐并用黄金固定（`window.rs::script_statements`）：`sql[]` 1..16 项、合计不超过 64 KiB（65536 字节通过、65537 被拒）、每项是按顶层分号切分的脚本（引号/方括号/注释都识别，未闭合的块注释延伸到末尾，单项展开的语句数无上限，65 条通过）；执行失败按展平后的语句序号报告，词法失败按所在项报告。此前我自己写的分割器会把未闭合块注释当错误，已改。
+
+**033-B（会话 TEMP 与分页接线）**
+- `catalog`/`cursors` 改为 `pub mod`；`crates/mdd-sql/src/temp.rs` 的 `TempSqlSession` 解析 `CREATE [TEMP] TABLE|VIEW [IF NOT EXISTS] name AS query` 与 `DROP TABLE|VIEW [IF EXISTS] name`，把定义作为**晚绑定查询**存进会话 catalog，查询在 prepare 时按当时的 catalog 展开成 CTE；展开所用定义的摘要并入分页来源指纹。A0 实测 `CREATE TEMP TABLE` 也是晚绑定（`tt AS SELECT * FROM t` 在 t 重定义后读到新值），所以**不物化**，与 `docs/02` §6.4「不能因为名称有 TABLE 就默认物化」一致。
+- `conformance/session/catalog-and-paging.json`：22 个场景 / 158 步从 A0 录制（创建、重定义、IF NOT EXISTS、带种类校验的 DROP、未知依赖与环、跨会话隔离、遮蔽 provider 关系、失败列表保留此前效果、子集之外的语法、定义体、带窗口的 DDL、定义上的分页）。引擎全部 158 步的结果、行与窗口都一致（`temp_scenarios_match_the_recorded_a0_behaviour`）。
+- 真实 `Lifecycle` 上的集成测试：原生 cursor 在 catalog 重定义后仍读旧定义且 `verify_query_temp_binding` 通过；兼容 offset 序列的完整遍历与重执行计数；重定义后第 2 页被拒为 `source_changed`；同语句形状但总数变化被拒为 `query_schema_or_total_changed`；定义形状变化被拒为语句不匹配；跨会话定义与绑定不互通。
+
+**声明的差异**（`compatibility/ledger.json` 的 `hostlab_sql_a0_golden` 与 `session_temp_catalog_a0_scenarios`）
+- 兼容 offset 序列横跨一次 TEMP 重定义：A0 用新定义回答第 2 页（同一序列里前两行是 `before`、后两行是 `after`），引擎拒绝为 `source_changed`。
+- 定义体含 `random()`/`now()`/`CURRENT_*`：引擎在 catalog 变更前拒绝（A0 对 `random()` 与 `CURRENT_TIMESTAMP` 也拒绝）。
+- NaN 载荷位：A0 的 MCP JSON 带不出，黄金里一律记 `f:nan`；位级比较仍由 CLI 回读测试负责。
+
+**验证**
+- native：`cargo check` / `clippy -D warnings`（0 告警）/ `test --workspace`，按 `test result:` 行统计 24 个目标、778 passed / 0 failed / 0 ignored（同口径上一次是 764；本节上方更早的「35 个 target / 763」口径不同，不可直接相减）。static（含 `fmt --all --check`）、progress、cli、conformance 均通过。
+- 变异检查：对窗口代码、调用展平与黄金比对自身的 10 个变异，以及对 TEMP 层、命名规则与调用展平的 15 个变异全部被测试抓住（`artifacts/mdd-032/mutation/`、`artifacts/mdd-033/mutation/`，含脚本与结果）。其中第一轮曾有 1 个存活（NULL 单元格渲染成文本），原因是黄金里没有任何 NULL/实数/blob 单元格；补上值保真变体后被抓住。
+- 证据记录：`artifacts/mdd-032/hostlab-query-matrix.json`、`artifacts/mdd-033/paging-isolation.json` 由 `tools/build_mdd032_033_evidence.py` 现场跑一遍库测试后生成（验收条款 → 具体测试名与结果；任何测试缺失会记为 `not_run`）。原始 cargo 日志留在被忽略的 `artifacts/local/`。
+
+**过程中放弃的方案**：物化 TEMP 表（A0 不物化，且 provider 的 `validate_row` 要求静态列类型，装不下动态列）；开启 `sqlparser` 的 `visitor` feature 来遍历关系名（会带来新的传递依赖，须先问用户）→ 改为 token 扫描取超集，并排除 `AS` 之后的输出别名，漏判会让同名 provider 关系悄悄代替 TEMP 定义，多判只多一个没用到的 CTE；给展开的 CTE 补列名清单来对齐命名 → 改为修正顶层命名规则，一处修复同时覆盖子查询与 CTE。
+
+**仍未做 / 范围外**
+- 传输层接线：没有 MCP/CLI 入口调用 `TempSqlSession` 或 cursor API；`named_temp_queries` 工具参数未实现。
+- 依赖 MDD-031 先完成，二者才能标 done；`16 列未满足全部六类`（MDD-026）的口径决定仍然开放。
+- 范围外问题，只说不改：`conformance` 门禁每次运行会把 `artifacts/mdd-004/fixture-reproducibility.json` 里的解释器路径改写成本机 venv 的绝对路径（本次已 `git checkout` 还原，未提交）；`reproduce.py` 应只记录解释器文件名。
+
 ## Checkout 与交付
 
 工程目录 D:\MeguvisDexDash（保留目录原拼写）。远端已迁移到 https://github.com/Meguvizarchic/MeguvizDexDash（**公开仓库**，旧地址 jichuo1/MeguvizDexDash 自动转发）；PR #1 已于 2026-11-04 合并，`main` 现为 a9aa1f0，其中 27ac27e 是由本分支 71dfce9 生成的「脱敏工程进度快照」，之后 8 个提交是修补与 README/图标。本地分支 codex/m2-facts-20261028 当前**没有远端分支**：2026-11-12 曾整体推送，随后发现仓库公开，已按用户决定删除远端分支（GitHub 上提交仍可按 SHA 读取）。重新推送前必须先决定公开范围，见下节。
