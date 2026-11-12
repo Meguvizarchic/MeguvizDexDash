@@ -1,0 +1,3627 @@
+{
+ "schema_version": "mdd.catalog-and-paging.v1",
+ "a0_sha256": "f354ebcf715de9a66ef8ebe08b2b36807ab58e25cd5a1c0812e497fc1fcfc448",
+ "inputs": [
+  "tests/fixtures/definitions/generated/definitions-035.dex",
+  "tests/fixtures/references/generated/classic-035.dex",
+  "tests/fixtures/annotations/generated/annotations-038.dex"
+ ],
+ "scenarios": [
+  {
+   "name": "create_query_drop",
+   "steps": [
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE t AS SELECT 1 AS id,'a' AS tag UNION ALL SELECT 2,'b'"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT id,tag FROM t ORDER BY id"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "id",
+         "tag"
+        ],
+        "rows": [
+         [
+          "i:1",
+          "t:61"
+         ],
+         [
+          "i:2",
+          "t:62"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 2,
+        "kind": "query"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "DROP TABLE t"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "drop_definition"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT id,tag FROM t ORDER BY id"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "invalid_query",
+       "statement_index": 0
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "if_not_exists_keeps_the_first_body",
+   "steps": [
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE t AS SELECT 1 AS id,'a' AS tag UNION ALL SELECT 2,'b'"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE IF NOT EXISTS t AS SELECT 9 AS id"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE IF NOT EXISTS t AS SELECT * FROM missing_relation"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT id,tag FROM t ORDER BY id"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "id",
+         "tag"
+        ],
+        "rows": [
+         [
+          "i:1",
+          "t:61"
+         ],
+         [
+          "i:2",
+          "t:62"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 2,
+        "kind": "query"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE IF NOT EXISTS fresh AS SELECT * FROM missing_relation"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "invalid_query",
+       "statement_index": 0
+      }
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP VIEW IF NOT EXISTS t AS SELECT 5 AS id"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT id,tag FROM t ORDER BY id"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "id",
+         "tag"
+        ],
+        "rows": [
+         [
+          "i:1",
+          "t:61"
+         ],
+         [
+          "i:2",
+          "t:62"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 2,
+        "kind": "query"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "redefinition_replaces",
+   "steps": [
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE t AS SELECT 1 AS id,'a' AS tag UNION ALL SELECT 2,'b'"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE t AS SELECT 9 AS id"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT * FROM t"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "id"
+        ],
+        "rows": [
+         [
+          "i:9"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 1,
+        "kind": "query"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP VIEW t AS SELECT 7 AS id"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT * FROM t"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "id"
+        ],
+        "rows": [
+         [
+          "i:7"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 1,
+        "kind": "query"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "DROP TABLE t"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "invalid_query",
+       "statement_index": 0
+      }
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "DROP VIEW t"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "drop_definition"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT * FROM t"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "invalid_query",
+       "statement_index": 0
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "views_and_tables_are_late_bound",
+   "steps": [
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE t AS SELECT 1 AS id,'a' AS tag UNION ALL SELECT 2,'b'"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP VIEW v AS SELECT id*10 AS big FROM t"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE tt AS SELECT id FROM t"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT big FROM v ORDER BY big"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "big"
+        ],
+        "rows": [
+         [
+          "i:10"
+         ],
+         [
+          "i:20"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 2,
+        "kind": "query"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "DROP TABLE t"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "drop_definition"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT big FROM v ORDER BY big"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "invalid_query",
+       "statement_index": 0
+      }
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT id FROM tt"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "invalid_query",
+       "statement_index": 0
+      }
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE t AS SELECT 5 AS id"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT big FROM v ORDER BY big"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "big"
+        ],
+        "rows": [
+         [
+          "i:50"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 1,
+        "kind": "query"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT id FROM tt"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "id"
+        ],
+        "rows": [
+         [
+          "i:5"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 1,
+        "kind": "query"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "drop_kind_and_existence",
+   "steps": [
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE t AS SELECT 1 AS id,'a' AS tag UNION ALL SELECT 2,'b'"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP VIEW v AS SELECT id FROM t"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "DROP VIEW t"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "invalid_query",
+       "statement_index": 0
+      }
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "DROP TABLE v"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "invalid_query",
+       "statement_index": 0
+      }
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "DROP VIEW IF EXISTS t"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "invalid_query",
+       "statement_index": 0
+      }
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "DROP TABLE IF EXISTS v"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "invalid_query",
+       "statement_index": 0
+      }
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "DROP TABLE IF EXISTS nothing"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "drop_definition"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "DROP VIEW IF EXISTS nothing"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "drop_definition"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "DROP TABLE nothing"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "invalid_query",
+       "statement_index": 0
+      }
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "DROP VIEW nothing"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "invalid_query",
+       "statement_index": 0
+      }
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "DROP VIEW v"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "drop_definition"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "DROP TABLE t"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "drop_definition"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "DROP TABLE t"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "invalid_query",
+       "statement_index": 0
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "unknown_dependency_and_cycle",
+   "steps": [
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP VIEW a1 AS SELECT * FROM b1"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "invalid_query",
+       "statement_index": 0
+      }
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP VIEW b1 AS SELECT 1 AS x"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP VIEW a1 AS SELECT * FROM b1"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP VIEW b1 AS SELECT * FROM a1"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "invalid_query",
+       "statement_index": 0
+      }
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT x FROM a1"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "x"
+        ],
+        "rows": [
+         [
+          "i:1"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 1,
+        "kind": "query"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE selfref AS SELECT * FROM selfref"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "invalid_query",
+       "statement_index": 0
+      }
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP VIEW c1 AS SELECT * FROM a1"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP VIEW a1 AS SELECT * FROM c1"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "invalid_query",
+       "statement_index": 0
+      }
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT x FROM c1"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "x"
+        ],
+        "rows": [
+         [
+          "i:1"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 1,
+        "kind": "query"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "sessions_do_not_share_definitions",
+   "steps": [
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE t AS SELECT 1 AS id,'a' AS tag UNION ALL SELECT 2,'b'"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "b",
+     "statements": [
+      "SELECT id FROM t"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "invalid_query",
+       "statement_index": 0
+      }
+     }
+    },
+    {
+     "session": "b",
+     "statements": [
+      "CREATE TEMP TABLE t AS SELECT 42 AS id"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT id FROM t ORDER BY id"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "id"
+        ],
+        "rows": [
+         [
+          "i:1"
+         ],
+         [
+          "i:2"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 2,
+        "kind": "query"
+       }
+      ]
+     }
+    },
+    {
+     "session": "b",
+     "statements": [
+      "SELECT id FROM t"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "id"
+        ],
+        "rows": [
+         [
+          "i:42"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 1,
+        "kind": "query"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "DROP TABLE t"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "drop_definition"
+       }
+      ]
+     }
+    },
+    {
+     "session": "b",
+     "statements": [
+      "SELECT id FROM t"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "id"
+        ],
+        "rows": [
+         [
+          "i:42"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 1,
+        "kind": "query"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT id FROM t"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "invalid_query",
+       "statement_index": 0
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "a_definition_shadows_a_provider_relation",
+   "steps": [
+    {
+     "session": "a",
+     "statements": [
+      "SELECT COUNT(*) AS n FROM strings"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "n"
+        ],
+        "rows": [
+         [
+          "i:94"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 1,
+        "kind": "query"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE strings AS SELECT 1 AS x"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT x FROM strings"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "x"
+        ],
+        "rows": [
+         [
+          "i:1"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 1,
+        "kind": "query"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT COUNT(*) AS n FROM strings"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "n"
+        ],
+        "rows": [
+         [
+          "i:1"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 1,
+        "kind": "query"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "DROP TABLE strings"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "drop_definition"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT COUNT(*) AS n FROM strings"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "n"
+        ],
+        "rows": [
+         [
+          "i:94"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 1,
+        "kind": "query"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "a_failed_list_keeps_earlier_definitions",
+   "steps": [
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE x2 AS SELECT 1 AS a",
+      "SELECT * FROM nope"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "invalid_query",
+       "statement_index": 1
+      }
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT a FROM x2"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "a"
+        ],
+        "rows": [
+         [
+          "i:1"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 1,
+        "kind": "query"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE x3 AS SELECT 1 AS a",
+      "SELECT a FROM x3",
+      "DROP TABLE x3",
+      "SELECT a FROM x3"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "invalid_query",
+       "statement_index": 3
+      }
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT a FROM x3"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "invalid_query",
+       "statement_index": 0
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "statements_see_earlier_statements_of_the_same_call",
+   "steps": [
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE x1 AS SELECT 1 AS a",
+      "SELECT a FROM x1"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       },
+       {
+        "columns": [
+         "a"
+        ],
+        "rows": [
+         [
+          "i:1"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 1,
+        "kind": "query"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT a FROM x1",
+      "SELECT a FROM x1"
+     ],
+     "limit": 10,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "a"
+        ],
+        "rows": [
+         [
+          "i:1"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 1,
+        "kind": "query"
+       },
+       {
+        "columns": [
+         "a"
+        ],
+        "rows": [
+         [
+          "i:1"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 1,
+        "kind": "query"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "scripts_define_and_read_in_one_item",
+   "steps": [
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE g8 AS SELECT 1 AS a; SELECT a FROM g8; DROP TABLE g8; SELECT a FROM g8"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "invalid_query",
+       "statement_index": 3
+      }
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT a FROM g8"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "invalid_query",
+       "statement_index": 0
+      }
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE s1 AS SELECT 1 AS a;;\n-- comment; kept out\nCREATE TEMP VIEW s2 AS SELECT a+1 AS a FROM s1; SELECT a FROM s2"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       },
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       },
+       {
+        "columns": [
+         "a"
+        ],
+        "rows": [
+         [
+          "i:2"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 1,
+        "kind": "query"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "DROP VIEW s2; DROP TABLE s1;"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "drop_definition"
+       },
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "drop_definition"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT a FROM s2"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "invalid_query",
+       "statement_index": 0
+      }
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE s3 AS SELECT 'open",
+      "SELECT 1"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "invalid_input",
+       "statement_index": 0
+      }
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE s4 AS SELECT 1 AS a; /* never closed"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT a FROM s4"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "a"
+        ],
+        "rows": [
+         [
+          "i:1"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 1,
+        "kind": "query"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "forms_outside_the_subset",
+   "steps": [
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TABLE plain AS SELECT 1 AS x"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "read_only_violation",
+       "statement_index": 0
+      }
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE OR REPLACE TEMP VIEW g5 AS SELECT 1 AS a"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "read_only_violation",
+       "statement_index": 0
+      }
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE g2(a int)"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "invalid_input",
+       "statement_index": 0
+      }
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP VIEW g4(x) AS SELECT 1"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "invalid_input",
+       "statement_index": 0
+      }
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE \"Quoted Name\" AS SELECT 1 AS a"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "read_only_violation",
+       "statement_index": 0
+      }
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "DROP TEMP TABLE t"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "invalid_input",
+       "statement_index": 0
+      }
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "DROP TABLE a1, b1"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "invalid_input",
+       "statement_index": 0
+      }
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "INSERT INTO t VALUES (1)"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "read_only_violation",
+       "statement_index": 0
+      }
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "UPDATE t SET id=1"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "read_only_violation",
+       "statement_index": 0
+      }
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "ALTER TABLE t ADD COLUMN z"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "read_only_violation",
+       "statement_index": 0
+      }
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE INDEX i ON t(id)"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "read_only_violation",
+       "statement_index": 0
+      }
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT id FROM t"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "invalid_query",
+       "statement_index": 0
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "plain_create_view_is_a_temp_definition",
+   "steps": [
+    {
+     "session": "a",
+     "statements": [
+      "CREATE VIEW nv AS SELECT 1 AS x"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT x FROM nv"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "x"
+        ],
+        "rows": [
+         [
+          "i:1"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 1,
+        "kind": "query"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "DROP VIEW nv"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "drop_definition"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "names_are_case_insensitive_and_simple",
+   "steps": [
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE CaseT AS SELECT 1 AS a"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT a FROM caset"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "a"
+        ],
+        "rows": [
+         [
+          "i:1"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 1,
+        "kind": "query"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT a FROM CASET"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "a"
+        ],
+        "rows": [
+         [
+          "i:1"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 1,
+        "kind": "query"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE caset AS SELECT 2 AS a"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT a FROM CaseT"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "a"
+        ],
+        "rows": [
+         [
+          "i:2"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 1,
+        "kind": "query"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "DROP TABLE CASET"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "drop_definition"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT a FROM caset"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "invalid_query",
+       "statement_index": 0
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "definition_bodies",
+   "steps": [
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE b_with AS WITH q AS (SELECT file_id FROM dex_files) SELECT file_id FROM q ORDER BY file_id DESC LIMIT 2"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT file_id FROM b_with"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "file_id"
+        ],
+        "rows": [
+         [
+          "i:2"
+         ],
+         [
+          "i:1"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 2,
+        "kind": "query"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE b_agg AS SELECT descriptor,COUNT(*) AS n FROM types GROUP BY descriptor"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT descriptor,n FROM b_agg ORDER BY n DESC,descriptor LIMIT 3"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "descriptor",
+         "n"
+        ],
+        "rows": [
+         [
+          "t:49",
+          "i:3"
+         ],
+         [
+          "t:4c6a6176612f6c616e672f4f626a6563743b",
+          "i:3"
+         ],
+         [
+          "t:4c666978747572652f413b",
+          "i:2"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 3,
+        "kind": "query"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE b_join AS SELECT a.file_id AS fid FROM dex_files a JOIN dex_files b ON a.file_id=b.file_id"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT fid FROM b_join ORDER BY fid"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "fid"
+        ],
+        "rows": [
+         [
+          "i:0"
+         ],
+         [
+          "i:1"
+         ],
+         [
+          "i:2"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 3,
+        "kind": "query"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE b_sub AS SELECT file_id FROM dex_files WHERE file_id IN (SELECT file_id FROM classes)"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT file_id FROM b_sub ORDER BY file_id"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "file_id"
+        ],
+        "rows": [
+         [
+          "i:0"
+         ],
+         [
+          "i:1"
+         ],
+         [
+          "i:2"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 3,
+        "kind": "query"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE b_empty AS SELECT 1 AS a WHERE 1=0"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT a FROM b_empty"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "a"
+        ],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "query"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE b_fn AS SELECT lower('A') AS lo,hex(entry_name) AS h FROM dex_files"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT lo,h FROM b_fn ORDER BY h"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "lo",
+         "h"
+        ],
+        "rows": [
+         [
+          "t:61",
+          "t:3631364536453646373436313734363936463645373332443330333333383245363436353738"
+         ],
+         [
+          "t:61",
+          "t:363336433631373337333639363332443330333333353245363436353738"
+         ],
+         [
+          "t:61",
+          "t:3634363536363639364536393734363936463645373332443330333333353245363436353738"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 3,
+        "kind": "query"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE b_case AS SELECT CASE WHEN 1=1 THEN 'y' END AS c"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT c FROM b_case"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "c"
+        ],
+        "rows": [
+         [
+          "t:79"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 1,
+        "kind": "query"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE b_values AS VALUES (1),(2)"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT * FROM b_values"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "column1"
+        ],
+        "rows": [
+         [
+          "i:1"
+         ],
+         [
+          "i:2"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 2,
+        "kind": "query"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE b_order AS SELECT file_id FROM dex_files ORDER BY file_id DESC"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT file_id FROM b_order"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "file_id"
+        ],
+        "rows": [
+         [
+          "i:2"
+         ],
+         [
+          "i:1"
+         ],
+         [
+          "i:0"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 3,
+        "kind": "query"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE b_dupcols AS SELECT file_id,file_id AS file_id FROM dex_files"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT * FROM b_dupcols ORDER BY 1"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "file_id",
+         "file_id:1"
+        ],
+        "rows": [
+         [
+          "i:0",
+          "i:0"
+         ],
+         [
+          "i:1",
+          "i:1"
+         ],
+         [
+          "i:2",
+          "i:2"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 3,
+        "kind": "query"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE b_unnamed AS SELECT 1,'a',NULL"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT * FROM b_unnamed"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "column",
+         "column:1",
+         "column:2"
+        ],
+        "rows": [
+         [
+          "i:1",
+          "t:61",
+          "N"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 1,
+        "kind": "query"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "volatile_bodies",
+   "steps": [
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE r AS SELECT random() AS r1"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "read_only_violation",
+       "statement_index": 0
+      }
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT r1 FROM r"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "invalid_query",
+       "statement_index": 0
+      }
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE r2 AS SELECT CURRENT_TIMESTAMP AS ts"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "invalid_query",
+       "statement_index": 0
+      }
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT COUNT(*) AS n FROM r2"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "invalid_query",
+       "statement_index": 0
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "a_definition_reads_a_later_definition_of_its_dependency",
+   "steps": [
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE base AS SELECT 1 AS id"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP VIEW mid AS SELECT id+1 AS id FROM base"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP VIEW top AS SELECT id+1 AS id FROM mid"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT id FROM top"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "id"
+        ],
+        "rows": [
+         [
+          "i:3"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 1,
+        "kind": "query"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE base AS SELECT 10 AS id"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT id FROM top"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "id"
+        ],
+        "rows": [
+         [
+          "i:12"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 1,
+        "kind": "query"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "DROP TABLE base"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "drop_definition"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT id FROM top"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "error": {
+       "kind": "invalid_query",
+       "statement_index": 0
+      }
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE base AS SELECT 100 AS id"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT id FROM top"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "id"
+        ],
+        "rows": [
+         [
+          "i:102"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 1,
+        "kind": "query"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "a_query_own_cte_hides_a_definition",
+   "steps": [
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE t AS SELECT 1 AS id"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "WITH t AS (SELECT 2 AS id) SELECT id FROM t"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "id"
+        ],
+        "rows": [
+         [
+          "i:2"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 1,
+        "kind": "query"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "WITH w AS (SELECT 5 AS n) SELECT n+(SELECT id FROM t) AS v FROM w"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "v"
+        ],
+        "rows": [
+         [
+          "i:6"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 1,
+        "kind": "query"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT id FROM t"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "id"
+        ],
+        "rows": [
+         [
+          "i:1"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 1,
+        "kind": "query"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "definitions_echo_the_window_offset",
+   "steps": [
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE x3 AS SELECT 1 AS a"
+     ],
+     "limit": 1,
+     "offset": 5,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 5,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "DROP TABLE x3"
+     ],
+     "limit": 7,
+     "offset": 3,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 3,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "drop_definition"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE x4 AS SELECT 1 AS a",
+      "SELECT a FROM x4"
+     ],
+     "limit": 2,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       },
+       {
+        "columns": [
+         "a"
+        ],
+        "rows": [
+         [
+          "i:1"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 1,
+        "kind": "query"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "paging_over_a_definition",
+   "steps": [
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE page_base AS SELECT 1 AS id,'before' AS tag UNION ALL SELECT 2,'before' UNION ALL SELECT 3,'before' UNION ALL SELECT 4,'before'"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT id,tag FROM page_base ORDER BY id"
+     ],
+     "limit": 2,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "id",
+         "tag"
+        ],
+        "rows": [
+         [
+          "i:1",
+          "t:6265666f7265"
+         ],
+         [
+          "i:2",
+          "t:6265666f7265"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": 2,
+        "truncated": true,
+        "total_rows": 4,
+        "kind": "query"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT id,tag FROM page_base ORDER BY id"
+     ],
+     "limit": 2,
+     "offset": 2,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "id",
+         "tag"
+        ],
+        "rows": [
+         [
+          "i:3",
+          "t:6265666f7265"
+         ],
+         [
+          "i:4",
+          "t:6265666f7265"
+         ]
+        ],
+        "offset": 2,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 4,
+        "kind": "query"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT id,tag FROM page_base ORDER BY id"
+     ],
+     "limit": 2,
+     "offset": 4,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "id",
+         "tag"
+        ],
+        "rows": [],
+        "offset": 4,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 4,
+        "kind": "query"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT id,tag FROM page_base ORDER BY id"
+     ],
+     "limit": 3,
+     "offset": 3,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "id",
+         "tag"
+        ],
+        "rows": [
+         [
+          "i:4",
+          "t:6265666f7265"
+         ]
+        ],
+        "offset": 3,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 4,
+        "kind": "query"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "paging_across_a_redefinition",
+   "steps": [
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE page_base AS SELECT 1 AS id,'before' AS tag UNION ALL SELECT 2,'before' UNION ALL SELECT 3,'before' UNION ALL SELECT 4,'before'"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT id,tag FROM page_base ORDER BY id"
+     ],
+     "limit": 2,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "id",
+         "tag"
+        ],
+        "rows": [
+         [
+          "i:1",
+          "t:6265666f7265"
+         ],
+         [
+          "i:2",
+          "t:6265666f7265"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": 2,
+        "truncated": true,
+        "total_rows": 4,
+        "kind": "query"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE page_base AS SELECT 1 AS id,'after' AS tag UNION ALL SELECT 2,'after' UNION ALL SELECT 3,'after' UNION ALL SELECT 4,'after'"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT id,tag FROM page_base ORDER BY id"
+     ],
+     "limit": 2,
+     "offset": 2,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "id",
+         "tag"
+        ],
+        "rows": [
+         [
+          "i:3",
+          "t:6166746572"
+         ],
+         [
+          "i:4",
+          "t:6166746572"
+         ]
+        ],
+        "offset": 2,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 4,
+        "kind": "query"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "name": "paging_across_a_row_count_change",
+   "steps": [
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE page_base AS SELECT 1 AS id,'before' AS tag UNION ALL SELECT 2,'before' UNION ALL SELECT 3,'before' UNION ALL SELECT 4,'before'"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT id,tag FROM page_base ORDER BY id"
+     ],
+     "limit": 2,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "id",
+         "tag"
+        ],
+        "rows": [
+         [
+          "i:1",
+          "t:6265666f7265"
+         ],
+         [
+          "i:2",
+          "t:6265666f7265"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": 2,
+        "truncated": true,
+        "total_rows": 4,
+        "kind": "query"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "CREATE TEMP TABLE page_base AS SELECT 1 AS id,'x' AS tag UNION ALL SELECT 2,'x'"
+     ],
+     "limit": 50,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [],
+        "rows": [],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 0,
+        "kind": "create_temp_table"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT id,tag FROM page_base ORDER BY id"
+     ],
+     "limit": 2,
+     "offset": 2,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "id",
+         "tag"
+        ],
+        "rows": [],
+        "offset": 2,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 2,
+        "kind": "query"
+       }
+      ]
+     }
+    },
+    {
+     "session": "a",
+     "statements": [
+      "SELECT id,tag FROM page_base ORDER BY id"
+     ],
+     "limit": 2,
+     "offset": 0,
+     "a0": {
+      "statements": [
+       {
+        "columns": [
+         "id",
+         "tag"
+        ],
+        "rows": [
+         [
+          "i:1",
+          "t:78"
+         ],
+         [
+          "i:2",
+          "t:78"
+         ]
+        ],
+        "offset": 0,
+        "next_offset": null,
+        "truncated": false,
+        "total_rows": 2,
+        "kind": "query"
+       }
+      ]
+     }
+    }
+   ]
+  }
+ ]
+}

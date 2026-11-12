@@ -1,0 +1,219 @@
+{
+  "schema_version": "mdd.paging-blocker-cases.v1",
+  "oracle": "conformance/corpus/hostlab/source-8782f43/analysis_paging.py::continuation_reason",
+  "oracle_sha256": "91adddc501e80e8ceeaa7f55ca6f6b12bd715502589f80e7cd4d7da2e5201cb1",
+  "cases": [
+    {
+      "sql": "SELECT a FROM t ORDER BY a",
+      "reason": null
+    },
+    {
+      "sql": "select a from t order by a desc",
+      "reason": null
+    },
+    {
+      "sql": "SELECT a FROM t\nORDER\tBY a",
+      "reason": null
+    },
+    {
+      "sql": "SELECT a FROM t ORDER /* split */ BY a",
+      "reason": null
+    },
+    {
+      "sql": "SELECT a FROM t ORDER -- split\n BY a",
+      "reason": null
+    },
+    {
+      "sql": "WITH c AS (SELECT a FROM t) SELECT a FROM c ORDER BY a",
+      "reason": null
+    },
+    {
+      "sql": "SELECT a FROM (SELECT a FROM t) ORDER BY a",
+      "reason": null
+    },
+    {
+      "sql": "SELECT a FROM t",
+      "reason": "query_requires_stable_outer_order"
+    },
+    {
+      "sql": "SELECT a FROM (SELECT a FROM t ORDER BY a)",
+      "reason": "query_requires_stable_outer_order"
+    },
+    {
+      "sql": "WITH c AS (SELECT a FROM t ORDER BY a) SELECT a FROM c",
+      "reason": "query_requires_stable_outer_order"
+    },
+    {
+      "sql": "SELECT 'ORDER BY a' AS x FROM t",
+      "reason": "query_requires_stable_outer_order"
+    },
+    {
+      "sql": "SELECT \"ORDER\" , \"BY\" FROM t",
+      "reason": "query_requires_stable_outer_order"
+    },
+    {
+      "sql": "SELECT a FROM t -- ORDER BY a",
+      "reason": "query_requires_stable_outer_order"
+    },
+    {
+      "sql": "SELECT a FROM t /* ORDER BY a */",
+      "reason": "query_requires_stable_outer_order"
+    },
+    {
+      "sql": "SELECT a FROM t ORDER",
+      "reason": "query_requires_stable_outer_order"
+    },
+    {
+      "sql": "SELECT a FROM t BY a ORDER",
+      "reason": "query_requires_stable_outer_order"
+    },
+    {
+      "sql": "SELECT [ORDER] FROM t",
+      "reason": "query_requires_stable_outer_order"
+    },
+    {
+      "sql": "SELECT `order` FROM t",
+      "reason": "query_requires_stable_outer_order"
+    },
+    {
+      "sql": "SELECT random() FROM t ORDER BY 1",
+      "reason": "query_volatile_order_or_values"
+    },
+    {
+      "sql": "SELECT RANDOM ( ) FROM t ORDER BY 1",
+      "reason": "query_volatile_order_or_values"
+    },
+    {
+      "sql": "SELECT randomblob(4) FROM t ORDER BY 1",
+      "reason": "query_volatile_order_or_values"
+    },
+    {
+      "sql": "SELECT uuid() FROM t ORDER BY 1",
+      "reason": "query_volatile_order_or_values"
+    },
+    {
+      "sql": "SELECT now() FROM t ORDER BY 1",
+      "reason": "query_volatile_order_or_values"
+    },
+    {
+      "sql": "SELECT CURRENT_TIMESTAMP FROM t ORDER BY 1",
+      "reason": "query_volatile_order_or_values"
+    },
+    {
+      "sql": "SELECT current_date FROM t ORDER BY 1",
+      "reason": "query_volatile_order_or_values"
+    },
+    {
+      "sql": "SELECT CURRENT_TIME FROM t ORDER BY 1",
+      "reason": "query_volatile_order_or_values"
+    },
+    {
+      "sql": "SELECT \"random\"() FROM t ORDER BY 1",
+      "reason": "query_volatile_order_or_values"
+    },
+    {
+      "sql": "SELECT 'random()' FROM t ORDER BY 1",
+      "reason": null
+    },
+    {
+      "sql": "SELECT random FROM t ORDER BY 1",
+      "reason": null
+    },
+    {
+      "sql": "SELECT a FROM t ORDER BY random()",
+      "reason": "query_volatile_order_or_values"
+    },
+    {
+      "sql": "SELECT a FROM t -- random()\nORDER BY a",
+      "reason": null
+    },
+    {
+      "sql": "SELECT \"CURRENT_TIMESTAMP\" FROM t ORDER BY 1",
+      "reason": null
+    },
+    {
+      "sql": "SELECT 'it''s' FROM t ORDER BY a",
+      "reason": null
+    },
+    {
+      "sql": "SELECT 'unterminated FROM t ORDER BY a",
+      "reason": null
+    },
+    {
+      "sql": "SELECT \"unterminated FROM t ORDER BY a",
+      "reason": null
+    },
+    {
+      "sql": "SELECT a FROM t /* unterminated ORDER BY a",
+      "reason": null
+    },
+    {
+      "sql": "SELECT [unterminated FROM t ORDER BY a",
+      "reason": null
+    },
+    {
+      "sql": "SELECT 'a''' FROM t ORDER BY a",
+      "reason": null
+    },
+    {
+      "sql": "SELECT 'a'' FROM t ORDER BY a",
+      "reason": null
+    },
+    {
+      "sql": "SELECT 'x' 'y' FROM t",
+      "reason": "query_requires_stable_outer_order"
+    },
+    {
+      "sql": "SELECT \"a\"\"b\" FROM t ORDER BY a",
+      "reason": null
+    },
+    {
+      "sql": "SELECT `a``b` FROM t ORDER BY a",
+      "reason": null
+    },
+    {
+      "sql": "SELECT 1+2*3 FROM t ORDER BY 1",
+      "reason": null
+    },
+    {
+      "sql": "SELECT a FROM t WHERE (a>1 AND (b<2)) ORDER BY a",
+      "reason": null
+    },
+    {
+      "sql": "SELECT a FROM t WHERE (a>1 ORDER BY a",
+      "reason": "query_requires_stable_outer_order"
+    },
+    {
+      "sql": "SELECT a FROM t WHERE a>1) ORDER BY a",
+      "reason": "query_requires_stable_outer_order"
+    },
+    {
+      "sql": ") SELECT a FROM t ORDER BY a",
+      "reason": "query_requires_stable_outer_order"
+    },
+    {
+      "sql": "",
+      "reason": "query_requires_stable_outer_order"
+    },
+    {
+      "sql": "   ",
+      "reason": "query_requires_stable_outer_order"
+    },
+    {
+      "sql": "SELECT",
+      "reason": "query_requires_stable_outer_order"
+    },
+    {
+      "sql": "ORDER BY",
+      "reason": null
+    },
+    {
+      "sql": "SELECT é FROM t ORDER BY é",
+      "reason": null
+    },
+    {
+      "sql": "SELECT 数据 FROM t ORDER BY 1",
+      "reason": null
+    }
+  ]
+}
