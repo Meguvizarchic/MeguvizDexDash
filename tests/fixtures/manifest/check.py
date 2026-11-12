@@ -26,6 +26,13 @@ def main():
                 require(archive.read(archive.infolist()[0]) == raw, "independent ZIP CRC/full-member identity")
             if file.suffix == ".xml":
                 xml += 1
+                # Fixtures are byte-exact synthetic manifests. Reject DTD and
+                # entity declarations before parsing so a crafted fixture cannot
+                # trigger internal entity expansion, and bound the input size.
+                require(len(raw) <= 8 * 1024 * 1024, "fixture XML exceeds parse budget")
+                head = raw[:4096].upper()
+                require(b"<!DOCTYPE" not in head, "fixture XML may not declare a DTD")
+                require(b"<!ENTITY" not in head, "fixture XML may not declare entities")
                 root = ET.fromstring(raw)
                 require(root.tag == "manifest", "independent text XML root")
         else:

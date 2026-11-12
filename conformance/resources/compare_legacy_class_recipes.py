@@ -30,9 +30,15 @@ def main():
     item=next(x for x in registry['binaries'] if x['group']=='A0' and x['platform']=='windows_amd64');binary=Path(item['actual_path'])
     require(digest(apk)==input_sha and digest(binary)==item['expected_sha256'],'identity differs')
     source_path=ROOT/'conformance/corpus/hostlab/source-8782f43/native_surface.py'
-    source=source_path.read_text(encoding='utf8');node=next(x for x in ast.parse(source).body if isinstance(x,ast.FunctionDef) and x.name=='legacy_body_order')
-    environment={'re':re,'UnsupportedAudit':ValueError};exec(compile(ast.Module(body=[node],type_ignores=[]),str(source_path),'exec'),environment)
-    order=environment['legacy_body_order']
+    # Mirror the pinned native_surface.legacy_body_order rule directly. The
+    # frozen function is pure string handling over a method prototype, so this
+    # reimplements it rather than compiling and running pinned source here.
+    def order(proto):
+        parameters, result = proto[1:].split(")", 1)
+        tokens = re.findall(r"\[*(?:[ZBSCIJFD]|L[^;]+;)", parameters)
+        if "".join(tokens) != parameters:
+            raise ValueError("method prototype cannot preserve the legacy bytecode fingerprint ordering")
+        return "(" + " ".join(tokens) + ")" + result
     argv=[str(binary),'--threads','1','query','--input',str(apk),'--sql',SQL]
     run=subprocess.run(argv,capture_output=True,check=False,timeout=180)
     out=ROOT/'artifacts/mdd-025/raw-fingerprints/legacy-class-recipes';out.mkdir(parents=True,exist_ok=True)

@@ -3,14 +3,14 @@ from pathlib import Path
 import hashlib
 import json
 import tomllib
-import urllib.request
+
+from pinned_fetch import fetch_following
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
 def get(url):
-    with urllib.request.urlopen(urllib.request.Request(url, headers={'User-Agent': 'MDD-parser-safety'}),
-                                timeout=60) as response:
+    with fetch_following(url) as response:
         return response.read()
 
 
@@ -28,7 +28,7 @@ def main():
         if not target['available']:
             raise RuntimeError(f'required nightly package unavailable: {name}')
         # Probe actual downloadable component existence, without downloading the toolchain locally.
-        with urllib.request.urlopen(urllib.request.Request(target['xz_url'], method='HEAD'), timeout=60) as r:
+        with fetch_following(target['xz_url'], method='HEAD') as r:
             if r.status != 200:
                 raise RuntimeError('component not downloadable')
         packages[name] = dict(version=package['version'], url=target['xz_url'],

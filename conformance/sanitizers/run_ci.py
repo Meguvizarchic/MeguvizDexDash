@@ -11,7 +11,6 @@ import shutil
 import subprocess
 import sys
 import time
-import urllib.request
 
 ROOT = Path(__file__).resolve().parents[2]
 TARGETS = ('archive', 'mutf8_leb', 'header_raw', 'header_repaired', 'code_payload', 'encoded_values')
@@ -26,9 +25,9 @@ def write(path, obj):
 
 
 def fetch(url):
-    with urllib.request.urlopen(urllib.request.Request(url, headers={'User-Agent': 'MDD-parser-safety'}),
-                                timeout=60) as r:
-        return r.read()
+    from pinned_fetch import fetch_following
+    with fetch_following(url) as response:
+        return response.read()
 
 
 def verify_inputs():

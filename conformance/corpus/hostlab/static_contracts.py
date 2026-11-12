@@ -32,6 +32,34 @@ def expression_nodes(text):
     return list(result.values())
 
 
+def assemble_pinned_sql(node, in_list, descriptor, owners):
+    """Rebuild a pinned SQL expression from its AST without executing it.
+
+    Only string constants, `+` concatenation, and the single accepted helper
+    shape `in_list(map(descriptor, owners))` are understood. Any other node
+    raises, so this cannot silently widen into general evaluation.
+    """
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        return assemble_pinned_sql(node.left, in_list, descriptor, owners) + \
+            assemble_pinned_sql(node.right, in_list, descriptor, owners)
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == 'in_list':
+        if len(node.args) != 1:
+            raise RuntimeError('pinned SQL: in_list arity changed')
+        inner = node.args[0]
+        if not (isinstance(inner, ast.Call) and isinstance(inner.func, ast.Name)
+                and inner.func.id == 'map' and len(inner.args) == 2):
+            raise RuntimeError('pinned SQL: unexpected in_list argument shape')
+        mapper, values = inner.args
+        if not (isinstance(mapper, ast.Name) and mapper.id == 'descriptor'):
+            raise RuntimeError('pinned SQL: unexpected map mapper')
+        if not (isinstance(values, ast.Name) and values.id == 'owners'):
+            raise RuntimeError('pinned SQL: unexpected map source')
+        return in_list(descriptor(owner) for owner in owners)
+    raise RuntimeError('pinned SQL: node ' + type(node).__name__ + ' is outside the static assembler')
+
+
 def enrich(corpus, relations, source, root):
     schemas = {r["name"]: r["columns"] for r in relations}
     sources = {}
@@ -66,13 +94,27 @@ def enrich(corpus, relations, source, root):
       "Q15": [{"label":"legacy_locate_method","columns":[{"name":"file_id","ordinal":0,"data_type":"SQLite INTEGER","nullable":True},{"name":"descriptor","ordinal":1,"data_type":"SQLite TEXT","nullable":True}]}],
       "Q16": [{"label":"native_statement_results","columns":"per-statement dynamic metadata from reference MCP tool response","metadata_contract":"statement_index/kind/columns/rows/total_rows/offset/next_offset/truncated; schema is session TEMP-generation dependent"}]
     }
-    ns={"__builtins__":{},"any":any,"ValueError":ValueError}
-    session_tree=ast.parse((source/'native_session.py').read_text())
-    exec(compile(ast.Module(body=[n for n in session_tree.body if isinstance(n,ast.FunctionDef)],type_ignores=[]),'<frozen-native-session>','exec'),ns)
-    ns.update(map=map,str=str,descriptor=lambda n:'L'+n.replace('.','/')+';',owners=['fixture.A'])
-    rule_text=(source/'native_rules.py').read_text()
-    q6node=next(n for n in expression_nodes(rule_text) if n.lineno==56)
-    exact_q6=eval(compile(ast.Expression(q6node),'<frozen-native-rules-sql>','eval'),ns)
+    def literal(value):
+        # Same rule as the pinned native_session.literal: reject control
+        # characters, then single-quote with doubled internal quotes.
+        if any(c in value for c in "\r\n\0"):
+            raise ValueError("audit SQL literal contains unsupported control characters")
+        return "'" + value.replace("'", "''") + "'"
+
+    def in_list(values):
+        return ",".join(literal(value) for value in values)
+
+    def descriptor(name):
+        return 'L' + name.replace('.', '/') + ';'
+
+    owners = ['fixture.A']
+    rule_text = (source / 'native_rules.py').read_text()
+    q6node = next(n for n in expression_nodes(rule_text) if n.lineno == 56)
+    # The pinned Q06 statement is a concatenation of string constants and the
+    # in_list(map(descriptor, owners)) helper result. Rebuild it from the AST
+    # instead of evaluating the frozen expression: only constants and that one
+    # helper call are accepted, so no pinned source is ever executed here.
+    exact_q6 = assemble_pinned_sql(q6node, in_list, descriptor, owners)
     for q in corpus:
         expr=[]
         for name,lo,hi in RANGES[q['id']]:
