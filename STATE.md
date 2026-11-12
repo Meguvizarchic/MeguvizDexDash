@@ -150,8 +150,8 @@
 - **应用类名不入库**：`hostlab/catalog.rs` 不再含任何应用类名，只保留规则读取的键名（`REQUIRED_LISTS` / `REQUIRED_CONSTANTS`）和校验构造器 `HostlabCatalog::new`；载荷在运营方提供的 JSON 文件里，`hostlab_audit` 示例以第二个参数读取。`surface_summary` 示例的家族前缀表同样改为 `--families FILE.json`。载荷导出到本机被忽略的 `artifacts/local/hostlab/`。在私有 APK 上用外部文件重跑，`surface_summary` 与 `hostlab_audit` 的业务输出与改动前逐项相同（只有每次运行都不同的 occurrence/snapshot id 不同）。rules.rs、surface.rs 里引用应用类名的注释与测试字符串改为中性写法。
 - **含本机路径的原始证据不入库**：本分支新增的证据文件中有 1,143 个含 开发盘符路径或 Windows 用户目录之类的本机路径（此前口头报告的 128 个是 grep 转义写错造成的低估），共约 11 MB，已整体移到本机 `artifacts/local/withheld-evidence-20261112/`（保持原目录结构），不进入提交。说明见 `artifacts/WITHHELD.md`。唯一被代码依赖的一份（`scope.rs` 测试读取的 A0 provenance 记录）改为可移植夹具 `tests/fixtures/provenance/a0-dex-files-provenance.json`：`source_path` 记为相对仓库根的路径，测试按本机检出根去前缀后比较，不再要求仓库位于录制机器上的固定目录（原测试在任何其他路径上都会失败）。
 - 两份对私有 Bilibili APK 的原始运行记录同样只留在本机 `artifacts/local/mdd-051-private/`。
-- **仍然带本机路径、本次没有处理的**：更早的 72 个提交里已有约 30 个日志类文件含 Windows 用户目录路径（mdd-005 的 a2 运行输出、mdd-031-audit 的若干 record.json 等）。它们来自此前的提交而非本轮，处理需要改写更早的历史，留待决定。`main` 上本来就有 258 个含此类路径的文件。
-- 本地备份分支：`backup/pre-clean-20261112`、`backup/pre-withhold-20261112` 保存了清理前的提交（含上述内容），只在本机；**不要用「推送所有分支」的方式推送**。
+- **更早提交里的 31 个带 Windows 用户目录路径的日志文件已用改写历史去掉**（用户决定）：对本分支相对 `origin/main` 的 77 个提交逐个过滤——删除 31 个证据文件（mdd-005 15 个、mdd-031-audit 15 个、mdd-026 1 个）、把历史版本 `benchmarks/README.md` 里的解释器绝对路径改为 `python`、并同步删去 `artifacts/index.json` 中对应的记录。改写后按内容重扫整段历史，含本机路径或应用类名且 `main` 上没有的文件内容为 0；77 个提交作者仍为 `jichuo1`，无任何附加署名；每个提交的索引记录都能在该提交的树里找到对应文件。提交号因此全部改变。`main` 上本来就有 258 个含此类路径的文件，未触碰。
+- 本地备份：`backup/pre-clean-20261112`、`backup/pre-withhold-20261112`、`backup/pre-history-rewrite-20261112` 保存了各步骤之前的提交（含被清掉的内容），另有此前就存在的 `archive/m2-unpublished-e024eca`。它们只在本机，**不要用「推送所有分支」的方式推送**；确认不再需要后应删除。
 
 ## Checkout 与交付
 
