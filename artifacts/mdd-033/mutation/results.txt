@@ -1,0 +1,17 @@
+KILLED  : cursor spec ignores the TEMP definitions
+KILLED  : expansion does not follow dependencies
+KILLED  : drop keeps the stored body
+KILLED  : IF NOT EXISTS replaces
+KILLED  : volatile definitions accepted
+KILLED  : DROP ignores the kind keyword
+KILLED  : alias after AS counts as a read
+KILLED  : definition echoes offset zero
+KILLED  : own CTE does not hide a definition
+KILLED  : names are case sensitive
+KILLED  : IF NOT EXISTS ignored for views
+KILLED  : unaliased expressions keep SQLite text names
+KILLED  : result names keep their case
+KILLED  : items are not split into statements
+KILLED  : failed list rolls back nothing (stops early)
+restored tree passes: True
+exit=0

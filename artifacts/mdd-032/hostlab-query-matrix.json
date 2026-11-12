@@ -1,0 +1,1536 @@
+{
+ "schema_version": "mdd.hostlab-query-matrix.v1",
+ "task": "MDD-032",
+ "kind": "development evidence; admits no profile",
+ "reference": {
+  "backend": "dexsql 0.1.0 (frozen A0)",
+  "sha256": "f354ebcf715de9a66ef8ebe08b2b36807ab58e25cd5a1c0812e497fc1fcfc448",
+  "role": "independent oracle for expected values; never used to produce engine results"
+ },
+ "inputs": [
+  "tests/fixtures/definitions/generated/definitions-035.dex",
+  "tests/fixtures/references/generated/classic-035.dex",
+  "tests/fixtures/annotations/generated/annotations-038.dex"
+ ],
+ "sources": {
+  "conformance/corpus/hostlab/required-variants.json": "25fc93f57c25ff6f54d23dd5b607e9d5931060bddae35068ef0da9cfdae8d05d",
+  "conformance/corpus/hostlab/expected-results/hostlab-a0-golden.json": "c93bf06d67cb41a64ff2558d34f4c127d2e03f377de4e0acfafdeb30eb1dbabb",
+  "conformance/corpus/hostlab/paging-blocker-cases.json": "f2b56a4f806d8716787ccc3aee53466cbb3b72b1a4f10f0b88099c62076ed7d2",
+  "conformance/corpus/hostlab/queries.jsonl": "e6a94471466af10c2482d851358296c1a5fcc3809c8eb3c7531a9262af2391b4"
+ },
+ "comparison": {
+  "engine_cells_equal_to_a0": true,
+  "variants": 76,
+  "pages": 144,
+  "rejections_checked": 10,
+  "paging_blocker_cases": 53
+ },
+ "families": [
+  {
+   "family": "Q01",
+   "title": "Input inventory and string pools",
+   "required_profile": "hostlab-audit-v1",
+   "variants": [
+    {
+     "variant": "inventory",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 3,
+     "a0_total_rows": [
+      3
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "pool_mapping",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 3,
+     "a0_total_rows": [
+      3
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "sql_at_12000_characters",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 3,
+     "a0_total_rows": [
+      3
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "sql_at_12001_characters",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 3,
+     "a0_total_rows": [
+      3
+     ],
+     "engine_vs_a0": "cell_equal"
+    }
+   ]
+  },
+  {
+   "family": "Q02",
+   "title": "Class metadata and wildcard members",
+   "required_profile": "hostlab-audit-v1",
+   "variants": [
+    {
+     "variant": "cf_wildcard",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 4,
+     "a0_total_rows": [
+      4
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "cm_wildcard",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 5,
+     "a0_total_rows": [
+      5
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "class_meta",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 1,
+     "a0_total_rows": [
+      1
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "in_list_80",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 1,
+     "a0_total_rows": [
+      1
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "in_list_120",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 1,
+     "a0_total_rows": [
+      1
+     ],
+     "engine_vs_a0": "cell_equal"
+    }
+   ]
+  },
+  {
+   "family": "Q03",
+   "title": "Interfaces join with local identities",
+   "required_profile": "hostlab-audit-v1",
+   "variants": [
+    {
+     "variant": "interface_join",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 1,
+     "a0_total_rows": [
+      1
+     ],
+     "engine_vs_a0": "cell_equal"
+    }
+   ]
+  },
+  {
+   "family": "Q04",
+   "title": "Ordered Signature annotation hierarchy",
+   "required_profile": "hostlab-audit-v1",
+   "variants": [
+    {
+     "variant": "Signature_type",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 1,
+     "a0_total_rows": [
+      1
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "directory",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 3,
+     "a0_total_rows": [
+      3
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "set_entries",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 5,
+     "a0_total_rows": [
+      5
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "annotation_type",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 4,
+     "a0_total_rows": [
+      4
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "elements",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 16,
+     "a0_total_rows": [
+      16
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "string_pool",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 94,
+     "a0_total_rows": [
+      94
+     ],
+     "engine_vs_a0": "cell_equal"
+    }
+   ]
+  },
+  {
+   "family": "Q05",
+   "title": "Definition-to-reference return discovery",
+   "required_profile": "hostlab-audit-v1",
+   "variants": [
+    {
+     "variant": "return_discovery",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 5,
+     "a0_total_rows": [
+      5
+     ],
+     "engine_vs_a0": "cell_equal"
+    }
+   ]
+  },
+  {
+   "family": "Q06",
+   "title": "String candidate and LIKE/ESCAPE",
+   "required_profile": "hostlab-audit-v1",
+   "variants": [
+    {
+     "variant": "string_candidates",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 1,
+     "a0_total_rows": [
+      1
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "like_ascii_case",
+     "statement_count": 6,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 85,
+     "a0_total_rows": [
+      12,
+      0,
+      72,
+      1,
+      0,
+      0
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "like_literals",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 1,
+     "a0_total_rows": [
+      1
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "cross_dex_string_join",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 10,
+     "a0_total_rows": [
+      10
+     ],
+     "engine_vs_a0": "cell_equal"
+    }
+   ]
+  },
+  {
+   "family": "Q07",
+   "title": "Complete class count",
+   "required_profile": "hostlab-audit-v1",
+   "variants": [
+    {
+     "variant": "class_count",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 1,
+     "a0_total_rows": [
+      1
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "type_occurrences",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 16,
+     "a0_total_rows": [
+      16
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "string_occurrences",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 6,
+     "a0_total_rows": [
+      6
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "all_vs_distinct",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 1,
+     "a0_total_rows": [
+      1
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "per_file_counts",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 3,
+     "a0_total_rows": [
+      3
+     ],
+     "engine_vs_a0": "cell_equal"
+    }
+   ]
+  },
+  {
+   "family": "Q08",
+   "title": "Per-DEX classes and member surface",
+   "required_profile": "hostlab-audit-v1",
+   "variants": [
+    {
+     "variant": "class_surface",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 6,
+     "a0_total_rows": [
+      6
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "field_surface",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 7,
+     "a0_total_rows": [
+      7
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "method_surface",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 15,
+     "a0_total_rows": [
+      15
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "family_prefix_or",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 6,
+     "a0_total_rows": [
+      6
+     ],
+     "engine_vs_a0": "cell_equal"
+    }
+   ]
+  },
+  {
+   "family": "Q09",
+   "title": "Raw body range and exact membership",
+   "required_profile": "hostlab-audit-v1",
+   "variants": [
+    {
+     "variant": "raw_body_ranges",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 8,
+     "a0_total_rows": [
+      8
+     ],
+     "engine_vs_a0": "cell_equal"
+    }
+   ]
+  },
+  {
+   "family": "Q10",
+   "title": "Call-site multiplicity aggregate",
+   "required_profile": "hostlab-audit-v1",
+   "variants": [
+    {
+     "variant": "call_counts",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 4,
+     "a0_total_rows": [
+      4
+     ],
+     "engine_vs_a0": "cell_equal"
+    }
+   ]
+  },
+  {
+   "family": "Q11",
+   "title": "Protocol definitions",
+   "required_profile": "hostlab-audit-v1",
+   "variants": [
+    {
+     "variant": "protocol_definitions",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 5,
+     "a0_total_rows": [
+      5
+     ],
+     "engine_vs_a0": "cell_equal"
+    }
+   ]
+  },
+  {
+   "family": "Q12",
+   "title": "Locate and four refs generators",
+   "required_profile": "hostlab-audit-v1",
+   "variants": [
+    {
+     "variant": "locate_class",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 1,
+     "a0_total_rows": [
+      1
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "locate_method",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 1,
+     "a0_total_rows": [
+      1
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "locate_field",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 1,
+     "a0_total_rows": [
+      1
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "refs_string",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 2,
+     "a0_total_rows": [
+      2
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "refs_method",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 3,
+     "a0_total_rows": [
+      3
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "refs_field",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 2,
+     "a0_total_rows": [
+      2
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "refs_type",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 2,
+     "a0_total_rows": [
+      2
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "limit_plus_one_overflow",
+     "statement_count": 1,
+     "window": {
+      "limit": 3,
+      "offset": 0,
+      "walk": true
+     },
+     "pages": 2,
+     "rows_returned": 4,
+     "a0_total_rows": [
+      4
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "like_escape",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 11,
+     "a0_total_rows": [
+      11
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "case_mapping_order",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 24,
+     "a0_total_rows": [
+      24
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "null_ordering_desc",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 6,
+     "a0_total_rows": [
+      6
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "positional_order",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 6,
+     "a0_total_rows": [
+      6
+     ],
+     "engine_vs_a0": "cell_equal"
+    }
+   ]
+  },
+  {
+   "family": "Q13",
+   "title": "CLI shape and lossless value wrapper",
+   "required_profile": "hostlab-audit-v1",
+   "variants": [
+    {
+     "variant": "shape",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 0,
+     "a0_total_rows": [
+      0
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "shape_classes",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 0,
+     "a0_total_rows": [
+      0
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "hex_wrapper",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 6,
+     "a0_total_rows": [
+      6
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "hex_wrapper_inventory",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 3,
+     "a0_total_rows": [
+      3
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "boundary",
+     "statement_count": 2,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 4,
+     "a0_total_rows": [
+      3,
+      1
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "boundary_wrapped",
+     "statement_count": 2,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 7,
+     "a0_total_rows": [
+      6,
+      1
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "null_cells",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 6,
+     "a0_total_rows": [
+      6
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "numeric_nulls",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 44,
+     "a0_total_rows": [
+      44
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "real_cells",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 7,
+     "a0_total_rows": [
+      7
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "literal_fidelity",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 1,
+     "a0_total_rows": [
+      1
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "hex_wrapper_nulls",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 6,
+     "a0_total_rows": [
+      6
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "unaliased_names_a",
+     "statement_count": 9,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 19,
+     "a0_total_rows": [
+      1,
+      1,
+      3,
+      1,
+      3,
+      3,
+      3,
+      3,
+      1
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "unaliased_names_b",
+     "statement_count": 9,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 14,
+     "a0_total_rows": [
+      1,
+      1,
+      1,
+      1,
+      1,
+      3,
+      1,
+      3,
+      2
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "result_name_case",
+     "statement_count": 11,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 23,
+     "a0_total_rows": [
+      3,
+      3,
+      3,
+      3,
+      3,
+      1,
+      1,
+      1,
+      1,
+      3,
+      1
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "script_boundary",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 4,
+     "a0_total_rows": [
+      3,
+      1
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "script_splitting",
+     "statement_count": 4,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 5,
+     "a0_total_rows": [
+      1,
+      1,
+      1,
+      1,
+      1
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "script_65_statements",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 65,
+     "a0_total_rows": [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "sql_total_at_64kib",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 3,
+     "a0_total_rows": [
+      3
+     ],
+     "engine_vs_a0": "cell_equal"
+    }
+   ]
+  },
+  {
+   "family": "Q14",
+   "title": "Stable paging SELECT/WITH",
+   "required_profile": "hostlab-audit-v1",
+   "variants": [
+    {
+     "variant": "walk_strings_5",
+     "statement_count": 1,
+     "window": {
+      "limit": 5,
+      "offset": 0,
+      "walk": true
+     },
+     "pages": 19,
+     "rows_returned": 94,
+     "a0_total_rows": [
+      94
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "walk_strings_1000",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": true
+     },
+     "pages": 1,
+     "rows_returned": 94,
+     "a0_total_rows": [
+      94
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "walk_classes_3",
+     "statement_count": 1,
+     "window": {
+      "limit": 3,
+      "offset": 0,
+      "walk": true
+     },
+     "pages": 2,
+     "rows_returned": 6,
+     "a0_total_rows": [
+      6
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "walk_with_cte",
+     "statement_count": 1,
+     "window": {
+      "limit": 4,
+      "offset": 0,
+      "walk": true
+     },
+     "pages": 24,
+     "rows_returned": 94,
+     "a0_total_rows": [
+      94
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "walk_inside_sql_limit",
+     "statement_count": 1,
+     "window": {
+      "limit": 5,
+      "offset": 0,
+      "walk": true
+     },
+     "pages": 3,
+     "rows_returned": 12,
+     "a0_total_rows": [
+      12
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "walk_duplicate_rows",
+     "statement_count": 1,
+     "window": {
+      "limit": 7,
+      "offset": 0,
+      "walk": true
+     },
+     "pages": 14,
+     "rows_returned": 94,
+     "a0_total_rows": [
+      94
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "walk_zero_rows",
+     "statement_count": 1,
+     "window": {
+      "limit": 10,
+      "offset": 0,
+      "walk": true
+     },
+     "pages": 1,
+     "rows_returned": 0,
+     "a0_total_rows": [
+      0
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "window_middle",
+     "statement_count": 1,
+     "window": {
+      "limit": 6,
+      "offset": 6,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 6,
+     "a0_total_rows": [
+      94
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "window_past_end",
+     "statement_count": 1,
+     "window": {
+      "limit": 6,
+      "offset": 90000,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 0,
+     "a0_total_rows": [
+      94
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "window_exact_end",
+     "statement_count": 1,
+     "window": {
+      "limit": 1,
+      "offset": 2,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 1,
+     "a0_total_rows": [
+      3
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "window_each_statement",
+     "statement_count": 3,
+     "window": {
+      "limit": 2,
+      "offset": 1,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 4,
+     "a0_total_rows": [
+      3,
+      94,
+      0
+     ],
+     "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "walk_long_value",
+     "statement_count": 1,
+     "window": {
+      "limit": 9,
+      "offset": 0,
+      "walk": true
+     },
+     "pages": 11,
+     "rows_returned": 94,
+     "a0_total_rows": [
+      94
+     ],
+     "engine_vs_a0": "cell_equal"
+    }
+   ]
+  },
+  {
+   "family": "Q15",
+   "title": "Legacy SQLite definitions and TSV",
+   "required_profile": "legacy-sqlite-or-public-product",
+   "variants": [
+    {
+     "variant": "legacy_locate_method",
+     "statement_count": 1,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 1,
+     "a0_total_rows": [
+      1
+     ],
+     "engine_vs_a0": "cell_equal"
+    }
+   ]
+  },
+  {
+   "family": "Q16",
+   "title": "Native TEMP and multistatement",
+   "required_profile": "legacy-sqlite-or-public-product",
+   "variants": [],
+   "status": "outside hostlab-audit-v1; session TEMP behaviour is recorded in artifacts/mdd-033/paging-isolation.json"
+  }
+ ],
+ "rejections": [
+  {
+   "name": "second_statement_fails",
+   "a0_refused": true,
+   "a0_failing_statement": 1
+  },
+  {
+   "name": "seventeen_statements",
+   "a0_refused": true,
+   "a0_failing_statement": null
+  },
+  {
+   "name": "no_statements",
+   "a0_refused": true,
+   "a0_failing_statement": null
+  },
+  {
+   "name": "limit_zero",
+   "a0_refused": true,
+   "a0_failing_statement": null
+  },
+  {
+   "name": "limit_over_maximum",
+   "a0_refused": true,
+   "a0_failing_statement": null
+  },
+  {
+   "name": "window_end_over_cap",
+   "a0_refused": true,
+   "a0_failing_statement": null
+  },
+  {
+   "name": "blank_item",
+   "a0_refused": true,
+   "a0_failing_statement": null
+  },
+  {
+   "name": "sql_over_64kib",
+   "a0_refused": true,
+   "a0_failing_statement": null
+  },
+  {
+   "name": "unterminated_quote_in_second_item",
+   "a0_refused": true,
+   "a0_failing_statement": 1
+  },
+  {
+   "name": "bad_statement_in_second_item",
+   "a0_refused": true,
+   "a0_failing_statement": 2
+  }
+ ],
+ "acceptance": [
+  {
+   "acceptance": "seventeen relations satisfy the frozen column contract and match A0 row for row",
+   "tests": [
+    {
+     "test": "provider::hostlab::tests::a0_differential_over_the_fixture_corpus_has_only_declared_divergences",
+     "outcome": "ok"
+    },
+    {
+     "test": "provider::hostlab::tests::all_seventeen_relations_return_rows_from_real_facts",
+     "outcome": "ok"
+    },
+    {
+     "test": "provider::hostlab::tests::coverage_ledger_gates_each_relation_on_the_layers_that_prove_it",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  },
+  {
+   "acceptance": "every required template, dynamic-parameter class and helper statement executes completely",
+   "tests": [
+    {
+     "test": "provider::hostlab::tests::hostlab_variants_match_the_a0_golden_results",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  },
+  {
+   "acceptance": "cross-DEX string correlation, COUNT(*) multiplicity, generic ordering, cf./cm. columns and raw code units have counterexamples",
+   "tests": [
+    {
+     "test": "provider::hostlab::tests::hostlab_variants_match_the_a0_golden_results",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  },
+  {
+   "acceptance": "LIKE candidates keep the full superset the exact Python classification needs",
+   "tests": [
+    {
+     "test": "provider::hostlab::tests::hostlab_variants_match_the_a0_golden_results",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  },
+  {
+   "acceptance": "no required query is unsupported, short, NULL-wrong or answered by the old engine",
+   "tests": [
+    {
+     "test": "provider::hostlab::tests::hostlab_variants_match_the_a0_golden_results",
+     "outcome": "ok"
+    },
+    {
+     "test": "provider::hostlab::tests::calls_the_reference_refuses_are_refused_with_the_same_failing_statement",
+     "outcome": "ok"
+    },
+    {
+     "test": "window::tests::paging_blocker_matches_the_frozen_reference_on_recorded_cases",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  }
+ ],
+ "not_covered": [
+  "Q16 named_temp_queries tool argument",
+  "recursive CTE (engine refuses with RECURSIVE_CTE_NOT_YET_QUALIFIED; no frozen template uses it)",
+  "GLOB operator (engine refuses with BINARY_OPERATOR_NOT_IMPLEMENTED; no frozen template uses it)",
+  "double-quoted string literals: the reference falls back to a string literal for an unknown double-quoted identifier, the engine refuses it",
+  "NaN payload bits of value_f64 (the reference MCP JSON cannot carry them; compared in the CLI readback test)"
+ ],
+ "run": {
+  "command": [
+   "cargo",
+   "test",
+   "--offline",
+   "--locked",
+   "-p",
+   "mdd-sql",
+   "-p",
+   "mdd-session",
+   "--lib"
+  ],
+  "started_utc": "2026-11-12T12:22:47.183361+00:00",
+  "finished_utc": "2026-11-12T12:22:56.602569+00:00",
+  "exit_code": 0,
+  "raw_log_sha256": "e1db652754543b97962bf16d765748703c8af1a11c90342806a870f324ff21ad",
+  "raw_log_bytes": 27308,
+  "raw_log_kept_at": "artifacts/local/ (ignored; carries developer-machine output)",
+  "targets": 2,
+  "passed": 305,
+  "failed": 0,
+  "ignored": 0
+ }
+}

@@ -1,0 +1,12 @@
+KILLED: skip one row too many
+KILLED: never flag the next page
+KILLED: total ignores skipped rows
+KILLED: window ignores limit
+KILLED: null rendered as text
+KILLED: real bit pattern perturbed
+KILLED: blob rendered as text
+KILLED: items are not split into statements
+KILLED: batch stops after the first statement
+KILLED: golden cell edited
+restored tree passes: True
+exit=0

@@ -1,0 +1,198 @@
+{
+ "schema_version": "mdd.paging-isolation.v1",
+ "task": "MDD-033",
+ "kind": "development evidence; admits no profile",
+ "reference": {
+  "backend": "dexsql 0.1.0 (frozen A0)",
+  "sha256": "f354ebcf715de9a66ef8ebe08b2b36807ab58e25cd5a1c0812e497fc1fcfc448"
+ },
+ "sources": {
+  "conformance/session/catalog-and-paging.json": "6ff32f815e120df66a611fedd846a839aaba64fbcbeb860fb4058c88cfc4a670"
+ },
+ "scenario_replay": {
+  "scenarios": 22,
+  "steps": 158,
+  "a0_refusals": 44,
+  "engine_matches_a0_on_every_step": true,
+  "names": [
+   "create_query_drop",
+   "if_not_exists_keeps_the_first_body",
+   "redefinition_replaces",
+   "views_and_tables_are_late_bound",
+   "drop_kind_and_existence",
+   "unknown_dependency_and_cycle",
+   "sessions_do_not_share_definitions",
+   "a_definition_shadows_a_provider_relation",
+   "a_failed_list_keeps_earlier_definitions",
+   "statements_see_earlier_statements_of_the_same_call",
+   "scripts_define_and_read_in_one_item",
+   "forms_outside_the_subset",
+   "plain_create_view_is_a_temp_definition",
+   "names_are_case_insensitive_and_simple",
+   "definition_bodies",
+   "volatile_bodies",
+   "a_definition_reads_a_later_definition_of_its_dependency",
+   "a_query_own_cte_hides_a_definition",
+   "definitions_echo_the_window_offset",
+   "paging_over_a_definition",
+   "paging_across_a_redefinition",
+   "paging_across_a_row_count_change"
+  ]
+ },
+ "acceptance": [
+  {
+   "acceptance": "a cursor binds snapshot, session, catalog_epoch, query and schema; other scope or an old generation fails explicitly",
+   "tests": [
+    {
+     "test": "cursors::tests::native_cursor_binds_every_identity_component",
+     "outcome": "ok"
+    },
+    {
+     "test": "cursors::tests::forged_worker_generation_is_rejected",
+     "outcome": "ok"
+    },
+    {
+     "test": "cursors::tests::a_new_worker_generation_invalidates_older_cursors",
+     "outcome": "ok"
+    },
+    {
+     "test": "provider::hostlab::temp_tests::definitions_and_bindings_do_not_cross_sessions",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  },
+  {
+   "acceptance": "catalog_epoch is a decimal u64 string and a running cursor is never migrated to a new TEMP definition",
+   "tests": [
+    {
+     "test": "provider::hostlab::temp_tests::a_native_cursor_keeps_the_definition_it_was_prepared_with",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  },
+  {
+   "acceptance": "the same SQL with the same row count and schema over a changed source cannot be stitched into mixed pages",
+   "tests": [
+    {
+     "test": "cursors::tests::same_sql_same_schema_different_source_cannot_be_stitched",
+     "outcome": "ok"
+    },
+    {
+     "test": "provider::hostlab::temp_tests::a_redefinition_between_pages_is_refused_instead_of_stitching_two_definitions",
+     "outcome": "ok"
+    },
+    {
+     "test": "provider::hostlab::temp_tests::a_changed_row_count_under_the_same_statement_shape_is_refused_as_a_changed_total",
+     "outcome": "ok"
+    },
+    {
+     "test": "provider::hostlab::temp_tests::a_changed_definition_shape_between_pages_is_refused_as_a_different_statement",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  },
+  {
+   "acceptance": "compatible-offset re-execution cost and stability are explicit and a native cursor is not presented as it",
+   "tests": [
+    {
+     "test": "cursors::tests::compat_offset_walks_pages_with_lookahead_and_no_cursor",
+     "outcome": "ok"
+    },
+    {
+     "test": "provider::hostlab::temp_tests::a_compatible_offset_sequence_over_a_definition_completes_and_counts_its_reexecutions",
+     "outcome": "ok"
+    },
+    {
+     "test": "cursors::tests::compat_offset_budget_and_epoch_observation_are_explicit",
+     "outcome": "ok"
+    },
+    {
+     "test": "cursors::tests::exhausting_the_row_budget_is_reported_not_presented_as_the_end",
+     "outcome": "ok"
+    },
+    {
+     "test": "cursors::tests::paging_modes_never_share_a_token",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  },
+  {
+   "acceptance": "TEMP catalog cycles, IF NOT EXISTS, DROP, redefinition and cross-session isolation behave like the validated profile",
+   "tests": [
+    {
+     "test": "provider::hostlab::temp_tests::temp_scenarios_match_the_recorded_a0_behaviour",
+     "outcome": "ok"
+    },
+    {
+     "test": "provider::hostlab::temp_tests::a_name_that_is_only_an_output_alias_is_not_a_dependency",
+     "outcome": "ok"
+    },
+    {
+     "test": "provider::hostlab::temp_tests::volatile_definitions_and_unreadable_bodies_are_refused_without_a_catalog_change",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  }
+ ],
+ "declared_divergences_from_a0": [
+  {
+   "id": "compatible-offset-redefinition-is-refused",
+   "reference": "page 2 is answered from the new definition: rows 1-2 'before', rows 3-4 'after' in one sequence (scenario paging_across_a_redefinition)",
+   "engine": "the page source identity carries the digest of the TEMP definitions the statement was expanded with, so the sequence is refused as source_changed; a native cursor keeps its own definition",
+   "tests": [
+    "a_redefinition_between_pages_is_refused_instead_of_stitching_two_definitions",
+    "a_native_cursor_keeps_the_definition_it_was_prepared_with"
+   ]
+  },
+  {
+   "id": "volatile-definitions-are-refused",
+   "reference": "random() in a definition body is refused by the read-only subset; CURRENT_TIMESTAMP is refused as well (scenario volatile_bodies)",
+   "engine": "any volatile call or clock keyword in a definition body is refused before the catalog changes",
+   "tests": [
+    "volatile_definitions_and_unreadable_bodies_are_refused_without_a_catalog_change"
+   ]
+  },
+  {
+   "id": "definitions-are-late-bound-not-materialized",
+   "reference": "a TABLE defined over another table sees that table's later redefinition (scenario views_and_tables_are_late_bound)",
+   "engine": "identical; the catalog stores the query and its fingerprint, nothing is materialized",
+   "tests": [
+    "temp_scenarios_match_the_recorded_a0_behaviour"
+   ]
+  }
+ ],
+ "not_covered": [
+  "transport wiring: no MCP/CLI entry point calls TempSqlSession or the cursor APIs yet",
+  "mdd.result.v1 carries no offset field by design; compatible offsets are request-side",
+  "named_temp_queries tool argument of the reference query tool",
+  "recursive CTE inside a definition (the engine refuses recursive CTEs everywhere)"
+ ],
+ "run": {
+  "command": [
+   "cargo",
+   "test",
+   "--offline",
+   "--locked",
+   "-p",
+   "mdd-sql",
+   "-p",
+   "mdd-session",
+   "--lib"
+  ],
+  "started_utc": "2026-11-12T12:22:47.183361+00:00",
+  "finished_utc": "2026-11-12T12:22:56.602569+00:00",
+  "exit_code": 0,
+  "raw_log_sha256": "e1db652754543b97962bf16d765748703c8af1a11c90342806a870f324ff21ad",
+  "raw_log_bytes": 27308,
+  "raw_log_kept_at": "artifacts/local/ (ignored; carries developer-machine output)",
+  "targets": 2,
+  "passed": 305,
+  "failed": 0,
+  "ignored": 0
+ }
+}

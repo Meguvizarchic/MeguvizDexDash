@@ -46508,6 +46508,21 @@
       "sha256": "bb49348c4920515bc33c7ec448050d10f0cd7d063a76ad0b0f64e9fb4b5985f6"
     },
     {
+      "path": "artifacts/mdd-032/hostlab-query-matrix.json",
+      "bytes": 29555,
+      "sha256": "f282a8ba394895e050f240cffe0c8558acc21a3e487f028949457f8e88f88a47"
+    },
+    {
+      "path": "artifacts/mdd-032/mutation/mutate_golden.py",
+      "bytes": 3460,
+      "sha256": "aee3fc2974bb567cd8bfbff60cf7a728246f1b4d38868a2abbca8f6bfa4a74e6"
+    },
+    {
+      "path": "artifacts/mdd-032/mutation/results.txt",
+      "bytes": 384,
+      "sha256": "d09682ff55b3f88b9f9083527c06315305ea2e8f22d5b20ecfc34802bb42ca6e"
+    },
+    {
       "path": "artifacts/mdd-033-audit/catalog-cursors-20261111/IMPLEMENTATION.md",
       "bytes": 11217,
       "sha256": "5b938af2a9eec1bfcb4a7652b1fb8daed92b8f1cabd91c082a7cf5bada9c630a"
@@ -46546,6 +46561,21 @@
       "path": "artifacts/mdd-033-audit/catalog-cursors-20261111/test.stdout.txt",
       "bytes": 4820,
       "sha256": "7037f2c5b075fe138678ead75eb9dc20e9dc461ff96a7d0586940b7b7c91c463"
+    },
+    {
+      "path": "artifacts/mdd-033/mutation/mutate_temp.py",
+      "bytes": 4259,
+      "sha256": "b9f69b8384c14dcf801f7a972ccd37f47fb6c601eec77a24b492bc5e34d8e60f"
+    },
+    {
+      "path": "artifacts/mdd-033/mutation/results.txt",
+      "bytes": 699,
+      "sha256": "99b11c4c6852bc18e6ddc6d4ef1efe140d413d59ab3e3c7177f38d2f1dfcffce"
+    },
+    {
+      "path": "artifacts/mdd-033/paging-isolation.json",
+      "bytes": 6864,
+      "sha256": "2dd2511d29a7e8fbeb932c1c348615663b66ef42068ecdfda3527015c5406434"
     },
     {
       "path": "artifacts/mdd-033/preflight/20261028T150440953995Z/A0.observations.json",
