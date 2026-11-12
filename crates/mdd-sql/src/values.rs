@@ -125,6 +125,19 @@ pub enum SqlValue {
     },
 }
 impl SqlValue {
+    /// Type tag used by the parameter-type fingerprint.
+    pub fn kind_name(&self) -> &'static str {
+        match self {
+            Self::Null => "null",
+            Self::Bool(_) => "bool",
+            Self::I64(_) => "i64",
+            Self::U64(_) => "u64",
+            Self::F64(_) => "f64",
+            Self::Text(_) => "text",
+            Self::Bytes(_) => "bytes",
+            Self::DexMutf8 { .. } => "dex_mutf8",
+        }
+    }
     pub fn text(value: &str) -> Self {
         Self::Text(SqlText::from_utf8(value))
     }

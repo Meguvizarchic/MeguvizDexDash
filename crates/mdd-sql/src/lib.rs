@@ -5,8 +5,10 @@ pub mod control;
 pub mod dialects;
 pub mod provider;
 pub mod runtime;
+pub mod temp;
 pub mod values;
 pub mod virtual_tables;
+pub mod window;
 pub use bridge::{PreparedSql, SqlBridge, SqlResult};
 #[cfg(test)]
 mod join_tests;

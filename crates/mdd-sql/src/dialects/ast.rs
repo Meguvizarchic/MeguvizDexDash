@@ -2879,6 +2879,28 @@ impl Rewrite<'_> {
                             let display = match &*expr {
                                 Expr::Identifier(id) => id.value.clone(),
                                 Expr::CompoundIdentifier(ids) => ids.last().unwrap().value.clone(),
+                                // The frozen reference engine names an unaliased
+                                // call after the function and every other
+                                // unaliased expression `column`; SQLite then
+                                // numbers repeats (`column`, `column:1`) wherever
+                                // names must be unique. The native dialect keeps
+                                // SQLite's own expression-text names.
+                                Expr::Function(function)
+                                    if self.dialect != super::SqlDialect::NativeV1 =>
+                                {
+                                    function
+                                        .name
+                                        .0
+                                        .last()
+                                        .and_then(|part| part.as_ident())
+                                        .map_or_else(
+                                            || "column".to_owned(),
+                                            |ident| ident.value.to_ascii_lowercase(),
+                                        )
+                                }
+                                _ if self.dialect != super::SqlDialect::NativeV1 => {
+                                    "column".to_owned()
+                                }
                                 expr => expr.to_string(),
                             };
                             self.expr(expr, depth + 1)?;

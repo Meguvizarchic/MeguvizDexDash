@@ -29,12 +29,12 @@ fn root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
 
-fn fixture(relative: &str) -> PathBuf {
+pub(super) fn fixture(relative: &str) -> PathBuf {
     root().join(relative)
 }
 
 /// One captured snapshot, its inventories and the selected scope.
-struct Harness {
+pub(super) struct Harness {
     snapshot: Snapshot,
     inventories: Vec<ArchiveInventory>,
     scope: SelectedScope,
@@ -49,7 +49,7 @@ struct CachedLayers {
     definitions: Option<Arc<DefinitionFacts>>,
 }
 
-fn open(inputs: &[(&str, InputKind)]) -> Harness {
+pub(super) fn open(inputs: &[(&str, InputKind)]) -> Harness {
     let specs: Vec<InputSpec> = inputs
         .iter()
         .map(|(relative, kind)| InputSpec {
@@ -164,7 +164,7 @@ impl Harness {
         Arc::new(HostLabSqlProvider::from_scope(&self.scope, facts, DecimalU64(0)).unwrap())
     }
 
-    fn bridge(&self, dialect: SqlDialect) -> SqlBridge {
+    pub(super) fn bridge(&self, dialect: SqlDialect) -> SqlBridge {
         SqlBridge::new(
             self.provider(true, true, true),
             dialect,
@@ -1151,164 +1151,6 @@ fn q08_q09_q15_are_answerable() {
     }
 }
 
-/// The exactly-required hostlab-audit-v1 variant set: Q01-Q12 and Q15, 29
-/// variants. Q13 `boundary` (multi-statement) and all of Q14 (response paging)
-/// are excluded by design and stay unclaimed.
-///
-/// Every row is `(family, variant, sql)`. The test asserts each statement
-/// prepares against the real provider (so the relation names and columns are
-/// genuine), executes completely, and returns the shape the corpus records.
-const REQUIRED_HOSTLAB_VARIANTS: &[(&str, &str, &str)] = &[
-    (
-        "Q01",
-        "inventory",
-        "SELECT file_id,entry_name FROM dex_files ORDER BY file_id",
-    ),
-    (
-        "Q01",
-        "pool_mapping",
-        "SELECT file_id,string_pool_id FROM dex_files ORDER BY file_id",
-    ),
-    (
-        "Q02",
-        "cf_wildcard",
-        "SELECT cf.* FROM class_fields cf WHERE class_descriptor IN ('Lfixture/Base;') ORDER BY file_id,class_idx,kind,field_idx",
-    ),
-    (
-        "Q02",
-        "cm_wildcard",
-        "SELECT cm.* FROM class_methods cm WHERE class_descriptor IN ('Lfixture/Base;') ORDER BY file_id,class_idx,kind,method_idx",
-    ),
-    (
-        "Q02",
-        "class_meta",
-        "SELECT file_id,class_idx,descriptor,access_flags,superclass_descriptor FROM classes WHERE descriptor IN ('Lfixture/Base;') ORDER BY file_id,class_idx",
-    ),
-    (
-        "Q03",
-        "interface_join",
-        "SELECT ci.interface_descriptor,c.descriptor FROM class_interfaces ci JOIN classes c ON c.file_id=ci.file_id AND c.class_idx=ci.class_idx WHERE c.descriptor IN ('Lfixture/Base;') ORDER BY ci.file_id,ci.class_idx,ci.ordinal",
-    ),
-    (
-        "Q04",
-        "Signature_type",
-        "SELECT file_id,type_idx FROM types WHERE descriptor='Ldalvik/annotation/Signature;' ORDER BY file_id,type_idx",
-    ),
-    (
-        "Q04",
-        "directory",
-        "SELECT file_id,entry_kind,entry_idx,annotation_set_off FROM annotation_directory_entries WHERE entry_kind IN ('field','method') ORDER BY file_id,entry_kind,entry_idx",
-    ),
-    (
-        "Q04",
-        "set_entries",
-        "SELECT file_id,annotation_set_off,annotation_off FROM annotation_set_entries ORDER BY file_id,annotation_set_off,ordinal",
-    ),
-    (
-        "Q04",
-        "annotation_type",
-        "SELECT file_id,annotation_off,type_idx FROM annotations ORDER BY file_id,annotation_off",
-    ),
-    (
-        "Q04",
-        "elements",
-        "SELECT file_id,annotation_off,ordinal,value_index FROM annotation_elements WHERE depth=1 AND value_kind='string' ORDER BY file_id,annotation_off,ordinal",
-    ),
-    (
-        "Q04",
-        "string_pool",
-        "SELECT string_pool_id,string_idx,value FROM strings ORDER BY string_pool_id,string_idx",
-    ),
-    (
-        "Q05",
-        "return_discovery",
-        "SELECT DISTINCT m.class_descriptor FROM class_methods c JOIN methods m ON m.file_id=c.file_id AND m.method_idx=c.method_idx WHERE m.return_descriptor='V' ORDER BY m.class_descriptor",
-    ),
-    (
-        "Q06",
-        "string_candidates",
-        r"SELECT DISTINCT file_id,method_idx,value FROM method_strings WHERE method_class IN ('Lfixture/A;') AND (value LIKE '%repeat%' OR value LIKE '%pref\_x%' ESCAPE '\') ORDER BY file_id,method_idx,value",
-    ),
-    (
-        "Q07",
-        "class_count",
-        "SELECT COUNT(*) AS n FROM classes ORDER BY n",
-    ),
-    (
-        "Q08",
-        "class_surface",
-        "SELECT file_id,class_def_idx,descriptor,superclass_descriptor FROM classes ORDER BY file_id,class_def_idx",
-    ),
-    (
-        "Q08",
-        "field_surface",
-        "SELECT file_id,class_descriptor,field_name,field_descriptor FROM class_fields ORDER BY file_id,class_descriptor,field_idx",
-    ),
-    (
-        "Q08",
-        "method_surface",
-        "SELECT file_id,class_descriptor,method_idx,method_name,method_descriptor FROM class_methods ORDER BY file_id,class_descriptor,method_idx",
-    ),
-    (
-        "Q09",
-        "raw_body_ranges",
-        "SELECT method_idx,insns_off,insns_size FROM code_items ORDER BY method_idx",
-    ),
-    (
-        "Q10",
-        "call_counts",
-        "SELECT file_id,method,callee,COUNT(*) AS n FROM method_calls GROUP BY file_id,method,callee ORDER BY file_id,method,callee",
-    ),
-    // The corpus binds a real product class (`Lfixture/Protocol;`) and the
-    // `Lcom/bapis/%Moss;` LIKE prefix; the fixture substitutes the descriptor it
-    // actually defines so the same IN-plus-LIKE shape is exercised.
-    (
-        "Q11",
-        "protocol_definitions",
-        "SELECT file_id,method_descriptor FROM class_methods WHERE file_id=0 AND (class_descriptor IN ('Lfixture/Base;') OR class_descriptor LIKE 'Lcom/bapis/%Moss;') ORDER BY file_id,class_idx,method_idx",
-    ),
-    (
-        "Q12",
-        "locate_class",
-        "SELECT file_id,descriptor FROM classes WHERE descriptor='Lfixture/Base;' ORDER BY file_id",
-    ),
-    (
-        "Q12",
-        "locate_method",
-        "SELECT file_id,method_descriptor AS descriptor FROM class_methods WHERE method_name='caller' ORDER BY file_id,descriptor",
-    ),
-    (
-        "Q12",
-        "locate_field",
-        "SELECT file_id,field_descriptor AS descriptor FROM class_fields WHERE field_name='iValue' ORDER BY file_id,descriptor",
-    ),
-    (
-        "Q12",
-        "refs_string",
-        "SELECT file_id,method AS descriptor FROM method_strings WHERE value='repeat' ORDER BY file_id,method_idx",
-    ),
-    (
-        "Q12",
-        "refs_method",
-        "SELECT file_id,method AS descriptor FROM method_calls WHERE callee='Lfixture/External;->external()V' ORDER BY file_id,method_idx",
-    ),
-    (
-        "Q12",
-        "refs_field",
-        "SELECT file_id,method AS descriptor FROM method_field_accesses WHERE field='Lfixture/External;->shared:Ljava/lang/String;' ORDER BY file_id,method_idx",
-    ),
-    (
-        "Q12",
-        "refs_type",
-        "SELECT file_id,method AS descriptor FROM method_used_types WHERE type_descriptor='Ljava/lang/String;' ORDER BY file_id,method_idx",
-    ),
-    (
-        "Q15",
-        "legacy_locate_method",
-        "SELECT file_id,class_descriptor||'->'||name||descriptor AS descriptor FROM methods WHERE name='caller' ORDER BY file_id,descriptor",
-    ),
-];
-
 #[test]
 fn all_seventeen_relations_return_rows_from_real_facts() {
     // Registration alone would let a name resolve to an always-empty cursor.
@@ -1365,68 +1207,6 @@ fn all_seventeen_relations_return_rows_from_real_facts() {
         ref other => panic!("unexpected COUNT carrier {other:?}"),
     };
     assert_eq!(counted, expected);
-}
-
-#[test]
-fn required_q01_q12_and_q15_variants_all_execute_on_real_facts() {
-    // The fixture set is chosen so no variant is trivially empty: definitions
-    // carry class/field/method definitions, classic-035 carries the four
-    // reference relations, annotations-038 carries the annotation chain, and
-    // classic-035 carries method bodies for `code_items`.
-    let harness = open(&[
-        (
-            "tests/fixtures/definitions/generated/definitions-035.dex",
-            InputKind::RawDex,
-        ),
-        (
-            "tests/fixtures/references/generated/classic-035.dex",
-            InputKind::RawDex,
-        ),
-        (
-            "tests/fixtures/annotations/generated/annotations-038.dex",
-            InputKind::RawDex,
-        ),
-    ]);
-    assert_eq!(REQUIRED_HOSTLAB_VARIANTS.len(), 29);
-    let bridge = harness.bridge(SqlDialect::DexSql011);
-    let mut families = std::collections::BTreeSet::new();
-    for (family, variant, sql) in REQUIRED_HOSTLAB_VARIANTS {
-        families.insert(*family);
-        let prepared = bridge
-            .prepare(sql)
-            .unwrap_or_else(|error| panic!("{family}/{variant} prepare: {error:?}"));
-        let result = bridge
-            .execute(
-                &prepared,
-                crate::control::SqlControl::new(bridge_limits(), None),
-            )
-            .unwrap_or_else(|error| panic!("{family}/{variant} execute: {error:?}"));
-        assert!(
-            result.calculation_complete(),
-            "{family}/{variant} incomplete"
-        );
-        assert!(
-            !result.rows().is_empty(),
-            "{family}/{variant} returned no rows; the fixture must exercise the shape"
-        );
-        assert!(
-            !result.columns().is_empty(),
-            "{family}/{variant} returned no columns"
-        );
-    }
-    assert_eq!(
-        families,
-        [
-            "Q01", "Q02", "Q03", "Q04", "Q05", "Q06", "Q07", "Q08", "Q09", "Q10", "Q11", "Q12",
-            "Q15"
-        ]
-        .into_iter()
-        .collect()
-    );
-}
-
-fn bridge_limits() -> SqlLimits {
-    SqlLimits::default()
 }
 
 #[test]
@@ -1780,3 +1560,306 @@ fn a0_differential_over_the_fixture_corpus_has_only_declared_divergences() {
 // engine refuses. Any further drop is a new refusal and must be explained.
 const EXPECTED_EQUAL_RECORDS: usize = 2091;
 const EXPECTED_BOTH_FAIL_RECORDS: usize = 440;
+
+/// The A0 build the goldens were recorded from (frozen `dexsql 0.1.0`).
+const REFERENCE_A0_SHA256: &str =
+    "f354ebcf715de9a66ef8ebe08b2b36807ab58e25cd5a1c0812e497fc1fcfc448";
+
+/// Variants whose engine answer is allowed to differ from A0, with the reason.
+/// Empty means every recorded variant matches A0 cell for cell.
+const GOLDEN_DIVERGENCES: &[(&str, &str)] = &[];
+
+pub(super) fn read_json(relative: &str) -> serde_json::Value {
+    let path = fixture(relative);
+    let text = std::fs::read_to_string(&path)
+        .unwrap_or_else(|error| panic!("{relative} must exist: {error}"));
+    serde_json::from_str(&text).unwrap_or_else(|error| panic!("{relative}: {error}"))
+}
+
+fn hex_lower(bytes: &[u8]) -> String {
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+/// The canonical cell form `generate_golden.py` records for A0 cells.
+pub(super) fn canonical_cell(value: &SqlValue) -> String {
+    match value {
+        SqlValue::Null => "N".to_owned(),
+        SqlValue::U64(value) => format!("i:{}", value.0),
+        SqlValue::I64(value) => format!("i:{}", value.0),
+        SqlValue::F64(bits) if f64::from_bits(bits.0).is_nan() => "f:nan".to_owned(),
+        SqlValue::F64(bits) => format!("f:{:016x}", bits.0),
+        SqlValue::Text(text) => match text.strict_utf8() {
+            Ok(text) => format!("t:{}", hex_lower(text.as_bytes())),
+            Err(_) => "t:<non-scalar>".to_owned(),
+        },
+        SqlValue::Bytes(bytes) => format!("b:{}", hex_lower(bytes)),
+        other => format!("<unexpected carrier {other:?}>"),
+    }
+}
+
+/// One statement's engine result in the golden's shape.
+fn statement_record(result: &SqlResult) -> serde_json::Value {
+    let window = result
+        .window()
+        .expect("a windowed call must report a window");
+    serde_json::json!({
+        "columns": result.columns(),
+        "rows": result
+            .rows()
+            .iter()
+            .map(|row| row.iter().map(canonical_cell).collect::<Vec<_>>())
+            .collect::<Vec<_>>(),
+        "offset": window.offset,
+        "next_offset": window.next_offset,
+        "truncated": window.truncated,
+        "total_rows": window.total_rows,
+    })
+}
+
+pub(super) fn strings_of(value: &serde_json::Value) -> Vec<&str> {
+    value
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|statement| statement.as_str().unwrap())
+        .collect()
+}
+
+/// Run one golden case on the engine, page by page, and return its pages.
+/// A walk follows the engine's own `next_offset`; the golden's offsets are only
+/// compared afterwards, so a wrong cursor cannot hide behind the oracle.
+fn engine_pages(bridge: &SqlBridge, case: &serde_json::Value) -> Vec<serde_json::Value> {
+    let statements = strings_of(&case["statements"]);
+    let limit = case["limit"].as_u64().unwrap();
+    let mut offset = case["offset"].as_u64().unwrap();
+    let walk = case["walk"].as_bool().unwrap();
+    let mut pages = Vec::new();
+    loop {
+        let window = crate::window::SqlWindow::new(offset, limit)
+            .unwrap()
+            .counting_total();
+        let results = bridge
+            .query_batch(&statements, Some(window))
+            .unwrap_or_else(|error| panic!("{statements:?} @ {offset}: {error:?}"));
+        for result in &results {
+            assert!(
+                result.calculation_complete(),
+                "a window must come from a finished calculation"
+            );
+        }
+        let records: Vec<serde_json::Value> = results.iter().map(statement_record).collect();
+        let next = results[0].window().unwrap().next_offset;
+        pages.push(serde_json::json!({ "statements": records }));
+        match (walk, next) {
+            (true, Some(next)) => {
+                assert!(next > offset, "a walk must advance");
+                offset = next;
+            }
+            _ => return pages,
+        }
+        assert!(pages.len() < 4_000, "a walk did not terminate");
+    }
+}
+
+/// Describe the first place two page lists differ, or `None` when equal.
+fn first_page_difference(
+    actual: &[serde_json::Value],
+    expected: &[serde_json::Value],
+) -> Option<String> {
+    if actual.len() != expected.len() {
+        return Some(format!("page count {} != {}", actual.len(), expected.len()));
+    }
+    for (page, (a, e)) in actual.iter().zip(expected).enumerate() {
+        if a == e {
+            continue;
+        }
+        let (a, e) = (a["statements"].as_array()?, e["statements"].as_array()?);
+        for (statement, (a, e)) in a.iter().zip(e).enumerate() {
+            for field in [
+                "columns",
+                "offset",
+                "next_offset",
+                "truncated",
+                "total_rows",
+            ] {
+                if a[field] != e[field] {
+                    return Some(format!(
+                        "page {page} statement {statement} {field}: {} != {}",
+                        a[field], e[field]
+                    ));
+                }
+            }
+            let (ar, er) = (a["rows"].as_array()?, e["rows"].as_array()?);
+            for (row, (a, e)) in ar.iter().zip(er).enumerate() {
+                if a != e {
+                    return Some(format!(
+                        "page {page} statement {statement} row {row}: {a} != {e}"
+                    ));
+                }
+            }
+        }
+        return Some(format!("page {page} differs"));
+    }
+    None
+}
+
+#[test]
+fn hostlab_variants_match_the_a0_golden_results() {
+    let spec = read_json("conformance/corpus/hostlab/required-variants.json");
+    let golden = read_json("conformance/corpus/hostlab/expected-results/hostlab-a0-golden.json");
+    assert_eq!(golden["schema_version"], "mdd.hostlab-a0-golden.v1");
+    assert_eq!(golden["a0_sha256"], REFERENCE_A0_SHA256);
+    assert_eq!(golden["inputs"], spec["inputs"]);
+
+    let inputs: Vec<(&str, InputKind)> = spec["inputs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|path| (path.as_str().unwrap(), InputKind::RawDex))
+        .collect();
+    let harness = open(&inputs);
+    let bridge = harness.bridge(SqlDialect::DexSql011);
+
+    // The golden covers exactly the variant file: same keys, same statements,
+    // same window. A drifted statement would otherwise compare against a stale
+    // record of a different query.
+    let variants = spec["variants"].as_array().unwrap();
+    let cases = golden["cases"].as_array().unwrap();
+    assert_eq!(variants.len(), cases.len(), "golden and variants diverged");
+    assert!(cases.len() >= 76, "the variant set shrank: {}", cases.len());
+    let mut families = std::collections::BTreeSet::new();
+    let mut divergent = Vec::new();
+    for (variant, case) in variants.iter().zip(cases) {
+        let key = format!(
+            "{}/{}",
+            variant["family"].as_str().unwrap(),
+            variant["variant"].as_str().unwrap()
+        );
+        assert_eq!(case["family"], variant["family"], "{key}");
+        assert_eq!(case["variant"], variant["variant"], "{key}");
+        assert_eq!(case["statements"], variant["statements"], "{key}");
+        assert_eq!(
+            case["limit"].as_u64().unwrap(),
+            variant["limit"].as_u64().unwrap_or(1000),
+            "{key}"
+        );
+        assert_eq!(
+            case["offset"].as_u64().unwrap(),
+            variant["offset"].as_u64().unwrap_or(0),
+            "{key}"
+        );
+        assert_eq!(
+            case["walk"].as_bool().unwrap(),
+            variant["walk"].as_bool().unwrap_or(false),
+            "{key}"
+        );
+        families.insert(variant["family"].as_str().unwrap().to_owned());
+
+        let expected = case["pages"].as_array().unwrap();
+        for page in expected {
+            assert!(
+                page.get("statements").is_some(),
+                "{key}: A0 itself refused a required variant"
+            );
+        }
+        // Fixtures must exercise the shape: every statement of the selected
+        // families returns rows unless the variant is empty on purpose.
+        let empty_on_purpose = key == "Q13/shape"
+            || key == "Q13/shape_classes"
+            || key == "Q14/walk_zero_rows"
+            || key == "Q14/window_past_end"
+            || key == "Q14/window_each_statement";
+        if !empty_on_purpose {
+            // A single-statement variant must return rows; a list may include
+            // statements that are empty on purpose (a LIKE that matches nothing)
+            // as long as the list as a whole is not vacuous.
+            let totals: Vec<u64> = expected[0]["statements"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|statement| statement["total_rows"].as_u64().unwrap())
+                .collect();
+            let vacuous = if totals.len() == 1 {
+                totals[0] == 0
+            } else {
+                totals.iter().all(|total| *total == 0)
+            };
+            assert!(
+                !vacuous,
+                "{key}: the fixture set no longer exercises this variant"
+            );
+        }
+
+        let actual = engine_pages(&bridge, case);
+        if let Some(difference) = first_page_difference(&actual, expected) {
+            eprintln!("{key}: {difference}");
+            divergent.push(key);
+        }
+    }
+    assert_eq!(
+        families,
+        [
+            "Q01", "Q02", "Q03", "Q04", "Q05", "Q06", "Q07", "Q08", "Q09", "Q10", "Q11", "Q12",
+            "Q13", "Q14", "Q15"
+        ]
+        .into_iter()
+        .map(str::to_owned)
+        .collect()
+    );
+    let mut declared: Vec<String> = GOLDEN_DIVERGENCES
+        .iter()
+        .map(|(key, _)| (*key).to_owned())
+        .collect();
+    declared.sort();
+    divergent.sort();
+    assert_eq!(
+        divergent, declared,
+        "variants whose engine pages differ from A0 changed: fix them or declare them with a reason"
+    );
+}
+
+#[test]
+fn calls_the_reference_refuses_are_refused_with_the_same_failing_statement() {
+    let spec = read_json("conformance/corpus/hostlab/required-variants.json");
+    let golden = read_json("conformance/corpus/hostlab/expected-results/hostlab-a0-golden.json");
+    let inputs: Vec<(&str, InputKind)> = spec["inputs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|path| (path.as_str().unwrap(), InputKind::RawDex))
+        .collect();
+    let bridge = open(&inputs).bridge(SqlDialect::DexSql011);
+    let rejections = golden["rejections"].as_array().unwrap();
+    assert_eq!(
+        rejections.len(),
+        spec["rejections"].as_array().unwrap().len()
+    );
+    assert!(rejections.len() >= 10);
+    for rejection in rejections {
+        let name = rejection["name"].as_str().unwrap();
+        assert_eq!(rejection["refused"], true, "{name}: A0 accepted the call");
+        let statements = strings_of(&rejection["statements"]);
+        let outcome = crate::window::SqlWindow::new(
+            rejection["offset"].as_u64().unwrap(),
+            rejection["limit"].as_u64().unwrap(),
+        )
+        .and_then(|window| bridge.query_batch(&statements, Some(window)));
+        let error = outcome
+            .err()
+            .unwrap_or_else(|| panic!("{name}: engine accepted the call"));
+        match rejection["error"]["statement_index"].as_u64() {
+            Some(index) => assert_eq!(
+                error
+                    .details
+                    .get("statement_index")
+                    .and_then(|v| v.as_str()),
+                Some(index.to_string().as_str()),
+                "{name}: engine blamed a different statement: {error:?}"
+            ),
+            None => assert!(
+                !error.details.contains_key("statement_index"),
+                "{name}: call-level refusal must not blame a statement: {error:?}"
+            ),
+        }
+    }
+}

@@ -1,3 +1,4 @@
+use crate::window::{SqlWindow, SqlWindowReport};
 use crate::{
     control::{SqlControl, SqlLimits},
     dialects::SqlDialect,
@@ -33,6 +34,9 @@ pub struct SqlBridge {
 }
 pub struct PreparedSql {
     binding: SqlBinding,
+    /// Digest of the session TEMP definitions this statement was expanded with,
+    /// so a cursor or page cannot be stitched across a redefinition.
+    temp_fingerprint: Option<String>,
     sql: String,
     adapted_sql: String,
     parameters: Vec<SqlValue>,
@@ -69,10 +73,28 @@ pub struct SqlResult {
     required_layers: Vec<FactLayer>,
     ast_nodes: usize,
     execution_binding: Option<crate::runtime::SqlExecutionBinding>,
+    /// Present when the statement ran through a response window.
+    window: Option<SqlWindowReport>,
     #[serde(skip)]
     _result_memory: ResultMemory,
 }
 impl SqlResult {
+    /// Identity of the result's column list, in projection order and without
+    /// merging duplicate names. A page of the same statement must repeat it.
+    pub fn schema_id(&self) -> String {
+        let names = serde_json::to_string(&self.columns).unwrap_or_default();
+        format!("mdd.rows.v1:{}", mdd_types::sha256(names.as_bytes()))
+    }
+    /// The window this result covers, when it was executed through one.
+    pub fn window(&self) -> Option<&SqlWindowReport> {
+        self.window.as_ref()
+    }
+    /// The whole statement result is in `rows`: the calculation finished and no
+    /// further window exists. A truncated window is a correct page, not a
+    /// complete result.
+    pub fn is_complete_result(&self) -> bool {
+        self.calculation_complete && self.window.as_ref().is_none_or(|window| !window.truncated)
+    }
     pub fn binding(&self) -> &SqlBinding {
         &self.binding
     }
@@ -483,6 +505,42 @@ impl PreparedSql {
     pub fn sql(&self) -> &str {
         &self.sql
     }
+    /// Identity of the statement for cursor and page binding. The AST fingerprint
+    /// hashes the adapted statement the AST frontend produced (not the caller's
+    /// spelling), the parameter fingerprint hashes the parameter *types* only, and
+    /// the source fingerprint hashes the immutable snapshot the facts came from.
+    /// Bind the TEMP definitions this statement was expanded with into its source
+    /// identity. Two statements with the same text but different TEMP bodies then
+    /// get different cursor specs.
+    pub(crate) fn with_temp_fingerprint(mut self, fingerprint: String) -> Self {
+        self.temp_fingerprint = Some(fingerprint);
+        self
+    }
+    /// TEMP definitions digest, when the statement reads any.
+    pub fn temp_fingerprint(&self) -> Option<&str> {
+        self.temp_fingerprint.as_deref()
+    }
+    pub fn cursor_spec(&self) -> MddResult<mdd_session::cursors::CursorSpec> {
+        let parameter_types = self
+            .parameters
+            .iter()
+            .map(SqlValue::kind_name)
+            .collect::<Vec<_>>()
+            .join(",");
+        mdd_session::cursors::CursorSpec::new(
+            mdd_types::sha256(format!("mdd.sql.ast.v1|{}", self.adapted_sql).as_bytes()),
+            mdd_types::sha256(format!("mdd.sql.parameters.v1|{parameter_types}").as_bytes()),
+            mdd_types::sha256(
+                match &self.temp_fingerprint {
+                    Some(temp) => {
+                        format!("mdd.sql.source.v1|{}|temp:{temp}", self.binding.snapshot_id)
+                    }
+                    None => format!("mdd.sql.source.v1|{}", self.binding.snapshot_id),
+                }
+                .as_bytes(),
+            ),
+        )
+    }
     pub fn required_relations(&self) -> &[String] {
         &self.required_relations
     }
@@ -616,6 +674,19 @@ impl SqlBridge {
     pub fn prepare(&self, sql: &str) -> MddResult<PreparedSql> {
         self.prepare_with_parameters(sql, &[])
     }
+    /// Limits this bridge enforces on SQL text, results and work.
+    pub fn limits(&self) -> SqlLimits {
+        self.limits
+    }
+    /// Relations the provider exposes, for name classification above the bridge.
+    pub fn relation_names(&self) -> MddResult<Vec<String>> {
+        Ok(self
+            .provider
+            .relations()?
+            .into_iter()
+            .map(|relation| relation.name)
+            .collect())
+    }
     pub fn prepare_with_parameters(
         &self,
         sql: &str,
@@ -709,6 +780,7 @@ impl SqlBridge {
             .collect();
         Ok(PreparedSql {
             binding: self.provider.binding().clone(),
+            temp_fingerprint: None,
             sql: sql.to_owned(),
             adapted_sql: adapted.sql,
             parameters: adapted.parameters,
@@ -727,6 +799,24 @@ impl SqlBridge {
         })
     }
     pub fn execute(&self, prepared: &PreparedSql, control: SqlControl) -> MddResult<SqlResult> {
+        self.execute_windowed(prepared, control, None)
+    }
+    /// Execute and return only the rows of `window`, applied after any `LIMIT` or
+    /// `OFFSET` in the statement itself. The statement text is not rewritten.
+    pub fn execute_window(
+        &self,
+        prepared: &PreparedSql,
+        control: SqlControl,
+        window: SqlWindow,
+    ) -> MddResult<SqlResult> {
+        self.execute_windowed(prepared, control, Some(window))
+    }
+    fn execute_windowed(
+        &self,
+        prepared: &PreparedSql,
+        control: SqlControl,
+        window: Option<SqlWindow>,
+    ) -> MddResult<SqlResult> {
         if self.provider.binding() != &prepared.binding
             || self.provider.binding() != prepared.provider.binding()
             || self.dialect != prepared.dialect
@@ -776,7 +866,7 @@ impl SqlBridge {
             runtime.cancellation().claim_execution()?;
         }
         let result = self
-            .execute_inner(prepared, control.clone())
+            .execute_inner(prepared, control.clone(), window)
             .map_err(|error| fail_preserving_restore_detail(&control, error))
             .map_err(|error| self.record_compatibility_failure("execute", &prepared.sql, error))?;
         if let Some(runtime) = control.runtime() {
@@ -789,7 +879,12 @@ impl SqlBridge {
         }
         Ok(result)
     }
-    fn execute_inner(&self, prepared: &PreparedSql, control: SqlControl) -> MddResult<SqlResult> {
+    fn execute_inner(
+        &self,
+        prepared: &PreparedSql,
+        control: SqlControl,
+        window: Option<SqlWindow>,
+    ) -> MddResult<SqlResult> {
         control.checkpoint(1, false)?;
         // Scope admission is independent of SQLite short-circuit execution.
         // LIMIT 0 / WHERE false must not turn an unbuilt required layer into
@@ -952,12 +1047,19 @@ impl SqlBridge {
                 .map_err(|_| quota("SQL_RESULT_ALLOCATION"))?;
             for ordinal in 0..count {
                 let name = statement.column_name(ordinal).map_err(sqlite_error)?;
-                columns.push(
-                    prepared
-                        .display_overrides
-                        .get(name)
-                        .map_or_else(|| name.to_owned(), Clone::clone),
-                );
+                let shown = prepared
+                    .display_overrides
+                    .get(name)
+                    .map_or_else(|| name.to_owned(), Clone::clone);
+                // The frozen reference engine reports result column names folded
+                // to ASCII lower case (aliases, bare identifiers and CTE column
+                // lists alike; non-ASCII letters are left alone). The native
+                // dialect keeps SQLite's own spelling.
+                columns.push(if prepared.dialect == SqlDialect::NativeV1 {
+                    shown
+                } else {
+                    shown.to_ascii_lowercase()
+                });
             }
             let parameters = prepared
                 .parameters
@@ -968,8 +1070,25 @@ impl SqlBridge {
                 .query(rusqlite::params_from_iter(parameters))
                 .map_err(sqlite_error)?;
             let mut rows = Vec::new();
+            let (mut skipped, mut more) = (0u64, false);
+            let mut counted_after = 0u64;
             while let Some(row) = cursor.next().map_err(sqlite_error)? {
                 control.checkpoint(1, false)?;
+                if let Some(window) = window {
+                    if skipped < window.offset() {
+                        skipped += 1;
+                        continue;
+                    }
+                    if rows.len() as u64 == window.limit() {
+                        // One row past the window proves a next page exists.
+                        more = true;
+                        if !window.counts_total() {
+                            break;
+                        }
+                        counted_after += 1;
+                        continue;
+                    }
+                }
                 // Admit a conservative logical bound before any owned output
                 // allocation. SQLite's internal buffers are explicitly outside
                 // this result-only reservation.
@@ -1026,6 +1145,17 @@ impl SqlBridge {
                 return Err(invalid("SQL_GENERATION_CHANGED_BEFORE_END"));
             }
             control.checkpoint(1, false)?;
+            let window_report = match window {
+                Some(window) => {
+                    let taken = rows.len() as u64;
+                    // Counted only when the whole result was stepped: either the
+                    // window reached the end, or the tail was counted on purpose.
+                    let total =
+                        (!more || window.counts_total()).then(|| skipped + taken + counted_after);
+                    Some(SqlWindowReport::finish(window, taken, more, total)?)
+                }
+                None => None,
+            };
             Ok(SqlResult {
                 binding: prepared.binding.clone(),
                 dialect: prepared.dialect,
@@ -1047,6 +1177,7 @@ impl SqlBridge {
                 required_layers: prepared.required_layers.clone(),
                 ast_nodes: prepared.ast_nodes,
                 execution_binding: prepared.execution_binding.clone(),
+                window: window_report,
                 _result_memory: result_memory,
             })
         })();
@@ -1055,6 +1186,38 @@ impl SqlBridge {
     pub fn query(&self, sql: &str) -> MddResult<SqlResult> {
         let prepared = self.prepare(sql)?;
         self.execute(&prepared, SqlControl::new(self.limits, None))
+    }
+    /// Prepare `sql`, run it and return only the rows of `window`.
+    pub fn query_window(&self, sql: &str, window: SqlWindow) -> MddResult<SqlResult> {
+        let prepared = self.prepare(sql)?;
+        self.execute_window(&prepared, SqlControl::new(self.limits, None), window)
+    }
+    /// Run the `sql[]` items of one call the way the reference `query` tool does:
+    /// one to sixteen items, each possibly a script of several statements (see
+    /// [`crate::window::script_statements`]), executed in order with the same
+    /// window applied to each statement's own result. The call is all or nothing:
+    /// the first failing statement fails it, naming its index in the flattened
+    /// list, and no later statement runs, so a trailing marker statement can only
+    /// be returned if every statement before it completed. This entry point is
+    /// read-only; session TEMP statements go through `temp::TempSqlSession`.
+    pub fn query_batch(
+        &self,
+        items: &[&str],
+        window: Option<SqlWindow>,
+    ) -> MddResult<Vec<SqlResult>> {
+        let statements = crate::window::script_statements(items)?;
+        let mut results = Vec::with_capacity(statements.len());
+        for (index, sql) in statements.iter().enumerate() {
+            let run = || {
+                let prepared = self.prepare(sql)?;
+                self.execute_windowed(&prepared, SqlControl::new(self.limits, None), window)
+            };
+            match run() {
+                Ok(result) => results.push(result),
+                Err(error) => return Err(error.detail("statement_index", index.to_string())),
+            }
+        }
+        Ok(results)
     }
     /// Only prepare, never step a statement or open facts. This separates a
     /// real syntax/binding error from a gap in the additional AST frontend.

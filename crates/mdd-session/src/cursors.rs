@@ -10,9 +10,11 @@
 //!   admitted by [`Lifecycle::open_compat_offset`] and never produces a cursor
 //!   token; it exposes an explicit `next_offset` instead.
 //!
-//! Both modes reject pages that mix a relational `LIMIT`/`OFFSET` with response
-//! paging, and both reject a page whose source differs from the first page even
-//! when the SQL, row count and column schema are unchanged.
+//! A relational `LIMIT`/`OFFSET` in the SQL text and the response window are
+//! independent layers: the window is applied to the rows the statement already
+//! produced, exactly as the frozen reference engine does (the SQL is never
+//! rewritten to page). Both modes reject a page whose source differs from the
+//! first page even when the SQL, row count and column schema are unchanged.
 
 use crate::{CursorHandle, Lifecycle, QueryHandle, QueryPhase, SessionHandle};
 use mdd_types::{DecimalU64, ErrorCode, MddError, MddResult};
@@ -118,17 +120,12 @@ pub struct PageRequestShape {
     pub page_limit: u64,
     pub continuation: Option<String>,
     pub offset: Option<u64>,
-    /// `LIMIT` written in the relation text (SQL `LIMIT`), not the API page limit.
-    pub relation_limit: Option<u64>,
-    /// `OFFSET` written in the relation text, not a compatible-offset request.
-    pub relation_offset: Option<u64>,
 }
 
 impl PageRequestShape {
-    /// A relational `LIMIT`/`OFFSET` is a relation operator that already bounds
-    /// the result. Paging the response of such a relation would either re-apply
-    /// the bound on every page or silently drop rows, so the mixture is refused
-    /// instead of being guessed. Materialize once and page the spool instead.
+    /// Shape checks that do not depend on the statement. A `LIMIT`/`OFFSET`
+    /// written in the SQL is a relation operator and is not part of this shape:
+    /// the response window is applied after it, so the two never interact.
     fn check(&self, max_page_rows: u64) -> MddResult<()> {
         if self.page_limit == 0 {
             return Err(page_error("page_limit_zero", "page limit must be positive"));
@@ -142,14 +139,6 @@ impl PageRequestShape {
             .detail("budget", "max_page_rows")
             .detail("limit", max_page_rows.to_string())
             .detail("observed", self.page_limit.to_string()));
-        }
-        if self.relation_limit.is_some() || self.relation_offset.is_some() {
-            return Err(page_error(
-                "response_paging_over_relation_limit",
-                "response paging cannot be combined with a relational LIMIT or OFFSET",
-            )
-            .detail("relation_limit", option_text(self.relation_limit))
-            .detail("relation_offset", option_text(self.relation_offset)));
         }
         match (self.continuation.as_deref(), self.offset) {
             (Some(_), Some(_)) => Err(page_error(
@@ -242,8 +231,6 @@ pub struct CompatOffsetPage {
     pub catalog_epoch: DecimalU64,
     /// The re-executed statement still matches the admitted SQL/AST.
     pub sql_matches: bool,
-    pub relation_limit: Option<u64>,
-    pub relation_offset: Option<u64>,
     /// `limit + 1` lookahead proved there is no further row.
     pub lookahead_exhausted: bool,
 }
@@ -387,14 +374,6 @@ impl CompatOffsetState {
                 "query_page_identity_or_limit_mismatch",
                 "re-executed statement does not match the admitted query",
             ));
-        }
-        if page.relation_limit.is_some() || page.relation_offset.is_some() {
-            return Err(page_error(
-                "response_paging_over_relation_limit",
-                "compatible-offset paging cannot be combined with a relational LIMIT or OFFSET",
-            )
-            .detail("relation_limit", option_text(page.relation_limit))
-            .detail("relation_offset", option_text(page.relation_offset)));
         }
         if page.schema_id != self.schema_id
             || (self.total_established && page.total_rows != self.total_rows)
@@ -640,8 +619,10 @@ fn page_error(page_error: &str, message: impl Into<String>) -> MddError {
 }
 
 impl Lifecycle {
-    /// Reject a paging request that mixes modes or mixes response paging with a
-    /// relational `LIMIT`/`OFFSET`.
+    /// Reject a paging request that mixes modes (a cursor token with an explicit
+    /// offset, a token under compatible-offset paging, an offset under native
+    /// paging) or whose page limit is zero or above the configured maximum.
+    /// A `LIMIT`/`OFFSET` written in the SQL is not part of the request shape.
     pub fn validate_page_request(
         &self,
         shape: &PageRequestShape,
@@ -1266,46 +1247,6 @@ mod tests {
     }
 
     #[test]
-    fn response_paging_over_a_relational_limit_is_rejected() {
-        let (runtime, _, _) = runtime();
-        let max = 100;
-        let native = PageRequestShape {
-            mode: CursorMode::NativeSnapshot,
-            page_limit: 10,
-            continuation: None,
-            offset: None,
-            relation_limit: Some(100),
-            relation_offset: None,
-        };
-        let error = runtime.validate_page_request(&native, max).unwrap_err();
-        assert_eq!(error.code, ErrorCode::InvalidCursor);
-        assert_eq!(
-            error.details["page_error"],
-            "response_paging_over_relation_limit"
-        );
-        let offset_first_page = PageRequestShape {
-            mode: CursorMode::CompatOffset,
-            relation_offset: Some(5),
-            relation_limit: None,
-            ..native.clone()
-        };
-        let error = runtime
-            .validate_page_request(&offset_first_page, max)
-            .unwrap_err();
-        assert_eq!(
-            error.details["page_error"],
-            "response_paging_over_relation_limit"
-        );
-        // Without a relational LIMIT/OFFSET the same shape is admissible.
-        let clean = PageRequestShape {
-            relation_limit: None,
-            relation_offset: None,
-            ..native
-        };
-        runtime.validate_page_request(&clean, max).unwrap();
-    }
-
-    #[test]
     fn paging_modes_never_share_a_token() {
         let (runtime, _, _) = runtime();
         let max = 100;
@@ -1314,8 +1255,6 @@ mod tests {
             page_limit: 10,
             continuation: None,
             offset: Some(10),
-            relation_limit: None,
-            relation_offset: None,
         };
         let error = runtime
             .validate_page_request(&native_with_offset, max)
@@ -1414,8 +1353,6 @@ mod tests {
                 source_fingerprint: source.clone(),
                 catalog_epoch: DecimalU64(0),
                 sql_matches: true,
-                relation_limit: None,
-                relation_offset: None,
                 lookahead_exhausted: false,
             })
             .unwrap();
@@ -1441,8 +1378,6 @@ mod tests {
                 source_fingerprint: source.clone(),
                 catalog_epoch: DecimalU64(0),
                 sql_matches: true,
-                relation_limit: None,
-                relation_offset: None,
                 lookahead_exhausted: true,
             })
             .unwrap();
@@ -1461,8 +1396,6 @@ mod tests {
                     source_fingerprint: source.clone(),
                     catalog_epoch: DecimalU64(0),
                     sql_matches: true,
-                    relation_limit: None,
-                    relation_offset: None,
                     lookahead_exhausted: true,
                 })
                 .unwrap_err()
@@ -1492,8 +1425,6 @@ mod tests {
             source_fingerprint: source.to_owned(),
             catalog_epoch: DecimalU64(0),
             sql_matches: true,
-            relation_limit: None,
-            relation_offset: None,
             lookahead_exhausted: false,
         };
         // Skipping ahead is not a continuation.
@@ -1510,14 +1441,6 @@ mod tests {
         // A short page without a lookahead probe cannot claim exhaustion.
         let error = offset.admit(page(0, 3, &source)).unwrap_err();
         assert_eq!(error.details["page_error"], "lookahead_required");
-        // Relational LIMIT is a relation operator, never compatible-offset paging.
-        let mut mixed = page(0, 4, &source);
-        mixed.relation_limit = Some(100);
-        let error = offset.admit(mixed).unwrap_err();
-        assert_eq!(
-            error.details["page_error"],
-            "response_paging_over_relation_limit"
-        );
         // Nothing above was admitted.
         assert_eq!(offset.reexecutions(), 0);
         assert_eq!(offset.admitted_rows(), 0);
@@ -1547,8 +1470,6 @@ mod tests {
             source_fingerprint: source.clone(),
             catalog_epoch: DecimalU64(epoch),
             sql_matches: true,
-            relation_limit: None,
-            relation_offset: None,
             lookahead_exhausted: false,
         };
         // Compatible offset may observe a new catalog generation per request.
@@ -1583,8 +1504,6 @@ mod tests {
             source_fingerprint: source.to_owned(),
             catalog_epoch: DecimalU64(0),
             sql_matches: true,
-            relation_limit: None,
-            relation_offset: None,
             lookahead_exhausted,
         }
     }

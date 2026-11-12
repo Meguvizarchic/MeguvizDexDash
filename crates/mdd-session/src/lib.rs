@@ -1,9 +1,9 @@
 //! Owned lifecycle registry. This crate does not execute queries or admit profiles.
 pub mod cancellation;
-// TEMP catalog and paging contracts are implemented but not yet exported:
-// turning these into `pub mod` is a shared export change owned by the main agent.
-mod catalog;
-mod cursors;
+// TEMP catalog definitions and the two paging contracts (native snapshot cursor,
+// compatible-offset re-execution). The SQL layer consumes both.
+pub mod catalog;
+pub mod cursors;
 
 use mdd_input::snapshot::Snapshot;
 use mdd_types::{DecimalU64, ErrorCode, MddError, MddResult, opaque_id};
