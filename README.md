@@ -2,6 +2,35 @@
 
 # MeguvizDexDash
 
+**面向桌面与云端的 DEX 静态分析引擎**
+
+Rust workspace · 不可变输入快照 · 类型化查询
+
+<br>
+
+[![Language](https://img.shields.io/badge/lang-Rust-DEA584?style=flat-square&labelColor=2d3a55)](https://github.com/Meguvizarchic/MeguvizDexDash)
+[![Issues](https://img.shields.io/github/issues/Meguvizarchic/MeguvizDexDash?style=flat-square&labelColor=2d3a55)](https://github.com/Meguvizarchic/MeguvizDexDash/issues)
+
+[当前开发版本](#当前开发版本) · [原始工程包与实施入口](#原始工程包与实施入口) · [阅读入口](#阅读入口) · [先验证本包](#先验证本包) · [当前性能口径](#当前性能口径) · [版本与证据](#版本与证据)
+
+</div>
+
+---
+
+<details>
+<summary><b>目录</b></summary>
+
+- [当前开发版本](#当前开发版本)
+- [原始工程包与实施入口](#原始工程包与实施入口)
+- [阅读入口](#阅读入口)
+- [先验证本包](#先验证本包)
+- [当前性能口径](#当前性能口径)
+- [版本与证据](#版本与证据)
+
+</details>
+
+---
+
 MeguvizDexDash 是面向桌面与云端、可嵌入且可服务化的 DEX 静态分析引擎。首个业务接入点是 `jichuo1/innocent-lab-host-analysis` 中 DexSQL 承担的职能。Android 进程内 DexKit 替换属于独立的 DexMeguviz 项目。
 
 本仓库基于 2026-10-26 工程包开始实现，保留完整规格、契约和历史研究证据。当前已有 Rust workspace、结果类型、CLI 能力入口、不可变输入快照、ZIP32/ZIP64 物理成员、会话和 worker 生命周期；字符串/类型/原型、定义、注解、代码布局、引用、原始指纹和必需 Manifest 已在各任务限定范围验收。候选索引、事实覆盖与类型化查询正在实施。当前为未取得产品资格的开发版本，尚不能替代 HostLab DexSQL。
@@ -25,7 +54,21 @@ cargo run --locked -p mdd-cli -- inspect-apk tests/fixtures/generated/multidex-d
 
 Windows x86_64 本机已实际运行；Linux x86_64 由 CI 验收，状态以真实 CI 结果为准。`.github/workflows/ci.yml` 对两个原生平台执行独立语料、构建、lint、测试和真实 CLI 检查，不执行或冒称生产性能基准。
 
-事实 crate 的原生 API 与示例入口在 `crates/mdd-facts`，不会把窄范围 CLI 检查冒充完整事实查询。检查点 b29933d 已通过两平台原生 CI，以及独立测试 workspace 的 Linux ASan 正控制和六目标短 fuzz（2,426,570 次真实执行）。公开 NewPipe 的原始字节证据、AAPT2 Manifest 与固定参考比较见 [MDD-025 验收](artifacts/mdd-025/raw-evidence-conformance.json)，检测边界见 [解析器安全说明](conformance/sanitizers/README.md)。这些证据不授予完整 G1、HostLab、SQL 或正式性能资格。
+事实 crate 的原生 API 与示例入口在 `crates/mdd-facts`，不会把窄范围 CLI 检查冒充完整事实查询。一站式门面用法：
+
+```rust
+use mdd_facts::session::FactsSession;
+
+let session = FactsSession::open("app.apk")?;
+for index in 0..session.dex_count() {
+    let references = session.references(index)?; // 按需构建 definitions 与 code
+    println!("{}", references.sites().len());
+}
+```
+
+`FactsSession` 只组合既有分阶段 API：`open` 不预建关系，同层只构建一次并复用 `Arc`，
+`Partial`/`Unknown` 不会被折叠成空成功。可运行示例：
+`cargo run -p mdd-facts --example quickstart -- app.apk`。接入说明见 [接入指南](docs/guide/README.md)。检查点 b29933d 已通过两平台原生 CI，以及独立测试 workspace 的 Linux ASan 正控制和六目标短 fuzz（2,426,570 次真实执行）。公开 NewPipe 的原始字节证据、AAPT2 Manifest 与固定参考比较见 [MDD-025 验收](artifacts/mdd-025/raw-evidence-conformance.json)，检测边界见 [解析器安全说明](conformance/sanitizers/README.md)。这些证据不授予完整 G1、HostLab、SQL 或正式性能资格。
 
 ## 原始工程包与实施入口
 

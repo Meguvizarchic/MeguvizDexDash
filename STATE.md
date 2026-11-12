@@ -1,10 +1,161 @@
 # MeguvizDexDash 当前状态
 
-更新：2026-11-01（Asia/Shanghai）。唯一任务图：tasks/backlog.json；当前产品仍在实施，所有产品 profile admitted=false。
+更新：2026-11-12（Asia/Shanghai）。唯一任务图：tasks/backlog.json；当前产品仍在实施，所有产品 profile admitted=false。
+
+## 2026-11-11 生产前资格推进（5 子代理 + 3 Step-Reviewer）
+
+依赖图核查：51 项任务中仅 MDD-005/026/031/034 未阻塞，其余 26 项全部下游；MDD-082（签发功能、正确性与性能发布资格）仍 todo，本轮不改变发行状态。
+
+**MDD-026 六类证据（3 组并行）**：definition 48 列 / members 59 列 / code-annotation 57 列，全部只写各自新目录，未改生产代码与共享文件。合并脚本 `artifacts/mdd-026/merge_evidence.py` 按 **v10 严格口径**（multiplicity 必须有 `exact_duplicate_rows_compared>0`）装配 `artifacts/mdd-026/evidence-merged-20261111/merged-matrix.json`：六类全满足 **10 → 77** 列，multiplicity 19/97/40 → **78 satisfied / 78 partial / 0 missing**，order 106 → 155，null missing 9 → 1。冲突解决：两 agent 意见不一致时取实际锻炼了精确重复行的一方。**77 列中 36 列落在 unassembled_production_relation 上**，69 个兼容投影仍未装配，故本矩阵不能签发 MDD-026「事实层完整性」。
+
+**MDD-031（SQL 桥）**：新增 `VtabPolicy`/`VTB_POLICY`（`virtual_tables/mod.rs`）统一 vtab 与 bridge 的策略报告，5 个新测试（`bridge.rs`），`cargo test -p mdd-sql` 207 passed。验收 1/3/4 成立，2 打折。**当时记录「验收 5 的 profile 阻断应归 MDD-035」的判断已被第三轮推翻**（见下节）。
+
+**MDD-034（预算/取消/终态）**：只新增 4 个测试（`executor/runtime_tests.rs`），零生产逻辑改动，`cargo test -p mdd-query` 201 passed。验收 1/2 原有覆盖，3/4/5 部分覆盖。
+
+**对抗审查（3 个 Step-Reviewer）发现的实质问题**：Agent C 的「独有键关系不可能出现精确重复行」被其自身 `total_exact_duplicate_rows_compared` 与 Agent A 的 `duplicate-content.apk` 双重推翻——47 列是「没做」不是「不可能」；Agent C 列级 `negative_controls` 中 `duplicate_collapse` 在 47 列上是空转；Agent A 的 `class_interfaces.ordinal` order/multiplicity 因 ordinal 恒 0 而夸大（`duplicate-interface.dex` 在手边未用）；Agent B 的 `methods.file_id` 是常量比常量且隐瞒引擎自报 `INCOMPLETE_FACTS`；Agent A 的 `dex_files.string_pool_id` oracle 值系编造。已按严格口径降级 7 处，修正记录见各目录 `REVIEW-CORRECTIONS-20261111.md` 与合并目录 `SUMMARY.md`。
+
+**验证**：`cargo test --offline --workspace` 全绿（mdd-sql 207 / mdd-query 201 / mdd-session 30 等，24 个 test target 全 ok）；**`cargo clippy --offline --workspace --all-targets -- -D warnings` 0 错误**。已修复 22 处历史遗留 clippy 错误：`mdd-session/src/cancellation.rs` 2 处 `.err().expect()`→`.expect_err()`（已提交代码 `15052c9` 遗留）；`mdd-sql` 20 处（`dialects/ast.rs` 5 处 collapsible_if/redundant_guard/`is_multiple_of` + 测试模块移到文件末尾，`dialects/functions.rs` 2 处 needless_borrow，`provider/metadata.rs` 1 处 needless_borrow + 抽出 `AnnotationColumnSpec`/`AnnotationRelationSpec` 类型别名，`bridge.rs` 2 处 clone_on_copy、3 处 `.err().expect()`、1 处类型别名、2 处 `&[value.clone()]`→`std::slice::from_ref`）。均为纯风格/等价改写，无行为变化；`cargo fmt` 仅剩 `crates/mdd-sql/src/join_tests.rs`（用户暂存改动，保持不动）。
+
+**未做**：MDD-026 的 69 个兼容投影装配、MDD-031 验收 5 的 profile 阻断、MDD-034 的 SQLite per-query interrupt 与 fallback 接线、以及 MDD-032/033/035/051/052/053/054/055/060 等全部下游门。
+
+## 2026-11-11 第二轮（5 子代理 + 3 Step-Reviewer）
+
+**MDD-026 生产关系装配**：为 6 个契约关系（dex_files/strings/types/methods/classes/code_items）新增行投影 API（`metadata.rs`、`definitions.rs`、`code.rs`），**69 列装配 64 列**，5 列因层所有权/分层边界未装配。`assembled_projection=true` 由 87 增至 151。`cargo test -p mdd-facts --lib` 125 passed。
+
+**MDD-026 证据修复**：两组修复轮就第一轮 Reviewer 认定的 P0/P1 与 7 项缺陷重新取证。合并矩阵（`artifacts/mdd-026/evidence-merged-20261111/merged-matrix.json`）：六类全满足 **77 → 139** 列，multiplicity **78/78/0 → 144/12/0**，未装配生产关系 **69 → 5**。
+
+**MDD-031 缺口闭合**：补 NativeV1 文本→整数 CAST 专项测试；删除恒真的 `profiles_admitted` 断言并改名；用 `BestIndexReport` 线程局部记录真实 `xBestIndex` 上报；Q09/Q12 fixture 改为非空并对两个循环都加非空守卫；重写 `VtabPolicy` 注释。`cargo test -p mdd-sql` **208 passed**，clippy 0。
+
+**MDD-034 缺口闭合**：补齐 `truncated`/`more_available`/`next_cursor`/`total_rows_exact`/`execution.complete` 断言；删除恒真的 `is_complete_result()`；兄弟 query/session 改为真实生产 `execute` 并读数据；`"controlled hard kill"` 改名并标注为进程内 API；SQLite interrupt 措辞改正；死代码如实标注。`cargo test -p mdd-query` **201 passed**，clippy 0。
+
+**Step-Reviewer（第二轮）认定的实质问题**：
+- 装配轮「5 列因真实 fact 层缺口」定性错误——冻结台账对这 5 列均记 `available_in_validated_declared_scope`，实为**层所有权缺口（2 列）+ 分层边界与资格门槛（3 列）**，已在装配目录 SUMMARY 更正。
+- 装配轮 readback 只比 11/14 methods 列、dex_files 只比 2 个常量列，覆盖面被高估。
+- `assembled_projection` 被 `coverage.rs:651-656` 消费：翻旗使 64 列 coverage 由 `Unknown` 变 `Complete`，**无覆盖侧验证、无测试**；`strings.value`/`classes.source_file` 在含非标量字符串的 scope 上存在虚假 Complete 路径（`nonscalar-string-035.dex` 现成未用）。
+- 两组证据修复的 native 探针与当前源码**同一性不可验证**（exe/rlib 早于并行轮次对 mdd-facts 的修改，无编译终端）——需在独占时段用干净构建重跑。
+- 「A0 序列相等 104/104」不成立（10/104 与 native 发射序不同，因引擎不消费 ORDER BY）。
+- `methods` 的 11 个 satisfied 列走探针组装而非引擎 `method_rows()`，只覆盖取值不覆盖关系投影。
+- `VtabPolicy` 注释一度把 LIMIT/OFFSET 说成「SQLite 无法感知」，与 rusqlite 暴露的 `SQLITE_INDEX_CONSTRAINT_LIMIT`/`OFFSET`（SQLite ≥3.38，本仓 3.53.2）矛盾——已改为「未接线、信息性」。
+- MDD-031 证据分母 81/54 过期，实际 84/57——已更正。
+
+**验证**：`cargo test --offline --workspace -j 4` 全绿；`cargo clippy --offline --workspace --all-targets -- -D warnings` **0 错误**（本轮新引入的 2 个 mdd-facts 测试 clippy 错误已修）。新增非空守卫立刻抓出一个有意的空形状（`WHERE value LIKE NULL`），已显式列入 `INTENTIONAL_EMPTY_SHAPES` 例外并保留守卫判别力。
+
+**未做**：5 列未装配（其中 3 列按台账属 MDD-032 前提）、coverage 侧对 6 个新关系的门验证与非标量特判、证据探针的干净重建重跑、MDD-031 验收 5 的 profile 阻断、MDD-034 的 fallback 接线与真实强杀查询。
+
+## 2026-11-11 第三轮（3 子代理 + 3 Step-Reviewer）
+
+**MDD-026 coverage 门**：`coverage.rs` 新增 `frozen_provider_gate`，为 `dex_files`/`strings`/`types`/`methods`/`classes`/`code_items` 接上 provider 门；非标量 UTF-16 特判扩展到 `strings.value` 与 `classes.source_file`（`nonscalar-string-035.dex`/`surrogate-source.dex`/`null-source.dex` 三方复算）。mdd-facts 133 lib + 20 集成 + 5 doctest 全通过。
+
+**MDD-031 profile 阻断载体**：归属研判裁定为**两层机制**——MDD-031 第 5 条是运行时负向门禁，MDD-035 是离线正向资格；本轮在 mdd-sql 内实现 **block-only** registry（`CompatibilityProfileRegistry`，只有 `block`/`is_blocked`/`blocks`，无 `admit`），prepare/execute 入口 fail-closed，仅 `UNSUPPORTED_QUERY` 登记阻断，反例 SQL 原文+SHA256 入库。4 个新测试 + 3 处红绿探针（复跑确认有牙齿）。`cargo test -p mdd-sql` **213 passed**。**上一轮「应归 MDD-035」的判断被本轮 Reviewer 明确推翻**：block-only 载体不构成准入签发，归 MDD-031 正确。
+
+**MDD-032/033 只读准备**（`artifacts/mdd-032-033-prep-20261111/`）：MDD-032 的 17 个 HostLab 契约关系在 mdd-sql 生产路由中**一个都没有**（32 个 `native_*` 是内部名），事实层 17/17 已有 `*_rows()`；corpus 32 变体中 18 个无形状测试、0/16 族有 golden。MDD-033 验收 5 条中 1 条基本成立、1 条空转、3 条零实现。建议先做 MDD-032。
+
+**Step-Reviewer（第三轮）认定的实质问题**：
+- **coverage 门的「闭合虚假完成」不成立**：门对 6 个关系的真实列无可观测行为变化——门会拒的列在到达门之前已被 spec 查找与 `assembled_projection` 检查拒绝；provider 缺失被 `layer_state` 抢先；且 **`required_columns` 在所有生产代码中恒为空**（`CoverageRequest::for_scope` 置空），整条 `column_state` 路径仅测试可达。**本轮唯一真实的行为修复是非标量扩展**。已更正 SUMMARY 与代码注释（原注释称「每个有投影的关系都被门覆盖」，对 7 个兜底关系为假）。
+- **profile 阻断有一处真漏洞**：`SqlBridge::execute` 只读 `self.profile`，从不读 `prepared.profile`——未声明的桥可执行已阻断 profile 的语句，声明别的 profile 的桥会把反例记到别的 profile 账上。**已修**：新增 `SQL_PREPARED_PROFILE_SCOPE_MISMATCH` 作用域一致性检查 + 测试（213 passed）。
+- **032/033 分析**：B1「TEMP catalog 依赖方向硬阻塞」定性错误（是接口约束不是编码阻塞，且与子代理自己的 plan 矛盾）；互锁漏算 Q16（实为 3 个变体）；变体计数 30 应为 29；6 处行号错误。
+
+**验证**：`cargo test --offline --workspace -j 4` 全绿（24 个 test target）；`cargo clippy --offline --workspace --all-targets -- -D warnings` 0 错误；`cargo fmt --all -- --check` 干净。
+
+**未做**：5 列未装配、coverage 的 7 个兜底关系补门、`required_columns` 的生产填充、证据探针的独占干净重建、MDD-031/033/035 闭合。
+
+### 待主代理决策（来自 032/033 准备分析）
+
+1. **Q13.boundary + Q14 + Q16 三个变体互锁**：建议记入 MDD-032 `implementation_notes`——032 的最终闭合以 MDD-033 的 033-B/033-C 完成为前提，032-A/032-B 完成不构成 done（不改 acceptance，只记录依赖）。
+2. **TEMP catalog 归属层**：建议保留 `crates/mdd-session/src/catalog.rs`，只放与解析无关的名称/依赖图抽象；`AS SELECT` 物化由 mdd-sql 侧注入。
+3. **`lib.rs` 增加 `pub mod profiles;` 属 export 变更**，须主代理单写；且需先定 `profiles` 是否同时承载方言绑定策略。
+
+## 2026-11-11 第四轮（4 子代理完成，Step-Reviewer 待补）
+
+**本轮完成 4 个子代理，全部成功；3 个 Step-Reviewer 已拉起但被取消（用户要求明日继续），故本轮改动尚未经过对抗审查。**
+
+**MDD-026 coverage 兜底门**（`coverage-fallback-gates-20261111`）：`frozen_provider_gate` 扩展 7 个关系（`class_interfaces`/`class_fields`/`class_methods`/`annotation_directory_entries`/`annotation_set_entries`/`annotations`/`annotation_elements`），各自查自己的 provider；`_ => Some(Ok(()))` 改为 `_ => None`；新增 `CoverageRequest::for_relations` + `SnapshotFactIndex::coverage_for_relations` 作为显式列覆盖入口（`for_scope` 保持置空，保守）。mdd-facts 137 lib 通过。**自报：`coverage_for_relations` 目前只有 crate 内测试可达；今日各列判定结果不变（7 关系 spec 列集与 provider available 完全一致）。**
+
+**MDD-026 未装配列收口**（`unassembled-columns-20261111`）：**5 列全部收口，`assembled_projection` 5→0（156/156 全 true）**。provenance 两列在 `SelectedScope` 新增 28 列投影（`dex_file_provenance`），未往 `MetadataSource` 塞字段；`param_descriptors` 有序向量逗号 join（编码 `comma-separated-utf8-v1`）；`opcode_count`/`opcode_hex` 经 `MethodCodeFactViews::method_rows`（code_layout 层，`insns_size` 不计入）。另补 `coverage.rs::provenance_gap` 堵「翻旗即 Complete」。mdd-facts 145 lib 通过。**自报待决：`required-columns.json`/ledger/`compile_column_ledger_v*.py` 的 `==69` 硬断言需单写点同步；raw DEX `entry_name` 叶子名策略；`string_pool_id` UInt32 目录赋值契约。**
+
+**MDD-032 关系注册**（`relation-registration-20261111`）：新增 `crates/mdd-sql/src/provider/hostlab.rs`，**17/17 契约关系全部真实注册**（`HostLabRelation` 枚举映射到事实层行投影），156/156 列对齐 `relations.json`；用冻结 A0 二进制现场取 17 张表逐行全等。mdd-sql 231 passed。**★ 发现契约级冲突（待裁决）**：A0 实测 `file_id` 是**归档枚举序**（`member-policy.apk`：`classes10.dex`=0、`classes2.dex`=1），与 gap 分析断言的数值序、与项目内 `hostlab_file_ids()`/`surface::dex_file_order()` 的数值序实现**相反**；影响所有 JOIN 键。子代理按 A0 实测实现。另：`source_path`/`entry_name` 无 NULL（无法无损表示时整关系失败）；`string_pool_id` 样本上与 `file_id` 相同。**自报待决：Q13 `boundary`/Q14 未实现（属 032-A 切分）；`using_type` NULL 分支无 A0 反例；`provider.rs` 新增 `pub mod hostlab;` 属 export 变更须主代理确认。**
+
+**MDD-033 零实现项**（`catalog-cursors-20261111`）：新增 `crates/mdd-session/src/catalog.rs`（TempCatalog 五项语义：循环/IF NOT EXISTS/DROP 种类/重定义进 retired/跨会话隔离）与 `cursors.rs`（CursorBinding 13 项含 `worker_generation` 与 AST/参数指纹、混合页拒绝、`CompatOffsetState` 兼容 offset 契约）。验收 1/2/3/5 本层完成，验收 4 契约完成但入口未接线。mdd-session 53 passed，6 处变异验证。**自报待决：`lib.rs` 私有 `mod catalog; mod cursors;` 需改 `pub mod`；`SqlResult` 缺分页字段；`mdd.result.v1` 无 offset 字段；`CREATE TEMP` 语法与 `AS SELECT` 物化未接线。**
+
+**验证**：`cargo test --offline --workspace -j 4` 全绿（24 个 test target）；`cargo clippy --offline --workspace --all-targets -- -D warnings` 0 错误；`cargo fmt --all -- --check` 干净。
+
+**⚠️ 明日待办（按优先级）**：
+1. **补跑第四轮 Step-Reviewer**（4 个方向：coverage 兜底门、5 列收口、MDD-032 注册（含 `file_id` 裁决）、MDD-033 实现）
+2. **裁决 `file_id` 序冲突**（A0 归档枚举序 vs 项目数值序，影响所有 JOIN 键）
+3. **单写点同步台账**：`required-columns.json`、`compile_column_ledger_v*.py` 的 `==69` 断言、`column-audit-v10`、合并矩阵口径（156/156 装配后需重算）
+4. **主代理 export 变更**：`mdd-session/src/lib.rs` 的 `pub mod catalog; pub mod cursors;`；确认 `mdd-sql/src/provider.rs` 的 `pub mod hostlab;`
+5. **独占时段干净重建 MDD-026 证据**（F1/G1 溯源断裂，本轮改动后更需重跑）
+6. 5 列收口后重算合并矩阵；`required_columns` 生产填充接线（需改 mdd-query/mdd-sql）
+
+## 2026-11-12 门禁收口（接续第四轮中断）
+
+**门禁验证（经 ucodex runner，本地配置 `.codex-workflow/gate.json` 已加入本地 `.git/info/exclude`，未入库；日志在 `.codex-workflow/runs/`）**：
+
+| profile | 内容 | 结果 |
+|---|---|---|
+| static | `verify_original_handoff.py`（须用 `.venv` 的 Python 3.12.14 + jsonschema 4.26.0，系统 Python 缺 jsonschema）、`cargo fmt --check`、`check-workspace-boundaries.py` | 通过 |
+| native | `cargo check/clippy -D warnings/test`（`--offline --locked --workspace`） | 通过：35 个 test target，754 passed / 0 failed / 0 ignored |
+| cli | `cargo build -p mdd-cli`、`check-cli-contract.py`、`check-inspection.py` | 通过 |
+| conformance | `conformance/oracles/reproduce.py`（8 metamorphic + 72 oracle checks）、`cargo run -p mdd-build-probe` | 通过；reproduce.py 会把解释器路径写进 `artifacts/mdd-004/fixture-reproducibility.json`，已 `git checkout` 还原以保持历史含义 |
+| progress | `tools/check_progress.py` | 先后失败两次，修复后通过：① MDD-022 `implementation_evidence` 指向目录 `.../run1/`，要求为文件，已改指 `run1/record.json`；② `artifacts/index.json` 哈希陈旧，已用 `tools/refresh_artifact_index.py`（工作区模式，9120 条）重算 |
+
+`passed` 只表示所配进程退出码为 0；CI 里的 `record_command` 包装与 ASan/fuzz/Linux 矩阵本地未跑。**提交前必须按暂存内容重跑 `refresh_artifact_index.py --from-index`**，工作区模式的索引不是提交检查点。
+
+**`file_id` 序冲突已裁决（第四轮待办 2）**：A0（`dexsql 0.1.0`，sha256 `f354ebcf…c448`）的 `file_id` 是**归档枚举序**，不是 `classes<N>.dex` 数值序。独立证据：4 个乱序合成归档全部等于 ZIP 序；真实 Bilibili 9.16.1 上 `file_id=4` 是 `classes13.dex`（A0 数得 7,328 个类），不是 `classes5.dex`（12,038 个类）。旧 `NativeSession::hostlab_file_ids()` 注释「A0 证据证实 file_id=4 为 classes5.dex」被直接反证，已改为恒等映射（`mdd-facts/src/hostlab/{mod,rules}.rs`），新增测试 `hostlab_file_id_follows_archive_enumeration_not_numeric_member_order`。`surface::dex_file_order()` 的数值序是 `native_surface.scan` 的二次映射，保持不动（字段名 `file_id` 易误导，留给 MDD-052）。证据：`artifacts/mdd-032-audit/file-id-adjudication-20261112/`，复跑说明：`artifacts/mdd-051/skeleton-20261112-file-id-fix/NOTE.md`（Bilibili `class_count` 310,716 与 A0 一致；两份 Bilibili 原始运行记录含应用内部类名，已移出仓库，仅留在本机 `artifacts/local/mdd-051-private/`）。mdd-sql 的 `dex_files.file_id` 本就按归档序，无需改。
+
+**backlog 如实化**：MDD-032、MDD-033 由 `todo` 改为 `in_progress`（均已有实质实现，注明未完成部分，验收未改）；MDD-026 过期的 `blocking_reasons`（MDD-022 重开）换为当前真实阻塞；MDD-032 记录 Q13.boundary/Q14/Q16 与 MDD-033 的互锁依赖。
+
+**第四轮对抗审查已补跑（2026-11-12，主代理内联，未用子代理）**：
+- **MDD-032 关系注册**：新建对冻结 A0 的独立差分，185 个夹具 × 17 关系共 3,145 条记录（A0 作答 2,703）。2,097 条逐值相等（含上述修复后变为相等的 11 条）；603 条本引擎显式拒绝（缺层、合法非标量字符串、结构非法输入，均为 fail-closed）；3 条作答但有差异（非 BMP 字符）；2 条 A0 拒绝而本引擎作答（`class_methods` 不依赖 A0 所拒的 code item）；440 条两边都拒绝。真实 NewPipe 0.28.6 上 17 个关系的行数与 A0 全等。新增永久测试 `a0_differential_over_the_fixture_corpus_has_only_declared_divergences`，已用序号 +1 的变异验证有效。证据：`artifacts/mdd-032-audit/a0-differential-20261112/`。
+- **发现 1（已关闭）**：夹具含合法孤立（无人引用）注解项时，`annotation_set_entries`/`annotations`/`annotation_elements` 比 A0 多行（7 个夹具、11 条记录）。用户裁决「只投影可达项」：`AnnotationFacts` 新增 `reachable_*` 行生产者（类绑定目录经 class/field/method/parameter-ref-list 可达的集合、注解项与元素），事实层保留孤立项，`mdd-sql` 的 hostlab 提供者改用 `reachable_*`。11 条记录变为与 A0 相等，NewPipe 四个注解关系行数仍与 A0 全等，三处可达性变异均被杀死；新增事实层测试 `unreferenced_items_stay_facts_but_are_not_reachable`。
+- **发现 2（兼容台账待登记）**：补充字符（非 BMP）的 MUTF-8，A0 把每个字节替换为 U+FFFD，本引擎还原为正确标量；不复制 A0 的有损行为。
+- **5 列收口**：由差分覆盖（`dex_files` 28 列、`methods` 的 `param_descriptors`/`opcode_count`/`opcode_hex`），未发现缺陷；`source_path` 与 A0 只差路径拼写。
+- **coverage 兜底门**：三处变异，两处被现有测试杀死，`_ => None` 改成默认 Complete 的一处存活（该分支对现有 156 列不可达）。已补测试 `unmapped_relation_is_never_gated_to_complete`，复跑该变异已被杀死。
+- **MDD-033**：只精读了 `cursors.rs` 的游标绑定/页延续/兼容 offset 路径与 `lib.rs` 的 catalog epoch 交互，未发现缺陷；`catalog.rs`（1,079 行）未读，`cursors.rs` 约四分之三未读，**不能当作完整审查**。
+- 桥的 AST 适配器未实现 `typeof` 与 `replace`（必需语料 `representative_sql` 未使用 `replace`，已核对）。
+
+**磁盘（ucompact，2026-11-12 经用户确认已合并）**：扫描 `artifacts` 与 `handoff`（5.27 GB），`apply --yes` 合并 25 个文件为只读硬链接，回收 2,273,135,108 字节（约 2.1 GB），0 跳过；其中 1.92 GB 来自 `artifacts/local/mdd-perf/golden/{new,old}-encoded/newpipe-classes.dex.json`。`verify --content` 无 corrupt object；2 条 `path missing` 属 `D:\MeguvizUI\.mimosa\hook-state` 的他项目文件，与本仓库无关。合并后的文件为只读（链接数 3，含存储对象）：重写这些文件的脚本须先 `ucompact restore --path <前缀> --yes`。`handoff/verified-*` 是 `verify_original_handoff.py` 每次运行留下的可再生目录，未删除。扫描报告在 `%TEMP%\ucompact-report.json`（临时，不入库）。
+
+**待办收口（2026-11-12 续，用户要求一口气做完上线前待办并注意复审；全部由主代理内联完成并用独立 oracle/变异验证，没有使用子代理）**：
+
+| 第四轮待办 | 状态 |
+|---|---|
+| 1 对抗审查 / MDD-033 全文 | 已读完 `catalog.rs`（1,079 行）与 `cursors.rs`（1,524 行），修了 4 处，见下 |
+| 2 `file_id` 序冲突 | 已裁决并修复（前文） |
+| 3 台账同步 | `compatibility/ledger.json` 登记了 4 条 HostLab SQL 关系分歧/裁决，`fact_indexes_and_coverage` 改为现状；`qualify.py` 是历史生成器，按设计在源码漂移上失败，已在文件头写明，不改其断言 |
+| 4 导出变更 | `provider.rs` 的 `pub mod hostlab;` 已在；`catalog`/`cursors` 仍为私有 `mod`——没有消费者，等 mdd-sql 接线 `CREATE TEMP`/分页字段时再改，本次未动 |
+| 5 独占时段干净重建 | 已做：两组 harness 在 cargo 对当前源码报告的 rlib 上重跑，结果与 2026-11-11 逐列相同；合并矩阵 140/156 列六类全满足，未装配 0（`artifacts/mdd-026/evidence-merged-clean-20261112/`） |
+| 6 `required_columns` 生产填充 | HostLab SQL 提供者现在在打开任何关系前用 `CoverageRequest::for_relations` 取账本裁定（每关系计算一次并缓存）；typed-IR 的 mdd-query 执行器路径仍只请求层，未改 |
+
+**复审发现并修复**：
+- `CompatOffsetState::admit`：首页的精确总数不参与 `more_available` 判断，会给出不存在的续页；页内行数/lookahead 与精确总数互相矛盾时被放行。现在对首页和后续页都校验，矛盾返回 `total_conflicts_with_page`，被拒页不计入。
+- `CompatOffsetState::next_request`：行预算耗尽而上一页仍报 `more_available` 时返回 `Ok(None)`，驱动循环会把截断当成结束。现在返回 `QuotaExceeded(max_rows)`。
+- `bind_query_temp`：只绑定 SQL 里写出的名字，视图背后的表不在存储绑定里，`verify_query_temp_binding` 保护不到。现在按查询代次传递闭合地绑定依赖，缺失的依赖报 `unknown_relation` 并写明 `required_by`。
+- `cursors.rs` 的恒真断言 `assert_eq!(x.worker_owner, x.worker_owner)` 改为与注册表的真实 owner 比对。
+- 验证方式：`cursors.rs` 的三项先写出红测试、修复后变绿；`bind_query_temp` 的两个测试与实现同时写成，随后用「删除依赖入队」的变异确认两个测试都会失败。
+
+**合并脚本缺陷**：`merge_evidence.py` 把第一轮的静态降级表套在修复轮重新取证过的结果上，`class_interfaces.ordinal` 的 order/multiplicity 因此被错误地保持 partial。`merge_evidence_clean.py` 只在没有修复轮来源重取证该类别时才应用降级，被取代的 7 条降级记录在 `superseded_reviewer_downgrades`。旧矩阵保留。
+
+**行为变化（已写入差分测试的固定值）**：coverage 账本接入后，`references/generated/` 下 `bad-caller-ins-size`、`bad-custom-argument-count`、`bad-custom-prefix` 三个夹具的 `methods`/`code_items` 共 6 条记录由「与 A0 相等」变为显式拒绝：这三个夹具无法构建引用层，账本在没有引用层/raw code 时无法证明 `MethodBindings`（ADR-017 把它与 `AllMethodBodies` 区分）。差分测试的相等记录数因此由 2,097 变为 2,091。
+
+**验证**：static、native（35 个 test target，763 passed / 0 failed / 0 ignored，clippy 无告警）、cli、conformance、progress 全部通过。NewPipe 0.28.6 上接入账本后 17 个关系行数仍与 A0 全等，账本开销单个关系 2–455 ms。
+
+**仍未做**：16 列未满足全部六类（见 `evidence-merged-clean-20261112/SUMMARY.md`），差分证据是否折算进六类矩阵需要口径决定；typed-IR 路径的列级覆盖；`catalog`/`cursors` 导出与 `CREATE TEMP`/`mdd.result.v1` 分页字段接线；MDD-035 以后的 30 个 todo 任务；CI 的 Linux/ASan 与 `record_command` 包装。以上改动已在分支 `codex/m2-facts-20261028` 上分四次本地提交（conformance 脚本、证据与 artifact 索引、引擎代码、状态文档），尚未推送。
+
+## 2026-11-12 合入 origin/main 与公开范围
+
+**事实更正**：`origin` 是公开仓库（`Meguvizarchic/MeguvizDexDash`），不是此前文档写的私有远端。2026-11-12 本分支曾被整体推送，随后发现这一点，已删除远端分支（GitHub 上提交仍可按 SHA 读取）。此后按用户决定「证据和类名都不入库」做了下列处理，本地分支至今**没有再次推送**。
+
+- 合入 `origin/main`：`git merge -s ours`，因为 main 的 `27ac27e` 是本分支 `71dfce9` 的脱敏副本，它在 `crates/` 下的实质修补本分支都已包含（逐文件核对，仅 lint 写法不同）。自动合并曾向 `indexes/mod.rs` 插入约 300 行重复定义、把 MDD-022 改回 in_progress，均不采用。采纳 main 的内容：README 头部与图标、`benchmarks/README.md` 去掉本机解释器绝对路径、`artifacts/public-progress-20261104/` 两份记录。
+- **应用类名不入库**：`hostlab/catalog.rs` 不再含任何应用类名，只保留规则读取的键名（`REQUIRED_LISTS` / `REQUIRED_CONSTANTS`）和校验构造器 `HostlabCatalog::new`；载荷在运营方提供的 JSON 文件里，`hostlab_audit` 示例以第二个参数读取。`surface_summary` 示例的家族前缀表同样改为 `--families FILE.json`。载荷导出到本机被忽略的 `artifacts/local/hostlab/`。在私有 APK 上用外部文件重跑，`surface_summary` 与 `hostlab_audit` 的业务输出与改动前逐项相同（只有每次运行都不同的 occurrence/snapshot id 不同）。rules.rs、surface.rs 里引用应用类名的注释与测试字符串改为中性写法。
+- **含本机路径的原始证据不入库**：本分支新增的证据文件中有 1,143 个含 开发盘符路径或 Windows 用户目录之类的本机路径（此前口头报告的 128 个是 grep 转义写错造成的低估），共约 11 MB，已整体移到本机 `artifacts/local/withheld-evidence-20261112/`（保持原目录结构），不进入提交。说明见 `artifacts/WITHHELD.md`。唯一被代码依赖的一份（`scope.rs` 测试读取的 A0 provenance 记录）改为可移植夹具 `tests/fixtures/provenance/a0-dex-files-provenance.json`：`source_path` 记为相对仓库根的路径，测试按本机检出根去前缀后比较，不再要求仓库位于录制机器上的固定目录（原测试在任何其他路径上都会失败）。
+- 两份对私有 Bilibili APK 的原始运行记录同样只留在本机 `artifacts/local/mdd-051-private/`。
+- **仍然带本机路径、本次没有处理的**：更早的 72 个提交里已有约 30 个日志类文件含 Windows 用户目录路径（mdd-005 的 a2 运行输出、mdd-031-audit 的若干 record.json 等）。它们来自此前的提交而非本轮，处理需要改写更早的历史，留待决定。`main` 上本来就有 258 个含此类路径的文件。
+- 本地备份分支：`backup/pre-clean-20261112`、`backup/pre-withhold-20261112` 保存了清理前的提交（含上述内容），只在本机；**不要用「推送所有分支」的方式推送**。
 
 ## Checkout 与交付
 
-工程目录 D:\MeguvisDexDash（保留目录原拼写）。私有远端 https://github.com/jichuo1/MeguvizDexDash；当前审查分支 codex/m2-facts-20261028，草稿 PR #1。main 当前 abdcdf4；检查点 3c334c5 的 Windows/Linux 原生 CI 和有限 Linux ASan/fuzz 均通过。此前 a8fb9a6 两平台各170项测试及10条实际命令原始记录已核验，见 artifacts/integration/20261029/ci-a8fb9a6.json。更晚的工作区变更须另行验证。
+工程目录 D:\MeguvisDexDash（保留目录原拼写）。远端已迁移到 https://github.com/Meguvizarchic/MeguvizDexDash（**公开仓库**，旧地址 jichuo1/MeguvizDexDash 自动转发）；PR #1 已于 2026-11-04 合并，`main` 现为 a9aa1f0，其中 27ac27e 是由本分支 71dfce9 生成的「脱敏工程进度快照」，之后 8 个提交是修补与 README/图标。本地分支 codex/m2-facts-20261028 当前**没有远端分支**：2026-11-12 曾整体推送，随后发现仓库公开，已按用户决定删除远端分支（GitHub 上提交仍可按 SHA 读取）。重新推送前必须先决定公开范围，见下节。
 
 大范围 push main 曾被自动审批以缺少本次默认分支推送明确授权为由拒绝；后续采用独立分支和草稿 PR。没有合并、默认后端切换、部署或正式发布。
 
@@ -14,13 +165,103 @@
 
 - M0：MDD-001/002/003/004/006 已完成各自验收；005 尚未完成。
 - M1：MDD-010/011/012/013/014 已完成限定任务范围，包括不可变快照、逻辑出现次数、ZIP32/ZIP64 物理成员、生命周期与真实 worker 故障。012 曾重新打开补齐 ZIP64，52 向量及 65,535/65,536 成员边界已重验。
-- M2：MDD-020/021/023 已完成字符串/类型/原型、定义与编码代码布局。MDD-022 曾完成注解限定验收，现因短参数列表将 Unknown 位置误报为已知的反例重新打开；修复后仍需独立完整复验。020 曾因内部 item 引用反例重新打开，已用物理起点、合法 orphan、SDK 正反例与公开样本重新验收。Ready facts 对外只读。
+- M2：MDD-020/021/022/023 已完成。MDD-022 于 2026-11-09 完成独立完整复验并关闭：重开根因（短参数列表把 Unknown 位置误报为已知）已修复；参数槽 i 对应原型参数 i 依据 ART `GetAnnotationForMethodParameter` 直接索引 `annotation_set_ref_list.list_[parameter_idx]` 的实现事实，而非 DEX 规范（规范不要求长度相等）；编码槽数与原型参数数相等才标 Complete，否则 Unknown，缺失尾部位置绝不补 NULL。新增跨全部 7 个参数夹具的聚合不变量测试（覆盖 complete/unknown/unbound 三类，取代原先对未绑定 ref-list 的空转循环）。证据 artifacts/mdd-022/annotation-conformance.json（run 20261109T044316003186Z，12 条命令全 exit 0，reader 8/facts 29 为实测解析而非硬编码）与 artifacts/mdd-022/parameter-position-art-adjudication-20261109/adjudication.json。020 曾因内部 item 引用反例重新打开，已用物理起点、合法 orphan、SDK 正反例与公开样本重新验收。Ready facts 对外只读。MDD-026 依赖门现已全部满足，但其 156 列逐列资格仍未完成。
 - MDD-024：9 引用测试、18 手工 fixture（11 所需层成功、7 真损坏）、43 个固定 A0 完整小关系比较通过。公开 NewPipe 两 DEX 共 509,322 operand sites 完整读取。精确声明查找不等于运行时分派/继承解析；合法非 scalar 文本保留 UTF-16，拒绝有损 UTF-8 投影。
 - MDD-025：原始方法体、资源和 Manifest 所需事实验收完成。公开 55,763 方法、8,540 类聚合 recipe、792 资源逐项/摘要对齐固定 A0、Python 和原 HostLab 规则；76 Manifest 向量、AAPT2 完整树及 A0 六页结果通过。方法无 body 与空 body 区分，Manifest 与资源持有同一 Arc，源改写/重命名/释放后仍保持同快照证据。见 artifacts/mdd-025/raw-evidence-conformance.json。
 
 公开样本为官方 NewPipe 0.28.6，10,885,562 字节，SHA-256 e56ef6280b700696172797f94513ffd3f9aae9349945a2f06e235ec24446be58。APK 位于 ignored artifacts/local/inputs，不进入 Git。上述均非 ART 完整验证、完整 HostLab 替代或性能资格。
 
+## Step-Reviewer 对抗审查结果（2026-11-09，3 路并行）
+
+三个 Step-Reviewer 分别审查预算/终态、DEX 解析/debug 记忆化、解包/门面 API，均给出可复现反例。已按风险修复：
+
+- **`charge_row` 报错顺序反转（已回退）**：批量记账会让 `MAX_CELL_BYTES` 先于 `MAX_BUFFERED_BYTES` 触发，且 `step()` 内的 `MAX_STEPS` 与单元额度的交错顺序无法在批量路径复现。审查者给出最小反例（`buffered=B-1`、cell 含 `C+1` 字节）。**已回退为原顺序**，注释说明原因；`budget.rs` 层面的优化已让每次调用便宜很多，不再需要批量化。
+- **`SqlControl` 原子计数丢失更新（已修）**：`load`+`store` 非 RMW，两个线程同时 checkpoint 会少计步数，`max_result_rows` 理论上可超至 N 倍。当前 mdd-sql 是叶子 crate、每次执行私有内存连接、`SQLITE_LIMIT_WORKER_THREADS=0`，实际单线程不可达；但 `SqlControl: Clone` 且派生控制共享 counters，公开 API 允许并发。**已改为 `try_update`（RMW）**，无锁且不丢更新。
+- **`read_member` 对撒谎成员一次性预留 512MiB（已修）**：126 字节 APK 把声明尺寸改成 512MiB 即触发 ~514MiB 真实提交，之后才报长度不符。**已改为有界初始窗口 + 几何增长**（分块读，无零填充），恶意声明最多只占窗口。
+- **`InputKind::detect` 与 `capture` 错误码不一致（已修）**：detect 对坏 magic 返回 `UnsupportedCapability` 并附带本机绝对路径 detail，而 capture 返回 `InvalidInput`。已统一为 `InvalidInput` / stage `capture` / 相同 message，并去掉 path detail。
+- **门面深拷贝（已修 + 文档纠正）**：`references()` 实测 538ms vs 分阶段 183ms，其中 `CodeFacts` 深拷贝 ~277ms、`DefinitionFacts` ~66ms；而 `docs/guide/README.md` 宣称门面「不会重复深拷贝」，与代码相反。**已为 `DefinitionFacts.metadata`、`ReferenceFacts.definitions/code` 改为 `Arc` 并新增 `build_arc` 变体**（启用 serde `rc`，JSON 逐字节不变），门面 `references()` 现在零拷贝；`AnnotationFacts` 因测试对 definitions 有可变注入需求且收益仅 66ms，**保持自有所有权**，文档已改为事实与量级。
+- **测试缺口（已补）**：① 无任何测试锁住「debug 程序只解码一次」——删掉缓存 51/51 仍全绿，已加 thread-local 解码计数器与断言；② `SignedDecimal` 的 `i64::MIN`（20 字符，正好卡栈缓冲边界）未入测试值表，已补 `i64::MIN/MAX`；③ 缺 `RESOURCES[i].slot()==i` 一致性断言（枚举与数组顺序耦合，漂移会导致越界 panic 或静默错账），已补。
+- **注释准确性（已修）**：`sticky` 的首错窗口说明原先对 `SQL_WORK_BUDGET` 路径不成立；`Node.soft/hard` 「never rewritten」应限定为「无生产路径改写，仅测试改写」。
+- **`add` 深度守卫 fault 登记不对称（已修）**：`add` 不登记 `state.fault` 而 `release` 登记，同一种内部损坏会有两种故障语义，已统一。
+
+审查者同时确认（附方法）：`Resource::slot()` 与 `RESOURCES` 顺序严格一致；`add` 的「先全链校验再统一写入」失败时零写入；`charge_row` 的 accept/reject 判定完全等价（仅 reason/observed 有差，故回退）；`RuntimeBudget` 缓存 deadline 安全且 poisoned 测试机制未变；debug 记忆化的错误顺序、寄存器重放、额度 replay、`StrictSourceLinesV1` 顺序、`code_item_address_scope` 边界均与旧实现一致——审查者用 `git archive HEAD` 构建差分 oracle，**约 95,600 个用例**（含 178 个真实 dex × 2 策略 × 6 档预算、25 个手工构造程序 × 8 种寄存器宽度 × 7 种 code size）逐字节比对 `CodeSection` JSON 与完整 `MddError` 全部一致；解包侧的错误码/阶段/detail 也逐场景一致。
+
+## DexSQL 实测对照（2026-11-10，首次真实数据）
+
+**阻断已解除**：可用物理内存 19.10 GiB（≥ 预注册 10 GiB）；参考 checkout 已按 commit `8782f43d` 重建于 `artifacts/local/hostlab-reference`（97 个源文件哈希全部匹配）；A0/A1 引擎二进制哈希与 manifest 一致；Java / SDK 工具 / MCP 2.2.0 / Windows Job smoke 全部通过。因工作区与私有输入都已迁移，另存了**仅改路径**的 manifest 副本 `artifacts/local/baseline-manifest-20261110.pathadapt.json`（原 `benchmarks/baseline-manifest.json` 未动，改动清单见同名 `.adaptations.json`）。
+
+**A0（DexSQL 0.1.0）实测**：输入 Bilibili 9.16.1（9161100，226,519,215 字节，33 个 DEX），独占 Job 下 **wall 70.39 s**（监督器 wall 72.86 s、CPU user 79.81 s），阶段拆分 prepare 2.28 s / structural 10.33 s / surface 41.67 s；覆盖 **310,716** 个类、27 项 FEATURE 中 25 FOUND / 1 PARTIAL / 1 MISSING、635 条查询、20 组证据、零 fallback，进程树已核实清空。证据 `artifacts/local/perf-20261109/dexsql-a0-9161100-20261110T030926Z/`。该运行是 observed qualification（`formal_performance_qualified=false`），**不是** MDD-082 性能资格；其 `business_exit_code=1` 是 FEATURE 缺口计数（25 FOUND / 1 PARTIAL / 1 MISSING），不是运行失败。
+
+**同一 APK 上本引擎实测**：约 **19.46–22.86 s/轮**（随机器负载，原始记录 our-bilibili/record.json）（捕获 0.22 / 清点解压 0.81 / metadata 1.30 / definitions 1.40 / code 9.27 / references 3.91 / annotations 2.55），同样 33 个 DEX、**310,716** 个类，另构建 1,731,482 方法定义与 959,036 字段定义。
+
+**口径**：两者**不是端到端等价比较**。DexSQL 的 70.39 s 覆盖 HostLab 完整业务审计（635 查询、20 组证据、surface 报告、home 探针）；本引擎的 19.46 s 只覆盖「读入→清点解压→事实构建」。本引擎尚未实现 HostLab 查询与审计面（MDD-051 未开始）。唯一完全对齐的事实是同一 APK、33 个 DEX、310,716 个类。报告已写入 `artifacts/local/perf-20261109/APK解包性能证据报告.pdf`（含该对照表与口径警告）。
+
+## 对抗审查发现的缺陷与修复（2026-11-10）
+
+三路 Step-Reviewer 对抗审查（正确性 / 性能等价性 / 基准与证据）。确认缺陷全部修复：
+
+1. **`valid_member_text` 放宽**（`mdd-dex/src/definitions.rs`）：新实现无条件跳过前导 `<`，使 `<init`、`<clinit`、`<foo` 这类单侧 `<` 的畸形名从「拒绝」变成「接受」。已改回要求 `<` 与 `>` **成对**，与旧的 `strip_prefix('<').and_then(strip_suffix('>'))` 等价。
+2. **`decode_mutf8` 错误类别漂移**（`mdd-dex/src/strings.rs`）：ASCII 批量快路径把 `STRING_LENGTH_MISMATCH` 误报成 `STRING_BYTE_BUDGET`（两者同时越界时）。已改为**只有整段都 fit 两个预算才走快路径**，否则回落逐单元；并把整串 ASCII 快路径限制在 `length == declared` 的成功情形。新增穷举等价测试 `decode_mutf8_matches_the_historical_per_unit_decoder`：**356,550 例**（1~3 字节 × 12 字母表 × declared 0~3 × max_bytes 0~4）与新旧实现逐字段比对，**零分歧**。
+3. **`BudgetUsage.used` JSON 形状变化**（`mdd-query/src/budget.rs`）：由「只含已计费资源」变成恒含 19 项。已加 `charged: u32` 位掩码，恢复只输出真正计费过的键。
+4. **`FactsSession::definitions()` 仍深拷贝 `MetadataFacts`**（`crates/mdd-facts/src/session.rs`）：改用 `build_arc` 共享 `Arc`，并加 `Arc::ptr_eq` 断言锁死（此前文档与实现不符）。
+5. **`RuntimeBudget::checkpoint()` 漏掉 `state.fault`**（`mdd-query/src/budget.rs`）：原本只查 `is_poisoned()`。已加 `sticky_fault: AtomicBool`，`lock()` 观察到 fault 时置位；正常路径仍无锁，异常路径才取锁并**经 `stop()` 记录 lifecycle 终态**（裸 `?` 会跳过终态，已由测试 `poisoned_budget_checkpoint_records_fault_and_preserves_prior_cancel` 捕获并修复）。
+
+审查同时确认无误的项：`Registers` 全边界（空/1~5/恰好5/6/255/256）语义与 JSON 一致；`SignedDecimal` 与 `i64::to_string()` 逐字节一致且拒绝非规范形式；SWAR 零/高位检测 2 字节穷举 + 200 万随机词零分歧；`Arc` 共享无 `make_mut` 隐式深拷贝；`InputKind::detect` 与 capture 错误码一致；`budget`/`control` 原子计数 RMW 不丢更新。
+
+## 按 DEX 并行（2026-11-10）
+
+`crates/mdd-facts/src/pipeline.rs` 新增 `FactsPipeline`（`std::thread::scope`，无新依赖）：每 DEX 走与串行相同的链，窗口约束领取（默认 `2*threads`）+ 窗口内按大小优先，交付严格按 inventory 序，失败语义 = 串行中止位置。Bilibili 33 DEX / 4 CPU lease 实测：串行 18.3 s，**3 线程最优 ≈1.66×**（11.1 s），4 线程因分配器/堆压力回退到 1.28×。跨进程 serial vs threads=3 的 `combined_sha256` 相等、33/33 逐 DEX 五层 digest 位置全等、Arc 共享图与串行一致。
+
+**必须注意的风险**：`available_parallelism()` **无视 CPU lease** —— 在 24 核机器上默认会起 24 线程，实测 182 s（比串行慢 10 倍）、峰值 16.4 GB。默认值只在整机独占时安全，受限环境必须显式传 `PipelineConfig::threads`。
+
+## 线程分配与大小核调度（2026-11-10）
+
+**问题**：`PipelineConfig::resolve_threads` 原先用 `std::thread::available_parallelism()`，而 Rust std 文档明示它在 Windows 上「**may overcount** ... systems limited by process-wide affinity masks, or job object limitations」。实测：4 CPU lease（affinity mask 15）下该 API 仍返回 24，默认会起 24 个 worker —— 182 s、峰值 16.4 GB，**比串行（18.3 s）慢 10 倍**。
+
+**已实施**（`crates/mdd-facts/src/threads.rs`，无新依赖，仅 FFI）：
+- `leased_cpu_count()`：Windows 用 `GetProcessAffinityMask` 按掩码计数；Linux 用 `sched_getaffinity`；其他平台返回 `None`。
+- `default_threads()`：优先级 `MDD_FACTS_THREADS`（正整数，未设上限）> `leased_cpu_count` > `available_parallelism`，再经 `workers_for()`。
+- `workers_for()`：**预留一个逻辑 CPU 给协调线程**（`available - 1`），并封顶 `DEFAULT_MAX_THREADS = 4`。依据是实测：4 CPU lease 上串行 18.3 s、2 线程 11.4 s、**3 线程 11.1 s（最优）**、4 线程 14.4 s —— 第 4 个线程因 per-DEX `Vec`/`String` 分配竞争让 CPU 时间从 18 s 膨胀到 31 s。
+- 新增 `affinity_mask_bounds_the_detected_thread_count`（Windows）：显式把进程亲和掩码设为 4 CPU，断言检测值 = 4 且解析值 = 3。用共享 `Mutex` 串行化所有触碰进程级状态（亲和掩码与 `MDD_FACTS_THREADS`）的测试。
+
+**大小核（P-core / E-core）结论**：**本轮不做显式 P 核绑定**。理由：① Windows 只通过 `GetLogicalProcessorInformationEx` 的 `EfficiencyClass` 暴露核型（Chromium 用 max class 判 P 核），需要一大块 `unsafe` 结构体布局；② Windows 调度器在 Intel Thread Director 配合下已负责把延迟敏感线程放到 P 核，应用只能「影响」不能「指定」；③ 本负载是内存带宽/分配密集型，实测 3 线程即饱和，P/E 区分带来的收益小于其 unsafe 面积与测量成本。若将来要做过，前提是先有「P 核池 vs E 核池」的对照测量。
+
+## 性能等价性审查（2026-11-10，第三个审查者）
+
+**确认的结果错误（已修）**：定义名索引 `finish()` 用 `&str`（UTF-8 字节序）排序，却用 `[u16]`（UTF-16 码元序）二分查找。对含补充平面字符的**合法** DEX 名（如 `La\u{10000};` 与 `La\u{E000};`），两者顺序不同，导致已存在实体查不到，并使 `absence_proven_within_selected_scope` 给出**虚假的「已证明不存在」**（无错误码）。旧实现用 `BTreeMap<(kind, Vec<u16>), …>` 天然一致。已抽出 `cmp_definition_name()` 按 UTF-16 码元排序，并加回归测试 `definition_name_postings_use_utf16_code_unit_order`（同时证明 UTF-8 序确实相反）。已核对其他索引：`Vec<u16>` 系（strings/units/raw/definitions）与 `String` 系（descriptor/symbol）各自排序与查找同序，无同类问题。
+
+**一并修复的可观测差异**：
+- `DexText::strict_utf8` 的 ASCII 快路径原先只检查 raw 全为 ASCII，对 `Deserialize` 出来的不一致 `DexText`（raw 为空、units 为 "A"）会返回空串而旧实现返回 "A"；已加 `raw.len() == units.len()` 一致性条件，仅解码器输出走快路径。
+- `RuntimeBudget::checkpoint()` 的 `sticky_fault` 原先只在 `lock()` 里置位，而 `release`/`add` 是**持锁直接写** `state.fault` 的；若此后无人调 `lock()`，`checkpoint()` 仍会漏报。已在全部故障写入点（`add` 深度守卫、`release` 深度守卫与下溢、`Drop for ReservationInner` 的计数下溢与 `release` 错误）直接置位。新增回归测试 `sticky_fault_flag_is_raised_by_lock_and_shared_with_derived_pools`。
+
+**已核对无问题**（含方法）：`Arc` 字段 JSON 透明（serde rc 实测逐字节相同）、`SignedDecimal` 与 200 万随机值零分歧、`Registers` 序列化与边界、`valid_member_text` 与旧实现穷举 0 差异、`needs_arrays/needs_handles` 决策等价、CSR `TargetIndex` 同序、`class_data_starts` 去重等价、`BudgetUsage.used` 位掩码恢复原形状、`budget::add/release` 先校验后写入与失败零写入、`decode_mutf8` 356,550 例穷举零分歧、debug 记忆化的额度/寄存器/scope 顺序、`session.rs` 无 `make_mut` 隐式深拷贝。
+
+**仍存在的可观测差异（多为有意或仅内部故障可达，未改）**：`ReferenceUsage.fact_bytes` 随 `mnemonic: String→&'static str` 下降（8 字节/站点，已记录）；索引记账口径变化（`UnitPostings` 固定 +262,148 字节/实例、定义项按 UTF-8 字节而非 UTF-16）；`SqlControl` 的四个 `*_OVERFLOW` 由一次性错误变为粘性首错（需计数器真正到 u64 上界）；`Instruction/DebugInfo/LocalReferenceSite` 的源码级 API 类型变化（JSON 与语义不变）。
+
 ## 当前推进与阻塞
+
+2026-11-09 本轮（性能与可用性改造，全部语义等价、测试全绿）：
+- **新增阶段计时探针** `tools/mdd-timing`（workspace 成员，仅 dev 工具，无新外部依赖）：把 capture / inventory / metadata / definitions / code / references / annotations 分阶段计时并输出 `mdd.timing.v1`，只做开发归因，不构成性能资格。基线（NewPipe 10.9MB，2 DEX）：全链 3446.9ms/轮，code 独占 1990.7ms（58%），capture 18.1ms，inventory+解压 31.0ms。
+- **debug 程序记忆化 + 零分配类型**（`crates/mdd-dex/src/instructions/{debug,mod,decode}.rs`）：实测同一 debug 物理程序被约 18 个 code item 重复解析（47110 item / 2616 唯一程序 / 4439385 事件），且每事件一个 `String`。现按 debug offset 记忆化程序级解析（`DebugProgram`/`ProgramEvent`，不含依赖 code item `size` 的 `code_item_address_scope`，按 item 现算），寄存器越界按事件顺序重放、额度逐事件 replay、只缓存成功解码；`encoded_line_decimal: String` → `SignedDecimal(i64)`（栈缓冲序列化，JSON 逐字节不变），`Instruction::mnemonic/format` → `Cow<'static,str>`（OPCODES 表为 'static，零分配）。**golden 等价证据**：用 `git archive HEAD` 在仓库外构建旧实现 oracle，63 个输入（含 NewPipe 2 DEX、全部 debug 反例、4 个合成反例）在 EncodedFactsV1 与 StrictSourceLinesV1 两种策略下 **59/59 逐文件 JSON 全等**；`debug_events_materialized` 保持 4419385/24141 不变；`code_layout_summary` normalized SHA-256 与 artifacts/mdd-023/public-newpipe-code-layout-encoded-policy/stdout.txt 同值。变异测试（临时把失败程序也缓存）使新测试立即失败，证明测试锁住了该反例。**收益**：code 阶段 652→360ms（DEX1，−44.2%），全链 3535.5→2503.2ms（−29.2%），DEX1 分配 8784381→2229639（−74.6%）、分配字节 −48.7%。
+- **查询预算热路径**（`crates/mdd-query/src/budget.rs`）：`Node.used: BTreeMap<Resource,u64>` → `[u64; 19]`（按 `Resource::slot()`）；`BudgetPool` 缓存不可变祖先路径 `Arc<[String]>`，`add`/`release` 改为「先全链校验、再统一写入」且零堆分配；`RuntimeBudget` 缓存构造期 `DeliveryBudgetDeadline`（`Node.soft/hard` 构造后从不改写），`checkpoint` 仍每次探测锁中毒（`is_poisoned` 为原子读，保留 `poisoned_budget_checkpoint_records_fault_and_preserves_prior_cancel` 语义）。`Control::charge_row` 由每 cell 一次 `charge` 改为本地聚合后单次记账，并补回等量步数；`Control::step` 的 hook phase 序列不变。
+- **SQL 控制快路径**（`crates/mdd-sql/src/control.rs`）：`State` 的四个计数器改为原子 `Counters`，`failed: AtomicBool` 让 `error()` 热路径免锁，sticky 首错仍写同一把锁；`checkpoint`/`output` 的限值判定与首错语义保持，发布/Ack/End 路径一律未动。
+- **解包快路径**（`crates/mdd-input/src/{archive/mod,snapshot/mod}.rs`）：capture 复用已算 digest（消除重复全量 SHA-256）并按 `metadata.len()` 与剩余额度取小预分配（保留 fallible→QuotaExceeded）；`read_member` 改为预分配后单次填充读（去掉 64KiB 循环 + 每轮 `try_reserve` + `extend_from_slice` 二次拷贝），并在分配前检查声明 size 对 `max_member_bytes`/`max_total_uncompressed_bytes`；新增 `member_index: BTreeMap<String,usize>` 消除成员线性查找。**收益**：capture 20.1→11.7ms（−42%），STORE 成员 5.73→2.0–2.8ms；8 个 APK 夹具（bad-crc/invalid-dex-member/member-policy/duplicate-name/duplicate-content/multidex-deflated/multidex-stored/renamed-member）与 HEAD 版本逐成员输出 diff 为空。**明确放弃（附实测依据）**：每成员重建 ZipArchive 固定开销仅 0.5–45µs，非热点；并行解压在 NewPipe（classes.dex 占 92.8%）受 Amdahl 限制仅 1.08x；去掉 zip crate 直读 flate2 差 ~3% 且需新增两个直接依赖；STORE 零拷贝需改 `MemberBlob` 的 `lease()` 语义，触碰资源共用 Arc 契约。
+- **可用性（DX）**：新增 `crates/mdd-facts/src/session.rs` 一站式门面 `FactsSession`（`open`/`metadata`/`definitions`/`code`/`references`/`annotations`，同层只构建一次并复用 `Arc`，`open` 不预建关系、`Partial`/`Unknown` 不折叠），`FactSet` 便捷句柄；`InputKind::detect`/`matches_magic` 按 magic 判定输入类型（消除 6 处扩展名猜测，且与 capture 校验同源）；`ErrorCode` 实现 `Display`（与 JSON 的 SCREAMING_SNAKE_CASE 一致）；新增可运行示例 `crates/mdd-facts/examples/quickstart.rs`；新增接入指南 `docs/guide/README.md`。分阶段 API 全部保留，未破坏兼容。
+- **受控交错 A/B 性能结论（2026-11-10 最终版，权威）**：用 `git archive HEAD` 构建改动前二进制（SHA-256 `4bd8ba20…`），与当前二进制交替运行共 12 轮（每种 6 轮）。**全链 1128.3 → 680.5 ms/轮（−39.7%，各阶段中位数之和）**：
+  - annotations 104.7 → 48.3（**−53.9%**，离散度 9.4%）——`DefinitionFacts.metadata` 改 `Arc` 后克隆成本由整份字符串/类型/原型表降为指针引用。
+  - code 653.9 → 355.7（**−45.6%**，离散度 1.2%）——debug 程序记忆化 + `SignedDecimal` + `Cow<'static,str>` + `Registers` 内联。
+  - capture 17.7 → 10.3（**−41.9%**）；references 176.5 → 133.6（**−24.3%**，两次全量指令扫描合并为一次）。
+  - definitions 83.2 → 50.9（**−38.8%**）、metadata 61.4 → 51.1（**−16.8%**）——SWAR ASCII 快路径 + 单次预留 + class_data 遍历合并。
+  - 清点+解压 30.9 → 30.6（−1.0%，在噪声内）。
+  - 逐轮原始数据：artifacts/local/perf-20261109/ab-controlled/record.json。
+  - **样本量与局限**：共 12 轮（每种 6 轮），不是「各 12 轮」；判据用「变化 > 基线极差/中位数」，n=6 时该极差对离群点敏感（capture 基线离散度 34%，其阈值分辨力弱）。code 阶段基线离散度仅 1.2%、6/6 同向，结论最稳健。
+  - **二进制时效**：该 A/B 对应改动前二进制 `4bd8ba20…` 与当时当前二进制 `086e273b…`；此后源码仍有变更，结论描述的是那几个二进制而非当前工作区。
+- **独立差分验证（正确性）**：用 HEAD 与当前二进制对同一 NewPipe APK 运行 `metadata_summary` / `definition_summary` / `code_layout_summary` / `annotation_summary`，归一化随机 snapshot id 后**输出逐字节一致**。`reference_summary` 仅 `ReferenceUsage.fact_bytes` 不同（63557158 → 59742974），原因是 `LocalReferenceSite.mnemonic` 由 `String`(24B) 改为 `&'static str`(16B)，`site()` 按 `size_of::<LocalReferenceSite>()` 记账，结构体真实缩小 8 字节 × 476,773 站点 = 3,814,184，与差值分毫不差；sites/callers/units/postings 全部相同。这是真实的内存节省被如实记账。
+- **更正**：此前记录的 "metadata +16.0% / definitions +14.1% / annotations +40.0% 未解释回归" **不成立**，那是环境噪声（跨时段、跨二进制的混合对比曾出现 22% 的总量差异；同二进制三连测只有 0.64%/3.12%）。metadata 与 definitions 实为真实改进，annotations 改进幅度比当时估计更大。
+- **这些仍是本机开发构建的分阶段归因**，不是 MDD-082 性能资格，也不是 A0/A1/A2 配对结论。
+
+- **修复 FactsSession 自死锁**：`definitions()` 持锁后又调用 `self.metadata()`（同一把 per-DEX mutex）会自死锁，导致 `quickstart` 示例挂死。改为公开方法只加锁、内部 `_locked` 变体在已持锁状态下递归，保持 single-flight 且不嵌套同锁；`quickstart` 现可完整跑通（2 DEX、64754/3722 字符串、7815/725 类、50046/5717 方法、47110/5222 code items，全层 Complete，exit 0）。
+- **测试**：`cargo test --offline --workspace` 全绿（627 项通过 / 0 失败，22 个测试目标）；严格 clippy 对本轮改动的 crate（mdd-types/mdd-input/mdd-dex/mdd-facts/mdd-query/mdd-timing，以及 mdd-sql 的 `control.rs`）通过。这些是 Windows 本机 debug 构建证据；Linux/CI 未运行。**注意**：`cargo clippy --workspace --all-targets -- -D warnings`（CI 第 50 行所跑）存在既有失败，已逐一核实非本轮引入：`crates/mdd-session/src/cancellation.rs:568/660` 的 `.err().expect()`、`crates/mdd-sql/src/dialects/ast.rs:282/294/602`、`bridge.rs` 8 处、`dialects/functions.rs` 2 处、`provider/metadata.rs` 3 处——这些文件在会话开始时即为已暂存或未修改状态，问题在 HEAD（b70d999）同样存在。本轮只清理了 mdd-query 与自有新文件的 lint；修复这些既有 lint 属独立范围，未擅自扩大改动。另外 `cargo fmt --all -- --check` 仍会报 `crates/mdd-sql/src/join_tests.rs`，该文件是会话开始前已暂存的用户改动（+155 行）且未过格式，同样未擅自改动。
 
 2026-11-01 本轮修正后按用户要求暂停：MDD-005 同步桥可选核验调用方观察的物理成员，并拒绝行错位、元组子类和自相矛盾的物理身份；Windows 输入锁与合成生产者局部 6 项、优化模式 6 项及既有 4+2 项回归通过，见 artifacts/mdd-005/sync-physical-binding-20261101/。回调可伪造记录且同步阻塞不受硬期限保证，生产者代次仍未证明。MDD-022 按已验证有序的物理注解集合查找 Signature 类型，避免对每个 owner 全表扫描；合成及已有 signature 定向见 artifacts/mdd-022/signature-type-search-20261101/，不构成性能或完整事实验收，022 仍 in_progress、026 门未解锁。MDD-034 对绑定 runtime 的严格来源校验计入查询步骤；真实零额度红例与最终 21 项 scoped 定向见 artifacts/mdd-034-audit/scoped-runtime-budget-20261101/；旧通用 FactSource、provider 回调、准备阶段及 Control 自有步数尚不受此修正覆盖。MDD-031 聚合输入物化、保留值和输出副本接入现有预算，真实低额度红例及 14+4+1 项定向见 artifacts/mdd-031-audit/aggregate-input-workspace-20261101/；聚合输出租约只通过共享包装器间接验证，SQLite 自身开销与循环内中断未证明。全量、跨平台、真实 HostLab 及性能验证均未运行，profile 与发行资格不变。
 

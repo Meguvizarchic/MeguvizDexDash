@@ -549,7 +549,7 @@
       "id": "MDD-022",
       "phase": "M2",
       "title": "实现注解、encoded values 与泛型签名",
-      "status": "in_progress",
+      "status": "done",
       "depends_on": [
         "MDD-020",
         "MDD-021"
@@ -578,18 +578,15 @@
         "docs/03_HOSTLAB_MIGRATION.md",
         "docs/04_VALIDATION_AND_PERFORMANCE.md"
       ],
-      "implementation_notes": "MDD020 physically revalidated and MDD021 accepted; production annotations now delegated; reopened after short parameter list marked Unknown while owner positions were emitted as Some(true); parser fix and independent requalification required",
+      "implementation_notes": "Reopened for the short-parameter-list counterexample, then fully requalified on 2026-11-09. Positional binding of annotation_set_ref_list slot i to prototype parameter i is attributed to the ART implementation (art::annotations::GetAnnotationForMethodParameter indexes list_[parameter_idx] directly), not to the format specification, which imposes no size equality. Coverage is Complete only when the encoded slot count equals the prototype parameter count and Unknown otherwise; missing trailing positions are never manufactured as NULL. A cross-fixture invariant test now proves known-position iff list length matches, replacing a previously vacuous loop over an unbound ref-list.",
       "implementation_evidence": [
         "artifacts/mdd-022/annotation-conformance.json",
-        "artifacts/integration/20261028/root-annotations-accepted/record.json",
-        "artifacts/mdd-022/parameter-position-unknown-20261101/red/record.json",
+        "artifacts/mdd-022/parameter-position-art-adjudication-20261109/adjudication.json",
         "artifacts/mdd-022/parameter-position-unknown-20261101/final/record.json",
-        "artifacts/mdd-022/parameter-position-unknown-20261101/sql-join-final/record.json"
+        "artifacts/mdd-022/parameter-position-boundaries-20261101/run1/record.json"
       ],
-      "completion_scope": "complete encoded annotations/values and ordered Signature; missing parameter slots are unknown, not NULL",
-      "blocking_reasons": [
-        "Short encoded parameter list exposed unproven prototype positions as known; complete requalification is deferred until unified validation."
-      ]
+      "completion_scope": "complete encoded annotations/values and ordered Signature; parameter position is Known only when the encoded slot list matches the prototype count, otherwise Unknown (never NULL)",
+      "blocking_reasons": []
     },
     {
       "id": "MDD-023",
@@ -748,17 +745,21 @@
         "docs/03_HOSTLAB_MIGRATION.md",
         "docs/04_VALIDATION_AND_PERFORMANCE.md"
       ],
-      "implementation_notes": "Reopened after independent review: candidate indexes and scoped coverage have passed recorded tests, but native atom declarations do not establish independent field/type/NULL/order/multiplicity/source/raw-fingerprint evidence for every required HostLab fact; 69 compatibility projections remain unassembled. Original acceptance unchanged; qualification remains partial.",
+      "implementation_notes": "Reopened after independent review: candidate indexes and scoped coverage have passed recorded tests, but native atom declarations do not establish independent field/type/NULL/order/multiplicity/source/raw-fingerprint evidence for every required HostLab fact. 2026-11-12 state: all 156 frozen columns have an assembled production projection and every frozen relation is gated by its owning provider in coverage. The six-class evidence was re-run from a clean cargo build of the current source (artifacts/mdd-026/evidence-merged-clean-20261112/): results identical to 2026-11-11, 140 of 156 columns satisfy all six categories, 0 unassembled. required_columns is now filled on the HostLab SQL provider path (CoverageRequest::for_relations before any relation is opened); the typed-IR executor path (mdd-query scoped.rs) still requests layers only. conformance/facts/qualify.py is a historical generator pinned to the 2026-10-28 index run and fails on source drift by design. Original acceptance unchanged; qualification remains partial.",
       "implementation_evidence": [
         "conformance/manifests/hostlab-fact-qualification.json",
         "artifacts/mdd-026/facts-differential.json",
         "artifacts/mdd-026/indexes/runs/20261028T141315875747Z/result.json",
         "artifacts/mdd-026/indexes/runs/20261028T141315875747Z/readback.json",
         "artifacts/mdd-026/root-reviewed-index-tests/record.json",
-        "artifacts/mdd-026/new-audit/column-evidence.json"
+        "artifacts/mdd-026/new-audit/column-evidence.json",
+        "artifacts/mdd-026/evidence-merged-clean-20261112/SUMMARY.md",
+        "artifacts/mdd-026/evidence-merged-clean-20261112/merged-matrix.json"
       ],
       "blocking_reasons": [
-        "MDD-022 reopened after unproven parameter position exposure; its original acceptance must be requalified before downstream completion."
+        "16 of 156 columns still lack one or more of the six evidence categories (per-occurrence key multiplicity, string_pool_id and methods opcode/param_descriptors field_type/raw_fingerprint not folded in from the production-path A0 differential, method_field_accesses.using_type NULL branch has no A0 counterexample).",
+        "The typed-IR executor path still requests layers only; column-level coverage is wired for the HostLab SQL provider but not for mdd-query.",
+        "A new index-component run and qualification generator are needed to re-issue the bounded qualification; the 2026-10-28 one is historical."
       ]
     },
     {
@@ -843,7 +844,7 @@
       "id": "MDD-032",
       "phase": "M3",
       "title": "完成 HostLab 十七关系与必需 SQL corpus",
-      "status": "todo",
+      "status": "in_progress",
       "depends_on": [
         "MDD-012",
         "MDD-020",
@@ -877,13 +878,22 @@
         "docs/02_ARCHITECTURE_AND_CONTRACTS.md",
         "docs/03_HOSTLAB_MIGRATION.md",
         "docs/04_VALIDATION_AND_PERFORMANCE.md"
+      ],
+      "implementation_notes": "032-A implemented in crates/mdd-sql/src/provider/hostlab.rs: all 17 contract relations registered over the fact layer (156/156 columns aligned to relations.json; row-for-row comparison with the frozen A0 backend on recorded fixtures). dex_files.file_id is the archive enumeration order, adjudicated against A0 dexsql 0.1.0 on synthetic out-of-order archives and Bilibili 9.16.1 (artifacts/mdd-032-audit/file-id-adjudication-20261112/); NativeSession::hostlab_file_ids was corrected accordingly. The 29 Q01-Q12/Q15 variants execute over real facts non-empty and complete (032-A record, not an equivalence verdict). Not done: Q13 boundary (multi-statement) and Q14 (response paging) are unimplemented; no corpus golden comparison has been issued. Dependency record, acceptance unchanged: Q13.boundary, Q14 and Q16 are interlocked with MDD-033 paging/TEMP work, so final closure of this task requires the MDD-033 portions; 032-A completing is not done. 2026-11-12 independent A0 differential over all 185 fixtures x 17 relations (artifacts/mdd-032-audit/a0-differential-20261112/): 2,097 records identical, 603 explicit fail-closed refusals, 440 both refuse, 3 declared divergences (A0's lossy replacement of non-BMP MUTF-8 text is not reproduced), NewPipe 0.28.6 row counts identical on all 17 relations. The differential found that annotation_set_entries/annotations/annotation_elements returned legal unreferenced (orphan) items that A0 omits; resolved by decision on 2026-11-12: SQL projects only items reachable from class-bound annotation directories (AnnotationFacts::reachable_*), the fact layer keeps orphans.",
+      "implementation_evidence": [
+        "artifacts/mdd-032-audit/relation-registration-20261111/SUMMARY.md",
+        "artifacts/mdd-032-audit/relation-registration-20261111/a0-readback.txt",
+        "artifacts/mdd-032-audit/file-id-adjudication-20261112/SUMMARY.md",
+        "artifacts/mdd-032-audit/file-id-adjudication-20261112/a0-observations.json",
+        "artifacts/mdd-032-audit/a0-differential-20261112/SUMMARY.md",
+        "artifacts/mdd-032-audit/a0-differential-20261112/a0-corpus.json"
       ]
     },
     {
       "id": "MDD-033",
       "phase": "M3",
       "title": "实现会话 TEMP catalog 与快照绑定分页",
-      "status": "todo",
+      "status": "in_progress",
       "depends_on": [
         "MDD-014",
         "MDD-030",
@@ -913,7 +923,8 @@
         "docs/02_ARCHITECTURE_AND_CONTRACTS.md",
         "docs/03_HOSTLAB_MIGRATION.md",
         "docs/04_VALIDATION_AND_PERFORMANCE.md"
-      ]
+      ],
+      "implementation_notes": "Session-layer contracts implemented in crates/mdd-session/src/catalog.rs (TEMP catalog: cycles, IF NOT EXISTS, DROP kind, redefinition into retired, cross-session isolation) and cursors.rs (13-component cursor binding including worker_generation and AST/parameter fingerprints, mixed-page rejection, compatible-offset contract). Not done: the modules are private (lib.rs `mod catalog; mod cursors;`), SqlResult has no paging fields, mdd.result.v1 has no offset field, and CREATE TEMP syntax / AS SELECT materialisation is not wired in mdd-sql, so acceptance 4 holds at contract level only. Original acceptance unchanged."
     },
     {
       "id": "MDD-034",
