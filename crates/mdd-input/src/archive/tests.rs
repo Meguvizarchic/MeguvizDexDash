@@ -54,6 +54,26 @@ fn one_resource() -> Vec<u8> {
     writer.write_all(b"\0\xffresource").unwrap();
     writer.finish().unwrap().into_inner()
 }
+/// Build a single-member archive whose payload is `payload`, so the preallocated
+/// read path can be exercised with sizes well beyond the 4 MiB eager window.
+fn one_member(payload: &[u8], method: zip::CompressionMethod) -> Vec<u8> {
+    let mut writer = zip::ZipWriter::new(Cursor::new(Vec::new()));
+    writer
+        .start_file(
+            "assets/payload.bin",
+            zip::write::SimpleFileOptions::default().compression_method(method),
+        )
+        .unwrap();
+    writer.write_all(payload).unwrap();
+    writer.finish().unwrap().into_inner()
+}
+fn raw_policy() -> InventoryPolicy {
+    InventoryPolicy {
+        dex_selection: DexSelection::ResourcesOnly,
+        reject_duplicate_selected_names: false,
+        require_dex: false,
+    }
+}
 
 #[test]
 fn fixtures_match_independent_physical_inventory_and_raw_content() {
@@ -492,6 +512,152 @@ fn raw_member_names_and_malformed_declared_sizes_are_not_normalized() {
             .code,
         ErrorCode::InvalidInput
     );
+}
+
+#[test]
+fn preallocated_reads_fill_exactly_declared_bytes_for_stored_and_deflated() {
+    // Payload spans several multiplications of the 4 MiB eager window so both the
+    // reservation and the doubling growth path are exercised.
+    let payload: Vec<u8> = (0..(9 * 1024 * 1024u32 + 12345))
+        .map(|i| (i.wrapping_mul(2_654_435_761) >> 17) as u8)
+        .collect();
+    for method in [
+        zip::CompressionMethod::Stored,
+        zip::CompressionMethod::Deflated,
+    ] {
+        let bytes = one_member(&payload, method);
+        let source = capture(temporary(&bytes), InputKind::Apk);
+        let result =
+            ArchiveInventory::build(&source.sources()[0], raw_policy(), ArchiveLimits::default())
+                .unwrap();
+        let blob = result
+            .read_member(&result.manifest().members[0].member_id)
+            .unwrap();
+        assert_eq!(blob.bytes(), payload.as_slice(), "{method:?}");
+        assert_eq!(blob.content_id, content_id(&payload));
+    }
+}
+
+#[test]
+fn empty_and_single_byte_members_keep_crc_semantics() {
+    for payload in [&b""[..], &b"x"[..]] {
+        for method in [
+            zip::CompressionMethod::Stored,
+            zip::CompressionMethod::Deflated,
+        ] {
+            let bytes = one_member(payload, method);
+            let source = capture(temporary(&bytes), InputKind::Apk);
+            let result = ArchiveInventory::build(
+                &source.sources()[0],
+                raw_policy(),
+                ArchiveLimits::default(),
+            )
+            .unwrap();
+            let blob = result
+                .read_member(&result.manifest().members[0].member_id)
+                .unwrap();
+            assert_eq!(blob.bytes(), payload, "{method:?}");
+        }
+    }
+}
+
+#[test]
+fn declared_size_smaller_than_payload_is_rejected_before_returning_bytes() {
+    // Patch the central and local declared size down by one byte; the stored
+    // member then decompresses to more bytes than declared.
+    let mut bytes = one_member(b"0123456789abcdef", zip::CompressionMethod::Stored);
+    let end = bytes.len() - 22;
+    let central = u32::from_le_bytes(bytes[end + 16..end + 20].try_into().unwrap()) as usize;
+    for at in [22usize, central + 24] {
+        bytes[at..at + 4].copy_from_slice(&15u32.to_le_bytes());
+    }
+    let source = capture(temporary(&bytes), InputKind::Apk);
+    let error =
+        ArchiveInventory::build(&source.sources()[0], raw_policy(), ArchiveLimits::default())
+            .err()
+            .unwrap();
+    assert_eq!(error.code, ErrorCode::InvalidInput);
+    assert!(error.details.contains_key("source_occurrence_id"));
+}
+
+#[test]
+fn declared_size_larger_than_payload_fails_as_length_mismatch() {
+    // DEFLATE keeps a compressed size that disagrees with the payload length, so
+    // the directory scan admits the member and only the read-time length check
+    // can catch the over-declaration.
+    let mut bytes = one_member(b"0123456789abcdef", zip::CompressionMethod::Deflated);
+    let end = bytes.len() - 22;
+    let central = u32::from_le_bytes(bytes[end + 16..end + 20].try_into().unwrap()) as usize;
+    for at in [22usize, central + 24] {
+        bytes[at..at + 4].copy_from_slice(&17u32.to_le_bytes());
+    }
+    let source = capture(temporary(&bytes), InputKind::Apk);
+    let result =
+        ArchiveInventory::build(&source.sources()[0], raw_policy(), ArchiveLimits::default())
+            .unwrap();
+    let error = result
+        .read_member(&result.manifest().members[0].member_id)
+        .err()
+        .unwrap();
+    assert_eq!(error.code, ErrorCode::InvalidInput);
+    assert_eq!(error.stage, "archive.member_bytes");
+    assert_eq!(
+        error.message,
+        "actual decompressed length differs from declared size"
+    );
+}
+
+#[test]
+fn read_budget_is_checked_before_allocating_the_declared_size() {
+    // The directory scan admits this member under default limits; a reused
+    // inventory with a tighter member budget must refuse before allocating.
+    let bytes = one_member(&vec![7u8; 8 * 1024 * 1024], zip::CompressionMethod::Stored);
+    let source = capture(temporary(&bytes), InputKind::Apk);
+    let result = ArchiveInventory::build(
+        &source.sources()[0],
+        raw_policy(),
+        ArchiveLimits {
+            max_member_bytes: 1024 * 1024,
+            ..ArchiveLimits::default()
+        },
+    );
+    let error = result.err().unwrap();
+    assert_eq!(error.code, ErrorCode::QuotaExceeded);
+    assert_eq!(error.stage, "archive.budget");
+}
+
+#[test]
+fn preallocated_read_still_verifies_crc_for_stored_and_deflated_members() {
+    // Flip one payload byte while leaving the central sizes and CRC untouched, so
+    // only the CRC comparison can reject the read. Both single-allocation paths
+    // (stored passthrough and inflated) must surface the same stage and reason as
+    // the previous buffered loop.
+    for method in [
+        zip::CompressionMethod::Stored,
+        zip::CompressionMethod::Deflated,
+    ] {
+        let mut bytes = one_member(b"payload-abcdefghijklmnopqrstuvwxyz", method);
+        let end = bytes.len() - 22;
+        let local = 30 + "assets/payload.bin".len();
+        bytes[local] ^= 1;
+        assert_eq!(&bytes[end..end + 4], b"PK\x05\x06");
+        let source = capture(temporary(&bytes), InputKind::Apk);
+        let result =
+            ArchiveInventory::build(&source.sources()[0], raw_policy(), ArchiveLimits::default())
+                .unwrap();
+        let error = result
+            .read_member(&result.manifest().members[0].member_id)
+            .err()
+            .unwrap_or_else(|| panic!("{method:?} accepted corrupted payload"));
+        assert_eq!(error.code, ErrorCode::InvalidInput, "{method:?}");
+        assert_eq!(error.stage, "archive.member_bytes", "{method:?}");
+        assert_eq!(
+            error.details["reason"], "CRC_OR_DECOMPRESSION_FAILURE",
+            "{method:?}"
+        );
+        assert_eq!(error.details["input_coverage"], "partial", "{method:?}");
+        assert_eq!(error.details["member_ordinal"], "0", "{method:?}");
+    }
 }
 
 #[test]

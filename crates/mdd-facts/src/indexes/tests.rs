@@ -17,6 +17,7 @@ use mdd_input::{
     snapshot::{CaptureLimits, InputKind, InputSpec, Snapshot},
 };
 use mdd_types::Completeness;
+use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 struct Data {
@@ -319,6 +320,25 @@ fn exact_class_lookup_exposes_scope_and_rejects_unbuilt_coverage() {
         index.classes_exact(&vec![0; 1_000_001]).unwrap_err().code,
         ErrorCode::QuotaExceeded
     );
+}
+
+#[test]
+fn definition_name_postings_use_utf16_code_unit_order() {
+    // The postings are binary-searched with `[u16]` comparisons, so the sort
+    // must use that same order. UTF-8 order disagrees for supplementary-plane
+    // characters, which made valid names unfindable and produced a false
+    // "absence proven".
+    let mut names = vec!["La\u{10000};", "La\u{e000};", "Lz;"];
+    names.sort_by(|a, b| super::cmp_definition_name(a, b));
+    let keys: Vec<Vec<u16>> = names.iter().map(|n| n.encode_utf16().collect()).collect();
+    let probe = "La\u{e000};".encode_utf16().collect::<Vec<_>>();
+    // UTF-16: D800 (from U+10000) < E000, so the supplementary-plane name comes first.
+    assert_eq!(names, vec!["La\u{10000};", "La\u{e000};", "Lz;"]);
+    assert_eq!(keys.binary_search_by(|k| k.as_slice().cmp(&probe)), Ok(1));
+    // Prove the test is meaningful: UTF-8 order puts these two the other way round.
+    let mut utf8 = vec!["La\u{10000};", "La\u{e000};"];
+    utf8.sort();
+    assert_eq!(utf8, vec!["La\u{e000};", "La\u{10000};"]);
 }
 
 #[test]
@@ -1684,13 +1704,11 @@ fn fine_coverage_parameter_positions_projection_bodies_source_and_resource() {
         "param_descriptors",
         ColumnDomain::FrozenProjection,
     );
+    // The definition layer assembles the exact comma-joined descriptor vector,
+    // so the frozen projection is complete for this scope.
     let r = ledger.evaluate(&frozen).unwrap();
-    assert_eq!(r.facts, Completeness::Unknown);
-    assert!(
-        r.issues
-            .iter()
-            .any(|issue| issue.column.as_deref() == Some("methods.param_descriptors"))
-    );
+    assert_eq!(r.facts, Completeness::Complete, "{:?}", r.issues);
+    assert!(r.issues.is_empty());
     let mut missing = CoverageRequest::for_scope(&selected, &[]);
     missing
         .required_resource_members
@@ -1868,13 +1886,110 @@ fn index_quota_deadline_and_unbuilt_failures_never_publish_ready_or_zero() {
         }
     }
     assert_eq!(column_specs().len(), 156);
-    assert_eq!(
-        column_specs()
+    // MDD-026 relation assembly: all 69 previously unassembled columns now have a
+    // production row projection. The five that were still open are covered by the
+    // scope-level provenance projection (`dex_files.source_path`/`entry_name`),
+    // the exact parameter descriptor vector (`methods.param_descriptors`) and the
+    // code-joined `methods` projection (`methods.opcode_count`/`opcode_hex`); each
+    // still has its own caller-level gate, so the flag never means "any scope".
+    let unassembled = column_specs()
+        .iter()
+        .filter(|c| !c.assembled_projection)
+        .map(|c| (c.relation, c.column))
+        .collect::<Vec<_>>();
+    assert!(unassembled.is_empty(), "{unassembled:?}");
+}
+
+/// The five newly assembled columns keep the frozen contract's data type and
+/// nullability, and the three gated ones are only reachable through the provider
+/// that owns them.
+#[test]
+fn newly_assembled_columns_keep_contract_type_and_nullability() {
+    let contract: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../conformance/manifests/relations.json"
+    ))
+    .unwrap();
+    for (relation, column, data_type, nullable) in [
+        ("dex_files", "source_path", "Utf8", false),
+        ("dex_files", "entry_name", "Utf8", false),
+        ("methods", "param_descriptors", "Utf8View", false),
+        ("methods", "opcode_count", "UInt32", true),
+        ("methods", "opcode_hex", "Utf8View", true),
+    ] {
+        let spec = column_specs()
             .iter()
-            .filter(|c| !c.assembled_projection)
-            .count(),
-        69
-    );
+            .find(|spec| spec.relation == relation && spec.column == column)
+            .unwrap_or_else(|| {
+                panic!("{relation}.{column} is missing from the frozen column table")
+            });
+        assert!(spec.assembled_projection, "{relation}.{column}");
+        assert_eq!(spec.data_type, data_type, "{relation}.{column}");
+        assert_eq!(spec.nullable, nullable, "{relation}.{column}");
+        let contract_spec = contract["relations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|entry| entry["name"] == relation)
+            .and_then(|entry| {
+                entry["columns"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|candidate| candidate["name"] == column)
+            })
+            .unwrap_or_else(|| panic!("{relation}.{column} is missing from the contract"));
+        assert_eq!(contract_spec["data_type"], data_type);
+        assert_eq!(contract_spec["nullable"], nullable);
+    }
+    // The two opcode columns stay rejected by the definition object alone: they
+    // require the code-layout layer.
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/definitions/generated/definitions-035.dex");
+    let input = InputSpec {
+        path,
+        kind: InputKind::RawDex,
+        expected_sha256: None,
+    };
+    let snapshot = Snapshot::capture(&[input], CaptureLimits::default()).unwrap();
+    let inventory = ArchiveInventory::build(
+        &snapshot.sources()[0],
+        InventoryPolicy::default(),
+        ArchiveLimits::default(),
+    )
+    .unwrap();
+    let metadata = MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default()).unwrap();
+    let definitions = DefinitionFacts::build(metadata, DefinitionLimits::default()).unwrap();
+    for column in ["opcode_count", "opcode_hex"] {
+        let error = definitions
+            .require_relation_columns(crate::definitions::DefinitionRelation::Methods, &[column])
+            .unwrap_err();
+        assert_eq!(error.code, ErrorCode::IncompleteFacts, "{column}");
+        assert_eq!(error.details["required_layer"], "code_layout", "{column}");
+    }
+    // The provenance pair is not answerable from metadata facts at all.
+    for column in ["source_path", "entry_name"] {
+        let error = snapshot
+            .sources()
+            .first()
+            .map(|_| ())
+            .and_then(|()| {
+                MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default())
+                    .ok()
+                    .map(|facts| {
+                        facts.require_relation_columns(
+                            crate::metadata::MetadataRelation::DexFiles,
+                            &[column],
+                        )
+                    })
+            })
+            .unwrap()
+            .unwrap_err();
+        assert_eq!(error.code, ErrorCode::IncompleteFacts, "{column}");
+        assert_eq!(
+            error.details["assembled_by"],
+            "SelectedScope::dex_file_rows"
+        );
+    }
 }
 
 #[test]
@@ -1961,5 +2076,131 @@ fn scalar_reference_scan_is_independent_of_lazy_candidate_failure() {
     assert_eq!(
         index.retry_reference_symbol_index().unwrap_err().code,
         ErrorCode::QuotaExceeded
+    );
+}
+
+/// The production `SnapshotFactIndex` entry point really fills
+/// `required_columns` and reaches the per-column provider gate.
+///
+/// `CoverageRequest::for_scope` (used by `require`) stays layer-only, so this
+/// test pins the two distinct semantics side by side: the layer request is
+/// Complete while the relation request is Unknown because the annotation
+/// provider was never built into the view.
+#[test]
+fn coverage_for_relations_fills_columns_and_uses_the_provider_gate() {
+    let data = setup("annotations/generated/annotations-038.dex", 1);
+    let selected = scope(&data);
+    // Definitions only: metadata+definitions are complete, annotations are not
+    // built, so the four annotation relations have no provider object.
+    let definitions_only =
+        FactView::unbuilt(&data.definitions[0].metadata().source().dex_occurrence_id)
+            .with_definitions(&data.definitions[0]);
+    let index = SnapshotFactIndex::new(
+        selected.clone(),
+        &[definitions_only],
+        IndexLimits::default(),
+    )
+    .unwrap();
+
+    // Layer-only semantics are unchanged: no columns are claimed, and the
+    // Definitions layer is complete.
+    let layer_request = CoverageRequest::for_scope(&selected, &[FactLayer::Definitions]);
+    assert!(layer_request.required_columns.is_empty());
+    let layer_report = index.coverage(&layer_request).unwrap();
+    assert_eq!(layer_report.facts, Completeness::Complete);
+    assert!(layer_report.require_complete().is_ok());
+
+    // The relation entry fills columns from the frozen schema, so the missing
+    // annotation provider becomes observable instead of a silent Complete.
+    let report = index
+        .coverage_for_relations(&[
+            "class_interfaces",
+            "class_fields",
+            "class_methods",
+            "annotation_directory_entries",
+            "annotation_set_entries",
+            "annotations",
+            "annotation_elements",
+        ])
+        .unwrap();
+    let annotation_columns = column_specs()
+        .iter()
+        .filter(|spec| {
+            matches!(
+                spec.relation,
+                "annotation_directory_entries"
+                    | "annotation_set_entries"
+                    | "annotations"
+                    | "annotation_elements"
+            )
+        })
+        .count();
+    let reported_columns: BTreeSet<_> = report
+        .issues
+        .iter()
+        .filter_map(|issue| issue.column.clone())
+        .collect();
+    assert_eq!(report.facts, Completeness::Unknown);
+    // Only the four annotation relations lose their provider; the three class
+    // relations keep theirs and stay complete.
+    assert_eq!(
+        reported_columns.len(),
+        annotation_columns,
+        "only annotation columns may be reported: {reported_columns:?}"
+    );
+    assert!(
+        reported_columns
+            .iter()
+            .all(|column| column.starts_with("annotation")),
+        "a class relation reported a column issue: {reported_columns:?}"
+    );
+    assert!(
+        report
+            .issues
+            .iter()
+            .any(|issue| issue.layer == "Annotations"
+                && issue.reason == "required_fact_scope_not_built"),
+        "the unbuilt annotation layer must be named: {:?}",
+        report.issues
+    );
+    assert_eq!(
+        report.require_complete().unwrap_err().code,
+        ErrorCode::IncompleteFacts
+    );
+
+    // With the annotation provider present every relation column is complete.
+    let annotations =
+        AnnotationFacts::build(data.definitions[0].clone(), AnnotationLimits::default()).unwrap();
+    let full_view =
+        FactView::unbuilt(&annotations.source().dex_occurrence_id).with_annotations(&annotations);
+    let index =
+        SnapshotFactIndex::new(selected.clone(), &[full_view], IndexLimits::default()).unwrap();
+    let report = index
+        .coverage_for_relations(&[
+            "class_interfaces",
+            "class_fields",
+            "class_methods",
+            "annotation_directory_entries",
+            "annotation_set_entries",
+            "annotations",
+            "annotation_elements",
+        ])
+        .unwrap();
+    assert_eq!(
+        report.facts,
+        Completeness::Complete,
+        "every gated relation column must be complete: {:?}",
+        report.issues
+    );
+    assert!(report.require_complete().is_ok());
+
+    // An unknown relation is rejected at request construction, not silently
+    // treated as an empty requirement set.
+    assert_eq!(
+        index
+            .coverage_for_relations(&["invented_relation"])
+            .unwrap_err()
+            .code,
+        ErrorCode::InvalidArgument
     );
 }

@@ -320,6 +320,31 @@ fn key_workspace_amount(capacity: u64) -> MddResult<u64> {
         .ok_or_else(|| quota("SQL_KEY_WORKSPACE_OVERFLOW"))
 }
 
+#[cfg(test)]
+type TestPause = (std::sync::mpsc::Sender<()>, std::sync::mpsc::Receiver<()>);
+
+#[cfg(test)]
+thread_local! {
+    static HEX_WORKSPACE_TEST_PAUSE: std::cell::RefCell<Option<TestPause>> = const { std::cell::RefCell::new(None) };
+    static KEY_WORKSPACE_TEST_PAUSE: std::cell::RefCell<Option<(std::sync::mpsc::Sender<()>, std::sync::mpsc::Receiver<()>)>> = const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+pub(crate) fn pause_next_hex_workspace(
+    ready: std::sync::mpsc::Sender<()>,
+    resume: std::sync::mpsc::Receiver<()>,
+) {
+    HEX_WORKSPACE_TEST_PAUSE.with(|hook| *hook.borrow_mut() = Some((ready, resume)));
+}
+
+#[cfg(test)]
+pub(crate) fn pause_next_key_workspace(
+    ready: std::sync::mpsc::Sender<()>,
+    resume: std::sync::mpsc::Receiver<()>,
+) {
+    KEY_WORKSPACE_TEST_PAUSE.with(|hook| *hook.borrow_mut() = Some((ready, resume)));
+}
+
 fn reserve_key_workspace(value: &SqlValue, control: &SqlControl) -> MddResult<Option<Reservation>> {
     if value == &SqlValue::Null {
         return Ok(None);
@@ -1226,7 +1251,7 @@ fn case_text_with_lease(
 
 /// Construct HEX's tagged UTF-16 SQLite carrier under one logical lease.
 /// Caller input, allocator overhead and SQLite's own copies are not covered.
-fn hex_with_lease(
+pub(crate) fn hex_with_lease(
     value: &SqlValue,
     dialect: SqlDialect,
     control: &SqlControl,
@@ -1278,6 +1303,15 @@ fn hex_with_lease(
                 .map_err(|error| control.fail(error))
         })
         .transpose()?;
+    #[cfg(test)]
+    if lease.is_some() {
+        HEX_WORKSPACE_TEST_PAUSE.with(|hook| {
+            if let Some((ready, resume)) = hook.borrow_mut().take() {
+                ready.send(()).expect("hex workspace test receiver");
+                resume.recv().expect("hex workspace test resume");
+            }
+        });
+    }
     let mut carrier = Vec::new();
     carrier
         .try_reserve_exact(
@@ -1896,6 +1930,15 @@ pub(crate) fn register(
             } else {
                 None
             };
+            #[cfg(test)]
+            if key_workspace.is_some() {
+                KEY_WORKSPACE_TEST_PAUSE.with(|hook| {
+                    if let Some((ready, resume)) = hook.borrow_mut().take() {
+                        ready.send(()).expect("key workspace test receiver");
+                        resume.recv().expect("key workspace test resume");
+                    }
+                });
+            }
             let (value, result_workspace) = if name == "mdd_hex" {
                 hex_with_lease(&values[0], dialect, &control).map_err(|e| failure(&control, e))?
             } else {
@@ -1903,7 +1946,7 @@ pub(crate) fn register(
                     && dialect != SqlDialect::NativeV1
                     && !values.contains(&SqlValue::Null)
                 {
-                    legacy_concat(&values, &control).map_err(|e| failure(&control, e))?
+                    legacy_concat(values, &control).map_err(|e| failure(&control, e))?
                 } else if matches!(name, "mdd_lower" | "mdd_upper")
                     && matches!(&values[0], SqlValue::Text(_) | SqlValue::DexMutf8 { .. })
                 {
@@ -1911,7 +1954,7 @@ pub(crate) fn register(
                         .map_err(|e| failure(&control, e))?
                 } else {
                     (
-                        scalar(name, &values, dialect, &control)
+                        scalar(name, values, dialect, &control)
                             .map_err(|e| failure(&control, e))?,
                         None,
                     )

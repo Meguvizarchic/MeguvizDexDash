@@ -5,7 +5,7 @@ use mdd_input::{
 };
 use mdd_types::{Completeness, DecimalU64, ErrorCode, MddError, MddResult, content_id};
 use serde::Serialize;
-use std::{collections::BTreeMap, sync::Arc};
+use std::{collections::BTreeMap, path::Path, sync::Arc};
 
 #[derive(Clone, Debug, Serialize)]
 pub struct SelectedDex {
@@ -15,6 +15,99 @@ pub struct SelectedDex {
     pub content_id: String,
     pub file_id: u32,
     pub detected_version: String,
+    /// Archive member name when the captured inventory decoded it losslessly.
+    /// `None` covers both a raw DEX input (no archive member) and an archive
+    /// member whose name is not UTF-8; `archive_member_ordinal` distinguishes
+    /// the two, so a name is never invented for a non-UTF-8 member.
+    pub member_name: Option<String>,
+    /// `None` only for a raw DEX capture, whose member is the captured file
+    /// itself rather than an archive entry.
+    pub archive_member_ordinal: Option<DecimalU64>,
+}
+
+/// The two `dex_files` provenance columns of one selected DEX occurrence.
+///
+/// Both are exact UTF-8 text or an explicit error: a non-UTF-8 source path or
+/// archive member name is refused instead of being replaced by a lossy
+/// spelling. `source_path` is the snapshot's recorded source display and
+/// `entry_name` follows an explicit policy: an archive member name for an APK,
+/// and the captured file's final path component for a raw DEX.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct DexFileProvenance {
+    pub source_path: String,
+    pub entry_name: String,
+}
+
+/// One complete 28-column `dex_files` row: the 26 validated metadata atoms plus
+/// the two snapshot/archive provenance columns.
+///
+/// `string_pool_id` stays a caller-supplied catalog coordinate, exactly like
+/// [`crate::MetadataFacts::dex_file_rows`]; this scope does not assign legacy
+/// pool numbers. `file_id` is the scope-local occurrence ordinal.
+#[derive(Clone, Debug, Serialize)]
+pub struct ScopeDexFileRow {
+    pub file_id: u32,
+    pub string_pool_id: u32,
+    pub source_path: String,
+    pub entry_name: String,
+    pub byte_len: u64,
+    pub dex_version: String,
+    pub checksum: u32,
+    pub signature_hex: String,
+    pub file_size: u32,
+    pub header_size: u32,
+    pub endian_tag: u32,
+    pub link_size: u32,
+    pub link_off: u32,
+    pub map_off: u32,
+    pub string_count: u32,
+    pub string_ids_off: u32,
+    pub type_count: u32,
+    pub type_ids_off: u32,
+    pub proto_count: u32,
+    pub proto_ids_off: u32,
+    pub field_count: u32,
+    pub field_ids_off: u32,
+    pub method_count: u32,
+    pub method_ids_off: u32,
+    pub class_count: u32,
+    pub class_defs_off: u32,
+    pub data_size: u32,
+    pub data_off: u32,
+}
+
+impl ScopeDexFileRow {
+    /// Assembled column names in contract order.
+    pub const COLUMNS: &[&str] = &[
+        "file_id",
+        "string_pool_id",
+        "source_path",
+        "entry_name",
+        "byte_len",
+        "dex_version",
+        "checksum",
+        "signature_hex",
+        "file_size",
+        "header_size",
+        "endian_tag",
+        "link_size",
+        "link_off",
+        "map_off",
+        "string_count",
+        "string_ids_off",
+        "type_count",
+        "type_ids_off",
+        "proto_count",
+        "proto_ids_off",
+        "field_count",
+        "field_ids_off",
+        "method_count",
+        "method_ids_off",
+        "class_count",
+        "class_defs_off",
+        "data_size",
+        "data_off",
+    ];
 }
 
 /// A scope-local occurrence coordinate and its validated physical string pool.
@@ -611,6 +704,312 @@ mod metadata_rows_tests {
             ErrorCode::InvalidArgument
         );
     }
+
+    /// The two `dex_files` provenance columns come from the same captured
+    /// snapshot/inventory generation as the header atoms, and the complete row
+    /// matches the recorded A0 slice for both a raw DEX and a multi-DEX APK.
+    #[test]
+    fn dex_file_rows_bind_scope_provenance_and_match_recorded_a0() {
+        let dex = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/references/generated/classic-035.dex");
+        let apk = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/generated/multidex-stored.apk");
+        for (path, kind, expected_names) in [
+            (dex.clone(), InputKind::RawDex, vec!["classic-035.dex"]),
+            (
+                apk.clone(),
+                InputKind::Apk,
+                vec!["classes.dex", "classes2.dex"],
+            ),
+        ] {
+            let snapshot = Snapshot::capture(
+                &[InputSpec {
+                    path: path.clone(),
+                    kind,
+                    expected_sha256: None,
+                }],
+                CaptureLimits::default(),
+            )
+            .unwrap();
+            let inventories: Vec<_> = snapshot
+                .sources()
+                .iter()
+                .map(|source| {
+                    ArchiveInventory::build(
+                        source,
+                        InventoryPolicy::default(),
+                        ArchiveLimits::default(),
+                    )
+                    .unwrap()
+                })
+                .collect();
+            let facts: Vec<_> = inventories
+                .iter()
+                .flat_map(|inventory| {
+                    (0..inventory.selected_dexes().len())
+                        .map(|index| {
+                            MetadataFacts::build(
+                                &snapshot,
+                                inventory,
+                                index,
+                                StringLimits::default(),
+                            )
+                            .unwrap()
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .collect();
+            let references: Vec<_> = facts.iter().collect();
+            let scope =
+                SelectedScope::from_inventories(&snapshot, &inventories.iter().collect::<Vec<_>>())
+                    .unwrap();
+            let pool_ids = (0..scope.dexes().len() as u32).collect::<Vec<_>>();
+            let rows = scope
+                .dex_file_rows(&references, &pool_ids, 4)
+                .unwrap_or_else(|error| panic!("{path:?}: {error}"));
+            assert_eq!(rows.len(), expected_names.len());
+            // Column set: exactly the 28 contract columns, in contract order.
+            let actual = serde_json::to_value(&rows).unwrap();
+            let first = actual.as_array().unwrap()[0].as_object().unwrap();
+            assert_eq!(first.len(), 28);
+            let mut names = first.keys().map(String::as_str).collect::<Vec<_>>();
+            names.sort_unstable();
+            let mut expected_columns = ScopeDexFileRow::COLUMNS.to_vec();
+            expected_columns.sort_unstable();
+            assert_eq!(names, expected_columns);
+            for (ordinal, row) in rows.iter().enumerate() {
+                assert_eq!(row.file_id, ordinal as u32);
+                assert_eq!(row.string_pool_id, ordinal as u32);
+                // `source_path` is the recorded capture path, not a reconstruction.
+                assert_eq!(
+                    row.source_path,
+                    path.to_str().unwrap(),
+                    "raw-DEX and APK captures both record their own path"
+                );
+                assert_eq!(row.entry_name, expected_names[ordinal]);
+                // Non-nullable text columns must not be empty placeholders.
+                assert!(!row.source_path.is_empty());
+                assert!(!row.entry_name.is_empty());
+                assert!(!row.dex_version.is_empty());
+                assert_eq!(row.signature_hex.len(), 40);
+                // The header atoms agree with the same-occurrence metadata row.
+                let base = facts[ordinal]
+                    .dex_file_rows(row.file_id, row.string_pool_id)
+                    .unwrap();
+                let base = &base[0];
+                assert_eq!(row.byte_len, base.byte_len);
+                assert_eq!(row.checksum, base.checksum);
+                assert_eq!(row.signature_hex, base.signature_hex);
+                assert_eq!(row.file_size, base.file_size);
+                assert_eq!(row.header_size, base.header_size);
+                assert_eq!(row.endian_tag, base.endian_tag);
+                assert_eq!(row.link_size, base.link_size);
+                assert_eq!(row.link_off, base.link_off);
+                assert_eq!(row.map_off, base.map_off);
+                assert_eq!(row.string_count, base.string_count);
+                assert_eq!(row.string_ids_off, base.string_ids_off);
+                assert_eq!(row.type_count, base.type_count);
+                assert_eq!(row.type_ids_off, base.type_ids_off);
+                assert_eq!(row.proto_count, base.proto_count);
+                assert_eq!(row.proto_ids_off, base.proto_ids_off);
+                assert_eq!(row.field_count, base.field_count);
+                assert_eq!(row.field_ids_off, base.field_ids_off);
+                assert_eq!(row.method_count, base.method_count);
+                assert_eq!(row.method_ids_off, base.method_ids_off);
+                assert_eq!(row.class_count, base.class_count);
+                assert_eq!(row.class_defs_off, base.class_defs_off);
+                assert_eq!(row.data_size, base.data_size);
+                assert_eq!(row.data_off, base.data_off);
+            }
+        }
+    }
+
+    /// The two columns are gated as a pair of exact columns, and an unknown
+    /// column is an explicit argument error rather than a silent projection.
+    #[test]
+    fn dex_file_column_gate_accepts_the_contract_and_rejects_unknown_columns() {
+        assert!(SelectedScope::require_dex_file_columns(&["*"]).is_ok());
+        assert!(SelectedScope::require_dex_file_columns(ScopeDexFileRow::COLUMNS).is_ok());
+        for column in ["source_path", "entry_name"] {
+            assert!(SelectedScope::require_dex_file_columns(&[column]).is_ok());
+        }
+        let error = SelectedScope::require_dex_file_columns(&["file_path"]).unwrap_err();
+        assert_eq!(error.code, ErrorCode::InvalidArgument);
+        assert_eq!(error.details["column"], "file_path");
+    }
+
+    /// A raw-DEX entry name is the captured file's final component, and a
+    /// per-occurrence pool coordinate list must match the roster exactly.
+    #[test]
+    fn dex_file_provenance_policy_and_budgets_fail_closed() {
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/references/generated/classic-035.dex");
+        let snapshot = Snapshot::capture(
+            &[InputSpec {
+                path: path.clone(),
+                kind: InputKind::RawDex,
+                expected_sha256: None,
+            }],
+            CaptureLimits::default(),
+        )
+        .unwrap();
+        let inventory = ArchiveInventory::build(
+            &snapshot.sources()[0],
+            InventoryPolicy::default(),
+            ArchiveLimits::default(),
+        )
+        .unwrap();
+        let metadata =
+            MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default()).unwrap();
+        let scope = SelectedScope::from_inventories(&snapshot, &[&inventory]).unwrap();
+        let provenance = scope.dex_file_provenance(&scope.dexes()[0]).unwrap();
+        assert_eq!(provenance.entry_name, "classic-035.dex");
+        assert_eq!(provenance.source_path, path.to_str().unwrap());
+        assert_eq!(
+            scope
+                .dex_file_rows(&[&metadata], &[], 4)
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InvalidArgument,
+            "one pool coordinate per selected DEX is required"
+        );
+        assert_eq!(
+            scope
+                .dex_file_rows(&[&metadata], &[0, 1], 4)
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InvalidArgument
+        );
+        // A forged pool coordinate list is not silently truncated either.
+        let mut forged = scope.clone();
+        forged.dexes[0].member_name = None;
+        forged.dexes[0].archive_member_ordinal = Some(DecimalU64(3));
+        let error = forged.dex_file_provenance(&forged.dexes[0]).unwrap_err();
+        assert_eq!(error.code, ErrorCode::UnsupportedQuery);
+        assert_eq!(error.details["reason"], "ENTRY_NAME_NOT_UTF8");
+    }
+
+    /// The recorded A0 `dex_files` provenance slice for the same fixtures: a raw
+    /// DEX reports its own path and file name, and a two-member APK reports the
+    /// shared APK path with each member name in roster order.
+    #[test]
+    fn dex_file_provenance_matches_recorded_a0_entries() {
+        let recorded: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/provenance/a0-dex-files-provenance.json"
+        ))
+        .unwrap();
+        let cases = recorded["cases"].as_array().unwrap();
+        // Each recorded case captured a specific input list, so the reproduction
+        // must use the same list rather than one representative fixture. The
+        // recorded `source_path` is the caller's own spelling (the projection is
+        // the snapshot's `origin_display` verbatim), so the paths are rebuilt
+        // component by component to keep the platform separators identical.
+        let classic: &[&str] = &[
+            "tests",
+            "fixtures",
+            "references",
+            "generated",
+            "classic-035.dex",
+        ];
+        let shared: &[&str] = &[
+            "tests",
+            "fixtures",
+            "references",
+            "generated",
+            "shared-code-035.dex",
+        ];
+        let synthetic: &[&str] = &[
+            "artifacts",
+            "mdd-026",
+            "column-audit-v10",
+            "_probe-verify_cross_dex_identity",
+            "20261109T045613053519Z",
+            "synthetic-same-content.apk",
+        ];
+        let sources = [
+            (
+                "duplicate-raw-input",
+                vec![(classic, InputKind::RawDex), (classic, InputKind::RawDex)],
+            ),
+            (
+                "two-distinct-raw",
+                vec![(classic, InputKind::RawDex), (shared, InputKind::RawDex)],
+            ),
+            (
+                "same-content-multidex-apk",
+                vec![(synthetic, InputKind::Apk)],
+            ),
+        ];
+        for (case, inputs) in sources {
+            let entry = cases
+                .iter()
+                .find(|entry| entry["case"] == case)
+                .unwrap_or_else(|| panic!("recorded case {case} missing"));
+            let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .parent()
+                .and_then(Path::parent)
+                .expect("crate sits two levels below the repository root")
+                .to_path_buf();
+            let specs = inputs
+                .into_iter()
+                .map(|(fixture, kind)| InputSpec {
+                    path: fixture
+                        .iter()
+                        .fold(root.clone(), |path, part| path.join(part)),
+                    kind,
+                    expected_sha256: None,
+                })
+                .collect::<Vec<_>>();
+            let snapshot = Snapshot::capture(&specs, CaptureLimits::default()).unwrap();
+            let inventories = snapshot
+                .sources()
+                .iter()
+                .map(|source| {
+                    ArchiveInventory::build(
+                        source,
+                        InventoryPolicy::default(),
+                        ArchiveLimits::default(),
+                    )
+                    .unwrap()
+                })
+                .collect::<Vec<_>>();
+            let scope =
+                SelectedScope::from_inventories(&snapshot, &inventories.iter().collect::<Vec<_>>())
+                    .unwrap();
+            let recorded_rows = entry["a0_dex_rows"].as_array().unwrap();
+            assert_eq!(scope.dexes().len(), recorded_rows.len(), "{case}");
+            for (ordinal, expected) in recorded_rows.iter().enumerate() {
+                let provenance = scope.dex_file_provenance(&scope.dexes()[ordinal]).unwrap();
+                // The fixture keeps A0's echoed path relative to the checkout it ran in,
+                // so strip this checkout's root instead of depending on where the
+                // repository happens to live.
+                let relative = Path::new(&provenance.source_path)
+                    .strip_prefix(&root)
+                    .unwrap_or_else(|_| {
+                        panic!(
+                            "{case} row {ordinal}: source_path is not under the checkout root: {}",
+                            provenance.source_path
+                        )
+                    })
+                    .components()
+                    .map(|part| part.as_os_str().to_string_lossy().into_owned())
+                    .collect::<Vec<_>>()
+                    .join("/");
+                assert_eq!(
+                    relative,
+                    expected["source_path"].as_str().unwrap(),
+                    "{case} source_path row {ordinal}"
+                );
+                assert_eq!(
+                    provenance.entry_name,
+                    expected["entry_name"].as_str().unwrap(),
+                    "{case} entry_name row {ordinal}"
+                );
+            }
+        }
+    }
 }
 #[derive(Clone, Debug, Serialize)]
 pub struct SelectedInput {
@@ -769,6 +1168,8 @@ impl SelectedScope {
                     content_id: dex.blob.content_id.clone(),
                     file_id: dexes.len() as u32,
                     detected_version: dex.detected_version.clone(),
+                    member_name: dex.blob.identity.name_utf8.clone(),
+                    archive_member_ordinal: dex.blob.identity.archive_member_ordinal,
                 });
                 leases.push(dex.blob.lease());
             }
@@ -1013,6 +1414,194 @@ impl SelectedScope {
             return Err(error("metadata occurrence outside selected scope"));
         }
         Ok(rows)
+    }
+
+    /// Resolve the two `dex_files` provenance columns for one selected DEX.
+    ///
+    /// `source_path` is the snapshot's recorded source display, which is exact
+    /// UTF-8 by construction or absent. `entry_name` is the archive member name
+    /// for an APK input and the captured file's final path component for a raw
+    /// DEX input, matching the reference behaviour that a raw `.dex` has no
+    /// archive member yet still reports one entry name. A non-UTF-8 archive
+    /// member name or source path is refused with `UnsupportedQuery`: the
+    /// contract column is non-nullable `Utf8`, so no lossy spelling is
+    /// substituted.
+    pub fn dex_file_provenance(&self, dex: &SelectedDex) -> MddResult<DexFileProvenance> {
+        let input = self
+            .inputs
+            .iter()
+            .find(|input| input.source_occurrence_id == dex.source_occurrence_id)
+            .ok_or_else(|| error("selected DEX input outside scope"))?;
+        let source_path = input.origin_display.clone().ok_or_else(|| {
+            MddError::new(
+                ErrorCode::UnsupportedQuery,
+                "facts.scope_provenance",
+                "captured source has no lossless UTF-8 path representation",
+            )
+            .detail("reason", "SOURCE_PATH_NOT_UTF8")
+            .detail("snapshot_id", self.snapshot_id.clone())
+            .detail("source_occurrence_id", input.source_occurrence_id.clone())
+            .detail("dex_occurrence_id", dex.dex_occurrence_id.clone())
+        })?;
+        let entry_name = match (&dex.member_name, dex.archive_member_ordinal) {
+            // A selected archive member: the decoded name is authoritative only
+            // when the inventory produced exact UTF-8 for it.
+            (Some(name), Some(_)) => name.clone(),
+            (None, Some(ordinal)) => {
+                return Err(MddError::new(
+                    ErrorCode::UnsupportedQuery,
+                    "facts.scope_provenance",
+                    "archive member name is not lossless UTF-8",
+                )
+                .detail("reason", "ENTRY_NAME_NOT_UTF8")
+                .detail("snapshot_id", self.snapshot_id.clone())
+                .detail("member_id", dex.member_id.clone())
+                .detail("archive_member_ordinal", ordinal.0.to_string())
+                .detail("dex_occurrence_id", dex.dex_occurrence_id.clone()));
+            }
+            // A raw DEX capture has no archive member: the reference reports the
+            // captured file's last path component.
+            (None, None) => Path::new(&source_path)
+                .file_name()
+                .and_then(|name| name.to_str())
+                .map(str::to_owned)
+                .ok_or_else(|| {
+                    MddError::new(
+                        ErrorCode::UnsupportedQuery,
+                        "facts.scope_provenance",
+                        "captured raw DEX path has no lossless UTF-8 final component",
+                    )
+                    .detail("reason", "ENTRY_NAME_POLICY_UNAVAILABLE")
+                    .detail("snapshot_id", self.snapshot_id.clone())
+                    .detail("dex_occurrence_id", dex.dex_occurrence_id.clone())
+                })?,
+            // A member name without a member ordinal is an internal inconsistency:
+            // falling back to the path would silently report a name this occurrence
+            // does not have.
+            (Some(_), None) => {
+                return Err(MddError::new(
+                    ErrorCode::InternalFault,
+                    "facts.scope_provenance",
+                    "selected DEX has a member name but no archive member ordinal",
+                )
+                .detail("snapshot_id", self.snapshot_id.clone())
+                .detail("member_id", dex.member_id.clone())
+                .detail("dex_occurrence_id", dex.dex_occurrence_id.clone()));
+            }
+        };
+        if entry_name.is_empty() {
+            return Err(MddError::new(
+                ErrorCode::UnsupportedQuery,
+                "facts.scope_provenance",
+                "entry name is empty",
+            )
+            .detail("reason", "ENTRY_NAME_POLICY_UNAVAILABLE")
+            .detail("snapshot_id", self.snapshot_id.clone())
+            .detail("dex_occurrence_id", dex.dex_occurrence_id.clone()));
+        }
+        Ok(DexFileProvenance {
+            source_path,
+            entry_name,
+        })
+    }
+
+    /// Gate a requested `dex_files` column list against the complete 28-column
+    /// scope projection. `*` is accepted because every contract column of this
+    /// relation now has a production value.
+    pub fn require_dex_file_columns(columns: &[&str]) -> MddResult<()> {
+        for column in columns {
+            if *column != "*" && !ScopeDexFileRow::COLUMNS.contains(column) {
+                return Err(MddError::new(
+                    ErrorCode::InvalidArgument,
+                    "facts.scope_provenance",
+                    "unknown dex_files column",
+                )
+                .detail("column", (*column).to_owned()));
+            }
+        }
+        Ok(())
+    }
+
+    /// Project one complete `dex_files` row per selected DEX occurrence, in
+    /// `file_id` order.
+    ///
+    /// The 26 header/table atoms come from each occurrence's own validated
+    /// metadata; `source_path`/`entry_name` come from the same captured snapshot
+    /// and inventory generation. `string_pool_id` is supplied by the caller,
+    /// exactly as in [`MetadataFacts::dex_file_rows`]: this scope never invents
+    /// legacy pool numbers. `max_entries` bounds selected DEX rows only.
+    pub fn dex_file_rows(
+        &self,
+        facts: &[&MetadataFacts],
+        string_pool_ids: &[u32],
+        max_entries: u64,
+    ) -> MddResult<Vec<ScopeDexFileRow>> {
+        Self::require_dex_file_columns(ScopeDexFileRow::COLUMNS)?;
+        if !self.roster_complete {
+            return Err(MddError::new(
+                ErrorCode::IncompleteFacts,
+                "facts.scope_provenance",
+                "selected DEX roster is incomplete",
+            ));
+        }
+        if string_pool_ids.len() != self.dexes.len() {
+            return Err(error(
+                "string_pool_ids must supply exactly one coordinate per selected DEX",
+            ));
+        }
+        let rows = self.metadata_rows(facts, max_entries)?;
+        let mut output = Vec::new();
+        output.try_reserve_exact(rows.len()).map_err(|_| {
+            MddError::new(
+                ErrorCode::QuotaExceeded,
+                "facts.scope_provenance",
+                "dex_files row allocation failed",
+            )
+        })?;
+        for (ordinal, (dex, fact)) in rows.into_iter().enumerate() {
+            let provenance = self.dex_file_provenance(dex)?;
+            let base = fact
+                .dex_file_rows(dex.file_id, string_pool_ids[ordinal])?
+                .pop()
+                .ok_or_else(|| {
+                    MddError::new(
+                        ErrorCode::InternalFault,
+                        "facts.scope_provenance",
+                        "metadata dex_files row is missing",
+                    )
+                })?;
+            output.push(ScopeDexFileRow {
+                file_id: base.file_id,
+                string_pool_id: base.string_pool_id,
+                source_path: provenance.source_path,
+                entry_name: provenance.entry_name,
+                byte_len: base.byte_len,
+                dex_version: base.dex_version,
+                checksum: base.checksum,
+                signature_hex: base.signature_hex,
+                file_size: base.file_size,
+                header_size: base.header_size,
+                endian_tag: base.endian_tag,
+                link_size: base.link_size,
+                link_off: base.link_off,
+                map_off: base.map_off,
+                string_count: base.string_count,
+                string_ids_off: base.string_ids_off,
+                type_count: base.type_count,
+                type_ids_off: base.type_ids_off,
+                proto_count: base.proto_count,
+                proto_ids_off: base.proto_ids_off,
+                field_count: base.field_count,
+                field_ids_off: base.field_ids_off,
+                method_count: base.method_count,
+                method_ids_off: base.method_ids_off,
+                class_count: base.class_count,
+                class_defs_off: base.class_defs_off,
+                data_size: base.data_size,
+                data_off: base.data_off,
+            });
+        }
+        Ok(output)
     }
 
     /// Resolve selected inputs and logical DEX occurrences back to their captured

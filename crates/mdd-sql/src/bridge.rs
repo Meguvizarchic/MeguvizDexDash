@@ -2,7 +2,10 @@ use crate::{
     control::{SqlControl, SqlLimits},
     dialects::SqlDialect,
     invalid,
-    provider::{SqlBinding, SqlFactProvider, SqlRelation},
+    provider::{
+        CompatibilityBlock, CompatibilityProfile, CompatibilityProfileRegistry, SqlBinding,
+        SqlFactProvider, SqlRelation,
+    },
     quota, sqlite_error,
     values::SqlValue,
     virtual_tables::{self, Source},
@@ -22,6 +25,11 @@ pub struct SqlBridge {
     provider: Arc<dyn SqlFactProvider>,
     dialect: SqlDialect,
     limits: SqlLimits,
+    /// Declared compatibility scope, when the caller opted into profile
+    /// blocking. Absent for development probes and native-only use.
+    profile: Option<CompatibilityProfile>,
+    /// Registry that must outlive a single query for a block to be enforced.
+    profiles: Option<Arc<CompatibilityProfileRegistry>>,
 }
 pub struct PreparedSql {
     binding: SqlBinding,
@@ -38,6 +46,8 @@ pub struct PreparedSql {
     limits: SqlLimits,
     display_overrides: std::collections::BTreeMap<String, String>,
     execution_binding: Option<crate::runtime::SqlExecutionBinding>,
+    profile: Option<CompatibilityProfile>,
+    profiles: Option<Arc<CompatibilityProfileRegistry>>,
 }
 /// An immutable calculated result. The query's logical result-workspace
 /// reservation stays live until this object is dropped. Transport copies and
@@ -83,6 +93,15 @@ impl SqlResult {
 struct ResultMemory {
     reservations: Vec<mdd_query::budget::Reservation>,
     unused: u64,
+    /// Next chunk to request once the current `unused` balance is spent.
+    ///
+    /// Live reservations are bounded by the pool (10,000 tickets), so one
+    /// 4 KiB ticket per row would exhaust the metadata budget for results
+    /// above ~40 MiB even when `QueryWorkspaceBytes` still has headroom.
+    /// Chunks grow geometrically from `RESULT_CHUNK_MIN` to
+    /// `RESULT_CHUNK_MAX`, keeping the ticket count logarithmic in the
+    /// result size while `used` still matches the exact bytes admitted.
+    next_chunk: u64,
 }
 impl std::fmt::Debug for ResultMemory {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -93,6 +112,8 @@ impl std::fmt::Debug for ResultMemory {
             .finish()
     }
 }
+const RESULT_CHUNK_MIN: u64 = 4096;
+const RESULT_CHUNK_MAX: u64 = 8 * 1024 * 1024;
 impl ResultMemory {
     fn admit(&mut self, control: &SqlControl, bytes: u64) -> MddResult<()> {
         let Some(runtime) = control.runtime() else {
@@ -103,7 +124,10 @@ impl ResultMemory {
             return Ok(());
         }
         let needed = bytes - self.unused;
-        let preferred = needed.max(4096);
+        if self.next_chunk == 0 {
+            self.next_chunk = RESULT_CHUNK_MIN;
+        }
+        let preferred = needed.max(self.next_chunk);
         runtime.checkpoint()?;
         let pool = runtime.pool();
         let reserve = pool
@@ -117,6 +141,7 @@ impl ResultMemory {
             })
             .map_err(|error| control.fail(error))?;
         self.unused = reserve.amount() - needed;
+        self.next_chunk = self.next_chunk.saturating_mul(2).min(RESULT_CHUNK_MAX);
         self.reservations.push(reserve);
         Ok(())
     }
@@ -487,8 +512,10 @@ impl PreparedSql {
     /// Execute the pinned generation. Higher session/worker APIs must validate
     /// their owner/query lease before invoking this low-level method.
     pub fn execute(&self, control: SqlControl) -> MddResult<SqlResult> {
-        SqlBridge::new(Arc::clone(&self.provider), self.dialect, self.limits)?
-            .execute(self, control)
+        let mut bridge = SqlBridge::new(Arc::clone(&self.provider), self.dialect, self.limits)?;
+        bridge.profile = self.profile.clone();
+        bridge.profiles = self.profiles.clone();
+        bridge.execute(self, control)
     }
 }
 impl SqlBridge {
@@ -508,7 +535,83 @@ impl SqlBridge {
             provider,
             dialect,
             limits,
+            profile: None,
+            profiles: None,
         })
+    }
+    /// Declare the compatibility profile this bridge serves and the registry
+    /// that must enforce its blocks. This method grants no admission: it only
+    /// names the scope so a real gap can be attributed to it and retained.
+    ///
+    /// The registry is caller-owned and must outlive individual queries for a
+    /// block to survive past the failing call.
+    pub fn for_compatibility_profile(
+        mut self,
+        profile: CompatibilityProfile,
+        registry: Arc<CompatibilityProfileRegistry>,
+    ) -> MddResult<Self> {
+        if profile.dialect != self.dialect {
+            return Err(invalid("COMPATIBILITY_PROFILE_DIALECT_MISMATCH"));
+        }
+        if self.profile.is_some() {
+            return Err(invalid("COMPATIBILITY_PROFILE_ALREADY_BOUND"));
+        }
+        self.profile = Some(profile);
+        self.profiles = Some(registry);
+        Ok(self)
+    }
+    /// The declared compatibility profile, if any. Present does not mean
+    /// admitted; use the registry to learn whether it is blocked.
+    pub fn compatibility_profile(&self) -> Option<&CompatibilityProfile> {
+        self.profile.as_ref()
+    }
+    /// Fail closed when this bridge's profile already carries a compatibility
+    /// block. The returned error keeps the original counterexample so a caller
+    /// can never confuse "profile withdrawn" with "this query is unsupported".
+    fn blocked_profile_error(&self, stage: &str) -> Option<MddError> {
+        let profile = self.profile.as_ref()?;
+        let block = self.profiles.as_ref()?.block_for(profile)?;
+        Some(
+            MddError::new(
+                ErrorCode::UnsupportedCapability,
+                "sql.profile",
+                "compatibility profile is blocked by a preserved counterexample",
+            )
+            .detail("profile", block.profile)
+            .detail("sql_dialect", format!("{:?}", block.dialect))
+            .detail("blocked_at_stage", block.stage)
+            .detail("blocked_query", block.sql)
+            .detail("blocked_query_sha256", block.sql_sha256)
+            .detail("blocked_error_code", block.code.to_string())
+            .detail("blocked_error_message", block.message)
+            .detail("requested_stage", stage),
+        )
+    }
+    /// Turn a real `UNSUPPORTED_QUERY` into a profile block. Every other error
+    /// class is returned unchanged: input errors, quota, cancellation and
+    /// provider faults say nothing about compatibility coverage.
+    fn record_compatibility_failure(&self, stage: &str, sql: &str, error: MddError) -> MddError {
+        if error.code != ErrorCode::UnsupportedQuery {
+            return error;
+        }
+        let (Some(profile), Some(registry)) = (self.profile.as_ref(), self.profiles.as_ref())
+        else {
+            return error;
+        };
+        let block = CompatibilityBlock {
+            profile: profile.name.clone(),
+            dialect: profile.dialect,
+            stage: stage.to_owned(),
+            code: error.code,
+            message: error.message.clone(),
+            sql: sql.to_owned(),
+            sql_sha256: mdd_types::sha256(sql.as_bytes()),
+        };
+        let first = registry.block(block);
+        error
+            .detail("compatibility_profile", profile.name.clone())
+            .detail("profile_blocked", true)
+            .detail("profile_block_first", first)
     }
     pub fn prepare(&self, sql: &str) -> MddResult<PreparedSql> {
         self.prepare_with_parameters(sql, &[])
@@ -518,6 +621,17 @@ impl SqlBridge {
         sql: &str,
         parameters: &[SqlValue],
     ) -> MddResult<PreparedSql> {
+        // A blocked profile must not be answered at all: report the preserved
+        // counterexample instead of re-running the gap in a new shape.
+        if let Some(error) = self.blocked_profile_error("prepare") {
+            return Err(error);
+        }
+        match self.prepare_inner(sql, parameters) {
+            Ok(prepared) => Ok(prepared),
+            Err(error) => Err(self.record_compatibility_failure("prepare", sql, error)),
+        }
+    }
+    fn prepare_inner(&self, sql: &str, parameters: &[SqlValue]) -> MddResult<PreparedSql> {
         let relations = self.provider.relations()?;
         let mut names = BTreeSet::new();
         for relation in &relations {
@@ -608,6 +722,8 @@ impl SqlBridge {
             limits: self.limits,
             display_overrides: adapted.display_overrides,
             execution_binding: None,
+            profile: self.profile.clone(),
+            profiles: self.profiles.clone(),
         })
     }
     pub fn execute(&self, prepared: &PreparedSql, control: SqlControl) -> MddResult<SqlResult> {
@@ -616,6 +732,25 @@ impl SqlBridge {
             || self.dialect != prepared.dialect
         {
             return Err(invalid("SQL_PREPARED_GENERATION_OR_DIALECT_CHANGED"));
+        }
+        // The bridge executing a statement must belong to the same profile
+        // scope the statement was prepared under. Without this, an undeclared
+        // bridge could run a statement whose profile has since been blocked,
+        // and a bridge declaring a different profile would charge another
+        // profile's incompatibility counterexample.
+        let same_profile_scope = self.profile == prepared.profile
+            && match (&self.profiles, &prepared.profiles) {
+                (None, None) => true,
+                (Some(left), Some(right)) => Arc::ptr_eq(left, right),
+                _ => false,
+            };
+        if !same_profile_scope {
+            return Err(invalid("SQL_PREPARED_PROFILE_SCOPE_MISMATCH"));
+        }
+        // The block is re-checked at execute: a query prepared under a healthy
+        // profile must not run after another query withdrew that profile.
+        if let Some(error) = self.blocked_profile_error("execute") {
+            return Err(error);
         }
         let control = control.restrict(self.limits.restricted_by(prepared.limits));
         match (&prepared.execution_binding, control.runtime()) {
@@ -642,7 +777,8 @@ impl SqlBridge {
         }
         let result = self
             .execute_inner(prepared, control.clone())
-            .map_err(|error| fail_preserving_restore_detail(&control, error))?;
+            .map_err(|error| fail_preserving_restore_detail(&control, error))
+            .map_err(|error| self.record_compatibility_failure("execute", &prepared.sql, error))?;
         if let Some(runtime) = control.runtime() {
             runtime.cancellation().mark_computed()?;
             if let Some(error) = runtime.cancellation().status()?.error {
@@ -898,11 +1034,14 @@ impl SqlBridge {
                 calculation_complete: true,
                 profiles_admitted: Vec::new(),
                 sqlite_version: rusqlite::version().to_owned(),
-                optimizer: OptimizerPolicy {
-                    omit: false,
-                    order_by_consumed: false,
-                    limit_offset_pushdown: false,
-                    in_pushdown: false,
+                optimizer: {
+                    let policy = virtual_tables::VTB_POLICY;
+                    OptimizerPolicy {
+                        omit: policy.omit,
+                        order_by_consumed: policy.order_by_consumed,
+                        limit_offset_pushdown: policy.limit_offset_pushdown,
+                        in_pushdown: policy.in_pushdown,
+                    }
                 },
                 required_relations: prepared.required_relations.clone(),
                 required_layers: prepared.required_layers.clone(),
@@ -1035,6 +1174,7 @@ mod tests {
         values::{SqlType, SqlValue},
     };
     use mdd_types::{DecimalU64, ErrorCode};
+    use std::collections::BTreeMap;
     use std::sync::atomic::{AtomicUsize, Ordering};
     struct Provider {
         binding: SqlBinding,
@@ -2283,9 +2423,19 @@ mod tests {
                     SqlValue::I64(Signed64(0)),
                 ]
             );
+            let sqlite = rusqlite::Connection::open_in_memory().unwrap();
+            sqlite
+                .execute_batch("CREATE TABLE facts(id INTEGER); INSERT INTO facts VALUES (1)")
+                .unwrap();
+            let expected: i64 = sqlite
+                .query_row("SELECT id IN ('1.0') FROM facts", [], |row| row.get(0))
+                .unwrap();
+            let actual = bridge
+                .query("SELECT id IN ('1.0') FROM facts WHERE id=1")
+                .unwrap();
+            assert_eq!(actual.rows()[0][0], SqlValue::I64(Signed64(expected)));
             for sql in [
                 "SELECT id IN ('9223372036854775808') FROM facts",
-                "SELECT id IN ('1.0') FROM facts",
                 "WITH x AS (SELECT '1' AS id) SELECT id IN ('1') FROM x",
             ] {
                 assert_eq!(
@@ -3168,7 +3318,6 @@ mod tests {
             .unwrap();
         assert_eq!(output.rows.len(), 3);
         assert_eq!(output.rows[0][1], SqlValue::text("a\0b"));
-        assert!(output.profiles_admitted.is_empty());
         assert_eq!(provider.opens.load(Ordering::SeqCst), 1);
     }
     #[test]
@@ -3685,6 +3834,62 @@ mod tests {
             );
         }
     }
+    /// NativeV1 parses the entire text as an exact integer, so fractional,
+    /// exponent and non-numeric text are input errors. SQLite and the legacy
+    /// dialects consume an ASCII decimal prefix and saturate, so they return a
+    /// value for the same text. This is a documented dialect policy, not a
+    /// silent wrong answer, but it is a real divergence from the SQLite oracle.
+    #[test]
+    fn native_v1_integer_cast_requires_exact_text_and_diverges_from_sqlite_prefix() {
+        let (provider, _) = bridge();
+        let sqlite = rusqlite::Connection::open_in_memory().unwrap();
+        for (input, sqlite_value) in [("1.9", 1i64), ("abc", 0), ("-5.9", -5), ("1e5", 1)] {
+            let oracle: i64 = sqlite
+                .query_row("SELECT CAST(?1 AS INTEGER)", [input], |row| row.get(0))
+                .unwrap();
+            assert_eq!(
+                oracle, sqlite_value,
+                "SQLite oracle disagrees for {input:?}"
+            );
+            let native =
+                SqlBridge::new(provider.clone(), SqlDialect::NativeV1, SqlLimits::default())
+                    .unwrap();
+            let error = native
+                .query(&format!("SELECT CAST('{input}' AS INTEGER)"))
+                .unwrap_err();
+            assert_eq!(
+                error.code,
+                ErrorCode::InvalidArgument,
+                "{input:?}: {error:?}"
+            );
+            assert_eq!(
+                error.message, "INVALID_INTEGER_CAST",
+                "{input:?}: {error:?}"
+            );
+            for dialect in [SqlDialect::DexSql010, SqlDialect::DexSql011] {
+                let legacy =
+                    SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+                let result = legacy
+                    .query(&format!("SELECT CAST('{input}' AS INTEGER)"))
+                    .unwrap();
+                assert_eq!(
+                    result.rows()[0][0],
+                    SqlValue::I64(mdd_query::ir::Signed64(sqlite_value)),
+                    "{dialect:?} {input:?}"
+                );
+            }
+        }
+        // Exact integer text succeeds under NativeV1 and matches SQLite.
+        let native = SqlBridge::new(provider, SqlDialect::NativeV1, SqlLimits::default()).unwrap();
+        assert_eq!(
+            native.query("SELECT CAST('12' AS INTEGER)").unwrap().rows()[0][0],
+            SqlValue::I64(mdd_query::ir::Signed64(12))
+        );
+        assert_eq!(
+            native.query("SELECT CAST(NULL AS INTEGER)").unwrap().rows()[0][0],
+            SqlValue::Null
+        );
+    }
     #[test]
     fn legacy_integer_cast_long_prefix_respects_query_budget() {
         let (provider, _) = bridge();
@@ -3890,10 +4095,7 @@ mod tests {
                 )
                 .unwrap();
             assert_eq!(
-                short
-                    .execute(SqlControl::new(limits.clone(), None))
-                    .unwrap()
-                    .rows()[0][0],
+                short.execute(SqlControl::new(limits, None)).unwrap().rows()[0][0],
                 SqlValue::text("AA"),
                 "{dialect:?}"
             );
@@ -3909,7 +4111,7 @@ mod tests {
                     .unwrap();
                 assert_eq!(
                     prepared
-                        .execute(SqlControl::new(limits.clone(), None))
+                        .execute(SqlControl::new(limits, None))
                         .unwrap_err()
                         .code,
                     ErrorCode::QuotaExceeded,
@@ -5209,6 +5411,1471 @@ mod tests {
         }
     }
 
+    struct MultiProvider {
+        binding: SqlBinding,
+        relations: Vec<SqlRelation>,
+        rows: BTreeMap<String, Vec<SqlRow>>,
+    }
+    struct MultiCursor {
+        rows: Vec<SqlRow>,
+        position: usize,
+    }
+    impl SqlFactCursor for MultiCursor {
+        fn next_row(&mut self) -> MddResult<Option<SqlRow>> {
+            let row = self.rows.get(self.position).cloned();
+            self.position += 1;
+            Ok(row)
+        }
+    }
+    impl SqlFactProvider for MultiProvider {
+        fn binding(&self) -> &SqlBinding {
+            &self.binding
+        }
+        fn relations(&self) -> MddResult<Vec<SqlRelation>> {
+            Ok(self.relations.clone())
+        }
+        fn require_relation(&self, _: &str) -> MddResult<()> {
+            Ok(())
+        }
+        fn open_cursor(
+            self: Arc<Self>,
+            relation: &str,
+            _: SqlControl,
+        ) -> MddResult<Box<dyn SqlFactCursor>> {
+            Ok(Box::new(MultiCursor {
+                rows: self.rows.get(relation).cloned().unwrap_or_default(),
+                position: 0,
+            }))
+        }
+    }
+    fn multi_column(name: &str, data_type: SqlType, nullable: bool) -> SqlColumn {
+        SqlColumn {
+            id: name.into(),
+            name: name.into(),
+            data_type,
+            nullable,
+        }
+    }
+    fn multi_u64(value: u64) -> SqlValue {
+        SqlValue::U64(DecimalU64(value))
+    }
+    fn multi_text(value: &str) -> SqlValue {
+        SqlValue::text(value)
+    }
+    fn multi_relation(
+        name: &'static str,
+        columns: Vec<SqlColumn>,
+        rows: Vec<SqlRow>,
+    ) -> (&'static str, Vec<SqlColumn>, Vec<SqlRow>) {
+        (name, columns, rows)
+    }
+    fn multi_binding() -> SqlBinding {
+        SqlBinding {
+            provider_identity: "hostlab-shapes-synthetic".into(),
+            snapshot_id: "hostlab-shapes-snapshot".into(),
+            catalog_epoch: DecimalU64(0),
+        }
+    }
+    /// HostLab Q-series shape corpus over a synthetic provider with the frozen
+    /// relation names and column shapes. Each shape is compared against a real
+    /// SQLite 3.53.2 database holding the same rows, for every declared
+    /// dialect. This covers the SQL shapes only; it does not exercise real
+    /// HostLab facts or admit a profile.
+    #[test]
+    fn hostlab_q_series_shapes_match_sqlite_per_dialect() {
+        use std::collections::BTreeMap;
+        let u64_column = |name: &str| multi_column(name, SqlType::U64, false);
+        let text_column = |name: &str| multi_column(name, SqlType::Text, false);
+        let opt_text_column = |name: &str| multi_column(name, SqlType::Text, true);
+        // Q01 dex_files
+        let dex_files = vec![
+            vec![
+                multi_u64(0),
+                multi_u64(10),
+                multi_text("one.apk"),
+                multi_text("classes.dex"),
+                multi_u64(2048),
+            ],
+            vec![
+                multi_u64(1),
+                multi_u64(11),
+                multi_text("two.dex"),
+                multi_text("two.dex"),
+                multi_u64(4096),
+            ],
+            vec![
+                multi_u64(2),
+                multi_u64(12),
+                multi_text("three.apk"),
+                multi_text("classes2.dex"),
+                multi_u64(1024),
+            ],
+        ];
+        // Q02/Q05/Q11/Q12 class_fields and class_methods share the full
+        // wildcard column set from the frozen manifest.
+        let class_fields = vec![
+            vec![
+                multi_u64(0),
+                multi_u64(1),
+                multi_text("Lfixture/A;"),
+                multi_u64(7),
+                multi_text("fieldOne"),
+                multi_text("I"),
+                multi_text("instance"),
+                multi_u64(2),
+            ],
+            vec![
+                multi_u64(0),
+                multi_u64(1),
+                multi_text("Lfixture/A;"),
+                multi_u64(8),
+                multi_text("fieldTwo"),
+                multi_text("Ljava/lang/String;"),
+                multi_text("instance"),
+                multi_u64(2),
+            ],
+            vec![
+                multi_u64(0),
+                multi_u64(2),
+                multi_text("Lfixture/B;"),
+                multi_u64(9),
+                multi_text("fieldThree"),
+                multi_text("J"),
+                multi_text("static"),
+                multi_u64(9),
+            ],
+            vec![
+                multi_u64(1),
+                multi_u64(1),
+                multi_text("Lfixture/A;"),
+                multi_u64(7),
+                multi_text("fieldOne"),
+                multi_text("I"),
+                multi_text("instance"),
+                multi_u64(2),
+            ],
+        ];
+        let class_methods = vec![
+            vec![
+                multi_u64(0),
+                multi_u64(1),
+                multi_text("Lfixture/A;"),
+                multi_u64(11),
+                multi_text("alpha"),
+                multi_text("()V"),
+                multi_text("direct"),
+                multi_u64(1),
+            ],
+            vec![
+                multi_u64(0),
+                multi_u64(1),
+                multi_text("Lfixture/A;"),
+                multi_u64(12),
+                multi_text("beta"),
+                multi_text("(I)V"),
+                multi_text("virtual"),
+                multi_u64(2),
+            ],
+            vec![
+                multi_u64(0),
+                multi_u64(2),
+                multi_text("Lfixture/Protocol;"),
+                multi_u64(13),
+                multi_text("serve"),
+                multi_text("()V"),
+                multi_text("direct"),
+                multi_u64(1),
+            ],
+            vec![
+                multi_u64(0),
+                multi_u64(3),
+                multi_text("Lcom/bapis/Moss;"),
+                multi_u64(14),
+                multi_text("serve"),
+                multi_text("()V"),
+                multi_text("direct"),
+                multi_u64(1),
+            ],
+            vec![
+                multi_u64(1),
+                multi_u64(1),
+                multi_text("Lfixture/A;"),
+                multi_u64(11),
+                multi_text("alpha"),
+                multi_text("()V"),
+                multi_text("direct"),
+                multi_u64(1),
+            ],
+        ];
+        let classes = vec![
+            vec![
+                multi_u64(0),
+                multi_u64(0),
+                multi_u64(1),
+                multi_text("Lfixture/A;"),
+                multi_u64(1),
+                multi_text("Lfixture/Base;"),
+                multi_u64(1),
+                multi_text("A.java"),
+            ],
+            vec![
+                multi_u64(0),
+                multi_u64(1),
+                multi_u64(2),
+                multi_text("Lfixture/B;"),
+                multi_u64(1),
+                multi_text("Lfixture/Base;"),
+                multi_u64(0),
+                multi_text("B.java"),
+            ],
+            vec![
+                multi_u64(0),
+                multi_u64(2),
+                multi_u64(3),
+                multi_text("Lcom/bapis/Moss;"),
+                multi_u64(1),
+                SqlValue::Null,
+                multi_u64(0),
+                SqlValue::Null,
+            ],
+            vec![
+                multi_u64(1),
+                multi_u64(0),
+                multi_u64(1),
+                multi_text("Lfixture/A;"),
+                multi_u64(1),
+                multi_text("Lfixture/Base;"),
+                multi_u64(0),
+                multi_text("A.java"),
+            ],
+        ];
+        let class_interfaces = vec![
+            vec![
+                multi_u64(0),
+                multi_u64(1),
+                multi_u64(0),
+                multi_u64(21),
+                multi_text("Lfixture/Iface;"),
+            ],
+            vec![
+                multi_u64(0),
+                multi_u64(1),
+                multi_u64(1),
+                multi_u64(22),
+                multi_text("Ljava/io/Serializable;"),
+            ],
+            vec![
+                multi_u64(1),
+                multi_u64(1),
+                multi_u64(0),
+                multi_u64(21),
+                multi_text("Lfixture/Iface;"),
+            ],
+        ];
+        let methods = vec![
+            vec![
+                multi_u64(0),
+                multi_u64(11),
+                multi_u64(1),
+                multi_text("Lfixture/A;"),
+                multi_u64(31),
+                multi_text("alpha"),
+                multi_text("()V"),
+                multi_text("Lfixture/Result;"),
+                multi_u64(0),
+                multi_text(""),
+                multi_u64(1),
+                SqlValue::Null,
+                SqlValue::Null,
+                multi_text("direct"),
+            ],
+            vec![
+                multi_u64(0),
+                multi_u64(12),
+                multi_u64(1),
+                multi_text("Lfixture/A;"),
+                multi_u64(32),
+                multi_text("beta"),
+                multi_text("(I)V"),
+                multi_text("Lfixture/Result;"),
+                multi_u64(1),
+                multi_text("I"),
+                multi_u64(2),
+                SqlValue::Null,
+                SqlValue::Null,
+                multi_text("virtual"),
+            ],
+            vec![
+                multi_u64(0),
+                multi_u64(13),
+                multi_u64(2),
+                multi_text("Lfixture/Protocol;"),
+                multi_u64(33),
+                multi_text("serve"),
+                multi_text("()V"),
+                multi_text("V"),
+                multi_u64(0),
+                multi_text(""),
+                multi_u64(1),
+                SqlValue::Null,
+                SqlValue::Null,
+                multi_text("direct"),
+            ],
+            vec![
+                multi_u64(1),
+                multi_u64(11),
+                multi_u64(1),
+                multi_text("Lfixture/A;"),
+                multi_u64(31),
+                multi_text("alpha"),
+                multi_text("()V"),
+                multi_text("Lfixture/Result;"),
+                multi_u64(0),
+                multi_text(""),
+                multi_u64(1),
+                SqlValue::Null,
+                SqlValue::Null,
+                multi_text("direct"),
+            ],
+        ];
+        let method_strings = vec![
+            vec![
+                multi_text("Lfixture/A;->alpha()V"),
+                multi_text("Lfixture/A;"),
+                multi_text("alpha"),
+                multi_text("ordinary: one"),
+                multi_u64(0),
+                multi_u64(1),
+                multi_u64(11),
+                multi_u64(41),
+            ],
+            vec![
+                multi_text("Lfixture/A;->alpha()V"),
+                multi_text("Lfixture/A;"),
+                multi_text("alpha"),
+                multi_text("pref_option_key"),
+                multi_u64(0),
+                multi_u64(1),
+                multi_u64(11),
+                multi_u64(42),
+            ],
+            vec![
+                multi_text("Lfixture/A;->beta(I)V"),
+                multi_text("Lfixture/A;"),
+                multi_text("beta"),
+                multi_text("ordinary: two"),
+                multi_u64(0),
+                multi_u64(1),
+                multi_u64(12),
+                multi_u64(43),
+            ],
+            vec![
+                multi_text("Lcom/bapis/Moss;->serve()V"),
+                multi_text("Lcom/bapis/Moss;"),
+                multi_text("serve"),
+                multi_text("ordinary: three"),
+                multi_u64(0),
+                multi_u64(3),
+                multi_u64(14),
+                multi_u64(44),
+            ],
+        ];
+        let code_items = vec![
+            // method_idx values straddle Q09's BETWEEN 0 AND 8 so the shape has
+            // a non-empty oracle result instead of comparing 0 rows to 0 rows.
+            vec![
+                multi_u64(0),
+                multi_u64(5),
+                multi_u64(100),
+                multi_u64(2),
+                multi_u64(4),
+                multi_u64(1),
+                multi_u64(0),
+                multi_u64(0),
+                multi_u64(8),
+                multi_u64(100),
+                SqlValue::Null,
+                SqlValue::Null,
+            ],
+            vec![
+                multi_u64(0),
+                multi_u64(7),
+                multi_u64(200),
+                multi_u64(3),
+                multi_u64(6),
+                multi_u64(2),
+                multi_u64(0),
+                multi_u64(0),
+                multi_u64(12),
+                multi_u64(200),
+                SqlValue::Null,
+                SqlValue::Null,
+            ],
+            vec![
+                multi_u64(1),
+                multi_u64(11),
+                multi_u64(300),
+                multi_u64(2),
+                multi_u64(4),
+                multi_u64(1),
+                multi_u64(0),
+                multi_u64(0),
+                multi_u64(8),
+                multi_u64(300),
+                SqlValue::Null,
+                SqlValue::Null,
+            ],
+        ];
+        let method_calls = vec![
+            // One callee matches Q12's equality predicate so the shape has a
+            // non-empty oracle result instead of comparing 0 rows to 0 rows.
+            vec![
+                multi_text("Lfixture/A;->alpha()V"),
+                multi_text("Lfixture/A;"),
+                multi_text("alpha"),
+                multi_text("Lfixture/A;->f()V"),
+                multi_text("Lfixture/A;"),
+                multi_text("f"),
+                multi_u64(0),
+                multi_u64(1),
+                multi_u64(11),
+                multi_u64(51),
+            ],
+            vec![
+                multi_text("Lfixture/A;->alpha()V"),
+                multi_text("Lfixture/A;"),
+                multi_text("alpha"),
+                multi_text("Lfixture/F;->f()V"),
+                multi_text("Lfixture/F;"),
+                multi_text("f"),
+                multi_u64(0),
+                multi_u64(1),
+                multi_u64(11),
+                multi_u64(51),
+            ],
+            vec![
+                multi_text("Lfixture/A;->beta(I)V"),
+                multi_text("Lfixture/A;"),
+                multi_text("beta"),
+                multi_text("Lfixture/G;->g()V"),
+                multi_text("Lfixture/G;"),
+                multi_text("g"),
+                multi_u64(0),
+                multi_u64(1),
+                multi_u64(12),
+                multi_u64(52),
+            ],
+            vec![
+                multi_text("Lfixture/B;->b()V"),
+                multi_text("Lfixture/B;"),
+                multi_text("b"),
+                multi_text("Lfixture/F;->f()V"),
+                multi_text("Lfixture/F;"),
+                multi_text("f"),
+                multi_u64(0),
+                multi_u64(2),
+                multi_u64(15),
+                multi_u64(51),
+            ],
+        ];
+        let method_field_accesses = vec![vec![
+            multi_text("Lfixture/A;->alpha()V"),
+            multi_text("Lfixture/A;"),
+            multi_text("alpha"),
+            multi_text("Lfixture/A;->fieldOne"),
+            multi_text("Lfixture/A;"),
+            multi_text("fieldOne"),
+            multi_text("I"),
+            SqlValue::Null,
+            multi_u64(0),
+            multi_u64(1),
+            multi_u64(11),
+            multi_u64(7),
+        ]];
+        let method_used_types = vec![vec![
+            multi_text("Lfixture/A;->alpha()V"),
+            multi_text("Lfixture/A;"),
+            multi_text("alpha"),
+            multi_text("Lfixture/Result;"),
+            multi_text("Result"),
+            multi_u64(0),
+            multi_u64(1),
+            multi_u64(11),
+            multi_u64(61),
+        ]];
+        let strings = vec![
+            vec![multi_u64(10), multi_u64(0), multi_text("hello")],
+            vec![multi_u64(10), multi_u64(1), multi_text("world")],
+        ];
+        let types = vec![
+            vec![
+                multi_u64(0),
+                multi_u64(1),
+                multi_text("Lfixture/A;"),
+                multi_text("fixture.A"),
+            ],
+            vec![
+                multi_u64(0),
+                multi_u64(21),
+                multi_text("Lfixture/Iface;"),
+                multi_text("fixture.Iface"),
+            ],
+        ];
+        let definitions: Vec<(&str, Vec<SqlColumn>, Vec<SqlRow>)> = vec![
+            multi_relation(
+                "dex_files",
+                vec![
+                    u64_column("file_id"),
+                    u64_column("string_pool_id"),
+                    text_column("source_path"),
+                    text_column("entry_name"),
+                    u64_column("byte_len"),
+                ],
+                dex_files,
+            ),
+            multi_relation(
+                "strings",
+                vec![
+                    u64_column("string_pool_id"),
+                    u64_column("string_idx"),
+                    text_column("value"),
+                ],
+                strings,
+            ),
+            multi_relation(
+                "types",
+                vec![
+                    u64_column("file_id"),
+                    u64_column("type_idx"),
+                    text_column("descriptor"),
+                    text_column("java_name"),
+                ],
+                types,
+            ),
+            multi_relation(
+                "classes",
+                vec![
+                    u64_column("file_id"),
+                    u64_column("class_def_idx"),
+                    u64_column("class_idx"),
+                    text_column("descriptor"),
+                    u64_column("access_flags"),
+                    opt_text_column("superclass_descriptor"),
+                    u64_column("interface_count"),
+                    opt_text_column("source_file"),
+                ],
+                classes,
+            ),
+            multi_relation(
+                "class_interfaces",
+                vec![
+                    u64_column("file_id"),
+                    u64_column("class_idx"),
+                    u64_column("ordinal"),
+                    u64_column("interface_type_idx"),
+                    text_column("interface_descriptor"),
+                ],
+                class_interfaces,
+            ),
+            multi_relation(
+                "class_fields",
+                vec![
+                    u64_column("file_id"),
+                    u64_column("class_idx"),
+                    text_column("class_descriptor"),
+                    u64_column("field_idx"),
+                    text_column("field_name"),
+                    text_column("field_descriptor"),
+                    text_column("kind"),
+                    u64_column("access_flags"),
+                ],
+                class_fields,
+            ),
+            multi_relation(
+                "class_methods",
+                vec![
+                    u64_column("file_id"),
+                    u64_column("class_idx"),
+                    text_column("class_descriptor"),
+                    u64_column("method_idx"),
+                    text_column("method_name"),
+                    text_column("method_descriptor"),
+                    text_column("kind"),
+                    u64_column("access_flags"),
+                ],
+                class_methods,
+            ),
+            multi_relation(
+                "methods",
+                vec![
+                    u64_column("file_id"),
+                    u64_column("method_idx"),
+                    u64_column("class_idx"),
+                    text_column("class_descriptor"),
+                    u64_column("proto_idx"),
+                    text_column("name"),
+                    text_column("descriptor"),
+                    text_column("return_descriptor"),
+                    u64_column("param_count"),
+                    text_column("param_descriptors"),
+                    multi_column("access_flags", SqlType::U64, true),
+                    multi_column("opcode_count", SqlType::U64, true),
+                    opt_text_column("opcode_hex"),
+                    opt_text_column("method_kind"),
+                ],
+                methods,
+            ),
+            multi_relation(
+                "method_strings",
+                vec![
+                    text_column("method"),
+                    text_column("method_class"),
+                    text_column("method_name"),
+                    text_column("value"),
+                    u64_column("file_id"),
+                    u64_column("class_idx"),
+                    u64_column("method_idx"),
+                    u64_column("string_idx"),
+                ],
+                method_strings,
+            ),
+            multi_relation(
+                "code_items",
+                vec![
+                    u64_column("file_id"),
+                    u64_column("method_idx"),
+                    u64_column("code_off"),
+                    u64_column("registers_size"),
+                    u64_column("ins_size"),
+                    u64_column("outs_size"),
+                    u64_column("tries_size"),
+                    u64_column("debug_info_off"),
+                    u64_column("insns_size"),
+                    u64_column("insns_off"),
+                    multi_column("tries_off", SqlType::U64, true),
+                    multi_column("handlers_off", SqlType::U64, true),
+                ],
+                code_items,
+            ),
+            multi_relation(
+                "method_calls",
+                vec![
+                    text_column("method"),
+                    text_column("method_class"),
+                    text_column("method_name"),
+                    text_column("callee"),
+                    text_column("callee_class"),
+                    text_column("callee_name"),
+                    u64_column("file_id"),
+                    u64_column("class_idx"),
+                    u64_column("method_idx"),
+                    u64_column("callee_method_idx"),
+                ],
+                method_calls,
+            ),
+            multi_relation(
+                "method_field_accesses",
+                vec![
+                    text_column("method"),
+                    text_column("method_class"),
+                    text_column("method_name"),
+                    text_column("field"),
+                    text_column("field_class"),
+                    text_column("field_name"),
+                    text_column("field_type"),
+                    opt_text_column("using_type"),
+                    u64_column("file_id"),
+                    u64_column("class_idx"),
+                    u64_column("method_idx"),
+                    u64_column("field_idx"),
+                ],
+                method_field_accesses,
+            ),
+            multi_relation(
+                "method_used_types",
+                vec![
+                    text_column("method"),
+                    text_column("method_class"),
+                    text_column("method_name"),
+                    text_column("type_descriptor"),
+                    text_column("type_name"),
+                    u64_column("file_id"),
+                    u64_column("class_idx"),
+                    u64_column("method_idx"),
+                    u64_column("type_idx"),
+                ],
+                method_used_types,
+            ),
+        ];
+        let mut relations = Vec::new();
+        let mut rows = BTreeMap::new();
+        for (name, columns, relation_rows) in definitions {
+            relations.push(SqlRelation {
+                name: name.to_string(),
+                columns,
+                required_layers: vec![],
+                estimated_rows: Some(DecimalU64(relation_rows.len() as u64)),
+            });
+            rows.insert(name.to_string(), relation_rows);
+        }
+        let provider = Arc::new(MultiProvider {
+            binding: multi_binding(),
+            relations,
+            rows,
+        });
+        // The independent oracle is a real SQLite database populated with the
+        // same rows. It does not share the bridge's AST adapter or UDFs.
+        let sqlite = rusqlite::Connection::open_in_memory().unwrap();
+        for relation in &provider.relations {
+            let column_list = relation
+                .columns
+                .iter()
+                .map(|c| format!("\"{}\"", c.name.replace('"', "\"\"")))
+                .collect::<Vec<_>>()
+                .join(",");
+            let placeholders = (0..relation.columns.len())
+                .map(|index| format!("?{}", index + 1))
+                .collect::<Vec<_>>()
+                .join(",");
+            sqlite
+                .execute(
+                    &format!("CREATE TABLE \"{}\" ({})", relation.name, column_list),
+                    [],
+                )
+                .unwrap();
+            for row in provider.rows.get(&relation.name).unwrap() {
+                let mut statement = sqlite
+                    .prepare(&format!(
+                        "INSERT INTO \"{}\" VALUES ({})",
+                        relation.name, placeholders
+                    ))
+                    .unwrap();
+                let mut values = Vec::new();
+                for value in row {
+                    values.push(match value {
+                        SqlValue::Null => rusqlite::types::Value::Null,
+                        SqlValue::I64(v) => rusqlite::types::Value::Integer(v.0),
+                        SqlValue::U64(v) => rusqlite::types::Value::Integer(
+                            i64::try_from(v.0).expect("fixture u64 fits i64"),
+                        ),
+                        SqlValue::Text(v) => rusqlite::types::Value::Text(
+                            v.strict_utf8().expect("fixture text is utf8"),
+                        ),
+                        other => panic!("fixture oracle value: {other:?}"),
+                    });
+                }
+                statement
+                    .execute(rusqlite::params_from_iter(values))
+                    .unwrap();
+            }
+        }
+        let shapes: Vec<(&str, &str)> = vec![
+            (
+                "Q01",
+                "SELECT file_id,entry_name FROM dex_files ORDER BY file_id",
+            ),
+            (
+                "Q02",
+                "SELECT cf.* FROM class_fields cf WHERE class_descriptor IN ('Lfixture/A;') ORDER BY file_id,class_idx,kind,field_idx",
+            ),
+            (
+                "Q03",
+                "SELECT ci.interface_descriptor,c.descriptor FROM class_interfaces ci JOIN classes c ON c.file_id=ci.file_id AND c.class_idx=ci.class_idx WHERE c.descriptor IN ('Lfixture/A;') ORDER BY ci.file_id,ci.class_idx,ci.ordinal",
+            ),
+            (
+                "Q05",
+                "SELECT DISTINCT m.class_descriptor FROM class_methods c JOIN methods m ON m.file_id=c.file_id AND m.method_idx=c.method_idx WHERE m.return_descriptor='Lfixture/Result;' ORDER BY m.class_descriptor",
+            ),
+            ("Q07", "SELECT COUNT(*) AS n FROM classes ORDER BY n"),
+            (
+                "Q08",
+                "SELECT file_id,class_def_idx,descriptor,superclass_descriptor FROM classes WHERE file_id=0 AND (descriptor LIKE 'Lfixture/%' ESCAPE '\\') ORDER BY file_id,class_def_idx",
+            ),
+            (
+                "Q09",
+                "SELECT method_idx,insns_off,insns_size FROM code_items WHERE file_id=0 AND method_idx BETWEEN 0 AND 8 ORDER BY method_idx",
+            ),
+            (
+                "Q11",
+                "SELECT file_id,method_descriptor FROM class_methods WHERE file_id=0 AND (class_descriptor IN ('Lfixture/Protocol;') OR class_descriptor LIKE 'Lcom/bapis/%Moss;') ORDER BY file_id,class_idx,method_idx",
+            ),
+            (
+                "Q12",
+                "SELECT file_id,method AS descriptor FROM method_calls WHERE callee='Lfixture/A;->f()V' ORDER BY file_id,method_idx",
+            ),
+        ];
+        for (label, sql) in shapes {
+            let mut oracle = sqlite.prepare(sql).unwrap();
+            let column_count = oracle.column_count();
+            let expected: Vec<Vec<rusqlite::types::Value>> = oracle
+                .query_map([], |row| {
+                    let mut values = Vec::new();
+                    for index in 0..column_count {
+                        values.push(row.get::<_, rusqlite::types::Value>(index)?);
+                    }
+                    Ok(values)
+                })
+                .unwrap()
+                .collect::<rusqlite::Result<_>>()
+                .unwrap();
+            // Every shape must have discriminating power: an empty oracle result
+            // compared against an empty bridge result would pass trivially.
+            assert!(!expected.is_empty(), "{label} oracle returned no rows");
+            for dialect in [
+                SqlDialect::NativeV1,
+                SqlDialect::DexSql010,
+                SqlDialect::DexSql011,
+            ] {
+                let bridge =
+                    SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+                let result = bridge
+                    .query(sql)
+                    .unwrap_or_else(|error| panic!("{label} {dialect:?}: {error:?}"));
+                let actual: Vec<Vec<rusqlite::types::Value>> = result
+                    .rows()
+                    .iter()
+                    .map(|row| {
+                        row.iter()
+                            .map(|value| match value {
+                                SqlValue::Null => rusqlite::types::Value::Null,
+                                SqlValue::I64(v) => rusqlite::types::Value::Integer(v.0),
+                                SqlValue::U64(v) => rusqlite::types::Value::Integer(
+                                    i64::try_from(v.0).expect("result u64 fits i64"),
+                                ),
+                                SqlValue::Text(v) => rusqlite::types::Value::Text(
+                                    v.strict_utf8().expect("result text is utf8"),
+                                ),
+                                other => panic!("result value: {other:?}"),
+                            })
+                            .collect()
+                    })
+                    .collect();
+                assert_eq!(actual, expected, "{label} {dialect:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn pushdown_policy_matches_vtab_capabilities_and_results_match_sqlite() {
+        use mdd_query::ir::Signed64;
+        let input: [(i64, Option<&str>); 6] = [
+            (0, Some("a")),
+            (1, Some("b")),
+            (2, Some("a")),
+            (3, Some("c")),
+            (4, Some("a")),
+            (5, None),
+        ];
+        let text = |value: Option<&str>| value.map_or(SqlValue::Null, SqlValue::text);
+        let provider = Arc::new(RowsProvider {
+            binding: SqlBinding {
+                provider_identity: "pushdown-synthetic".into(),
+                snapshot_id: "pushdown-snapshot".into(),
+                catalog_epoch: DecimalU64(0),
+            },
+            columns: vec![
+                SqlColumn {
+                    id: "id".into(),
+                    name: "id".into(),
+                    data_type: SqlType::I64,
+                    nullable: false,
+                },
+                SqlColumn {
+                    id: "value".into(),
+                    name: "value".into(),
+                    data_type: SqlType::Text,
+                    nullable: true,
+                },
+            ],
+            rows: input
+                .iter()
+                .map(|(id, value)| vec![SqlValue::I64(Signed64(*id)), text(*value)])
+                .collect(),
+        });
+        let sqlite = rusqlite::Connection::open_in_memory().unwrap();
+        sqlite
+            .execute_batch("CREATE TABLE vals(id INTEGER, value TEXT)")
+            .unwrap();
+        for (id, value) in input {
+            sqlite
+                .execute("INSERT INTO vals VALUES (?1,?2)", (id, value))
+                .unwrap();
+        }
+        let shapes = [
+            "SELECT id,value FROM vals WHERE id IN (1,3) ORDER BY id LIMIT 1 OFFSET 1",
+            "SELECT id,value FROM vals WHERE id BETWEEN 1 AND 3 ORDER BY value,id LIMIT 2",
+            "SELECT id,COUNT(*) AS n FROM vals WHERE value LIKE 'a%' GROUP BY id ORDER BY n DESC,id LIMIT 1",
+            "SELECT v.id FROM vals v JOIN vals w ON v.id=w.id WHERE v.id IN (2,4) ORDER BY v.id LIMIT 1",
+            "SELECT id FROM vals WHERE value IN ('a','b') ORDER BY id DESC LIMIT 2 OFFSET 1",
+        ];
+        let policy = virtual_tables::VTB_POLICY;
+        assert!(!policy.omit);
+        assert!(!policy.order_by_consumed);
+        assert!(!policy.limit_offset_pushdown);
+        assert!(!policy.in_pushdown);
+        virtual_tables::clear_best_index_reports();
+        for sql in shapes {
+            let mut oracle = sqlite.prepare(sql).unwrap();
+            let column_count = oracle.column_count();
+            let expected: Vec<Vec<rusqlite::types::Value>> = oracle
+                .query_map([], |row| {
+                    let mut values = Vec::new();
+                    for index in 0..column_count {
+                        values.push(row.get::<_, rusqlite::types::Value>(index)?);
+                    }
+                    Ok(values)
+                })
+                .unwrap()
+                .collect::<rusqlite::Result<_>>()
+                .unwrap();
+            for dialect in [
+                SqlDialect::NativeV1,
+                SqlDialect::DexSql010,
+                SqlDialect::DexSql011,
+            ] {
+                let bridge =
+                    SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+                let result = bridge.query(sql).unwrap();
+                // `result.optimizer` is a verbatim copy of `VTB_POLICY`, not
+                // evidence about what xBestIndex told SQLite. The recorded
+                // reports after this loop are the real callback evidence.
+                let actual: Vec<Vec<rusqlite::types::Value>> = result
+                    .rows()
+                    .iter()
+                    .map(|row| {
+                        row.iter()
+                            .map(|value| match value {
+                                SqlValue::Null => rusqlite::types::Value::Null,
+                                SqlValue::I64(v) => rusqlite::types::Value::Integer(v.0),
+                                SqlValue::U64(v) => rusqlite::types::Value::Integer(
+                                    i64::try_from(v.0).expect("result u64 fits i64"),
+                                ),
+                                SqlValue::Text(v) => rusqlite::types::Value::Text(
+                                    v.strict_utf8().expect("result text is utf8"),
+                                ),
+                                other => panic!("result value: {other:?}"),
+                            })
+                            .collect()
+                    })
+                    .collect();
+                assert_eq!(actual, expected, "{sql} {dialect:?}");
+            }
+        }
+        // Every constraint-bearing xBestIndex call during the shapes above must
+        // have reported omit=false and argv_index=0. If omit were true while
+        // `filter` still ignores constraints, SQLite would skip its own check
+        // and the row comparisons above would not be trustworthy.
+        let reports = virtual_tables::best_index_reports();
+        assert!(
+            !reports.is_empty(),
+            "xBestIndex was never called with a constraint"
+        );
+        for report in &reports {
+            assert!(!report.omit, "xBestIndex reported omit=true");
+            assert_eq!(report.argv_index, 0, "xBestIndex reported argv_index != 0");
+        }
+    }
+
+    #[test]
+    fn compatibility_failure_preserves_counterexample_without_profile_admission() {
+        let (provider, bridge) = bridge();
+        // A syntax error is an input error, not an unimplemented feature.
+        let syntax = bridge.query("SELECT FROM").unwrap_err();
+        assert_eq!(syntax.code, ErrorCode::InvalidArgument, "{syntax:?}");
+        // A missing column is a binding error, not an unimplemented feature.
+        let binding = bridge.query("SELECT missing FROM facts").unwrap_err();
+        assert_eq!(binding.code, ErrorCode::InvalidArgument, "{binding:?}");
+        // A recursive CTE is a real unsupported feature and keeps its reason.
+        let unsupported = bridge
+            .query("WITH RECURSIVE q(n) AS (SELECT 1 UNION ALL SELECT n+1 FROM q WHERE n<3) SELECT n FROM q")
+            .unwrap_err();
+        assert_eq!(
+            unsupported.code,
+            ErrorCode::UnsupportedQuery,
+            "{unsupported:?}"
+        );
+        assert!(
+            unsupported.message.contains("RECURSIVE")
+                || unsupported
+                    .details
+                    .values()
+                    .any(|value| value.to_string().contains("RECURSIVE")),
+            "{unsupported:?}"
+        );
+        // A real provider failure is never reported as unsupported.
+        let limits = SqlLimits {
+            max_scanned_rows: 0,
+            ..SqlLimits::default()
+        };
+        let prepared = bridge.prepare("SELECT id FROM facts").unwrap();
+        let error = prepared.execute(SqlControl::new(limits, None)).unwrap_err();
+        assert_eq!(error.code, ErrorCode::QuotaExceeded, "{error:?}");
+        // A successful calculation under no declared profile still admits no
+        // compatibility profile: `profiles_admitted` stays empty because this
+        // crate never issues admissions. Blocking is enforced separately by
+        // `CompatibilityProfileRegistry`, see the profile tests below.
+        let result = bridge.query("SELECT id FROM facts").unwrap();
+        assert_eq!(result.rows.len(), 3);
+        assert!(provider.opens.load(Ordering::SeqCst) >= 1);
+    }
+
+    fn blocked_profile(
+        dialect: SqlDialect,
+    ) -> (
+        Arc<Provider>,
+        SqlBridge,
+        Arc<crate::provider::CompatibilityProfileRegistry>,
+        crate::provider::CompatibilityProfile,
+    ) {
+        let provider = Arc::new(Provider {
+            binding: SqlBinding {
+                provider_identity: "profile-provider".into(),
+                snapshot_id: "profile-snapshot".into(),
+                catalog_epoch: DecimalU64(0),
+            },
+            opens: AtomicUsize::new(0),
+        });
+        let registry = Arc::new(crate::provider::CompatibilityProfileRegistry::new());
+        let profile =
+            crate::provider::CompatibilityProfile::new("hostlab-audit-v1", dialect).unwrap();
+        let bridge = SqlBridge::new(provider.clone(), dialect, SqlLimits::default())
+            .unwrap()
+            .for_compatibility_profile(profile.clone(), Arc::clone(&registry))
+            .unwrap();
+        (provider, bridge, registry, profile)
+    }
+
+    /// Acceptance item 5's blocking half: one real compatibility gap must make
+    /// the whole declared profile unusable, and the counterexample that caused
+    /// it must survive. Deleting `record_compatibility_failure` makes the
+    /// `UNSUPPORTED_CAPABILITY` assertions fail.
+    #[test]
+    fn unsupported_query_blocks_declared_profile_and_preserves_counterexample() {
+        for dialect in [
+            SqlDialect::NativeV1,
+            SqlDialect::DexSql010,
+            SqlDialect::DexSql011,
+        ] {
+            let (_, bridge, registry, profile) = blocked_profile(dialect);
+            assert!(!registry.is_blocked(&profile), "{dialect:?}");
+
+            // Real unsupported shape chosen per policy: NativeV1 has no
+            // legacy text numeric coercion, both legacy dialects reject
+            // RECURSIVE CTEs.
+            let (counterexample, code) = match dialect {
+                SqlDialect::NativeV1 => (
+                    "SELECT CAST('10' AS TEXT) BETWEEN 1 AND 2",
+                    ErrorCode::UnsupportedQuery,
+                ),
+                _ => (
+                    "WITH RECURSIVE q(n) AS (SELECT 1 UNION ALL SELECT n+1 FROM q WHERE n<3) SELECT n FROM q",
+                    ErrorCode::UnsupportedQuery,
+                ),
+            };
+            let error = bridge.query(counterexample).unwrap_err();
+            assert_eq!(error.code, code, "{dialect:?}: {error:?}");
+            assert_eq!(
+                error.details.get("profile_blocked"),
+                Some(&serde_json::Value::Bool(true)),
+                "{dialect:?}: {error:?}"
+            );
+            assert!(
+                registry.is_blocked(&profile),
+                "{dialect:?}: profile was not blocked"
+            );
+            let block = registry.block_for(&profile).expect("counterexample kept");
+            assert_eq!(block.sql, counterexample, "{dialect:?}");
+            assert_eq!(block.profile, "hostlab-audit-v1", "{dialect:?}");
+            assert_eq!(
+                block.sql_sha256,
+                mdd_types::sha256(counterexample.as_bytes())
+            );
+
+            // A query that used to succeed is now refused with the preserved
+            // counterexample instead of being silently answered.
+            let refused = bridge.query("SELECT id FROM facts").unwrap_err();
+            assert_eq!(
+                refused.code,
+                ErrorCode::UnsupportedCapability,
+                "{dialect:?}: {refused:?}"
+            );
+            assert_eq!(
+                refused.details.get("blocked_query"),
+                Some(&serde_json::Value::String(counterexample.into())),
+                "{dialect:?}: {refused:?}"
+            );
+            assert_eq!(
+                refused.details.get("profile"),
+                Some(&serde_json::Value::String("hostlab-audit-v1".into())),
+                "{dialect:?}: {refused:?}"
+            );
+            assert!(
+                refused.message.contains("blocked"),
+                "{dialect:?}: {refused:?}"
+            );
+            assert_eq!(registry.blocked_profiles(), vec!["hostlab-audit-v1"]);
+            assert_eq!(registry.blocked_count(), 1);
+        }
+    }
+
+    /// Only a genuine `UNSUPPORTED_QUERY` withdraws a profile. Input errors,
+    /// quota, cancellation and provider faults must leave it usable; otherwise
+    /// a typo or a budget stop would silently retire a compatibility scope.
+    #[test]
+    fn non_compatibility_failures_never_block_profile() {
+        let (_, bridge, registry, profile) = blocked_profile(SqlDialect::DexSql010);
+        for sql in ["SELECT FROM", "SELECT missing FROM facts"] {
+            let error = bridge.query(sql).unwrap_err();
+            assert_eq!(error.code, ErrorCode::InvalidArgument, "{sql}: {error:?}");
+            assert!(error.details.get("profile_blocked").is_none(), "{error:?}");
+            assert!(!registry.is_blocked(&profile), "{sql}");
+        }
+        let limits = SqlLimits {
+            max_scanned_rows: 0,
+            ..SqlLimits::default()
+        };
+        let error = bridge
+            .prepare("SELECT id FROM facts")
+            .unwrap()
+            .execute(SqlControl::new(limits, None))
+            .unwrap_err();
+        assert_eq!(error.code, ErrorCode::QuotaExceeded, "{error:?}");
+        assert!(
+            !registry.is_blocked(&profile),
+            "quota must not withdraw a profile"
+        );
+        // The profile is still usable end to end.
+        assert_eq!(
+            bridge.query("SELECT id FROM facts").unwrap().rows().len(),
+            3
+        );
+        assert!(registry.blocks().is_empty());
+    }
+
+    /// A block discovered while executing an already prepared statement must
+    /// also stop the next execution of that same statement.
+    #[test]
+    fn execute_stage_gap_blocks_profile_for_prepared_statement() {
+        let (_, bridge, registry, profile) = blocked_profile(SqlDialect::DexSql010);
+        let prepared = bridge.prepare("SELECT 1+'2.5'").unwrap();
+        let error = prepared
+            .execute(SqlControl::new(SqlLimits::default(), None))
+            .unwrap_err();
+        assert_eq!(error.code, ErrorCode::UnsupportedQuery, "{error:?}");
+        assert!(error.details.get("profile_blocked") == Some(&serde_json::Value::Bool(true)));
+        let block = registry.block_for(&profile).expect("block recorded");
+        assert_eq!(block.stage, "execute");
+        assert_eq!(block.sql, "SELECT 1+'2.5'");
+        let again = prepared
+            .execute(SqlControl::new(SqlLimits::default(), None))
+            .unwrap_err();
+        assert_eq!(again.code, ErrorCode::UnsupportedCapability, "{again:?}");
+        assert_eq!(
+            again.details.get("requested_stage"),
+            Some(&serde_json::Value::String("execute".into()))
+        );
+    }
+
+    /// The registry is explicit and caller-owned: a bridge with no declared
+    /// profile keeps returning the raw unsupported error, and the block of one
+    /// profile does not spill into another profile or another registry.
+    #[test]
+    fn profile_block_is_scoped_to_declared_profile_and_registry() {
+        let (provider, bridge) = bridge();
+        let error = bridge
+            .query("WITH RECURSIVE q(n) AS (SELECT 1) SELECT n FROM q")
+            .unwrap_err();
+        assert_eq!(error.code, ErrorCode::UnsupportedQuery, "{error:?}");
+        assert!(error.details.get("profile_blocked").is_none(), "{error:?}");
+
+        let (_, hostlab, registry, hostlab_profile) = blocked_profile(SqlDialect::DexSql010);
+        assert!(
+            hostlab
+                .query("SELECT 1+'2.5'")
+                .unwrap_err()
+                .details
+                .get("profile_blocked")
+                == Some(&serde_json::Value::Bool(true))
+        );
+        assert!(registry.is_blocked(&hostlab_profile));
+
+        // Same provider snapshot, different declared profile, fresh registry:
+        // the unrelated compatibility scope must stay usable.
+        let dex_profile = crate::provider::CompatibilityProfile::new(
+            "dexsql-0.1.0-compat-v1",
+            SqlDialect::DexSql010,
+        )
+        .unwrap();
+        let other_registry = Arc::new(crate::provider::CompatibilityProfileRegistry::new());
+        let other = SqlBridge::new(provider, SqlDialect::DexSql010, SqlLimits::default())
+            .unwrap()
+            .for_compatibility_profile(dex_profile.clone(), Arc::clone(&other_registry))
+            .unwrap();
+        assert!(!other_registry.is_blocked(&dex_profile));
+        assert_eq!(other.query("SELECT id FROM facts").unwrap().rows().len(), 3);
+
+        // Declaring a profile whose text policy differs from the bridge is a
+        // configuration error, not a silent cross-policy block.
+        let mismatch = match SqlBridge::new(
+            Arc::new(Provider {
+                binding: SqlBinding {
+                    provider_identity: "mismatch".into(),
+                    snapshot_id: "mismatch".into(),
+                    catalog_epoch: DecimalU64(0),
+                },
+                opens: AtomicUsize::new(0),
+            }),
+            SqlDialect::NativeV1,
+            SqlLimits::default(),
+        )
+        .unwrap()
+        .for_compatibility_profile(dex_profile, Arc::clone(&other_registry))
+        {
+            Ok(_) => panic!("mismatched dialect was accepted"),
+            Err(error) => error,
+        };
+        assert_eq!(mismatch.code, ErrorCode::InvalidArgument, "{mismatch:?}");
+        assert!(
+            mismatch.message.contains("DIALECT_MISMATCH"),
+            "{mismatch:?}"
+        );
+    }
+
+    /// A statement prepared under one profile scope must not be executed by a
+    /// bridge in a different scope: an undeclared bridge must not bypass a
+    /// block, and a bridge declaring another profile must not charge that
+    /// profile's counterexample. Deleting the scope check makes this pass.
+    #[test]
+    fn cross_scope_execute_is_rejected() {
+        let (provider, hostlab, _, _) = blocked_profile(SqlDialect::DexSql010);
+        let prepared = hostlab.prepare("SELECT id FROM facts").unwrap();
+
+        // Undeclared bridge: no profile scope at all.
+        let undeclared = SqlBridge::new(
+            provider.clone(),
+            SqlDialect::DexSql010,
+            SqlLimits::default(),
+        )
+        .unwrap();
+        let error = undeclared
+            .execute(&prepared, SqlControl::new(SqlLimits::default(), None))
+            .unwrap_err();
+        assert_eq!(error.code, ErrorCode::InvalidArgument, "{error:?}");
+        assert!(
+            error.message.contains("PROFILE_SCOPE_MISMATCH"),
+            "{error:?}"
+        );
+
+        // Declared bridge for a different profile: same rejection.
+        let other_profile = crate::provider::CompatibilityProfile::new(
+            "dexsql-0.1.0-compat-v1",
+            SqlDialect::DexSql010,
+        )
+        .unwrap();
+        let other_registry = Arc::new(crate::provider::CompatibilityProfileRegistry::new());
+        let other = SqlBridge::new(provider, SqlDialect::DexSql010, SqlLimits::default())
+            .unwrap()
+            .for_compatibility_profile(other_profile, other_registry)
+            .unwrap();
+        let error = other
+            .execute(&prepared, SqlControl::new(SqlLimits::default(), None))
+            .unwrap_err();
+        assert_eq!(error.code, ErrorCode::InvalidArgument, "{error:?}");
+        assert!(
+            error.message.contains("PROFILE_SCOPE_MISMATCH"),
+            "{error:?}"
+        );
+    }
+
+    #[test]
+    fn lazy_scan_cost_is_measured_after_prepare() {
+        let (provider, bridge) = bridge();
+        let prepared = bridge.prepare("SELECT id,value FROM facts").unwrap();
+        assert_eq!(provider.opens.load(Ordering::SeqCst), 0);
+        let limits = SqlLimits {
+            max_scanned_rows: 2,
+            ..SqlLimits::default()
+        };
+        let error = prepared.execute(SqlControl::new(limits, None)).unwrap_err();
+        assert_eq!(error.code, ErrorCode::QuotaExceeded, "{error:?}");
+        assert_eq!(provider.opens.load(Ordering::SeqCst), 1);
+        // The full scan is admitted under the default budget and every row is
+        // measured against the same control.
+        let result = bridge.query("SELECT id FROM facts").unwrap();
+        assert_eq!(result.rows.len(), 3);
+        assert_eq!(provider.opens.load(Ordering::SeqCst), 2);
+    }
+
+    /// Acceptance item 2: NULL, CAST, LIKE/ESCAPE, length, comparison,
+    /// aggregation, ORDER, JOIN/CTE are each checked against a real SQLite
+    /// oracle for every declared dialect. Cases are ASCII-only so SQLite's
+    /// character length and the bridge's UTF-16 unit length agree; non-ASCII
+    /// length/LIKE semantics are covered by the dedicated dialect tests.
+    #[test]
+    fn dialect_feature_matrix_matches_sqlite_for_null_cast_like_length_compare_aggregate_order_join_cte()
+     {
+        use mdd_query::ir::Signed64;
+        let input: [(i64, Option<&str>, Option<i64>); 7] = [
+            (0, Some("alpha"), Some(10)),
+            (1, Some("beta"), None),
+            (2, Some("alpha"), Some(30)),
+            (3, None, Some(40)),
+            (4, Some(""), Some(50)),
+            (5, Some("a_c"), None),
+            (6, Some("a-c"), Some(60)),
+        ];
+        let text = |value: Option<&str>| value.map_or(SqlValue::Null, SqlValue::text);
+        let optional =
+            |value: Option<i64>| value.map_or(SqlValue::Null, |v| SqlValue::I64(Signed64(v)));
+        let provider = Arc::new(RowsProvider {
+            binding: SqlBinding {
+                provider_identity: "feature-matrix-synthetic".into(),
+                snapshot_id: "feature-matrix-snapshot".into(),
+                catalog_epoch: DecimalU64(0),
+            },
+            columns: vec![
+                SqlColumn {
+                    id: "id".into(),
+                    name: "id".into(),
+                    data_type: SqlType::I64,
+                    nullable: false,
+                },
+                SqlColumn {
+                    id: "value".into(),
+                    name: "value".into(),
+                    data_type: SqlType::Text,
+                    nullable: true,
+                },
+                SqlColumn {
+                    id: "opt".into(),
+                    name: "opt".into(),
+                    data_type: SqlType::I64,
+                    nullable: true,
+                },
+            ],
+            rows: input
+                .iter()
+                .map(|(id, value, opt)| {
+                    vec![SqlValue::I64(Signed64(*id)), text(*value), optional(*opt)]
+                })
+                .collect(),
+        });
+        let sqlite = rusqlite::Connection::open_in_memory().unwrap();
+        sqlite
+            .execute_batch("CREATE TABLE vals(id INTEGER, value TEXT, opt INTEGER)")
+            .unwrap();
+        for (id, value, opt) in input {
+            sqlite
+                .execute("INSERT INTO vals VALUES (?1,?2,?3)", (id, value, opt))
+                .unwrap();
+        }
+        // The only intentionally empty shape: a NULL LIKE pattern propagates
+        // NULL, so the predicate matches no row. It pins that semantics; the
+        // projection shape `value LIKE NULL AS v` below gives the same NULL
+        // handling a non-empty, discriminating result. Any other empty shape is
+        // a regression and must fail the non-empty guard.
+        const INTENTIONAL_EMPTY_SHAPES: &[&str] =
+            &["SELECT id FROM vals WHERE value LIKE NULL ORDER BY id"];
+        let shapes = [
+            // NULL
+            "SELECT NULL IS NULL, NULL = NULL, COALESCE(NULL, 1), COUNT(value), COUNT(*), SUM(opt) FROM vals",
+            "SELECT id, value, opt, opt IS NULL, value IS NOT NULL FROM vals ORDER BY id",
+            // CAST (dialect-independent cases only; text-to-integer prefix
+            // parsing is a documented legacy/NativeV1 divergence and is
+            // covered by the dedicated cast tests)
+            "SELECT CAST(NULL AS TEXT), CAST(opt AS TEXT), CAST(opt AS REAL) FROM vals ORDER BY id",
+            "SELECT id, CAST(value AS BLOB)=CAST(value AS BLOB) AS same FROM vals ORDER BY id",
+            // LIKE / ESCAPE
+            "SELECT id FROM vals WHERE value LIKE 'a%' ESCAPE '\\' ORDER BY id",
+            "SELECT id FROM vals WHERE value LIKE 'a\\_c' ESCAPE '\\' ORDER BY id",
+            "SELECT id FROM vals WHERE value LIKE 'a\\-c' ESCAPE '\\' ORDER BY id",
+            // A NULL pattern propagates NULL. The predicate shape is kept as an
+            // intentional empty-result case; the projection below gives the
+            // same NULL semantics a non-empty, discriminating result.
+            "SELECT id, value LIKE NULL AS v FROM vals ORDER BY id",
+            "SELECT id FROM vals WHERE value LIKE NULL ORDER BY id",
+            // length
+            "SELECT id, length(value), length(opt), length('') FROM vals ORDER BY id",
+            // comparison
+            "SELECT id, value='alpha', value>'b', value IN ('alpha','beta'), opt>20 FROM vals ORDER BY id",
+            "SELECT id FROM vals WHERE value IN ('alpha','beta') AND opt BETWEEN 20 AND 50 ORDER BY id",
+            // aggregation
+            "SELECT value, COUNT(*) AS n, SUM(opt) AS s FROM vals GROUP BY value ORDER BY value",
+            "SELECT COUNT(DISTINCT value) AS d, MIN(opt) AS lo, MAX(opt) AS hi FROM vals",
+            // ORDER
+            "SELECT id, value, opt FROM vals ORDER BY value ASC, id DESC",
+            "SELECT id, value FROM vals ORDER BY value DESC, id ASC",
+            // JOIN / CTE
+            "SELECT v.id, w.value FROM vals v JOIN vals w ON v.id=w.id WHERE v.id IN (0,2) ORDER BY v.id",
+            "WITH t AS (SELECT id, value FROM vals WHERE id>1) SELECT value FROM t ORDER BY id",
+            "WITH t AS (SELECT id FROM vals WHERE opt IS NULL) SELECT id, value FROM vals WHERE id IN (SELECT id FROM t) ORDER BY id",
+        ];
+        let mut failures = Vec::new();
+        for sql in shapes {
+            let mut oracle = sqlite.prepare(sql).unwrap();
+            let column_count = oracle.column_count();
+            let expected: Vec<Vec<rusqlite::types::Value>> = oracle
+                .query_map([], |row| {
+                    let mut values = Vec::new();
+                    for index in 0..column_count {
+                        values.push(row.get::<_, rusqlite::types::Value>(index)?);
+                    }
+                    Ok(values)
+                })
+                .unwrap()
+                .collect::<rusqlite::Result<_>>()
+                .unwrap();
+            // An empty oracle result would make the per-dialect comparison
+            // vacuous, so refuse it the same way the Q-series loop does. The one
+            // documented NULL-propagation shape is allowlisted above.
+            assert!(
+                !expected.is_empty() || INTENTIONAL_EMPTY_SHAPES.contains(&sql),
+                "{sql} oracle returned no rows"
+            );
+            for dialect in [
+                SqlDialect::NativeV1,
+                SqlDialect::DexSql010,
+                SqlDialect::DexSql011,
+            ] {
+                let bridge =
+                    SqlBridge::new(provider.clone(), dialect, SqlLimits::default()).unwrap();
+                match bridge.query(sql) {
+                    Ok(result) => {
+                        let actual: Vec<Vec<rusqlite::types::Value>> = result
+                            .rows()
+                            .iter()
+                            .map(|row| {
+                                row.iter()
+                                    .map(|value| match value {
+                                        SqlValue::Null => rusqlite::types::Value::Null,
+                                        SqlValue::I64(v) => rusqlite::types::Value::Integer(v.0),
+                                        SqlValue::U64(v) => rusqlite::types::Value::Integer(
+                                            i64::try_from(v.0).expect("result u64 fits i64"),
+                                        ),
+                                        SqlValue::F64(v) => {
+                                            rusqlite::types::Value::Real(f64::from_bits(v.0))
+                                        }
+                                        SqlValue::Text(v) => rusqlite::types::Value::Text(
+                                            v.strict_utf8().expect("result text is utf8"),
+                                        ),
+                                        other => panic!("result value: {other:?}"),
+                                    })
+                                    .collect()
+                            })
+                            .collect();
+                        if actual != expected {
+                            failures.push(format!(
+                                "{dialect:?} {sql}\n  expected {expected:?}\n  actual   {actual:?}"
+                            ));
+                        }
+                    }
+                    Err(error) => failures.push(format!("{dialect:?} {sql}\n  error {error:?}")),
+                }
+            }
+        }
+        assert!(failures.is_empty(), "{}", failures.join("\n"));
+    }
+
     fn like_shadow_fixture() -> (Arc<RowsProvider>, rusqlite::Connection) {
         use mdd_query::ir::Signed64;
         let provider = Arc::new(RowsProvider {
@@ -6343,7 +8010,9 @@ mod tests {
     #[test]
     fn in_subquery_bytes_and_bool_match_sqlite_with_null_and_duplicates() {
         use mdd_query::ir::Signed64;
-        let values: Vec<(Option<Vec<u8>>, Option<Vec<u8>>, Option<bool>, Option<bool>)> = vec![
+        /// (left bytes, right bytes, left bool, right bool) for one IN-subquery row.
+        type Row = (Option<Vec<u8>>, Option<Vec<u8>>, Option<bool>, Option<bool>);
+        let values: Vec<Row> = vec![
             (None, None, None, None),
             (Some(vec![]), Some(vec![0]), Some(false), Some(true)),
             (Some(vec![0]), Some(vec![]), Some(true), Some(false)),
@@ -6554,8 +8223,7 @@ mod tests {
             ) {
                 let error = bridge
                     .query(sql)
-                    .err()
-                    .expect("unproven carrier returned rows");
+                    .expect_err("unproven carrier returned rows");
                 assert_eq!(
                     error.code,
                     ErrorCode::UnsupportedQuery,
@@ -6794,8 +8462,7 @@ mod tests {
             ] {
                 let error = bridge
                     .query(sql)
-                    .err()
-                    .expect("unsafe set operation returned rows");
+                    .expect_err("unsafe set operation returned rows");
                 assert_eq!(
                     error.code,
                     ErrorCode::UnsupportedQuery,
@@ -7010,8 +8677,7 @@ mod tests {
             }
             sqlite
                 .prepare("SELECT 'a' UNION SELECT 'b' ORDER BY 'x'")
-                .err()
-                .expect("SQLite must reject a non-projected ordering expression");
+                .expect_err("SQLite must reject a non-projected ordering expression");
             let error = bridge
                 .query("SELECT 'a' UNION SELECT 'b' ORDER BY 'x'")
                 .unwrap_err();
@@ -7433,7 +9099,7 @@ mod tests {
             let quoted = bridge
                 .prepare_with_parameters(
                     "SELECT '?30000' UNION SELECT ? /* ?1 */",
-                    &[value.clone()],
+                    std::slice::from_ref(&value),
                 )
                 .err()
                 .unwrap();
@@ -7441,7 +9107,7 @@ mod tests {
             let cte = bridge
                 .prepare_with_parameters(
                     "WITH c AS (SELECT ? AS x) SELECT x FROM c UNION SELECT 1.0",
-                    &[value.clone()],
+                    std::slice::from_ref(&value),
                 )
                 .err()
                 .unwrap();

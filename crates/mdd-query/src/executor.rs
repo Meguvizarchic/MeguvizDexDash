@@ -156,6 +156,15 @@ impl<'a> Control<'a> {
         self.charge(bytes)
     }
     pub fn charge_row(&mut self, row: &Row) -> MddResult<()> {
+        // Deliberately sequential. Batching these admissions into one call was
+        // measured faster, but it changes which check fails first: the row
+        // overhead, the per-cell `max_cell_bytes` bound, the running
+        // `max_buffered_bytes` bound and the per-step `max_steps` bound are
+        // interleaved here, and the runtime pool charges carry their own
+        // observable errors. Collapsing them would silently change the reported
+        // `reason`/`observed` for rows that exceed two bounds at once. The
+        // per-call cost is already much lower after the budget accounting itself
+        // stopped allocating and stopped taking a mutex per resource slot.
         self.charge(
             (std::mem::size_of::<Row>() as u64)
                 .checked_add(row.len() as u64 * std::mem::size_of::<Value>() as u64)
@@ -1619,7 +1628,7 @@ impl QueueDeliveryReceipt {
         &mut self,
         pending: &mut PendingDelivery,
     ) -> MddResult<mdd_types::ResultEnvelope> {
-        if !self.matches(
+        if !self.matches_for_pending(
             &pending.sender,
             &pending.runtime,
             pending.produced,
@@ -1636,6 +1645,9 @@ impl QueueDeliveryReceipt {
             .terminal
             .take()
             .ok_or_else(|| invalid("DELIVERY_ALREADY_FINALIZED"))?;
+        // Keeping the two levels preserves the "rejected count" comment inside
+        // the branch, which documents why no envelope may be manufactured.
+        #[allow(clippy::collapsible_if)]
         if pending.produced != 0 {
             if let Err(error) = terminal.record_batch(0, pending.produced) {
                 // The builder rejected this count. Do not manufacture an

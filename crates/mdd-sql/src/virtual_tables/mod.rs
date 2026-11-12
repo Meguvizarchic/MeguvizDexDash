@@ -17,6 +17,29 @@ use std::{
 thread_local! {
     pub(crate) static TEST_CONNECTS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     pub(crate) static TEST_OPENS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    /// Values actually handed to SQLite by `xBestIndex`, recorded so tests can
+    /// assert the callback's report instead of re-reading `VTB_POLICY`.
+    pub(crate) static TEST_BEST_INDEX: std::cell::RefCell<Vec<BestIndexReport>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+}
+/// One constraint usage reported by a real `xBestIndex` call.
+#[cfg(test)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct BestIndexReport {
+    pub omit: bool,
+    pub argv_index: c_int,
+}
+#[cfg(test)]
+pub(crate) fn record_best_index(report: BestIndexReport) {
+    TEST_BEST_INDEX.with(|slot| slot.borrow_mut().push(report));
+}
+#[cfg(test)]
+pub(crate) fn best_index_reports() -> Vec<BestIndexReport> {
+    TEST_BEST_INDEX.with(|slot| slot.borrow().clone())
+}
+#[cfg(test)]
+pub(crate) fn clear_best_index_reports() {
+    TEST_BEST_INDEX.with(|slot| slot.borrow_mut().clear());
 }
 
 pub(crate) struct Source {
@@ -25,6 +48,32 @@ pub(crate) struct Source {
     pub binding: SqlBinding,
     pub control: SqlControl,
 }
+/// Pushdown behaviour shared by the fact vtab and the bridge's reported policy.
+/// `omit` and `order_by_consumed` are the two fields this vtab actually reports
+/// through `sqlite3_index_info`. `limit_offset_pushdown` and `in_pushdown` are
+/// **not wired**: `best_index` never sets `omit`/`argv_index` for the
+/// `SQLITE_INDEX_CONSTRAINT_LIMIT`/`OFFSET` constraints SQLite 3.38+ does hand
+/// over (this build links SQLite 3.53.2), and it never calls
+/// `sqlite3_vtab_in()` to request IN pushdown. Those two fields therefore
+/// record an intent SQLite was never told about; the constant is informational
+/// for them and enforces nothing. `argv_index` is hard-coded to 0 in
+/// `best_index` (no constraint reaches `xFilter`), so `omit` must stay false:
+/// claiming a handled constraint without passing it would let SQLite skip its
+/// own check and change results. The constant alone cannot stop a future edit
+/// that flips `omit` without also changing `filter`; tests additionally record
+/// what `best_index` actually reports and compare filtered rows against SQLite.
+pub(crate) struct VtabPolicy {
+    pub omit: bool,
+    pub order_by_consumed: bool,
+    pub limit_offset_pushdown: bool,
+    pub in_pushdown: bool,
+}
+pub(crate) const VTB_POLICY: VtabPolicy = VtabPolicy {
+    omit: false,
+    order_by_consumed: false,
+    limit_offset_pushdown: false,
+    in_pushdown: false,
+};
 fn error(error: mdd_types::MddError) -> rusqlite::Error {
     rusqlite::Error::UserFunctionError(Box::new(error))
 }
@@ -100,10 +149,14 @@ unsafe impl<'vtab> VTab<'vtab> for FactTable {
                 .map_or(1000.0, |n| n.0 as f64)
                 + 1.0,
         );
-        info.set_order_by_consumed(false);
+        info.set_order_by_consumed(VTB_POLICY.order_by_consumed);
+        let omit = VTB_POLICY.omit;
+        let argv_index = 0;
         for (_, mut usage) in info.constraints_and_usages() {
-            usage.set_omit(false);
-            usage.set_argv_index(0);
+            usage.set_omit(omit);
+            usage.set_argv_index(argv_index);
+            #[cfg(test)]
+            record_best_index(BestIndexReport { omit, argv_index });
         }
         Ok(true)
     }

@@ -1,5 +1,9 @@
 //! Owned lifecycle registry. This crate does not execute queries or admit profiles.
 pub mod cancellation;
+// TEMP catalog and paging contracts are implemented but not yet exported:
+// turning these into `pub mod` is a shared export change owned by the main agent.
+mod catalog;
+mod cursors;
 
 use mdd_input::snapshot::Snapshot;
 use mdd_types::{DecimalU64, ErrorCode, MddError, MddResult, opaque_id};
@@ -333,7 +337,8 @@ struct SessionEntry {
     snapshot_id: String,
     closed: bool,
     limits: ResourceLimits,
-    catalog_epoch: u64,
+    /// Single source of truth for the session's catalog generation.
+    temp: catalog::TempCatalog,
 }
 struct QueryEntry {
     token: Token,
@@ -348,6 +353,7 @@ struct QueryEntry {
     delivery_abandoned: bool,
     execution_claimed: bool,
     execution_started: bool,
+    temp_binding: Option<catalog::TempBinding>,
 }
 struct CursorEntry {
     token: Token,
@@ -356,6 +362,15 @@ struct CursorEntry {
     snapshot_id: String,
     catalog_epoch: u64,
     binding: QueryBinding,
+    /// Worker that opened this cursor; a new worker generation invalidates it.
+    worker_owner: String,
+    worker_generation: u64,
+    /// SQL-layer fingerprints. Absent on the legacy delivery cursor.
+    spec: Option<cursors::CursorSpec>,
+    /// First admitted page fixes the exact total (including "no exact total").
+    page_total: Option<u64>,
+    page_total_established: bool,
+    pages: u64,
     open: bool,
     consumed: bool,
 }
@@ -371,6 +386,10 @@ struct BatchEntry {
 struct State {
     owner: String,
     next_generation: u64,
+    /// Worker instance generation. Unlike handle generations this only changes
+    /// when the registry is reattached to a new worker, and every cursor opened
+    /// before the change is rejected afterwards.
+    worker_generation: u64,
     limits: ResourceLimits,
     worker_error: Option<MddError>,
     supervisor_attached: bool,
@@ -643,6 +662,7 @@ impl Lifecycle {
             inner: Arc::new(Mutex::new(State {
                 owner: opaque_id("runtime")?,
                 next_generation: 0,
+                worker_generation: 0,
                 limits,
                 worker_error: None,
                 supervisor_attached: false,
@@ -731,6 +751,12 @@ impl Lifecycle {
             return Err(invalid("worker already has a supervisor"));
         }
         state.supervisor_attached = true;
+        // A supervised worker is a new worker instance. Cursors opened by the
+        // previous generation must fail explicitly rather than keep reading.
+        state.worker_generation = state
+            .worker_generation
+            .checked_add(1)
+            .ok_or_else(|| invalid("worker generation exhausted"))?;
         Ok(WorkerSupervisionLease {
             lifecycle: self.clone(),
         })
@@ -798,7 +824,7 @@ impl Lifecycle {
                 snapshot_id: snapshot.id().to_owned(),
                 closed: false,
                 limits,
-                catalog_epoch: 0,
+                temp: catalog::TempCatalog::new(),
             },
         );
         Ok(SessionHandle(token))
@@ -841,13 +867,8 @@ impl Lifecycle {
 
     pub fn advance_catalog(&self, session: &SessionHandle) -> MddResult<u64> {
         let mut state = self.lock()?;
-        let epoch = state
-            .active_session(session)?
-            .catalog_epoch
-            .checked_add(1)
-            .ok_or_else(|| invalid("catalog epoch exhausted"))?;
-        state.sessions.get_mut(session.id()).unwrap().catalog_epoch = epoch;
-        Ok(epoch)
+        state.active_session(session)?;
+        state.sessions.get_mut(session.id()).unwrap().temp.advance()
     }
 
     pub fn prepare_query(
@@ -866,7 +887,7 @@ impl Lifecycle {
         let entry = state.active_session(session)?;
         let lease = Arc::clone(&entry.snapshot);
         let limits = entry.limits.restricted_by(requested);
-        let epoch = entry.catalog_epoch;
+        let epoch = entry.temp.epoch();
         let session_count = state
             .queries
             .values()
@@ -911,6 +932,7 @@ impl Lifecycle {
                 delivery_abandoned: false,
                 execution_claimed: false,
                 execution_started: false,
+                temp_binding: None,
             },
         );
         Ok(QueryHandle(token))
@@ -1253,6 +1275,8 @@ impl Lifecycle {
             return Err(quota("max_cursors", max, session_count + 1));
         }
         let token = state.token("cursor")?;
+        let worker_owner = state.owner.clone();
+        let worker_generation = state.worker_generation;
         state.cursors.insert(
             token.id.clone(),
             CursorEntry {
@@ -1262,6 +1286,12 @@ impl Lifecycle {
                 snapshot_id,
                 catalog_epoch,
                 binding,
+                worker_owner,
+                worker_generation,
+                spec: None,
+                page_total: None,
+                page_total_established: false,
+                pages: 0,
                 open: true,
                 consumed: false,
             },

@@ -531,20 +531,14 @@ mod tests {
                         .iter()
                         .filter(|e| e.emits_position)
                         .map(|e| {
-                            serde_json::json!([
-                                e.address_code_units,
-                                e.encoded_line_decimal.parse::<i64>().unwrap()
-                            ])
+                            serde_json::json!([e.address_code_units, e.encoded_line_decimal.0])
                         })
                         .collect();
                     assert_eq!(serde_json::json!(positions), debug["positions"]);
                     let view: Vec<_> = native
                         .method_positions()
                         .map(|e| {
-                            serde_json::json!([
-                                e.address_code_units,
-                                e.encoded_line_decimal.parse::<i64>().unwrap()
-                            ])
+                            serde_json::json!([e.address_code_units, e.encoded_line_decimal.0])
                         })
                         .collect();
                     assert_eq!(serde_json::json!(view), debug["applicable_positions"]);
@@ -634,6 +628,290 @@ mod tests {
             other.raw_code_item(0).unwrap(),
             facts.raw_code_item(0).unwrap()
         );
+    }
+
+    /// Independent raw-header oracle for one code item, mirroring the frozen
+    /// HostLab `raw_fields` layout without reusing the parser under test.
+    fn raw_code_fields(raw: &[u8], offset: usize) -> serde_json::Value {
+        let u16at = |at: usize| u16::from_le_bytes(raw[at..at + 2].try_into().unwrap());
+        let u32at = |at: usize| u32::from_le_bytes(raw[at..at + 4].try_into().unwrap());
+        let registers_size = u16at(offset);
+        let ins_size = u16at(offset + 2);
+        let outs_size = u16at(offset + 4);
+        let tries_size = u16at(offset + 6);
+        let debug_info_off = u32at(offset + 8);
+        let insns_size = u32at(offset + 12);
+        let insns_off = offset + 16;
+        let insns_end = insns_off + insns_size as usize * 2;
+        let tries_off = if tries_size == 0 {
+            None
+        } else {
+            Some(insns_end + (insns_size as usize % 2) * 2)
+        };
+        let handlers_off = tries_off.map(|at| at + usize::from(tries_size) * 8);
+        serde_json::json!({
+            "code_off": offset,
+            "registers_size": registers_size,
+            "ins_size": ins_size,
+            "outs_size": outs_size,
+            "tries_size": tries_size,
+            "debug_info_off": debug_info_off,
+            "insns_size": insns_size,
+            "insns_off": insns_off,
+            "tries_off": tries_off,
+            "handlers_off": handlers_off,
+        })
+    }
+
+    #[test]
+    fn code_item_rows_match_independent_raw_header_oracle() {
+        use crate::definitions::DefinitionFacts;
+        use mdd_dex::{definitions::DefinitionLimits, strings::StringLimits};
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/references/generated/classic-035.dex");
+        let raw = fs::read(&path).unwrap();
+        let snapshot = Snapshot::capture(
+            &[InputSpec {
+                path: path.clone(),
+                kind: InputKind::RawDex,
+                expected_sha256: None,
+            }],
+            CaptureLimits::default(),
+        )
+        .unwrap();
+        let inventory = ArchiveInventory::build(
+            &snapshot.sources()[0],
+            InventoryPolicy::default(),
+            ArchiveLimits::default(),
+        )
+        .unwrap();
+        let metadata =
+            crate::MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default()).unwrap();
+        let definitions = DefinitionFacts::build(metadata, DefinitionLimits::default()).unwrap();
+        let code = CodeFacts::build_all_code_items(&snapshot, &inventory, 0, CodeLimits::default())
+            .unwrap();
+        let views =
+            MethodCodeFactViews::build(&definitions, &code, MethodCodeViewLimits::default())
+                .unwrap();
+        let rows = views.code_item_rows(0).unwrap();
+        let mut expected = Vec::new();
+        for definition in &definitions.definitions().method_definitions {
+            let MethodBody::Present {
+                code_byte_offset, ..
+            } = definition.body
+            else {
+                continue;
+            };
+            let mut value = raw_code_fields(&raw, code_byte_offset.0 as usize);
+            let object = value.as_object_mut().unwrap();
+            object.insert("file_id".to_owned(), serde_json::json!(0));
+            object.insert(
+                "method_idx".to_owned(),
+                serde_json::json!(definition.method_idx),
+            );
+            expected.push(value);
+        }
+        expected.sort_by_key(|row| row["method_idx"].as_u64().unwrap());
+        let actual = serde_json::to_value(&rows).unwrap();
+        assert_eq!(actual, serde_json::Value::Array(expected));
+        // Shared and physical-only items: this fixture has one code item per
+        // present method, and every physical item is method-owned.
+        assert_eq!(rows.len(), code.items().len());
+        assert!(rows.iter().all(|row| row.tries_off.is_none()));
+        assert!(rows.iter().all(|row| row.handlers_off.is_none()));
+    }
+
+    #[test]
+    fn code_item_rows_expand_shared_bodies_once_per_method_owner() {
+        use crate::definitions::DefinitionFacts;
+        use mdd_dex::{definitions::DefinitionLimits, strings::StringLimits};
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/references/generated/shared-code-035.dex");
+        let snapshot = Snapshot::capture(
+            &[InputSpec {
+                path: path.clone(),
+                kind: InputKind::RawDex,
+                expected_sha256: None,
+            }],
+            CaptureLimits::default(),
+        )
+        .unwrap();
+        let inventory = ArchiveInventory::build(
+            &snapshot.sources()[0],
+            InventoryPolicy::default(),
+            ArchiveLimits::default(),
+        )
+        .unwrap();
+        let metadata =
+            crate::MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default()).unwrap();
+        let definitions = DefinitionFacts::build(metadata, DefinitionLimits::default()).unwrap();
+        let code = CodeFacts::build_all_code_items(&snapshot, &inventory, 0, CodeLimits::default())
+            .unwrap();
+        let views =
+            MethodCodeFactViews::build(&definitions, &code, MethodCodeViewLimits::default())
+                .unwrap();
+        let rows = views.code_item_rows(0).unwrap();
+        // The recorded A0 slice for this fixture has three method-owned rows
+        // over two physical items, so a shared body must expand per owner.
+        assert_eq!(rows.len(), 3);
+        assert_eq!(code.items().len(), 2);
+        let shared = rows
+            .iter()
+            .filter(|row| row.code_off == rows[0].code_off)
+            .count();
+        assert!(shared >= 2, "expected a shared body to expand");
+        let mut method_indices = rows.iter().map(|row| row.method_idx).collect::<Vec<_>>();
+        method_indices.sort_unstable();
+        assert_eq!(
+            method_indices,
+            rows.iter().map(|row| row.method_idx).collect::<Vec<_>>()
+        );
+        assert!(
+            views
+                .require_relation_columns(CodeRelation::CodeItems, &["*"])
+                .is_ok()
+        );
+        assert_eq!(
+            views
+                .require_relation_columns(CodeRelation::CodeItems, &["opcode_count"])
+                .unwrap_err()
+                .code,
+            ErrorCode::InvalidArgument
+        );
+    }
+
+    /// Build the code-joined `methods` rows for one fixture and compare every
+    /// column with an independent reading of the same bytes.
+    fn joined_methods(name: &str) -> Vec<MethodCodeRow> {
+        use crate::definitions::DefinitionFacts;
+        use mdd_dex::{definitions::DefinitionLimits, strings::StringLimits};
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/definitions/generated")
+            .join(name);
+        let snapshot = Snapshot::capture(
+            &[InputSpec {
+                path,
+                kind: InputKind::RawDex,
+                expected_sha256: None,
+            }],
+            CaptureLimits::default(),
+        )
+        .unwrap();
+        let inventory = ArchiveInventory::build(
+            &snapshot.sources()[0],
+            InventoryPolicy::default(),
+            ArchiveLimits::default(),
+        )
+        .unwrap();
+        let metadata =
+            crate::MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default()).unwrap();
+        let definitions = DefinitionFacts::build(metadata, DefinitionLimits::default()).unwrap();
+        let code = CodeFacts::build_all_code_items(&snapshot, &inventory, 0, CodeLimits::default())
+            .unwrap();
+        let views =
+            MethodCodeFactViews::build(&definitions, &code, MethodCodeViewLimits::default())
+                .unwrap();
+        views.method_rows(0).unwrap()
+    }
+
+    #[test]
+    fn methods_rows_assemble_all_contract_columns_and_match_recorded_a0() {
+        let rows = joined_methods("definitions-035.dex");
+        assert_eq!(rows.len(), 13, "recorded A0 slice has 13 method rows");
+        // Every contract column is present exactly once. `serde_json` maps sort
+        // their keys, so the assertion is set equality; the struct field order in
+        // `MethodCodeRow` mirrors `COLUMNS` and the contract.
+        let actual = serde_json::to_value(&rows).unwrap();
+        let first = actual.as_array().unwrap()[0].as_object().unwrap();
+        let mut names = first.keys().map(String::as_str).collect::<Vec<_>>();
+        names.sort_unstable();
+        let mut expected = MethodCodeRow::COLUMNS.to_vec();
+        expected.sort_unstable();
+        assert_eq!(names, expected);
+        // `param_descriptors` and the two opcode columns are now present, with
+        // the opcode columns NULL only for a reference-only method.
+        let external = rows.iter().find(|row| row.name == "externalCall").unwrap();
+        assert!(
+            external.access_flags.is_none()
+                && external.opcode_count.is_none()
+                && external.opcode_hex.is_none()
+        );
+        let native = rows.iter().find(|row| row.name == "nativeCall").unwrap();
+        assert_eq!(
+            (native.opcode_count, native.opcode_hex.as_deref()),
+            (Some(0), Some(""))
+        );
+        let init = rows.iter().find(|row| row.name == "<init>").unwrap();
+        assert_eq!(
+            (init.opcode_count, init.opcode_hex.as_deref()),
+            (Some(2), Some("70 0e"))
+        );
+        // The parameter descriptor text is the exact ordered vector, not a
+        // re-derived prototype string.
+        let static_call = rows.iter().find(|row| row.name == "staticCall").unwrap();
+        assert_eq!(static_call.param_descriptors, "I");
+        assert_eq!(static_call.param_count, 1);
+        assert!(init.param_descriptors.is_empty());
+        // `insns_size` is not the opcode count: the count is the decoded
+        // ordinary-instruction count, so compare against the recorded A0 text.
+        let a0 = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(
+            "../../artifacts/mdd-026/method-atom-audit/20261028T165707192974Z/a0-definitions/stdout.txt",
+        );
+        let table = fs::read_to_string(a0).unwrap();
+        let mut checked = 0usize;
+        for line in table.lines().filter(|line| line.starts_with('|')) {
+            let cells: Vec<_> = line.trim_matches('|').split('|').map(str::trim).collect();
+            if cells[0] == "file_id" {
+                continue;
+            }
+            assert_eq!(cells.len(), 14, "A0 methods table must have 14 columns");
+            let hex_text = |cell: &str| -> Option<String> {
+                (cell != "N").then(|| {
+                    String::from_utf8(
+                        cell.as_bytes()
+                            .as_chunks::<2>()
+                            .0
+                            .iter()
+                            .map(|pair| {
+                                u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap()
+                            })
+                            .collect::<Vec<_>>(),
+                    )
+                    .unwrap()
+                })
+            };
+            let index: u32 = hex_text(cells[1]).unwrap().parse().unwrap();
+            let row = rows
+                .iter()
+                .find(|row| row.method_idx == index)
+                .unwrap_or_else(|| panic!("A0 method_idx {index} is missing"));
+            let count = hex_text(cells[11]).map(|value| value.parse::<u32>().unwrap());
+            assert_eq!(row.opcode_count, count, "method {index} opcode_count");
+            assert_eq!(
+                row.opcode_hex,
+                hex_text(cells[12]),
+                "method {index} opcode_hex"
+            );
+            assert_eq!(
+                Some(row.param_descriptors.clone()),
+                hex_text(cells[9]),
+                "method {index} param_descriptors"
+            );
+            checked += 1;
+        }
+        assert_eq!(checked, 13);
+    }
+
+    #[test]
+    fn methods_rows_reject_unknown_columns_and_accept_the_full_contract() {
+        assert!(MethodCodeFactViews::require_method_columns(&["*"]).is_ok());
+        assert!(
+            MethodCodeFactViews::require_method_columns(MethodCodeRow::COLUMNS).is_ok(),
+            "the code-joined projection must accept every contract column"
+        );
+        let error = MethodCodeFactViews::require_method_columns(&["invented_column"]).unwrap_err();
+        assert_eq!(error.code, ErrorCode::InvalidArgument);
+        assert_eq!(error.details["column"], "invented_column");
     }
 }
 
@@ -1130,4 +1408,324 @@ impl<'a> MethodCodeFactViews<'a> {
             Ok(MethodCodeFactView { method, body })
         })
     }
+
+    /// Gate a requested `code_items` column list before projection.
+    pub fn require_relation_columns(
+        &self,
+        relation: CodeRelation,
+        columns: &[&str],
+    ) -> MddResult<()> {
+        let CodeRelation::CodeItems = relation;
+        require_code_item_columns(columns)
+    }
+
+    /// Gate a requested `methods` column list for the code-joined projection.
+    ///
+    /// Unlike [`DefinitionFacts::require_relation_columns`], this gate accepts
+    /// `opcode_count`/`opcode_hex` because the code-layout layer is present, and
+    /// it accepts `*` because every contract column of `methods` is produced
+    /// here.
+    pub fn require_method_columns(columns: &[&str]) -> MddResult<()> {
+        for column in columns {
+            if *column != "*" && !MethodCodeRow::COLUMNS.contains(column) {
+                return Err(MddError::new(
+                    ErrorCode::InvalidArgument,
+                    "facts.method_code",
+                    "unknown methods column",
+                )
+                .detail("column", (*column).to_owned()));
+            }
+        }
+        Ok(())
+    }
+
+    /// Project one complete `methods` row per encoded method_id, in DEX order.
+    ///
+    /// The 12 definition-layer columns keep their reference-only NULLs;
+    /// `opcode_count`/`opcode_hex` are the exact decoded ordinary-instruction
+    /// count and lower-case hex text of the same occurrence, and are `None`
+    /// exactly for a reference-only method. `insns_size` is never used as a
+    /// proxy for the opcode count and payload words are never rendered.
+    ///
+    /// This is the MDD-032 complete legacy `Methods` relation; the tokenizer
+    /// shape itself is a compatibility projection, not a native atom.
+    pub fn method_rows(&self, file_id: u32) -> MddResult<Vec<MethodCodeRow>> {
+        Self::require_method_columns(MethodCodeRow::COLUMNS)?;
+        let mut rows = Vec::new();
+        rows.try_reserve_exact(self.methods.method_count())
+            .map_err(|_| {
+                MddError::new(
+                    ErrorCode::QuotaExceeded,
+                    "facts.method_code",
+                    "methods row allocation failed",
+                )
+            })?;
+        for view in self.iter() {
+            let view = view?;
+            let reference = view.method.reference;
+            let param_count =
+                u32::try_from(reference.parameter_descriptors.len()).map_err(|_| {
+                    MddError::new(
+                        ErrorCode::InternalFault,
+                        "facts.method_code",
+                        "validated parameter count exceeds UInt32",
+                    )
+                    .detail("method_idx", u64::from(reference.method_idx))
+                })?;
+            let (opcode_count, opcode_hex) =
+                match view.body.opcode_text(OpcodeTextLimits::default()) {
+                    Ok(Some(text)) => (Some(text.count), Some(text.text)),
+                    Ok(None) => (None, None),
+                    Err(error) => {
+                        return Err(error
+                            .detail("method_idx", u64::from(reference.method_idx))
+                            .detail("column", "opcode_hex"));
+                    }
+                };
+            rows.push(MethodCodeRow {
+                file_id,
+                method_idx: reference.method_idx,
+                class_idx: reference.class_idx,
+                class_descriptor: reference.class_descriptor.clone(),
+                proto_idx: reference.proto_idx,
+                name: reference.method_name.clone(),
+                descriptor: reference.descriptor.clone(),
+                return_descriptor: reference.return_descriptor.clone(),
+                param_count,
+                param_descriptors: crate::definitions::parameter_descriptors_text(
+                    &reference.parameter_descriptors,
+                )?,
+                access_flags: view
+                    .method
+                    .definition
+                    .map(|definition| definition.access_flags),
+                opcode_count,
+                opcode_hex,
+                method_kind: view
+                    .method
+                    .definition
+                    .map(|definition| definition.kind.as_str().to_owned()),
+            });
+        }
+        Ok(rows)
+    }
+
+    /// Project one `code_items` row per method-owned present body, in
+    /// `method_idx` order. A physical code item with no declaring method is not
+    /// a row of this relation because `method_idx` is NOT NULL; a shared body
+    /// expands once per owning method.
+    ///
+    /// `debug_info_off` projects the encoded header word, so an absent debug
+    /// section is the encoded zero offset rather than NULL. `tries_off` and
+    /// `handlers_off` are NULL exactly when the encoded try list is empty.
+    pub fn code_item_rows(&self, file_id: u32) -> MddResult<Vec<CodeItemRow>> {
+        self.require_relation_columns(CodeRelation::CodeItems, CodeItemRow::COLUMNS)?;
+        let mut rows = Vec::new();
+        rows.try_reserve_exact(self.code.items().len())
+            .map_err(|_| {
+                MddError::new(
+                    ErrorCode::QuotaExceeded,
+                    "facts.code.projection",
+                    "code item row allocation failed",
+                )
+            })?;
+        for view in self.iter() {
+            let view = view?;
+            let MethodCodeBody::Present { code: item, .. } = view.body else {
+                continue;
+            };
+            let data = item.data();
+            let insns_size = data.insns_size_code_units;
+            let method_idx = view.method.reference.method_idx;
+            let insns_off = u32::try_from(data.insns_range.byte_offset.0).map_err(|_| {
+                MddError::new(
+                    ErrorCode::InternalFault,
+                    "facts.code.projection",
+                    "validated insns offset exceeds UInt32",
+                )
+                .detail("method_idx", u64::from(method_idx))
+            })?;
+            let tries_size = u32::try_from(data.tries.len()).map_err(|_| {
+                MddError::new(
+                    ErrorCode::InternalFault,
+                    "facts.code.projection",
+                    "validated try count exceeds UInt32",
+                )
+                .detail("method_idx", u64::from(method_idx))
+            })?;
+            // The encoded instruction array is followed by one alignment word
+            // only when its code-unit count is odd; the try block table starts
+            // there. This mirrors the raw header layout exactly.
+            let tries_off = if tries_size == 0 {
+                None
+            } else {
+                Some(
+                    insns_off
+                        .checked_add(insns_size.saturating_mul(2))
+                        .and_then(|end| end.checked_add(insns_size % 2 * 2))
+                        .ok_or_else(|| {
+                            MddError::new(
+                                ErrorCode::InternalFault,
+                                "facts.code.projection",
+                                "validated try offset overflow",
+                            )
+                            .detail("method_idx", u64::from(method_idx))
+                        })?,
+                )
+            };
+            let handlers_off = match tries_off {
+                Some(offset) => Some(
+                    offset
+                        .checked_add(tries_size.saturating_mul(8))
+                        .ok_or_else(|| {
+                            MddError::new(
+                                ErrorCode::InternalFault,
+                                "facts.code.projection",
+                                "validated handler offset overflow",
+                            )
+                            .detail("method_idx", u64::from(method_idx))
+                        })?,
+                ),
+                None => None,
+            };
+            rows.push(CodeItemRow {
+                file_id,
+                method_idx,
+                code_off: u32::try_from(data.raw_range.byte_offset.0).map_err(|_| {
+                    MddError::new(
+                        ErrorCode::InternalFault,
+                        "facts.code.projection",
+                        "validated code offset exceeds UInt32",
+                    )
+                    .detail("method_idx", u64::from(method_idx))
+                })?,
+                registers_size: u32::from(data.registers_size),
+                ins_size: u32::from(data.ins_size),
+                outs_size: u32::from(data.outs_size),
+                tries_size,
+                debug_info_off: u32::try_from(
+                    data.debug_info_byte_offset.map_or(0u64, |value| value.0),
+                )
+                .map_err(|_| {
+                    MddError::new(
+                        ErrorCode::InternalFault,
+                        "facts.code.projection",
+                        "validated debug info offset exceeds UInt32",
+                    )
+                    .detail("method_idx", u64::from(method_idx))
+                })?,
+                insns_size,
+                insns_off,
+                tries_off,
+                handlers_off,
+            });
+        }
+        Ok(rows)
+    }
+}
+
+/// Compatibility relation names whose columns the code layer can project.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CodeRelation {
+    CodeItems,
+}
+
+/// Gate a requested `code_items` column list without materialising the
+/// method/code join. Coverage needs the same rejection contract as
+/// [`MethodCodeFactViews::code_item_rows`] without paying for
+/// [`MethodCodeFactViews::build`] once per requested column.
+pub fn require_code_item_columns(columns: &[&str]) -> MddResult<()> {
+    for column in columns {
+        if *column != "*" && !CodeItemRow::COLUMNS.contains(column) {
+            return Err(MddError::new(
+                ErrorCode::InvalidArgument,
+                "facts.code.projection",
+                "unknown code_items column",
+            )
+            .detail("column", (*column).to_owned()));
+        }
+    }
+    Ok(())
+}
+
+/// One `code_items` row bound to one method-owned present body.
+#[derive(Clone, Debug, Serialize)]
+pub struct CodeItemRow {
+    pub file_id: u32,
+    pub method_idx: u32,
+    pub code_off: u32,
+    pub registers_size: u32,
+    pub ins_size: u32,
+    pub outs_size: u32,
+    pub tries_size: u32,
+    pub debug_info_off: u32,
+    pub insns_size: u32,
+    pub insns_off: u32,
+    pub tries_off: Option<u32>,
+    pub handlers_off: Option<u32>,
+}
+
+impl CodeItemRow {
+    /// Assembled column names in contract order.
+    pub const COLUMNS: &[&str] = &[
+        "file_id",
+        "method_idx",
+        "code_off",
+        "registers_size",
+        "ins_size",
+        "outs_size",
+        "tries_size",
+        "debug_info_off",
+        "insns_size",
+        "insns_off",
+        "tries_off",
+        "handlers_off",
+    ];
+}
+
+/// One complete 14-column `methods` row: the 12 definition-layer columns plus
+/// the two code-layout opcode columns.
+///
+/// The row exists only when [`MethodCodeFactViews`] was built, so
+/// `opcode_count`/`opcode_hex` come from the exact decoded instruction stream
+/// of the same occurrence, never from `insns_size`. They are NULL exactly for a
+/// reference-only method (no definition body at all); native, abstract and
+/// present-empty definitions report `0` and `""`, matching the reference.
+/// Payload pseudo-instructions are not counted and are not rendered.
+#[derive(Clone, Debug, Serialize)]
+pub struct MethodCodeRow {
+    pub file_id: u32,
+    pub method_idx: u32,
+    pub class_idx: u32,
+    pub class_descriptor: String,
+    pub proto_idx: u32,
+    pub name: String,
+    pub descriptor: String,
+    pub return_descriptor: String,
+    pub param_count: u32,
+    pub param_descriptors: String,
+    pub access_flags: Option<u32>,
+    pub opcode_count: Option<u32>,
+    pub opcode_hex: Option<String>,
+    pub method_kind: Option<String>,
+}
+
+impl MethodCodeRow {
+    /// Assembled column names in contract order.
+    pub const COLUMNS: &[&str] = &[
+        "file_id",
+        "method_idx",
+        "class_idx",
+        "class_descriptor",
+        "proto_idx",
+        "name",
+        "descriptor",
+        "return_descriptor",
+        "param_count",
+        "param_descriptors",
+        "access_flags",
+        "opcode_count",
+        "opcode_hex",
+        "method_kind",
+    ];
 }

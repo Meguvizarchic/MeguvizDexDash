@@ -1,0 +1,46 @@
+{
+  "schema_version": "mdd.a0-dex-files-provenance.v1",
+  "source": "frozen A0 dexsql 0.1.0 dex_files(source_path, entry_name) recorded for the cross-DEX identity probe",
+  "normalization": "source_path is the path A0 echoed for the argument it was given, reduced to a repository-relative path with \"/\" separators; the absolute checkout prefix of the recording machine is dropped",
+  "cases": [
+    {
+      "case": "duplicate-raw-input",
+      "a0_dex_rows": [
+        {
+          "source_path": "tests/fixtures/references/generated/classic-035.dex",
+          "entry_name": "classic-035.dex"
+        },
+        {
+          "source_path": "tests/fixtures/references/generated/classic-035.dex",
+          "entry_name": "classic-035.dex"
+        }
+      ]
+    },
+    {
+      "case": "two-distinct-raw",
+      "a0_dex_rows": [
+        {
+          "source_path": "tests/fixtures/references/generated/classic-035.dex",
+          "entry_name": "classic-035.dex"
+        },
+        {
+          "source_path": "tests/fixtures/references/generated/shared-code-035.dex",
+          "entry_name": "shared-code-035.dex"
+        }
+      ]
+    },
+    {
+      "case": "same-content-multidex-apk",
+      "a0_dex_rows": [
+        {
+          "source_path": "artifacts/mdd-026/column-audit-v10/_probe-verify_cross_dex_identity/20261109T045613053519Z/synthetic-same-content.apk",
+          "entry_name": "classes.dex"
+        },
+        {
+          "source_path": "artifacts/mdd-026/column-audit-v10/_probe-verify_cross_dex_identity/20261109T045613053519Z/synthetic-same-content.apk",
+          "entry_name": "classes2.dex"
+        }
+      ]
+    }
+  ]
+}

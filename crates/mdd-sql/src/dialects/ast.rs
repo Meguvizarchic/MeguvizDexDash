@@ -279,10 +279,11 @@ fn nested_aggregate_needs_binding(
             if let FunctionArguments::List(arguments) = &function.args {
                 for arg in &arguments.args {
                     if let FunctionArg::Unnamed(FunctionArgExpr::Expr(value)) = arg {
-                        if aggregate && let Some(local) = local {
-                            if possible_outer_column(value, local, depth + 1, budget)? {
-                                return Ok(true);
-                            }
+                        if aggregate
+                            && let Some(local) = local
+                            && possible_outer_column(value, local, depth + 1, budget)?
+                        {
+                            return Ok(true);
                         }
                         if child(value)? {
                             return Ok(true);
@@ -291,10 +292,11 @@ fn nested_aggregate_needs_binding(
                 }
             }
             if let Some(filter) = &function.filter {
-                if aggregate && let Some(local) = local {
-                    if possible_outer_column(filter, local, depth + 1, budget)? {
-                        return Ok(true);
-                    }
+                if aggregate
+                    && let Some(local) = local
+                    && possible_outer_column(filter, local, depth + 1, budget)?
+                {
+                    return Ok(true);
                 }
                 if child(filter)? {
                     return Ok(true);
@@ -596,10 +598,10 @@ fn text_cast_string_literal(expr: &Expr) -> bool {
     match without_parentheses(expr) {
         Expr::Cast {
             expr,
-            data_type,
+            data_type: DataType::Text,
             format: None,
             ..
-        } if matches!(data_type, DataType::Text) => {
+        } => {
             matches!(&**expr, Expr::Value(value) if matches!(value.value, Value::SingleQuotedString(_)))
         }
         _ => false,
@@ -734,7 +736,7 @@ fn exact_real_syntax_integer(text: &str) -> Option<i64> {
         coefficient.checked_mul(10u128.checked_pow(u32::try_from(power).ok()?)?)?
     } else {
         let divisor = 10u128.checked_pow(power.unsigned_abs())?;
-        if coefficient % divisor != 0 {
+        if !coefficient.is_multiple_of(divisor) {
             return None;
         }
         coefficient / divisor
@@ -819,11 +821,10 @@ fn length_with_integer_between_bounds(
             Expr::Value(value) if matches!(value.value, Value::Number(_, _)) => {
                 exact_i64_numeric_literal(expr).is_some()
             }
-            Expr::UnaryOp { op, .. }
-                if matches!(op, UnaryOperator::Plus | UnaryOperator::Minus) =>
-            {
-                exact_i64_numeric_literal(expr).is_some()
-            }
+            Expr::UnaryOp {
+                op: UnaryOperator::Plus | UnaryOperator::Minus,
+                ..
+            } => exact_i64_numeric_literal(expr).is_some(),
             _ => false,
         }
     }
@@ -2725,8 +2726,8 @@ impl Rewrite<'_> {
                     } else {
                         self.expr(&mut order.expr, depth + 1)?;
                     }
-                    if synthetic_distinct_group {
-                        if current_aggregate(&order.expr, 0, &self.aggregate_scan)?
+                    if synthetic_distinct_group
+                        && (current_aggregate(&order.expr, 0, &self.aggregate_scan)?
                             || nested_aggregate_needs_binding(
                                 &order.expr,
                                 &self.schemas,
@@ -2734,11 +2735,10 @@ impl Rewrite<'_> {
                                 0,
                                 &self.aggregate_scan,
                                 None,
-                            )?
-                        {
-                            return Err(unsupported("DISTINCT_ORDER_AGGREGATE_BINDING")
-                                .detail("confirm_sqlite_syntax", true));
-                        }
+                            )?)
+                    {
+                        return Err(unsupported("DISTINCT_ORDER_AGGREGATE_BINDING")
+                            .detail("confirm_sqlite_syntax", true));
                     }
                     order.expr = call("mdd_sort_key", vec![take(&mut order.expr)]);
                 } else if let Some(Some(position)) = compound_positions.get(order_index) {
@@ -3291,10 +3291,10 @@ impl Rewrite<'_> {
                         if let Some(value) = canonical_i64_text_literal(right) {
                             replace_with_i64_literal(right, value);
                         }
-                    } else if integer_cast_string_literal(right) {
-                        if let Some(value) = canonical_i64_text_literal(left) {
-                            replace_with_i64_literal(left, value);
-                        }
+                    } else if integer_cast_string_literal(right)
+                        && let Some(value) = canonical_i64_text_literal(left)
+                    {
+                        replace_with_i64_literal(left, value);
                     }
                 }
                 self.expr(left, depth + 1)?;
@@ -4161,176 +4161,6 @@ fn order_identifier(mut expression: &Expr) -> Option<&Ident> {
     }
 }
 
-#[cfg(test)]
-mod aggregate_scan_tests {
-    use super::*;
-
-    #[test]
-    fn compound_carrier_nested_parentheses_charge_every_visit() {
-        let mut expr = Expr::Value(Value::Number("1".into(), false).into());
-        for _ in 0..4 {
-            expr = Expr::Nested(Box::new(expr));
-        }
-        let budget = AggregateScan {
-            depth_limit: 16,
-            remaining: Cell::new(9),
-        };
-        assert!(charged_compound_expression(&expr, 0, &budget).is_ok());
-        let error = charged_compound_expression(&expr, 0, &budget)
-            .err()
-            .unwrap();
-        assert_eq!(error.code, ErrorCode::QuotaExceeded);
-        assert_eq!(error.message, "SQL_AGGREGATE_DETECTION_NODES");
-        let shallow = AggregateScan {
-            depth_limit: 2,
-            remaining: Cell::new(100),
-        };
-        let error = charged_compound_expression(&expr, 0, &shallow)
-            .err()
-            .unwrap();
-        assert_eq!(error.code, ErrorCode::QuotaExceeded);
-        assert_eq!(error.message, "SQL_AGGREGATE_DETECTION_DEPTH");
-    }
-
-    #[test]
-    fn affinity_parentheses_use_bounded_stack() {
-        let parse_expression = |sql: &str| {
-            let mut statements = Parser::parse_sql(&SQLiteDialect {}, sql).unwrap();
-            let Statement::Query(query) = statements.remove(0) else {
-                panic!("expected SELECT")
-            };
-            let SetExpr::Select(mut select) = *query.body else {
-                panic!("expected SELECT body")
-            };
-            let SelectItem::UnnamedExpr(expression) = select.projection.remove(0) else {
-                panic!("expected projection expression")
-            };
-            expression
-        };
-        let cast_text = parse_expression("SELECT CAST('x' AS TEXT)");
-        let cast_integer = parse_expression("SELECT CAST('1' AS INTEGER)");
-        let cast_number = parse_expression("SELECT CAST(1 AS TEXT)");
-        let result = std::thread::Builder::new()
-            .stack_size(128 * 1024)
-            .spawn(move || {
-                fn wrap(mut value: Expr) -> Expr {
-                    for _ in 0..5000 {
-                        value = Expr::Nested(Box::new(value));
-                    }
-                    value
-                }
-                fn release(mut value: Expr) {
-                    // Avoid recursive destructor work on this deliberately deep AST.
-                    while let Expr::Nested(inner) = value {
-                        value = *inner;
-                    }
-                }
-                let expr = wrap(Expr::Value(Value::Number("1".into(), false).into()));
-                assert!(no_affinity(&expr));
-                assert!(nonnegative_i64_literal(&expr));
-                assert!(matches!(literal_in_class(&expr), Some(Some(InStorageClass::Numeric))));
-                assert!(!text_cast_string_literal(&expr));
-                assert!(!integer_cast_string_literal(&expr));
-                assert!(!text_cast_nonnegative_i64_literal(&expr));
-                release(expr);
-                let expr = wrap(cast_text);
-                assert!(text_cast_string_literal(&expr));
-                assert!(!integer_cast_string_literal(&expr));
-                release(expr);
-                let expr = wrap(cast_integer);
-                assert!(integer_cast_string_literal(&expr));
-                assert!(!text_cast_string_literal(&expr));
-                release(expr);
-                let expr = wrap(cast_number);
-                assert!(text_cast_nonnegative_i64_literal(&expr));
-                release(expr);
-                let expr = wrap(Expr::Identifier(Ident::new("bound")));
-                assert!(matches!(without_parentheses(&expr), Expr::Identifier(id) if id.value == "bound"));
-                release(expr);
-            })
-            .unwrap()
-            .join();
-        result.unwrap();
-    }
-
-    #[test]
-    fn between_length_guard_limits_nested_preflight_without_recursion() {
-        let number = || Expr::Value(Value::Number("1".into(), false).into());
-        let mut value = call("length", vec![number()]);
-        let mut bound = number();
-        for _ in 0..5000 {
-            value = Expr::Nested(Box::new(value));
-            bound = Expr::Nested(Box::new(bound));
-        }
-        assert!(!length_with_integer_between_bounds(
-            &value,
-            &number(),
-            &number(),
-            16
-        ));
-        assert!(!length_with_integer_between_bounds(
-            &call("length", vec![number()]),
-            &bound,
-            &number(),
-            16
-        ));
-        assert_eq!(exact_i64_numeric_literal(&bound), Some(1));
-        // Unwrap iteratively so dropping the fixture itself cannot recurse.
-        while let Expr::Nested(inner) = value {
-            value = *inner;
-        }
-        while let Expr::Nested(inner) = bound {
-            bound = *inner;
-        }
-    }
-
-    #[test]
-    fn aggregate_reference_scan_obeys_depth_and_visit_budgets() {
-        let mut expr = Expr::Value(Value::Number("1".into(), false).into());
-        for _ in 0..10 {
-            expr = Expr::Nested(Box::new(expr));
-        }
-        let local = BTreeMap::new();
-        for budget in [
-            AggregateScan {
-                depth_limit: 4,
-                remaining: Cell::new(100),
-            },
-            AggregateScan {
-                depth_limit: 100,
-                remaining: Cell::new(2),
-            },
-        ] {
-            assert_eq!(
-                possible_outer_column(&expr, &local, 0, &budget)
-                    .unwrap_err()
-                    .code,
-                ErrorCode::QuotaExceeded
-            );
-        }
-    }
-
-    #[test]
-    fn aggregate_scope_schema_columns_are_charged() {
-        let statements =
-            Parser::parse_sql(&SQLiteDialect {}, "SELECT COUNT(id) FROM vals").unwrap();
-        let Statement::Query(query) = &statements[0] else {
-            panic!("expected SELECT")
-        };
-        let schemas = BTreeMap::from([(
-            "vals".to_string(),
-            (0..20).map(|n| format!("column{n}")).collect(),
-        )]);
-        let budget = AggregateScan {
-            depth_limit: 100,
-            remaining: Cell::new(5),
-        };
-        let error =
-            nested_query_needs_binding(query, &schemas, &BTreeSet::new(), 0, &budget).unwrap_err();
-        assert_eq!(error.code, ErrorCode::QuotaExceeded);
-        assert_eq!(error.message, "SQL_AGGREGATE_DETECTION_NODES");
-    }
-}
 fn positional_ordinal(mut expression: &Expr) -> MddResult<Option<usize>> {
     let mut negative = false;
     loop {
@@ -4574,4 +4404,175 @@ fn validate_iterative(query: &Query, limits: SqlLimits) -> MddResult<usize> {
         }
     }
     Ok(count)
+}
+
+#[cfg(test)]
+mod aggregate_scan_tests {
+    use super::*;
+
+    #[test]
+    fn compound_carrier_nested_parentheses_charge_every_visit() {
+        let mut expr = Expr::Value(Value::Number("1".into(), false).into());
+        for _ in 0..4 {
+            expr = Expr::Nested(Box::new(expr));
+        }
+        let budget = AggregateScan {
+            depth_limit: 16,
+            remaining: Cell::new(9),
+        };
+        assert!(charged_compound_expression(&expr, 0, &budget).is_ok());
+        let error = charged_compound_expression(&expr, 0, &budget)
+            .err()
+            .unwrap();
+        assert_eq!(error.code, ErrorCode::QuotaExceeded);
+        assert_eq!(error.message, "SQL_AGGREGATE_DETECTION_NODES");
+        let shallow = AggregateScan {
+            depth_limit: 2,
+            remaining: Cell::new(100),
+        };
+        let error = charged_compound_expression(&expr, 0, &shallow)
+            .err()
+            .unwrap();
+        assert_eq!(error.code, ErrorCode::QuotaExceeded);
+        assert_eq!(error.message, "SQL_AGGREGATE_DETECTION_DEPTH");
+    }
+
+    #[test]
+    fn affinity_parentheses_use_bounded_stack() {
+        let parse_expression = |sql: &str| {
+            let mut statements = Parser::parse_sql(&SQLiteDialect {}, sql).unwrap();
+            let Statement::Query(query) = statements.remove(0) else {
+                panic!("expected SELECT")
+            };
+            let SetExpr::Select(mut select) = *query.body else {
+                panic!("expected SELECT body")
+            };
+            let SelectItem::UnnamedExpr(expression) = select.projection.remove(0) else {
+                panic!("expected projection expression")
+            };
+            expression
+        };
+        let cast_text = parse_expression("SELECT CAST('x' AS TEXT)");
+        let cast_integer = parse_expression("SELECT CAST('1' AS INTEGER)");
+        let cast_number = parse_expression("SELECT CAST(1 AS TEXT)");
+        let result = std::thread::Builder::new()
+            .stack_size(128 * 1024)
+            .spawn(move || {
+                fn wrap(mut value: Expr) -> Expr {
+                    for _ in 0..5000 {
+                        value = Expr::Nested(Box::new(value));
+                    }
+                    value
+                }
+                fn release(mut value: Expr) {
+                    // Avoid recursive destructor work on this deliberately deep AST.
+                    while let Expr::Nested(inner) = value {
+                        value = *inner;
+                    }
+                }
+                let expr = wrap(Expr::Value(Value::Number("1".into(), false).into()));
+                assert!(no_affinity(&expr));
+                assert!(nonnegative_i64_literal(&expr));
+                assert!(matches!(literal_in_class(&expr), Some(Some(InStorageClass::Numeric))));
+                assert!(!text_cast_string_literal(&expr));
+                assert!(!integer_cast_string_literal(&expr));
+                assert!(!text_cast_nonnegative_i64_literal(&expr));
+                release(expr);
+                let expr = wrap(cast_text);
+                assert!(text_cast_string_literal(&expr));
+                assert!(!integer_cast_string_literal(&expr));
+                release(expr);
+                let expr = wrap(cast_integer);
+                assert!(integer_cast_string_literal(&expr));
+                assert!(!text_cast_string_literal(&expr));
+                release(expr);
+                let expr = wrap(cast_number);
+                assert!(text_cast_nonnegative_i64_literal(&expr));
+                release(expr);
+                let expr = wrap(Expr::Identifier(Ident::new("bound")));
+                assert!(matches!(without_parentheses(&expr), Expr::Identifier(id) if id.value == "bound"));
+                release(expr);
+            })
+            .unwrap()
+            .join();
+        result.unwrap();
+    }
+
+    #[test]
+    fn between_length_guard_limits_nested_preflight_without_recursion() {
+        let number = || Expr::Value(Value::Number("1".into(), false).into());
+        let mut value = call("length", vec![number()]);
+        let mut bound = number();
+        for _ in 0..5000 {
+            value = Expr::Nested(Box::new(value));
+            bound = Expr::Nested(Box::new(bound));
+        }
+        assert!(!length_with_integer_between_bounds(
+            &value,
+            &number(),
+            &number(),
+            16
+        ));
+        assert!(!length_with_integer_between_bounds(
+            &call("length", vec![number()]),
+            &bound,
+            &number(),
+            16
+        ));
+        assert_eq!(exact_i64_numeric_literal(&bound), Some(1));
+        // Unwrap iteratively so dropping the fixture itself cannot recurse.
+        while let Expr::Nested(inner) = value {
+            value = *inner;
+        }
+        while let Expr::Nested(inner) = bound {
+            bound = *inner;
+        }
+    }
+
+    #[test]
+    fn aggregate_reference_scan_obeys_depth_and_visit_budgets() {
+        let mut expr = Expr::Value(Value::Number("1".into(), false).into());
+        for _ in 0..10 {
+            expr = Expr::Nested(Box::new(expr));
+        }
+        let local = BTreeMap::new();
+        for budget in [
+            AggregateScan {
+                depth_limit: 4,
+                remaining: Cell::new(100),
+            },
+            AggregateScan {
+                depth_limit: 100,
+                remaining: Cell::new(2),
+            },
+        ] {
+            assert_eq!(
+                possible_outer_column(&expr, &local, 0, &budget)
+                    .unwrap_err()
+                    .code,
+                ErrorCode::QuotaExceeded
+            );
+        }
+    }
+
+    #[test]
+    fn aggregate_scope_schema_columns_are_charged() {
+        let statements =
+            Parser::parse_sql(&SQLiteDialect {}, "SELECT COUNT(id) FROM vals").unwrap();
+        let Statement::Query(query) = &statements[0] else {
+            panic!("expected SELECT")
+        };
+        let schemas = BTreeMap::from([(
+            "vals".to_string(),
+            (0..20).map(|n| format!("column{n}")).collect(),
+        )]);
+        let budget = AggregateScan {
+            depth_limit: 100,
+            remaining: Cell::new(5),
+        };
+        let error =
+            nested_query_needs_binding(query, &schemas, &BTreeSet::new(), 0, &budget).unwrap_err();
+        assert_eq!(error.code, ErrorCode::QuotaExceeded);
+        assert_eq!(error.message, "SQL_AGGREGATE_DETECTION_NODES");
+    }
 }

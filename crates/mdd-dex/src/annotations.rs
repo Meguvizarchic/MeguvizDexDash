@@ -1287,6 +1287,130 @@ mod tests {
         );
     }
     #[test]
+    fn parameter_position_known_iff_list_matches_prototype_across_all_fixtures() {
+        // Positional binding itself is an ART implementation fact, not an
+        // inference: `art::annotations::GetAnnotationForMethodParameter` indexes
+        // `annotation_set_ref_list.list_[parameter_idx]` directly, so slot `i`
+        // is parameter `i`. This test only asserts the derived invariant the
+        // reader exposes, across every retained parameter fixture, so a
+        // regression in any single fixture cannot hide behind an empty loop.
+        let fixtures: [(&[u8], &str); 7] = [
+            (
+                include_bytes!(
+                    "../../../tests/fixtures/annotations/generated/parameter-empty-nonzero-proto.dex"
+                ),
+                "parameter-empty-nonzero-proto",
+            ),
+            (
+                include_bytes!(
+                    "../../../tests/fixtures/annotations/generated/parameter-empty-zero-proto.dex"
+                ),
+                "parameter-empty-zero-proto",
+            ),
+            (
+                include_bytes!(
+                    "../../../tests/fixtures/annotations/generated/parameter-long-nonzero-proto.dex"
+                ),
+                "parameter-long-nonzero-proto",
+            ),
+            (
+                include_bytes!(
+                    "../../../tests/fixtures/annotations/generated/parameter-orphan-empty-no-binding.dex"
+                ),
+                "parameter-orphan-empty-no-binding",
+            ),
+            (
+                include_bytes!(
+                    "../../../tests/fixtures/annotations/generated/parameter-shared-empty-set.dex"
+                ),
+                "parameter-shared-empty-set",
+            ),
+            (
+                include_bytes!(
+                    "../../../tests/fixtures/annotations/generated/parameter-shared-signature.dex"
+                ),
+                "parameter-shared-signature",
+            ),
+            (
+                include_bytes!(
+                    "../../../tests/fixtures/annotations/generated/parameter-shared-signature-complete.dex"
+                ),
+                "parameter-shared-signature-complete",
+            ),
+        ];
+        let mut observed_complete = 0usize;
+        let mut observed_unknown = 0usize;
+        let mut observed_unbound = 0usize;
+        for (bytes, name) in fixtures {
+            let facts = parse(bytes, AnnotationLimits::default()).expect(name);
+            if facts.parameter_lists.is_empty() {
+                // A physically present ref-list with no directory binding is a
+                // legitimate orphan; it must not be reported as a known list.
+                observed_unbound += 1;
+                assert!(
+                    facts
+                        .owner_bindings
+                        .iter()
+                        .all(|owner| owner.kind != AnnotationOwnerKind::Parameter
+                            || owner.parameter_position_in_prototype.is_none()),
+                    "{name}: unbound ref-list produced known parameter positions"
+                );
+                continue;
+            }
+            for binding in &facts.parameter_lists {
+                let equal = binding.encoded_slot_count as usize
+                    == binding.prototype_parameter_count as usize;
+                let expected = if equal {
+                    Completeness::Complete
+                } else {
+                    Completeness::Unknown
+                };
+                assert_eq!(
+                    binding.prototype_position_coverage, expected,
+                    "{name}: coverage must follow slot/prototype equality"
+                );
+                if equal {
+                    observed_complete += 1;
+                } else {
+                    observed_unknown += 1;
+                }
+                let owners: Vec<_> = facts
+                    .owner_bindings
+                    .iter()
+                    .filter(|owner| {
+                        owner.kind == AnnotationOwnerKind::Parameter
+                            && owner.local_index == binding.method_idx
+                    })
+                    .collect();
+                assert_eq!(
+                    owners.len(),
+                    binding.encoded_slot_count as usize,
+                    "{name}: every encoded slot owns exactly one parameter binding"
+                );
+                for owner in owners {
+                    // Known positions exist only when the encoded list length
+                    // matches the prototype; otherwise every slot is Unknown.
+                    assert_eq!(
+                        owner.parameter_position_in_prototype.is_some(),
+                        equal,
+                        "{name}: known position exposed for an incomplete list"
+                    );
+                    if let Some(known) = owner.parameter_position_in_prototype {
+                        let ordinal = owner.parameter_ordinal.expect("slot ordinal");
+                        assert!(
+                            known
+                                && (ordinal as usize) < binding.prototype_parameter_count as usize,
+                            "{name}: known position outside the prototype"
+                        );
+                    }
+                }
+            }
+        }
+        assert!(observed_complete > 0, "no complete list fixture observed");
+        assert!(observed_unknown > 0, "no unknown list fixture observed");
+        assert!(observed_unbound > 0, "no unbound ref-list fixture observed");
+    }
+    #[test]
     fn parameter_list_physical_counts_do_not_invent_positions() {
         let cases: [(&[u8], usize, usize, usize, Completeness); 4] = [
             (

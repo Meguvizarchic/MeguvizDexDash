@@ -19,7 +19,7 @@ fn u32_words(lo: u16, hi: u16) -> u32 {
 
 fn literal(value: i64, bits: u64, width: u8) -> Option<LiteralValue> {
     Some(LiteralValue {
-        signed_decimal: value.to_string(),
+        signed_decimal: SignedDecimal(value),
         encoded_bits: DecimalU64(bits),
         encoded_width_bits: width,
     })
@@ -227,7 +227,7 @@ fn instruction(
     if matches!(info.format, "10x" | "20t" | "30t" | "32x") && high != 0 {
         return Err(fail("NONZERO_UNUSED_OPCODE_BITS", at, 2));
     }
-    let mut regs = Vec::new();
+    let mut regs = Registers::default();
     let mut reg_range = None;
     let mut literal_value = None;
     let mut branch = None;
@@ -269,7 +269,7 @@ fn instruction(
             regs.push(high);
             index = u32::from(data[1]);
         }
-        "23x" => regs.extend([high, data[1] & 255, data[1] >> 8]),
+        "23x" => regs.extend_three([high, data[1] & 255, data[1] >> 8]),
         "22b" => {
             regs.extend([high, data[1] & 255]);
             literal_value = literal(
@@ -317,7 +317,9 @@ fn instruction(
                 data[2] >> 12,
                 high & 15,
             ];
-            regs.extend_from_slice(&all[..usize::from(count)]);
+            for value in all.iter().take(usize::from(count)) {
+                regs.push(*value);
+            }
             index = u32::from(data[1]);
             if width == 4 {
                 second = Some(u32::from(data[3]));
@@ -331,7 +333,9 @@ fn instruction(
             {
                 return Err(fail("REGISTER_RANGE_OUT_OF_BOUNDS", at, width as u64 * 2));
             }
-            regs.extend((0..count).map(|n| first + n));
+            for n in 0..count {
+                regs.push(first + n);
+            }
             reg_range = Some(RegisterRange {
                 first,
                 word_count: count,
@@ -353,9 +357,9 @@ fn instruction(
     }
     for (slot, reg) in regs.iter().enumerate() {
         let wide = slot < 3 && (info.wide_mask & (1 << slot)) != 0;
-        if u32::from(*reg) + u32::from(wide) >= u32::from(registers) {
+        if u32::from(reg) + u32::from(wide) >= u32::from(registers) {
             return Err(fail("REGISTER_OPERAND_OUT_OF_RANGE", at, width as u64 * 2)
-                .detail("register", u64::from(*reg))
+                .detail("register", u64::from(reg))
                 .detail("wide", wide));
         }
     }
@@ -377,8 +381,10 @@ fn instruction(
     let refs = reference(info, index, second, counts, at)?;
     Ok(Instruction {
         opcode,
-        mnemonic: info.name.to_owned(),
-        format: info.format.to_owned(),
+        // Both names are borrowed from the static table, so decoding a code item
+        // no longer allocates two strings per instruction.
+        mnemonic: Cow::Borrowed(info.name),
+        format: Cow::Borrowed(info.format),
         byte_offset: DecimalU64(at),
         code_unit_offset: pc as u32,
         instruction_ordinal: ordinal,

@@ -913,10 +913,23 @@ fn late_failure_receipt_requires_exact_first_error_and_binding() {
         QueueEvent::End(Err(_))
     ));
     let receipt = receiver.into_delivery_receipt().unwrap();
-    assert!(receipt.matches(&sender, &runtime, 0, None).unwrap());
-    assert!(!receipt.matches(&sender, &runtime, 1, None).unwrap());
+    assert!(!receipt.matches(&sender, &runtime, 0, None).unwrap());
+    assert!(
+        receipt
+            .matches_for_pending(&sender, &runtime, 0, None)
+            .unwrap()
+    );
+    assert!(
+        !receipt
+            .matches_for_pending(&sender, &runtime, 1, None)
+            .unwrap()
+    );
     let (_, _, _, _, foreign) = owned_queue_test_runtime(BudgetLimits::default());
-    assert!(!receipt.matches(&sender, &foreign, 0, None).unwrap());
+    assert!(
+        !receipt
+            .matches_for_pending(&sender, &foreign, 0, None)
+            .unwrap()
+    );
     let mut variants = Vec::new();
     let mut other = first.clone();
     other.code = ErrorCode::WorkerLost;
@@ -933,7 +946,11 @@ fn late_failure_receipt_requires_exact_first_error_and_binding() {
     variants.push(first.clone().detail("other", "value"));
     for other in variants {
         receipt.tracker.state.lock().unwrap().end_error = Some(other);
-        assert!(!receipt.matches(&sender, &runtime, 0, None).unwrap());
+        assert!(
+            !receipt
+                .matches_for_pending(&sender, &runtime, 0, None)
+                .unwrap()
+        );
     }
 }
 
@@ -1939,6 +1956,37 @@ fn tree(limits: BudgetLimits) -> (BudgetPool, BudgetPool, BudgetPool, BudgetPool
         .unwrap();
     (global, worker, session, query)
 }
+#[test]
+fn sticky_fault_flag_is_raised_by_lock_and_shared_with_derived_pools() {
+    let (global, worker, session, query) = tree(BudgetLimits::default());
+    let flag = |pool: &BudgetPool| pool.sticky_fault.load(std::sync::atomic::Ordering::Acquire);
+    assert!(!flag(&global), "no fault recorded yet");
+    // Record a fault the way `release`/`add` do: while the lock is held.
+    global.state.lock().unwrap().fault = Some(fault("injected"));
+    // `lock()` must observe it, raise the flag, and refuse the guard.
+    assert!(global.lock().is_err());
+    assert!(flag(&global), "lock() must raise the sticky flag");
+    // Derived pools share the flag, so a checkpoint on any of them fails fast.
+    assert!(flag(&worker));
+    assert!(flag(&session));
+    assert!(flag(&query));
+}
+
+#[test]
+fn resource_slots_match_the_dense_array_order() {
+    // `Node.used` is a dense `[u64; RESOURCES.len()]` indexed by
+    // `Resource::slot()` (the enum discriminant). If a variant is inserted
+    // without updating `RESOURCES`, the index and the array disagree; catch it
+    // here rather than as an out-of-bounds panic deep in accounting.
+    assert_eq!(RESOURCES.len(), 19);
+    for (index, resource) in RESOURCES.iter().enumerate() {
+        assert_eq!(resource.slot(), index, "slot mismatch for {resource:?}");
+    }
+    for resource in RESOURCES {
+        assert!(resource.slot() < RESOURCES.len());
+    }
+}
+
 fn used(pool: &BudgetPool, resource: Resource) -> u64 {
     pool.usage().unwrap().used.get(&resource).map_or(0, |v| v.0)
 }
@@ -1950,11 +1998,11 @@ fn release_underflow_leaves_all_accounting_unchanged() {
     // Explicit fault injection: this inconsistent accounting is not claimed
     // to arise from any normal producer input.
     let node = state.nodes.get_mut(&query.owner).unwrap();
-    node.used.insert(Resource::QueryWorkspaceBytes, 5);
-    node.used.insert(Resource::ResidentBytes, 0);
+    node.used[Resource::QueryWorkspaceBytes.slot()] = 5;
+    node.used[Resource::ResidentBytes.slot()] = 0;
     let before: Vec<_> = BudgetPool::ancestors(&state, &query.owner)
         .iter()
-        .map(|owner| state.nodes[owner].used.clone())
+        .map(|owner| state.nodes[owner].used)
         .collect();
     assert_eq!(
         release(&mut state, &query, Resource::QueryWorkspaceBytes, 1)
@@ -1964,7 +2012,7 @@ fn release_underflow_leaves_all_accounting_unchanged() {
     );
     let after: Vec<_> = BudgetPool::ancestors(&state, &query.owner)
         .iter()
-        .map(|owner| state.nodes[owner].used.clone())
+        .map(|owner| state.nodes[owner].used)
         .collect();
     assert_eq!(before, after);
     assert_eq!(state.fault.as_ref().unwrap().code, ErrorCode::InternalFault);

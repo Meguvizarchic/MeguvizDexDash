@@ -272,6 +272,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "mdd-timing"
+version = "0.1.0-dev"
+dependencies = [
+ "mdd-dex",
+ "mdd-facts",
+ "mdd-input",
+ "mdd-types",
+ "serde_json",
+]
+
+[[package]]
 name = "mdd-types"
 version = "0.1.0-dev"
 dependencies = [

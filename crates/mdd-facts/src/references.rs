@@ -20,6 +20,7 @@ use mdd_input::{
 use mdd_types::{Completeness, DecimalU64, ErrorCode, MddError, MddResult};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
 
 #[derive(Clone, Copy, Debug)]
 pub struct ReferenceLimits {
@@ -94,7 +95,7 @@ pub struct LocalReferenceSite {
     pub target_kind: TargetKind,
     pub target_local_index: u32,
     pub opcode: u8,
-    pub mnemonic: String,
+    pub mnemonic: &'static str,
     pub invoke_kind: Option<InvokeKind>,
     pub instruction_range: DexRange,
     pub operand_range: DexRange,
@@ -230,16 +231,106 @@ pub struct ReferenceUsage {
 /// fn forge(mut facts: mdd_facts::references::ReferenceFacts) { facts.sites.clear(); }
 /// ```
 pub struct ReferenceFacts {
-    definitions: DefinitionFacts,
-    code: CodeFacts,
+    definitions: Arc<DefinitionFacts>,
+    code: Arc<CodeFacts>,
     sites: Vec<LocalReferenceSite>,
     dynamic_calls: Vec<DynamicCallSite>,
-    target_index: BTreeMap<(TargetKind, u32), Vec<u32>>,
+    target_index: TargetIndex,
     coverage: ReferenceCoverage,
     arrays: Option<EncodedArraySection>,
     handles: Option<MethodHandleSection>,
     limits: ReferenceLimitsView,
     usage: ReferenceUsage,
+}
+
+/// Compressed-sparse-row posting index: `keys` is sorted by `(kind, local_index)`
+/// and `offsets[i]..offsets[i + 1]` slices `postings` for `keys[i]`.
+///
+/// One contiguous allocation per array replaces one `BTreeMap` node plus one
+/// heap `Vec` per distinct target. Postings stay in ascending site order
+/// because they are appended in site construction order, so lookups return the
+/// same ordinal sequence as the previous per-target `Vec`.
+///
+/// Serialization is derived from the same key/value pairs in the same key
+/// order as the previous `BTreeMap<(TargetKind, u32), Vec<u32>>`; the wire shape
+/// is therefore identical, including the fact that serde_json rejects tuple
+/// keys before writing anything.
+#[derive(Clone, Debug)]
+struct TargetIndex {
+    keys: Vec<(TargetKind, u32)>,
+    offsets: Vec<u32>,
+    postings: Vec<u32>,
+}
+
+impl TargetIndex {
+    /// Build CSR arrays from the validated site list.
+    ///
+    /// `distinct` must hold exactly the keys present in `sites`; it iterates in
+    /// key order, which becomes the CSR key order. Two passes over `sites`
+    /// scatter each posting into its key's slot. Sites are visited in ascending
+    /// `site_ordinal` order, so every posting list stays ascending.
+    fn from_sites(
+        sites: &[LocalReferenceSite],
+        distinct: &BTreeSet<(TargetKind, u32)>,
+    ) -> MddResult<Self> {
+        let keys = distinct.iter().copied().collect::<Vec<_>>();
+        let mut offsets = vec![0u32; keys.len() + 1];
+        for site in sites {
+            let position = keys
+                .binary_search(&(site.target_kind, site.target_local_index))
+                .map_err(|_| failure("REFERENCE_INDEX_KEY_MISSING"))?;
+            offsets[position + 1] += 1;
+        }
+        for position in 0..keys.len() {
+            offsets[position + 1] = offsets[position]
+                .checked_add(offsets[position + 1])
+                .ok_or_else(|| failure("REFERENCE_INDEX_OFFSET_OVERFLOW"))?;
+        }
+        let mut cursor = offsets[..keys.len()].to_vec();
+        let mut postings = vec![0u32; sites.len()];
+        for site in sites {
+            let position = keys
+                .binary_search(&(site.target_kind, site.target_local_index))
+                .map_err(|_| failure("REFERENCE_INDEX_KEY_MISSING"))?;
+            let slot = &mut cursor[position];
+            postings[*slot as usize] = site.site_ordinal;
+            *slot += 1;
+        }
+        debug_assert!(keys.windows(2).all(|pair| pair[0] < pair[1]));
+        debug_assert_eq!(offsets.len(), keys.len() + 1);
+        Ok(Self {
+            keys,
+            offsets,
+            postings,
+        })
+    }
+
+    fn postings(&self, kind: TargetKind, local_index: u32) -> &[u32] {
+        let Ok(position) = self.keys.binary_search(&(kind, local_index)) else {
+            return &[];
+        };
+        let start = self.offsets[position] as usize;
+        let end = self.offsets[position + 1] as usize;
+        &self.postings[start..end]
+    }
+
+    #[cfg(test)]
+    fn target_count(&self) -> usize {
+        self.keys.len()
+    }
+}
+
+impl Serialize for TargetIndex {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeMap;
+        let mut map = serializer.serialize_map(Some(self.keys.len()))?;
+        for (position, key) in self.keys.iter().enumerate() {
+            let start = self.offsets[position] as usize;
+            let end = self.offsets[position + 1] as usize;
+            map.serialize_entry(key, &self.postings[start..end])?;
+        }
+        map.end()
+    }
 }
 #[derive(Clone, Copy, Serialize)]
 struct ReferenceLimitsView {
@@ -351,6 +442,16 @@ impl ReferenceFacts {
         code: CodeFacts,
         limits: ReferenceLimits,
     ) -> MddResult<Self> {
+        Self::build_arc(Arc::new(definitions), Arc::new(code), limits)
+    }
+
+    /// Build from shared leases so a facade can publish the same definition and
+    /// code facts to several consumers without deep-copying them.
+    pub fn build_arc(
+        definitions: Arc<DefinitionFacts>,
+        code: Arc<CodeFacts>,
+        limits: ReferenceLimits,
+    ) -> MddResult<Self> {
         if limits.max_sites > u64::from(u32::MAX) || limits.max_callers > u64::from(u32::MAX) {
             return Err(MddError::new(
                 ErrorCode::InvalidArgument,
@@ -449,30 +550,25 @@ impl ReferenceFacts {
             ));
             used_code.insert(index);
         }
-        let needs_arrays = used_code.iter().any(|index| {
-            code.items()[*index]
-                .data()
-                .instructions
-                .iter()
-                .any(|instruction| {
-                    instruction
-                        .references
-                        .iter()
-                        .any(|reference| reference.kind == ReferenceKind::CallSite)
-                })
-        });
-        let needs_handles = used_code.iter().any(|index| {
-            code.items()[*index]
-                .data()
-                .instructions
-                .iter()
-                .any(|instruction| {
-                    instruction
-                        .references
-                        .iter()
-                        .any(|reference| reference.kind == ReferenceKind::MethodHandle)
-                })
-        });
+        // One pass over the used code items instead of two: the two predicates
+        // share the same traversal, and stopping once both are true keeps the
+        // short-circuit behaviour of the previous separate `any` calls.
+        let mut needs_arrays = false;
+        let mut needs_handles = false;
+        for index in &used_code {
+            for instruction in &code.items()[*index].data().instructions {
+                for reference in &instruction.references {
+                    if reference.kind == ReferenceKind::CallSite {
+                        needs_arrays = true;
+                    } else if reference.kind == ReferenceKind::MethodHandle {
+                        needs_handles = true;
+                    }
+                }
+            }
+            if needs_arrays && needs_handles {
+                break;
+            }
+        }
         let helper_limits = AnnotationLimits {
             max_decoded_bytes: limits
                 .max_fact_bytes
@@ -518,7 +614,7 @@ impl ReferenceFacts {
             .unwrap_or_default();
         let mut sites = Vec::new();
         let mut dynamic_calls = Vec::new();
-        let mut target_index: BTreeMap<(TargetKind, u32), Vec<u32>> = BTreeMap::new();
+        let mut distinct_targets = BTreeSet::new();
         for (method_idx, class_def_idx, class_idx, code_index) in callers.iter().copied() {
             let item = code.items()[code_index].data();
             for instruction in &item.instructions {
@@ -631,13 +727,12 @@ impl ReferenceFacts {
                     }
                     let site_ordinal = sites.len() as u32;
                     let kind = TargetKind::from_operand(&reference.kind);
-                    if !target_index.contains_key(&(kind, reference.local_index)) {
+                    // One set insertion replaces the previous `contains_key`
+                    // plus `entry` pair, and keeps the 64-byte charge on the
+                    // first posting of each distinct target.
+                    if distinct_targets.insert((kind, reference.local_index)) {
                         budget.bytes(64).map_err(bind)?;
                     }
-                    target_index
-                        .entry((kind, reference.local_index))
-                        .or_default()
-                        .push(site_ordinal);
                     budget.usage.index_postings += 1;
                     sites.push(LocalReferenceSite {
                         site_ordinal,
@@ -651,7 +746,7 @@ impl ReferenceFacts {
                         target_kind: kind,
                         target_local_index: reference.local_index,
                         opcode: instruction.opcode,
-                        mnemonic: instruction.mnemonic.clone(),
+                        mnemonic: mdd_dex::instructions::opcode_mnemonic(instruction.opcode),
                         invoke_kind: instruction.invoke_kind.clone(),
                         instruction_range: instruction.raw_range.clone(),
                         operand_range: reference.raw_range.clone(),
@@ -677,6 +772,7 @@ impl ReferenceFacts {
                 }
             }
         }
+        let target_index = TargetIndex::from_sites(&sites, &distinct_targets).map_err(bind)?;
         let coverage = ReferenceCoverage {
             required_layer_scope:
                 "encoded operands in all declared method definitions of this bound DEX occurrence; not runtime dispatch".into(),
@@ -1192,10 +1288,7 @@ impl ReferenceFacts {
         }
         self.target_id(target.kind, target.local_index)?;
         let ordinals = if indexed {
-            let matches = self
-                .target_index
-                .get(&(target.kind, target.local_index))
-                .map_or(&[][..], Vec::as_slice);
+            let matches = self.target_index.postings(target.kind, target.local_index);
             if matches.len() as u64 > self.limits.max_lookup_candidates {
                 return Err(quota("REFERENCE_MATCH_BUDGET"));
             }
@@ -2858,6 +2951,61 @@ mod tests {
         assert_eq!(handles.method_handle_metadata().unwrap().len(), 2);
         assert_eq!(handles.method_call_rows(0).unwrap().len(), 4);
         assert_eq!(handles.method_field_rows(0).unwrap().len(), 2);
+    }
+
+    #[test]
+    fn csr_target_index_matches_independent_per_target_scan() {
+        for case in ["classic-035", "shared-code-035", "poly-custom-038"] {
+            let facts = build(case, ReferenceLimits::default()).unwrap();
+            let mut expected: BTreeMap<(TargetKind, u32), Vec<u32>> = BTreeMap::new();
+            for site in facts.sites() {
+                expected
+                    .entry((site.target_kind, site.target_local_index))
+                    .or_default()
+                    .push(site.site_ordinal);
+            }
+            assert_eq!(facts.target_index.target_count(), expected.len(), "{case}");
+            assert_eq!(
+                facts.target_index.keys,
+                expected.keys().copied().collect::<Vec<_>>()
+            );
+            for (key, ordinals) in &expected {
+                assert_eq!(
+                    facts.target_index.postings(key.0, key.1),
+                    ordinals.as_slice(),
+                    "{case} {key:?}"
+                );
+                let target = facts.target_id(key.0, key.1).unwrap();
+                assert_eq!(
+                    facts
+                        .find_target_indexed(&target)
+                        .unwrap()
+                        .sites
+                        .iter()
+                        .map(|site| site.operand_ordinal)
+                        .collect::<Vec<_>>(),
+                    facts
+                        .find_target_scalar(&target)
+                        .unwrap()
+                        .sites
+                        .iter()
+                        .map(|site| site.operand_ordinal)
+                        .collect::<Vec<_>>(),
+                    "{case} {key:?}"
+                );
+            }
+            for site in facts.sites() {
+                let target = facts
+                    .target_id(site.target_kind, site.target_local_index)
+                    .unwrap();
+                assert_eq!(
+                    facts.find_target_indexed(&target).unwrap(),
+                    facts.find_target_scalar(&target).unwrap(),
+                    "{case} site {}",
+                    site.site_ordinal
+                );
+            }
+        }
     }
 
     #[test]

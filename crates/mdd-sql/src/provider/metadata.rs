@@ -82,14 +82,24 @@ impl MetadataRelation {
 }
 
 /// Construct scalar UTF-16 text only after checked cell and cumulative work admission.
+///
+/// Step accounting stays cell-granular: the total charged steps per cell are
+/// exactly `2 × codepoints`, identical to the previous per-character form, but
+/// they are charged in two calls instead of `2 × codepoints` calls. Every text
+/// cell of every scanned row passes through here, so the per-character form
+/// made the budget mutex plus `BudgetPool::charge` the dominant cost of a full
+/// scan. Aborting at cell granularity is strictly conservative: the cell has
+/// not been produced either way.
 fn scalar_text(value: &str, control: &SqlControl) -> MddResult<SqlValue> {
     let mut count = 0usize;
+    let mut char_count = 0u64;
     for ch in value.chars() {
-        control.checkpoint(1, false)?;
+        char_count += 1;
         count = count
             .checked_add(ch.len_utf16())
             .ok_or_else(|| quota("METADATA_SQL_CELL_OVERFLOW"))?;
     }
+    control.checkpoint(char_count, false)?;
     let bytes = u64::try_from(count)
         .ok()
         .and_then(|n| n.checked_mul(2))
@@ -103,10 +113,10 @@ fn scalar_text(value: &str, control: &SqlControl) -> MddResult<SqlValue> {
         .try_reserve_exact(count)
         .map_err(|_| quota("METADATA_SQL_ALLOCATION"))?;
     for ch in value.chars() {
-        control.checkpoint(1, false)?;
         let mut buf = [0u16; 2];
         units.extend_from_slice(ch.encode_utf16(&mut buf));
     }
+    control.checkpoint(char_count, false)?;
     Ok(SqlValue::Text(SqlText {
         utf16: units,
         original_mutf8: None,
@@ -741,7 +751,7 @@ impl SqlFactCursor for DefinitionCursor {
                     };
                     self.control.work(128)?;
                     let (offset, insns) = match method.body {
-                        mdd_dex::definitions::MethodBody::Present {
+                        mdd_facts::MethodBody::Present {
                             code_byte_offset,
                             declared_insns_size,
                         } => (
@@ -1306,7 +1316,7 @@ struct AnnotationCursor {
 }
 impl SqlFactCursor for AnnotationCursor {
     fn next_row(&mut self) -> MddResult<Option<SqlRow>> {
-        use mdd_dex::annotations::AnnotationOwnerKind;
+        use mdd_facts::AnnotationOwnerKind;
         let u = |v: u64| SqlValue::U64(DecimalU64(v));
         let optional = |v: Option<u32>| v.map_or(SqlValue::Null, |n| u(n.into()));
         while let Some(facts) = self.provider.occurrences.get(self.occurrence) {
@@ -1579,12 +1589,21 @@ impl SqlFactCursor for AnnotationCursor {
         Ok(None)
     }
 }
+/// One declared column of an annotation relation: name, SQL type, nullable.
+type AnnotationColumnSpec = (&'static str, SqlType, bool);
+/// One declared annotation relation: name, columns, and the fact relation it reads.
+type AnnotationRelationSpec = (
+    &'static str,
+    &'static [AnnotationColumnSpec],
+    AnnotationRelation,
+);
+
 impl SqlFactProvider for AnnotationSqlProvider {
     fn binding(&self) -> &SqlBinding {
         &self.binding
     }
     fn relations(&self) -> MddResult<Vec<SqlRelation>> {
-        let specifications: [(&str, &[(&str, SqlType, bool)], AnnotationRelation); 11] = [
+        let specifications: [AnnotationRelationSpec; 11] = [
             (
                 "native_annotation_items",
                 &[
@@ -2191,7 +2210,7 @@ struct DynamicReferenceCursor {
 }
 impl SqlFactCursor for DynamicReferenceCursor {
     fn next_row(&mut self) -> MddResult<Option<SqlRow>> {
-        use mdd_dex::instructions::InvokeKind;
+        use mdd_facts::InvokeKind;
         use mdd_facts::references::TargetKind;
         while let Some(facts) = self.provider.occurrences.get(self.occurrence) {
             self.control.checkpoint(1, false)?;
@@ -2247,7 +2266,7 @@ impl SqlFactCursor for DynamicReferenceCursor {
 }
 impl SqlFactCursor for ReferenceCursor {
     fn next_row(&mut self) -> MddResult<Option<SqlRow>> {
-        use mdd_dex::instructions::InvokeKind;
+        use mdd_facts::InvokeKind;
         use mdd_facts::references::TargetKind;
         while let Some(facts) = self.provider.occurrences.get(self.occurrence) {
             self.control.checkpoint(1, false)?;
@@ -2296,7 +2315,7 @@ impl SqlFactCursor for ReferenceCursor {
                     scalar_text(target_kind, &self.control)?,
                     u(site.target_local_index.into()),
                     u(site.opcode.into()),
-                    scalar_text(&site.mnemonic, &self.control)?,
+                    scalar_text(site.mnemonic, &self.control)?,
                     invoke,
                     SqlValue::U64(site.instruction_range.byte_offset),
                     SqlValue::U64(site.instruction_range.byte_length),

@@ -40,7 +40,7 @@ fn failure(reason: &str, offset: u64, length: u64) -> MddError {
     invalid(reason, "dex.metadata", offset, length)
 }
 
-fn name_character(character: char, spaces_allowed: bool) -> bool {
+pub(crate) fn name_character(character: char, spaces_allowed: bool) -> bool {
     character.is_ascii_alphanumeric()
         || matches!(character, '$' | '-' | '_')
         || matches!(character as u32, 0x00a1..=0x1fff | 0x2010..=0x2027 | 0x2030..=0xd7ff | 0xe000..=0xffef | 0x10000..=0x10ffff)
@@ -228,6 +228,15 @@ pub fn read_types_and_prototypes(
         .find(|table| table.name == "proto_ids")
         .ok_or_else(|| failure("MISSING_PROTO_TABLE", 72, 8))?;
     let mut types = Vec::new();
+    types
+        .try_reserve_exact(type_table.count as usize)
+        .map_err(|_| {
+            MddError::new(
+                ErrorCode::QuotaExceeded,
+                "dex.metadata",
+                "type index allocation failed",
+            )
+        })?;
     let mut previous_string = None;
     for type_idx in 0..type_table.count {
         let at = type_table.range.byte_offset.0 + u64::from(type_idx) * 4;
@@ -258,9 +267,17 @@ pub fn read_types_and_prototypes(
         });
         previous_string = Some(string_idx);
     }
-    let mut prototypes = Vec::new();
+    let mut prototypes: Vec<DexPrototype> = Vec::new();
+    prototypes
+        .try_reserve_exact(proto_table.count as usize)
+        .map_err(|_| {
+            MddError::new(
+                ErrorCode::QuotaExceeded,
+                "dex.metadata",
+                "prototype index allocation failed",
+            )
+        })?;
     let physical_type_lists = type_list_item_starts(bytes, header)?;
-    let mut previous_key = None;
     let mut total_parameters = 0u64;
     let mut total_descriptor_bytes = 0u64;
     let list_section = header
@@ -335,11 +352,13 @@ pub fn read_types_and_prototypes(
                 parameters.push(index);
             }
         }
-        let key = (return_idx, parameters.clone());
-        if previous_key
-            .as_ref()
-            .is_some_and(|previous| previous >= &key)
-        {
+        // Compare against the previous prototype in place instead of cloning its
+        // parameter list into a separate ordering key.
+        if prototypes.last().is_some_and(|previous| {
+            previous.return_type_idx > return_idx
+                || (previous.return_type_idx == return_idx
+                    && previous.parameter_type_indices >= parameters)
+        }) {
             return Err(failure("PROTO_IDS_NOT_STRICT_ORDER", at, 12));
         }
         let descriptor_bytes = parameters
@@ -372,17 +391,23 @@ pub fn read_types_and_prototypes(
             .detail("reason", "PROTOTYPE_DESCRIPTOR_BYTE_BUDGET")
             .detail("limit", MAX_TOTAL_PROTOTYPE_DESCRIPTOR_BYTES.to_string()));
         }
-        let mut expected_shorty = String::new();
-        expected_shorty
-            .try_reserve_exact(parameters.len() + 1)
-            .map_err(|_| {
-                MddError::new(
-                    ErrorCode::QuotaExceeded,
-                    "dex.metadata",
-                    "shorty allocation failed",
-                )
-            })?;
-        expected_shorty.push(return_type.shape.shorty);
+        // Compare the shorty byte by byte instead of allocating a throwaway
+        // `String` per prototype; only a mismatch materialises the expected
+        // value for the error detail.
+        let shorty_bytes = shorty.as_bytes();
+        let expected_len = parameters.len() + 1;
+        let mut shorty_mismatch = shorty_bytes.len() != expected_len;
+        if !shorty_mismatch {
+            if shorty_bytes[0] != return_type.shape.shorty as u8 {
+                shorty_mismatch = true;
+            }
+            for (ordinal, index) in parameters.iter().enumerate() {
+                if shorty_bytes[ordinal + 1] != types[*index as usize].shape.shorty as u8 {
+                    shorty_mismatch = true;
+                    break;
+                }
+            }
+        }
         let mut descriptor = String::new();
         descriptor
             .try_reserve_exact(descriptor_bytes as usize)
@@ -395,15 +420,21 @@ pub fn read_types_and_prototypes(
             })?;
         descriptor.push('(');
         for index in &parameters {
-            let argument = &types[*index as usize];
-            expected_shorty.push(argument.shape.shorty);
-            descriptor.push_str(&argument.descriptor);
+            descriptor.push_str(&types[*index as usize].descriptor);
         }
         descriptor.push(')');
         descriptor.push_str(&return_type.descriptor);
-        if shorty != expected_shorty {
-            return Err(failure("SHORTY_DESCRIPTOR_MISMATCH", at, 4)
-                .detail("expected_shorty", expected_shorty));
+        if shorty_mismatch {
+            return Err(
+                failure("SHORTY_DESCRIPTOR_MISMATCH", at, 4).detail("expected_shorty", {
+                    let mut expected = String::with_capacity(expected_len);
+                    expected.push(return_type.shape.shorty);
+                    for index in &parameters {
+                        expected.push(types[*index as usize].shape.shorty);
+                    }
+                    expected
+                }),
+            );
         }
         prototypes.push(DexPrototype {
             proto_idx,
@@ -415,7 +446,6 @@ pub fn read_types_and_prototypes(
                 .then_some(DecimalU64(u64::from(parameters_off))),
             descriptor,
         });
-        previous_key = Some(key);
     }
     Ok((types, prototypes))
 }

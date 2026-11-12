@@ -14,7 +14,7 @@ use mdd_dex::{
 };
 use mdd_types::{Completeness, ErrorCode, MddError, MddResult, content_id};
 use serde::Serialize;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct AnnotationRef {
@@ -787,7 +787,7 @@ impl AnnotationFacts {
         let data = read_annotations(
             definitions.bytes(),
             &definitions.metadata.header,
-            &definitions.metadata,
+            definitions.metadata.as_ref(),
             &definitions.definitions,
             limits,
         )
@@ -1345,10 +1345,10 @@ impl AnnotationFacts {
         let mut item = None;
         for candidate in &self.data.annotation_items {
             tick()?;
-            if candidate.byte_offset == annotation.annotation_byte_offset {
-                if item.replace(candidate).is_some() {
-                    return Err(broken());
-                }
+            if candidate.byte_offset == annotation.annotation_byte_offset
+                && item.replace(candidate).is_some()
+            {
+                return Err(broken());
             }
         }
         let item = item.ok_or_else(|| {
@@ -2789,6 +2789,77 @@ impl AnnotationFacts {
             })
             .collect()
     }
+    /// Offsets of the annotation sets and annotation items that a class
+    /// annotation directory reaches, directly or through a parameter
+    /// reference list.
+    ///
+    /// The physical row producers above enumerate every legal item in the
+    /// section, including legal items that nothing references. The frozen
+    /// HostLab backend enumerates only what a class-bound directory reaches, so
+    /// the SQL projections use the `reachable_*` producers below. The fact layer
+    /// itself keeps the unreferenced items.
+    fn reachable_offsets(&self) -> (BTreeSet<u32>, BTreeSet<u32>) {
+        let directories: BTreeMap<_, _> = self
+            .data
+            .directories
+            .iter()
+            .map(|item| (item.byte_offset, item))
+            .collect();
+        let ref_lists: BTreeMap<_, _> = self
+            .data
+            .ref_lists
+            .iter()
+            .map(|list| (list.byte_offset, list))
+            .collect();
+        let mut sets = BTreeSet::new();
+        for binding in &self.data.directory_bindings {
+            let Some(directory) = directories.get(&binding.directory_byte_offset) else {
+                continue;
+            };
+            sets.extend(directory.class_annotation_set_offset);
+            for entry in &directory.entries {
+                if entry.kind == AnnotationOwnerKind::Parameter {
+                    if let Some(list) = ref_lists.get(&entry.target_byte_offset) {
+                        sets.extend(list.annotation_set_offsets.iter().flatten().copied());
+                    }
+                } else {
+                    sets.insert(entry.target_byte_offset);
+                }
+            }
+        }
+        let annotations = self
+            .data
+            .sets
+            .iter()
+            .filter(|set| sets.contains(&set.byte_offset))
+            .flat_map(|set| set.annotation_offsets.iter().copied())
+            .collect();
+        (sets, annotations)
+    }
+    /// `annotation_set_entries` rows of the sets a class directory reaches.
+    pub fn reachable_set_entry_rows(&self, file_id: u32) -> Vec<AnnotationSetEntryRow> {
+        let (sets, _) = self.reachable_offsets();
+        self.set_entry_rows(file_id)
+            .into_iter()
+            .filter(|row| sets.contains(&row.annotation_set_off))
+            .collect()
+    }
+    /// `annotations` rows of the items a reachable set contains.
+    pub fn reachable_annotation_rows(&self, file_id: u32) -> Vec<AnnotationRow> {
+        let (_, annotations) = self.reachable_offsets();
+        self.annotation_rows(file_id)
+            .into_iter()
+            .filter(|row| annotations.contains(&row.annotation_off))
+            .collect()
+    }
+    /// `annotation_elements` rows whose root annotation is reachable.
+    pub fn reachable_element_rows(&self, file_id: u32) -> Vec<AnnotationElementRow> {
+        let (_, annotations) = self.reachable_offsets();
+        self.element_rows(file_id)
+            .into_iter()
+            .filter(|row| annotations.contains(&row.annotation_off))
+            .collect()
+    }
     pub fn annotation_rows(&self, file_id: u32) -> Vec<AnnotationRow> {
         self.data
             .annotation_items
@@ -3380,6 +3451,9 @@ mod tests {
                 u32::from_le_bytes(raw_encoded[..4].try_into().unwrap()) as usize,
                 item.annotation_offsets.len()
             );
+            // The 4-byte framing here is len-validated above, so `chunks_exact`
+            // expresses the intent more directly than `as_chunks`.
+            #[allow(clippy::chunks_exact_to_as_chunks)]
             for (slot, expected) in raw_encoded[4..]
                 .chunks_exact(4)
                 .zip(&item.annotation_offsets)
@@ -3407,6 +3481,7 @@ mod tests {
                 u32::from_le_bytes(raw_encoded[..4].try_into().unwrap()) as usize,
                 item.annotation_set_offsets.len()
             );
+            #[allow(clippy::chunks_exact_to_as_chunks)]
             for (slot, expected) in raw_encoded[4..]
                 .chunks_exact(4)
                 .zip(&item.annotation_set_offsets)
@@ -5077,6 +5152,40 @@ mod tests {
             .collect::<Vec<_>>();
         values.sort();
         values
+    }
+    /// Legal items nothing references stay facts, but the SQL projections only
+    /// see what a class-bound directory reaches (the frozen backend does the
+    /// same). The expected counts are the frozen backend's own row counts on
+    /// these fixtures (`artifacts/mdd-032-audit/a0-differential-20261112/`).
+    #[test]
+    fn unreferenced_items_stay_facts_but_are_not_reachable() {
+        // (fixture, physical sets/annotations/elements, reachable sets/annotations/elements)
+        let cases: [(&str, [usize; 3], [usize; 3]); 3] = [
+            ("valid-orphan-annotation.dex", [5, 5, 44], [5, 4, 44]),
+            ("valid-shared-empty-directory.dex", [5, 4, 44], [0, 0, 0]),
+            ("valid-shared-empty-set.dex", [5, 4, 44], [4, 3, 40]),
+        ];
+        for (name, physical, reachable) in cases {
+            let facts = build(&format!("tests/fixtures/annotations/generated/{name}"));
+            assert_eq!(
+                [
+                    facts.set_entry_rows(0).len(),
+                    facts.annotation_rows(0).len(),
+                    facts.element_rows(0).len()
+                ],
+                physical,
+                "{name}: the fact layer keeps every legal item"
+            );
+            assert_eq!(
+                [
+                    facts.reachable_set_entry_rows(0).len(),
+                    facts.reachable_annotation_rows(0).len(),
+                    facts.reachable_element_rows(0).len()
+                ],
+                reachable,
+                "{name}: only directory-reachable items are projected"
+            );
+        }
     }
     #[test]
     fn six_full_relations_equal_independent_oracle_and_reference() {

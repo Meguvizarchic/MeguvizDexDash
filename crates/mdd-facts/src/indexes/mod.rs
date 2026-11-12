@@ -6,7 +6,7 @@ mod scope;
 mod tests;
 mod views;
 use crate::{
-    coverage::{CoverageLedger, CoverageReport, CoverageRequest, FactLayer},
+    coverage::{CoverageLedger, CoverageReport, CoverageRequest, FactLayer, InputNeed},
     metadata::{EntityKind, EntityRef},
     references::{
         FieldSymbol, MethodSymbol, ReferenceFacts, ReferenceMatches, ReferenceTargetId, TargetKind,
@@ -20,7 +20,7 @@ pub use scope::{
 };
 use serde::Serialize;
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::BTreeMap,
     time::{Duration, Instant},
 };
 pub use views::FactView;
@@ -105,6 +105,307 @@ impl Budget {
 fn quota(reason: &str) -> MddError {
     MddError::new(ErrorCode::QuotaExceeded, "facts.index", reason).detail("reason", reason)
 }
+fn missing_facts(message: &str) -> MddError {
+    MddError::new(ErrorCode::IncompleteFacts, "facts.index", message)
+}
+/// Strings shorter than this deduplicate their code units on the stack
+/// instead of allocating a temporary set.
+const DEDUP_INLINE_LIMIT: usize = 32;
+
+/// Strings: every string occurrence with its exact UTF-16 units, raw MUTF-8
+/// bytes, and the set of code units it contains. Candidates are a superset;
+/// callers always recheck with `predicate.matches`.
+fn add_strings(
+    index: &mut StringIndex,
+    budget: &mut Budget,
+    view_id: u32,
+    metadata: &crate::MetadataFacts,
+) -> MddResult<()> {
+    for string in metadata.strings() {
+        let atom = Atom {
+            view: view_id,
+            local: string.data.string_idx,
+        };
+        budget.charge(1, 16)?;
+        index.all.push(atom);
+        budget.charge(1, 8)?;
+        // Deduplicate code units inside one string without a heap BTreeSet:
+        // strings are short, so a linear scan over a small stack buffer wins.
+        let units = &string.data.text.utf16_units;
+        if units.len() <= DEDUP_INLINE_LIMIT {
+            let mut seen: [u16; DEDUP_INLINE_LIMIT] = [0; DEDUP_INLINE_LIMIT];
+            let mut count = 0usize;
+            for unit in units {
+                if !seen[..count].contains(unit) {
+                    seen[count] = *unit;
+                    count += 1;
+                    budget.charge(1, 8)?;
+                    index.pending_units.push((*unit, atom));
+                }
+            }
+        } else {
+            let mut seen = units.to_vec();
+            seen.sort_unstable();
+            seen.dedup();
+            budget.charge(0, seen.len() as u64 * 2)?;
+            for unit in seen {
+                budget.charge(1, 8)?;
+                index.pending_units.push((unit, atom));
+            }
+        }
+    }
+    Ok(())
+}
+/// Definitions: class/field/method names plus direct-owner membership.
+fn add_definitions(
+    index: &mut DefinitionIndex,
+    budget: &mut Budget,
+    view_id: u32,
+    facts: &crate::definitions::DefinitionFacts,
+) -> MddResult<()> {
+    let definitions = facts.definitions();
+    for class in &definitions.classes {
+        let atom = DefinitionAtom {
+            view: view_id,
+            kind: DefinitionKind::Class,
+            local: class.class_def_idx,
+        };
+        budget.charge(1, class.descriptor.len() as u64 + 24)?;
+        index.pending_names.push(atom);
+        index.all.push(atom);
+    }
+    for field in &definitions.field_definitions {
+        let reference = &definitions.field_references[field.field_idx as usize];
+        let atom = DefinitionAtom {
+            view: view_id,
+            kind: DefinitionKind::Field,
+            local: field.field_idx,
+        };
+        budget.charge(1, reference.field_name.len() as u64 + 48)?;
+        index.pending_names.push(atom);
+        index
+            .owners
+            .entry((view_id, field.class_def_idx, DefinitionKind::Field))
+            .or_default()
+            .push(atom);
+        index.all.push(atom);
+    }
+    for method in &definitions.method_definitions {
+        let reference = &definitions.method_references[method.method_idx as usize];
+        let atom = DefinitionAtom {
+            view: view_id,
+            kind: DefinitionKind::Method,
+            local: method.method_idx,
+        };
+        budget.charge(1, reference.method_name.len() as u64 + 48)?;
+        index.pending_names.push(atom);
+        index
+            .owners
+            .entry((view_id, method.class_def_idx, DefinitionKind::Method))
+            .or_default()
+            .push(atom);
+        index.all.push(atom);
+    }
+    Ok(())
+}
+/// Encoded method reference symbols (owner, name, prototype), borrowed until
+/// the postings are laid out.
+fn add_reference_symbols<'m>(
+    pairs: &mut Vec<(MethodSymbolKey<'m>, ReferenceAtom)>,
+    budget: &mut Budget,
+    view_id: u32,
+    facts: &'m crate::definitions::DefinitionFacts,
+) -> MddResult<()> {
+    let definitions = facts.definitions();
+    let prototypes = facts.metadata().prototypes();
+    pairs
+        .try_reserve(definitions.method_references.len())
+        .map_err(|_| quota("INDEX_ALLOCATION"))?;
+    for reference in &definitions.method_references {
+        let prototype = prototypes
+            .get(reference.proto_idx as usize)
+            .ok_or_else(|| {
+                MddError::new(
+                    ErrorCode::InternalFault,
+                    "facts.index",
+                    "validated method reference prototype missing",
+                )
+            })?;
+        budget.charge(
+            1,
+            (reference.class_descriptor.len()
+                + reference.method_name.len()
+                + prototype.data.descriptor.len()) as u64
+                + 16,
+        )?;
+        pairs.push((
+            (
+                reference.class_descriptor.as_str(),
+                reference.method_name.as_str(),
+                prototype.data.descriptor.as_str(),
+            ),
+            ReferenceAtom {
+                view: view_id,
+                local: reference.method_idx,
+            },
+        ));
+    }
+    Ok(())
+}
+/// Encoded field reference symbols (owner, name, type), borrowed until the
+/// postings are laid out.
+fn add_field_reference_symbols<'m>(
+    pairs: &mut Vec<(FieldSymbolKey<'m>, ReferenceAtom)>,
+    budget: &mut Budget,
+    view_id: u32,
+    facts: &'m crate::definitions::DefinitionFacts,
+) -> MddResult<()> {
+    let references = &facts.definitions().field_references;
+    pairs
+        .try_reserve(references.len())
+        .map_err(|_| quota("INDEX_ALLOCATION"))?;
+    for reference in references {
+        let bytes = reference
+            .class_descriptor
+            .len()
+            .checked_add(reference.field_name.len())
+            .and_then(|v| v.checked_add(reference.type_descriptor.len()))
+            .and_then(|v| v.checked_add(16))
+            .and_then(|v| u64::try_from(v).ok())
+            .ok_or_else(|| quota("INDEX_BYTE_BUDGET"))?;
+        budget.charge(1, bytes)?;
+        pairs.push((
+            (
+                reference.class_descriptor.as_str(),
+                reference.field_name.as_str(),
+                reference.type_descriptor.as_str(),
+            ),
+            ReferenceAtom {
+                view: view_id,
+                local: reference.field_idx,
+            },
+        ));
+    }
+    Ok(())
+}
+/// Metadata type descriptors.
+fn add_type_references<'m>(
+    pairs: &mut Vec<(&'m str, Atom)>,
+    budget: &mut Budget,
+    view_id: u32,
+    metadata: &'m crate::MetadataFacts,
+) -> MddResult<()> {
+    pairs
+        .try_reserve(metadata.types().len())
+        .map_err(|_| quota("INDEX_ALLOCATION"))?;
+    for dex_type in metadata.types() {
+        budget.charge(1, 16)?;
+        pairs.push((
+            dex_type.data.descriptor.as_str(),
+            Atom {
+                view: view_id,
+                local: dex_type.data.type_idx,
+            },
+        ));
+    }
+    Ok(())
+}
+/// Metadata prototype descriptors.
+fn add_prototype_references<'m>(
+    pairs: &mut Vec<(&'m str, Atom)>,
+    budget: &mut Budget,
+    view_id: u32,
+    metadata: &'m crate::MetadataFacts,
+) -> MddResult<()> {
+    pairs
+        .try_reserve(metadata.prototypes().len())
+        .map_err(|_| quota("INDEX_ALLOCATION"))?;
+    for prototype in metadata.prototypes() {
+        budget.charge(1, 16)?;
+        pairs.push((
+            prototype.data.descriptor.as_str(),
+            Atom {
+                view: view_id,
+                local: prototype.data.proto_idx,
+            },
+        ));
+    }
+    Ok(())
+}
+/// Encoded reference sites grouped by their caller method.
+fn add_caller_sites(
+    pairs: &mut Vec<(Atom, u32)>,
+    budget: &mut Budget,
+    view_id: u32,
+    facts: &ReferenceFacts,
+) -> MddResult<()> {
+    pairs
+        .try_reserve(facts.sites().len())
+        .map_err(|_| quota("INDEX_ALLOCATION"))?;
+    for (ordinal, site) in facts.sites().iter().enumerate() {
+        let ordinal = u32::try_from(ordinal).map_err(|_| quota("INDEX_ENTRY_BUDGET"))?;
+        if site.site_ordinal != ordinal {
+            return Err(MddError::new(
+                ErrorCode::InternalFault,
+                "facts.index",
+                "validated reference site ordinal is inconsistent",
+            ));
+        }
+        budget.charge(1, 8)?;
+        pairs.push((
+            Atom {
+                view: view_id,
+                local: site.caller_method_idx,
+            },
+            ordinal,
+        ));
+    }
+    Ok(())
+}
+/// Validated method-handle metadata symbols.
+fn add_method_handles(
+    index: &mut MethodHandleIndex,
+    budget: &mut Budget,
+    view_id: u32,
+    facts: &ReferenceFacts,
+) -> MddResult<()> {
+    for handle in handle_metadata(facts)? {
+        let target = handle_target(facts, handle)?;
+        budget.charge(1, target.bytes()?)?;
+        index.symbols.entry(target.owned()).or_default().push(Atom {
+            view: view_id,
+            local: handle.method_handle_idx,
+        });
+    }
+    Ok(())
+}
+/// Cache key for a `require`-style coverage request: scope identity plus the
+/// exact ordered layer set. Only requests without columns or resource members
+/// reach this, so those two dimensions cannot collide.
+fn coverage_cache_key(request: &CoverageRequest) -> String {
+    let mut key = String::with_capacity(64 + request.required_layers.len() * 20);
+    key.push_str(&request.scope_id);
+    key.push('|');
+    for layer in &request.required_layers {
+        key.push_str(match layer {
+            FactLayer::Metadata => "m",
+            FactLayer::Definitions => "d",
+            FactLayer::Structure => "s",
+            FactLayer::CodeProjection => "c",
+            FactLayer::AllPhysicalCode => "p",
+            FactLayer::MethodBindings => "b",
+            FactLayer::AllMethodBodies => "a",
+            FactLayer::References => "r",
+            FactLayer::Annotations => "n",
+            FactLayer::PrototypeParameterPositions => "q",
+            FactLayer::RawCode => "w",
+            FactLayer::SourcePositions => "x",
+            FactLayer::DerivedAnalysis => "y",
+        });
+        key.push(',');
+    }
+    key
+}
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "kind", content = "value", rename_all = "snake_case")]
 pub enum Utf16Predicate {
@@ -148,29 +449,542 @@ struct ReferenceAtom {
     view: u32,
     local: u32,
 }
+/// Code-unit postings in one flat, immutable table.
+///
+/// Every UTF-16 code unit is its own bucket, so the table is a fixed-size
+/// offset array plus one flat atom array: no per-string temporary set and no
+/// tree node per unit. `get` is an O(1) slice index.
+struct UnitPostings {
+    /// `offsets[u]..offsets[u + 1]` is the posting range for code unit `u`.
+    offsets: Vec<u32>,
+    atoms: Vec<Atom>,
+}
+impl UnitPostings {
+    fn empty() -> Self {
+        Self {
+            offsets: vec![0; usize::from(u16::MAX) + 2],
+            atoms: Vec::new(),
+        }
+    }
+    fn get(&self, unit: u16) -> &[Atom] {
+        let start = self.offsets[usize::from(unit)] as usize;
+        let end = self.offsets[usize::from(unit) + 1] as usize;
+        &self.atoms[start..end]
+    }
+    /// Build the flat table from `(code unit, atom)` pairs in one counting
+    /// pass: no comparison sort and no per-string temporary allocation.
+    fn from_pairs(pairs: Vec<(u16, Atom)>, budget: &mut Budget) -> MddResult<Self> {
+        let mut counts = vec![0u32; usize::from(u16::MAX) + 1];
+        for (unit, _) in &pairs {
+            let slot = &mut counts[usize::from(*unit)];
+            *slot = slot
+                .checked_add(1)
+                .ok_or_else(|| quota("INDEX_ENTRY_BUDGET"))?;
+        }
+        let mut offsets = vec![0u32; usize::from(u16::MAX) + 2];
+        let mut running = 0u32;
+        for (index, count) in counts.iter().enumerate() {
+            offsets[index] = running;
+            running = running
+                .checked_add(*count)
+                .ok_or_else(|| quota("INDEX_ENTRY_BUDGET"))?;
+        }
+        offsets[usize::from(u16::MAX) + 1] = running;
+        budget.charge(0, offsets.len() as u64 * 4 + pairs.len() as u64 * 8)?;
+        let mut cursor = offsets.clone();
+        let mut atoms = vec![Atom { view: 0, local: 0 }; pairs.len()];
+        for (unit, atom) in pairs {
+            let slot = &mut cursor[usize::from(unit)];
+            atoms[*slot as usize] = atom;
+            *slot += 1;
+        }
+        Ok(Self { offsets, atoms })
+    }
+}
+/// Distinct keys with their postings, stored as one sorted key array plus one
+/// flat posting array.
+///
+/// A `BTreeMap<Vec<u16>, Vec<Atom>>` clones the key for every occurrence and
+/// pays a tree node per insert. Here the traversal only records atoms; `finish`
+/// sorts them by the referenced text and clones each *distinct* key exactly
+/// once. `get` is a binary search, and prefix scans are a partition point.
+struct Utf16Postings {
+    keys: Vec<Vec<u16>>,
+    /// `offsets[i]..offsets[i + 1]` is the posting range for `keys[i]`.
+    offsets: Vec<u32>,
+    atoms: Vec<Atom>,
+}
+impl Utf16Postings {
+    fn empty() -> Self {
+        Self {
+            keys: Vec::new(),
+            offsets: Vec::new(),
+            atoms: Vec::new(),
+        }
+    }
+    fn get(&self, key: &[u16]) -> &[Atom] {
+        match self
+            .keys
+            .binary_search_by(|probe| probe.as_slice().cmp(key))
+        {
+            Ok(index) => {
+                &self.atoms[self.offsets[index] as usize..self.offsets[index + 1] as usize]
+            }
+            Err(_) => &[],
+        }
+    }
+    /// All postings whose key starts with `prefix`, in key order.
+    fn prefix(&self, prefix: &[u16]) -> impl Iterator<Item = &[Atom]> {
+        let start = self.keys.partition_point(|key| key.as_slice() < prefix);
+        self.keys[start..]
+            .iter()
+            .take_while(move |key| key.starts_with(prefix))
+            .enumerate()
+            .map(move |(offset, _)| {
+                let index = start + offset;
+                &self.atoms[self.offsets[index] as usize..self.offsets[index + 1] as usize]
+            })
+    }
+}
+struct RawPostings {
+    keys: Vec<Vec<u8>>,
+    offsets: Vec<u32>,
+    atoms: Vec<Atom>,
+}
+impl RawPostings {
+    fn empty() -> Self {
+        Self {
+            keys: Vec::new(),
+            offsets: Vec::new(),
+            atoms: Vec::new(),
+        }
+    }
+    fn get(&self, key: &[u8]) -> &[Atom] {
+        match self
+            .keys
+            .binary_search_by(|probe| probe.as_slice().cmp(key))
+        {
+            Ok(index) => {
+                &self.atoms[self.offsets[index] as usize..self.offsets[index + 1] as usize]
+            }
+            Err(_) => &[],
+        }
+    }
+}
 struct StringIndex {
     all: Vec<Atom>,
-    utf16: BTreeMap<Vec<u16>, Vec<Atom>>,
-    raw: BTreeMap<Vec<u8>, Vec<Atom>>,
-    units: BTreeMap<u16, Vec<Atom>>,
+    utf16: Utf16Postings,
+    raw: RawPostings,
+    units: UnitPostings,
+    /// `(code unit, atom)` pairs accumulated during the traversal; the flat
+    /// `units` table is built from them once, at `finish`.
+    pending_units: Vec<(u16, Atom)>,
+}
+impl StringIndex {
+    fn empty() -> Self {
+        Self {
+            all: Vec::new(),
+            utf16: Utf16Postings::empty(),
+            raw: RawPostings::empty(),
+            units: UnitPostings::empty(),
+            pending_units: Vec::new(),
+        }
+    }
+    fn finish(&mut self, views: &[FactView<'_>], budget: &mut Budget) -> MddResult<()> {
+        self.units = UnitPostings::from_pairs(std::mem::take(&mut self.pending_units), budget)?;
+        // Sort atom handles by the text they point at, then clone one key per
+        // distinct value. `sort_by` is stable, so postings keep traversal order.
+        let mut by_utf16 = self
+            .all
+            .iter()
+            .map(|atom| {
+                Ok((
+                    string_text(views, *atom)?.data.text.utf16_units.as_slice(),
+                    *atom,
+                ))
+            })
+            .collect::<MddResult<Vec<_>>>()?;
+        by_utf16.sort_by(|left, right| left.0.cmp(right.0));
+        let mut utf16 = Utf16Postings::empty();
+        let mut start = 0usize;
+        while start < by_utf16.len() {
+            let mut end = start + 1;
+            while end < by_utf16.len() && by_utf16[end].0 == by_utf16[start].0 {
+                end += 1;
+            }
+            let key = by_utf16[start].0;
+            budget.charge(0, key.len() as u64 * 2 + 64)?;
+            utf16.keys.push(key.to_vec());
+            utf16.offsets.push(utf16.atoms.len() as u32);
+            utf16
+                .atoms
+                .extend(by_utf16[start..end].iter().map(|(_, atom)| *atom));
+            start = end;
+        }
+        utf16.offsets.push(utf16.atoms.len() as u32);
+        self.utf16 = utf16;
+
+        let mut by_raw = self
+            .all
+            .iter()
+            .map(|atom| {
+                Ok((
+                    string_text(views, *atom)?.data.text.raw_mutf8.as_slice(),
+                    *atom,
+                ))
+            })
+            .collect::<MddResult<Vec<_>>>()?;
+        by_raw.sort_by(|left, right| left.0.cmp(right.0));
+        let mut raw = RawPostings::empty();
+        let mut start = 0usize;
+        while start < by_raw.len() {
+            let mut end = start + 1;
+            while end < by_raw.len() && by_raw[end].0 == by_raw[start].0 {
+                end += 1;
+            }
+            let key = by_raw[start].0;
+            budget.charge(0, key.len() as u64 + 64)?;
+            raw.keys.push(key.to_vec());
+            raw.offsets.push(raw.atoms.len() as u32);
+            raw.atoms
+                .extend(by_raw[start..end].iter().map(|(_, atom)| *atom));
+            start = end;
+        }
+        raw.offsets.push(raw.atoms.len() as u32);
+        self.raw = raw;
+        Ok(())
+    }
+}
+/// Resolve one string atom to its validated text.
+fn string_text<'v>(
+    views: &'v [FactView<'_>],
+    atom: Atom,
+) -> MddResult<&'v crate::metadata::StringFact> {
+    views
+        .get(atom.view as usize)
+        .and_then(|view| view.metadata)
+        .and_then(|metadata| metadata.strings().get(atom.local as usize))
+        .ok_or_else(|| missing_facts("metadata missing"))
+}
+/// Definition name postings keyed by `(kind, UTF-16 name)`, stored sorted with
+/// one cloned key per distinct name rather than one clone per definition.
+struct DefinitionNamePostings {
+    /// Sorted by `(kind, name)`.
+    keys: Vec<(DefinitionKind, Vec<u16>)>,
+    /// `offsets[i]..offsets[i + 1]` is the posting range for `keys[i]`.
+    offsets: Vec<u32>,
+    atoms: Vec<DefinitionAtom>,
+}
+impl DefinitionNamePostings {
+    fn empty() -> Self {
+        Self {
+            keys: Vec::new(),
+            offsets: Vec::new(),
+            atoms: Vec::new(),
+        }
+    }
+    fn get(&self, kind: DefinitionKind, name: &[u16]) -> &[DefinitionAtom] {
+        match self.keys.binary_search_by(|(probe_kind, probe_name)| {
+            probe_kind
+                .cmp(&kind)
+                .then_with(|| probe_name.as_slice().cmp(name))
+        }) {
+            Ok(index) => {
+                &self.atoms[self.offsets[index] as usize..self.offsets[index + 1] as usize]
+            }
+            Err(_) => &[],
+        }
+    }
+    /// Postings for `kind` whose name starts with `prefix`, in name order.
+    fn prefix(
+        &self,
+        kind: DefinitionKind,
+        prefix: &[u16],
+    ) -> impl Iterator<Item = &[DefinitionAtom]> {
+        let start = self.keys.partition_point(|(probe_kind, probe_name)| {
+            (*probe_kind, probe_name.as_slice()) < (kind, prefix)
+        });
+        self.keys[start..]
+            .iter()
+            .take_while(move |(probe_kind, probe_name)| {
+                *probe_kind == kind && probe_name.starts_with(prefix)
+            })
+            .enumerate()
+            .map(move |(offset, _)| {
+                let index = start + offset;
+                &self.atoms[self.offsets[index] as usize..self.offsets[index + 1] as usize]
+            })
+    }
 }
 struct DefinitionIndex {
-    names: BTreeMap<(DefinitionKind, Vec<u16>), Vec<DefinitionAtom>>,
+    names: DefinitionNamePostings,
     owners: BTreeMap<(u32, u32, DefinitionKind), Vec<DefinitionAtom>>,
     all: Vec<DefinitionAtom>,
+    /// Atoms collected during the traversal. Names are resolved from the fact
+    /// views in `finish`, so no UTF-16 key is allocated until a distinct name
+    /// is emitted.
+    pending_names: Vec<DefinitionAtom>,
 }
+/// Ordering used for definition-name postings.
+///
+/// This must be the **UTF-16 code-unit** order, because the postings are
+/// searched with `[u16]` comparisons. `&str` comparison is UTF-8 byte order,
+/// which disagrees once supplementary-plane characters are involved: UTF-16
+/// spells them as surrogates `D800-DFFF`, which sort *after* `E000-FFFF` in
+/// code-unit order but compare differently as UTF-8 bytes.
+fn cmp_definition_name(left: &str, right: &str) -> std::cmp::Ordering {
+    left.encode_utf16().cmp(right.encode_utf16())
+}
+
+impl DefinitionIndex {
+    fn empty() -> Self {
+        Self {
+            names: DefinitionNamePostings::empty(),
+            owners: BTreeMap::new(),
+            all: Vec::new(),
+            pending_names: Vec::new(),
+        }
+    }
+    fn finish(&mut self, views: &[FactView<'_>], budget: &mut Budget) -> MddResult<()> {
+        let mut pending = std::mem::take(&mut self.pending_names);
+        // Sort by (kind, name, atom); the comparator borrows the validated name
+        // straight out of the fact views, so sorting allocates nothing.
+        let mut keyed = pending
+            .iter()
+            .map(|atom| Ok((*atom, definition_name_str(views, *atom)?)))
+            .collect::<MddResult<Vec<_>>>()?;
+        keyed.sort_by(|left, right| {
+            left.0
+                .kind
+                .cmp(&right.0.kind)
+                // The key array is searched with UTF-16 code-unit ordering, so
+                // the sort must use that same order. `&str` comparison is UTF-8
+                // byte order, which differs once supplementary-plane
+                // characters are involved (UTF-16 uses surrogates D800-DFFF,
+                // which sort *after* E000-FFFF in code-unit order but compare
+                // differently as UTF-8 bytes). Sorting one way and searching
+                // the other made valid names containing supplementary
+                // characters unfindable and produced a false "absence proven".
+                .then_with(|| cmp_definition_name(left.1, right.1))
+                .then_with(|| left.0.cmp(&right.0))
+        });
+        let mut names = DefinitionNamePostings::empty();
+        let mut start = 0usize;
+        while start < keyed.len() {
+            let mut end = start + 1;
+            while end < keyed.len()
+                && keyed[end].0.kind == keyed[start].0.kind
+                && keyed[end].1 == keyed[start].1
+            {
+                end += 1;
+            }
+            // Encode UTF-16 exactly once, for the distinct name only.
+            let name = keyed[start].1.encode_utf16().collect::<Vec<_>>();
+            budget.charge(0, name.len() as u64 * 2 + 24)?;
+            names.keys.push((keyed[start].0.kind, name));
+            names.offsets.push(names.atoms.len() as u32);
+            names
+                .atoms
+                .extend(keyed[start..end].iter().map(|(atom, _)| *atom));
+            start = end;
+        }
+        names.offsets.push(names.atoms.len() as u32);
+        self.names = names;
+        pending.clear();
+        Ok(())
+    }
+}
+/// Resolve a definition atom to its validated name text.
+fn definition_name_str<'v>(views: &'v [FactView<'_>], atom: DefinitionAtom) -> MddResult<&'v str> {
+    let facts = views
+        .get(atom.view as usize)
+        .and_then(|view| view.definitions)
+        .ok_or_else(|| missing_facts("definitions missing"))?;
+    let definitions = facts.definitions();
+    let name = match atom.kind {
+        DefinitionKind::Class => {
+            &definitions
+                .classes
+                .get(atom.local as usize)
+                .ok_or_else(|| missing_facts("class definition missing"))?
+                .descriptor
+        }
+        DefinitionKind::Field => {
+            &definitions
+                .field_references
+                .get(atom.local as usize)
+                .ok_or_else(|| missing_facts("field definition missing"))?
+                .field_name
+        }
+        DefinitionKind::Method => {
+            &definitions
+                .method_references
+                .get(atom.local as usize)
+                .ok_or_else(|| missing_facts("method definition missing"))?
+                .method_name
+        }
+    };
+    Ok(name.as_str())
+}
+/// Encoded method symbols with postings. Sorting borrowed `(owner, name,
+/// prototype)` triples first means each distinct symbol is cloned exactly once
+/// instead of once per reference occurrence.
 struct ReferenceSymbolIndex {
-    methods: BTreeMap<MethodSymbol, Vec<ReferenceAtom>>,
+    /// Sorted by `(owner, name, prototype)`.
+    keys: Vec<MethodSymbol>,
+    offsets: Vec<u32>,
+    atoms: Vec<ReferenceAtom>,
 }
+impl ReferenceSymbolIndex {
+    fn get(&self, symbol: &MethodSymbol) -> &[ReferenceAtom] {
+        match self.keys.binary_search(symbol) {
+            Ok(index) => {
+                &self.atoms[self.offsets[index] as usize..self.offsets[index + 1] as usize]
+            }
+            Err(_) => &[],
+        }
+    }
+    fn from_pairs(
+        mut pairs: Vec<(MethodSymbolKey<'_>, ReferenceAtom)>,
+        budget: &mut Budget,
+    ) -> MddResult<Self> {
+        pairs.sort_unstable_by(|left, right| left.0.cmp(&right.0));
+        let mut keys = Vec::new();
+        let mut offsets = Vec::new();
+        let mut atoms = Vec::with_capacity(pairs.len());
+        let mut start = 0usize;
+        while start < pairs.len() {
+            let mut end = start + 1;
+            while end < pairs.len() && pairs[end].0 == pairs[start].0 {
+                end += 1;
+            }
+            let (owner, name, prototype) = pairs[start].0;
+            budget.charge(0, (owner.len() + name.len() + prototype.len()) as u64 + 16)?;
+            keys.push(MethodSymbol {
+                owner: owner.to_owned(),
+                name: name.to_owned(),
+                prototype: prototype.to_owned(),
+            });
+            offsets.push(atoms.len() as u32);
+            atoms.extend(pairs[start..end].iter().map(|(_, atom)| *atom));
+            start = end;
+        }
+        offsets.push(atoms.len() as u32);
+        Ok(Self {
+            keys,
+            offsets,
+            atoms,
+        })
+    }
+}
+/// Borrowed method symbol, used only to sort and group before cloning keys.
+type MethodSymbolKey<'m> = (&'m str, &'m str, &'m str);
+/// Encoded field symbols with postings; same grouping strategy as methods.
 struct FieldReferenceSymbolIndex {
-    fields: BTreeMap<FieldSymbol, Vec<ReferenceAtom>>,
+    /// Sorted by `(owner, name, field_type)`.
+    keys: Vec<FieldSymbol>,
+    offsets: Vec<u32>,
+    atoms: Vec<ReferenceAtom>,
+}
+impl FieldReferenceSymbolIndex {
+    fn get(&self, symbol: &FieldSymbol) -> &[ReferenceAtom] {
+        match self.keys.binary_search(symbol) {
+            Ok(index) => {
+                &self.atoms[self.offsets[index] as usize..self.offsets[index + 1] as usize]
+            }
+            Err(_) => &[],
+        }
+    }
+    fn from_pairs(
+        mut pairs: Vec<(FieldSymbolKey<'_>, ReferenceAtom)>,
+        budget: &mut Budget,
+    ) -> MddResult<Self> {
+        pairs.sort_unstable_by(|left, right| left.0.cmp(&right.0));
+        let mut keys = Vec::new();
+        let mut offsets = Vec::new();
+        let mut atoms = Vec::with_capacity(pairs.len());
+        let mut start = 0usize;
+        while start < pairs.len() {
+            let mut end = start + 1;
+            while end < pairs.len() && pairs[end].0 == pairs[start].0 {
+                end += 1;
+            }
+            let (owner, name, field_type) = pairs[start].0;
+            budget.charge(0, (owner.len() + name.len() + field_type.len()) as u64 + 16)?;
+            keys.push(FieldSymbol {
+                owner: owner.to_owned(),
+                name: name.to_owned(),
+                field_type: field_type.to_owned(),
+            });
+            offsets.push(atoms.len() as u32);
+            atoms.extend(pairs[start..end].iter().map(|(_, atom)| *atom));
+            start = end;
+        }
+        offsets.push(atoms.len() as u32);
+        Ok(Self {
+            keys,
+            offsets,
+            atoms,
+        })
+    }
+}
+/// Borrowed field symbol, used only to sort and group before cloning keys.
+type FieldSymbolKey<'m> = (&'m str, &'m str, &'m str);
+/// Descriptor string postings, stored sorted with one cloned key per distinct
+/// descriptor. Cloning per occurrence costs one `String` allocation per type or
+/// prototype in every selected DEX.
+struct DescriptorPostings {
+    keys: Vec<String>,
+    offsets: Vec<u32>,
+    atoms: Vec<Atom>,
+}
+impl DescriptorPostings {
+    fn get(&self, descriptor: &str) -> &[Atom] {
+        match self
+            .keys
+            .binary_search_by(|probe| probe.as_str().cmp(descriptor))
+        {
+            Ok(index) => {
+                &self.atoms[self.offsets[index] as usize..self.offsets[index + 1] as usize]
+            }
+            Err(_) => &[],
+        }
+    }
+    /// Group `(descriptor, atom)` pairs; `pairs` is sorted in place first.
+    fn from_pairs(mut pairs: Vec<(&str, Atom)>, budget: &mut Budget) -> MddResult<Self> {
+        pairs.sort_unstable_by(|left, right| left.0.cmp(right.0));
+        let mut keys = Vec::new();
+        let mut offsets = Vec::new();
+        let mut atoms = Vec::with_capacity(pairs.len());
+        let mut start = 0usize;
+        while start < pairs.len() {
+            let mut end = start + 1;
+            while end < pairs.len() && pairs[end].0 == pairs[start].0 {
+                end += 1;
+            }
+            let key = pairs[start].0;
+            budget.charge(0, key.len() as u64 + 64)?;
+            keys.push(key.to_owned());
+            offsets.push(atoms.len() as u32);
+            atoms.extend(pairs[start..end].iter().map(|(_, atom)| *atom));
+            start = end;
+        }
+        offsets.push(atoms.len() as u32);
+        Ok(Self {
+            keys,
+            offsets,
+            atoms,
+        })
+    }
 }
 struct TypeReferenceIndex {
-    descriptors: BTreeMap<String, Vec<Atom>>,
+    descriptors: DescriptorPostings,
 }
+impl TypeReferenceIndex {}
 struct PrototypeReferenceIndex {
-    descriptors: BTreeMap<String, Vec<Atom>>,
+    descriptors: DescriptorPostings,
 }
+impl PrototypeReferenceIndex {}
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Serialize)]
 #[serde(tag = "target_kind", rename_all = "snake_case")]
 pub enum MethodHandleSymbol {
@@ -205,8 +1019,57 @@ impl CallSiteEncodedKey {
 struct MethodHandleIndex {
     symbols: BTreeMap<MethodHandleSymbol, Vec<Atom>>,
 }
+impl MethodHandleIndex {
+    fn empty() -> Self {
+        Self {
+            symbols: BTreeMap::new(),
+        }
+    }
+}
+/// Caller-method atoms with their site ordinals, stored as one sorted key
+/// array plus one flat ordinal array. There is one entry per encoded site, so
+/// a tree node and a key clone per site is the dominant build cost otherwise.
 struct CallerSiteIndex {
-    sites: BTreeMap<Atom, Vec<u32>>,
+    /// Sorted `(view, caller method local index)`.
+    keys: Vec<Atom>,
+    /// `offsets[i]..offsets[i + 1]` is the ordinal range for `keys[i]`.
+    offsets: Vec<u32>,
+    ordinals: Vec<u32>,
+}
+impl CallerSiteIndex {
+    fn get(&self, key: Atom) -> &[u32] {
+        match self.keys.binary_search(&key) {
+            Ok(index) => {
+                &self.ordinals[self.offsets[index] as usize..self.offsets[index + 1] as usize]
+            }
+            Err(_) => &[],
+        }
+    }
+    /// Group `(key, ordinal)` pairs; `pairs` is consumed and sorted in place.
+    fn from_pairs(mut pairs: Vec<(Atom, u32)>, budget: &mut Budget) -> MddResult<Self> {
+        pairs.sort_unstable();
+        budget.charge(0, pairs.len() as u64 * 8)?;
+        let mut keys = Vec::new();
+        let mut offsets = Vec::new();
+        let mut ordinals = Vec::with_capacity(pairs.len());
+        let mut start = 0usize;
+        while start < pairs.len() {
+            let mut end = start + 1;
+            while end < pairs.len() && pairs[end].0 == pairs[start].0 {
+                end += 1;
+            }
+            keys.push(pairs[start].0);
+            offsets.push(ordinals.len() as u32);
+            ordinals.extend(pairs[start..end].iter().map(|(_, ordinal)| *ordinal));
+            start = end;
+        }
+        offsets.push(ordinals.len() as u32);
+        Ok(Self {
+            keys,
+            offsets,
+            ordinals,
+        })
+    }
 }
 #[derive(Clone, Copy, Debug)]
 struct AnnotationOwnerAtom {
@@ -218,6 +1081,13 @@ struct AnnotationOwnerAtom {
 }
 struct AnnotationTypeIndex {
     owners: BTreeMap<Vec<u16>, Vec<AnnotationOwnerAtom>>,
+}
+impl AnnotationTypeIndex {
+    fn empty() -> Self {
+        Self {
+            owners: BTreeMap::new(),
+        }
+    }
 }
 /// An encoded owner-to-annotation occurrence, not an inferred runtime annotation.
 #[derive(Clone, Debug, Serialize)]
@@ -508,6 +1378,14 @@ pub struct SnapshotFactIndex<'a> {
     views: Vec<FactView<'a>>,
     by_occurrence: BTreeMap<String, u32>,
     ledger: CoverageLedger<'a>,
+    /// Number of times `CoverageLedger::evaluate` actually ran for this instance.
+    /// The ledger is immutable once built, so repeat requests are answered from
+    /// `coverage_cache`; this counter makes that observable.
+    ledger_evaluations: std::sync::atomic::AtomicU64,
+    /// Number of full `self.views` traversals performed by index construction.
+    /// One pass per index before batching; one pass for the whole batch after.
+    index_traversals: std::sync::atomic::AtomicU64,
+    coverage_cache: std::sync::Mutex<BTreeMap<String, CoverageReport>>,
     limits: IndexLimits,
     strings: LazyIndex<StringIndex>,
     definitions: LazyIndex<DefinitionIndex>,
@@ -589,14 +1467,69 @@ impl<'a> SnapshotFactIndex<'a> {
             views: ordered,
             by_occurrence,
             ledger,
+            ledger_evaluations: std::sync::atomic::AtomicU64::new(0),
+            index_traversals: std::sync::atomic::AtomicU64::new(0),
+            coverage_cache: std::sync::Mutex::new(BTreeMap::new()),
             limits,
         })
     }
     pub fn scope(&self) -> &SelectedScope {
         &self.scope
     }
+    /// Development instrument: how many `CoverageLedger::evaluate` calls ran.
+    /// This is a monotonic counter, not part of any serialized contract.
+    pub fn coverage_evaluations(&self) -> u64 {
+        self.ledger_evaluations
+            .load(std::sync::atomic::Ordering::Relaxed)
+    }
+    /// Development instrument: how many full `views` passes index building did.
+    /// This is a monotonic counter, not part of any serialized contract.
+    pub fn index_traversals(&self) -> u64 {
+        self.index_traversals
+            .load(std::sync::atomic::Ordering::Relaxed)
+    }
+    fn note_traversal(&self) {
+        self.index_traversals
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }
     pub fn coverage(&self, request: &CoverageRequest) -> MddResult<CoverageReport> {
-        self.ledger.evaluate(request)
+        // The ledger is immutable once `new` returns, so an identical request
+        // always yields an identical report. Only the `require`-style requests
+        // (scope + layer set, no columns or resource members) are cached: those
+        // are the ones every build and every query entry point repeats.
+        let cacheable = request.required_columns.is_empty()
+            && request.required_resource_members.is_empty()
+            && request.input == InputNeed::ValidatedStandardDex
+            && request.scope_id == self.scope.scope_id();
+        let key = cacheable.then(|| coverage_cache_key(request));
+        if let Some(key) = &key
+            && let Ok(cache) = self.coverage_cache.lock()
+            && let Some(report) = cache.get(key)
+        {
+            return Ok(report.clone());
+        }
+        self.ledger_evaluations
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let report = self.ledger.evaluate(request)?;
+        if let Some(key) = key
+            && let Ok(mut cache) = self.coverage_cache.lock()
+        {
+            cache.insert(key, report.clone());
+        }
+        Ok(report)
+    }
+    /// Relation-scoped coverage for this bound scope: every frozen column of
+    /// `relations` must be provable, including the fact layers that own them.
+    ///
+    /// This is the production path that actually fills
+    /// `required_columns` — [`CoverageRequest::for_scope`] deliberately leaves
+    /// it empty, so a layer-only requirement never silently claims column
+    /// projectability. The report is returned, not enforced: callers decide
+    /// whether `Unknown` blocks them, and `require_complete` carries the
+    /// provider's own error when it does.
+    pub fn coverage_for_relations(&self, relations: &[&str]) -> MddResult<CoverageReport> {
+        let request = CoverageRequest::for_relations(&self.scope, relations)?;
+        self.coverage(&request)
     }
     pub fn audits(&self) -> MddResult<Vec<IndexAudit>> {
         Ok(vec![
@@ -612,9 +1545,7 @@ impl<'a> SnapshotFactIndex<'a> {
         ])
     }
     fn require(&self, layer: FactLayer) -> MddResult<CoverageReport> {
-        let report = self
-            .ledger
-            .evaluate(&CoverageRequest::for_scope(&self.scope, &[layer]))?;
+        let report = self.coverage(&CoverageRequest::for_scope(&self.scope, &[layer]))?;
         report.require_complete()?;
         Ok(report)
     }
@@ -737,61 +1668,18 @@ impl<'a> SnapshotFactIndex<'a> {
         Ok(())
     }
     fn build_strings(&self) -> MddResult<StringIndex> {
+        self.note_traversal();
         self.require(FactLayer::Metadata)?;
-        let mut index = StringIndex {
-            all: Vec::new(),
-            utf16: BTreeMap::new(),
-            raw: BTreeMap::new(),
-            units: BTreeMap::new(),
-        };
+        let mut index = StringIndex::empty();
         let mut budget = Budget::new(self.limits);
         budget.charge(0, 0)?;
         for (view_id, view) in self.views.iter().enumerate() {
-            let metadata = view.metadata.ok_or_else(|| {
-                MddError::new(
-                    ErrorCode::IncompleteFacts,
-                    "facts.index",
-                    "metadata missing",
-                )
-            })?;
-            for string in metadata.strings() {
-                let atom = Atom {
-                    view: view_id as u32,
-                    local: string.data.string_idx,
-                };
-                budget.charge(1, 16)?;
-                index.all.push(atom);
-                if !index.utf16.contains_key(&string.data.text.utf16_units) {
-                    budget.charge(0, string.data.text.utf16_units.len() as u64 * 2 + 64)?;
-                }
-                index
-                    .utf16
-                    .entry(string.data.text.utf16_units.clone())
-                    .or_default()
-                    .push(atom);
-                budget.charge(1, 8)?;
-                if !index.raw.contains_key(&string.data.text.raw_mutf8) {
-                    budget.charge(0, string.data.text.raw_mutf8.len() as u64 + 64)?;
-                }
-                index
-                    .raw
-                    .entry(string.data.text.raw_mutf8.clone())
-                    .or_default()
-                    .push(atom);
-                budget.charge(1, 8)?;
-                for unit in string
-                    .data
-                    .text
-                    .utf16_units
-                    .iter()
-                    .copied()
-                    .collect::<BTreeSet<_>>()
-                {
-                    budget.charge(1, 8)?;
-                    index.units.entry(unit).or_default().push(atom);
-                }
-            }
+            let metadata = view
+                .metadata
+                .ok_or_else(|| missing_facts("metadata missing"))?;
+            add_strings(&mut index, &mut budget, view_id as u32, metadata)?;
         }
+        index.finish(&self.views, &mut budget)?;
         Ok(index)
     }
     fn string_candidates<'b>(
@@ -800,19 +1688,13 @@ impl<'a> SnapshotFactIndex<'a> {
     ) -> Box<dyn Iterator<Item = Atom> + 'b> {
         match predicate {
             Utf16Predicate::Any => Box::new(index.all.iter().copied()),
-            Utf16Predicate::Equal(value) => {
-                Box::new(index.utf16.get(value).into_iter().flatten().copied())
+            Utf16Predicate::Equal(value) => Box::new(index.utf16.get(value).iter().copied()),
+            Utf16Predicate::Prefix(prefix) => {
+                Box::new(index.utf16.prefix(prefix).flatten().copied())
             }
-            Utf16Predicate::Prefix(prefix) => Box::new(
-                index
-                    .utf16
-                    .range(prefix.clone()..)
-                    .take_while(|(key, _)| key.starts_with(prefix))
-                    .flat_map(|(_, values)| values.iter().copied()),
-            ),
             Utf16Predicate::Contains(value) => match value.first() {
                 None => Box::new(index.all.iter().copied()),
-                Some(unit) => Box::new(index.units.get(unit).into_iter().flatten().copied()),
+                Some(unit) => Box::new(index.units.get(*unit).iter().copied()),
             },
         }
     }
@@ -886,7 +1768,7 @@ impl<'a> SnapshotFactIndex<'a> {
         }
         let coverage = self.require(FactLayer::Metadata)?;
         let index = self.strings.get_or_build(|| self.build_strings())?;
-        let candidates = index.raw.get(raw).map(Vec::as_slice).unwrap_or_default();
+        let candidates = index.raw.get(raw);
         let mut entities = Vec::new();
         let mut result_bytes = 0;
         for atom in candidates {
@@ -914,81 +1796,18 @@ impl<'a> SnapshotFactIndex<'a> {
         self.strings.audit()
     }
     fn build_definitions(&self) -> MddResult<DefinitionIndex> {
+        self.note_traversal();
         self.require(FactLayer::Definitions)?;
-        let mut index = DefinitionIndex {
-            names: BTreeMap::new(),
-            owners: BTreeMap::new(),
-            all: Vec::new(),
-        };
+        let mut index = DefinitionIndex::empty();
         let mut budget = Budget::new(self.limits);
         budget.charge(0, 0)?;
         for (view_id, view) in self.views.iter().enumerate() {
-            let facts = view.definitions.ok_or_else(|| {
-                MddError::new(
-                    ErrorCode::IncompleteFacts,
-                    "facts.index",
-                    "definitions missing",
-                )
-            })?;
-            let view = view_id as u32;
-            for class in &facts.definitions().classes {
-                let atom = DefinitionAtom {
-                    view,
-                    kind: DefinitionKind::Class,
-                    local: class.class_def_idx,
-                };
-                let descriptor = class.descriptor.encode_utf16().collect::<Vec<_>>();
-                budget.charge(1, descriptor.len() as u64 * 2 + 24)?;
-                index
-                    .names
-                    .entry((DefinitionKind::Class, descriptor))
-                    .or_default()
-                    .push(atom);
-                index.all.push(atom);
-            }
-            for field in &facts.definitions().field_definitions {
-                let reference = &facts.definitions().field_references[field.field_idx as usize];
-                let atom = DefinitionAtom {
-                    view,
-                    kind: DefinitionKind::Field,
-                    local: field.field_idx,
-                };
-                let name = reference.field_name.encode_utf16().collect::<Vec<_>>();
-                budget.charge(1, name.len() as u64 * 2 + 48)?;
-                index
-                    .names
-                    .entry((DefinitionKind::Field, name))
-                    .or_default()
-                    .push(atom);
-                index
-                    .owners
-                    .entry((view, field.class_def_idx, DefinitionKind::Field))
-                    .or_default()
-                    .push(atom);
-                index.all.push(atom);
-            }
-            for method in &facts.definitions().method_definitions {
-                let reference = &facts.definitions().method_references[method.method_idx as usize];
-                let atom = DefinitionAtom {
-                    view,
-                    kind: DefinitionKind::Method,
-                    local: method.method_idx,
-                };
-                let name = reference.method_name.encode_utf16().collect::<Vec<_>>();
-                budget.charge(1, name.len() as u64 * 2 + 48)?;
-                index
-                    .names
-                    .entry((DefinitionKind::Method, name))
-                    .or_default()
-                    .push(atom);
-                index
-                    .owners
-                    .entry((view, method.class_def_idx, DefinitionKind::Method))
-                    .or_default()
-                    .push(atom);
-                index.all.push(atom);
-            }
+            let facts = view
+                .definitions
+                .ok_or_else(|| missing_facts("definitions missing"))?;
+            add_definitions(&mut index, &mut budget, view_id as u32, facts)?;
         }
+        index.finish(&self.views, &mut budget)?;
         Ok(index)
     }
     fn definition_name(&self, atom: DefinitionAtom) -> MddResult<Vec<u16>> {
@@ -1041,21 +1860,10 @@ impl<'a> SnapshotFactIndex<'a> {
         let coverage = self.require(FactLayer::Definitions)?;
         let index = self.definitions.get_or_build(|| self.build_definitions())?;
         let candidates: Box<dyn Iterator<Item = DefinitionAtom> + '_> = match predicate {
-            Utf16Predicate::Equal(name) => Box::new(
-                index
-                    .names
-                    .get(&(kind, name.clone()))
-                    .into_iter()
-                    .flatten()
-                    .copied(),
-            ),
-            Utf16Predicate::Prefix(prefix) => Box::new(
-                index
-                    .names
-                    .range((kind, prefix.clone())..)
-                    .take_while(|((found, key), _)| *found == kind && key.starts_with(prefix))
-                    .flat_map(|(_, values)| values.iter().copied()),
-            ),
+            Utf16Predicate::Equal(name) => Box::new(index.names.get(kind, name).iter().copied()),
+            Utf16Predicate::Prefix(prefix) => {
+                Box::new(index.names.prefix(kind, prefix).flatten().copied())
+            }
             _ => Box::new(index.all.iter().filter(|atom| atom.kind == kind).copied()),
         };
         let mut entities = Vec::new();
@@ -1279,11 +2087,8 @@ impl<'a> SnapshotFactIndex<'a> {
             }
         } else {
             let index = self.definitions.get_or_build(|| self.build_definitions())?;
-            let key = (
-                DefinitionKind::Class,
-                descriptor.encode_utf16().collect::<Vec<_>>(),
-            );
-            for owner in index.names.get(&key).into_iter().flatten() {
+            let name = descriptor.encode_utf16().collect::<Vec<_>>();
+            for owner in index.names.get(DefinitionKind::Class, &name) {
                 let facts = self.definition_facts(owner.view)?;
                 let class = facts
                     .definitions()
@@ -1395,13 +2200,9 @@ impl<'a> SnapshotFactIndex<'a> {
     ) -> MddResult<()> {
         budget.charge(0, 0)?;
         for (view_id, view) in self.views.iter().enumerate() {
-            let facts = view.annotations.ok_or_else(|| {
-                MddError::new(
-                    ErrorCode::IncompleteFacts,
-                    "facts.index",
-                    "annotations not built",
-                )
-            })?;
+            let facts = view
+                .annotations
+                .ok_or_else(|| missing_facts("annotations not built"))?;
             let data = facts.data();
             let view_id = u32::try_from(view_id).map_err(|_| quota("INDEX_ENTRY_BUDGET"))?;
             let mut sets = BTreeMap::new();
@@ -1452,10 +2253,9 @@ impl<'a> SnapshotFactIndex<'a> {
     }
 
     fn build_annotation_types(&self) -> MddResult<AnnotationTypeIndex> {
+        self.note_traversal();
         self.require(FactLayer::Annotations)?;
-        let mut index = AnnotationTypeIndex {
-            owners: BTreeMap::new(),
-        };
+        let mut index = AnnotationTypeIndex::empty();
         let mut budget = Budget::new(self.limits);
         self.walk_annotation_owners(&mut budget, |atom, budget| {
             let key = self.annotation_descriptor(atom)?;
@@ -1644,243 +2444,92 @@ impl<'a> SnapshotFactIndex<'a> {
         self.caller_sites.audit()
     }
     fn build_caller_sites(&self) -> MddResult<CallerSiteIndex> {
+        self.note_traversal();
         self.require(FactLayer::References)?;
-        let mut index = CallerSiteIndex {
-            sites: BTreeMap::new(),
-        };
+        let mut pairs = Vec::new();
         let mut budget = Budget::new(self.limits);
         budget.charge(0, 0)?;
-        for (view, entry) in self.views.iter().enumerate() {
-            let facts = entry.references.ok_or_else(|| {
-                MddError::new(
-                    ErrorCode::IncompleteFacts,
-                    "facts.index",
-                    "references missing",
-                )
-            })?;
-            let view = u32::try_from(view).map_err(|_| quota("INDEX_ENTRY_BUDGET"))?;
-            for (ordinal, site) in facts.sites().iter().enumerate() {
-                let ordinal = u32::try_from(ordinal).map_err(|_| quota("INDEX_ENTRY_BUDGET"))?;
-                if site.site_ordinal != ordinal {
-                    return Err(MddError::new(
-                        ErrorCode::InternalFault,
-                        "facts.index",
-                        "validated reference site ordinal is inconsistent",
-                    ));
-                }
-                let key = Atom {
-                    view,
-                    local: site.caller_method_idx,
-                };
-                let key_bytes = if index.sites.contains_key(&key) {
-                    0
-                } else {
-                    64
-                };
-                budget.charge(1, key_bytes + 8)?;
-                let postings = index.sites.entry(key).or_default();
-                postings
-                    .try_reserve(1)
-                    .map_err(|_| quota("INDEX_ALLOCATION"))?;
-                postings.push(ordinal);
-            }
+        for (view_id, view) in self.views.iter().enumerate() {
+            let facts = view
+                .references
+                .ok_or_else(|| missing_facts("references missing"))?;
+            add_caller_sites(&mut pairs, &mut budget, view_id as u32, facts)?;
         }
-        Ok(index)
+        CallerSiteIndex::from_pairs(pairs, &mut budget)
     }
     fn build_method_handles(&self) -> MddResult<MethodHandleIndex> {
+        self.note_traversal();
         self.require(FactLayer::References)?;
-        let mut index = MethodHandleIndex {
-            symbols: BTreeMap::new(),
-        };
+        let mut index = MethodHandleIndex::empty();
         let mut budget = Budget::new(self.limits);
         budget.charge(0, 0)?;
-        for (view, entry) in self.views.iter().enumerate() {
-            let facts = entry.references.ok_or_else(|| {
-                MddError::new(
-                    ErrorCode::IncompleteFacts,
-                    "facts.index",
-                    "references missing",
-                )
-            })?;
-            let view = u32::try_from(view).map_err(|_| quota("INDEX_ENTRY_BUDGET"))?;
-            for handle in handle_metadata(facts)? {
-                let target = handle_target(facts, handle)?;
-                budget.charge(1, target.bytes()?)?;
-                index.symbols.entry(target.owned()).or_default().push(Atom {
-                    view,
-                    local: handle.method_handle_idx,
-                });
-            }
+        for (view_id, view) in self.views.iter().enumerate() {
+            let facts = view
+                .references
+                .ok_or_else(|| missing_facts("references missing"))?;
+            add_method_handles(&mut index, &mut budget, view_id as u32, facts)?;
         }
         Ok(index)
     }
     fn build_prototype_references(&self) -> MddResult<PrototypeReferenceIndex> {
+        self.note_traversal();
         self.require(FactLayer::Metadata)?;
-        let mut index = PrototypeReferenceIndex {
-            descriptors: BTreeMap::new(),
-        };
+        let mut pairs = Vec::new();
         let mut budget = Budget::new(self.limits);
         budget.charge(0, 0)?;
-        for (view, entry) in self.views.iter().enumerate() {
-            let metadata = entry.metadata.ok_or_else(|| {
-                MddError::new(
-                    ErrorCode::IncompleteFacts,
-                    "facts.index",
-                    "metadata missing",
-                )
-            })?;
-            let view = u32::try_from(view).map_err(|_| quota("INDEX_ENTRY_BUDGET"))?;
-            for prototype in metadata.prototypes() {
-                let descriptor = &prototype.data.descriptor;
-                let key_bytes = if index.descriptors.contains_key(descriptor) {
-                    0
-                } else {
-                    u64::try_from(descriptor.len())
-                        .ok()
-                        .and_then(|n| n.checked_add(64))
-                        .ok_or_else(|| quota("INDEX_BYTE_BUDGET"))?
-                };
-                budget.charge(
-                    1,
-                    key_bytes
-                        .checked_add(16)
-                        .ok_or_else(|| quota("INDEX_BYTE_BUDGET"))?,
-                )?;
-                let atom = Atom {
-                    view,
-                    local: prototype.data.proto_idx,
-                };
-                if let Some(atoms) = index.descriptors.get_mut(descriptor) {
-                    atoms.push(atom);
-                } else {
-                    index.descriptors.insert(descriptor.clone(), vec![atom]);
-                }
-            }
+        for (view_id, view) in self.views.iter().enumerate() {
+            let metadata = view
+                .metadata
+                .ok_or_else(|| missing_facts("metadata missing"))?;
+            add_prototype_references(&mut pairs, &mut budget, view_id as u32, metadata)?;
         }
-        Ok(index)
+        Ok(PrototypeReferenceIndex {
+            descriptors: DescriptorPostings::from_pairs(pairs, &mut budget)?,
+        })
     }
     fn build_type_references(&self) -> MddResult<TypeReferenceIndex> {
+        self.note_traversal();
         self.require(FactLayer::Metadata)?;
-        let mut index = TypeReferenceIndex {
-            descriptors: BTreeMap::new(),
-        };
+        let mut pairs = Vec::new();
         let mut budget = Budget::new(self.limits);
         budget.charge(0, 0)?;
-        for (view, entry) in self.views.iter().enumerate() {
-            let metadata = entry.metadata.ok_or_else(|| {
-                MddError::new(
-                    ErrorCode::IncompleteFacts,
-                    "facts.index",
-                    "metadata missing",
-                )
-            })?;
-            let view = u32::try_from(view).map_err(|_| quota("INDEX_ENTRY_BUDGET"))?;
-            for dex_type in metadata.types() {
-                let descriptor = &dex_type.data.descriptor;
-                let key_bytes = if index.descriptors.contains_key(descriptor) {
-                    0
-                } else {
-                    u64::try_from(descriptor.len())
-                        .ok()
-                        .and_then(|n| n.checked_add(64))
-                        .ok_or_else(|| quota("INDEX_BYTE_BUDGET"))?
-                };
-                budget.charge(
-                    1,
-                    key_bytes
-                        .checked_add(16)
-                        .ok_or_else(|| quota("INDEX_BYTE_BUDGET"))?,
-                )?;
-                let atom = Atom {
-                    view,
-                    local: dex_type.data.type_idx,
-                };
-                if let Some(atoms) = index.descriptors.get_mut(descriptor) {
-                    atoms.push(atom);
-                } else {
-                    index.descriptors.insert(descriptor.clone(), vec![atom]);
-                }
-            }
+        for (view_id, view) in self.views.iter().enumerate() {
+            let metadata = view
+                .metadata
+                .ok_or_else(|| missing_facts("metadata missing"))?;
+            add_type_references(&mut pairs, &mut budget, view_id as u32, metadata)?;
         }
-        Ok(index)
+        Ok(TypeReferenceIndex {
+            descriptors: DescriptorPostings::from_pairs(pairs, &mut budget)?,
+        })
     }
     fn build_field_reference_symbols(&self) -> MddResult<FieldReferenceSymbolIndex> {
+        self.note_traversal();
         self.require(FactLayer::Definitions)?;
-        let mut index = FieldReferenceSymbolIndex {
-            fields: BTreeMap::new(),
-        };
+        let mut pairs = Vec::new();
         let mut budget = Budget::new(self.limits);
         budget.charge(0, 0)?;
-        for (view, entry) in self.views.iter().enumerate() {
-            let facts = entry.definitions.ok_or_else(|| {
-                MddError::new(
-                    ErrorCode::IncompleteFacts,
-                    "facts.index",
-                    "definitions missing",
-                )
-            })?;
-            for reference in &facts.definitions().field_references {
-                let bytes = reference
-                    .class_descriptor
-                    .len()
-                    .checked_add(reference.field_name.len())
-                    .and_then(|v| v.checked_add(reference.type_descriptor.len()))
-                    .and_then(|v| v.checked_add(16))
-                    .and_then(|v| u64::try_from(v).ok())
-                    .ok_or_else(|| quota("INDEX_BYTE_BUDGET"))?;
-                budget.charge(1, bytes)?;
-                let symbol = FieldSymbol {
-                    owner: reference.class_descriptor.clone(),
-                    name: reference.field_name.clone(),
-                    field_type: reference.type_descriptor.clone(),
-                };
-                index.fields.entry(symbol).or_default().push(ReferenceAtom {
-                    view: u32::try_from(view).map_err(|_| quota("INDEX_ENTRY_BUDGET"))?,
-                    local: reference.field_idx,
-                });
-            }
+        for (view_id, view) in self.views.iter().enumerate() {
+            let facts = view
+                .definitions
+                .ok_or_else(|| missing_facts("definitions missing"))?;
+            add_field_reference_symbols(&mut pairs, &mut budget, view_id as u32, facts)?;
         }
-        Ok(index)
+        FieldReferenceSymbolIndex::from_pairs(pairs, &mut budget)
     }
     fn build_reference_symbols(&self) -> MddResult<ReferenceSymbolIndex> {
+        self.note_traversal();
         self.require(FactLayer::Definitions)?;
-        let mut index = ReferenceSymbolIndex {
-            methods: BTreeMap::new(),
-        };
+        let mut pairs = Vec::new();
         let mut budget = Budget::new(self.limits);
         budget.charge(0, 0)?;
-        for (view, entry) in self.views.iter().enumerate() {
-            let facts = entry.definitions.ok_or_else(|| {
-                MddError::new(
-                    ErrorCode::IncompleteFacts,
-                    "facts.index",
-                    "definitions missing",
-                )
-            })?;
-            for reference in &facts.definitions().method_references {
-                let symbol = MethodSymbol {
-                    owner: reference.class_descriptor.clone(),
-                    name: reference.method_name.clone(),
-                    prototype: facts.metadata().prototypes()[reference.proto_idx as usize]
-                        .data
-                        .descriptor
-                        .clone(),
-                };
-                budget.charge(
-                    1,
-                    (symbol.owner.len() + symbol.name.len() + symbol.prototype.len()) as u64 + 16,
-                )?;
-                index
-                    .methods
-                    .entry(symbol)
-                    .or_default()
-                    .push(ReferenceAtom {
-                        view: view as u32,
-                        local: reference.method_idx,
-                    });
-            }
+        for (view_id, view) in self.views.iter().enumerate() {
+            let facts = view
+                .definitions
+                .ok_or_else(|| missing_facts("definitions missing"))?;
+            add_reference_symbols(&mut pairs, &mut budget, view_id as u32, facts)?;
         }
-        Ok(index)
+        ReferenceSymbolIndex::from_pairs(pairs, &mut budget)
     }
     pub fn references_local(&self, target: &ReferenceTargetId) -> MddResult<ReferenceMatches> {
         self.require(FactLayer::References)?;
@@ -2131,13 +2780,11 @@ impl<'a> SnapshotFactIndex<'a> {
         let candidates: Box<dyn Iterator<Item = u32> + '_> = if let Some(index) = &index {
             Box::new(
                 index
-                    .sites
-                    .get(&Atom {
+                    .get(Atom {
                         view,
                         local: caller.local_index,
                     })
-                    .into_iter()
-                    .flatten()
+                    .iter()
                     .copied(),
             )
         } else {
@@ -2563,14 +3210,7 @@ impl<'a> SnapshotFactIndex<'a> {
             )
         };
         let candidates: Box<dyn Iterator<Item = Atom> + '_> = if let Some(index) = &index {
-            Box::new(
-                index
-                    .descriptors
-                    .get(descriptor)
-                    .into_iter()
-                    .flatten()
-                    .copied(),
-            )
+            Box::new(index.descriptors.get(descriptor).iter().copied())
         } else {
             Box::new(self.views.iter().enumerate().flat_map(|(view, entry)| {
                 entry.metadata.into_iter().flat_map(move |metadata| {
@@ -2670,14 +3310,7 @@ impl<'a> SnapshotFactIndex<'a> {
             )
         };
         let candidates: Box<dyn Iterator<Item = Atom> + '_> = if let Some(index) = &index {
-            Box::new(
-                index
-                    .descriptors
-                    .get(descriptor)
-                    .into_iter()
-                    .flatten()
-                    .copied(),
-            )
+            Box::new(index.descriptors.get(descriptor).iter().copied())
         } else {
             Box::new(self.views.iter().enumerate().flat_map(|(view, entry)| {
                 entry.metadata.into_iter().flat_map(move |metadata| {
@@ -2789,10 +3422,10 @@ impl<'a> SnapshotFactIndex<'a> {
         let candidates: Box<dyn Iterator<Item = Atom> + '_> = if let Some(index) = &index {
             match value {
                 StringReferencePredicate::Utf16(units) => {
-                    Box::new(index.utf16.get(units).into_iter().flatten().copied())
+                    Box::new(index.utf16.get(units).iter().copied())
                 }
                 StringReferencePredicate::RawMutf8(bytes) => {
-                    Box::new(index.raw.get(bytes).into_iter().flatten().copied())
+                    Box::new(index.raw.get(bytes).iter().copied())
                 }
             }
         } else {
@@ -2906,7 +3539,7 @@ impl<'a> SnapshotFactIndex<'a> {
             )
         };
         let candidates: Box<dyn Iterator<Item = ReferenceAtom> + '_> = if let Some(index) = &index {
-            Box::new(index.fields.get(symbol).into_iter().flatten().copied())
+            Box::new(index.get(symbol).iter().copied())
         } else {
             Box::new(self.views.iter().enumerate().flat_map(|(view, entry)| {
                 entry.definitions.into_iter().flat_map(move |defs| {
@@ -3019,7 +3652,7 @@ impl<'a> SnapshotFactIndex<'a> {
         let mut result = Vec::new();
         let mut result_bytes = 0u64;
         let candidates: Box<dyn Iterator<Item = ReferenceAtom> + '_> = if let Some(index) = &index {
-            Box::new(index.methods.get(symbol).into_iter().flatten().copied())
+            Box::new(index.get(symbol).iter().copied())
         } else {
             Box::new(self.views.iter().enumerate().flat_map(|(view, entry)| {
                 entry.definitions.into_iter().flat_map(move |defs| {

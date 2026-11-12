@@ -56,6 +56,11 @@ pub const RESOURCES: [Resource; 19] = [
     Resource::QuerySteps,
 ];
 impl Resource {
+    /// Dense slot so hot accounting paths avoid hashing or tree lookups.
+    #[inline]
+    const fn slot(self) -> usize {
+        self as usize
+    }
     fn resident(self) -> bool {
         matches!(
             self,
@@ -188,7 +193,11 @@ struct Node {
     parent: Option<String>,
     scope: BudgetScope,
     limits: BudgetLimits,
-    used: BTreeMap<Resource, u64>,
+    /// Dense per-resource totals; `RESOURCES` is the canonical slot order.
+    used: [u64; RESOURCES.len()],
+    /// Which slots have ever been charged. `BudgetUsage::used` historically
+    /// contained only charged resources, so the JSON shape depends on this.
+    charged: u32,
     soft: Instant,
     hard: Instant,
     started: Instant,
@@ -208,6 +217,16 @@ struct State {
 pub struct BudgetPool {
     state: Arc<Mutex<State>>,
     owner: String,
+    /// Ancestor path fixed at construction: `[owner, parent, .., root]`.
+    ///
+    /// The hierarchy is immutable for a pool's lifetime — `child` only ever
+    /// appends a node whose parent already exists — so caching the path keeps
+    /// the per-charge walk allocation-free without changing any accounting.
+    path: Arc<[String]>,
+    /// Raised the first time `lock()` observes a recorded fault, so the hot
+    /// `checkpoint()` path can notice a sticky fault without taking the mutex.
+    /// The authoritative error still lives in `State::fault`.
+    sticky_fault: Arc<std::sync::atomic::AtomicBool>,
 }
 #[derive(Clone, Debug, Serialize)]
 pub struct BudgetUsage {
@@ -248,7 +267,8 @@ impl BudgetPool {
             parent: None,
             scope: BudgetScope::Global,
             limits,
-            used: BTreeMap::new(),
+            used: [0; RESOURCES.len()],
+            charged: 0,
             soft,
             hard,
             started: now,
@@ -261,6 +281,8 @@ impl BudgetPool {
                 fault: None,
                 live_reservations: 0,
             })),
+            path: Arc::from([owner.clone()]),
+            sticky_fault: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             owner,
         })
     }
@@ -270,6 +292,8 @@ impl BudgetPool {
             .lock()
             .map_err(|_| fault("budget mutex poisoned"))?;
         if let Some(error) = &state.fault {
+            self.sticky_fault
+                .store(true, std::sync::atomic::Ordering::Release);
             return Err(error.clone());
         }
         Ok(state)
@@ -315,14 +339,20 @@ impl BudgetPool {
                 parent: Some(self.owner.clone()),
                 scope,
                 limits,
-                used: BTreeMap::new(),
+                used: [0; RESOURCES.len()],
+                charged: 0,
                 soft,
                 hard,
                 started: now,
             },
         );
+        let mut path = Vec::with_capacity(self.path.len() + 1);
+        path.push(owner.clone());
+        path.extend(self.path.iter().cloned());
         Ok(Self {
             state: Arc::clone(&self.state),
+            path: Arc::from(path),
+            sticky_fault: Arc::clone(&self.sticky_fault),
             owner,
         })
     }
@@ -401,22 +431,20 @@ impl BudgetPool {
     /// may still cause the subsequent operation to fail.
     pub fn remaining(&self, resource: Resource) -> MddResult<u64> {
         let state = self.lock()?;
-        Ok(Self::ancestors(&state, &self.owner)
+        Ok(self
+            .ancestor_path()
             .iter()
             .map(|owner| {
                 let node = &state.nodes[owner];
                 let category = node
                     .limits
                     .limit(resource)
-                    .saturating_sub(node.used.get(&resource).copied().unwrap_or(0));
+                    .saturating_sub(node.used[resource.slot()]);
                 if resource.physical_memory() {
                     category.min(
-                        node.limits.limit(Resource::ResidentBytes).saturating_sub(
-                            node.used
-                                .get(&Resource::ResidentBytes)
-                                .copied()
-                                .unwrap_or(0),
-                        ),
+                        node.limits
+                            .limit(Resource::ResidentBytes)
+                            .saturating_sub(node.used[Resource::ResidentBytes.slot()]),
                     )
                 } else {
                     category
@@ -433,18 +461,14 @@ impl BudgetPool {
         if resource.resident() || resource == Resource::MemberUncompressedBytes {
             return Err(invalid("resource requires reservation or per-member check"));
         }
-        for owner in Self::ancestors(&state, &self.owner) {
-            let node = &state.nodes[&owner];
+        for owner in self.ancestor_path() {
+            let node = &state.nodes[owner];
             let limit = node.limits.limit(resource);
-            let value = node
-                .used
-                .get(&resource)
-                .copied()
-                .unwrap_or(0)
+            let value = node.used[resource.slot()]
                 .checked_add(amount)
-                .ok_or_else(|| exceeded(resource, limit, "overflow", &owner))?;
+                .ok_or_else(|| exceeded(resource, limit, "overflow", owner))?;
             if value > limit {
-                return Err(exceeded(resource, limit, value, &owner));
+                return Err(exceeded(resource, limit, value, owner));
             }
         }
         Ok(())
@@ -453,8 +477,9 @@ impl BudgetPool {
         if !Arc::ptr_eq(&self.state, &owner.state) {
             return Ok(false);
         }
-        let state = self.lock()?;
-        Ok(Self::ancestors(&state, &self.owner).contains(&owner.owner))
+        // Surface a poisoned or faulted state before answering from the cached path.
+        drop(self.lock()?);
+        Ok(self.ancestor_path().iter().any(|key| key == &owner.owner))
     }
     fn ancestors(state: &State, owner: &str) -> Vec<String> {
         let mut keys = Vec::new();
@@ -465,38 +490,61 @@ impl BudgetPool {
         }
         keys
     }
-    fn add(state: &mut State, owner: &str, resource: Resource, amount: u64) -> MddResult<()> {
-        let charges = if resource.physical_memory() {
-            vec![(resource, amount), (Resource::ResidentBytes, amount)]
+    /// Visit `owner` and each ancestor root-wards. The cached `path` is the
+    /// authority; `node.parent` only matters while a pool is being built.
+    fn ancestor_path(&self) -> &[String] {
+        &self.path
+    }
+    /// Charge every ancestor in one pass. Validation is still completed for the
+    /// whole chain before any total is written, so a rejected charge never leaves
+    /// a partially updated hierarchy.
+    fn add(
+        state: &mut State,
+        sticky: &std::sync::atomic::AtomicBool,
+        path: &[String],
+        resource: Resource,
+        amount: u64,
+    ) -> MddResult<()> {
+        let mut charges = [resource; 2];
+        let width = if resource.physical_memory() {
+            charges[1] = Resource::ResidentBytes;
+            2
         } else {
-            vec![(resource, amount)]
+            1
         };
-        let ancestors = Self::ancestors(state, owner);
-        let mut totals = Vec::new();
-        for key in &ancestors {
+        if path.len() > 4 {
+            // Register the same sticky fault `release` records, so one internal
+            // inconsistency cannot produce two different failure semantics.
+            let error = state
+                .fault
+                .get_or_insert_with(|| fault("budget ancestor depth exceeded"));
+            sticky.store(true, std::sync::atomic::Ordering::Release);
+            return Err(error.clone());
+        }
+        // Global -> worker -> session -> query is four levels; two resources each.
+        let mut pending = [0u64; 8];
+        for (level, key) in path.iter().enumerate() {
             let node = &state.nodes[key];
-            for (resource, amount) in &charges {
-                let value = node
-                    .used
-                    .get(resource)
-                    .copied()
-                    .unwrap_or(0)
-                    .checked_add(*amount);
-                let limit = node.limits.limit(*resource);
-                let value = value.ok_or_else(|| exceeded(*resource, limit, "overflow", key))?;
+            for (index, charged) in charges[..width].iter().enumerate() {
+                let limit = node.limits.limit(*charged);
+                let value = node.used[charged.slot()]
+                    .checked_add(amount)
+                    .ok_or_else(|| exceeded(*charged, limit, "overflow", key))?;
                 if value > limit {
-                    return Err(exceeded(*resource, limit, value, key));
+                    return Err(exceeded(*charged, limit, value, key));
                 }
-                totals.push((key.clone(), *resource, value));
+                pending[level * width + index] = value;
             }
         }
-        for (key, resource, total) in totals {
-            state
-                .nodes
-                .get_mut(&key)
-                .unwrap()
-                .used
-                .insert(resource, total);
+        // The validated totals are written in a second walk so a rejected ancestor
+        // never observes a partially charged hierarchy.
+        for (level, key) in path.iter().enumerate() {
+            let node = state.nodes.get_mut(key).expect("ancestor resolved");
+            for (index, charged) in charges[..width].iter().enumerate() {
+                let slot = charged.slot();
+                node.used[slot] = pending[level * width + index];
+                node.charged |= 1u32 << slot;
+            }
         }
         Ok(())
     }
@@ -506,7 +554,8 @@ impl BudgetPool {
         if resource.resident() || resource == Resource::MemberUncompressedBytes {
             return Err(invalid("resource requires reservation or per-member check"));
         }
-        Self::add(&mut state, &self.owner, resource, amount)
+        let path = Arc::clone(&self.path);
+        Self::add(&mut state, &self.sticky_fault, &path, resource, amount)
     }
     pub fn admit(&self, resource: Resource, maximum: u64) -> MddResult<Admission> {
         self.charge(resource, maximum)?;
@@ -569,7 +618,8 @@ impl BudgetPool {
             .next
             .checked_add(1)
             .ok_or_else(|| fault("reservation ticket overflow"))?;
-        Self::add(&mut state, &self.owner, resource, amount)?;
+        let path = Arc::clone(&self.path);
+        Self::add(&mut state, &self.sticky_fault, &path, resource, amount)?;
         state.live_reservations += 1;
         let value = Arc::new(ReservationInner {
             pool: self.clone(),
@@ -596,10 +646,10 @@ impl BudgetPool {
         Ok(BudgetUsage {
             owner: self.owner.clone(),
             scope: node.scope,
-            used: node
-                .used
+            used: RESOURCES
                 .iter()
-                .map(|(k, v)| (*k, DecimalU64(*v)))
+                .filter(|resource| node.charged & (1u32 << resource.slot()) != 0)
+                .map(|resource| (*resource, DecimalU64(node.used[resource.slot()])))
                 .collect(),
             effective_limits: node.limits.clone(),
         })
@@ -631,31 +681,41 @@ struct ReservationInner {
 trait KeepAlive: Send + Sync {}
 impl<T: Send + Sync> KeepAlive for T {}
 fn release(state: &mut State, pool: &BudgetPool, resource: Resource, amount: u64) -> MddResult<()> {
-    let resources = if resource.physical_memory() {
-        vec![resource, Resource::ResidentBytes]
+    let mut resources = [resource; 2];
+    let width = if resource.physical_memory() {
+        resources[1] = Resource::ResidentBytes;
+        2
     } else {
-        vec![resource]
+        1
     };
-    let mut totals = Vec::new();
-    for owner in BudgetPool::ancestors(state, &pool.owner) {
-        for resource in &resources {
-            let used = state.nodes[&owner].used.get(resource).copied().unwrap_or(0);
+    let mut pending = [0u64; 8];
+    if pool.path.len() > 4 {
+        let error = state
+            .fault
+            .get_or_insert_with(|| fault("budget ancestor depth exceeded"));
+        pool.sticky_fault
+            .store(true, std::sync::atomic::Ordering::Release);
+        return Err(error.clone());
+    }
+    for (level, owner) in pool.path.iter().enumerate() {
+        for (index, resource) in resources[..width].iter().enumerate() {
+            let used = state.nodes[owner].used[resource.slot()];
             let Some(remaining) = used.checked_sub(amount) else {
                 let error = state
                     .fault
                     .get_or_insert_with(|| fault("reservation accounting underflow"));
+                pool.sticky_fault
+                    .store(true, std::sync::atomic::Ordering::Release);
                 return Err(error.clone());
             };
-            totals.push((owner.clone(), *resource, remaining));
+            pending[level * width + index] = remaining;
         }
     }
-    for (owner, resource, remaining) in totals {
-        state
-            .nodes
-            .get_mut(&owner)
-            .unwrap()
-            .used
-            .insert(resource, remaining);
+    for (level, owner) in pool.path.iter().enumerate() {
+        let node = state.nodes.get_mut(owner).expect("ancestor resolved");
+        for (index, resource) in resources[..width].iter().enumerate() {
+            node.used[resource.slot()] = pending[level * width + index];
+        }
     }
     Ok(())
 }
@@ -668,8 +728,14 @@ impl Drop for ReservationInner {
                 state
                     .fault
                     .get_or_insert_with(|| fault("reservation metadata count underflow"));
+                self.pool
+                    .sticky_fault
+                    .store(true, std::sync::atomic::Ordering::Release);
             }
             if let Err(error) = release(&mut state, &self.pool, self.resource, self.amount) {
+                self.pool
+                    .sticky_fault
+                    .store(true, std::sync::atomic::Ordering::Release);
                 state.fault.get_or_insert(error);
             }
             if let Some(key) = &self.shared_key
@@ -727,6 +793,12 @@ impl Reservation {
 pub struct RuntimeBudget {
     pool: BudgetPool,
     cancel: QueryCancellation,
+    /// Absolute deadlines fixed when the pool was created. No production path
+    /// rewrites `Node.soft/hard` after construction (only `budget/tests.rs`
+    /// mutates them, and it never builds a `RuntimeBudget`), so caching the
+    /// witness removes a budget-lock acquisition and an owner `String` clone
+    /// from every step.
+    deadline: DeliveryBudgetDeadline,
 }
 impl RuntimeBudget {
     pub fn new(pool: BudgetPool, cancel: QueryCancellation) -> MddResult<Self> {
@@ -745,8 +817,16 @@ impl RuntimeBudget {
         {
             return Err(invalid("runtime budget/query owner mismatch"));
         }
+        let deadline = {
+            let node = &state.nodes[&pool.owner];
+            DeliveryBudgetDeadline::new(node.started, node.soft, node.hard, pool.owner.clone())?
+        };
         drop(state);
-        Ok(Self { pool, cancel })
+        Ok(Self {
+            pool,
+            cancel,
+            deadline,
+        })
     }
     pub fn pool(&self) -> &BudgetPool {
         &self.pool
@@ -761,11 +841,28 @@ impl RuntimeBudget {
         }
     }
     pub fn checkpoint(&self) -> MddResult<()> {
-        let deadline = self
+        // The happy path stays lock-free: only a recorded sticky fault or a
+        // poisoned mutex forces the lock, and the lock is what surfaces the
+        // authoritative fault. Without this, a fault recorded by `add`/
+        // `release` would go unnoticed until some later pool operation.
+        if self
             .pool
-            .delivery_deadline()
-            .map_err(|error| self.stop(error))?;
-        self.cancel.checkpoint_with_budget(&deadline)
+            .sticky_fault
+            .load(std::sync::atomic::Ordering::Acquire)
+            || self.pool.state.is_poisoned()
+        {
+            // Route through `stop` so the lifecycle terminal is still recorded;
+            // a bare `?` here would skip it.
+            let error = match self.pool.lock() {
+                Ok(state) => match &state.fault {
+                    Some(error) => error.clone(),
+                    None => fault("budget mutex poisoned"),
+                },
+                Err(error) => error,
+            };
+            return Err(self.stop(error));
+        }
+        self.cancel.checkpoint_with_budget(&self.deadline)
     }
     pub fn charge(&self, resource: Resource, amount: u64) -> MddResult<()> {
         self.checkpoint()?;
@@ -1311,7 +1408,8 @@ impl OwnedBatchReceipt {
         if !self.requires_terminal_envelope()? {
             return Ok(false);
         }
-        self.0.matches(&sender.0, runtime, expected_batches, error)
+        self.0
+            .matches_for_pending(&sender.0, runtime, expected_batches, error)
     }
     pub(crate) fn finish_failed(&mut self) -> MddResult<()> {
         self.0.finish_failed()
@@ -2136,6 +2234,27 @@ impl QueueDeliveryReceipt {
         expected: u64,
         error: Option<&MddError>,
     ) -> MddResult<bool> {
+        self.match_delivery(sender, runtime, expected, error, false)
+    }
+
+    pub(crate) fn matches_for_pending<T>(
+        &self,
+        sender: &BoundedSender<T>,
+        runtime: &RuntimeBudget,
+        expected: u64,
+        error: Option<&MddError>,
+    ) -> MddResult<bool> {
+        self.match_delivery(sender, runtime, expected, error, true)
+    }
+
+    fn match_delivery<T>(
+        &self,
+        sender: &BoundedSender<T>,
+        runtime: &RuntimeBudget,
+        expected: u64,
+        error: Option<&MddError>,
+        allow_late_failure: bool,
+    ) -> MddResult<bool> {
         let Some(other) = &sender.0.delivery else {
             return Ok(false);
         };
@@ -2159,7 +2278,7 @@ impl QueueDeliveryReceipt {
             // A failure can be recorded after production succeeds but before
             // the receiver observes End. Accept only the query's exact first
             // failure; the normal finalization path still emits a failure.
-            (Some(actual), None) => self
+            (Some(actual), None) if allow_late_failure => self
                 .tracker
                 .cancel
                 .status()?

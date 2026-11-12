@@ -565,8 +565,7 @@ mod tests {
             let mut slot = None;
             let (error, item) = cancel
                 .publish_to_empty_slot_with_budget(&deadline, &mut slot, item)
-                .err()
-                .expect("cancelled query accepted a publication");
+                .expect_err("cancelled query accepted a publication");
             assert_eq!(error.code, ErrorCode::Cancelled);
             assert!(slot.is_none());
             drop(item);
@@ -657,8 +656,7 @@ mod tests {
             let mut queue = VecDeque::new();
             let (error, item) = cancel
                 .publish_to_queue_with_budget(&deadline, &mut queue, item)
-                .err()
-                .expect("cancelled query accepted a publication");
+                .expect_err("cancelled query accepted a publication");
             assert_eq!(error.code, ErrorCode::Cancelled);
             assert!(queue.is_empty());
             drop(item);

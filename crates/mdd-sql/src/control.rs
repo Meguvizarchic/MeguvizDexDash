@@ -4,7 +4,7 @@ use mdd_types::{ErrorCode, MddError, MddResult};
 use std::{
     sync::{
         Arc, Mutex,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
     time::Instant,
 };
@@ -69,15 +69,24 @@ pub(crate) struct Inner {
     cancel: Arc<AtomicBool>,
     claimed: Arc<AtomicBool>,
     deadline: Option<Instant>,
+    counters: Arc<Counters>,
+    /// Set once a sticky error is recorded, so the hot path skips the mutex.
+    failed: Arc<AtomicBool>,
     state: Arc<Mutex<State>>,
     runtime: Option<RuntimeBudget>,
 }
+/// Hot-path counters. `checkpoint` runs once per SQLite VM step, so the common
+/// path must not take the mutex: limits are evaluated against these atomics and
+/// only the sticky error path serialises on `State`.
+#[derive(Default)]
+struct Counters {
+    steps: AtomicU64,
+    scanned: AtomicU64,
+    result_rows: AtomicU64,
+    result_bytes: AtomicU64,
+}
 #[derive(Default)]
 struct State {
-    steps: u64,
-    scanned: u64,
-    result_rows: u64,
-    result_bytes: u64,
     error: Option<MddError>,
 }
 impl SqlControl {
@@ -88,6 +97,8 @@ impl SqlControl {
                 cancel: Arc::new(AtomicBool::new(false)),
                 claimed: Arc::new(AtomicBool::new(false)),
                 deadline,
+                counters: Arc::new(Counters::default()),
+                failed: Arc::new(AtomicBool::new(false)),
                 state: Arc::new(Mutex::new(State::default())),
                 runtime: None,
             }),
@@ -100,6 +111,8 @@ impl SqlControl {
                 cancel: Arc::clone(&self.inner.cancel),
                 claimed: Arc::clone(&self.inner.claimed),
                 deadline: self.inner.deadline,
+                counters: Arc::clone(&self.inner.counters),
+                failed: Arc::clone(&self.inner.failed),
                 state: Arc::clone(&self.inner.state),
                 runtime: self.inner.runtime.clone(),
             }),
@@ -112,6 +125,8 @@ impl SqlControl {
                 cancel: Arc::clone(&self.inner.cancel),
                 claimed: Arc::clone(&self.inner.claimed),
                 deadline: self.inner.deadline,
+                counters: Arc::clone(&self.inner.counters),
+                failed: Arc::clone(&self.inner.failed),
                 state: Arc::clone(&self.inner.state),
                 runtime: Some(runtime),
             }),
@@ -128,6 +143,9 @@ impl SqlControl {
         Ok(())
     }
     pub(crate) fn error(&self) -> Option<MddError> {
+        if !self.inner.failed.load(Ordering::Acquire) {
+            return None;
+        }
         self.inner.state.lock().ok().and_then(|s| s.error.clone())
     }
     pub(crate) fn claim(&self) -> MddResult<()> {
@@ -140,6 +158,28 @@ impl SqlControl {
         let error = self
             .runtime()
             .map_or(error.clone(), |runtime| runtime.stop(error));
+        self.inner.failed.store(true, Ordering::Release);
+        if let Ok(mut state) = self.inner.state.lock()
+            && state.error.is_none()
+        {
+            state.error = Some(error.clone());
+        }
+        self.error().unwrap_or(error)
+    }
+    /// Record a sticky error. Once any error is stored every later checkpoint
+    /// returns it, so the limit checks below stay equivalent to the previous
+    /// lock-guarded `State` fields.
+    fn sticky(&self, error: MddError) -> MddError {
+        // `failed` is raised before the mutex so the hot path can stop taking
+        // the lock once an error exists. A concurrent checkpoint can still see
+        // `failed == true` with `state.error == None` for a few instructions.
+        // That window is new for the two local-budget paths (`SQL_WORK_BUDGET`,
+        // `SQL_RESULT_BUDGET`), which previously decided and recorded the error
+        // inside one critical section; for the `fail()` paths
+        // (cancelled/deadline/runtime) the old code already had a much wider
+        // window between its error read and its counter update, so this is a
+        // net reduction there. Single-threaded callers observe no difference.
+        self.inner.failed.store(true, Ordering::Release);
         if let Ok(mut state) = self.inner.state.lock()
             && state.error.is_none()
         {
@@ -148,7 +188,9 @@ impl SqlControl {
         self.error().unwrap_or(error)
     }
     pub(crate) fn checkpoint(&self, steps: u64, scan: bool) -> MddResult<()> {
-        if let Some(error) = self.error() {
+        if self.inner.failed.load(Ordering::Acquire)
+            && let Some(error) = self.error()
+        {
             return Err(error);
         }
         if self.inner.cancel.load(Ordering::Acquire) {
@@ -174,27 +216,36 @@ impl SqlControl {
                 .charge(Resource::QuerySteps, steps)
                 .map_err(|error| self.fail(error))?;
         }
-        let mut state = self
-            .inner
-            .state
-            .lock()
-            .map_err(|_| MddError::new(ErrorCode::InternalFault, "sql", "control poisoned"))?;
-        state.steps = state
-            .steps
-            .checked_add(steps)
-            .ok_or_else(|| quota("SQL_STEP_OVERFLOW"))?;
+        // Read-modify-write, not load/store: `SqlControl` is `Clone` and its
+        // derived controls deliberately share these counters, so two threads may
+        // admit work concurrently. A plain load/add/store would lose one update
+        // and could let `max_steps` or `max_result_rows` be exceeded severalfold.
+        let counters = &self.inner.counters;
+        let next_steps =
+            match counters
+                .steps
+                .try_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+                    value.checked_add(steps)
+                }) {
+                Ok(previous) => previous.saturating_add(steps),
+                Err(_) => return Err(self.sticky(quota("SQL_STEP_OVERFLOW"))),
+            };
+        let mut next_scanned = 0u64;
         if scan {
-            state.scanned = state
-                .scanned
-                .checked_add(1)
-                .ok_or_else(|| quota("SQL_SCAN_OVERFLOW"))?;
+            next_scanned =
+                match counters
+                    .scanned
+                    .try_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+                        value.checked_add(1)
+                    }) {
+                    Ok(previous) => previous.saturating_add(1),
+                    Err(_) => return Err(self.sticky(quota("SQL_SCAN_OVERFLOW"))),
+                };
         }
-        if state.steps > self.inner.limits.max_steps
-            || state.scanned > self.inner.limits.max_scanned_rows
+        if next_steps > self.inner.limits.max_steps
+            || next_scanned > self.inner.limits.max_scanned_rows
         {
-            let error = quota("SQL_WORK_BUDGET");
-            state.error = Some(error.clone());
-            return Err(error);
+            return Err(self.sticky(quota("SQL_WORK_BUDGET")));
         }
         Ok(())
     }
@@ -219,25 +270,34 @@ impl SqlControl {
     }
     pub(crate) fn output(&self, bytes: u64) -> MddResult<()> {
         self.checkpoint(1, false)?;
-        let mut state = self
-            .inner
-            .state
-            .lock()
-            .map_err(|_| MddError::new(ErrorCode::InternalFault, "sql", "control poisoned"))?;
-        state.result_rows = state
-            .result_rows
-            .checked_add(1)
-            .ok_or_else(|| quota("SQL_ROWS_OVERFLOW"))?;
-        state.result_bytes = state
-            .result_bytes
-            .checked_add(bytes)
-            .ok_or_else(|| quota("SQL_BYTES_OVERFLOW"))?;
-        if state.result_rows > self.inner.limits.max_result_rows
-            || state.result_bytes > self.inner.limits.max_result_bytes
+        // Same read-modify-write reasoning as `checkpoint`: each field is
+        // individually exact under concurrency. The two fields are not updated
+        // as one critical section, so a concurrent observer can see the row
+        // count of one admission with the byte count of another; both remain
+        // correct running totals and neither can be undercounted.
+        let counters = &self.inner.counters;
+        let next_rows =
+            match counters
+                .result_rows
+                .try_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+                    value.checked_add(1)
+                }) {
+                Ok(previous) => previous.saturating_add(1),
+                Err(_) => return Err(self.sticky(quota("SQL_ROWS_OVERFLOW"))),
+            };
+        let next_bytes =
+            match counters
+                .result_bytes
+                .try_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+                    value.checked_add(bytes)
+                }) {
+                Ok(previous) => previous.saturating_add(bytes),
+                Err(_) => return Err(self.sticky(quota("SQL_BYTES_OVERFLOW"))),
+            };
+        if next_rows > self.inner.limits.max_result_rows
+            || next_bytes > self.inner.limits.max_result_bytes
         {
-            let error = quota("SQL_RESULT_BUDGET");
-            state.error = Some(error.clone());
-            return Err(error);
+            return Err(self.sticky(quota("SQL_RESULT_BUDGET")));
         }
         Ok(())
     }

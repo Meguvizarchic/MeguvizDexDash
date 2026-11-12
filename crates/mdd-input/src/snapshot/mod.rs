@@ -1,7 +1,13 @@
 use mdd_types::source_identity::SourceIdentity;
 use mdd_types::{DecimalU64, ErrorCode, MddError, MddResult, content_id, opaque_id, sha256};
 use serde::Serialize;
-use std::{collections::BTreeMap, fs::File, io::Read, path::PathBuf, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    fs::File,
+    io::Read,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 #[derive(Clone, Copy, Debug)]
 pub enum InputKind {
@@ -15,6 +21,50 @@ impl InputKind {
             Self::RawDex => "raw-dex",
             Self::Apk => "apk-zip",
         }
+    }
+    /// Whether `bytes` starts with the magic this kind requires.
+    ///
+    /// Capture uses the same predicate, so detection and validation can never
+    /// disagree about what a well-formed input looks like.
+    fn matches_magic(self, bytes: &[u8]) -> bool {
+        match self {
+            Self::RawDex => bytes.starts_with(b"dex\n"),
+            Self::Apk => {
+                bytes.starts_with(b"PK\x03\x04")
+                    || bytes.starts_with(b"PK\x05\x06")
+                    || bytes.starts_with(b"PK\x06\x06")
+            }
+        }
+    }
+    /// Detect the input kind from its leading bytes.
+    ///
+    /// Callers previously guessed from the file extension, which mislabels
+    /// extensionless or renamed inputs; the magic prefix is the same evidence
+    /// `capture` validates, so detection and capture stay consistent.
+    pub fn detect(path: &Path) -> MddResult<Self> {
+        let mut header = [0u8; 8];
+        let count = {
+            let mut file = File::open(path).map_err(|error| {
+                MddError::new(ErrorCode::InvalidInput, "capture", error.to_string())
+            })?;
+            file.read(&mut header).map_err(|error| {
+                MddError::new(ErrorCode::InvalidInput, "capture", error.to_string())
+            })?
+        };
+        let magic = &header[..count];
+        for kind in [Self::RawDex, Self::Apk] {
+            if kind.matches_magic(magic) {
+                return Ok(kind);
+            }
+        }
+        // Same code and stage `capture` reports for a magic mismatch, so the two
+        // entry points cannot disagree about the same bytes.
+        Err(MddError::new(
+            ErrorCode::InvalidInput,
+            "capture",
+            "input magic does not match any supported kind",
+        )
+        .detail("input_coverage", "none"))
     }
 }
 
@@ -118,7 +168,17 @@ impl Snapshot {
                     .detail("input_ordinal", ordinal.to_string())
             };
             let mut file = File::open(&input.path).map_err(io_error)?;
+            // Reserve from the file length hint but never beyond the remaining byte
+            // budget: the declared length is untrusted and must not drive allocation.
+            let hint = file.metadata().map(|metadata| metadata.len()).unwrap_or(0);
+            let reserve = hint
+                .min(limits.max_input_bytes.saturating_sub(total))
+                .min(usize::MAX as u64) as usize;
             let mut bytes = Vec::new();
+            bytes.try_reserve(reserve).map_err(|error| {
+                MddError::new(ErrorCode::QuotaExceeded, "capture", error.to_string())
+                    .detail("input_ordinal", ordinal.to_string())
+            })?;
             let mut buffer = [0u8; 65536];
             loop {
                 let count = file.read(&mut buffer).map_err(io_error)?;
@@ -144,14 +204,7 @@ impl Snapshot {
                 })?;
                 bytes.extend_from_slice(&buffer[..count]);
             }
-            let correct_magic = match input.kind {
-                InputKind::RawDex => bytes.starts_with(b"dex\n"),
-                InputKind::Apk => {
-                    bytes.starts_with(b"PK\x03\x04")
-                        || bytes.starts_with(b"PK\x05\x06")
-                        || bytes.starts_with(b"PK\x06\x06")
-                }
-            };
+            let correct_magic = input.kind.matches_magic(&bytes);
             if !correct_magic {
                 return Err(MddError::new(
                     ErrorCode::InvalidInput,
@@ -174,7 +227,9 @@ impl Snapshot {
                 .detail("actual_sha256", digest)
                 .detail("input_ordinal", ordinal.to_string()));
             }
-            let id = content_id(&bytes);
+            // `content_id` is exactly `sha256:<digest>`; reuse the digest above
+            // instead of hashing the same captured bytes a second time.
+            let id = format!("sha256:{digest}");
             let byte_length = bytes.len() as u64;
             let blob = content
                 .entry(id.clone())
@@ -312,5 +367,45 @@ mod tests {
                 .code,
             ErrorCode::InvalidArgument
         );
+    }
+
+    #[test]
+    fn captured_content_id_is_the_single_sha256_of_the_captured_bytes() {
+        // `content_id` must stay byte-identical to `sha256:` + `sha256(bytes)` now
+        // that capture reuses one digest for both the expectation check and the id.
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/generated/minimal-035.dex");
+        let snapshot = Snapshot::capture(&[spec(path)], CaptureLimits::default()).expect("capture");
+        let source = &snapshot.sources()[0];
+        assert_eq!(source.identity().content_id, content_id(source.bytes()));
+        assert_eq!(
+            source.identity().content_id,
+            format!("sha256:{}", sha256(source.bytes()))
+        );
+        assert_eq!(
+            source.identity().byte_length,
+            DecimalU64(source.bytes().len() as u64)
+        );
+    }
+
+    #[test]
+    fn length_hint_cannot_exceed_the_remaining_byte_budget() {
+        // The file is far larger than the budget; the reservation must be clamped
+        // by the budget rather than by the untrusted metadata length.
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/generated/minimal-035.dex");
+        let error = Snapshot::capture(
+            &[spec(path)],
+            CaptureLimits {
+                max_input_bytes: 64,
+                max_sources: 1,
+            },
+        )
+        .err()
+        .expect("budget");
+        assert_eq!(error.code, ErrorCode::QuotaExceeded);
+        assert_eq!(error.stage, "capture");
+        assert_eq!(error.details["budget"], "max_input_bytes");
+        assert_eq!(error.details["limit"], "64");
     }
 }

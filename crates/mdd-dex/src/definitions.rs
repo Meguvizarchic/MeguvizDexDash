@@ -3,11 +3,11 @@ use crate::{
     DexHeader, DexRange,
     checked_reader::{CheckedReader, invalid},
     strings::{DexString, DexText, read_uleb128},
-    types::{DexPrototype, DexType, parse_type_descriptor, type_list_item_starts},
+    types::{DexPrototype, DexType, name_character, type_list_item_starts},
 };
 use mdd_types::{DecimalU64, ErrorCode, MddError, MddResult};
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 pub trait DefinitionMetadata {
     fn string(&self, index: u32) -> Option<&DexString>;
@@ -264,6 +264,33 @@ fn class_type<M: DefinitionMetadata>(
     }
     Ok(ty)
 }
+/// Validate an identifier without materialising a `String`.
+/// Accepts the optional `<...>` special-name wrapper exactly like the textual
+/// check, and applies the same DEX class-name character rules, including
+/// surrogate pairs for supplementary characters.
+fn valid_member_text(text: &crate::strings::DexText, spaces_allowed: bool) -> bool {
+    let units = &text.utf16_units;
+    // The `<...>` wrapper must be balanced: the previous implementation stripped
+    // `<` only together with a matching `>`, so a lone leading `<` stayed part of
+    // the name and failed the character rules. Skipping `<` unconditionally would
+    // silently admit malformed names such as `<init` or `<foo`.
+    let wrapped = units.first() == Some(&u16::from(b'<')) && units.last() == Some(&u16::from(b'>'));
+    let start = usize::from(wrapped);
+    let end = units.len() - usize::from(wrapped);
+    if end <= start {
+        return false;
+    }
+    for ch in char::decode_utf16(units[start..end].iter().copied()) {
+        let Ok(ch) = ch else {
+            return false;
+        };
+        if ch == '/' || !name_character(ch, spaces_allowed) {
+            return false;
+        }
+    }
+    true
+}
+
 fn member_name<M: DefinitionMetadata>(
     pools: &M,
     index: u32,
@@ -273,21 +300,41 @@ fn member_name<M: DefinitionMetadata>(
     let text = pools
         .string(index)
         .ok_or_else(|| failure("MEMBER_NAME_INDEX_OUT_OF_RANGE", at, 4))?;
-    let name = text
-        .text
-        .strict_utf8()
-        .map_err(|_| failure("NON_SCALAR_MEMBER_NAME", at, 4))?;
-    let simple = name
-        .strip_prefix('<')
-        .and_then(|s| s.strip_suffix('>'))
-        .unwrap_or(&name);
-    if simple.contains('/')
-        || parse_type_descriptor(&format!("L{simple};"), version, false).is_err()
-    {
-        return Err(failure("INVALID_MEMBER_NAME", at, 4));
+    if !valid_member_text(&text.text, version >= "040") {
+        // Keep the original error split: non-scalar text is a distinct reason.
+        return Err(if text.text.strict_utf8().is_err() {
+            failure("NON_SCALAR_MEMBER_NAME", at, 4)
+        } else {
+            failure("INVALID_MEMBER_NAME", at, 4)
+        });
     }
-    Ok(name)
+    text.text
+        .strict_utf8()
+        .map_err(|_| failure("NON_SCALAR_MEMBER_NAME", at, 4))
 }
+
+/// Mark one field_id as defined. Returns true when it was already defined.
+fn defined_field_set(bits: &mut [u8], index: u32) -> bool {
+    let Some(slot) = bits.get_mut(index as usize / 8) else {
+        return true;
+    };
+    let mask = 1u8 << (index % 8);
+    let seen = *slot & mask != 0;
+    *slot |= mask;
+    seen
+}
+
+/// Mark one method_id as defined. Returns true when it was already defined.
+fn defined_method_set(bits: &mut [u8], index: u32) -> bool {
+    let Some(slot) = bits.get_mut(index as usize / 8) else {
+        return true;
+    };
+    let mask = 1u8 << (index % 8);
+    let seen = *slot & mask != 0;
+    *slot |= mask;
+    seen
+}
+
 struct Encoded<'a> {
     bytes: &'a [u8],
     cursor: u64,
@@ -310,10 +357,10 @@ fn class_data_starts(
     max_rows: u64,
     fields: &[FieldReference],
     methods: &[MethodReference],
-    declared_classes: &BTreeMap<u32, u32>,
-) -> MddResult<BTreeMap<u64, u64>> {
+    declared_classes: &[Option<u32>],
+) -> MddResult<Vec<(u64, u64, [u32; 4])>> {
     let Some((start, end, count)) = section(header, 0x2000) else {
-        return Ok(BTreeMap::new());
+        return Ok(Vec::new());
     };
     let mut budget = Budget {
         rows: max_rows,
@@ -325,7 +372,10 @@ fn class_data_starts(
         cursor: start,
         end,
     };
-    let mut starts = BTreeMap::new();
+    let mut items = Vec::new();
+    items
+        .try_reserve_exact(count as usize)
+        .map_err(|_| failure("CLASS_DATA_ALLOCATION_BUDGET", start, u64::from(count)))?;
     for _ in 0..count {
         let at = encoded.cursor;
         let counts = [
@@ -350,8 +400,11 @@ fn class_data_starts(
             ));
         }
         let mut owner = None;
-        let mut used_fields = BTreeSet::new();
-        let mut used_methods = BTreeSet::new();
+        // Both encoded lists are strictly increasing by construction (a zero
+        // delta is rejected), so cross-list duplicates are found by binary
+        // searching the already-decoded static run instead of allocating a set
+        // per class.
+        let mut static_indices = Vec::new();
         for (kind, count) in [
             (FieldKind::Static, counts[0]),
             (FieldKind::Instance, counts[1]),
@@ -370,12 +423,15 @@ fn class_data_starts(
                 let reference = fields
                     .get(index as usize)
                     .ok_or_else(|| failure("FIELD_INDEX_OUT_OF_RANGE", at, encoded.cursor - at))?;
-                if !used_fields.insert(index) {
+                if kind == FieldKind::Instance && static_indices.binary_search(&index).is_ok() {
                     return Err(failure(
                         "DUPLICATE_FIELD_DEFINITION",
                         at,
                         encoded.cursor - at,
                     ));
+                }
+                if kind == FieldKind::Static {
+                    static_indices.push(index);
                 }
                 if (flags & 8 != 0) != (kind == FieldKind::Static) {
                     return Err(failure(
@@ -391,6 +447,7 @@ fn class_data_starts(
                 previous = index;
             }
         }
+        let mut direct_indices = Vec::new();
         for (kind, count) in [
             (MethodKind::Direct, counts[2]),
             (MethodKind::Virtual, counts[3]),
@@ -410,12 +467,17 @@ fn class_data_starts(
                 let reference = methods
                     .get(index as usize)
                     .ok_or_else(|| failure("METHOD_INDEX_OUT_OF_RANGE", at, encoded.cursor - at))?;
-                if !used_methods.insert(index) {
+                if direct_indices.last() == Some(&index)
+                    || (kind == MethodKind::Virtual && direct_indices.binary_search(&index).is_ok())
+                {
                     return Err(failure(
                         "DUPLICATE_METHOD_DEFINITION",
                         at,
                         encoded.cursor - at,
                     ));
+                }
+                if kind == MethodKind::Direct {
+                    direct_indices.push(index);
                 }
                 if (flags & (8 | 2 | 0x10000) != 0) != (kind == MethodKind::Direct) {
                     return Err(failure(
@@ -457,16 +519,22 @@ fn class_data_starts(
                 previous = index;
             }
         }
-        if owner.is_some_and(|index| !declared_classes.contains_key(&index)) {
+        if owner.is_some_and(|index| {
+            declared_classes
+                .get(index as usize)
+                .copied()
+                .flatten()
+                .is_none()
+        }) {
             return Err(failure(
                 "NONEMPTY_CLASS_DATA_NO_DECLARING_CLASS",
                 at,
                 encoded.cursor - at,
             ));
         }
-        starts.insert(at, encoded.cursor);
+        items.push((at, encoded.cursor, counts));
     }
-    Ok(starts)
+    Ok(items)
 }
 
 pub fn read_definitions<M: DefinitionMetadata>(
@@ -496,6 +564,15 @@ pub fn read_definitions<M: DefinitionMetadata>(
     )?;
     let physical_type_lists = type_list_item_starts(bytes, header)?;
     let mut field_references = Vec::new();
+    field_references
+        .try_reserve_exact(fields.count as usize)
+        .map_err(|_| {
+            MddError::new(
+                ErrorCode::QuotaExceeded,
+                "dex.definitions",
+                "field reference allocation failed",
+            )
+        })?;
     let mut previous = None;
     for field_idx in 0..fields.count {
         let at = fields.range.byte_offset.0 + u64::from(field_idx) * 8;
@@ -519,7 +596,15 @@ pub fn read_definitions<M: DefinitionMetadata>(
             2 * (owner.descriptor.len() + name.len() + ty.descriptor.len()) + 3,
             at,
         )?;
-        let descriptor = format!("{}->{name}:{}", owner.descriptor, ty.descriptor);
+        // Build the joined descriptor with one exact reservation: `format!` may
+        // allocate through the formatting machinery and grow once.
+        let mut descriptor =
+            String::with_capacity(owner.descriptor.len() + name.len() + ty.descriptor.len() + 3);
+        descriptor.push_str(&owner.descriptor);
+        descriptor.push_str("->");
+        descriptor.push_str(&name);
+        descriptor.push(':');
+        descriptor.push_str(&ty.descriptor);
         field_references.push(FieldReference {
             field_idx,
             class_idx,
@@ -533,6 +618,15 @@ pub fn read_definitions<M: DefinitionMetadata>(
         });
     }
     let mut method_references = Vec::new();
+    method_references
+        .try_reserve_exact(methods.count as usize)
+        .map_err(|_| {
+            MddError::new(
+                ErrorCode::QuotaExceeded,
+                "dex.definitions",
+                "method reference allocation failed",
+            )
+        })?;
     let mut previous = None;
     for method_idx in 0..methods.count {
         let at = methods.range.byte_offset.0 + u64::from(method_idx) * 8;
@@ -553,6 +647,15 @@ pub fn read_definitions<M: DefinitionMetadata>(
             .ok_or_else(|| failure("METHOD_RETURN_TYPE_OUT_OF_RANGE", at + 2, 2))?;
         let name = member_name(pools, name_idx, at + 4, &header.version)?;
         let mut parameters = Vec::new();
+        parameters
+            .try_reserve_exact(proto.parameter_type_indices.len())
+            .map_err(|_| {
+                MddError::new(
+                    ErrorCode::QuotaExceeded,
+                    "dex.definitions",
+                    "method parameter allocation failed",
+                )
+            })?;
         budget.rows(proto.parameter_type_indices.len() as u64, at)?;
         budget.text(
             2 * owner.descriptor.len()
@@ -569,7 +672,12 @@ pub fn read_definitions<M: DefinitionMetadata>(
             budget.text(ty.descriptor.len(), at)?;
             parameters.push(ty.descriptor.clone());
         }
-        let descriptor = format!("{}->{name}{}", owner.descriptor, proto.descriptor);
+        let mut descriptor =
+            String::with_capacity(owner.descriptor.len() + name.len() + proto.descriptor.len() + 2);
+        descriptor.push_str(&owner.descriptor);
+        descriptor.push_str("->");
+        descriptor.push_str(&name);
+        descriptor.push_str(&proto.descriptor);
         method_references.push(MethodReference {
             method_idx,
             class_idx,
@@ -584,14 +692,44 @@ pub fn read_definitions<M: DefinitionMetadata>(
         });
     }
     let mut class_definitions = Vec::new();
+    class_definitions
+        .try_reserve_exact(classes.count as usize)
+        .map_err(|_| {
+            MddError::new(
+                ErrorCode::QuotaExceeded,
+                "dex.definitions",
+                "class definition allocation failed",
+            )
+        })?;
     let mut interfaces = Vec::new();
-    let mut positions = BTreeMap::new();
+    // Dense type_idx -> class_def_idx table replaces the ordered map so the
+    // duplicate check, the dependency order check and the class-data owner
+    // check are all one indexed lookup instead of a tree traversal.
+    let type_count = header
+        .tables
+        .iter()
+        .find(|table| table.name == "type_ids")
+        .map_or(0u32, |table| table.count);
+    let mut positions: Vec<Option<u32>> = Vec::new();
+    positions
+        .try_reserve_exact(type_count as usize)
+        .map_err(|_| {
+            MddError::new(
+                ErrorCode::QuotaExceeded,
+                "dex.definitions",
+                "class position index allocation failed",
+            )
+        })?;
+    positions.resize(type_count as usize, None);
     let mut class_data_offsets = Vec::new();
     for class_def_idx in 0..classes.count {
         let at = classes.range.byte_offset.0 + u64::from(class_def_idx) * 32;
         let class_idx = reader.u32(at)?;
         let ty = class_type(pools, class_idx, at, false)?;
-        if positions.insert(class_idx, class_def_idx).is_some() {
+        let slot = positions
+            .get_mut(class_idx as usize)
+            .ok_or_else(|| failure("TYPE_INDEX_OUT_OF_RANGE", at, 4))?;
+        if slot.replace(class_def_idx).is_some() {
             return Err(failure("DUPLICATE_CLASS_DEFINITION", at, 32)
                 .detail("class_idx", u64::from(class_idx)));
         }
@@ -692,8 +830,10 @@ pub fn read_definitions<M: DefinitionMetadata>(
                 .map(|i| i.interface_type_idx),
         ) {
             if positions
-                .get(&dependency)
-                .is_some_and(|position| *position >= class.class_def_idx)
+                .get(dependency as usize)
+                .copied()
+                .flatten()
+                .is_some_and(|position| position >= class.class_def_idx)
             {
                 return Err(failure(
                     "CLASS_DEPENDENCY_ORDER",
@@ -713,10 +853,33 @@ pub fn read_definitions<M: DefinitionMetadata>(
         &method_references,
         &positions,
     )?;
+    // The walk above already produced every item start and record count in
+    // physical order, so the later pass looks items up in a sorted slice rather
+    // than re-decoding counts and rebuilding a map.
     let mut field_definitions = Vec::new();
+    field_definitions
+        .try_reserve_exact(field_references.len())
+        .map_err(|_| {
+            MddError::new(
+                ErrorCode::QuotaExceeded,
+                "dex.definitions",
+                "field definition allocation failed",
+            )
+        })?;
     let mut method_definitions = Vec::new();
-    let mut defined_fields = BTreeSet::new();
-    let mut defined_methods = BTreeSet::new();
+    method_definitions
+        .try_reserve_exact(method_references.len())
+        .map_err(|_| {
+            MddError::new(
+                ErrorCode::QuotaExceeded,
+                "dex.definitions",
+                "method definition allocation failed",
+            )
+        })?;
+    // One bit per field_id/method_id replaces a node-allocating ordered set:
+    // definition identity is the id-table index, so membership is exact.
+    let mut defined_fields = vec![0u8; field_references.len().div_ceil(8)];
+    let mut defined_methods = vec![0u8; method_references.len().div_ceil(8)];
     let mut used_offsets = BTreeSet::new();
     let mut spans = Vec::new();
     for (class, offset) in class_definitions.iter_mut().zip(class_data_offsets) {
@@ -724,9 +887,10 @@ pub fn read_definitions<M: DefinitionMetadata>(
             continue;
         }
         let offset = u64::from(offset);
-        if !physical_class_data.contains_key(&offset) {
+        let Ok(item) = physical_class_data.binary_search_by_key(&offset, |item| item.0) else {
             return Err(failure("CLASS_DATA_NOT_ITEM_START", offset, 4));
-        }
+        };
+        let counts = physical_class_data[item].2;
         let repeated_offset = !used_offsets.insert(offset);
         let (_, end, count) = section_range(header, 0x2000, offset, 4)?;
         if used_offsets.len() as u64 > u64::from(count) {
@@ -737,7 +901,7 @@ pub fn read_definitions<M: DefinitionMetadata>(
             cursor: offset,
             end,
         };
-        let counts = [
+        let _ = [
             encoded.read()?,
             encoded.read()?,
             encoded.read()?,
@@ -776,7 +940,7 @@ pub fn read_definitions<M: DefinitionMetadata>(
                 if reference.class_idx != class.class_idx {
                     return Err(failure("FIELD_OWNER_MISMATCH", at, encoded.cursor - at));
                 }
-                if !defined_fields.insert(field_idx) {
+                if defined_field_set(&mut defined_fields, field_idx) {
                     return Err(failure(
                         "DUPLICATE_FIELD_DEFINITION",
                         at,
@@ -824,7 +988,7 @@ pub fn read_definitions<M: DefinitionMetadata>(
                 if reference.class_idx != class.class_idx {
                     return Err(failure("METHOD_OWNER_MISMATCH", at, encoded.cursor - at));
                 }
-                if !defined_methods.insert(method_idx) {
+                if defined_method_set(&mut defined_methods, method_idx) {
                     return Err(failure(
                         "DUPLICATE_METHOD_DEFINITION",
                         at,

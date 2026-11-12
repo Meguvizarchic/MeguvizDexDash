@@ -7,10 +7,16 @@ use crate::{
     executor::facts::{MemoryCatalog, Table},
 };
 use mdd_input::snapshot::{CaptureLimits, InputKind, InputSpec, Snapshot};
-use mdd_session::{Lifecycle, ResourceLimits, SessionHandle, cancellation::QueryCancellation};
+use mdd_session::{
+    Lifecycle, ResourceLimits, SessionHandle,
+    cancellation::{CancelProfile, QueryCancellation},
+};
 use mdd_types::{
     Completeness, Coverage, OperationStatus,
-    result::{ResultIdentity, StreamVerifier, TerminalBuilder},
+    result::{
+        FallbackContext, FallbackPolicy, ResultIdentity, StreamVerifier, TerminalBuilder,
+        fallback_allowed,
+    },
 };
 use std::{path::PathBuf, sync::Arc};
 
@@ -343,6 +349,37 @@ fn terminal(f: &Fixture) -> TerminalBuilder {
         },
     )
     .unwrap()
+}
+
+/// Build a fresh logical budget tree for one lifecycle query and bind it to the
+/// query's own cancellation token. Used to drive the production `execute` path
+/// for sibling queries without touching the fixture's target budget tree.
+fn production_runtime(
+    lifecycle: &Lifecycle,
+    query: &mdd_session::QueryHandle,
+    limits: BudgetLimits,
+) -> RuntimeBudget {
+    let cancel = lifecycle.cancellation_token(query).unwrap();
+    let global =
+        BudgetPool::global(format!("production-runtime-{}", query.id()), limits.clone()).unwrap();
+    let worker = global
+        .child(
+            cancel.worker_owner_id().unwrap(),
+            BudgetScope::Worker,
+            limits.clone(),
+        )
+        .unwrap();
+    let session = worker
+        .child(
+            cancel.session_id().unwrap(),
+            BudgetScope::Session,
+            limits.clone(),
+        )
+        .unwrap();
+    let pool = session
+        .child(query.id().into(), BudgetScope::Query, limits)
+        .unwrap();
+    RuntimeBudget::new(pool, cancel).unwrap()
 }
 
 #[test]
@@ -2509,8 +2546,10 @@ fn json_batch_consumer_rejects_invalid_or_partially_processed_packets() {
 fn json_batch_consumer_accepts_only_bound_partial_first_error() {
     let f = setup_with_rows(BudgetLimits::default(), 3);
     let (sender, mut receiver) = bounded_owned_batch_channel(&f.runtime, 4).unwrap();
-    let mut execution_limits = ExecutionLimits::default();
-    execution_limits.max_output_rows = 2;
+    let execution_limits = ExecutionLimits {
+        max_output_rows: 2,
+        ..ExecutionLimits::default()
+    };
     let mut pending = execute_json_batches_into(
         &f.prepared,
         &f.source,
@@ -3097,8 +3136,10 @@ fn json_batches_invalid_source_row_reports_truncation() {
 fn json_batches_partial_failure_preserves_consumed_rows_and_error() {
     let f = setup_with_rows(BudgetLimits::default(), 3);
     let (sender, mut receiver) = bounded_owned_batch_channel(&f.runtime, 4).unwrap();
-    let mut execution_limits = ExecutionLimits::default();
-    execution_limits.max_output_rows = 2;
+    let execution_limits = ExecutionLimits {
+        max_output_rows: 2,
+        ..ExecutionLimits::default()
+    };
     let mut pending = execute_json_batches_into(
         &f.prepared,
         &f.source,
@@ -4242,4 +4283,480 @@ fn runtime_owner_and_prepared_binding_are_verified_before_execution_claim() {
     .unwrap();
     assert!(end.is_complete_result());
     assert!(f.cancel.status().unwrap().delivery_complete);
+}
+
+#[test]
+fn production_queue_native_cancel_is_isolated_from_sibling_and_keeps_partial_failure() {
+    for mode in [
+        ExecutionMode::Streaming,
+        ExecutionMode::MaterializedReference,
+    ] {
+        let f = setup_with_rows(BudgetLimits::default(), 4);
+        let sibling = f
+            .lifecycle
+            .prepare_query(
+                &f.session,
+                f.prepared.runtime_binding().unwrap(),
+                ResourceLimits::default(),
+            )
+            .unwrap();
+        f.lifecycle.start_query(&f.session, &sibling, 1).unwrap();
+
+        let (sender, mut receiver) =
+            bounded_channel::<Row>(f.runtime.pool().clone(), Some(f.cancel.clone()), 4).unwrap();
+        let mut output_rows = 0u64;
+        let mut control = Control::new(ExecutionLimits::default())
+            .with_runtime(f.runtime.clone())
+            .with_hook({
+                let cancel = f.cancel.clone();
+                move |point| {
+                    if point.phase == "output_row" {
+                        output_rows += 1;
+                        if output_rows == 2 {
+                            cancel.cancel()?;
+                        }
+                    }
+                    Ok(())
+                }
+            });
+        let mut pending = execute_into(
+            &f.prepared,
+            &f.source,
+            mode,
+            &mut control,
+            terminal(&f),
+            &sender,
+        )
+        .unwrap();
+        let QueueEvent::Data(packet) = receiver.receive().unwrap() else {
+            panic!("the row accepted before cancellation must be delivered");
+        };
+        packet.acknowledge().unwrap();
+        let QueueEvent::End(end) = receiver.receive().unwrap() else {
+            panic!("native cancellation must publish an explicit failure End");
+        };
+        let error = end.unwrap_err();
+        assert_eq!(error.code, ErrorCode::Cancelled);
+        let mut receipt = receiver.into_delivery_receipt().unwrap();
+        let envelope = receipt.finish(&mut pending).unwrap();
+        // Terminal field expectations, each tied to its derivation:
+        // - operation_status=Cancelled: TerminalBuilder::envelope maps
+        //   ErrorCode::Cancelled to OperationStatus::Cancelled.
+        // - emitted_rows=1: row 1 was delivered and acknowledged before the
+        //   output_row hook cancelled row 2; the queue refuses the later send.
+        // - truncated=true: execute_into sets dropped=true when cancellation
+        //   leaves the output loop, and TerminalBuilder::fail derives truncated
+        //   from dropped_output (or emitted < exact total).
+        // - more_available=false / next_cursor=None: fail() always terminates
+        //   without a cursor; the envelope derives more_available from it.
+        // - execution.complete / total_rows_exact: false for Streaming (the
+        //   cursor never completed computation), true for MaterializedReference
+        //   (reference() computed all rows before the output loop).
+        assert_eq!(envelope.operation_status, OperationStatus::Cancelled);
+        assert_eq!(envelope.response.emitted_rows.0, 1);
+        assert_eq!(envelope.error.clone().unwrap().code, ErrorCode::Cancelled);
+        assert!(envelope.response.truncated);
+        assert!(!envelope.response.more_available);
+        assert!(envelope.response.next_cursor.is_none());
+        assert_eq!(
+            envelope.response.total_rows_exact,
+            matches!(mode, ExecutionMode::MaterializedReference)
+        );
+        assert_eq!(
+            envelope.execution.complete,
+            matches!(mode, ExecutionMode::MaterializedReference)
+        );
+        // `is_complete_result()` is deliberately not asserted: its first
+        // predicate is `operation_status == Ok`, already false from the
+        // Cancelled assertion above, so it adds no independent information.
+        //
+        // The sibling isolation assertion is only meaningful if the sibling
+        // query actually runs through the production execute path and reads
+        // rows. A bare checkpoint cannot detect a broken session/snapshot
+        // ownership boundary.
+        let mut sibling_control = Control::new(ExecutionLimits::default()).with_runtime(
+            production_runtime(&f.lifecycle, &sibling, BudgetLimits::default()),
+        );
+        let sibling_output = execute(&f.prepared, &f.source, mode, &mut sibling_control).unwrap();
+        assert_eq!(sibling_output.rows().len(), 4);
+        assert!(sibling_output.execution_complete());
+        assert!(f.lifecycle.query_status(&sibling).unwrap().error.is_none());
+        println!(
+            "{}",
+            serde_json::json!({"case":"production-queue-native-cancel-isolated","mode":mode,"emitted_rows":envelope.response.emitted_rows.0,"truncated":envelope.response.truncated,"more_available":envelope.response.more_available,"next_cursor":envelope.response.next_cursor,"execution_complete":envelope.execution.complete,"operation_status":envelope.operation_status,"sibling_rows":sibling_output.rows().len()})
+        );
+    }
+}
+
+#[test]
+fn in_process_worker_lost_fails_inflight_query_and_is_not_a_fallback_error() {
+    for mode in [
+        ExecutionMode::Streaming,
+        ExecutionMode::MaterializedReference,
+    ] {
+        let f = setup_with_rows(BudgetLimits::default(), 8);
+        let sibling = f
+            .lifecycle
+            .prepare_query(
+                &f.session,
+                f.prepared.runtime_binding().unwrap(),
+                ResourceLimits::default(),
+            )
+            .unwrap();
+        f.lifecycle.start_query(&f.session, &sibling, 1).unwrap();
+
+        let (sender, mut receiver) =
+            bounded_channel::<Row>(f.runtime.pool().clone(), Some(f.cancel.clone()), 4).unwrap();
+        let mut output_rows = 0u64;
+        let mut control = Control::new(ExecutionLimits::default())
+            .with_runtime(f.runtime.clone())
+            .with_hook({
+                let lifecycle = f.lifecycle.clone();
+                move |point| {
+                    if point.phase == "output_row" {
+                        output_rows += 1;
+                        if output_rows == 2 {
+                            // In-process API only: this records a worker-loss
+                            // terminal for every unfinished query in the
+                            // lifecycle. It does not terminate a process; real
+                            // child-process kill evidence stays in the
+                            // supervisor probe.
+                            lifecycle.worker_lost(
+                                "in-process worker_lost API (no process termination)",
+                            )?;
+                        }
+                    }
+                    Ok(())
+                }
+            });
+        let mut pending = execute_into(
+            &f.prepared,
+            &f.source,
+            mode,
+            &mut control,
+            terminal(&f),
+            &sender,
+        )
+        .unwrap();
+        let QueueEvent::Data(packet) = receiver.receive().unwrap() else {
+            panic!("the row accepted before worker loss must be delivered");
+        };
+        packet.acknowledge().unwrap();
+        let QueueEvent::End(end) = receiver.receive().unwrap() else {
+            panic!("worker loss must publish an explicit failure End");
+        };
+        let error = end.unwrap_err();
+        assert_eq!(error.code, ErrorCode::WorkerLost);
+        assert_eq!(error.stage, "worker");
+        let mut receipt = receiver.into_delivery_receipt().unwrap();
+        let envelope = receipt.finish(&mut pending).unwrap();
+        // Same derivation as the native-cancel path: the failure terminal is
+        // Error (not Cancelled), carries no cursor, and truncated=true because
+        // the queue refused the second row after worker_lost failed the query.
+        // execution.complete/total_rows_exact depend on whether computation
+        // finished before the output loop (MaterializedReference only).
+        assert_eq!(envelope.operation_status, OperationStatus::Error);
+        assert_eq!(envelope.response.emitted_rows.0, 1);
+        assert_eq!(envelope.error.clone().unwrap().code, ErrorCode::WorkerLost);
+        assert!(envelope.response.truncated);
+        assert!(!envelope.response.more_available);
+        assert!(envelope.response.next_cursor.is_none());
+        assert_eq!(
+            envelope.response.total_rows_exact,
+            matches!(mode, ExecutionMode::MaterializedReference)
+        );
+        assert_eq!(
+            envelope.execution.complete,
+            matches!(mode, ExecutionMode::MaterializedReference)
+        );
+        let sibling_status = f.lifecycle.query_status(&sibling).unwrap();
+        assert_eq!(sibling_status.phase, mdd_session::QueryPhase::Failed);
+        assert_eq!(sibling_status.error.unwrap().code, ErrorCode::WorkerLost);
+        let policy = FallbackPolicy {
+            explicitly_allowed: true,
+            equivalence_id: "proved-contract-v1".into(),
+            source_key: "input".into(),
+            result_contract: "rows-v1".into(),
+        };
+        let context = FallbackContext {
+            source_key: "input".into(),
+            result_contract: "rows-v1".into(),
+            accepted_rows: 0,
+            session_mutated: false,
+            side_effects: false,
+            backend_forced: false,
+            required_replacement_qualification: false,
+        };
+        // This verifies the pure gate function only. `fallback_allowed` has no
+        // production caller (see gap-closure evidence), so it is not evidence
+        // that any adapter wires or honours the whitelist.
+        assert!(!fallback_allowed(&error, &policy, &context));
+        println!(
+            "{}",
+            serde_json::json!({"case":"in-process-worker-lost-inflight-and-sibling","mode":mode,"error":{"code":error.code.to_string(),"stage":error.stage},"emitted_rows":envelope.response.emitted_rows.0,"truncated":envelope.response.truncated,"more_available":envelope.response.more_available,"next_cursor":envelope.response.next_cursor,"execution_complete":envelope.execution.complete,"operation_status":envelope.operation_status,"sibling_phase":"failed","fallback_allowed":false})
+        );
+    }
+}
+
+#[test]
+fn compat_cancel_profile_closes_only_owning_dataset_and_is_distinct_from_native() {
+    let snapshot = Arc::new(
+        Snapshot::capture(
+            &[InputSpec {
+                path: PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                    .join("../../tests/fixtures/generated/minimal-035.dex"),
+                kind: InputKind::RawDex,
+                expected_sha256: None,
+            }],
+            CaptureLimits::default(),
+        )
+        .unwrap(),
+    );
+    let snapshot_id = snapshot.manifest().snapshot_id.clone();
+    let limits = ResourceLimits {
+        max_threads: 8,
+        ..ResourceLimits::default()
+    };
+    let lifecycle = Lifecycle::new(limits).unwrap();
+    let handle = lifecycle.register_snapshot(snapshot).unwrap();
+    let owning = lifecycle.open_session(&handle, limits).unwrap();
+    let sibling_session = lifecycle.open_session(&handle, limits).unwrap();
+
+    // Real in-memory fact source bound to the shared snapshot id. Sibling
+    // execution below reads rows through the production `execute` path with a
+    // lifecycle-bound runtime, so a compat cancel that wrongly closed the
+    // sibling session or its queries would fail the execute.
+    let rows: Vec<Row> = (0..4u64).map(|n| vec![Value::U64(DecimalU64(n))]).collect();
+    let source = MemoryCatalog::new(
+        snapshot_id,
+        DecimalU64(0),
+        BTreeMap::from([(
+            "rows".into(),
+            Table {
+                columns: vec![Column {
+                    id: "n".into(),
+                    display_name: "n".into(),
+                    data_type: DataType::U64,
+                    nullable: false,
+                }],
+                required_layers: vec![FactLayer::Structure],
+                rows,
+            },
+        )]),
+        BTreeSet::from([FactLayer::Structure]),
+    )
+    .unwrap();
+    let prepared = prepare(
+        QueryIr {
+            schema_version: IR_VERSION.into(),
+            text_semantics: TEXT_VERSION.into(),
+            snapshot_id: source.snapshot_id().into(),
+            catalog_epoch: DecimalU64(0),
+            require_stable_order: false,
+            root: Node::Scan {
+                relation: "rows".into(),
+            },
+        },
+        &source,
+    )
+    .unwrap();
+    let binding = || prepared.runtime_binding().unwrap();
+
+    let native_query = lifecycle.prepare_query(&owning, binding(), limits).unwrap();
+    lifecycle.start_query(&owning, &native_query, 1).unwrap();
+    let native_cancel = lifecycle.cancellation_token(&native_query).unwrap();
+    let native_profile = CancelProfile::new("native-cancel-unqualified".into(), false).unwrap();
+    let native_outcome = native_cancel
+        .cancel_with_profile(&owning, &native_profile)
+        .unwrap();
+    assert!(!native_outcome.compat_cancel_closes_dataset);
+    assert_eq!(
+        native_outcome.status.phase,
+        mdd_session::QueryPhase::Cancelled
+    );
+    // Native cancel ends only the target query: the owning session stays open.
+    let after_native = lifecycle.prepare_query(&owning, binding(), limits).unwrap();
+    lifecycle.start_query(&owning, &after_native, 1).unwrap();
+
+    // Control: the sibling session reads all rows through the production path
+    // before any compat cancel closes the owning dataset.
+    let sibling_before = lifecycle
+        .prepare_query(&sibling_session, binding(), limits)
+        .unwrap();
+    lifecycle
+        .start_query(&sibling_session, &sibling_before, 1)
+        .unwrap();
+    let before_output = execute(
+        &prepared,
+        &source,
+        ExecutionMode::MaterializedReference,
+        &mut Control::new(ExecutionLimits::default()).with_runtime(production_runtime(
+            &lifecycle,
+            &sibling_before,
+            BudgetLimits::default(),
+        )),
+    )
+    .unwrap();
+    assert_eq!(before_output.rows().len(), 4);
+    assert!(before_output.execution_complete());
+
+    // This sibling query is started before the compat cancel and executed
+    // after it, so it proves the sibling session and its queries survived.
+    let sibling_after = lifecycle
+        .prepare_query(&sibling_session, binding(), limits)
+        .unwrap();
+    lifecycle
+        .start_query(&sibling_session, &sibling_after, 1)
+        .unwrap();
+
+    let compat_query = lifecycle.prepare_query(&owning, binding(), limits).unwrap();
+    lifecycle.start_query(&owning, &compat_query, 1).unwrap();
+    let compat_cancel = lifecycle.cancellation_token(&compat_query).unwrap();
+    let compat_profile = CancelProfile::new("compat-dataset-unqualified".into(), true).unwrap();
+    let compat_outcome = compat_cancel
+        .cancel_with_profile(&owning, &compat_profile)
+        .unwrap();
+    assert!(compat_outcome.compat_cancel_closes_dataset);
+    assert_eq!(
+        compat_outcome.status.phase,
+        mdd_session::QueryPhase::Cancelled
+    );
+    assert_eq!(
+        lifecycle
+            .prepare_query(&owning, binding(), limits)
+            .unwrap_err()
+            .code,
+        ErrorCode::InvalidArgument
+    );
+
+    // The sibling session shares the snapshot but owns its own dataset. Its
+    // snapshot lease and a real production execute must both still work after
+    // the owning dataset was closed.
+    let sibling_snapshot = lifecycle.snapshot_lease(&sibling_session).unwrap();
+    assert_eq!(
+        sibling_snapshot.manifest().snapshot_id,
+        source.snapshot_id()
+    );
+    let after_output = execute(
+        &prepared,
+        &source,
+        ExecutionMode::MaterializedReference,
+        &mut Control::new(ExecutionLimits::default()).with_runtime(production_runtime(
+            &lifecycle,
+            &sibling_after,
+            BudgetLimits::default(),
+        )),
+    )
+    .unwrap();
+    assert_eq!(after_output.rows().len(), 4);
+    assert!(after_output.execution_complete());
+    println!(
+        "{}",
+        serde_json::json!({"case":"compat-cancel-profile-dataset-scope","native_closes_dataset":native_outcome.compat_cancel_closes_dataset,"compat_closes_dataset":compat_outcome.compat_cancel_closes_dataset,"owning_dataset_closed":true,"sibling_before_rows":before_output.rows().len(),"sibling_after_rows":after_output.rows().len(),"sibling_snapshot_lease_ok":true})
+    );
+}
+
+#[test]
+fn fallback_whitelist_rejects_real_query_terminal_errors() {
+    let policy = FallbackPolicy {
+        explicitly_allowed: true,
+        equivalence_id: "proved-contract-v1".into(),
+        source_key: "input".into(),
+        result_contract: "rows-v1".into(),
+    };
+    let pristine = FallbackContext {
+        source_key: "input".into(),
+        result_contract: "rows-v1".into(),
+        accepted_rows: 0,
+        session_mutated: false,
+        side_effects: false,
+        backend_forced: false,
+        required_replacement_qualification: false,
+    };
+    let mut observed: Vec<(&'static str, MddError)> = Vec::new();
+
+    let f = setup_with_rows(BudgetLimits::default().with(Resource::QueryWorkBytes, 0), 4);
+    let error = execute(
+        &f.prepared,
+        &f.source,
+        ExecutionMode::Streaming,
+        &mut Control::new(ExecutionLimits::default()).with_runtime(f.runtime.clone()),
+    )
+    .err()
+    .unwrap();
+    assert_eq!(error.code, ErrorCode::QuotaExceeded);
+    observed.push(("quota_exceeded", error));
+
+    let f = setup_with_rows(BudgetLimits::default().deadlines(0, 0).unwrap(), 4);
+    let error = execute(
+        &f.prepared,
+        &f.source,
+        ExecutionMode::Streaming,
+        &mut Control::new(ExecutionLimits::default()).with_runtime(f.runtime.clone()),
+    )
+    .err()
+    .unwrap();
+    assert_eq!(error.code, ErrorCode::DeadlineExceeded);
+    observed.push(("deadline_exceeded", error));
+
+    let f = setup_with_rows(BudgetLimits::default(), 4);
+    f.cancel.cancel().unwrap();
+    let error = execute(
+        &f.prepared,
+        &f.source,
+        ExecutionMode::Streaming,
+        &mut Control::new(ExecutionLimits::default()).with_runtime(f.runtime.clone()),
+    )
+    .err()
+    .unwrap();
+    assert_eq!(error.code, ErrorCode::Cancelled);
+    observed.push(("cancelled", error));
+
+    let f = setup_with_rows(BudgetLimits::default(), 4);
+    // In-process API only; this is not a process kill.
+    f.lifecycle
+        .worker_lost("in-process worker_lost API (no process termination)")
+        .unwrap();
+    let error = execute(
+        &f.prepared,
+        &f.source,
+        ExecutionMode::Streaming,
+        &mut Control::new(ExecutionLimits::default()).with_runtime(f.runtime.clone()),
+    )
+    .err()
+    .unwrap();
+    assert_eq!(error.code, ErrorCode::WorkerLost);
+    observed.push(("worker_lost", error));
+
+    // `fallback_allowed` is a pure gate function with no production caller.
+    // These assertions verify its decision table only; they do not show that
+    // any adapter wires the whitelist or that a fallback path exists.
+    for (name, error) in &observed {
+        assert!(
+            !fallback_allowed(error, &policy, &pristine),
+            "{name} must never be fallback eligible"
+        );
+    }
+    for code in [
+        ErrorCode::UnavailableBackend,
+        ErrorCode::UnsupportedCapability,
+        ErrorCode::UnsupportedQuery,
+    ] {
+        assert!(fallback_allowed(
+            &MddError::new(code, "test", "permitted"),
+            &policy,
+            &pristine
+        ));
+    }
+    let mut after_rows = pristine.clone();
+    after_rows.accepted_rows = 1;
+    assert!(!fallback_allowed(
+        &MddError::new(ErrorCode::UnsupportedQuery, "test", "permitted"),
+        &policy,
+        &after_rows
+    ));
+    println!(
+        "{}",
+        serde_json::json!({"case":"fallback-whitelist-query-boundary","rejected":observed.iter().map(|(name, error)| serde_json::json!({"class":name,"code":error.code.to_string()})).collect::<Vec<_>>(),"permitted_under_pristine":true,"accepted_rows_disqualify":true})
+    );
 }

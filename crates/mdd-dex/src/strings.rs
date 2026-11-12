@@ -36,6 +36,22 @@ pub struct DexText {
 
 impl DexText {
     pub fn strict_utf8(&self) -> Result<String, std::string::FromUtf16Error> {
+        // Every decoded unit below 0x80 came from one identical plain ASCII raw
+        // byte (MUTF-8 only spells NUL as 0xC0 0x80, which is high-bit), so the
+        // raw form is already the exact UTF-8 encoding of these units. Copying
+        // it is cheaper than re-encoding from UTF-16, and non-ASCII strings keep
+        // the authoritative UTF-16 path that can reject lone surrogates.
+        // The one-byte-per-code-unit correspondence only holds for decoder
+        // output. A `DexText` built through `Deserialize` can carry mismatched
+        // representations, and returning the raw bytes would silently drop the
+        // units; fall back to the authoritative UTF-16 path in that case.
+        if self.raw_mutf8.len() == self.utf16_units.len()
+            && self.raw_mutf8.iter().all(|byte| *byte < 0x80)
+        {
+            return Ok(
+                String::from_utf8(self.raw_mutf8.clone()).expect("plain ASCII is valid UTF-8")
+            );
+        }
         String::from_utf16(&self.utf16_units)
     }
 
@@ -115,6 +131,35 @@ pub fn read_sleb128(bytes: &[u8], offset: u64, end: u64) -> MddResult<(i32, u64)
     Ok((value as i32, consumed))
 }
 
+/// Length of the leading run of plain ASCII bytes (`0x01..=0x7f`). Stops at the
+/// first zero terminator or non-ASCII byte, so a caller may bulk-copy the run.
+fn ascii_prefix(data: &[u8]) -> usize {
+    scan_plain(data).0
+}
+
+/// One pass that reports how many leading bytes are plain ASCII and, when the
+/// stopping byte is a zero terminator, its offset. Both checks share the same
+/// word-at-a-time loop so a pure-ASCII string is scanned exactly once.
+fn scan_plain(data: &[u8]) -> (usize, Option<usize>) {
+    const HIGH: u64 = 0x8080_8080_8080_8080;
+    const LOW: u64 = 0x0101_0101_0101_0101;
+    let mut at = 0usize;
+    while let Some(chunk) = data.get(at..at + 8) {
+        let word = u64::from_le_bytes(chunk.try_into().expect("eight-byte chunk"));
+        // A zero byte anywhere (including borrows from it) or any high bit stops
+        // the plain-ASCII run; both tests are exact for presence.
+        if (word & HIGH) != 0 || (word.wrapping_sub(LOW) & !word & HIGH) != 0 {
+            break;
+        }
+        at += 8;
+    }
+    let rest = &data[at.min(data.len())..];
+    match rest.iter().position(|byte| *byte == 0 || *byte >= 0x80) {
+        Some(offset) => (at + offset, (rest[offset] == 0).then_some(at + offset)),
+        None => (data.len(), None),
+    }
+}
+
 /// Decode from the indicated raw MUTF-8 start to a bounded zero terminator.
 /// The returned range excludes the length prefix and the terminator.
 pub fn decode_mutf8(
@@ -128,80 +173,147 @@ pub fn decode_mutf8(
     if offset > end || end > reader.len() {
         return Err(failure("STRING_RANGE", offset, end.saturating_sub(offset)));
     }
-    let mut at = offset;
-    let mut units = Vec::new();
+    // Validate the whole bounded region once instead of one range check per byte.
+    let data = reader.range(offset, end - offset)?;
+    let declared = u64::from(declared);
+    let declared_u32 = u32::try_from(declared).expect("declared length came from a u32");
+    // MUTF-8 spends at least one byte per UTF-16 unit, so the visible encoded
+    // length and the declared length both bound the exact output size. Finding
+    // the terminator up front allows one exact reserve instead of per-unit
+    // incremental growth; a missing terminator is already a truncation error.
+    let scan =
+        usize::try_from(max_bytes.saturating_add(1).min(data.len() as u64)).unwrap_or(data.len());
+    // One pass over the visible prefix yields both the plain-ASCII run length
+    // and the terminator, so an ASCII string is never scanned twice.
+    let (ascii_run, terminator) = scan_plain(&data[..scan]);
+    let known = terminator.filter(|position| (*position as u64) <= max_bytes);
+    // Whole-string plain ASCII: each byte is exactly one code unit, so both
+    // representations can be built with one bulk copy each and no per-unit
+    // branching. This is the common case for DEX identifiers.
+    //
+    // Only the success case takes this path. A declared length that disagrees
+    // with the observed run must fall through to the per-unit loop, because
+    // that loop decides which budget is violated first and reports the
+    // historical reason and byte length; taking the fast path here would
+    // report STRING_LENGTH_MISMATCH with the terminator details even when the
+    // historical per-unit check fired on the byte budget instead.
+    if let Some(length) = known.filter(|length| ascii_run == *length)
+        && length as u64 == declared
+    {
+        let mut raw = Vec::new();
+        raw.try_reserve_exact(length)
+            .map_err(|_| quota("STRING_ALLOCATION_BUDGET", offset, length as u64))?;
+        raw.extend_from_slice(&data[..length]);
+        let mut units = Vec::new();
+        units
+            .try_reserve_exact(length)
+            .map_err(|_| quota("STRING_ALLOCATION_BUDGET", offset, length as u64))?;
+        units.extend(raw.iter().map(|byte| u16::from(*byte)));
+        return Ok((
+            DexText {
+                raw_mutf8: raw,
+                utf16_units: units,
+                declared_utf16_length: declared_u32,
+                declared_length_verified: true,
+                raw_range: DexRange {
+                    byte_offset: DecimalU64(offset),
+                    byte_length: DecimalU64(length as u64),
+                },
+            },
+            offset + length as u64 + 1,
+        ));
+    }
+    let capacity = known.map_or(0usize, |length| {
+        usize::try_from(declared.min(length as u64)).unwrap_or(length)
+    });
+    let mut units: Vec<u16> = Vec::new();
+    units
+        .try_reserve_exact(capacity)
+        .map_err(|_| quota("STRING_ALLOCATION_BUDGET", offset, data.len() as u64))?;
+    let mut at = 0usize;
     loop {
-        if at >= end {
-            return Err(failure("TRUNCATED", at, 1));
+        let ascii = ascii_prefix(&data[at..]);
+        // Bulk-copy only when the whole run fits both budgets. Otherwise fall
+        // through to the per-unit checks below, which report the byte-budget
+        // reason and offsets exactly as the historical sequential path did;
+        // batching the two checks in the other order would turn
+        // STRING_LENGTH_MISMATCH into STRING_BYTE_BUDGET for inputs that
+        // violate both at once.
+        let byte_room = max_bytes.saturating_sub(at as u64);
+        let declared_room = declared.saturating_sub(units.len() as u64);
+        let bulk = if ascii != 0 && ascii as u64 <= byte_room.min(declared_room) {
+            ascii
+        } else {
+            0
+        };
+        if bulk != 0 {
+            units.extend(data[at..at + bulk].iter().map(|byte| u16::from(*byte)));
+            at += bulk;
         }
-        let first = reader.range(at, 1)?[0];
+        if at >= data.len() {
+            return Err(failure("TRUNCATED", offset + at as u64, 1));
+        }
+        let first = data[at];
         if first == 0 {
-            if units.len() as u64 != u64::from(declared) {
-                return Err(failure("STRING_LENGTH_MISMATCH", offset, at - offset)
-                    .detail("declared_code_units", u64::from(declared))
+            if units.len() as u64 != declared {
+                return Err(failure("STRING_LENGTH_MISMATCH", offset, at as u64)
+                    .detail("declared_code_units", declared)
                     .detail("observed_code_units", units.len().to_string()));
             }
-            let raw = reader.range(offset, at - offset)?.to_vec();
             return Ok((
                 DexText {
-                    raw_mutf8: raw,
+                    raw_mutf8: data[..at].to_vec(),
                     utf16_units: units,
-                    declared_utf16_length: declared,
+                    declared_utf16_length: declared_u32,
                     declared_length_verified: true,
                     raw_range: DexRange {
                         byte_offset: DecimalU64(offset),
-                        byte_length: DecimalU64(at - offset),
+                        byte_length: DecimalU64(at as u64),
                     },
                 },
-                at + 1,
+                offset + at as u64 + 1,
             ));
         }
         let (width, value) = if first < 0x80 {
-            (1, u16::from(first))
+            (1usize, u16::from(first))
         } else if (0xc0..=0xdf).contains(&first) {
-            if at + 2 > end {
-                return Err(failure("TRUNCATED", at, 2));
+            if at + 2 > data.len() {
+                return Err(failure("TRUNCATED", offset + at as u64, 2));
             }
-            let second = reader.range(at + 1, 1)?[0];
+            let second = data[at + 1];
             if second & 0xc0 != 0x80 {
-                return Err(failure("INVALID_MUTF8", at, 2));
+                return Err(failure("INVALID_MUTF8", offset + at as u64, 2));
             }
             let value = (u16::from(first & 31) << 6) | u16::from(second & 63);
             if value != 0 && value < 128 {
-                return Err(failure("INVALID_MUTF8", at, 2));
+                return Err(failure("INVALID_MUTF8", offset + at as u64, 2));
             }
-            (2, value)
+            (2usize, value)
         } else if (0xe0..=0xef).contains(&first) {
-            if at + 3 > end {
-                return Err(failure("TRUNCATED", at, 3));
+            if at + 3 > data.len() {
+                return Err(failure("TRUNCATED", offset + at as u64, 3));
             }
-            let continuation = reader.range(at + 1, 2)?;
+            let continuation = &data[at + 1..at + 3];
             if continuation.iter().any(|byte| byte & 0xc0 != 0x80) {
-                return Err(failure("INVALID_MUTF8", at, 3));
+                return Err(failure("INVALID_MUTF8", offset + at as u64, 3));
             }
             let value = (u16::from(first & 15) << 12)
                 | (u16::from(continuation[0] & 63) << 6)
                 | u16::from(continuation[1] & 63);
             if value < 2048 {
-                return Err(failure("INVALID_MUTF8", at, 3));
+                return Err(failure("INVALID_MUTF8", offset + at as u64, 3));
             }
-            (3, value)
+            (3usize, value)
         } else {
-            return Err(failure("INVALID_MUTF8", at, 1));
+            return Err(failure("INVALID_MUTF8", offset + at as u64, 1));
         };
-        if at - offset + width > max_bytes {
-            return Err(quota("STRING_BYTE_BUDGET", offset, at - offset + width));
+        let consumed = at as u64 + width as u64;
+        if consumed > max_bytes {
+            return Err(quota("STRING_BYTE_BUDGET", offset, consumed));
         }
-        if units.len() as u64 >= u64::from(declared) {
-            return Err(failure(
-                "STRING_LENGTH_MISMATCH",
-                offset,
-                at - offset + width,
-            ));
+        if units.len() as u64 >= declared {
+            return Err(failure("STRING_LENGTH_MISMATCH", offset, consumed));
         }
-        units
-            .try_reserve(1)
-            .map_err(|_| quota("STRING_ALLOCATION_BUDGET", offset, at - offset + width))?;
         units.push(value);
         at += width;
     }
@@ -337,6 +449,163 @@ pub fn read_string_pool(
 
 #[cfg(test)]
 mod tests {
+    // Historical per-unit decoder, copied verbatim from commit b70d999 so the
+    // optimised decoder can be differentially tested against it. Any divergence
+    // in the returned value or in the error code/reason/offsets is a regression.
+    fn legacy_decode_mutf8(
+        bytes: &[u8],
+        offset: u64,
+        end: u64,
+        declared: u32,
+        max_bytes: u64,
+    ) -> MddResult<(DexText, u64)> {
+        use crate::checked_reader::CheckedReader;
+        let reader = CheckedReader::new(bytes);
+        if offset > end || end > reader.len() {
+            return Err(failure("STRING_RANGE", offset, end.saturating_sub(offset)));
+        }
+        let mut at = offset;
+        let mut units = Vec::new();
+        loop {
+            if at >= end {
+                return Err(failure("TRUNCATED", at, 1));
+            }
+            let first = reader.range(at, 1)?[0];
+            if first == 0 {
+                if units.len() as u64 != u64::from(declared) {
+                    return Err(failure("STRING_LENGTH_MISMATCH", offset, at - offset)
+                        .detail("declared_code_units", u64::from(declared))
+                        .detail("observed_code_units", units.len().to_string()));
+                }
+                let raw = reader.range(offset, at - offset)?.to_vec();
+                return Ok((
+                    DexText {
+                        raw_mutf8: raw,
+                        utf16_units: units,
+                        declared_utf16_length: declared,
+                        declared_length_verified: true,
+                        raw_range: DexRange {
+                            byte_offset: DecimalU64(offset),
+                            byte_length: DecimalU64(at - offset),
+                        },
+                    },
+                    at + 1,
+                ));
+            }
+            let (width, value) = if first < 0x80 {
+                (1, u16::from(first))
+            } else if (0xc0..=0xdf).contains(&first) {
+                if at + 2 > end {
+                    return Err(failure("TRUNCATED", at, 2));
+                }
+                let second = reader.range(at + 1, 1)?[0];
+                if second & 0xc0 != 0x80 {
+                    return Err(failure("INVALID_MUTF8", at, 2));
+                }
+                let value = (u16::from(first & 31) << 6) | u16::from(second & 63);
+                if value != 0 && value < 128 {
+                    return Err(failure("INVALID_MUTF8", at, 2));
+                }
+                (2, value)
+            } else if (0xe0..=0xef).contains(&first) {
+                if at + 3 > end {
+                    return Err(failure("TRUNCATED", at, 3));
+                }
+                let continuation = reader.range(at + 1, 2)?;
+                if continuation.iter().any(|byte| byte & 0xc0 != 0x80) {
+                    return Err(failure("INVALID_MUTF8", at, 3));
+                }
+                let value = (u16::from(first & 15) << 12)
+                    | (u16::from(continuation[0] & 63) << 6)
+                    | u16::from(continuation[1] & 63);
+                if value < 2048 {
+                    return Err(failure("INVALID_MUTF8", at, 3));
+                }
+                (3, value)
+            } else {
+                return Err(failure("INVALID_MUTF8", at, 1));
+            };
+            if at - offset + width > max_bytes {
+                return Err(quota("STRING_BYTE_BUDGET", offset, at - offset + width));
+            }
+            if units.len() as u64 >= u64::from(declared) {
+                return Err(failure(
+                    "STRING_LENGTH_MISMATCH",
+                    offset,
+                    at - offset + width,
+                ));
+            }
+            units.push(value);
+            at += width;
+        }
+    }
+
+    #[test]
+    fn decode_mutf8_matches_the_historical_per_unit_decoder() {
+        // Exhaustive over short inputs from an alphabet that covers ASCII, the
+        // 2/3-byte lead bytes, continuation bytes, the NUL terminator and the
+        // 0xf0 lead that must be rejected.
+        const ALPHABET: [u8; 12] = [
+            0x00, 0x41, 0x7f, 0x80, 0xc0, 0xc2, 0xdf, 0xe0, 0xe2, 0xef, 0xf0, 0xff,
+        ];
+        let mut cases = 0u64;
+        let mut divergences = 0u64;
+        for len in 1..=3usize {
+            let total = ALPHABET.len().pow(len as u32);
+            for code in 0..total {
+                let mut input = Vec::with_capacity(len + 1);
+                let mut c = code;
+                for _ in 0..len {
+                    input.push(ALPHABET[c % ALPHABET.len()]);
+                    c /= ALPHABET.len();
+                }
+                for &terminator in &[true, false] {
+                    if terminator {
+                        input.push(0);
+                    }
+                    for &declared in &[0u32, 1, 2, 3] {
+                        for &max_bytes in &[0u64, 1, 2, 3, 4] {
+                            let end = input.len() as u64;
+                            let old = legacy_decode_mutf8(&input, 0, end, declared, max_bytes);
+                            let new = super::decode_mutf8(&input, 0, end, declared, max_bytes);
+                            cases += 1;
+                            let same = match (&old, &new) {
+                                (Ok(a), Ok(b)) => {
+                                    a.0.raw_mutf8 == b.0.raw_mutf8
+                                        && a.0.utf16_units == b.0.utf16_units
+                                        && a.0.declared_utf16_length == b.0.declared_utf16_length
+                                        && a.0.raw_range.byte_offset == b.0.raw_range.byte_offset
+                                        && a.0.raw_range.byte_length == b.0.raw_range.byte_length
+                                        && a.1 == b.1
+                                }
+                                (Err(a), Err(b)) => {
+                                    a.code == b.code
+                                        && a.message == b.message
+                                        && a.details == b.details
+                                }
+                                _ => false,
+                            };
+                            if !same {
+                                divergences += 1;
+                                if divergences <= 5 {
+                                    panic!(
+                                        "divergence input={input:02x?} declared={declared} max_bytes={max_bytes}
+ old={old:?}
+ new={new:?}"
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert_eq!(
+            divergences, 0,
+            "decoder diverged from history in {divergences}/{cases} cases"
+        );
+    }
+
     use super::*;
     use crate::validate_header;
     use serde_json::Value;

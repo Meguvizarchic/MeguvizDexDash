@@ -31,6 +31,34 @@ pub enum ErrorCode {
     WorkerLost,
 }
 
+impl fmt::Display for ErrorCode {
+    /// Stable SCREAMING_SNAKE_CASE text, matching the JSON representation so
+    /// logs and machine output never disagree about a code's spelling.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let name = match self {
+            Self::UnavailableBackend => "UNAVAILABLE_BACKEND",
+            Self::UnsupportedCapability => "UNSUPPORTED_CAPABILITY",
+            Self::UnsupportedQuery => "UNSUPPORTED_QUERY",
+            Self::InvalidArgument => "INVALID_ARGUMENT",
+            Self::InvalidInput => "INVALID_INPUT",
+            Self::PartialInput => "PARTIAL_INPUT",
+            Self::IncompleteFacts => "INCOMPLETE_FACTS",
+            Self::SourceChanged => "SOURCE_CHANGED",
+            Self::AmbiguousEntity => "AMBIGUOUS_ENTITY",
+            Self::StaleCache => "STALE_CACHE",
+            Self::CacheCorrupt => "CACHE_CORRUPT",
+            Self::QuotaExceeded => "QUOTA_EXCEEDED",
+            Self::DeadlineExceeded => "DEADLINE_EXCEEDED",
+            Self::Cancelled => "CANCELLED",
+            Self::SnapshotClosed => "SNAPSHOT_CLOSED",
+            Self::InvalidCursor => "INVALID_CURSOR",
+            Self::InternalFault => "INTERNAL_FAULT",
+            Self::WorkerLost => "WORKER_LOST",
+        };
+        f.write_str(name)
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MddError {

@@ -11,6 +11,7 @@ use mdd_dex::{
 };
 use mdd_types::{Completeness, ErrorCode, MddError, MddResult, content_id};
 use serde::Serialize;
+use std::sync::Arc;
 
 impl DefinitionMetadata for MetadataFacts {
     fn string(&self, index: u32) -> Option<&DexString> {
@@ -26,7 +27,7 @@ impl DefinitionMetadata for MetadataFacts {
 
 #[derive(Clone, Serialize)]
 pub struct DefinitionFacts {
-    pub(crate) metadata: MetadataFacts,
+    pub(crate) metadata: Arc<MetadataFacts>,
     pub(crate) definitions: DexDefinitions,
     pub(crate) definition_coverage: Completeness,
     pub(crate) completed_layers: Vec<String>,
@@ -71,6 +72,93 @@ pub struct ClassInterfaceRow {
     pub ordinal: u32,
     pub interface_type_idx: u32,
     pub interface_descriptor: String,
+}
+
+/// One `methods` row: one encoded method_id with its same-occurrence prototype
+/// identity plus the optional real definition. Reference-only members carry a
+/// genuine NULL `access_flags`/`method_kind`; they are not an unbuilt layer.
+///
+/// `param_descriptors` is the comma-separated UTF-8 rendering of the exact
+/// ordered native parameter descriptor vector. The vector is a native atom; the
+/// comma join is a compatibility text encoding (see
+/// [`PARAM_DESCRIPTOR_ENCODING`]) that is total here because every validated
+/// descriptor is scalar UTF-8: a non-scalar descriptor is refused while reading
+/// types, before any row exists.
+///
+/// `opcode_count` and `opcode_hex` are not projected here: they need the
+/// code-layout layer that this object does not hold. Assemble the complete
+/// `methods` relation through
+/// [`crate::code::MethodCodeFactViews::method_rows`], which joins these fields
+/// with the exact decoded opcode sequence. Requesting either column from
+/// [`DefinitionFacts::require_relation_columns`] returns `IncompleteFacts`
+/// rather than a fabricated value.
+#[derive(Clone, Debug, Serialize)]
+pub struct MethodRow {
+    pub file_id: u32,
+    pub method_idx: u32,
+    pub class_idx: u32,
+    pub class_descriptor: String,
+    pub proto_idx: u32,
+    pub name: String,
+    pub descriptor: String,
+    pub return_descriptor: String,
+    pub param_count: u32,
+    pub param_descriptors: String,
+    pub access_flags: Option<u32>,
+    pub method_kind: Option<String>,
+}
+
+/// The compatibility text encoding of `methods.param_descriptors`: the exact
+/// ordered prototype parameter descriptors joined by `,` with no surrounding
+/// whitespace. Empty parameter lists encode as the empty string. This is not a
+/// native atom by itself; the native atom is the ordered descriptor vector.
+pub const PARAM_DESCRIPTOR_ENCODING: &str = "comma-separated-utf8-v1";
+
+impl MethodRow {
+    /// Assembled column names in contract order.
+    pub const COLUMNS: &[&str] = &[
+        "file_id",
+        "method_idx",
+        "class_idx",
+        "class_descriptor",
+        "proto_idx",
+        "name",
+        "descriptor",
+        "return_descriptor",
+        "param_count",
+        "param_descriptors",
+        "access_flags",
+        "method_kind",
+    ];
+}
+
+/// One `classes` row: one encoded class_def with its declared interfaces and
+/// optional superclass/source file. `superclass_descriptor` and `source_file`
+/// are the encoded NO_INDEX, not an unbuilt layer.
+#[derive(Clone, Debug, Serialize)]
+pub struct ClassRow {
+    pub file_id: u32,
+    pub class_def_idx: u32,
+    pub class_idx: u32,
+    pub descriptor: String,
+    pub access_flags: u32,
+    pub superclass_descriptor: Option<String>,
+    pub interface_count: u32,
+    pub source_file: Option<String>,
+}
+
+impl ClassRow {
+    /// Assembled column names in contract order.
+    pub const COLUMNS: &[&str] = &[
+        "file_id",
+        "class_def_idx",
+        "class_idx",
+        "descriptor",
+        "access_flags",
+        "superclass_descriptor",
+        "interface_count",
+        "source_file",
+    ];
 }
 
 /// Logical iteration limits; the borrowed class view allocates no owner index.
@@ -810,6 +898,12 @@ impl<'a> MethodFactViews<'a> {
         })
     }
 
+    /// Number of encoded method references this join covers, for callers that
+    /// pre-size their own row vector.
+    pub(crate) fn method_count(&self) -> usize {
+        self.facts.definitions.method_references.len()
+    }
+
     /// Iterate every encoded method reference in DEX method-id order without copying values.
     pub fn iter(&self) -> impl Iterator<Item = MddResult<MethodFactView<'a>>> + '_ {
         self.facts
@@ -1081,6 +1175,13 @@ impl DefinitionFacts {
         &self.unbuilt_layers
     }
     pub fn build(metadata: MetadataFacts, limits: DefinitionLimits) -> MddResult<Self> {
+        Self::build_arc(Arc::new(metadata), limits)
+    }
+
+    /// Build from an already-shared metadata lease so a facade can hand the same
+    /// metadata to several fact layers without deep-copying the string, type and
+    /// prototype tables.
+    pub fn build_arc(metadata: Arc<MetadataFacts>, limits: DefinitionLimits) -> MddResult<Self> {
         let source = &metadata.source;
         let bind = |error: MddError| {
             error
@@ -1103,8 +1204,13 @@ impl DefinitionFacts {
                 "held bytes do not match metadata content identity",
             )));
         }
-        let definitions = read_definitions(metadata.bytes(), &metadata.header, &metadata, limits)
-            .map_err(bind)?;
+        let definitions = read_definitions(
+            metadata.bytes(),
+            &metadata.header,
+            metadata.as_ref(),
+            limits,
+        )
+        .map_err(bind)?;
         let mut completed_layers = metadata.completed_layers.clone();
         completed_layers.push("definitions".into());
         let mut unbuilt_layers: Vec<_> = metadata
@@ -1226,25 +1332,33 @@ impl DefinitionFacts {
                 "descriptor",
                 "return_descriptor",
                 "param_count",
+                "param_descriptors",
                 "access_flags",
                 "method_kind",
             ],
         };
         for column in columns {
             if relation == DefinitionRelation::Methods
-                && ["opcode_count", "opcode_hex", "*"].contains(column)
+                && ["opcode_count", "opcode_hex"].contains(column)
             {
                 return Err(MddError::new(
                     ErrorCode::IncompleteFacts,
                     "facts.definitions",
-                    "complete methods columns require code_layout facts",
+                    "methods opcode columns require the code_layout layer held by MethodCodeFactViews",
                 )
                 .detail("required_layer", "code_layout")
-                .detail("column", (*column).to_owned()));
+                .detail("column", (*column).to_owned())
+                .detail("assembled_by", "MethodCodeFactViews::method_rows"));
             }
-            if relation == DefinitionRelation::Methods && *column == "param_descriptors" {
-                return Err(MddError::new(ErrorCode::IncompleteFacts, "facts.definitions", "native parameter descriptors are exact; compatibility text encoding is not qualified")
-                    .detail("required_layer", "compatibility_text_profile"));
+            if relation == DefinitionRelation::Methods && *column == "*" {
+                return Err(MddError::new(
+                    ErrorCode::IncompleteFacts,
+                    "facts.definitions",
+                    "methods wildcard includes code_layout opcode columns; use MethodCodeFactViews::method_rows",
+                )
+                .detail("required_layer", "code_layout")
+                .detail("unavailable_columns", "opcode_count,opcode_hex")
+                .detail("assembled_by", "MethodCodeFactViews::method_rows"));
             }
             if *column != "*" && !available.contains(column) {
                 return Err(MddError::new(
@@ -1309,6 +1423,161 @@ impl DefinitionFacts {
             })
             .collect()
     }
+
+    /// Project every encoded method_id in DEX order, joining the optional real
+    /// definition. Reference-only rows keep their identity and carry NULL
+    /// definition columns; they are never dropped or filled with a default.
+    ///
+    /// `param_descriptors` is the exact ordered native parameter descriptor
+    /// vector joined by `,` ([`PARAM_DESCRIPTOR_ENCODING`]). The join is total
+    /// here because every validated descriptor is scalar UTF-8: a non-scalar
+    /// descriptor is rejected while reading types, so no row can carry a
+    /// descriptor that needs a lossy rendering.
+    pub fn method_rows(&self, file_id: u32) -> MddResult<Vec<MethodRow>> {
+        self.require_relation_columns(DefinitionRelation::Methods, MethodRow::COLUMNS)?;
+        let views = self.method_fact_views(MethodViewLimits::default())?;
+        let mut rows = Vec::new();
+        rows.try_reserve_exact(self.definitions.method_references.len())
+            .map_err(|_| {
+                MddError::new(
+                    ErrorCode::QuotaExceeded,
+                    "facts.methods",
+                    "method row allocation failed",
+                )
+            })?;
+        for view in views.iter() {
+            let view = view?;
+            let reference = view.reference;
+            let param_count =
+                u32::try_from(reference.parameter_descriptors.len()).map_err(|_| {
+                    MddError::new(
+                        ErrorCode::InternalFault,
+                        "facts.methods",
+                        "validated parameter count exceeds UInt32",
+                    )
+                    .detail("method_idx", u64::from(reference.method_idx))
+                })?;
+            rows.push(MethodRow {
+                file_id,
+                method_idx: reference.method_idx,
+                class_idx: reference.class_idx,
+                class_descriptor: reference.class_descriptor.clone(),
+                proto_idx: reference.proto_idx,
+                name: reference.method_name.clone(),
+                descriptor: reference.descriptor.clone(),
+                return_descriptor: reference.return_descriptor.clone(),
+                param_count,
+                param_descriptors: parameter_descriptors_text(&reference.parameter_descriptors)?,
+                access_flags: view.definition.map(|definition| definition.access_flags),
+                method_kind: view
+                    .definition
+                    .map(|definition| definition.kind.as_str().to_owned()),
+            });
+        }
+        Ok(rows)
+    }
+
+    /// Project every encoded class_def in class_def order with its declared
+    /// interface count. `source_file` uses the lossless strict UTF-8 rendering
+    /// of the same-occurrence `DexText`; a legal non-scalar value is rejected
+    /// rather than converted lossily.
+    pub fn class_rows(&self, file_id: u32) -> MddResult<Vec<ClassRow>> {
+        self.require_relation_columns(DefinitionRelation::Classes, ClassRow::COLUMNS)?;
+        if self.definition_coverage != Completeness::Complete
+            || self.metadata.metadata_coverage() != Completeness::Complete
+        {
+            return Err(MddError::new(
+                ErrorCode::IncompleteFacts,
+                "facts.classes",
+                "complete metadata and definitions are required",
+            ));
+        }
+        let mut rows = Vec::new();
+        rows.try_reserve_exact(self.definitions.classes.len())
+            .map_err(|_| {
+                MddError::new(
+                    ErrorCode::QuotaExceeded,
+                    "facts.classes",
+                    "class row allocation failed",
+                )
+            })?;
+        for class in &self.definitions.classes {
+            let interface_count = u32::try_from(
+                self.definitions
+                    .interfaces
+                    .iter()
+                    .filter(|interface| interface.class_def_idx == class.class_def_idx)
+                    .count(),
+            )
+            .map_err(|_| {
+                MddError::new(
+                    ErrorCode::InternalFault,
+                    "facts.classes",
+                    "validated interface count exceeds UInt32",
+                )
+                .detail("class_def_idx", u64::from(class.class_def_idx))
+            })?;
+            let source_file = match &class.source_file {
+                Some(text) => Some(text.strict_utf8().map_err(|_| {
+                    MddError::new(
+                        ErrorCode::UnsupportedQuery,
+                        "facts.classes",
+                        "plain UTF8 relation cannot losslessly represent a legal non-scalar source file name",
+                    )
+                    .detail("reason", "NON_SCALAR_TEXT_PROJECTION")
+                    .detail("class_def_idx", u64::from(class.class_def_idx))
+                    .detail(
+                        "snapshot_id",
+                        self.metadata.source.snapshot_id.clone(),
+                    )
+                    .detail(
+                        "dex_occurrence_id",
+                        self.metadata.source.dex_occurrence_id.clone(),
+                    )
+                })?),
+                None => None,
+            };
+            rows.push(ClassRow {
+                file_id,
+                class_def_idx: class.class_def_idx,
+                class_idx: class.class_idx,
+                descriptor: class.descriptor.clone(),
+                access_flags: class.access_flags,
+                superclass_descriptor: class.superclass_descriptor.clone(),
+                interface_count,
+                source_file,
+            });
+        }
+        Ok(rows)
+    }
+}
+
+/// Render one exact ordered parameter descriptor vector as
+/// [`PARAM_DESCRIPTOR_ENCODING`]. The result is one allocation grown only by the
+/// already-validated descriptor bytes plus one separator each.
+pub(crate) fn parameter_descriptors_text(descriptors: &[String]) -> MddResult<String> {
+    let quota = || {
+        MddError::new(
+            ErrorCode::QuotaExceeded,
+            "facts.methods",
+            "parameter descriptor text allocation failed",
+        )
+    };
+    let total = descriptors
+        .iter()
+        .try_fold(descriptors.len().saturating_sub(1), |total, descriptor| {
+            total.checked_add(descriptor.len())
+        })
+        .ok_or_else(quota)?;
+    let mut text = String::new();
+    text.try_reserve_exact(total).map_err(|_| quota())?;
+    for (ordinal, descriptor) in descriptors.iter().enumerate() {
+        if ordinal != 0 {
+            text.push(',');
+        }
+        text.push_str(descriptor);
+    }
+    Ok(text)
 }
 
 pub struct ClassMatch<'a> {
@@ -2059,9 +2328,11 @@ mod tests {
                 fact.require_relation_columns(DefinitionRelation::Methods, &["opcode_hex"])
                     .is_err()
             );
+            // `param_descriptors` needs no code layout: its native vector is
+            // exact and the comma join is total over validated descriptors.
             assert!(
                 fact.require_relation_columns(DefinitionRelation::Methods, &["param_descriptors"])
-                    .is_err()
+                    .is_ok()
             );
         }
         assert_eq!(
@@ -2247,5 +2518,348 @@ mod tests {
             assert!(first.require_relation_columns(relation, &["*"]).is_ok());
         }
         assert_eq!(first.class_interface_rows(7).len(), 2);
+    }
+
+    #[test]
+    fn methods_and_classes_wildcard_columns_match_frozen_reference_schema() {
+        let facts = build_two();
+        let first = &facts[0];
+        let schema: Value = serde_json::from_str(include_str!(
+            "../../../conformance/manifests/relations.json"
+        ))
+        .unwrap();
+        let method = serde_json::to_value(first.method_rows(7).unwrap()).unwrap();
+        let class = serde_json::to_value(first.class_rows(7).unwrap()).unwrap();
+        for (relation, rows, expected_columns, gate) in [
+            (
+                "methods",
+                method.as_array().unwrap(),
+                MethodRow::COLUMNS,
+                DefinitionRelation::Methods,
+            ),
+            (
+                "classes",
+                class.as_array().unwrap(),
+                ClassRow::COLUMNS,
+                DefinitionRelation::Classes,
+            ),
+        ] {
+            let entry = schema["relations"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|r| r["name"] == relation)
+                .unwrap();
+            assert!(
+                first
+                    .require_relation_columns(gate, expected_columns)
+                    .is_ok()
+            );
+            for column in expected_columns {
+                let spec = entry["columns"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|spec| spec["name"].as_str().unwrap() == *column)
+                    .unwrap_or_else(|| panic!("{relation}.{column} missing from contract"));
+                let value = &rows[0][spec["name"].as_str().unwrap()];
+                if value.is_null() {
+                    assert!(spec["nullable"].as_bool().unwrap(), "{relation}.{column}");
+                    continue;
+                }
+                match spec["data_type"].as_str().unwrap() {
+                    "UInt32" => assert!(value.is_u64(), "{relation}.{column}: {value}"),
+                    "Utf8" | "Utf8View" => {
+                        assert!(value.is_string(), "{relation}.{column}: {value}")
+                    }
+                    other => panic!("unhandled contract type {other}"),
+                }
+            }
+        }
+        // The assembled column set must be exactly the contract set minus the
+        // documented code-layout columns.
+        let contract_methods = schema["relations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r["name"] == "methods")
+            .unwrap();
+        let unassembled = contract_methods["columns"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|column| column["name"].as_str().unwrap())
+            .filter(|name| !MethodRow::COLUMNS.contains(name))
+            .collect::<Vec<_>>();
+        assert_eq!(unassembled, ["opcode_count", "opcode_hex"]);
+        for row in method.as_array().unwrap() {
+            // `param_descriptors` is now the exact comma-joined native vector.
+            assert!(row["param_descriptors"].is_string());
+            assert!(row.get("opcode_count").is_none());
+            assert!(row.get("opcode_hex").is_none());
+            assert!(row.get("access_flags").is_some());
+        }
+    }
+
+    #[test]
+    fn method_rows_preserve_reference_only_nulls_and_definition_join() {
+        let facts = build_two();
+        for fact in &facts {
+            let rows = fact.method_rows(0).unwrap();
+            assert_eq!(rows.len(), fact.definitions().method_references.len());
+            let definitions = fact
+                .definitions()
+                .method_definitions
+                .iter()
+                .map(|definition| definition.method_idx)
+                .collect::<std::collections::BTreeSet<_>>();
+            let mut reference_only = 0;
+            for (ordinal, row) in rows.iter().enumerate() {
+                let reference = &fact.definitions().method_references[ordinal];
+                assert_eq!(row.file_id, 0);
+                assert_eq!(row.method_idx, reference.method_idx);
+                assert_eq!(row.class_idx, reference.class_idx);
+                assert_eq!(row.class_descriptor, reference.class_descriptor);
+                assert_eq!(row.proto_idx, reference.proto_idx);
+                assert_eq!(row.name, reference.method_name);
+                assert_eq!(row.descriptor, reference.descriptor);
+                assert_eq!(row.return_descriptor, reference.return_descriptor);
+                assert_eq!(
+                    row.param_count,
+                    u32::try_from(reference.parameter_descriptors.len()).unwrap()
+                );
+                assert_eq!(
+                    row.param_descriptors,
+                    reference.parameter_descriptors.join(","),
+                    "param_descriptors must be the exact ordered vector joined by ','"
+                );
+                let defined = definitions.contains(&reference.method_idx);
+                assert_eq!(row.access_flags.is_some(), defined);
+                assert_eq!(row.method_kind.is_some(), defined);
+                if !defined {
+                    reference_only += 1;
+                } else {
+                    let definition = fact
+                        .definitions()
+                        .method_definitions
+                        .iter()
+                        .find(|value| value.method_idx == reference.method_idx)
+                        .unwrap();
+                    assert_eq!(row.access_flags, Some(definition.access_flags));
+                    assert_eq!(row.method_kind, Some(definition.kind.as_str().to_owned()));
+                }
+                // Reference IDs stay unique across the occurrence.
+                assert_eq!(
+                    rows.iter()
+                        .filter(|value| value.method_idx == row.method_idx)
+                        .count(),
+                    1
+                );
+            }
+            // This fixture has reference-only members, so the NULL path is real.
+            assert!(
+                reference_only > 0,
+                "fixture lost its reference-only methods"
+            );
+        }
+    }
+
+    /// `param_descriptors` matches the recorded A0 `methods` slice exactly for
+    /// all three frozen fixtures. A0 renders the same comma join, so this is
+    /// both a value check and a compatibility-encoding check.
+    #[test]
+    fn param_descriptors_match_recorded_a0_rows() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let audit = root.join("artifacts/mdd-026/method-atom-audit/20261028T165707192974Z");
+        for (case, fixture, expected_rows) in [
+            (
+                "definitions",
+                "tests/fixtures/definitions/generated/definitions-035.dex",
+                13usize,
+            ),
+            (
+                "shared",
+                "tests/fixtures/references/generated/shared-code-035.dex",
+                5,
+            ),
+            (
+                "dynamic",
+                "tests/fixtures/references/generated/poly-custom-038.dex",
+                6,
+            ),
+        ] {
+            let path = root.join(fixture);
+            let input = InputSpec {
+                path,
+                kind: InputKind::RawDex,
+                expected_sha256: None,
+            };
+            let snapshot = Snapshot::capture(&[input], CaptureLimits::default()).unwrap();
+            let inventory = ArchiveInventory::build(
+                &snapshot.sources()[0],
+                InventoryPolicy::default(),
+                ArchiveLimits::default(),
+            )
+            .unwrap();
+            let metadata =
+                MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default()).unwrap();
+            let facts = DefinitionFacts::build(metadata, DefinitionLimits::default()).unwrap();
+            let rows = facts.method_rows(0).unwrap();
+            let table =
+                std::fs::read_to_string(audit.join(format!("a0-{case}/stdout.txt"))).unwrap();
+            let hex_text = |cell: &str| -> Option<String> {
+                (cell != "N").then(|| {
+                    String::from_utf8(
+                        cell.as_bytes()
+                            .as_chunks::<2>()
+                            .0
+                            .iter()
+                            .map(|pair| {
+                                u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap()
+                            })
+                            .collect::<Vec<_>>(),
+                    )
+                    .unwrap()
+                })
+            };
+            let mut compared = 0usize;
+            for line in table.lines().filter(|line| line.starts_with('|')) {
+                let cells: Vec<_> = line.trim_matches('|').split('|').map(str::trim).collect();
+                if cells[0] == "file_id" {
+                    continue;
+                }
+                assert_eq!(cells.len(), 14, "{case}");
+                let index: u32 = hex_text(cells[1]).unwrap().parse().unwrap();
+                let row = rows
+                    .iter()
+                    .find(|row| row.method_idx == index)
+                    .unwrap_or_else(|| panic!("{case} method {index} missing"));
+                assert_eq!(
+                    Some(row.param_descriptors.clone()),
+                    hex_text(cells[9]),
+                    "{case} method {index}"
+                );
+                // The comma join must agree with the declared count as well.
+                assert_eq!(
+                    row.param_count as usize,
+                    if row.param_descriptors.is_empty() {
+                        0
+                    } else {
+                        row.param_descriptors.matches(',').count() + 1
+                    },
+                    "{case} method {index}"
+                );
+                compared += 1;
+            }
+            assert_eq!(compared, expected_rows, "{case} row count");
+        }
+    }
+
+    #[test]
+    fn class_rows_match_independent_raw_class_def_oracle() {
+        let name = "definitions-035.dex";
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/definitions/generated")
+            .join(name);
+        let raw = std::fs::read(&path).unwrap();
+        let facts = build_named(name).remove(0);
+        let u32at = |at: usize| u32::from_le_bytes(raw[at..at + 4].try_into().unwrap());
+        let string_ids_off = u32at(60) as usize;
+        let type_ids_off = u32at(68) as usize;
+        let raw_string = |index: u32| -> String {
+            let data_off = u32at(string_ids_off + index as usize * 4) as usize;
+            let mut at = data_off;
+            while raw[at] >= 0x80 {
+                at += 1;
+            }
+            at += 1;
+            let end = at + raw[at..].iter().position(|byte| *byte == 0).unwrap();
+            String::from_utf8(raw[at..end].to_vec()).unwrap()
+        };
+        let type_descriptor =
+            |type_idx: u32| -> String { raw_string(u32at(type_ids_off + type_idx as usize * 4)) };
+        let class_count = u32at(96) as usize;
+        let class_off = u32at(100) as usize;
+        let mut expected = Vec::new();
+        for class_def_idx in 0..class_count {
+            let at = class_off + class_def_idx * 32;
+            let class_idx = u32at(at);
+            let superclass_idx = u32at(at + 8);
+            let interfaces_off = u32at(at + 12);
+            let source_file_idx = u32at(at + 16);
+            expected.push(serde_json::json!({
+                "file_id": 0,
+                "class_def_idx": class_def_idx,
+                "class_idx": class_idx,
+                "descriptor": type_descriptor(class_idx),
+                "access_flags": u32at(at + 4),
+                "superclass_descriptor": if superclass_idx == u32::MAX {
+                    Value::Null
+                } else {
+                    Value::String(type_descriptor(superclass_idx))
+                },
+                "interface_count": if interfaces_off == 0 {
+                    0
+                } else {
+                    u32at(interfaces_off as usize)
+                },
+                "source_file": if source_file_idx == u32::MAX {
+                    Value::Null
+                } else {
+                    Value::String(raw_string(source_file_idx))
+                },
+            }));
+        }
+        let actual = serde_json::to_value(facts.class_rows(0).unwrap()).unwrap();
+        assert_eq!(actual, Value::Array(expected));
+        // This fixture has no NO_INDEX superclass or source file, and exactly
+        // two classes declare a one-entry interface list.
+        let rows = facts.class_rows(0).unwrap();
+        assert_eq!(rows.len(), 4);
+        assert!(rows.iter().all(|row| row.superclass_descriptor.is_some()));
+        assert!(rows.iter().all(|row| row.source_file.is_some()));
+        assert_eq!(rows.iter().filter(|row| row.interface_count > 0).count(), 2);
+        assert!(
+            rows.iter()
+                .filter(|row| row.interface_count > 0)
+                .all(|row| row.interface_count == 1)
+        );
+    }
+
+    #[test]
+    fn class_rows_project_encoded_no_index_as_genuine_null() {
+        let name = "classic-035.dex";
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/references/generated")
+            .join(name);
+        let raw = std::fs::read(&path).unwrap();
+        let input = InputSpec {
+            path,
+            kind: InputKind::RawDex,
+            expected_sha256: None,
+        };
+        let snapshot =
+            Snapshot::capture(&[input.clone(), input], CaptureLimits::default()).unwrap();
+        let inventory = ArchiveInventory::build(
+            &snapshot.sources()[0],
+            InventoryPolicy::default(),
+            ArchiveLimits::default(),
+        )
+        .unwrap();
+        let facts = DefinitionFacts::build(
+            MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default()).unwrap(),
+            DefinitionLimits::default(),
+        )
+        .unwrap();
+        let rows = facts.class_rows(0).unwrap();
+        assert_eq!(rows.len(), 1);
+        // The raw class_def encodes source_file_idx as NO_INDEX for this class,
+        // so the relation cell is a genuine NULL and not an unbuilt layer.
+        let class_off = u32::from_le_bytes(raw[100..104].try_into().unwrap()) as usize;
+        let source_file_idx =
+            u32::from_le_bytes(raw[class_off + 16..class_off + 20].try_into().unwrap());
+        assert_eq!(source_file_idx, u32::MAX);
+        assert_eq!(rows[0].source_file, None);
+        assert!(rows[0].superclass_descriptor.is_some());
     }
 }

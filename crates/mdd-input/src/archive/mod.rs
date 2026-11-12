@@ -1,7 +1,11 @@
 use crate::snapshot::{CapturedSource, InputKind};
 use mdd_types::{DecimalU64, ErrorCode, MddError, MddResult, content_id};
 use serde::Serialize;
-use std::{collections::BTreeSet, io::Read, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    io::Read,
+    sync::Arc,
+};
 
 mod central;
 mod zip64;
@@ -121,6 +125,9 @@ pub struct ArchiveInventory {
     entries: Vec<central::Entry>,
     directory_start: usize,
     selected: Vec<DexCandidate>,
+    /// `member_id` to position in `manifest.members` (parallel to `entries`), so
+    /// repeated resource reads stay O(log n) instead of rescanning every member.
+    member_index: BTreeMap<String, usize>,
     limits: ArchiveLimits,
 }
 
@@ -254,6 +261,11 @@ impl ArchiveInventory {
                 ));
             }
         }
+        let member_index = members
+            .iter()
+            .enumerate()
+            .map(|(position, member)| (member.member_id.clone(), position))
+            .collect();
         let mut result = Self {
             source: source.clone(),
             manifest: InventoryManifest {
@@ -274,6 +286,7 @@ impl ArchiveInventory {
             entries,
             directory_start,
             selected: Vec::new(),
+            member_index,
             limits,
         };
         let selected_ids: Vec<_> = result
@@ -356,18 +369,13 @@ impl ArchiveInventory {
         {
             return Ok(candidate.blob.clone());
         }
-        let index = self
-            .manifest
-            .members
-            .iter()
-            .position(|m| m.member_id == member_id)
-            .ok_or_else(|| {
-                MddError::new(
-                    ErrorCode::InvalidArgument,
-                    "archive.member",
-                    "member identity does not belong to this captured source",
-                )
-            })?;
+        let index = *self.member_index.get(member_id).ok_or_else(|| {
+            MddError::new(
+                ErrorCode::InvalidArgument,
+                "archive.member",
+                "member identity does not belong to this captured source",
+            )
+        })?;
         let identity = self.manifest.members[index].clone();
         if matches!(self.source.kind(), InputKind::RawDex) {
             return Ok(MemberBlob {
@@ -393,6 +401,27 @@ impl ArchiveInventory {
                 "encrypted or unsupported compression member is not qualified",
             )));
         }
+        // Reject a hostile declared size before it can drive an allocation. The
+        // directory scan already applies these limits to every member; this keeps
+        // read-time allocation bounded even if an inventory is reused with a
+        // tighter limit.
+        let declared = usize::try_from(entry.size)
+            .ok()
+            .filter(|size| {
+                (*size as u64) <= self.limits.max_member_bytes
+                    && (*size as u64) <= self.limits.max_total_uncompressed_bytes
+            })
+            .ok_or_else(|| {
+                context(
+                    MddError::new(
+                        ErrorCode::QuotaExceeded,
+                        "archive.budget",
+                        "declared member size exceeds budget before allocation",
+                    )
+                    .detail("member_bytes", entry.size.to_string())
+                    .detail("limit", self.limits.max_member_bytes.to_string()),
+                )
+            })?;
         let view = central::MemberView::new(self.source.bytes(), self.directory_start, entry)
             .map_err(context)?;
         let mut archive = zip::ZipArchive::new(view).map_err(|e| {
@@ -409,7 +438,23 @@ impl ArchiveInventory {
                 e.to_string(),
             ))
         })?;
-        let mut output = Vec::new();
+        // Reserve lazily. The declared size is attacker-controlled, so an eager
+        // `try_reserve_exact(declared)` turns a lying header into real committed
+        // memory: a 126-byte APK declaring 512 MiB commits ~514 MiB before the
+        // member fails its length check. Reserve only a bounded window up front
+        // and let the vector grow geometrically as real bytes arrive, so a
+        // corrupt header costs at most the window rather than its declaration.
+        const EAGER_WINDOW: usize = 4 * 1024 * 1024;
+        let mut output: Vec<u8> = Vec::new();
+        output
+            .try_reserve_exact(declared.min(EAGER_WINDOW))
+            .map_err(|e| {
+                context(MddError::new(
+                    ErrorCode::QuotaExceeded,
+                    "archive.budget",
+                    e.to_string(),
+                ))
+            })?;
         let mut buffer = [0u8; 65536];
         loop {
             let count = file.read(&mut buffer).map_err(|e| {
@@ -425,15 +470,7 @@ impl ArchiveInventory {
             if count == 0 {
                 break;
             }
-            let len = (output.len() as u64)
-                .checked_add(count as u64)
-                .ok_or_else(|| {
-                    context(MddError::new(
-                        ErrorCode::QuotaExceeded,
-                        "archive.budget",
-                        "decompressed length overflow",
-                    ))
-                })?;
+            let len = output.len() as u64 + count as u64;
             if len > self.limits.max_member_bytes || len > self.limits.max_total_uncompressed_bytes
             {
                 return Err(context(MddError::new(

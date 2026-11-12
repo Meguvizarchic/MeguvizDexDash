@@ -1,5 +1,6 @@
 use super::*;
 use serde_json::Value;
+use sha1::{Digest, Sha1};
 
 fn counts() -> Counts {
     Counts {
@@ -33,6 +34,16 @@ fn fragment(
     )
 }
 
+/// Render one retained encoded line through `Serialize`, so assertions keep
+/// checking the emitted canonical decimal text rather than only the integer.
+fn encoded_text(event: DebugEvent) -> String {
+    serde_json::to_value(event.encoded_line_decimal)
+        .unwrap()
+        .as_str()
+        .unwrap()
+        .to_owned()
+}
+
 fn fixture(name: &str) -> Vec<u8> {
     std::fs::read(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -59,7 +70,6 @@ fn parse_file_policy(bytes: &[u8], policy: DebugPolicy) -> MddResult<CodeSection
 }
 
 fn resign(bytes: &mut [u8]) {
-    use sha1::{Digest, Sha1};
     let hash = Sha1::digest(&bytes[32..]);
     bytes[12..32].copy_from_slice(&hash);
     let (mut a, mut b) = (1u32, 0u32);
@@ -135,11 +145,16 @@ fn hand_expected_operands_literals_ranges_and_dynamic_invokes_remain_distinct() 
             .iter()
             .map(|n| n.as_u64().unwrap() as u16)
             .collect();
-        assert_eq!(item.registers, expected, "{}", vector["id"]);
+        assert_eq!(
+            item.registers,
+            Registers::from(expected.as_slice()),
+            "{}",
+            vector["id"]
+        );
         if let Some(literal) = vector.get("literal") {
             assert_eq!(
                 item.literal.as_ref().unwrap().signed_decimal,
-                literal.as_str().unwrap()
+                SignedDecimal(literal.as_str().unwrap().parse::<i64>().unwrap())
             );
         }
         for (field, kind) in [
@@ -371,9 +386,10 @@ fn debug_all_opcodes_no_index_and_pc_line_register_failures_are_visible() {
         assert!(ops.contains(&op));
     }
     assert!(
-        debug.events.iter().any(|e| e.emits_position
-            && e.address_code_units == 0
-            && e.encoded_line_decimal == "1")
+        debug
+            .events
+            .iter()
+            .any(|e| e.emits_position && e.address_code_units == 0 && encoded_text(e) == "1")
     );
     assert!(
         debug
@@ -557,9 +573,11 @@ fn debug_state_only_operations_and_try_ends_preserve_format_permitted_positions(
                 .iter()
                 .any(|e| e.opcode == opcode && e.address_code_units == 1 && !e.emits_position)
         );
-        assert!(events.iter().any(|e| e.emits_position
-            && e.address_code_units == 3
-            && e.encoded_line_decimal == "1"));
+        assert!(
+            events
+                .iter()
+                .any(|e| e.emits_position && e.address_code_units == 3 && encoded_text(e) == "1")
+        );
     }
     let section = parse_file(&fixture("try-end-inside-instruction.dex")).unwrap();
     assert_eq!(section.items[0].instructions[0].width_code_units, 3);
@@ -615,19 +633,22 @@ fn shared_pc_to_pc_pattern_keeps_complete_raw_events_and_explicit_method_project
             [0, 1, 2, 3]
         );
         assert_eq!(
-            short.events[0].code_item_address_scope,
+            short.events.get(0).unwrap().code_item_address_scope,
             DebugAddressScope::InsideCodeUnits
         );
         assert_eq!(
-            short.events[1].code_item_address_scope,
+            short.events.get(1).unwrap().code_item_address_scope,
             DebugAddressScope::AtCodeEnd
         );
         assert_eq!(
-            short.events[2].code_item_address_scope,
+            short.events.get(2).unwrap().code_item_address_scope,
             DebugAddressScope::BeyondCodeEnd
         );
-        assert_eq!(short.events[5].address_code_units, 5);
-        assert_eq!(short.events[5].encoded_line_decimal, (5 + base).to_string());
+        assert_eq!(short.events.get(5).unwrap().address_code_units, 5);
+        assert_eq!(
+            encoded_text(short.events.get(5).unwrap()),
+            (5 + base).to_string()
+        );
         let header = crate::validate_header(&bytes).unwrap();
         let error = read_code_section(
             &bytes,
@@ -642,7 +663,15 @@ fn shared_pc_to_pc_pattern_keeps_complete_raw_events_and_explicit_method_project
     }
     let wide = parse_file(&fixture("debug-line-u32max.dex")).unwrap();
     assert_eq!(
-        wide.items[0].debug_info.as_ref().unwrap().events[0].encoded_line_decimal,
+        encoded_text(
+            wide.items[0]
+                .debug_info
+                .as_ref()
+                .unwrap()
+                .events
+                .get(0)
+                .unwrap()
+        ),
         "4294967295"
     );
     for (name, reason) in [
@@ -679,7 +708,7 @@ fn encoded_unknown_source_lines_are_retained_and_strict_source_policy_still_fail
         .iter()
         .find(|event| event.emits_position && event.address_code_units == 18)
         .unwrap();
-    assert_eq!(zero.encoded_line_decimal, "0");
+    assert_eq!(encoded_text(zero.clone()), "0");
     assert_eq!(zero.source_line, None);
     assert!(!zero.source_line_usable);
     assert_eq!(zero.source_line_kind, SourceLineKind::UnknownNonPositive);
@@ -688,7 +717,7 @@ fn encoded_unknown_source_lines_are_retained_and_strict_source_policy_still_fail
         .iter()
         .find(|event| event.emits_position && event.address_code_units == 34)
         .unwrap();
-    assert_eq!(restored.encoded_line_decimal, "32");
+    assert_eq!(encoded_text(restored.clone()), "32");
     assert_eq!(restored.source_line, Some(DecimalU64(32)));
     assert!(restored.source_line_usable);
     assert_eq!(debug.unusable_method_source_position_count, DecimalU64(1));
@@ -728,4 +757,388 @@ fn encoded_unknown_source_lines_are_retained_and_strict_source_policy_still_fail
             .unwrap()
             .strict_positive_line_policy_satisfied
     );
+}
+
+/// Build a minimal valid DEX where every code item names one shared debug program.
+///
+/// The layout mirrors `tests/fixtures/instructions/generate.py`: code items at
+/// 112, the debug program after them, then a map list. Building the fixture in the
+/// test keeps an editorial fixture change from silently weakening the memoization
+/// checks below. The fixture declares no string_ids, so the debug program must not
+/// carry named parameters; the position opcode `0x1e` still advances pc and line.
+fn synthetic_dex(items: &[(u16, Vec<u16>)], debug: &[u8]) -> Vec<u8> {
+    let mut offsets = Vec::new();
+    let mut at = 112usize;
+    for (_, units) in items {
+        while !at.is_multiple_of(4) {
+            at += 1;
+        }
+        offsets.push(at);
+        at += 16 + units.len() * 2;
+    }
+    let debug_offset = at;
+    let mut body: Vec<u8> = Vec::new();
+    for ((registers, units), offset) in items.iter().zip(&offsets) {
+        while 112 + body.len() < *offset {
+            body.push(0);
+        }
+        assert_eq!(112 + body.len(), *offset);
+        body.extend_from_slice(&registers.to_le_bytes());
+        body.extend_from_slice(&0u16.to_le_bytes());
+        body.extend_from_slice(&0u16.to_le_bytes());
+        body.extend_from_slice(&0u16.to_le_bytes());
+        body.extend_from_slice(&(debug_offset as u32).to_le_bytes());
+        body.extend_from_slice(&(units.len() as u32).to_le_bytes());
+        for unit in units {
+            body.extend_from_slice(&unit.to_le_bytes());
+        }
+    }
+    while 112 + body.len() < debug_offset {
+        body.push(0);
+    }
+    body.extend_from_slice(debug);
+    while !(112 + body.len()).is_multiple_of(4) {
+        body.push(0);
+    }
+    let map_at = 112 + body.len();
+    let entries = [
+        (0u16, 1u32, 0u32),
+        (0x2001, items.len() as u32, offsets[0] as u32),
+        (0x2003, 1, debug_offset as u32),
+        (0x1000, 1, map_at as u32),
+    ];
+    body.extend_from_slice(&(entries.len() as u32).to_le_bytes());
+    for (kind, count, offset) in entries {
+        body.extend_from_slice(&kind.to_le_bytes());
+        body.extend_from_slice(&0u16.to_le_bytes());
+        body.extend_from_slice(&count.to_le_bytes());
+        body.extend_from_slice(&offset.to_le_bytes());
+    }
+    let mut bytes = vec![0u8; 112];
+    bytes.extend_from_slice(&body);
+    bytes[..8].copy_from_slice(b"dex\n040\0");
+    let file_size = bytes.len() as u32;
+    bytes[32..36].copy_from_slice(&file_size.to_le_bytes());
+    bytes[36..40].copy_from_slice(&112u32.to_le_bytes());
+    bytes[40..44].copy_from_slice(&0x1234_5678u32.to_le_bytes());
+    bytes[52..56].copy_from_slice(&(map_at as u32).to_le_bytes());
+    let data_size = (file_size - 112) as u32;
+    bytes[104..108].copy_from_slice(&data_size.to_le_bytes());
+    bytes[108..112].copy_from_slice(&112u32.to_le_bytes());
+    resign(&mut bytes);
+    bytes
+}
+
+#[test]
+fn shared_debug_program_is_decoded_once_and_reprojected_per_code_item() {
+    // One program, three code items with different register counts and code
+    // sizes. The program is decoded once; size-dependent projections stay item
+    // scoped. The leading `0x1e` keeps the program out of the pc-to-pc pattern,
+    // so the ordinary encoded-line classification applies.
+    let debug = [1u8, 0, 0x1e, 0x1e, 0x1e, 0];
+    let bytes = synthetic_dex(
+        &[
+            (1, vec![0x000e]),
+            (3, vec![0x000e, 0x000e]),
+            (4, vec![0x0014, 0, 0, 0x000e]),
+        ],
+        &debug,
+    );
+    let header = crate::validate_header(&bytes).unwrap();
+    super::debug::program_decode_count::reset();
+    let section = read_code_section(&bytes, &header, CodeLimits::default()).unwrap();
+    // Three code items name the same physical program, so it must be decoded
+    // exactly once. Without this assertion the memoization could be deleted and
+    // every output check above would still pass.
+    assert_eq!(super::debug::program_decode_count::get(), 1);
+    assert_eq!(section.items.len(), 3);
+    let debug_a = section.items[0].debug_info.as_ref().unwrap();
+    let debug_b = section.items[1].debug_info.as_ref().unwrap();
+    let debug_c = section.items[2].debug_info.as_ref().unwrap();
+    for debug in [debug_a, debug_b, debug_c] {
+        assert_eq!(debug.events.len(), 4);
+        assert_eq!(debug.raw_range.byte_offset, debug_a.raw_range.byte_offset);
+        assert_eq!(debug.raw_range.byte_length, debug_a.raw_range.byte_length);
+        assert_eq!(debug.initial_line, 1);
+        assert!(debug.parameter_name_indices.is_empty());
+        assert!(matches!(
+            debug.representation,
+            DebugRepresentation::EventProgram
+        ));
+        assert_eq!(debug.raw_position_count, DecimalU64(3));
+    }
+    // Sizes 1, 2 and 4 keep each item's own address scopes and usable counts.
+    assert_eq!(debug_a.referring_code_unit_length, 1);
+    assert_eq!(debug_b.referring_code_unit_length, 2);
+    assert_eq!(debug_c.referring_code_unit_length, 4);
+    let scopes = |debug: &DebugInfo| {
+        debug
+            .events
+            .iter()
+            .map(|event| event.code_item_address_scope)
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        scopes(debug_a),
+        [
+            DebugAddressScope::AtCodeEnd,
+            DebugAddressScope::BeyondCodeEnd,
+            DebugAddressScope::BeyondCodeEnd,
+            DebugAddressScope::BeyondCodeEnd,
+        ]
+    );
+    assert_eq!(
+        scopes(debug_b),
+        [
+            DebugAddressScope::InsideCodeUnits,
+            DebugAddressScope::AtCodeEnd,
+            DebugAddressScope::BeyondCodeEnd,
+            DebugAddressScope::BeyondCodeEnd,
+        ]
+    );
+    assert_eq!(scopes(debug_c), [DebugAddressScope::InsideCodeUnits; 4]);
+    assert_eq!(debug_a.applicable_method_position_count, DecimalU64(0));
+    assert_eq!(debug_b.applicable_method_position_count, DecimalU64(1));
+    assert_eq!(debug_c.applicable_method_position_count, DecimalU64(3));
+    assert_eq!(debug_c.usable_method_source_position_count, DecimalU64(3));
+    assert_eq!(debug_b.usable_method_source_position_count, DecimalU64(1));
+    assert_eq!(debug_a.usable_method_source_position_count, DecimalU64(0));
+    assert_eq!(debug_a.unusable_method_source_position_count, DecimalU64(0));
+    // `DEBUG_PC_OUTSIDE_CODE` depends on the item's size even though pc comes from
+    // the shared program, so a code unit still outside the item fails the policy.
+    // The memo is per `read_code_section` call, so this fresh call decodes once.
+    super::debug::program_decode_count::reset();
+    let error = read_code_section(
+        &bytes,
+        &header,
+        CodeLimits {
+            debug_policy: DebugPolicy::StrictSourceLinesV1,
+            ..CodeLimits::default()
+        },
+    )
+    .unwrap_err();
+    assert_eq!(error.code, ErrorCode::IncompleteFacts);
+    assert_eq!(error.details["reason"], "DEBUG_PC_OUTSIDE_CODE");
+    // One decode for this call too, even though it aborts on the first item.
+    assert_eq!(super::debug::program_decode_count::get(), 1);
+    assert_eq!(
+        error.details["byte_offset"],
+        debug_a.events.get(1).unwrap().byte_offset.0.to_string()
+    );
+}
+
+#[test]
+fn reused_debug_program_still_reports_the_first_register_violation_per_item() {
+    // Register 2 is declared by the program and rejected by the item that only
+    // declares one register. The span still covers opcode byte plus register LEB.
+    let debug = [1u8, 0, 5, 2, 0];
+    let bytes = synthetic_dex(&[(1, vec![0x000e])], &debug);
+    let header = crate::validate_header(&bytes).unwrap();
+    let error = read_code_section(&bytes, &header, CodeLimits::default()).unwrap_err();
+    assert_eq!(error.details["reason"], "DEBUG_REGISTER_OUT_OF_RANGE");
+    assert_eq!(error.details["byte_length"], "2");
+    assert_eq!(error.details["code_item_byte_offset"], "112");
+    // The same program parses once the item declares enough registers, and the
+    // second item proves the program was reusable rather than rejected outright.
+    let widened = synthetic_dex(&[(4, vec![0x000e]), (4, vec![0x000e])], &debug);
+    let header = crate::validate_header(&widened).unwrap();
+    let parsed = read_code_section(&widened, &header, CodeLimits::default()).unwrap();
+    assert_eq!(parsed.items.len(), 2);
+    for item in &parsed.items {
+        let debug = item.debug_info.as_ref().unwrap();
+        assert_eq!(debug.events.len(), 2);
+        assert_eq!(debug.events.get(0).unwrap().register, Some(2));
+        assert!(!debug.events.get(0).unwrap().emits_position);
+    }
+}
+
+#[test]
+fn shared_debug_events_project_per_code_item_without_copying_the_program() {
+    // Three items share one program. Every item must reference the same decoded
+    // program (so the event sequence is stored once) while still observing its own
+    // size-dependent projection. Without the sharing assertion a future refactor
+    // could decode or store one sequence per code item and every output check
+    // would still pass.
+    let debug = [1u8, 0, 0x1e, 0x1e, 0x1e, 0];
+    let short = vec![0x000e];
+    let long = vec![0x0014, 0, 0, 0x000e];
+    let bytes = synthetic_dex(&[(2, short.clone()), (2, long.clone()), (2, short)], &debug);
+    let header = crate::validate_header(&bytes).unwrap();
+    super::debug::events_materialize_count::reset();
+    let section = read_code_section(&bytes, &header, CodeLimits::default()).unwrap();
+    assert_eq!(section.items.len(), 3);
+    // A successful attach never builds an owned vector: the events stay in the
+    // shared program and are projected on demand.
+    assert_eq!(super::debug::events_materialize_count::get(), 0);
+
+    let a = section.items[0].debug_info.as_ref().unwrap();
+    let b = section.items[1].debug_info.as_ref().unwrap();
+    let c = section.items[2].debug_info.as_ref().unwrap();
+    let program_of = |debug: &DebugInfo| match &debug.events {
+        DebugEvents::Shared(shared) => shared.program_id(),
+        DebugEvents::Owned(_) => panic!("a memoized program must stay shared"),
+    };
+    assert_eq!(program_of(a), program_of(b));
+    assert_eq!(program_of(a), program_of(c));
+    // All three still see the same complete physical program.
+    for debug in [a, b, c] {
+        assert_eq!(debug.events.len(), 4);
+        assert_eq!(debug.raw_position_count, DecimalU64(3));
+    }
+    // Sharing must not collapse genuinely different projections: the same events
+    // are classified against each item's own code size.
+    assert_eq!(a.referring_code_unit_length, 1);
+    assert_eq!(b.referring_code_unit_length, 4);
+    assert_eq!(
+        a.events
+            .iter()
+            .map(|event| event.code_item_address_scope)
+            .collect::<Vec<_>>(),
+        [
+            DebugAddressScope::AtCodeEnd,
+            DebugAddressScope::BeyondCodeEnd,
+            DebugAddressScope::BeyondCodeEnd,
+            DebugAddressScope::BeyondCodeEnd,
+        ]
+    );
+    // The four-code-unit item contains all three emitted positions.
+    assert_eq!(
+        b.events
+            .iter()
+            .map(|event| event.code_item_address_scope)
+            .collect::<Vec<_>>(),
+        [DebugAddressScope::InsideCodeUnits; 4]
+    );
+    assert_eq!(b.applicable_method_position_count, DecimalU64(3));
+    assert_eq!(b.usable_method_source_position_count, DecimalU64(3));
+    // Item C has the same size as A, so its projection must match A's exactly
+    // while still sharing one program.
+    assert_eq!(
+        c.events
+            .iter()
+            .map(|event| event.code_item_address_scope)
+            .collect::<Vec<_>>(),
+        a.events
+            .iter()
+            .map(|event| event.code_item_address_scope)
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(c.applicable_method_position_count, DecimalU64(0));
+    assert_eq!(a.applicable_method_position_count, DecimalU64(0));
+}
+
+#[test]
+fn reused_debug_program_replays_debug_operation_charges_per_code_item() {
+    // Three items share one program worth four operations (no parameters, four
+    // events). The physical scan charges four once; every item then replays four.
+    // A budget admitting the scan plus two replays must fail on the third item,
+    // which only holds if cache hits keep charging instead of skipping the work.
+    let debug = [1u8, 0, 0x1e, 0x1e, 0x1e, 0];
+    let units = vec![0x0014, 0, 0, 0x000e];
+    let bytes = synthetic_dex(
+        &[(2, units.clone()), (2, units.clone()), (2, units)],
+        &debug,
+    );
+    let header = crate::validate_header(&bytes).unwrap();
+    let per_item = 4u64;
+    let limit = per_item * 3;
+    let error = read_code_section(
+        &bytes,
+        &header,
+        CodeLimits {
+            max_debug_operations: limit,
+            ..CodeLimits::default()
+        },
+    )
+    .unwrap_err();
+    assert_eq!(error.code, ErrorCode::QuotaExceeded);
+    assert_eq!(error.details["budget"], "max_debug_operations");
+    assert_eq!(error.details["observed"], (limit + 1).to_string());
+    // A budget covering the scan and all three replays succeeds.
+    let exact = read_code_section(
+        &bytes,
+        &header,
+        CodeLimits {
+            max_debug_operations: per_item * 4,
+            ..CodeLimits::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(exact.items.len(), 3);
+}
+
+#[test]
+fn signed_decimal_round_trips_the_canonical_text_form_only() {
+    for value in [
+        0i64,
+        1,
+        -1,
+        32,
+        -4,
+        i64::from(u32::MAX),
+        i64::from(i32::MIN),
+        // The stack buffer is sized for `i64::MIN`'s 20-character form, so the
+        // extreme values are exactly the ones that would catch an off-by-one.
+        i64::MIN,
+        i64::MAX,
+    ] {
+        let text = serde_json::to_string(&SignedDecimal(value)).unwrap();
+        assert_eq!(text, format!("\"{value}\""), "{value}");
+        let restored: SignedDecimal = serde_json::from_str(&text).unwrap();
+        assert_eq!(restored, SignedDecimal(value));
+    }
+    for rejected in [
+        "\"+1\"", "\"-0\"", "\"01\"", "\"\"", "\"1.0\"", "\" 1\"", "1",
+    ] {
+        assert!(
+            serde_json::from_str::<SignedDecimal>(rejected).is_err(),
+            "{rejected} must be rejected"
+        );
+    }
+}
+
+#[test]
+fn shared_debug_program_never_reuses_a_failed_decode_across_items() {
+    // Two code items name one program: initial line at u32::MAX, a register
+    // event, then a line delta that overflows. Item A (1 register) must report
+    // the register error; item B (4 registers) must reach the line overflow.
+    // Caching the failed decode per offset would hand B item A's error, so the
+    // cache only stores successful programs and both items re-walk the original
+    // interleaved path.
+    let mut debug = vec![0xFFu8, 0xFF, 0xFF, 0xFF, 0x0F, 0, 5, 2, 2, 1, 0];
+    let mixed = synthetic_dex(&[(1, vec![0x000e]), (4, vec![0x000e])], &debug);
+    let header = crate::validate_header(&mixed).unwrap();
+    let error = read_code_section(&mixed, &header, CodeLimits::default()).unwrap_err();
+    assert_eq!(error.details["reason"], "DEBUG_REGISTER_OUT_OF_RANGE");
+    assert_eq!(error.details["code_item_byte_offset"], "112");
+
+    // Reversing the item order exposes the other error first, proving the result
+    // follows the item, not a cached per-offset outcome.
+    let reversed = synthetic_dex(&[(4, vec![0x000e]), (1, vec![0x000e])], &debug);
+    let header = crate::validate_header(&reversed).unwrap();
+    let error = read_code_section(&reversed, &header, CodeLimits::default()).unwrap_err();
+    assert_eq!(error.details["reason"], "DEBUG_LINE_OVERFLOW");
+    assert_eq!(error.details["code_item_byte_offset"], "112");
+
+    // With both items wide enough the line overflow is the only failure, so the
+    // program is reported as a program-level error rather than a register one.
+    debug[6] = 2;
+    let wide = synthetic_dex(&[(4, vec![0x000e]), (4, vec![0x000e])], &debug);
+    let header = crate::validate_header(&wide).unwrap();
+    let error = read_code_section(&wide, &header, CodeLimits::default()).unwrap_err();
+    assert_eq!(error.details["reason"], "DEBUG_LINE_OVERFLOW");
+}
+
+#[test]
+fn instruction_names_are_borrowed_from_the_static_table() {
+    let (instructions, _, _) = fragment(&[0x000e, 0x000e], 16, 16, 40).unwrap();
+    for instruction in &instructions {
+        assert!(matches!(instruction.mnemonic, Cow::Borrowed(_)));
+        assert!(matches!(instruction.format, Cow::Borrowed(_)));
+        assert_eq!(instruction.mnemonic.as_ref(), "return-void");
+    }
+    // Serialization still emits plain strings, not a borrow-shaped object.
+    let value = serde_json::to_value(&instructions[0]).unwrap();
+    assert_eq!(value["mnemonic"], "return-void");
+    assert_eq!(value["format"], "10x");
 }
