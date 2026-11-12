@@ -1,0 +1,203 @@
+{
+  "schema_version": "mdd.class-source-boundary.v1",
+  "created_utc": "2026-11-09T04:57:40.723435+00:00",
+  "status": "passed-small-source-boundaries",
+  "task_complete_proven": false,
+  "profile_admitted": false,
+  "a0_sha256": "f354ebcf715de9a66ef8ebe08b2b36807ab58e25cd5a1c0812e497fc1fcfc448",
+  "sdk_dexdump_sha256": "f870af85191214f8f59d78e6a27748f00e724bbcce362115347014419969bcce",
+  "native_binary_sha256": "bab05b83349dc892289e1584900c11cb6faf549c3a94a1a563c83517cdafb42d",
+  "sources": {
+    "tests/fixtures/class_source_boundary/generate.py": "f1d1dd77e169510ee64d6529daf639f8ecb0a730aea47f7b729edad33f32908f",
+    "tests/fixtures/class_source_boundary/probe.rs": "12a89f653537f7080fda3139ac4a342e8dfbb988cee2892234194ee26b043061",
+    "tests/fixtures/class_source_boundary/verify.py": "71bb47f7fdd5ae04e4946b758463992406085f912e017a1169b08245a46cdf5a",
+    "tests/fixtures/class_source_boundary/manifest.json": "210296f4647a5a56a36e466bb106a507b914c012d83eb5c5d5b6571cbf0ea5c0",
+    "conformance/facts/verify_definition_projections.py": "474fb3db947280f7edd4b6d7b438082c228db8fbe8540aa04944287f05170485",
+    "Cargo.toml": "6627ea37a1f870de45349235795844b5138f4b0b127152f0ca7be20511295f7f",
+    "Cargo.lock": "954c2066815c971595782dc799f9dcd64c4e3d1c748cc1133991788fb3942844",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "crates/mdd-dex/Cargo.toml": "945edf6357da9d15547f5789777f7d433f88ed3b92ec0da6af0c14c723d43f79",
+    "crates/mdd-dex/src/annotations.rs": "a38771f4f6b9269f77fa69bf945fdff1d31091f461f1cd39640f4296e09e2e33",
+    "crates/mdd-dex/src/checked_reader.rs": "58c14936ccd64e63a0a8930468cec210a331c5beb77bec3ba0684bb2b6631a3a",
+    "crates/mdd-dex/src/definitions.rs": "ccebdce7db90d5ba87bb02e69446b27d4920c5bb3671f9208f7e93e130c259a3",
+    "crates/mdd-dex/src/header.rs": "7c16fefbe4b2078a0b4c8e0f94f8b6e7e2df362d45714e97a7888411e1ec32d0",
+    "crates/mdd-dex/src/instructions/debug.rs": "4d3afe4ca48c4266e610a72333496d09766fb23fbbeeeaa5da5ca345fb1be6a3",
+    "crates/mdd-dex/src/instructions/decode.rs": "22c00e54d0f73d9163df1aaf8939ffdbdb7c836bb4048ef896ce28f4e029ee36",
+    "crates/mdd-dex/src/instructions/mod.rs": "8ed5303cff9e7831ba00bfc629bfac37063653641dceb4f44e424b502e5fc68c",
+    "crates/mdd-dex/src/instructions/opcodes.rs": "a0d33bc5870e65f49b673e32a2f6182ffd9dbc3fc3dbaf1d7170daaeca597cca",
+    "crates/mdd-dex/src/instructions/tests.rs": "90ff6d4dd942e88f5adce3f0d0b73617205778d63035d5a1e067eb41f5a3333a",
+    "crates/mdd-dex/src/lib.rs": "559cd342621b23683c4cd6ffb39d6d3c033c37d4deab60c33dfefe1a9ea586fa",
+    "crates/mdd-dex/src/strings.rs": "5abafc2942b4ce4501742c77f643530aaf92a589b7a59abe4763f5853e2bfe96",
+    "crates/mdd-dex/src/types.rs": "799fd8591ee0318b4e192fe14ff329d4b9c2c07003c6f57befad3cc7c5d73a64",
+    "crates/mdd-input/Cargo.toml": "22377188abfacfca571f5448014332e079d9bb2d969afc4c42368ec28cda8d8b",
+    "crates/mdd-input/src/archive/central.rs": "bc26b26fcf7e47f929937e3fab68cfef86defba086c3aca49c86fbd40b10bf11",
+    "crates/mdd-input/src/archive/mod.rs": "70238d6ca87f4942fe35bbb70692b33e8b27edf587e5ad57821f0a8b1d9b5c49",
+    "crates/mdd-input/src/archive/tests.rs": "103d6f8dee973c3688f180c35ad0df73f86bcfd855cb48d135cd369374f18cd6",
+    "crates/mdd-input/src/archive/zip64.rs": "f51a671ead4c6c2d8a7f5fa754e314cf83deac466d2167a50ceb55f0d2fab9b0",
+    "crates/mdd-input/src/archive/zip64_tests.rs": "af80e13c98936c75683c5acce1e04b2b0052a393b8ca4728a8d8084dde1007a5",
+    "crates/mdd-input/src/lib.rs": "c4cba012030f9b8d92be8f067ae938fbc8a37574da8c9a0ccf3d0678024b5af3",
+    "crates/mdd-input/src/manifest/axml.rs": "b5a8d95591715769dba3ca28731cad14959e30c78454d51d93de68fe0cfdd125",
+    "crates/mdd-input/src/manifest/mod.rs": "fa87aa206a6aed4b54f20379855eed713fde482557892fe09ff1f2922f4e8dd3",
+    "crates/mdd-input/src/manifest/tests.rs": "8c39e6e4840cd1df1494198b66c233ad79a35f7f3fd0953309bf9aba477a7b77",
+    "crates/mdd-input/src/manifest/text.rs": "f4ee666c5c87ac383e4d517526ef95a3a1a8affb77e6bf40269258323ca70c42",
+    "crates/mdd-input/src/snapshot/mod.rs": "07d2bf4ffd94775d53c91d03342f994a77c73fa62576bff0e125b7ba23e8290c",
+    "crates/mdd-types/Cargo.toml": "ac77b6f33976b74a2a3f22bb7f01992331265af8a13aeef12f4ec6bad6db022b",
+    "crates/mdd-types/src/lib.rs": "46dc484d01995fe9e6b5399a233e328b72da9e36d12dcd6a567d06a947da2c28",
+    "crates/mdd-types/src/result.rs": "f93e5f7a79d0664bfda0c5c19d16f180dce654e1c92e8cd81944cb47b608a4e6",
+    "crates/mdd-types/src/source_identity.rs": "2e1d86974d50f4f34ee77b31f1a2aa82a82dbf813998c6b5f767b042fd9d9fb4",
+    "crates/mdd-facts/Cargo.toml": "92fab489949ecf2c0429ceec0ba5f5ff1e054ff90879f4e2d31cf597131bb29c",
+    "crates/mdd-facts/src/annotations.rs": "e17b29d726109e82d07b50e9a077812f88069ad9060d1418f4cce70e856d3a09",
+    "crates/mdd-facts/src/code.rs": "2f2b75657d7bccdf8b1aa91f9bf333b73ff14367bd91327b13b31a97231f3098",
+    "crates/mdd-facts/src/coverage.rs": "40b62e928a7cdea4b8e798f2198b98f443d0a2cffe7db550be05695c2177f53d",
+    "crates/mdd-facts/src/definitions.rs": "7a2ac801d7ebc89647888f501493ec9629d95b176125a09abddb239e489ac40a",
+    "crates/mdd-facts/src/indexes/columns.rs": "45209ee1590465e696d243c9671cf307ceb0fb25651c6751271d300f75d61336",
+    "crates/mdd-facts/src/indexes/lazy.rs": "64f00b432f6ad641376b57bdd3b9d94b52da0131f445b1f5c8d51b7f39e0a862",
+    "crates/mdd-facts/src/indexes/mod.rs": "103b9e855294fa85ff5cb7cf2a612b6a3b93837594347697135c044e0e738c16",
+    "crates/mdd-facts/src/indexes/scope.rs": "3fc13c036409a0abe526cb9a2da83f35f88f606a1b7f61d45bd3f38b689f84b3",
+    "crates/mdd-facts/src/indexes/tests.rs": "c067fc51ebed94726df8b2f525fa13d56902565e3588051fd5d63fd78404789b",
+    "crates/mdd-facts/src/indexes/views.rs": "9edb1fa3ac471a6a7a48b30ba624009e9b5a5d099060b3718635c4955d03a2ba",
+    "crates/mdd-facts/src/lib.rs": "834d458b2eae66883fe84d51badb03c61b788fcdc455a68788cae2cb0f153cd9",
+    "crates/mdd-facts/src/metadata.rs": "e5fafa598807cc23d011570e7411ee53e1129391362c08b5cef5a38afe040357",
+    "crates/mdd-facts/src/raw_fingerprints.rs": "38598a24cc66bb6ca83255f02adc49f08b699b7bb18d85fd6b8c35834f52bcde",
+    "crates/mdd-facts/src/references.rs": "1f58a61c2191a67b71f4750d888d7b6c22e15bd6da2d25075a03cd02d48a3d9c",
+    "crates/mdd-facts/src/session.rs": "f6502286fed6ed2fbd4e5021ca7998db871f69e14b8a8bfa51130415de08b76f"
+  },
+  "fixtures": [
+    {
+      "id": "null-source",
+      "sha256": "5e4198d669ae1bca0d620f255d85c4d5e8688811e716641fdc71a93f4df24603",
+      "oracle": {
+        "file_id": 0,
+        "class_def_idx": 0,
+        "class_idx": 0,
+        "descriptor": "Lfixture/Empty;",
+        "access_flags": 1,
+        "superclass_descriptor": "Ljava/lang/Object;",
+        "interface_count": 0,
+        "source_file_raw_hex": null,
+        "source_file_utf16": null,
+        "source_file_strict": {
+          "status": "absent"
+        }
+      }
+    },
+    {
+      "id": "empty-source",
+      "sha256": "2a25adbe587475853fa544789113dffea5c885cdb9bab37ed21422d0a2e02b40",
+      "oracle": {
+        "file_id": 1,
+        "class_def_idx": 0,
+        "class_idx": 0,
+        "descriptor": "Lfixture/Empty;",
+        "access_flags": 1,
+        "superclass_descriptor": "Ljava/lang/Object;",
+        "interface_count": 0,
+        "source_file_raw_hex": "",
+        "source_file_utf16": [],
+        "source_file_strict": {
+          "status": "scalar",
+          "value": ""
+        }
+      }
+    },
+    {
+      "id": "surrogate-source",
+      "sha256": "daf037df44bfa95b2cd0b3b3237bcc704fc83fc54eb1d994f8a4d6c7ff84fe2a",
+      "oracle": {
+        "file_id": 2,
+        "class_def_idx": 0,
+        "class_idx": 0,
+        "descriptor": "Lfixture/Empty;",
+        "access_flags": 1,
+        "superclass_descriptor": "Ljava/lang/Object;",
+        "interface_count": 0,
+        "source_file_raw_hex": "eda080",
+        "source_file_utf16": [
+          55296
+        ],
+        "source_file_strict": {
+          "status": "non_scalar"
+        }
+      }
+    },
+    {
+      "id": "root-empty-source",
+      "sha256": "68409be64333a8b5737faab6219f0d48f3b998e4a02a60bb09d9728a4fdd4ab7",
+      "oracle": {
+        "file_id": 3,
+        "class_def_idx": 0,
+        "class_idx": 1,
+        "descriptor": "Ljava/lang/Object;",
+        "access_flags": 1,
+        "superclass_descriptor": null,
+        "interface_count": 0,
+        "source_file_raw_hex": "",
+        "source_file_utf16": [],
+        "source_file_strict": {
+          "status": "scalar",
+          "value": ""
+        }
+      }
+    }
+  ],
+  "sdk_observations": [
+    {
+      "case": "null-source",
+      "exit_code": 0
+    },
+    {
+      "case": "empty-source",
+      "exit_code": 0
+    },
+    {
+      "case": "surrogate-source",
+      "exit_code": 0
+    },
+    {
+      "case": "root-empty-source",
+      "exit_code": 0
+    }
+  ],
+  "a0_ordered_rows": 4,
+  "negative_controls_rejected": [
+    "null_to_empty",
+    "empty_to_null",
+    "surrogate_to_replacement",
+    "collapsed_duplicate_descriptor",
+    "swapped_sources"
+  ],
+  "bad_source_index": {
+    "fixture_sha256": "ecb023f62d43ee1f13eed5ce7e20cb2dccf79bbd0736f516001ebbf131a67b1c",
+    "native_exit": 1,
+    "native_error": {
+      "code": "INVALID_INPUT",
+      "details": {
+        "byte_length": "4",
+        "byte_offset": "152",
+        "content_id": "sha256:ecb023f62d43ee1f13eed5ce7e20cb2dccf79bbd0736f516001ebbf131a67b1c",
+        "dex_occurrence_id": "snapshot-dfc7a94014eee71547dfcbeec0651df85a5690dbf79ce6ced040644cfbfc596e:source:0:raw:dex:header:0",
+        "facts_coverage": "unknown",
+        "index": 4,
+        "input_coverage": "partial",
+        "member_id": "snapshot-dfc7a94014eee71547dfcbeec0651df85a5690dbf79ce6ced040644cfbfc596e:source:0:raw",
+        "reason": "INDEX_OUT_OF_RANGE",
+        "referenced_table": "string_ids",
+        "snapshot_id": "snapshot-dfc7a94014eee71547dfcbeec0651df85a5690dbf79ce6ced040644cfbfc596e",
+        "source_binding": "caller_snapshot_required",
+        "table_count": 4,
+        "validated_scope": "standard-le-header-map-fixed-references-v2"
+      },
+      "message": "INDEX_OUT_OF_RANGE",
+      "retryable": false,
+      "stage": "dex.references"
+    },
+    "sdk_exit_observed": 1,
+    "a0_exit_observed": 0
+  },
+  "limits": [
+    "Only small synthetic DEX; production classes compatibility relation not assembled.",
+    "A0 hex(CAST(source_file AS TEXT)) exposes MUTF8 bytes, not valid ordinary UTF8 for isolated surrogate.",
+    "Native strict conversion explicitly rejects non-scalar source text, preserving UTF16 units and raw MUTF8.",
+    "SDK exit codes are format observations, not full ART/device qualification."
+  ]
+}

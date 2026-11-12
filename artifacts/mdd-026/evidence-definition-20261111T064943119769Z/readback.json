@@ -1,0 +1,12 @@
+{
+  "schema_version": "mdd.evidence-definition-header-readback.v1",
+  "status": "passed",
+  "result_sha256": "2b9460436dc95059fe92b28ee5c183ef2c9ea5bb276f858e0f368744923f233a",
+  "cases": 3,
+  "projections_checked": 33,
+  "verdicts": 288,
+  "source_files_checked": 70,
+  "task_complete_proven": false,
+  "profile_admitted": false,
+  "scope": "captured synthetic fixtures and A0/native outputs; no new execution"
+}

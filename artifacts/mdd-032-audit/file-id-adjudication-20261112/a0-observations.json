@@ -1,0 +1,193 @@
+{
+  "a0_sha256": "f354ebcf715de9a66ef8ebe08b2b36807ab58e25cd5a1c0812e497fc1fcfc448",
+  "dex_fixture": "tests/fixtures/definitions/generated/definitions-035.dex",
+  "dex_fixture_sha256": "4e8f9e8deedf44c8793e10d99f2614e0bed705dcac617c0d74137e7b2bd459cc",
+  "sql": "SELECT file_id,string_pool_id,entry_name FROM dex_files ORDER BY file_id",
+  "synthetic": {
+    "zip-lex": {
+      "zip_order": [
+        "classes.dex",
+        "classes10.dex",
+        "classes2.dex",
+        "classes3.dex"
+      ],
+      "a0_file_id_to_entry": [
+        [
+          0,
+          "classes.dex"
+        ],
+        [
+          1,
+          "classes10.dex"
+        ],
+        [
+          2,
+          "classes2.dex"
+        ],
+        [
+          3,
+          "classes3.dex"
+        ]
+      ],
+      "a0_order_equals_zip_order": true
+    },
+    "zip-numeric": {
+      "zip_order": [
+        "classes.dex",
+        "classes2.dex",
+        "classes3.dex",
+        "classes10.dex"
+      ],
+      "a0_file_id_to_entry": [
+        [
+          0,
+          "classes.dex"
+        ],
+        [
+          1,
+          "classes2.dex"
+        ],
+        [
+          2,
+          "classes3.dex"
+        ],
+        [
+          3,
+          "classes10.dex"
+        ]
+      ],
+      "a0_order_equals_zip_order": true
+    },
+    "zip-reverse": {
+      "zip_order": [
+        "classes3.dex",
+        "classes2.dex",
+        "classes.dex"
+      ],
+      "a0_file_id_to_entry": [
+        [
+          0,
+          "classes3.dex"
+        ],
+        [
+          1,
+          "classes2.dex"
+        ],
+        [
+          2,
+          "classes.dex"
+        ]
+      ],
+      "a0_order_equals_zip_order": true
+    },
+    "zip-twelve": {
+      "zip_order": [
+        "classes7.dex",
+        "classes.dex",
+        "classes12.dex",
+        "classes3.dex",
+        "classes10.dex",
+        "classes2.dex",
+        "classes9.dex",
+        "classes11.dex",
+        "classes4.dex",
+        "classes8.dex",
+        "classes5.dex",
+        "classes6.dex"
+      ],
+      "a0_file_id_to_entry": [
+        [
+          0,
+          "classes7.dex"
+        ],
+        [
+          1,
+          "classes.dex"
+        ],
+        [
+          2,
+          "classes12.dex"
+        ],
+        [
+          3,
+          "classes3.dex"
+        ],
+        [
+          4,
+          "classes10.dex"
+        ],
+        [
+          5,
+          "classes2.dex"
+        ],
+        [
+          6,
+          "classes9.dex"
+        ],
+        [
+          7,
+          "classes11.dex"
+        ],
+        [
+          8,
+          "classes4.dex"
+        ],
+        [
+          9,
+          "classes8.dex"
+        ],
+        [
+          10,
+          "classes5.dex"
+        ],
+        [
+          11,
+          "classes6.dex"
+        ]
+      ],
+      "a0_order_equals_zip_order": true
+    }
+  },
+  "real_apk": {
+    "sha256": "41efb1c9acb07badab5296953fb3da1def6925e2b34662120ca96df9d17bbfb2",
+    "first_eight_file_id_to_entry": [
+      [
+        0,
+        "classes.dex"
+      ],
+      [
+        1,
+        "classes10.dex"
+      ],
+      [
+        2,
+        "classes11.dex"
+      ],
+      [
+        3,
+        "classes12.dex"
+      ],
+      [
+        4,
+        "classes13.dex"
+      ],
+      [
+        5,
+        "classes14.dex"
+      ],
+      [
+        6,
+        "classes15.dex"
+      ],
+      [
+        7,
+        "classes16.dex"
+      ]
+    ],
+    "class_count_by_file_id": {
+      "0": 12686,
+      "1": 12517,
+      "4": 7328
+    }
+  }
+}

@@ -1,0 +1,328 @@
+{
+  "members-dup-035.dex": {
+    "sha256": "18cee1e3f1525dedc48526009655dd0576e630ddba415c936a38ac47820d9953",
+    "bytes": 900,
+    "row_counts": {
+      "methods": 7,
+      "class_fields": 3,
+      "class_methods": 6,
+      "method_strings": 2,
+      "method_field_accesses": 4,
+      "method_used_types": 2
+    },
+    "rows": {
+      "methods": [
+        {
+          "file_id": 0,
+          "method_idx": 0,
+          "class_idx": 1,
+          "class_descriptor": "Lfixture/A;",
+          "proto_idx": 0,
+          "name": "<init>",
+          "descriptor": "Lfixture/A;-><init>()V",
+          "return_descriptor": "V",
+          "param_count": 0,
+          "param_descriptors": "",
+          "access_flags": 65537,
+          "opcode_count": 1,
+          "opcode_hex": "0e",
+          "method_kind": "direct"
+        },
+        {
+          "file_id": 0,
+          "method_idx": 1,
+          "class_idx": 1,
+          "class_descriptor": "Lfixture/A;",
+          "proto_idx": 0,
+          "name": "caller",
+          "descriptor": "Lfixture/A;->caller()V",
+          "return_descriptor": "V",
+          "param_count": 0,
+          "param_descriptors": "",
+          "access_flags": 1,
+          "opcode_count": 3,
+          "opcode_hex": "62 69 0e",
+          "method_kind": "direct"
+        },
+        {
+          "file_id": 0,
+          "method_idx": 2,
+          "class_idx": 1,
+          "class_descriptor": "Lfixture/A;",
+          "proto_idx": 0,
+          "name": "dup",
+          "descriptor": "Lfixture/A;->dup()V",
+          "return_descriptor": "V",
+          "param_count": 0,
+          "param_descriptors": "",
+          "access_flags": 1,
+          "opcode_count": 7,
+          "opcode_hex": "62 62 1a 1a 1c 1c 0e",
+          "method_kind": "direct"
+        },
+        {
+          "file_id": 0,
+          "method_idx": 3,
+          "class_idx": 2,
+          "class_descriptor": "Lfixture/B;",
+          "proto_idx": 0,
+          "name": "<init>",
+          "descriptor": "Lfixture/B;-><init>()V",
+          "return_descriptor": "V",
+          "param_count": 0,
+          "param_descriptors": "",
+          "access_flags": 65537,
+          "opcode_count": 1,
+          "opcode_hex": "0e",
+          "method_kind": "direct"
+        },
+        {
+          "file_id": 0,
+          "method_idx": 4,
+          "class_idx": 2,
+          "class_descriptor": "Lfixture/B;",
+          "proto_idx": 0,
+          "name": "dup",
+          "descriptor": "Lfixture/B;->dup()V",
+          "return_descriptor": "V",
+          "param_count": 0,
+          "param_descriptors": "",
+          "access_flags": 1,
+          "opcode_count": 1,
+          "opcode_hex": "0e",
+          "method_kind": "direct"
+        },
+        {
+          "file_id": 0,
+          "method_idx": 5,
+          "class_idx": 3,
+          "class_descriptor": "Lfixture/External;",
+          "proto_idx": 0,
+          "name": "external",
+          "descriptor": "Lfixture/External;->external()V",
+          "return_descriptor": "V",
+          "param_count": 0,
+          "param_descriptors": "",
+          "access_flags": 265,
+          "opcode_count": 0,
+          "opcode_hex": "",
+          "method_kind": "direct"
+        },
+        {
+          "file_id": 0,
+          "method_idx": 6,
+          "class_idx": 3,
+          "class_descriptor": "Lfixture/External;",
+          "proto_idx": 0,
+          "name": "missing",
+          "descriptor": "Lfixture/External;->missing()V",
+          "return_descriptor": "V",
+          "param_count": 0,
+          "param_descriptors": "",
+          "access_flags": null,
+          "opcode_count": null,
+          "opcode_hex": null,
+          "method_kind": null
+        }
+      ],
+      "class_fields": [
+        {
+          "file_id": 0,
+          "class_idx": 1,
+          "class_descriptor": "Lfixture/A;",
+          "field_idx": 0,
+          "field_name": "value",
+          "field_descriptor": "Lfixture/A;->value:I",
+          "kind": "instance",
+          "access_flags": 1
+        },
+        {
+          "file_id": 0,
+          "class_idx": 2,
+          "class_descriptor": "Lfixture/B;",
+          "field_idx": 1,
+          "field_name": "value",
+          "field_descriptor": "Lfixture/B;->value:I",
+          "kind": "instance",
+          "access_flags": 1
+        },
+        {
+          "file_id": 0,
+          "class_idx": 3,
+          "class_descriptor": "Lfixture/External;",
+          "field_idx": 2,
+          "field_name": "shared",
+          "field_descriptor": "Lfixture/External;->shared:Ljava/lang/String;",
+          "kind": "static",
+          "access_flags": 9
+        }
+      ],
+      "class_methods": [
+        {
+          "file_id": 0,
+          "class_idx": 1,
+          "class_descriptor": "Lfixture/A;",
+          "method_idx": 0,
+          "method_name": "<init>",
+          "method_descriptor": "Lfixture/A;-><init>()V",
+          "kind": "direct",
+          "access_flags": 65537
+        },
+        {
+          "file_id": 0,
+          "class_idx": 1,
+          "class_descriptor": "Lfixture/A;",
+          "method_idx": 1,
+          "method_name": "caller",
+          "method_descriptor": "Lfixture/A;->caller()V",
+          "kind": "direct",
+          "access_flags": 1
+        },
+        {
+          "file_id": 0,
+          "class_idx": 1,
+          "class_descriptor": "Lfixture/A;",
+          "method_idx": 2,
+          "method_name": "dup",
+          "method_descriptor": "Lfixture/A;->dup()V",
+          "kind": "direct",
+          "access_flags": 1
+        },
+        {
+          "file_id": 0,
+          "class_idx": 2,
+          "class_descriptor": "Lfixture/B;",
+          "method_idx": 3,
+          "method_name": "<init>",
+          "method_descriptor": "Lfixture/B;-><init>()V",
+          "kind": "direct",
+          "access_flags": 65537
+        },
+        {
+          "file_id": 0,
+          "class_idx": 2,
+          "class_descriptor": "Lfixture/B;",
+          "method_idx": 4,
+          "method_name": "dup",
+          "method_descriptor": "Lfixture/B;->dup()V",
+          "kind": "direct",
+          "access_flags": 1
+        },
+        {
+          "file_id": 0,
+          "class_idx": 3,
+          "class_descriptor": "Lfixture/External;",
+          "method_idx": 5,
+          "method_name": "external",
+          "method_descriptor": "Lfixture/External;->external()V",
+          "kind": "direct",
+          "access_flags": 265
+        }
+      ],
+      "method_strings": [
+        {
+          "method": "Lfixture/A;->dup()V",
+          "method_class": "Lfixture/A;",
+          "method_name": "dup",
+          "file_id": 0,
+          "class_idx": 1,
+          "method_idx": 2,
+          "value": "repeat",
+          "string_idx": 15
+        },
+        {
+          "method": "Lfixture/A;->dup()V",
+          "method_class": "Lfixture/A;",
+          "method_name": "dup",
+          "file_id": 0,
+          "class_idx": 1,
+          "method_idx": 2,
+          "value": "repeat",
+          "string_idx": 15
+        }
+      ],
+      "method_field_accesses": [
+        {
+          "method": "Lfixture/A;->caller()V",
+          "method_class": "Lfixture/A;",
+          "method_name": "caller",
+          "file_id": 0,
+          "class_idx": 1,
+          "method_idx": 1,
+          "field": "Lfixture/External;->shared:Ljava/lang/String;",
+          "field_class": "Lfixture/External;",
+          "field_name": "shared",
+          "field_type": "Ljava/lang/String;",
+          "using_type": "get",
+          "field_idx": 2
+        },
+        {
+          "method": "Lfixture/A;->caller()V",
+          "method_class": "Lfixture/A;",
+          "method_name": "caller",
+          "file_id": 0,
+          "class_idx": 1,
+          "method_idx": 1,
+          "field": "Lfixture/External;->shared:Ljava/lang/String;",
+          "field_class": "Lfixture/External;",
+          "field_name": "shared",
+          "field_type": "Ljava/lang/String;",
+          "using_type": "put",
+          "field_idx": 2
+        },
+        {
+          "method": "Lfixture/A;->dup()V",
+          "method_class": "Lfixture/A;",
+          "method_name": "dup",
+          "file_id": 0,
+          "class_idx": 1,
+          "method_idx": 2,
+          "field": "Lfixture/External;->shared:Ljava/lang/String;",
+          "field_class": "Lfixture/External;",
+          "field_name": "shared",
+          "field_type": "Ljava/lang/String;",
+          "using_type": "get",
+          "field_idx": 2
+        },
+        {
+          "method": "Lfixture/A;->dup()V",
+          "method_class": "Lfixture/A;",
+          "method_name": "dup",
+          "file_id": 0,
+          "class_idx": 1,
+          "method_idx": 2,
+          "field": "Lfixture/External;->shared:Ljava/lang/String;",
+          "field_class": "Lfixture/External;",
+          "field_name": "shared",
+          "field_type": "Ljava/lang/String;",
+          "using_type": "get",
+          "field_idx": 2
+        }
+      ],
+      "method_used_types": [
+        {
+          "method": "Lfixture/A;->dup()V",
+          "method_class": "Lfixture/A;",
+          "method_name": "dup",
+          "file_id": 0,
+          "class_idx": 1,
+          "method_idx": 2,
+          "type_descriptor": "Lfixture/B;",
+          "type_name": "fixture.B",
+          "type_idx": 2
+        },
+        {
+          "method": "Lfixture/A;->dup()V",
+          "method_class": "Lfixture/A;",
+          "method_name": "dup",
+          "file_id": 0,
+          "class_idx": 1,
+          "method_idx": 2,
+          "type_descriptor": "Lfixture/B;",
+          "type_name": "fixture.B",
+          "type_idx": 2
+        }
+      ]
+    }
+  }
+}

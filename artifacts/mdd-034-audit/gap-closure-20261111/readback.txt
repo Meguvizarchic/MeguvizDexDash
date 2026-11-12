@@ -1,0 +1,53 @@
+== runtime_tests.rs 相关测试定义 ==
+357:fn production_runtime(
+4289:fn production_queue_native_cancel_is_isolated_from_sibling_and_keeps_partial_failure() {
+4392:fn in_process_worker_lost_fails_inflight_query_and_is_not_a_fallback_error() {
+4502:fn compat_cancel_profile_closes_only_owning_dataset_and_is_distinct_from_native() {
+4659:fn fallback_whitelist_rejects_real_query_terminal_errors() {
+
+== 终态字段断言 ==
+3172:    assert!(envelope.response.truncated);
+3173:    assert!(!envelope.execution.complete);
+3272:        assert!(envelope.execution.complete);
+3435:    assert!(envelope.response.truncated);
+3665:    assert!(envelope.execution.complete);
+3741:        assert!(envelope.execution.complete, "{scenario}");
+4355:        assert_eq!(envelope.operation_status, OperationStatus::Cancelled);
+4358:        assert!(envelope.response.truncated);
+4359:        assert!(!envelope.response.more_available);
+4360:        assert!(envelope.response.next_cursor.is_none());
+4362:            envelope.response.total_rows_exact,
+4366:            envelope.execution.complete,
+4386:            serde_json::json!({"case":"production-queue-native-cancel-isolated","mode":mode,"emitted_rows":envelope.response.emitted_rows.0,"truncated":envelope.response.truncated,"more_available":envelope.response.more_available,"next_cursor":envelope.response.next_cursor,"execution_complete":envelope.execution.complete,"operation_status":envelope.operation_status,"sibling_rows":sibling_output.rows().len()})
+4458:        assert_eq!(envelope.operation_status, OperationStatus::Error);
+4461:        assert!(envelope.response.truncated);
+4462:        assert!(!envelope.response.more_available);
+4463:        assert!(envelope.response.next_cursor.is_none());
+4465:            envelope.response.total_rows_exact,
+4469:            envelope.execution.complete,
+4496:            serde_json::json!({"case":"in-process-worker-lost-inflight-and-sibling","mode":mode,"error":{"code":error.code.to_string(),"stage":error.stage},"emitted_rows":envelope.response.emitted_rows.0,"truncated":envelope.response.truncated,"more_available":envelope.response.more_available,"next_cursor":envelope.response.next_cursor,"execution_complete":envelope.execution.complete,"operation_status":envelope.operation_status,"sibling_phase":"failed","fallback_allowed":false})
+
+== 隔离断言（真实 execute / snapshot_lease） ==
+4380:        let sibling_output = execute(&f.prepared, &f.source, mode, &mut sibling_control).unwrap();
+4381:        assert_eq!(sibling_output.rows().len(), 4);
+4382:        assert!(sibling_output.execution_complete());
+4386:            serde_json::json!({"case":"production-queue-native-cancel-isolated","mode":mode,"emitted_rows":envelope.response.emitted_rows.0,"truncated":envelope.response.truncated,"more_available":envelope.response.more_available,"next_cursor":envelope.response.next_cursor,"execution_complete":envelope.execution.complete,"operation_status":envelope.operation_status,"sibling_rows":sibling_output.rows().len()})
+4591:    let before_output = execute(
+4602:    assert_eq!(before_output.rows().len(), 4);
+4603:    assert!(before_output.execution_complete());
+4637:    let sibling_snapshot = lifecycle.snapshot_lease(&sibling_session).unwrap();
+4638:    assert_eq!(sibling_snapshot.manifest().snapshot_id, source.snapshot_id());
+4639:    let after_output = execute(
+4650:    assert_eq!(after_output.rows().len(), 4);
+4651:    assert!(after_output.execution_complete());
+4654:        serde_json::json!({"case":"compat-cancel-profile-dataset-scope","native_closes_dataset":native_outcome.compat_cancel_closes_dataset,"compat_closes_dataset":compat_outcome.compat_cancel_closes_dataset,"owning_dataset_closed":true,"sibling_before_rows":before_output.rows().len(),"sibling_after_rows":after_output.rows().len(),"sibling_snapshot_lease_ok":true})
+
+== 已删除的恒真断言 ==
+
+== 措辞检查（不应再有 controlled hard kill / worker_kill 测试名） ==
+none
+== 恒真 is_complete_result 断言是否存在于测试1/2（应为空） ==
+(以上为空表示已删除)
+
+== 测试1/2 中的 is_complete_result 提及 ==
+4369:         // `is_complete_result()` is deliberately not asserted: its first

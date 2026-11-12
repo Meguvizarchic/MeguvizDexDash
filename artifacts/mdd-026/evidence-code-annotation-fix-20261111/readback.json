@@ -1,0 +1,223 @@
+{
+  "schema_version": "mdd-026-evidence-code-annotation-fix-readback.v1",
+  "created_utc": "2026-11-11T09:20:54.083212+00:00",
+  "task": "MDD-026",
+  "task_complete_proven": false,
+  "profile_admitted": false,
+  "status": "passed",
+  "cases_checked": 6,
+  "relations_checked": 7,
+  "columns_checked": 57,
+  "source_drift": [],
+  "fixture_drift": [],
+  "recomputed_exact_duplicate_rows": {
+    "annotations-duplicate": {
+      "code_items": {
+        "full": 0,
+        "content": 0,
+        "keydrop_method_idx": 0
+      },
+      "method_calls": {
+        "full": 0,
+        "content": 0
+      },
+      "annotations": {
+        "full": 0,
+        "content": 4,
+        "keydrop_annotation_off": 4
+      },
+      "annotation_elements": {
+        "full": 0,
+        "content": 44
+      },
+      "annotation_set_entries": {
+        "full": 0,
+        "content": 5,
+        "keydrop_set_off_ordinal": 2
+      },
+      "annotation_directory_entries": {
+        "full": 0,
+        "content": 5,
+        "keydrop_class_idx_entry_kind_entry_idx": 4
+      },
+      "classes": {
+        "full": 0,
+        "content": 1
+      }
+    },
+    "classic-duplicate": {
+      "code_items": {
+        "full": 0,
+        "content": 2,
+        "keydrop_method_idx": 0
+      },
+      "method_calls": {
+        "full": 4,
+        "content": 6
+      },
+      "annotations": {
+        "full": 0,
+        "content": 0,
+        "keydrop_annotation_off": 0
+      },
+      "annotation_elements": {
+        "full": 0,
+        "content": 0
+      },
+      "annotation_set_entries": {
+        "full": 0,
+        "content": 0,
+        "keydrop_set_off_ordinal": 0
+      },
+      "annotation_directory_entries": {
+        "full": 0,
+        "content": 0,
+        "keydrop_class_idx_entry_kind_entry_idx": 0
+      },
+      "classes": {
+        "full": 0,
+        "content": 1
+      }
+    },
+    "shared-duplicate": {
+      "code_items": {
+        "full": 0,
+        "content": 3,
+        "keydrop_method_idx": 2
+      },
+      "method_calls": {
+        "full": 8,
+        "content": 12
+      },
+      "annotations": {
+        "full": 0,
+        "content": 0,
+        "keydrop_annotation_off": 0
+      },
+      "annotation_elements": {
+        "full": 0,
+        "content": 0
+      },
+      "annotation_set_entries": {
+        "full": 0,
+        "content": 0,
+        "keydrop_set_off_ordinal": 0
+      },
+      "annotation_directory_entries": {
+        "full": 0,
+        "content": 0,
+        "keydrop_class_idx_entry_kind_entry_idx": 0
+      },
+      "classes": {
+        "full": 0,
+        "content": 1
+      }
+    },
+    "owned-try-even-duplicate": {
+      "code_items": {
+        "full": 0,
+        "content": 1,
+        "keydrop_method_idx": 0
+      },
+      "method_calls": {
+        "full": 0,
+        "content": 0
+      },
+      "annotations": {
+        "full": 0,
+        "content": 0,
+        "keydrop_annotation_off": 0
+      },
+      "annotation_elements": {
+        "full": 0,
+        "content": 0
+      },
+      "annotation_set_entries": {
+        "full": 0,
+        "content": 0,
+        "keydrop_set_off_ordinal": 0
+      },
+      "annotation_directory_entries": {
+        "full": 0,
+        "content": 0,
+        "keydrop_class_idx_entry_kind_entry_idx": 0
+      },
+      "classes": {
+        "full": 0,
+        "content": 1
+      }
+    },
+    "owned-try-odd-duplicate": {
+      "code_items": {
+        "full": 0,
+        "content": 1,
+        "keydrop_method_idx": 0
+      },
+      "method_calls": {
+        "full": 0,
+        "content": 0
+      },
+      "annotations": {
+        "full": 0,
+        "content": 0,
+        "keydrop_annotation_off": 0
+      },
+      "annotation_elements": {
+        "full": 0,
+        "content": 0
+      },
+      "annotation_set_entries": {
+        "full": 0,
+        "content": 0,
+        "keydrop_set_off_ordinal": 0
+      },
+      "annotation_directory_entries": {
+        "full": 0,
+        "content": 0,
+        "keydrop_class_idx_entry_kind_entry_idx": 0
+      },
+      "classes": {
+        "full": 0,
+        "content": 1
+      }
+    },
+    "classes-null-boundaries": {
+      "code_items": {
+        "full": 0,
+        "content": 0,
+        "keydrop_method_idx": 0
+      },
+      "method_calls": {
+        "full": 0,
+        "content": 0
+      },
+      "annotations": {
+        "full": 0,
+        "content": 0,
+        "keydrop_annotation_off": 0
+      },
+      "annotation_elements": {
+        "full": 0,
+        "content": 0
+      },
+      "annotation_set_entries": {
+        "full": 0,
+        "content": 0,
+        "keydrop_set_off_ordinal": 0
+      },
+      "annotation_directory_entries": {
+        "full": 0,
+        "content": 0,
+        "keydrop_class_idx_entry_kind_entry_idx": 0
+      },
+      "classes": {
+        "full": 0,
+        "content": 0
+      }
+    }
+  },
+  "limits": [
+    "Readback recomputes native/oracle/A0 comparisons from recorded terminals; it does not re-run the Rust probe.",
+    "Source drift is reported, not repaired; a drifted source means the recorded native terminal was produced from a different working tree."
+  ]
+}

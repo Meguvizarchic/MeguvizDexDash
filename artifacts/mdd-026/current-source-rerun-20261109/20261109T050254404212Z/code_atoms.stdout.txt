@@ -1,0 +1,1 @@
+{"path": "artifacts\\mdd-026\\current-source-rerun-20261109\\20261109T050254404212Z\\code_atoms", "cases": 3, "a0_relations": 2, "negative_controls": 3, "task_complete_proven": false}

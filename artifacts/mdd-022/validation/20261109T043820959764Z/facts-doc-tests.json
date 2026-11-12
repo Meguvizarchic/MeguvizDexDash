@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "cargo",
+    "test",
+    "--locked",
+    "--offline",
+    "-p",
+    "mdd-facts",
+    "--doc"
+  ],
+  "exit_code": 101,
+  "stdout": "\nrunning 5 tests\ntest crates\\mdd-facts\\src\\annotations.rs - annotations::AnnotationFacts (line 490) - compile fail ... ok\ntest crates\\mdd-facts\\src\\session.rs - session (line 7) - compile ... FAILED\ntest crates\\mdd-facts\\src\\references.rs - references::ReferenceFacts (line 229) - compile fail ... ok\ntest crates\\mdd-facts\\src\\code.rs - code::CodeFacts (line 641) - compile fail ... ok\ntest crates\\mdd-facts\\src\\metadata.rs - metadata::MetadataFacts (line 175) - compile fail ... ok\n\nfailures:\n\n---- crates\\mdd-facts\\src\\session.rs - session (line 7) stdout ----\nerror[E0599]: no method named `facts` found for struct `FactsSession` in the current scope\n  --> crates\\mdd-facts\\src\\session.rs:12:21\n   |\n12 | let facts = session.facts()?;\n   |                     ^^^^^ method not found in `FactsSession`\n\nerror: aborting due to 1 previous error\n\nFor more information about this error, try `rustc --explain E0599`.\nCouldn't compile the test.\n\nfailures:\n    crates\\mdd-facts\\src\\session.rs - session (line 7)\n\ntest result: FAILED. 4 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.19s\n\nall doctests ran in 0.39s; merged doctests compilation took 0.20s\n",
+  "stderr": "    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.11s\n   Doc-tests mdd_facts\nerror: doctest failed, to rerun pass `-p mdd-facts --doc`\n"
+}

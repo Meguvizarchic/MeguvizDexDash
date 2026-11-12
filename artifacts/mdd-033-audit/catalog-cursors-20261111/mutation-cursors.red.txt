@@ -1,0 +1,91 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+     Running unittests src\lib.rs (target\debug\deps\mdd_session-f51b1f5ce41aeb78.exe)
+
+running 53 tests
+test catalog::tests::drop_of_an_absent_name_reports_the_kind_and_if_exists_is_a_noop ... ok
+test catalog::tests::forward_reference_is_rejected_and_the_definition_is_not_published ... ok
+test catalog::tests::create_publishes_names_and_binds_generations ... ok
+test catalog::tests::as_select_stays_deferred_until_the_sql_layer_injects_a_matching_handle ... ok
+test catalog::tests::if_not_exists_keeps_the_original_definition_and_ignores_the_new_body ... ok
+test catalog::tests::cycle_and_self_reference_are_rejected_without_advancing_the_epoch ... ok
+test catalog::tests::redefine_replaces_kind_and_drop_requires_the_matching_kind ... ok
+test cancellation::tests::checkpoint_with_budget_equal_deadline_uses_lifecycle ... ok
+test cursors::tests::cursor_requires_a_complete_fingerprint_spec ... ok
+test cancellation::tests::native_query_cancel_and_explicit_dataset_profile_have_distinct_ownership ... ok
+test cancellation::tests::empty_slot_publication_rejects_existing_and_releases_reentrant_item ... ok
+test cursors::tests::native_page_envelope_and_metadata_agree ... ok
+test cancellation::tests::computed_spool_and_abandoned_cursor_never_become_delivery_success ... ok
+test catalog::tests::catalog_is_session_local_and_generations_do_not_leak ... ok
+test cancellation::tests::rejected_publication_returns_item_after_releasing_lifecycle_lock ... ok
+test catalog::tests::drop_retains_the_generation_an_existing_query_already_bound ... ok
+test catalog::tests::prepared_query_keeps_its_temp_generation_after_a_redefinition ... ok
+test cursors::tests::compat_offset_budget_and_epoch_observation_are_explicit ... ok
+test cursors::tests::changed_schema_or_total_between_pages_is_rejected ... ok
+test cursors::tests::compat_offset_rejects_offset_gaps_source_change_and_missing_lookahead ... ok
+test cursors::tests::a_new_worker_generation_invalidates_older_cursors ... FAILED
+test cursors::tests::compat_offset_walks_pages_with_lookahead_and_no_cursor ... ok
+test cursors::tests::forged_worker_generation_is_rejected ... FAILED
+test cursors::tests::inexact_total_is_also_fixed_by_the_first_page ... ok
+test cursors::tests::native_cursor_binds_every_identity_component ... ok
+test cursors::tests::paging_modes_never_share_a_token ... ok
+test cursors::tests::response_paging_over_a_relational_limit_is_rejected ... FAILED
+test tests::abandoned_cursors_cannot_be_released_into_delivery_success ... ok
+test cursors::tests::same_sql_same_schema_different_source_cannot_be_stitched ... FAILED
+test tests::batch_fault_does_not_rewrite_prior_completed_query ... ok
+test cancellation::tests::checkpoint_retains_first_terminal_and_rejects_completed_query ... ok
+test cancellation::tests::delivery_cursor_and_budget_commit_are_atomic ... ok
+test tests::batch_fault_records_first_error_and_preserves_computation ... ok
+test tests::batch_release_fault_does_not_hide_prior_worker_failure ... ok
+test tests::buffered_output_must_be_released_before_delivery_completion ... ok
+test tests::computation_delivery_and_catalog_generations_remain_distinct ... ok
+test cancellation::tests::checkpoint_with_budget_preserves_first_error_and_checks_owner ... ok
+test tests::owned_batch_ack_rejects_foreign_budget_witness ... ok
+test tests::handles_reject_wrong_owner_parent_generation_and_released_identity ... ok
+test tests::concurrent_close_and_computation_never_reopen_a_cancelled_query ... ok
+test cancellation::tests::delivery_budget_deadline_keeps_computation_and_first_terminal ... ok
+test tests::owned_batch_outlives_query_session_and_releases_once ... ok
+test tests::snapshot_close_and_release_preserve_existing_owned_leases ... ok
+test tests::shared_budget_reservations_and_releases_are_enforced_across_sessions ... ok
+test tests::owned_batch_rejects_foreign_query_and_reports_release_fault ... ok
+test tests::owned_batch_partial_ack_requires_exact_existing_failure ... ok
+test tests::owned_batch_requires_ack_and_keeps_bytes_after_delivery ... ok
+test tests::worker_loss_fails_every_unfinished_request_but_keeps_completed_terminal ... ok
+test tests::owned_batch_release_is_independent_of_worker_and_concurrent_close ... ok
+test cancellation::tests::never_started_terminal_cannot_be_marked_computed ... ok
+test tests::terminal_queries_keep_live_buffer_accounting_until_release ... ok
+test tests::deadlines_cover_queue_time_and_zero_is_not_unlimited ... ok
+test cancellation::tests::atomic_publication_orders_cancellation_after_committed_item ... ok
+
+failures:
+
+---- cursors::tests::a_new_worker_generation_invalidates_older_cursors stdout ----
+
+thread 'cursors::tests::a_new_worker_generation_invalidates_older_cursors' (40460) panicked at crates\mdd-session\src\cursors.rs:1078:14:
+called `Result::unwrap_err()` on an `Ok` value: CursorBinding { session_id: "session-6e4edca1b1127360fc7ae6eb76e69c2fd645cf50b278b527fc16b39aad45f0ff", query_id: "query-fc3a261dcb4ee2505ec7357ef0bd2dec984f6cf69bd5b1bfc80066d157c6052d", snapshot_id: "snapshot-handle-aa5a07a27ecce0843eab40aab88fb27d15461922487aa950034b0cfd2261bbdc", catalog_epoch: DecimalU64(0), worker_owner: "runtime-62e2c4af9fedf387c66c2ae43b0369b14722c154ed715f62e4a9faf7b0862c82", worker_generation: DecimalU64(0), request_key: "request-content-hash", schema_id: "mdd.rows.v1:page-schema", semantic_version: "cursor-v1", ast_fingerprint: "6c1ca57076455d26a7217179712951975355b8015cad877d74f4521c16b3f5f7", parameter_types_fingerprint: "2dd45120e3ff1d9e931ca6c0432e5af84be06615579dbb76eb589081792be044", source_fingerprint: "0f9f5ce47831e099e77e295ed8bb627f089efa8672ee6fbdc49eac6f0d7f5275", mode: NativeSnapshot }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- cursors::tests::forged_worker_generation_is_rejected stdout ----
+
+thread 'cursors::tests::forged_worker_generation_is_rejected' (5220) panicked at crates\mdd-session\src\cursors.rs:1060:14:
+called `Result::unwrap_err()` on an `Ok` value: CursorBinding { session_id: "session-eae513b8babd022287fcc4682b43bfef406d93c08a260fce9681dcbb5fe8ab6b", query_id: "query-cae3c8b81e449123232e1b2ee1a7d270bb15cdd062da365196644c19e39fbaff", snapshot_id: "snapshot-handle-cd7954500628dd27fc4a64dbaec21e534cd57e046abb05c332071b479b9274e2", catalog_epoch: DecimalU64(0), worker_owner: "runtime-264c4714c5ff012201f039a4ab2b33eaf459b90ae171f01f87bfbcb0ceaf900a", worker_generation: DecimalU64(1), request_key: "request-content-hash", schema_id: "mdd.rows.v1:page-schema", semantic_version: "cursor-v1", ast_fingerprint: "6c1ca57076455d26a7217179712951975355b8015cad877d74f4521c16b3f5f7", parameter_types_fingerprint: "2dd45120e3ff1d9e931ca6c0432e5af84be06615579dbb76eb589081792be044", source_fingerprint: "0f9f5ce47831e099e77e295ed8bb627f089efa8672ee6fbdc49eac6f0d7f5275", mode: NativeSnapshot }
+
+---- cursors::tests::response_paging_over_a_relational_limit_is_rejected stdout ----
+
+thread 'cursors::tests::response_paging_over_a_relational_limit_is_rejected' (46016) panicked at crates\mdd-session\src\cursors.rs:1211:65:
+called `Result::unwrap_err()` on an `Ok` value: ()
+
+---- cursors::tests::same_sql_same_schema_different_source_cannot_be_stitched stdout ----
+
+thread 'cursors::tests::same_sql_same_schema_different_source_cannot_be_stitched' (36460) panicked at crates\mdd-session\src\cursors.rs:1135:14:
+called `Result::unwrap_err()` on an `Ok` value: CursorBinding { session_id: "session-98e958232bce50bbcba3f6a2f302e290dd2c244426d8ff6e4a8c37d9dc36879f", query_id: "query-0fa39a0f4e5e8db1726fea57b37aefb3b28a97eb1d5b88016ce4e12d7c4ca251", snapshot_id: "snapshot-handle-b131a6194e270becf2d45cc63422e68ae35d646f04e1da5f5f527f551e625a20", catalog_epoch: DecimalU64(0), worker_owner: "runtime-c721165b945fbd144577576e9ece00b6e88ec5bb0b0705018c1274c984066358", worker_generation: DecimalU64(0), request_key: "request-content-hash", schema_id: "mdd.rows.v1:page-schema", semantic_version: "cursor-v1", ast_fingerprint: "6c1ca57076455d26a7217179712951975355b8015cad877d74f4521c16b3f5f7", parameter_types_fingerprint: "2dd45120e3ff1d9e931ca6c0432e5af84be06615579dbb76eb589081792be044", source_fingerprint: "0f9f5ce47831e099e77e295ed8bb627f089efa8672ee6fbdc49eac6f0d7f5275", mode: NativeSnapshot }
+
+
+failures:
+    cursors::tests::a_new_worker_generation_invalidates_older_cursors
+    cursors::tests::forged_worker_generation_is_rejected
+    cursors::tests::response_paging_over_a_relational_limit_is_rejected
+    cursors::tests::same_sql_same_schema_different_source_cannot_be_stitched
+
+test result: FAILED. 49 passed; 4 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+error: test failed, to rerun pass `-p mdd-session --lib`

@@ -1,75 +1,75 @@
 {
   "schema_version": "mdd.annotation-conformance.v1",
   "task_id": "MDD-022",
-  "run_id": "20261028T110408377817Z",
+  "run_id": "20261109T044316003186Z",
   "platform": "Windows-11-10.0.26300-SP0",
   "machine": "AMD64",
-  "python": "3.12.14 (main, Aug 25 2026, 14:01:42) [MSC v.1944 64 bit (AMD64)]",
+  "python": "3.13.15 (tags/v3.13.15:4061bc4, Aug  5 2026, 13:05:39) [MSC v.1944 64 bit (AMD64)]",
   "commands": [
     {
       "label": "generate-1",
-      "path": "artifacts/mdd-022/validation/20261028T110408377817Z/generate-1.json",
+      "path": "artifacts/mdd-022/validation/20261109T044316003186Z/generate-1.json",
       "exit_code": 0
     },
     {
       "label": "generate-2",
-      "path": "artifacts/mdd-022/validation/20261028T110408377817Z/generate-2.json",
+      "path": "artifacts/mdd-022/validation/20261109T044316003186Z/generate-2.json",
       "exit_code": 0
     },
     {
       "label": "oracle",
-      "path": "artifacts/mdd-022/validation/20261028T110408377817Z/oracle.json",
+      "path": "artifacts/mdd-022/validation/20261109T044316003186Z/oracle.json",
       "exit_code": 0
     },
     {
       "label": "oracle-optimized",
-      "path": "artifacts/mdd-022/validation/20261028T110408377817Z/oracle-optimized.json",
+      "path": "artifacts/mdd-022/validation/20261109T044316003186Z/oracle-optimized.json",
       "exit_code": 0
     },
     {
       "label": "A0-compare",
-      "path": "artifacts/mdd-022/validation/20261028T110408377817Z/A0-compare.json",
+      "path": "artifacts/mdd-022/validation/20261109T044316003186Z/A0-compare.json",
       "exit_code": 0
     },
     {
       "label": "targeted-tests",
-      "path": "artifacts/mdd-022/validation/20261028T110408377817Z/targeted-tests.json",
+      "path": "artifacts/mdd-022/validation/20261109T044316003186Z/targeted-tests.json",
       "exit_code": 0
     },
     {
       "label": "facts-doc-tests",
-      "path": "artifacts/mdd-022/validation/20261028T110408377817Z/facts-doc-tests.json",
+      "path": "artifacts/mdd-022/validation/20261109T044316003186Z/facts-doc-tests.json",
       "exit_code": 0
     },
     {
       "label": "clippy",
-      "path": "artifacts/mdd-022/validation/20261028T110408377817Z/clippy.json",
+      "path": "artifacts/mdd-022/validation/20261109T044316003186Z/clippy.json",
       "exit_code": 0
     },
     {
       "label": "format",
-      "path": "artifacts/mdd-022/validation/20261028T110408377817Z/format.json",
+      "path": "artifacts/mdd-022/validation/20261109T044316003186Z/format.json",
       "exit_code": 0
     },
     {
       "label": "synthetic-consumer",
-      "path": "artifacts/mdd-022/validation/20261028T110408377817Z/synthetic-consumer.json",
+      "path": "artifacts/mdd-022/validation/20261109T044316003186Z/synthetic-consumer.json",
       "exit_code": 0
     },
     {
       "label": "public-newpipe",
-      "path": "artifacts/mdd-022/validation/20261028T110408377817Z/public-newpipe.json",
+      "path": "artifacts/mdd-022/validation/20261109T044316003186Z/public-newpipe.json",
       "exit_code": 0
     },
     {
       "label": "toolchain",
-      "path": "artifacts/mdd-022/validation/20261028T110408377817Z/toolchain.json",
+      "path": "artifacts/mdd-022/validation/20261109T044316003186Z/toolchain.json",
       "exit_code": 0
     }
   ],
   "success": true,
-  "targeted_reader_tests": 5,
-  "targeted_facts_tests": 4,
+  "targeted_reader_tests": 8,
+  "targeted_facts_tests": 29,
   "fixture_count": 42,
   "fixture_sha256": {
     "annotations-038.dex": "65380a8b23601e17339379be211e417d8b4c8383b686b6d173f800656b985360",
@@ -103,6 +103,13 @@
     "bad-value-tag.dex": "8150b2c7574b0197a84fe33ad49034909ecb03424cb0bc82fb95689bb31a5a31",
     "bad-value-width.dex": "4107157ce5d1a6244731d9df28c8b7c8e1b5713a5d32cb5fbe33d148bb1901c9",
     "bad-visibility.dex": "d9effa82f83c695ad33712f5c8af7c79de2ef315c5e070c2702d78d743ca6813",
+    "parameter-empty-nonzero-proto.dex": "b6d66276b679aaa54d06b5de3d312e19e200ba1ac74145ef2c412145784f82cc",
+    "parameter-empty-zero-proto.dex": "80ee3c0a1425bfb14e88ab2e72244a3da464a3e0e14d7497297f3124dacccfd8",
+    "parameter-long-nonzero-proto.dex": "2766a32a0b66fecfb9471d9bef7873b671f2a2d31f85d3bd412fbd371bfea396",
+    "parameter-orphan-empty-no-binding.dex": "345aa3f5e1dd938ea04171dd1a9137a8e6990f6218179b883f6cbd28eda53907",
+    "parameter-shared-empty-set.dex": "a0178738ab6be08db3b2ac0d75d38a44f141add9df24a76b8d186a7a8f089609",
+    "parameter-shared-signature-complete.dex": "4bb9458a5fc0bcc1b977d74df814d8ab873a6602902297ed9ee6e084ac008ce9",
+    "parameter-shared-signature.dex": "452e68a5702e119c48c5a55f20f3bd0011ae40f3f798b090ccdb557bbf440df8",
     "valid-call-site-array.dex": "da059521bc1ba34421ab929ffbbebe0094d66df56f106a28268693be6465a663",
     "valid-orphan-annotation.dex": "3c9552e1a4c784d0f3466914239cd6ff9eaf018f1490eba0009142a3d46d1784",
     "valid-orphan-arrays.dex": "9687ad9b7111f4c2bf9015f8fbf764ada03d4bdeb54c2c597cafcfbeae2302a8",
@@ -116,21 +123,21 @@
     "valid-static-empty-array.dex": "5f5893e0993050a07da07cd5ee5a6680a91def094c888fa8b94364d52ed18b76"
   },
   "source_sha256": {
-    "crates/mdd-dex/src/annotations.rs": "064465cff7b637925fe8e5b2a134351a00b3b26cf0b971fc7b78e7fe3578b960",
-    "crates/mdd-facts/src/annotations.rs": "4c5847dbeda0a52b0f95b1252ec589b6d1dd55af971c01d6bac24fb8d05a6b7a",
+    "crates/mdd-dex/src/annotations.rs": "a38771f4f6b9269f77fa69bf945fdff1d31091f461f1cd39640f4296e09e2e33",
+    "crates/mdd-facts/src/annotations.rs": "e17b29d726109e82d07b50e9a077812f88069ad9060d1418f4cce70e856d3a09",
     "crates/mdd-facts/examples/annotation_summary.rs": "3b918dbcd62422d84b89d514415b8b2ff996df728414d916647bfe8eed82dd85",
     "conformance/relations/annotation-and-signature.json": "8b1ec28889e7baa6f64e4ef1eb1d214bb8b4832a6ea4890f7509e11146d301c3",
-    "Cargo.lock": "56ada8d2bfb6d97dc28008b9823399a3fe0716d5c77fc7d471586569e0b24073",
+    "Cargo.lock": "954c2066815c971595782dc799f9dcd64c4e3d1c748cc1133991788fb3942844",
     "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
-    "tests/fixtures/annotations/generate.py": "9cab5aee5a4aee6423095c77d7bf3a7090ac1a89e5453ac63c05d6e15e788e92",
+    "tests/fixtures/annotations/generate.py": "6bed3eb45f8d0c887c600983a6470daca2be62d51a8b6a277294b3e18a622e22",
     "tests/fixtures/annotations/oracle.py": "6a6bcbd430ecd9476bfaf64429f0bed4f1a452f802c683d126dcc4302e9c31fd",
     "tests/fixtures/annotations/expected.json": "c5a0d073291b76a68db02e46102c2b860911428707be14c22b1fcfe5dc02b063",
-    "artifacts/mdd-022/reproduce.py": "22a9827a874f356237ad6187fbc0eba51a0a278f77a02ac023ca36c958d7ce86"
+    "artifacts/mdd-022/reproduce.py": "c23123c3cdff0f78b9b0ed9604fac2c6b4e4e1263c89be06b7654e3597bbc388"
   },
   "consumer_binary": {
     "path": "target/debug/examples/annotation_summary.exe",
-    "sha256": "3e3aa405183af3107cbaf631128500e4ebd8273d5a2764fe9ca2149284060bef",
-    "bytes": 2629120
+    "sha256": "a35928907ee5f053c7b33d0e39b23496d4f438d855b07d5d6bb5e023372102bf",
+    "bytes": 2629632
   },
   "synthetic_full_relation_comparison": [
     {
@@ -184,7 +191,7 @@
     "path": "artifacts/local/inputs/NewPipe_v0.28.6.apk",
     "sha256": "e56ef6280b700696172797f94513ffd3f9aae9349945a2f06e235ec24446be58",
     "bytes": 10885562,
-    "result_path": "artifacts/mdd-022/validation/20261028T110408377817Z/public-summary.json"
+    "result_path": "artifacts/mdd-022/validation/20261109T044316003186Z/public-summary.json"
   },
   "acceptance": [
     {

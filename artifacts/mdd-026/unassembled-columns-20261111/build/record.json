@@ -1,0 +1,15 @@
+{
+  "argv": [
+    "cargo",
+    "build",
+    "--offline",
+    "-p",
+    "mdd-facts"
+  ],
+  "started_utc": "2026-11-11T14:56:48.088331+00:00",
+  "finished_utc": "2026-11-11T14:56:49.531007+00:00",
+  "exit_code": 0,
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "c129cf1a99461ffb67e297e8d5651daf4d4f11893ccdb4bf00361d1617e6221a",
+  "scope": "tiny development fixtures; not performance or a profile admission"
+}

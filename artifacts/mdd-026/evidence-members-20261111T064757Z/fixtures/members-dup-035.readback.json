@@ -1,0 +1,320 @@
+{
+  "schema_version": "mdd.member-fixture-readback.v1",
+  "fixture": "evidence-members-20261111T064757Z\\fixtures\\members-dup-035.dex",
+  "sha256": "5df38a9c768e50cc47de8eac943e88b422b5da8d2dd75ce84e00535ba09a59e7",
+  "bytes": 900,
+  "header_words": [
+    900,
+    112,
+    305419896,
+    0,
+    0,
+    764,
+    18,
+    112,
+    7,
+    184,
+    1,
+    212,
+    3,
+    224,
+    7,
+    248,
+    3,
+    304,
+    500,
+    400
+  ],
+  "map_count": 11,
+  "sections_sorted_by_offset": [
+    {
+      "type_code": 0,
+      "count": 1,
+      "offset": 0
+    },
+    {
+      "type_code": 1,
+      "count": 18,
+      "offset": 112
+    },
+    {
+      "type_code": 2,
+      "count": 7,
+      "offset": 184
+    },
+    {
+      "type_code": 3,
+      "count": 1,
+      "offset": 212
+    },
+    {
+      "type_code": 4,
+      "count": 3,
+      "offset": 224
+    },
+    {
+      "type_code": 5,
+      "count": 7,
+      "offset": 248
+    },
+    {
+      "type_code": 6,
+      "count": 3,
+      "offset": 304
+    },
+    {
+      "type_code": 8194,
+      "count": 18,
+      "offset": 400
+    },
+    {
+      "type_code": 8193,
+      "count": 5,
+      "offset": 588
+    },
+    {
+      "type_code": 8192,
+      "count": 3,
+      "offset": 718
+    },
+    {
+      "type_code": 4096,
+      "count": 1,
+      "offset": 764
+    }
+  ],
+  "tables": {
+    "string_ids": {
+      "count": 18,
+      "offset": 112,
+      "stride": 4,
+      "first_words": [
+        "0x190",
+        "0x0"
+      ]
+    },
+    "type_ids": {
+      "count": 7,
+      "offset": 184,
+      "stride": 4,
+      "first_words": [
+        "0x4",
+        "0x0"
+      ]
+    },
+    "proto_ids": {
+      "count": 1,
+      "offset": 212,
+      "stride": 12,
+      "first_words": [
+        "0xa"
+      ]
+    },
+    "field_ids": {
+      "count": 3,
+      "offset": 224,
+      "stride": 8,
+      "first_words": [
+        "0x1",
+        "0x0"
+      ]
+    },
+    "method_ids": {
+      "count": 7,
+      "offset": 248,
+      "stride": 8,
+      "first_words": [
+        "0x1",
+        "0x0"
+      ]
+    },
+    "class_defs": {
+      "count": 3,
+      "offset": 304,
+      "stride": 32,
+      "first_words": [
+        "0x1",
+        "0x0"
+      ]
+    }
+  },
+  "strings": [
+    {
+      "index": 0,
+      "byte_offset": 400,
+      "utf16_length": 6,
+      "raw_mutf8_hex": "3c696e69743e"
+    },
+    {
+      "index": 1,
+      "byte_offset": 408,
+      "utf16_length": 6,
+      "raw_mutf8_hex": "412e6a617661"
+    },
+    {
+      "index": 2,
+      "byte_offset": 416,
+      "utf16_length": 6,
+      "raw_mutf8_hex": "422e6a617661"
+    },
+    {
+      "index": 3,
+      "byte_offset": 424,
+      "utf16_length": 13,
+      "raw_mutf8_hex": "45787465726e616c2e6a617661"
+    },
+    {
+      "index": 4,
+      "byte_offset": 439,
+      "utf16_length": 1,
+      "raw_mutf8_hex": "49"
+    },
+    {
+      "index": 5,
+      "byte_offset": 442,
+      "utf16_length": 11,
+      "raw_mutf8_hex": "4c666978747572652f413b"
+    },
+    {
+      "index": 6,
+      "byte_offset": 455,
+      "utf16_length": 11,
+      "raw_mutf8_hex": "4c666978747572652f423b"
+    },
+    {
+      "index": 7,
+      "byte_offset": 468,
+      "utf16_length": 18,
+      "raw_mutf8_hex": "4c666978747572652f45787465726e616c3b"
+    },
+    {
+      "index": 8,
+      "byte_offset": 488,
+      "utf16_length": 18,
+      "raw_mutf8_hex": "4c6a6176612f6c616e672f4f626a6563743b"
+    },
+    {
+      "index": 9,
+      "byte_offset": 508,
+      "utf16_length": 18,
+      "raw_mutf8_hex": "4c6a6176612f6c616e672f537472696e673b"
+    },
+    {
+      "index": 10,
+      "byte_offset": 528,
+      "utf16_length": 1,
+      "raw_mutf8_hex": "56"
+    },
+    {
+      "index": 11,
+      "byte_offset": 531,
+      "utf16_length": 6,
+      "raw_mutf8_hex": "63616c6c6572"
+    },
+    {
+      "index": 12,
+      "byte_offset": 539,
+      "utf16_length": 3,
+      "raw_mutf8_hex": "647570"
+    },
+    {
+      "index": 13,
+      "byte_offset": 544,
+      "utf16_length": 8,
+      "raw_mutf8_hex": "65787465726e616c"
+    },
+    {
+      "index": 14,
+      "byte_offset": 554,
+      "utf16_length": 7,
+      "raw_mutf8_hex": "6d697373696e67"
+    },
+    {
+      "index": 15,
+      "byte_offset": 563,
+      "utf16_length": 6,
+      "raw_mutf8_hex": "726570656174"
+    },
+    {
+      "index": 16,
+      "byte_offset": 571,
+      "utf16_length": 6,
+      "raw_mutf8_hex": "736861726564"
+    },
+    {
+      "index": 17,
+      "byte_offset": 579,
+      "utf16_length": 5,
+      "raw_mutf8_hex": "76616c7565"
+    }
+  ],
+  "code_items": [
+    {
+      "byte_offset": 588,
+      "registers_size": 1,
+      "ins_size": 1,
+      "outs_size": 0,
+      "insns_size": 1
+    },
+    {
+      "byte_offset": 608,
+      "registers_size": 1,
+      "ins_size": 1,
+      "outs_size": 0,
+      "insns_size": 5
+    },
+    {
+      "byte_offset": 636,
+      "registers_size": 1,
+      "ins_size": 1,
+      "outs_size": 0,
+      "insns_size": 13
+    },
+    {
+      "byte_offset": 680,
+      "registers_size": 1,
+      "ins_size": 1,
+      "outs_size": 0,
+      "insns_size": 1
+    },
+    {
+      "byte_offset": 700,
+      "registers_size": 1,
+      "ins_size": 1,
+      "outs_size": 0,
+      "insns_size": 1
+    }
+  ],
+  "class_data_starts": [
+    {
+      "byte_offset": 718,
+      "counts": [
+        0,
+        1,
+        3,
+        0
+      ]
+    },
+    {
+      "byte_offset": 738,
+      "counts": [
+        0,
+        1,
+        2,
+        0
+      ]
+    },
+    {
+      "byte_offset": 754,
+      "counts": [
+        1,
+        0,
+        1,
+        0
+      ]
+    }
+  ],
+  "generator_record_sha256": "35afb526d62ade4fa8626143a526b2dbf4b132346741618e8660cf20bc7bbc68",
+  "generator_layout_matches": true,
+  "independence_argument": "Separate stdlib struct reader; walks map_list and little-endian words only, no Rust crate and no generator import."
+}

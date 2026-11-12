@@ -1,0 +1,235 @@
+{
+  "schema_version": "mdd.annotation-conformance.v1",
+  "task_id": "MDD-022",
+  "run_id": "20261109T044137588879Z",
+  "platform": "Windows-11-10.0.26300-SP0",
+  "machine": "AMD64",
+  "python": "3.13.15 (tags/v3.13.15:4061bc4, Aug  5 2026, 13:05:39) [MSC v.1944 64 bit (AMD64)]",
+  "commands": [
+    {
+      "label": "generate-1",
+      "path": "artifacts/mdd-022/validation/20261109T044137588879Z/generate-1.json",
+      "exit_code": 0
+    },
+    {
+      "label": "generate-2",
+      "path": "artifacts/mdd-022/validation/20261109T044137588879Z/generate-2.json",
+      "exit_code": 0
+    },
+    {
+      "label": "oracle",
+      "path": "artifacts/mdd-022/validation/20261109T044137588879Z/oracle.json",
+      "exit_code": 0
+    },
+    {
+      "label": "oracle-optimized",
+      "path": "artifacts/mdd-022/validation/20261109T044137588879Z/oracle-optimized.json",
+      "exit_code": 0
+    },
+    {
+      "label": "A0-compare",
+      "path": "artifacts/mdd-022/validation/20261109T044137588879Z/A0-compare.json",
+      "exit_code": 0
+    },
+    {
+      "label": "targeted-tests",
+      "path": "artifacts/mdd-022/validation/20261109T044137588879Z/targeted-tests.json",
+      "exit_code": 0
+    },
+    {
+      "label": "facts-doc-tests",
+      "path": "artifacts/mdd-022/validation/20261109T044137588879Z/facts-doc-tests.json",
+      "exit_code": 0
+    },
+    {
+      "label": "clippy",
+      "path": "artifacts/mdd-022/validation/20261109T044137588879Z/clippy.json",
+      "exit_code": 0
+    },
+    {
+      "label": "format",
+      "path": "artifacts/mdd-022/validation/20261109T044137588879Z/format.json",
+      "exit_code": 0
+    },
+    {
+      "label": "synthetic-consumer",
+      "path": "artifacts/mdd-022/validation/20261109T044137588879Z/synthetic-consumer.json",
+      "exit_code": 0
+    },
+    {
+      "label": "public-newpipe",
+      "path": "artifacts/mdd-022/validation/20261109T044137588879Z/public-newpipe.json",
+      "exit_code": 0
+    },
+    {
+      "label": "toolchain",
+      "path": "artifacts/mdd-022/validation/20261109T044137588879Z/toolchain.json",
+      "exit_code": 0
+    }
+  ],
+  "success": true,
+  "targeted_reader_tests": 5,
+  "targeted_facts_tests": 4,
+  "fixture_count": 42,
+  "fixture_sha256": {
+    "annotations-038.dex": "65380a8b23601e17339379be211e417d8b4c8383b686b6d173f800656b985360",
+    "bad-annotation-interior.dex": "c68f5c6a8291c77934cdea3f171f30f25c9a27485c161283ddcf65ee6b23bbaa",
+    "bad-annotation-type.dex": "0d2150bc7d9aa2a65ba15e44461a18c51a3b3e5196583f461a3b859efb4a3566",
+    "bad-boolean-arg.dex": "2180633b81ddd5ceca55027b834a209804f2f05cb922c818b47dcb35f5769bd5",
+    "bad-call-site-arity.dex": "ea701b54a52a85615a6c87e4b8e9865696751746d73c8bc212a1fe03e541cb53",
+    "bad-call-site-array-interior.dex": "4f4ee7dab4bcb08c3ca036076f1a1957bc5b3439c8f215c4346300b12acc88bf",
+    "bad-call-site-handle-index.dex": "4deacb5457e76bedccb4db53b59244c7daa64a20f838fe77b61a7ac9e43eeaef",
+    "bad-call-site-handle-kind.dex": "4db2fffdd2d19b72f8f811a58e0c7fbd6d3190825612f1a1b293aa2deb8784bd",
+    "bad-call-site-name-index.dex": "0382340de0b34a8a1ee075823dd6dd901cef60d36cd95cb3e829ba36da85764a",
+    "bad-call-site-name-kind.dex": "29f972d2618bd32e861a8466c6086e7179126a0a278fb42be3137d6295fc5fe0",
+    "bad-call-site-type-index.dex": "a80e77b6c457c3cdd119a7d22d1ae4ec214a58c3b47eb076dbf8f1226e3c1433",
+    "bad-call-site-type-kind.dex": "8f779e6f19634ecc27580508de7e9e90ed84097864e76123856f2aa36b262da7",
+    "bad-class-owner.dex": "f26f2201d09107b9d42b5626be92dfa6f1ae1571911ae593a54014808905b601",
+    "bad-directory-interior.dex": "538ce1bf02d9cf3602bc0c0fe6b77edfeaf039b16b641b279f0848c1af400624",
+    "bad-element-order.dex": "a0a5c31d5a0806e1febfd125fa285a8723c976e5c2c526d0f73a06d7c4cd97cf",
+    "bad-field-entry-order.dex": "81de4456c0595da4e07c53edfa4e3a8b07eeebf8b4482dc747a725bd64a001ff",
+    "bad-orphan-annotation.dex": "1618c68e5649eeb84206246d94dd17fb08b683abe13f84bd5582fb708bab8b6a",
+    "bad-orphan-array.dex": "19678531587ff9ca0404c5f01bf8ad1774f5bc55cba79bb1ecab43115b0cc966",
+    "bad-orphan-directory-owner.dex": "7f0ecb46d25914abeea85896033745db2f3add4e41708fe0f3e622e4dc91c102",
+    "bad-orphan-ref-interior.dex": "924367ce84461835526a99b8b616770b7379360e397a0a1f30dbbb818dde096d",
+    "bad-orphan-set-interior.dex": "9ec05d84890d22fa570110608b2841558cf66d42254c7deccb83353430d6b3b0",
+    "bad-parameter-arity.dex": "dac87eb4842227104f1a7b3f215eb1fdc452422273c54020de89e88939ceea4f",
+    "bad-parameter-count.dex": "19b0576495255e34828c35a813836c27be30bdcb5bb69816ff4567e2f3ba85f6",
+    "bad-ref-list-interior.dex": "c0fd467c3cfd33a1b05d67b1329e8e3cc621b082fdab77da1fcf94599c5db9f4",
+    "bad-ref-set-interior.dex": "4b32e823662b3c84c12fe79eefa078a7ed4e7fa3256c227751231caa87e1a6f8",
+    "bad-set-interior.dex": "e77bea8ef5927c3e2ce56e8b8cf21e642712ca3dbab09a9471188bb69ee8e62c",
+    "bad-static-array-interior.dex": "5d29774c8d87491f9d002ebb97c040867f4ae066ef54908b087c9e4fc37c58d1",
+    "bad-string-index.dex": "99b52e4d7de2655419dc3c7db73baafc5ba24bcc2832f0a8d2b2ffc2d04720c5",
+    "bad-value-tag.dex": "8150b2c7574b0197a84fe33ad49034909ecb03424cb0bc82fb95689bb31a5a31",
+    "bad-value-width.dex": "4107157ce5d1a6244731d9df28c8b7c8e1b5713a5d32cb5fbe33d148bb1901c9",
+    "bad-visibility.dex": "d9effa82f83c695ad33712f5c8af7c79de2ef315c5e070c2702d78d743ca6813",
+    "parameter-empty-nonzero-proto.dex": "b6d66276b679aaa54d06b5de3d312e19e200ba1ac74145ef2c412145784f82cc",
+    "parameter-empty-zero-proto.dex": "80ee3c0a1425bfb14e88ab2e72244a3da464a3e0e14d7497297f3124dacccfd8",
+    "parameter-long-nonzero-proto.dex": "2766a32a0b66fecfb9471d9bef7873b671f2a2d31f85d3bd412fbd371bfea396",
+    "parameter-orphan-empty-no-binding.dex": "345aa3f5e1dd938ea04171dd1a9137a8e6990f6218179b883f6cbd28eda53907",
+    "parameter-shared-empty-set.dex": "a0178738ab6be08db3b2ac0d75d38a44f141add9df24a76b8d186a7a8f089609",
+    "parameter-shared-signature-complete.dex": "4bb9458a5fc0bcc1b977d74df814d8ab873a6602902297ed9ee6e084ac008ce9",
+    "parameter-shared-signature.dex": "452e68a5702e119c48c5a55f20f3bd0011ae40f3f798b090ccdb557bbf440df8",
+    "valid-call-site-array.dex": "da059521bc1ba34421ab929ffbbebe0094d66df56f106a28268693be6465a663",
+    "valid-orphan-annotation.dex": "3c9552e1a4c784d0f3466914239cd6ff9eaf018f1490eba0009142a3d46d1784",
+    "valid-orphan-arrays.dex": "9687ad9b7111f4c2bf9015f8fbf764ada03d4bdeb54c2c597cafcfbeae2302a8",
+    "valid-orphan-empty-directory.dex": "b223877b24aae0bf8ff30170d3ca1659b244502b0f2cdeba1e0e88fb446d10f6",
+    "valid-orphan-empty-ref-list.dex": "a32c1b4bc16628b8d873564fddd2261fa3944263407add7f2f6ed0a28d0e0b45",
+    "valid-orphan-empty-set.dex": "5b45b0738170e25913fcfa5fae083894e3a2b1f1f7da23ce67eb5cdcb214882b",
+    "valid-orphan-external-directory.dex": "0dcf5a9924487fa99670feee9008b291b96b8e6bab5a4e92502708d102ed4179",
+    "valid-orphan-known-directory.dex": "a1fc24aa3a38a94eb5dce727b51d3b3cb90b6e91b10e367d6b87f16561f30871",
+    "valid-shared-empty-directory.dex": "ab0ab720a8b582577e0e083f7fafc598f77d6ec72e638e0cffb93d3868ee97b6",
+    "valid-shared-empty-set.dex": "36cfff5ba434f145ca2d0129288c057b370b7568805a1b58c9b067279b46ce73",
+    "valid-static-empty-array.dex": "5f5893e0993050a07da07cd5ee5a6680a91def094c888fa8b94364d52ed18b76"
+  },
+  "source_sha256": {
+    "crates/mdd-dex/src/annotations.rs": "a38771f4f6b9269f77fa69bf945fdff1d31091f461f1cd39640f4296e09e2e33",
+    "crates/mdd-facts/src/annotations.rs": "e17b29d726109e82d07b50e9a077812f88069ad9060d1418f4cce70e856d3a09",
+    "crates/mdd-facts/examples/annotation_summary.rs": "3b918dbcd62422d84b89d514415b8b2ff996df728414d916647bfe8eed82dd85",
+    "conformance/relations/annotation-and-signature.json": "8b1ec28889e7baa6f64e4ef1eb1d214bb8b4832a6ea4890f7509e11146d301c3",
+    "Cargo.lock": "954c2066815c971595782dc799f9dcd64c4e3d1c748cc1133991788fb3942844",
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "tests/fixtures/annotations/generate.py": "6bed3eb45f8d0c887c600983a6470daca2be62d51a8b6a277294b3e18a622e22",
+    "tests/fixtures/annotations/oracle.py": "6a6bcbd430ecd9476bfaf64429f0bed4f1a452f802c683d126dcc4302e9c31fd",
+    "tests/fixtures/annotations/expected.json": "c5a0d073291b76a68db02e46102c2b860911428707be14c22b1fcfe5dc02b063",
+    "artifacts/mdd-022/reproduce.py": "22a9827a874f356237ad6187fbc0eba51a0a278f77a02ac023ca36c958d7ce86"
+  },
+  "consumer_binary": {
+    "path": "target/debug/examples/annotation_summary.exe",
+    "sha256": "a35928907ee5f053c7b33d0e39b23496d4f438d855b07d5d6bb5e023372102bf",
+    "bytes": 2629632
+  },
+  "synthetic_full_relation_comparison": [
+    {
+      "relation": "annotation_directories",
+      "rows": 1,
+      "full_schema_checked": true,
+      "equal_multiset": true,
+      "sha256": "b8bf891a07804ee6376eedc253845039aa607915dc6f1202d11ad3475f2c741d"
+    },
+    {
+      "relation": "annotation_directory_entries",
+      "rows": 5,
+      "full_schema_checked": true,
+      "equal_multiset": true,
+      "sha256": "09a3b0319ef1de01f70175b46fc3314745dcaa204e458002952cc931c17ce04c"
+    },
+    {
+      "relation": "annotation_set_entries",
+      "rows": 5,
+      "full_schema_checked": true,
+      "equal_multiset": true,
+      "sha256": "eca4df9849380111fb4d7ee36b501fcba55be43e719e68175ee4bb7d179393a1"
+    },
+    {
+      "relation": "annotation_set_refs",
+      "rows": 2,
+      "full_schema_checked": true,
+      "equal_multiset": true,
+      "sha256": "0f6ad4f335fd272ad69f1e8f7edd2ed3dee0983d6c4269b07443924348f257c8"
+    },
+    {
+      "relation": "annotations",
+      "rows": 4,
+      "full_schema_checked": true,
+      "equal_multiset": true,
+      "sha256": "accd07163f0505a93799af652ec2a100b0276c1aafb21e7d6091fa8ad421e6e9"
+    },
+    {
+      "relation": "annotation_elements",
+      "rows": 44,
+      "full_schema_checked": true,
+      "equal_multiset": true,
+      "sha256": "69010c1b081782dd203a92c679ef5f49b1c41f56ef207170854248fe167218ad"
+    }
+  ],
+  "independent_sdk_reference": "artifacts/mdd-022/probes/sdk-physical-items-20261028T110309794247Z.json",
+  "sdk_reference_scope": "same exact fixture SHA observations; not rerun by this conformance invocation",
+  "A0_reference": "artifacts/mdd-022/probes/reference-results.json",
+  "A0_comparison": "artifacts/mdd-022/probes/oracle-comparison.json",
+  "public_input": {
+    "path": "artifacts/local/inputs/NewPipe_v0.28.6.apk",
+    "sha256": "e56ef6280b700696172797f94513ffd3f9aae9349945a2f06e235ec24446be58",
+    "bytes": 10885562,
+    "result_path": "artifacts/mdd-022/validation/20261109T044137588879Z/public-summary.json"
+  },
+  "acceptance": [
+    {
+      "ordinal": 1,
+      "status": "done",
+      "evidence": "Six full relation schemas, including all four mandatory relations, compared field/type/nullability/multiplicity with independent byte oracle and immutable A0 tiny results."
+    },
+    {
+      "ordinal": 2,
+      "status": "done",
+      "evidence": "Four synthetic owner Signatures retain exact fragment array order, repeated pieces, UTF16 units and source string_pool_id/String EntityRefs; same-snapshot duplicate occurrences remain distinct. Real NewPipe complete construction also succeeds."
+    },
+    {
+      "ordinal": 3,
+      "status": "done",
+      "evidence": "All supported encoded tags retain kind/arg/raw scalar payload/source range; integer precision, floating original width/bits and legal NaN/Infinity/-0.0 JSON projection verified. Invalid tags/widths/indices are errors, never empty text or unsupported fallback."
+    },
+    {
+      "ordinal": 4,
+      "status": "done",
+      "evidence": "All five physical variable sections traversed to real item starts; 42 SDK/independent classified DEX plus ten component vectors test orphan/shared-empty/interior/owner/order/slot cases, including static/call-site real starts, minimum CallSite arity and typed prefix, reference indices and feature version. External runtime bootstrap flags/targets are not inferred. Five independent budgets fail closed. Parameter prototype-position coverage remains explicitly unknown when list length differs; omitted slots never become NULL rows."
+    }
+  ],
+  "scope": "physical annotations/encoded values/ordered Signature fragments only; encoded parameter slots are complete, prototype-position coverage is separately gated",
+  "not_claimed": [
+    "complete DEX or ART runtime validity",
+    "static initial-value type compatibility",
+    "runtime bootstrap invocation/target/flags semantics",
+    "complete prototype-position annotation absence for short/long lists",
+    "HostLab or SQL profile qualification",
+    "private sample parsing",
+    "performance trial or speedup",
+    "native Linux validation for this implementation"
+  ],
+  "retained_failures": [
+    "artifacts/mdd-022/initial-production-checks.json",
+    "artifacts/mdd-022/probes/initial-preflight-failures.json",
+    "artifacts/mdd-022/probes/parameter-arity-sdk/adjudication.json"
+  ],
+  "rollback": "Scope-revert new annotation modules/exports/example and their task registration; retain immutable probes/failure artifacts. Earlier definition/metadata/snapshot APIs remain independent; no production backend was switched."
+}

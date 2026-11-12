@@ -1,7 +1,9 @@
 """Fixed A1 opens a locked synthetic copy; no producer snapshot qualification."""
 import hashlib
 from pathlib import Path
+import runpy
 import sys
+import tempfile
 import uuid
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -23,7 +25,12 @@ if text.count(old) != 1:
 derived = text.replace(old, 'Path(' + repr(str(fixture)) + ').resolve(strict=True)')
 print('derived_probe_sha256=' + hashlib.sha256(derived.encode('utf-8')).hexdigest(), flush=True)
 with WindowsInputPin(source) as pin:
-    exec(compile(derived, str(reference), 'exec'), {'__name__': '__main__', '__file__': str(reference)})
+    # Stage the derived probe as a file and run it as a module instead of
+    # compiling source in-process.
+    with tempfile.TemporaryDirectory(dir=reference.parent, prefix='derived-') as staging:
+        staged = Path(staging) / 'a1_probe_derived.py'
+        staged.write_text(derived, encoding='utf-8', newline='\n')
+        runpy.run_path(str(staged), run_name='__main__')
     pin.verify()
     try:
         fixture.open('r+b')

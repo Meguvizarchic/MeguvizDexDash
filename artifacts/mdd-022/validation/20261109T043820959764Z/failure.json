@@ -1,0 +1,48 @@
+{
+  "run_id": "20261109T043820959764Z",
+  "success": false,
+  "commands": [
+    {
+      "label": "generate-1",
+      "path": "artifacts/mdd-022/validation/20261109T043820959764Z/generate-1.json",
+      "exit_code": 0
+    },
+    {
+      "label": "generate-2",
+      "path": "artifacts/mdd-022/validation/20261109T043820959764Z/generate-2.json",
+      "exit_code": 0
+    },
+    {
+      "label": "oracle",
+      "path": "artifacts/mdd-022/validation/20261109T043820959764Z/oracle.json",
+      "exit_code": 0
+    },
+    {
+      "label": "oracle-optimized",
+      "path": "artifacts/mdd-022/validation/20261109T043820959764Z/oracle-optimized.json",
+      "exit_code": 0
+    },
+    {
+      "label": "A0-compare",
+      "path": "artifacts/mdd-022/validation/20261109T043820959764Z/A0-compare.json",
+      "exit_code": 0
+    },
+    {
+      "label": "targeted-tests",
+      "path": "artifacts/mdd-022/validation/20261109T043820959764Z/targeted-tests.json",
+      "exit_code": 0
+    },
+    {
+      "label": "facts-doc-tests",
+      "path": "artifacts/mdd-022/validation/20261109T043820959764Z/facts-doc-tests.json",
+      "exit_code": 101
+    }
+  ],
+  "completed": [
+    "42 immutable SDK observations match current exact fixture hashes and classifications"
+  ],
+  "error": {
+    "type": "ValueError",
+    "message": "command failed: facts-doc-tests"
+  }
+}

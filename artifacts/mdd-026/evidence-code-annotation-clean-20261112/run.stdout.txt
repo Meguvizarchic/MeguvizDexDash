@@ -1,0 +1,1 @@
+{"path": "artifacts\\mdd-026\\evidence-code-annotation-clean-20261112", "columns": 57, "satisfied": 55, "partial": 2, "partial_columns": ["annotation_elements.file_id", "classes.file_id"], "task_complete_proven": false}

@@ -1,0 +1,634 @@
+{
+  "schema_version": "mdd.relation-projection-mapping.v1",
+  "created_utc": "2026-11-11T09:12:11.562768+00:00",
+  "task": "MDD-026",
+  "scope": "six relations that were unassembled_production_relation in the frozen HostLab contract",
+  "contract": "conformance/manifests/relations.json",
+  "contract_sha256": "f416926d6da3467b5cfea625978c2e4faac08c914cf2930d2c64878c261bb82d",
+  "summary": {
+    "relations": 6,
+    "contract_columns": 69,
+    "assembled_columns": 64,
+    "unassembled_columns": 5
+  },
+  "relations": [
+    {
+      "relation": "dex_files",
+      "contract_columns": 28,
+      "assembled_columns": 26,
+      "unassembled_columns": 2,
+      "projection_api": "MetadataFacts::dex_file_rows(file_id, string_pool_id) -> Vec<DexFileRow>",
+      "column_gate": "MetadataFacts::require_relation_columns(MetadataRelation::DexFiles, ..)",
+      "row_type": "DexFileRow",
+      "columns": [
+        {
+          "name": "file_id",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled_caller_catalog_coordinate",
+          "native_source": "caller_supplied_catalog_coordinate",
+          "note": "row API argument; same convention as every other fact row API"
+        },
+        {
+          "name": "string_pool_id",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled_caller_catalog_coordinate",
+          "native_source": "caller_supplied_catalog_coordinate",
+          "note": "row API argument; native StringPoolIdentity::string_pool_id is an opaque String and no UInt32 catalog assigner exists"
+        },
+        {
+          "name": "source_path",
+          "data_type": "Utf8",
+          "nullable": false,
+          "state": "unassembled",
+          "native_source": null,
+          "note": "owned by Snapshot SourceIdentity::origin_display (Option<String>); not part of MetadataFacts"
+        },
+        {
+          "name": "entry_name",
+          "data_type": "Utf8",
+          "nullable": false,
+          "state": "unassembled",
+          "native_source": null,
+          "note": "owned by ArchiveInventory MemberIdentity raw_name/name_utf8; not part of MetadataFacts"
+        },
+        {
+          "name": "byte_len",
+          "data_type": "UInt64",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "MetadataFacts::bytes().len() of the same validated DEX member",
+          "note": ""
+        },
+        {
+          "name": "dex_version",
+          "data_type": "Utf8",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "DexHeader::version",
+          "note": ""
+        },
+        {
+          "name": "checksum",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "DexHeader::declared_checksum (verified Adler32)",
+          "note": ""
+        },
+        {
+          "name": "signature_hex",
+          "data_type": "Utf8",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "DexHeader::declared_signature_sha1 (verified SHA1, 40 lowercase hex)",
+          "note": ""
+        },
+        {
+          "name": "file_size",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "DexHeader::file_size",
+          "note": ""
+        },
+        {
+          "name": "header_size",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "DexHeader::header_range.byte_length",
+          "note": ""
+        },
+        {
+          "name": "endian_tag",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "raw little-endian header word at byte offset 40",
+          "note": ""
+        },
+        {
+          "name": "link_size",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "raw little-endian header word at byte offset 44; encoded zero when no link section exists",
+          "note": ""
+        },
+        {
+          "name": "link_off",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "raw little-endian header word at byte offset 48; encoded zero when no link section exists",
+          "note": ""
+        },
+        {
+          "name": "map_off",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "raw little-endian header word at byte offset 52",
+          "note": ""
+        },
+        {
+          "name": "string_count",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "DexHeader::tables[string_ids].count",
+          "note": ""
+        },
+        {
+          "name": "string_ids_off",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "DexHeader::tables[string_ids].range.byte_offset",
+          "note": ""
+        },
+        {
+          "name": "type_count",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "DexHeader::tables[type_ids].count",
+          "note": ""
+        },
+        {
+          "name": "type_ids_off",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "DexHeader::tables[type_ids].range.byte_offset",
+          "note": ""
+        },
+        {
+          "name": "proto_count",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "DexHeader::tables[proto_ids].count",
+          "note": ""
+        },
+        {
+          "name": "proto_ids_off",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "DexHeader::tables[proto_ids].range.byte_offset",
+          "note": ""
+        },
+        {
+          "name": "field_count",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "DexHeader::tables[field_ids].count",
+          "note": ""
+        },
+        {
+          "name": "field_ids_off",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "DexHeader::tables[field_ids].range.byte_offset",
+          "note": ""
+        },
+        {
+          "name": "method_count",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "DexHeader::tables[method_ids].count",
+          "note": ""
+        },
+        {
+          "name": "method_ids_off",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "DexHeader::tables[method_ids].range.byte_offset",
+          "note": ""
+        },
+        {
+          "name": "class_count",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "DexHeader::tables[class_defs].count",
+          "note": ""
+        },
+        {
+          "name": "class_defs_off",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "DexHeader::tables[class_defs].range.byte_offset",
+          "note": ""
+        },
+        {
+          "name": "data_size",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "DexHeader::data_range.byte_length",
+          "note": ""
+        },
+        {
+          "name": "data_off",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "DexHeader::data_range.byte_offset",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "relation": "strings",
+      "contract_columns": 3,
+      "assembled_columns": 3,
+      "unassembled_columns": 0,
+      "projection_api": "MetadataFacts::string_rows(file_id, string_pool_id) -> Vec<StringRow>",
+      "column_gate": "MetadataFacts::require_relation_columns(MetadataRelation::Strings, ..)",
+      "row_type": "StringRow",
+      "columns": [
+        {
+          "name": "string_pool_id",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled_caller_catalog_coordinate",
+          "native_source": "caller_supplied_catalog_coordinate",
+          "note": "row API argument; native StringPoolIdentity::string_pool_id is an opaque String and no UInt32 catalog assigner exists"
+        },
+        {
+          "name": "string_idx",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "StringFact::data::string_idx",
+          "note": ""
+        },
+        {
+          "name": "value",
+          "data_type": "Utf8View",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "DexText::strict_utf8(); a legal non-scalar DEX string is rejected with UnsupportedQuery instead of a lossy placeholder",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "relation": "types",
+      "contract_columns": 4,
+      "assembled_columns": 4,
+      "unassembled_columns": 0,
+      "projection_api": "MetadataFacts::type_rows(file_id) -> Vec<TypeRow>",
+      "column_gate": "MetadataFacts::require_relation_columns(MetadataRelation::Types, ..)",
+      "row_type": "TypeRow",
+      "columns": [
+        {
+          "name": "file_id",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled_caller_catalog_coordinate",
+          "native_source": "caller_supplied_catalog_coordinate",
+          "note": "row API argument"
+        },
+        {
+          "name": "type_idx",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "TypeFact::data::type_idx",
+          "note": ""
+        },
+        {
+          "name": "descriptor",
+          "data_type": "Utf8",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "TypeFact::data::descriptor",
+          "note": ""
+        },
+        {
+          "name": "java_name",
+          "data_type": "Utf8",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "MetadataFacts::java_type_name (exact descriptor grammar with version-specific rules)",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "relation": "methods",
+      "contract_columns": 14,
+      "assembled_columns": 11,
+      "unassembled_columns": 3,
+      "projection_api": "DefinitionFacts::method_rows(file_id) -> Vec<MethodRow>",
+      "column_gate": "DefinitionFacts::require_relation_columns(DefinitionRelation::Methods, ..)",
+      "row_type": "MethodRow",
+      "columns": [
+        {
+          "name": "file_id",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled_caller_catalog_coordinate",
+          "native_source": "caller_supplied_catalog_coordinate",
+          "note": "row API argument"
+        },
+        {
+          "name": "method_idx",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "MethodReference::method_idx; reference IDs are retained without a definition",
+          "note": ""
+        },
+        {
+          "name": "class_idx",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "MethodReference::class_idx",
+          "note": ""
+        },
+        {
+          "name": "class_descriptor",
+          "data_type": "Utf8View",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "MethodReference::class_descriptor",
+          "note": ""
+        },
+        {
+          "name": "proto_idx",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "MethodReference::proto_idx",
+          "note": ""
+        },
+        {
+          "name": "name",
+          "data_type": "Utf8View",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "MethodReference::method_name",
+          "note": ""
+        },
+        {
+          "name": "descriptor",
+          "data_type": "Utf8View",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "MethodReference::descriptor",
+          "note": ""
+        },
+        {
+          "name": "return_descriptor",
+          "data_type": "Utf8View",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "MethodReference::return_descriptor",
+          "note": ""
+        },
+        {
+          "name": "param_count",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "MethodReference::parameter_descriptors.len()",
+          "note": ""
+        },
+        {
+          "name": "param_descriptors",
+          "data_type": "Utf8View",
+          "nullable": false,
+          "state": "unassembled",
+          "native_source": null,
+          "note": "engine self-reports IncompleteFacts: \"native parameter descriptors are exact; compatibility text encoding is not qualified\""
+        },
+        {
+          "name": "access_flags",
+          "data_type": "UInt32",
+          "nullable": true,
+          "state": "assembled",
+          "native_source": "MethodDefinition::access_flags; genuine NULL for reference-only members",
+          "note": ""
+        },
+        {
+          "name": "opcode_count",
+          "data_type": "UInt32",
+          "nullable": true,
+          "state": "unassembled",
+          "native_source": null,
+          "note": "engine self-reports IncompleteFacts: requires the code_layout layer; not fabricated here"
+        },
+        {
+          "name": "opcode_hex",
+          "data_type": "Utf8View",
+          "nullable": true,
+          "state": "unassembled",
+          "native_source": null,
+          "note": "engine self-reports IncompleteFacts: requires the code_layout layer; not fabricated here"
+        },
+        {
+          "name": "method_kind",
+          "data_type": "Utf8",
+          "nullable": true,
+          "state": "assembled",
+          "native_source": "MethodDefinition::kind (direct/virtual); genuine NULL for reference-only members",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "relation": "classes",
+      "contract_columns": 8,
+      "assembled_columns": 8,
+      "unassembled_columns": 0,
+      "projection_api": "DefinitionFacts::class_rows(file_id) -> Vec<ClassRow>",
+      "column_gate": "DefinitionFacts::require_relation_columns(DefinitionRelation::Classes, ..)",
+      "row_type": "ClassRow",
+      "columns": [
+        {
+          "name": "file_id",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled_caller_catalog_coordinate",
+          "native_source": "caller_supplied_catalog_coordinate",
+          "note": "row API argument"
+        },
+        {
+          "name": "class_def_idx",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "ClassDefinition::class_def_idx",
+          "note": ""
+        },
+        {
+          "name": "class_idx",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "ClassDefinition::class_idx",
+          "note": ""
+        },
+        {
+          "name": "descriptor",
+          "data_type": "Utf8",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "ClassDefinition::descriptor",
+          "note": ""
+        },
+        {
+          "name": "access_flags",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "ClassDefinition::access_flags",
+          "note": ""
+        },
+        {
+          "name": "superclass_descriptor",
+          "data_type": "Utf8",
+          "nullable": true,
+          "state": "assembled",
+          "native_source": "ClassDefinition::superclass_descriptor; encoded NO_INDEX projects as genuine NULL",
+          "note": ""
+        },
+        {
+          "name": "interface_count",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "count(InterfaceDefinition where the same class_def_idx)",
+          "note": ""
+        },
+        {
+          "name": "source_file",
+          "data_type": "Utf8",
+          "nullable": true,
+          "state": "assembled",
+          "native_source": "ClassDefinition::source_file DexText::strict_utf8(); encoded NO_INDEX projects as genuine NULL and non-scalar text is rejected, never converted lossily",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "relation": "code_items",
+      "contract_columns": 12,
+      "assembled_columns": 12,
+      "unassembled_columns": 0,
+      "projection_api": "MethodCodeFactViews::code_item_rows(file_id) -> Vec<CodeItemRow>",
+      "column_gate": "MethodCodeFactViews::require_relation_columns(CodeRelation::CodeItems, ..)",
+      "row_type": "CodeItemRow",
+      "columns": [
+        {
+          "name": "file_id",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled_caller_catalog_coordinate",
+          "native_source": "caller_supplied_catalog_coordinate",
+          "note": "row API argument"
+        },
+        {
+          "name": "method_idx",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "DefinitionFacts method definition joined to the same-occurrence CodeFacts physical start; a shared body expands once per owning method",
+          "note": ""
+        },
+        {
+          "name": "code_off",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "CodeItem::raw_range.byte_offset",
+          "note": ""
+        },
+        {
+          "name": "registers_size",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "CodeItem::registers_size",
+          "note": ""
+        },
+        {
+          "name": "ins_size",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "CodeItem::ins_size",
+          "note": ""
+        },
+        {
+          "name": "outs_size",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "CodeItem::outs_size",
+          "note": ""
+        },
+        {
+          "name": "tries_size",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "CodeItem::tries.len()",
+          "note": ""
+        },
+        {
+          "name": "debug_info_off",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "CodeItem::debug_info_byte_offset; an absent debug section is the encoded zero offset, not NULL",
+          "note": ""
+        },
+        {
+          "name": "insns_size",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "CodeItem::insns_size_code_units (code units, not an instruction count)",
+          "note": ""
+        },
+        {
+          "name": "insns_off",
+          "data_type": "UInt32",
+          "nullable": false,
+          "state": "assembled",
+          "native_source": "CodeItem::insns_range.byte_offset",
+          "note": ""
+        },
+        {
+          "name": "tries_off",
+          "data_type": "UInt32",
+          "nullable": true,
+          "state": "assembled",
+          "native_source": "validated insns end plus one u16 alignment word iff the code-unit count is odd and tries is nonempty; otherwise NULL",
+          "note": ""
+        },
+        {
+          "name": "handlers_off",
+          "data_type": "UInt32",
+          "nullable": true,
+          "state": "assembled",
+          "native_source": "validated tries_off + tries_size*8 iff the try list is nonempty; otherwise NULL",
+          "note": ""
+        }
+      ]
+    }
+  ]
+}

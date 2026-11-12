@@ -1,0 +1,114 @@
+{
+  "schema_version": "mdd.audit.record.v1",
+  "task": "MDD-033",
+  "phase": "M3",
+  "artifact": "catalog-cursors-20261111",
+  "generated_at": "2026-11-11T00:00:00Z",
+  "admitted": false,
+  "task_complete_proven": false,
+  "profile_admitted": false,
+  "claim": "implementation-and-self-test evidence only; no admission, no profile issuance",
+  "changed_files": [
+    "crates/mdd-session/src/lib.rs",
+    "crates/mdd-session/src/catalog.rs",
+    "crates/mdd-session/src/cursors.rs"
+  ],
+  "untouched_protected": [
+    "Cargo.toml",
+    "Cargo.lock",
+    "STATE.md",
+    "tasks/backlog.json",
+    "artifacts (outside this directory)",
+    "crates/mdd-sql",
+    "crates/mdd-query",
+    "crates/mdd-facts",
+    "crates/mdd-dex",
+    "crates/mdd-input",
+    "crates/mdd-types",
+    "conformance"
+  ],
+  "export_changes_pending_main_agent": [
+    "crates/mdd-session/src/lib.rs: mod catalog -> pub mod catalog",
+    "crates/mdd-session/src/lib.rs: mod cursors -> pub mod cursors"
+  ],
+  "verification": {
+    "cargo_test_mdd_session": {
+      "command": "cargo test --offline -p mdd-session",
+      "result": "53 passed; 0 failed; 0 ignored",
+      "doc_tests": "0 passed",
+      "stdout": "test.stdout.txt"
+    },
+    "cargo_clippy_mdd_session": {
+      "command": "cargo clippy --offline -p mdd-session --all-targets -- -D warnings",
+      "result": "0 warning, 0 error, exit 0",
+      "stdout": "clippy.stdout.txt"
+    },
+    "regression_mdd_query": {
+      "command": "cargo test --offline -p mdd-query",
+      "result": "201 passed; 0 failed; 3 doc-tests passed"
+    },
+    "regression_mdd_sql": {
+      "command": "cargo test --offline -p mdd-sql",
+      "result": "213 passed; 0 failed; 1 doc-test passed"
+    },
+    "regression_mdd_worker": {
+      "command": "cargo test --offline -p mdd-worker",
+      "result": "1 passed; 0 failed"
+    }
+  },
+  "mutation_verification": {
+    "code_functions_injected": 3,
+    "code_tests_red": 4,
+    "code_stdout": "mutation-cursors.red.txt",
+    "catalog_guards_disabled": 3,
+    "catalog_tests_red": 3,
+    "catalog_stdout": "mutation-catalog.red.txt",
+    "restored_and_regreen": true
+  },
+  "new_tests": [
+    {"module": "catalog", "name": "create_publishes_names_and_binds_generations", "acceptance": [2]},
+    {"module": "catalog", "name": "cycle_and_self_reference_are_rejected_without_advancing_the_epoch", "acceptance": [5]},
+    {"module": "catalog", "name": "if_not_exists_keeps_the_original_definition_and_ignores_the_new_body", "acceptance": [5]},
+    {"module": "catalog", "name": "redefine_replaces_kind_and_drop_requires_the_matching_kind", "acceptance": [5]},
+    {"module": "catalog", "name": "drop_of_an_absent_name_reports_the_kind_and_if_exists_is_a_noop", "acceptance": [5]},
+    {"module": "catalog", "name": "forward_reference_is_rejected_and_the_definition_is_not_published", "acceptance": [5]},
+    {"module": "catalog", "name": "as_select_stays_deferred_until_the_sql_layer_injects_a_matching_handle", "acceptance": [5]},
+    {"module": "catalog", "name": "catalog_is_session_local_and_generations_do_not_leak", "acceptance": [5]},
+    {"module": "catalog", "name": "prepared_query_keeps_its_temp_generation_after_a_redefinition", "acceptance": [2]},
+    {"module": "catalog", "name": "drop_retains_the_generation_an_existing_query_already_bound", "acceptance": [2]},
+    {"module": "cursors", "name": "native_cursor_binds_every_identity_component", "acceptance": [1]},
+    {"module": "cursors", "name": "forged_worker_generation_is_rejected", "acceptance": [1]},
+    {"module": "cursors", "name": "a_new_worker_generation_invalidates_older_cursors", "acceptance": [1]},
+    {"module": "cursors", "name": "cursor_requires_a_complete_fingerprint_spec", "acceptance": [1]},
+    {"module": "cursors", "name": "native_page_envelope_and_metadata_agree", "acceptance": [4]},
+    {"module": "cursors", "name": "same_sql_same_schema_different_source_cannot_be_stitched", "acceptance": [3]},
+    {"module": "cursors", "name": "changed_schema_or_total_between_pages_is_rejected", "acceptance": [3]},
+    {"module": "cursors", "name": "inexact_total_is_also_fixed_by_the_first_page", "acceptance": [3]},
+    {"module": "cursors", "name": "response_paging_over_a_relational_limit_is_rejected", "acceptance": [3, 4]},
+    {"module": "cursors", "name": "paging_modes_never_share_a_token", "acceptance": [3, 4]},
+    {"module": "cursors", "name": "compat_offset_walks_pages_with_lookahead_and_no_cursor", "acceptance": [4]},
+    {"module": "cursors", "name": "compat_offset_rejects_offset_gaps_source_change_and_missing_lookahead", "acceptance": [4]},
+    {"module": "cursors", "name": "compat_offset_budget_and_epoch_observation_are_explicit", "acceptance": [4]}
+  ],
+  "acceptance_status": {
+    "1_cursor_scope_binding": "implemented-in-mdd-session; end-to-end requires SQL-layer fingerprints",
+    "2_epoch_string_and_no_implicit_migration": "implemented-and-tested; TEMP entity now exists",
+    "3_mixed_page_rejection": "implemented-in-mdd-session; needs real SQL result wiring",
+    "4_compat_offset_contract": "contract-implemented; CLI/HTTP entry not wired",
+    "5_temp_catalog_semantics": "implemented-and-tested; AS SELECT materialization deferred to SQL layer"
+  },
+  "not_run": [
+    "real engine oracle replay (A0/A1)",
+    "end-to-end paging over a real APK",
+    "conformance/session/catalog-and-paging.json entries",
+    "mdd-cli pagination_modes declaration"
+  ],
+  "blocked_on_main_agent": [
+    "pub mod catalog / pub mod cursors export",
+    "SqlResult paging fields (mdd-sql)",
+    "TerminalBuilder::page call sites in mdd-query/mdd-sql",
+    "CREATE TEMP SQL grammar in mdd-sql",
+    "conformance/session/catalog-and-paging.json authoring",
+    "backlog/STATE ledger updates"
+  ]
+}

@@ -66,7 +66,24 @@ def main():
             prior=sdk_by_path[fixture["path"]]
             require(prior["fixture_sha256"]==fixture["sha256"] and prior["matches_expectation"],"SDK observation identity/classification changed")
         completed.append(str(len(manifest["files"]))+" immutable SDK observations match current exact fixture hashes and classifications")
-        command("targeted-tests",["cargo","test","--locked","--offline","-p","mdd-dex","-p","mdd-facts","annotations::"])
+        targeted=command("targeted-tests",["cargo","test","--locked","--offline","-p","mdd-dex","-p","mdd-facts","annotations::"])
+        # Parse the real per-crate pass counts instead of hard-coding them, so a
+        # shrinking suite cannot be reported as the historical 5+4 sizes.
+        # `Running unittests src\lib.rs (...mdd_dex-<hash>.exe)` carries the crate
+        # name only in the executable stem, so match on that. The first lib
+        # result belongs to mdd-dex and the second to mdd-facts, matching the
+        # `-p mdd-dex -p mdd-facts` order on the command line.
+        targeted_counts={"mdd-dex":0,"mdd-facts":0}
+        lib_results=[]
+        for line in targeted["stdout"].splitlines():
+            if line.startswith("test result: ok. ") and "filtered out" in line:
+                lib_results.append(int(line.split("ok. ")[1].split(" passed")[0]))
+        require(len(lib_results)>=2,"targeted lib results missing")
+        # The trailing entries are the integration/doc targets; the two lib
+        # summaries are the first two lib targets emitted for these crates.
+        targeted_counts["mdd-dex"]=lib_results[0]
+        targeted_counts["mdd-facts"]=lib_results[1]
+        require(targeted_counts["mdd-dex"]>0 and targeted_counts["mdd-facts"]>0,"targeted counts unparsed")
         command("facts-doc-tests",["cargo","test","--locked","--offline","-p","mdd-facts","--doc"])
         command("clippy",["cargo","clippy","--locked","--offline","-p","mdd-dex","-p","mdd-facts","--all-targets","--","-D","warnings"])
         command("format",["rustfmt","--check","--edition","2024","crates/mdd-dex/src/annotations.rs","crates/mdd-facts/src/annotations.rs","crates/mdd-facts/examples/annotation_summary.rs"])
@@ -115,7 +132,7 @@ def main():
         source_paths=[ROOT/"crates/mdd-dex/src/annotations.rs",ROOT/"crates/mdd-facts/src/annotations.rs",ROOT/"crates/mdd-facts/examples/annotation_summary.rs",ROOT/"conformance/relations/annotation-and-signature.json",ROOT/"Cargo.lock",ROOT/"rust-toolchain.toml",FIXTURES/"generate.py",FIXTURES/"oracle.py",FIXTURES/"expected.json",Path(__file__).resolve()]
         executable=ROOT/"target/debug/examples"/("annotation_summary.exe" if platform.system()=="Windows" else "annotation_summary")
         report={"schema_version":"mdd.annotation-conformance.v1","task_id":"MDD-022","run_id":run_id,"platform":platform.platform(),"machine":platform.machine(),"python":sys.version,
-            "commands":records,"success":True,"targeted_reader_tests":5,"targeted_facts_tests":4,"fixture_count":len(manifest["files"]),"fixture_sha256":generations[1],
+            "commands":records,"success":True,"targeted_reader_tests":targeted_counts["mdd-dex"],"targeted_facts_tests":targeted_counts["mdd-facts"],"fixture_count":len(manifest["files"]),"fixture_sha256":generations[1],
             "source_sha256":{path.relative_to(ROOT).as_posix():digest(path) for path in source_paths},
             "consumer_binary":{"path":executable.relative_to(ROOT).as_posix(),"sha256":digest(executable),"bytes":executable.stat().st_size},
             "synthetic_full_relation_comparison":comparison,"independent_sdk_reference":sdk_path.relative_to(ROOT).as_posix(),

@@ -6,6 +6,20 @@ import sqlite3
 
 HERE=Path(__file__).resolve().parent
 LITERALS=('2147483647','2147483648','-2147483647','-2147483648','+2147483648','1.0')
+OPERATORS=('ORDER BY','GROUP BY')
+
+
+def build_statement(operator, expression):
+    """Compose a statement from this file's frozen literal tables only.
+
+    Both arguments must be members of the module constants above, so no value
+    outside this script can reach the statement text.
+    """
+    if expression not in LITERALS:
+        raise RuntimeError('expression outside the frozen literal table: '+repr(expression))
+    if operator not in OPERATORS:
+        raise RuntimeError('operator outside the frozen operator table: '+repr(operator))
+    return 'SELECT v FROM t '+operator+' '+expression
 
 
 def main():
@@ -13,8 +27,8 @@ def main():
     try:
         db.execute('CREATE TABLE t(v INTEGER)');db.executemany('INSERT INTO t VALUES (?)',[(1,),(2,)])
         for expression in LITERALS:
-            for op in ('ORDER BY','GROUP BY'):
-                sql='SELECT v FROM t '+op+' '+expression
+            for op in OPERATORS:
+                sql=build_statement(op,expression)
                 try:
                     cursor=db.execute(sql)
                     records.append({'expression':expression,'operator':op,'sql':sql,'status':'ok',

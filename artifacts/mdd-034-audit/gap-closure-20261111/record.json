@@ -1,0 +1,77 @@
+{
+  "round": "gap-closure-20261111",
+  "supersedes": "cancel-fallback-isolation-20261111T065359Z",
+  "date": "2026-11-11",
+  "scope": "验收 3/4/5 的 Step-Reviewer 问题修复；仅改测试断言与文档措辞",
+  "admitted": false,
+  "profile_issued": false,
+  "export_changes_required": [],
+  "changed_tracked_files": [
+    "crates/mdd-query/src/executor/runtime_tests.rs"
+  ],
+  "unchanged_constraints": [
+    "crates/mdd-query/src/lib.rs pub mod 列表未改",
+    "Cargo.toml / Cargo.lock 未改",
+    "STATE.md / tasks/backlog.json 未改",
+    "其他 crate 未改",
+    "artifacts/mdd-034-audit/cancel-fallback-isolation-20261111T065359Z 未改",
+    "未新增生产依赖"
+  ],
+  "verification": {
+    "cargo_test": {
+      "command": "cargo test --offline -p mdd-query",
+      "exit": 0,
+      "lib_result": "201 passed; 0 failed; 0 ignored",
+      "doc_result": "3 passed; 0 failed; 0 ignored",
+      "log": "query-full.stdout.txt"
+    },
+    "cargo_clippy": {
+      "command": "cargo clippy --offline -p mdd-query --all-targets -- -D warnings",
+      "exit": 0,
+      "warnings": 0,
+      "log": "clippy.stdout.txt"
+    },
+    "focused_tests": {
+      "command": "cargo test --offline -p mdd-query executor::runtime_tests::<name> -- --exact --nocapture",
+      "tests": [
+        "production_queue_native_cancel_is_isolated_from_sibling_and_keeps_partial_failure",
+        "in_process_worker_lost_fails_inflight_query_and_is_not_a_fallback_error",
+        "compat_cancel_profile_closes_only_owning_dataset_and_is_distinct_from_native",
+        "fallback_whitelist_rejects_real_query_terminal_errors"
+      ],
+      "all_exit": 0,
+      "log": "query-new-tests.stdout.txt"
+    }
+  },
+  "reviewer_corrections": {
+    "P1-1_terminal_field_assertions_missing": "fixed",
+    "P1-2_is_complete_result_tautology": "fixed",
+    "P2-3_isolation_assertions_structurally_tautological": "fixed",
+    "P2-4_controlled_hard_kill_misnamed": "fixed",
+    "P2-5_sqlite_interrupt_irrelevant": "wording_corrected",
+    "P2-6_dead_code_marked_as_new_coverage": "label_corrected"
+  },
+  "acceptance_status": {
+    "1": "covered (原有刷新；本轮在取消/失败路径补 truncated/more_available/next_cursor 断言)",
+    "2": "covered (原有刷新，回归通过)",
+    "3": "partial (原生 cancel 隔离补强；SQLite 项为裸 rusqlite 库能力演示，非引擎实证；真实强杀执行中查询仍缺)",
+    "4": "partial (引擎行为正确；cancel_with_profile/CancelProfile 无生产调用方)",
+    "5": "partial/uncovered (门控纯函数已验证；fallback_allowed 无生产调用方，fallback 能力未接线；不得静默切换空洞成立)"
+  },
+  "dead_code": {
+    "cancel_with_profile": "no production caller (only mdd-session self tests + this round tests)",
+    "CancelProfile": "no production caller (only mdd-session self tests + this round tests)",
+    "fallback_allowed": "no production caller (only mdd-types self tests + this round tests)"
+  },
+  "hashes": {
+    "crates/mdd-query/src/executor/runtime_tests.rs": "f2315754a6d4592daeec9bc3477d2d47ddbd83e9d98b30c599989184d8f5cd4f",
+    "artifacts/mdd-034-audit/gap-closure-20261111/CORRECTIONS.md": "f9e9cd26432cdf5628d21b45d7db3ae02046328fb474820def8fa6656c5d1226",
+    "artifacts/mdd-034-audit/gap-closure-20261111/ASSERTIONS.md": "8675a82e7410951cc20531c45bf636e2ffca64e7f3059a2295ae4d2ecb5f011d",
+    "artifacts/mdd-034-audit/gap-closure-20261111/IMPLEMENTATION.md": "911ca1b5e0fb11a485e3da5319e03004545db57c86a251d41f2fd850277d0e7f",
+    "artifacts/mdd-034-audit/gap-closure-20261111/SUMMARY.md": "d810ce1f646f26f139abf5614d2e1d236490b7daec909d4d5b28c9b6d5bbef94",
+    "artifacts/mdd-034-audit/gap-closure-20261111/query-full.stdout.txt": "1d25bb7a3d367ae4c116268b18f41a23a03a3e8036b047271187f9361af99aca",
+    "artifacts/mdd-034-audit/gap-closure-20261111/query-new-tests.stdout.txt": "7fc7c673352e75dc8ac0cac3a07cec2ac684c7362b3572889e4e734bca9109e2",
+    "artifacts/mdd-034-audit/gap-closure-20261111/clippy.stdout.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "artifacts/mdd-034-audit/gap-closure-20261111/readback.txt": "12326e2d905f82dfc93f9f702f298d1dd1aff8d2a3550f7c031f22e9808b7288"
+  }
+}

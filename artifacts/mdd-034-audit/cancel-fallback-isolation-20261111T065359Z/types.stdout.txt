@@ -1,0 +1,23 @@
+
+running 13 tests
+test result::tests::fallback_is_exact_three_code_gate_and_never_replays_partial_or_mutated_work ... ok
+test result::tests::computed_spool_cancel_page_and_complete_zero_are_independent ... ok
+test result::tests::failure_terminal_preserves_existing_error_details ... ok
+test result::tests::exact_total_larger_than_delivered_is_not_complete ... ok
+test result::tests::consumer_count_errors_remain_failed_and_do_not_partially_commit ... ok
+test result::tests::blocking_warning_cannot_be_a_complete_result ... ok
+test result::tests::complete_result_requires_an_exact_matching_total ... ok
+test result::tests::success_validation_does_not_commit_and_can_be_followed_by_failure ... ok
+test tests::decimal_u64_is_lossless_and_strict ... ok
+test result::tests::pristine_builder_rejects_even_a_recorded_zero_row_batch ... ok
+test result::tests::coverage_execution_and_delivery_axes_are_independent_and_protocol_faults_sticky ... ok
+test result::tests::part_rows_error_and_eof_never_complete ... ok
+test tests::contract_examples_roundtrip_and_partial_states_do_not_pass ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

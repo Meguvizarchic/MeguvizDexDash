@@ -1,0 +1,314 @@
+{
+  "schema_version": "mdd-026-evidence-code-annotation-readback.v1",
+  "created_utc": "2026-11-11T07:05:02.553220+00:00",
+  "task": "MDD-026",
+  "task_complete_proven": false,
+  "profile_admitted": false,
+  "status": "passed",
+  "records_checked": 24,
+  "source_drift": [],
+  "fixture_drift": [],
+  "recomputed": {
+    "annotations": {
+      "row_counts": {
+        "annotation_directory_entries": {
+          "oracle": 10,
+          "native": 10,
+          "a0": 10
+        },
+        "annotation_set_entries": {
+          "oracle": 10,
+          "native": 10,
+          "a0": 10
+        },
+        "annotations": {
+          "oracle": 8,
+          "native": 8,
+          "a0": 8
+        },
+        "annotation_elements": {
+          "oracle": 88,
+          "native": 88,
+          "a0": 88
+        }
+      },
+      "exact_duplicate_rows_compared": {
+        "annotation_directory_entries": 0,
+        "annotation_set_entries": 0,
+        "annotations": 0,
+        "annotation_elements": 0
+      },
+      "null_coverage": {
+        "annotation_directory_entries": {
+          "file_id": {
+            "null": 0,
+            "non_null": 10
+          },
+          "class_idx": {
+            "null": 0,
+            "non_null": 10
+          },
+          "annotations_off": {
+            "null": 0,
+            "non_null": 10
+          },
+          "entry_kind": {
+            "null": 0,
+            "non_null": 10
+          },
+          "entry_idx": {
+            "null": 0,
+            "non_null": 10
+          },
+          "annotation_set_off": {
+            "null": 4,
+            "non_null": 6
+          },
+          "annotation_set_ref_list_off": {
+            "null": 6,
+            "non_null": 4
+          }
+        },
+        "annotation_set_entries": {
+          "file_id": {
+            "null": 0,
+            "non_null": 10
+          },
+          "annotation_set_off": {
+            "null": 0,
+            "non_null": 10
+          },
+          "ordinal": {
+            "null": 0,
+            "non_null": 10
+          },
+          "annotation_off": {
+            "null": 0,
+            "non_null": 10
+          }
+        },
+        "annotations": {
+          "file_id": {
+            "null": 0,
+            "non_null": 8
+          },
+          "annotation_off": {
+            "null": 0,
+            "non_null": 8
+          },
+          "visibility": {
+            "null": 0,
+            "non_null": 8
+          },
+          "type_idx": {
+            "null": 0,
+            "non_null": 8
+          },
+          "element_count": {
+            "null": 0,
+            "non_null": 8
+          }
+        },
+        "annotation_elements": {
+          "file_id": {
+            "null": 0,
+            "non_null": 88
+          },
+          "annotation_off": {
+            "null": 0,
+            "non_null": 88
+          },
+          "depth": {
+            "null": 0,
+            "non_null": 88
+          },
+          "ordinal": {
+            "null": 0,
+            "non_null": 88
+          },
+          "name_idx": {
+            "null": 32,
+            "non_null": 56
+          },
+          "value_off": {
+            "null": 0,
+            "non_null": 88
+          },
+          "value_end_off": {
+            "null": 0,
+            "non_null": 88
+          },
+          "value_kind": {
+            "null": 0,
+            "non_null": 88
+          },
+          "value_index": {
+            "null": 40,
+            "non_null": 48
+          },
+          "value_i64": {
+            "null": 72,
+            "non_null": 16
+          },
+          "value_f64": {
+            "null": 74,
+            "non_null": 14
+          }
+        }
+      }
+    },
+    "code_items": {
+      "row_counts": {
+        "oracle": 7,
+        "native": 7
+      },
+      "exact_duplicate_rows_compared": 0,
+      "null_coverage": {
+        "file_id": {
+          "null": 0,
+          "non_null": 7
+        },
+        "method_idx": {
+          "null": 0,
+          "non_null": 7
+        },
+        "code_off": {
+          "null": 0,
+          "non_null": 7
+        },
+        "registers_size": {
+          "null": 0,
+          "non_null": 7
+        },
+        "ins_size": {
+          "null": 0,
+          "non_null": 7
+        },
+        "outs_size": {
+          "null": 0,
+          "non_null": 7
+        },
+        "tries_size": {
+          "null": 0,
+          "non_null": 7
+        },
+        "debug_info_off": {
+          "null": 0,
+          "non_null": 7
+        },
+        "insns_size": {
+          "null": 0,
+          "non_null": 7
+        },
+        "insns_off": {
+          "null": 0,
+          "non_null": 7
+        },
+        "tries_off": {
+          "null": 5,
+          "non_null": 2
+        },
+        "handlers_off": {
+          "null": 5,
+          "non_null": 2
+        }
+      }
+    },
+    "classes": {
+      "row_counts": {
+        "oracle": 4,
+        "native": 4
+      },
+      "exact_duplicate_rows_compared": 0,
+      "null_coverage": {
+        "file_id": {
+          "null": 0,
+          "non_null": 4
+        },
+        "class_def_idx": {
+          "null": 0,
+          "non_null": 4
+        },
+        "class_idx": {
+          "null": 0,
+          "non_null": 4
+        },
+        "descriptor": {
+          "null": 0,
+          "non_null": 4
+        },
+        "access_flags": {
+          "null": 0,
+          "non_null": 4
+        },
+        "superclass_descriptor": {
+          "null": 1,
+          "non_null": 3
+        },
+        "interface_count": {
+          "null": 0,
+          "non_null": 4
+        },
+        "source_file": {
+          "null": 1,
+          "non_null": 3
+        }
+      }
+    },
+    "method_calls": {
+      "row_counts": {
+        "oracle": 16,
+        "native": 16,
+        "a0": 16
+      },
+      "exact_duplicate_rows_compared": 8,
+      "null_coverage": {
+        "file_id": {
+          "null": 0,
+          "non_null": 16
+        },
+        "method": {
+          "null": 0,
+          "non_null": 16
+        },
+        "method_class": {
+          "null": 0,
+          "non_null": 16
+        },
+        "method_name": {
+          "null": 0,
+          "non_null": 16
+        },
+        "class_idx": {
+          "null": 0,
+          "non_null": 16
+        },
+        "method_idx": {
+          "null": 0,
+          "non_null": 16
+        },
+        "callee": {
+          "null": 0,
+          "non_null": 16
+        },
+        "callee_class": {
+          "null": 0,
+          "non_null": 16
+        },
+        "callee_name": {
+          "null": 0,
+          "non_null": 16
+        },
+        "callee_method_idx": {
+          "null": 0,
+          "non_null": 16
+        }
+      }
+    }
+  },
+  "columns_checked": 342,
+  "limits": [
+    "Readback recomputes native/oracle/A0 comparisons from recorded terminals; it does not re-run the Rust probes.",
+    "Source drift is reported, not repaired; a drifted source means the recorded native terminal was produced from a different working tree."
+  ]
+}

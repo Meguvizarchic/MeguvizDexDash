@@ -1,0 +1,1 @@
+{"path": "artifacts/mdd-026/current-source-rerun-20261109/20261109T050254404212Z/field_type_multi_source", "field_sites": 6, "type_sites": 6, "a0_rows": {"method_field_accesses": 7, "method_used_types": 6}, "task_complete_proven": false}

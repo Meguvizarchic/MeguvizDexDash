@@ -1,0 +1,1 @@
+{"path": "artifacts/mdd-026/current-source-rerun-20261109/20261109T050453443034Z/dynamic_orphan_multi_source", "sites": 57, "dynamic_calls": 4, "unowned_code_items": 1, "a0_rows": 20, "task_complete_proven": false}

@@ -1,0 +1,225 @@
+### dex_files  input=tests/fixtures/generated/multidex-stored.apk
+SQL: SELECT file_id,string_pool_id,entry_name FROM dex_files ORDER BY file_id
++---------+----------------+--------------+
+| file_id | string_pool_id | entry_name   |
++---------+----------------+--------------+
+| 0       | 0              | classes.dex  |
+| 1       | 1              | classes2.dex |
++---------+----------------+--------------+
+
+### strings  input=tests/fixtures/references/generated/classic-035.dex
+SQL: SELECT string_pool_id,string_idx,value FROM strings ORDER BY string_pool_id,string_idx LIMIT 5
++----------------+------------+--------------------+
+| string_pool_id | string_idx | value              |
++----------------+------------+--------------------+
+| 0              | 0          | I                  |
+| 0              | 1          | Lfixture/A;        |
+| 0              | 2          | Lfixture/External; |
+| 0              | 3          | Ljava/lang/Object; |
+| 0              | 4          | Ljava/lang/String; |
++----------------+------------+--------------------+
+
+### types  input=tests/fixtures/definitions/generated/definitions-035.dex
+SQL: SELECT file_id,type_idx,descriptor,java_name FROM types ORDER BY type_idx
++---------+----------+--------------------+------------------+
+| file_id | type_idx | descriptor         | java_name        |
++---------+----------+--------------------+------------------+
+| 0       | 0        | I                  | int              |
+| 0       | 1        | Lfixture/Base;     | fixture.Base     |
+| 0       | 2        | Lfixture/Child;    | fixture.Child    |
+| 0       | 3        | Lfixture/External; | fixture.External |
+| 0       | 4        | Lfixture/I0;       | fixture.I0       |
+| 0       | 5        | Lfixture/I1;       | fixture.I1       |
+| 0       | 6        | Ljava/lang/Object; | java.lang.Object |
+| 0       | 7        | V                  | void             |
+| 0       | 8        | [Lfixture/Base;    | fixture.Base[]   |
++---------+----------+--------------------+------------------+
+
+### methods  input=tests/fixtures/definitions/generated/definitions-035.dex
+SQL: SELECT file_id,method_idx,class_idx,param_descriptors,opcode_count,opcode_hex,method_kind FROM methods ORDER BY method_idx
++---------+------------+-----------+-------------------+--------------+------------+-------------+
+| file_id | method_idx | class_idx | param_descriptors | opcode_count | opcode_hex | method_kind |
++---------+------------+-----------+-------------------+--------------+------------+-------------+
+| 0       | 0          | 1         |                   | 2            | 70 0e      | direct      |
+| 0       | 1          | 1         |                   | 0            |            | direct      |
+| 0       | 2          | 1         |                   | 1            | 0e         | direct      |
+| 0       | 3          | 1         | I                 | 1            | 0f         | direct      |
+| 0       | 4          | 1         |                   | 1            | 0e         | virtual     |
+| 0       | 5          | 2         |                   | 2            | 70 0e      | direct      |
+| 0       | 6          | 2         |                   | 0            |            | virtual     |
+| 0       | 7          | 2         | I                 | 1            | 0f         | virtual     |
+| 0       | 8          | 3         | I                 | NULL         | NULL       | NULL        |
+| 0       | 9          | 4         |                   | 0            |            | virtual     |
+| 0       | 10         | 5         |                   | 0            |            | virtual     |
+| 0       | 11         | 6         |                   | NULL         | NULL       | NULL        |
+| 0       | 12         | 8         |                   | NULL         | NULL       | NULL        |
++---------+------------+-----------+-------------------+--------------+------------+-------------+
+
+### classes  input=tests/fixtures/definitions/generated/definitions-035.dex
+SQL: SELECT file_id,class_def_idx,class_idx,descriptor,access_flags,superclass_descriptor,interface_count,source_file FROM classes ORDER BY class_def_idx
++---------+---------------+-----------+-----------------+--------------+-----------------------+-----------------+-------------+
+| file_id | class_def_idx | class_idx | descriptor      | access_flags | superclass_descriptor | interface_count | source_file |
++---------+---------------+-----------+-----------------+--------------+-----------------------+-----------------+-------------+
+| 0       | 0             | 4         | Lfixture/I0;    | 1537         | Ljava/lang/Object;    | 0               | I0.java     |
+| 0       | 1             | 5         | Lfixture/I1;    | 1537         | Ljava/lang/Object;    | 1               | I1.java     |
+| 0       | 2             | 1         | Lfixture/Base;  | 1025         | Ljava/lang/Object;    | 1               | Base.java   |
+| 0       | 3             | 2         | Lfixture/Child; | 1025         | Lfixture/Base;        | 0               | Child.java  |
++---------+---------------+-----------+-----------------+--------------+-----------------------+-----------------+-------------+
+
+### class_interfaces  input=tests/fixtures/definitions/generated/definitions-035.dex
+SQL: SELECT file_id,class_idx,ordinal,interface_type_idx,interface_descriptor FROM class_interfaces ORDER BY file_id,class_idx,ordinal
++---------+-----------+---------+--------------------+----------------------+
+| file_id | class_idx | ordinal | interface_type_idx | interface_descriptor |
++---------+-----------+---------+--------------------+----------------------+
+| 0       | 1         | 0       | 5                  | Lfixture/I1;         |
+| 0       | 5         | 0       | 4                  | Lfixture/I0;         |
++---------+-----------+---------+--------------------+----------------------+
+
+### class_fields  input=tests/fixtures/definitions/generated/definitions-035.dex
+SQL: SELECT file_id,class_idx,class_descriptor,field_idx,field_name,field_descriptor,kind,access_flags FROM class_fields ORDER BY file_id,class_idx,kind,field_idx
++---------+-----------+------------------+-----------+------------+------------------------------------------+----------+--------------+
+| file_id | class_idx | class_descriptor | field_idx | field_name | field_descriptor                         | kind     | access_flags |
++---------+-----------+------------------+-----------+------------+------------------------------------------+----------+--------------+
+| 0       | 1         | Lfixture/Base;   | 0         | iValue     | Lfixture/Base;->iValue:I                 | instance | 1            |
+| 0       | 1         | Lfixture/Base;   | 1         | mValue     | Lfixture/Base;->mValue:I                 | instance | 1            |
+| 0       | 1         | Lfixture/Base;   | 2         | sValue     | Lfixture/Base;->sValue:I                 | static   | 9            |
+| 0       | 1         | Lfixture/Base;   | 3         | zStatic    | Lfixture/Base;->zStatic:I                | static   | 9            |
+| 0       | 2         | Lfixture/Child;  | 4         | childRef   | Lfixture/Child;->childRef:Lfixture/Base; | instance | 1            |
++---------+-----------+------------------+-----------+------------+------------------------------------------+----------+--------------+
+
+### class_methods  input=tests/fixtures/definitions/generated/definitions-035.dex
+SQL: SELECT file_id,class_idx,class_descriptor,method_idx,method_name,method_descriptor,kind,access_flags FROM class_methods ORDER BY file_id,class_idx,kind,method_idx
++---------+-----------+------------------+------------+--------------+-----------------------------------+---------+--------------+
+| file_id | class_idx | class_descriptor | method_idx | method_name  | method_descriptor                 | kind    | access_flags |
++---------+-----------+------------------+------------+--------------+-----------------------------------+---------+--------------+
+| 0       | 1         | Lfixture/Base;   | 0          | <init>       | Lfixture/Base;-><init>()V         | direct  | 65537        |
+| 0       | 1         | Lfixture/Base;   | 1          | nativeCall   | Lfixture/Base;->nativeCall()V     | direct  | 265          |
+| 0       | 1         | Lfixture/Base;   | 2          | privateCall  | Lfixture/Base;->privateCall()V    | direct  | 2            |
+| 0       | 1         | Lfixture/Base;   | 3          | staticCall   | Lfixture/Base;->staticCall(I)I    | direct  | 9            |
+| 0       | 1         | Lfixture/Base;   | 4          | virtualCall  | Lfixture/Base;->virtualCall()V    | virtual | 1            |
+| 0       | 2         | Lfixture/Child;  | 5          | <init>       | Lfixture/Child;-><init>()V        | direct  | 65537        |
+| 0       | 2         | Lfixture/Child;  | 6          | abstractCall | Lfixture/Child;->abstractCall()V  | virtual | 1025         |
+| 0       | 2         | Lfixture/Child;  | 7          | overrideCall | Lfixture/Child;->overrideCall(I)I | virtual | 1            |
+| 0       | 4         | Lfixture/I0;     | 9          | iMethod      | Lfixture/I0;->iMethod()V          | virtual | 1025         |
+| 0       | 5         | Lfixture/I1;     | 10         | jMethod      | Lfixture/I1;->jMethod()V          | virtual | 1025         |
++---------+-----------+------------------+------------+--------------+-----------------------------------+---------+--------------+
+
+### code_items  input=tests/fixtures/references/generated/classic-035.dex
+SQL: SELECT file_id,method_idx,code_off,registers_size,ins_size,outs_size,tries_size,debug_info_off,insns_size,insns_off,tries_off,handlers_off FROM code_items ORDER BY method_idx
++---------+------------+----------+----------------+----------+-----------+------------+----------------+------------+-----------+-----------+--------------+
+| file_id | method_idx | code_off | registers_size | ins_size | outs_size | tries_size | debug_info_off | insns_size | insns_off | tries_off | handlers_off |
++---------+------------+----------+----------------+----------+-----------+------------+----------------+------------+-----------+-----------+--------------+
+| 0       | 0          | 420      | 2              | 0        | 0         | 0          | 0              | 25         | 436       | NULL      | NULL         |
+| 0       | 2          | 488      | 0              | 0        | 0         | 0          | 0              | 1          | 504       | NULL      | NULL         |
++---------+------------+----------+----------------+----------+-----------+------------+----------------+------------+-----------+-----------+--------------+
+
+### annotation_directory_entries  input=tests/fixtures/annotations/generated/annotations-038.dex
+SQL: SELECT file_id,class_idx,annotations_off,entry_kind,entry_idx,annotation_set_off,annotation_set_ref_list_off FROM annotation_directory_entries ORDER BY file_id,class_idx,entry_kind,entry_idx LIMIT 8
++---------+-----------+-----------------+------------+-----------+--------------------+-----------------------------+
+| file_id | class_idx | annotations_off | entry_kind | entry_idx | annotation_set_off | annotation_set_ref_list_off |
++---------+-----------+-----------------+------------+-----------+--------------------+-----------------------------+
+| 0       | 2         | 1200            | field      | 0         | 1164               | NULL                        |
+| 0       | 2         | 1200            | field      | 1         | 1164               | NULL                        |
+| 0       | 2         | 1200            | method     | 0         | 1172               | NULL                        |
+| 0       | 2         | 1200            | parameter  | 0         | NULL               | 1188                        |
+| 0       | 2         | 1200            | parameter  | 1         | NULL               | 1188                        |
++---------+-----------+-----------------+------------+-----------+--------------------+-----------------------------+
+
+### annotation_set_entries  input=tests/fixtures/annotations/generated/annotations-038.dex
+SQL: SELECT file_id,annotation_set_off,ordinal,annotation_off FROM annotation_set_entries ORDER BY file_id,annotation_set_off,ordinal LIMIT 8
++---------+--------------------+---------+----------------+
+| file_id | annotation_set_off | ordinal | annotation_off |
++---------+--------------------+---------+----------------+
+| 0       | 1152               | 0       | 1000           |
+| 0       | 1152               | 1       | 1012           |
+| 0       | 1164               | 0       | 1120           |
+| 0       | 1172               | 0       | 1132           |
+| 0       | 1180               | 0       | 1012           |
++---------+--------------------+---------+----------------+
+
+### annotations  input=tests/fixtures/annotations/generated/annotations-038.dex
+SQL: SELECT file_id,annotation_off,visibility,type_idx,element_count FROM annotations ORDER BY file_id,annotation_off
++---------+----------------+------------+----------+---------------+
+| file_id | annotation_off | visibility | type_idx | element_count |
++---------+----------------+------------+----------+---------------+
+| 0       | 1000           | 2          | 1        | 1             |
+| 0       | 1012           | 1          | 5        | 24            |
+| 0       | 1120           | 2          | 1        | 1             |
+| 0       | 1132           | 2          | 1        | 1             |
++---------+----------------+------------+----------+---------------+
+
+### annotation_elements  input=tests/fixtures/annotations/generated/annotations-038.dex
+SQL: SELECT file_id,annotation_off,depth,ordinal,name_idx,value_off,value_end_off,value_kind,value_index,value_i64,value_f64 FROM annotation_elements ORDER BY file_id,annotation_off,ordinal LIMIT 30
++---------+----------------+-------+---------+----------+-----------+---------------+---------------+-------------+----------------------+-----------+
+| file_id | annotation_off | depth | ordinal | name_idx | value_off | value_end_off | value_kind    | value_index | value_i64            | value_f64 |
++---------+----------------+-------+---------+----------+-----------+---------------+---------------+-------------+----------------------+-----------+
+| 0       | 1000           | 0     | 0       | 45       | 1004      | 1012          | array         | NULL        | NULL                 | NULL      |
+| 0       | 1000           | 1     | 0       | NULL     | 1006      | 1008          | string        | 1           | NULL                 | NULL      |
+| 0       | 1000           | 1     | 1       | NULL     | 1008      | 1010          | string        | 13          | NULL                 | NULL      |
+| 0       | 1000           | 1     | 2       | NULL     | 1010      | 1012          | string        | 4           | NULL                 | NULL      |
+| 0       | 1012           | 0     | 0       | 18       | 1016      | 1018          | byte          | NULL        | -128                 | NULL      |
+| 0       | 1012           | 1     | 0       | NULL     | 1074      | 1076          | string        | 48          | NULL                 | NULL      |
+| 0       | 1012           | 1     | 0       | 45       | 1085      | 1087          | int           | NULL        | 7                    | NULL      |
+| 0       | 1012           | 0     | 1       | 19       | 1019      | 1022          | short         | NULL        | -32768               | NULL      |
+| 0       | 1012           | 1     | 1       | NULL     | 1076      | 1078          | string        | 17          | NULL                 | NULL      |
+| 0       | 1012           | 0     | 2       | 20       | 1023      | 1026          | char          | NULL        | 65535                | NULL      |
+| 0       | 1012           | 1     | 2       | NULL     | 1078      | 1080          | string        | 48          | NULL                 | NULL      |
+| 0       | 1012           | 0     | 3       | 21       | 1027      | 1032          | int           | NULL        | -2147483648          | NULL      |
+| 0       | 1012           | 0     | 4       | 22       | 1033      | 1042          | long          | NULL        | -9223372036854775808 | NULL      |
+| 0       | 1012           | 0     | 5       | 25       | 1043      | 1046          | float         | NULL        | NULL                 | 1.0       |
+| 0       | 1012           | 0     | 6       | 26       | 1047      | 1050          | double        | NULL        | NULL                 | 1.0       |
+| 0       | 1012           | 0     | 7       | 27       | 1051      | 1053          | string        | 28          | NULL                 | NULL      |
+| 0       | 1012           | 0     | 8       | 29       | 1054      | 1056          | type          | 7           | NULL                 | NULL      |
+| 0       | 1012           | 0     | 9       | 30       | 1057      | 1059          | field         | 0           | NULL                 | NULL      |
+| 0       | 1012           | 0     | 10      | 31       | 1060      | 1062          | method        | 0           | NULL                 | NULL      |
+| 0       | 1012           | 0     | 11      | 32       | 1063      | 1065          | enum          | 2           | NULL                 | NULL      |
+| 0       | 1012           | 0     | 12      | 35       | 1066      | 1068          | method_type   | 0           | NULL                 | NULL      |
+| 0       | 1012           | 0     | 13      | 36       | 1069      | 1071          | method_handle | 0           | NULL                 | NULL      |
+| 0       | 1012           | 0     | 14      | 37       | 1072      | 1080          | array         | NULL        | NULL                 | NULL      |
+| 0       | 1012           | 0     | 15      | 38       | 1081      | 1087          | annotation    | 4           | NULL                 | NULL      |
+| 0       | 1012           | 0     | 16      | 39       | 1088      | 1089          | null          | NULL        | NULL                 | NULL      |
+| 0       | 1012           | 0     | 17      | 40       | 1090      | 1091          | boolean       | NULL        | 0                    | NULL      |
+| 0       | 1012           | 0     | 18      | 41       | 1092      | 1093          | boolean       | NULL        | 1                    | NULL      |
+| 0       | 1012           | 0     | 19      | 42       | 1094      | 1099          | float         | NULL        | NULL                 | NaN       |
+| 0       | 1012           | 0     | 20      | 43       | 1100      | 1109          | double        | NULL        | NULL                 | NaN       |
+| 0       | 1012           | 0     | 21      | 44       | 1110      | 1113          | float         | NULL        | NULL                 | Inf       |
++---------+----------------+-------+---------+----------+-----------+---------------+---------------+-------------+----------------------+-----------+
+
+### method_strings  input=tests/fixtures/references/generated/classic-035.dex
+SQL: SELECT method,method_class,method_name,value,file_id,class_idx,method_idx,string_idx FROM method_strings ORDER BY file_id,method_idx
++------------------------+--------------+-------------+--------+---------+-----------+------------+------------+
+| method                 | method_class | method_name | value  | file_id | class_idx | method_idx | string_idx |
++------------------------+--------------+-------------+--------+---------+-----------+------------+------------+
+| Lfixture/A;->caller()V | Lfixture/A;  | caller      | repeat | 0       | 1         | 0          | 10         |
+| Lfixture/A;->caller()V | Lfixture/A;  | caller      | repeat | 0       | 1         | 0          | 10         |
++------------------------+--------------+-------------+--------+---------+-----------+------------+------------+
+
+### method_calls  input=tests/fixtures/references/generated/classic-035.dex
+SQL: SELECT method,method_class,method_name,callee,callee_class,callee_name,file_id,class_idx,method_idx,callee_method_idx FROM method_calls ORDER BY file_id,method_idx
++------------------------+--------------+-------------+---------------------------------+--------------------+-------------+---------+-----------+------------+-------------------+
+| method                 | method_class | method_name | callee                          | callee_class       | callee_name | file_id | class_idx | method_idx | callee_method_idx |
++------------------------+--------------+-------------+---------------------------------+--------------------+-------------+---------+-----------+------------+-------------------+
+| Lfixture/A;->caller()V | Lfixture/A;  | caller      | Lfixture/External;->external()V | Lfixture/External; | external    | 0       | 1         | 0          | 3                 |
+| Lfixture/A;->caller()V | Lfixture/A;  | caller      | Lfixture/External;->external()V | Lfixture/External; | external    | 0       | 1         | 0          | 3                 |
+| Lfixture/A;->caller()V | Lfixture/A;  | caller      | Lfixture/External;->external()V | Lfixture/External; | external    | 0       | 1         | 0          | 3                 |
+| Lfixture/A;->caller()V | Lfixture/A;  | caller      | Lfixture/A;->target()V          | Lfixture/A;        | target      | 0       | 1         | 0          | 2                 |
++------------------------+--------------+-------------+---------------------------------+--------------------+-------------+---------+-----------+------------+-------------------+
+
+### method_field_accesses  input=tests/fixtures/references/generated/classic-035.dex
+SQL: SELECT method,method_class,method_name,field,field_class,field_name,field_type,using_type,file_id,class_idx,method_idx,field_idx FROM method_field_accesses ORDER BY file_id,method_idx
++------------------------+--------------+-------------+-----------------------------------------------+--------------------+------------+--------------------+------------+---------+-----------+------------+-----------+
+| method                 | method_class | method_name | field                                         | field_class        | field_name | field_type         | using_type | file_id | class_idx | method_idx | field_idx |
++------------------------+--------------+-------------+-----------------------------------------------+--------------------+------------+--------------------+------------+---------+-----------+------------+-----------+
+| Lfixture/A;->caller()V | Lfixture/A;  | caller      | Lfixture/External;->shared:Ljava/lang/String; | Lfixture/External; | shared     | Ljava/lang/String; | get        | 0       | 1         | 0          | 0         |
+| Lfixture/A;->caller()V | Lfixture/A;  | caller      | Lfixture/External;->shared:Ljava/lang/String; | Lfixture/External; | shared     | Ljava/lang/String; | put        | 0       | 1         | 0          | 0         |
++------------------------+--------------+-------------+-----------------------------------------------+--------------------+------------+--------------------+------------+---------+-----------+------------+-----------+
+
+### method_used_types  input=tests/fixtures/references/generated/classic-035.dex
+SQL: SELECT method,method_class,method_name,type_descriptor,type_name,file_id,class_idx,method_idx,type_idx FROM method_used_types ORDER BY file_id,method_idx
++------------------------+--------------+-------------+--------------------+------------------+---------+-----------+------------+----------+
+| method                 | method_class | method_name | type_descriptor    | type_name        | file_id | class_idx | method_idx | type_idx |
++------------------------+--------------+-------------+--------------------+------------------+---------+-----------+------------+----------+
+| Lfixture/A;->caller()V | Lfixture/A;  | caller      | Ljava/lang/String; | java.lang.String | 0       | 1         | 0          | 4        |
+| Lfixture/A;->caller()V | Lfixture/A;  | caller      | Ljava/lang/String; | java.lang.String | 0       | 1         | 0          | 4        |
++------------------------+--------------+-------------+--------------------+------------------+---------+-----------+------------+----------+
+

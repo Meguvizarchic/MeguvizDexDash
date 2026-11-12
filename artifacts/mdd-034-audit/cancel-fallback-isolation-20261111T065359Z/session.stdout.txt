@@ -1,0 +1,40 @@
+
+running 30 tests
+test tests::abandoned_cursors_cannot_be_released_into_delivery_success ... ok
+test cancellation::tests::checkpoint_with_budget_equal_deadline_uses_lifecycle ... ok
+test cancellation::tests::computed_spool_and_abandoned_cursor_never_become_delivery_success ... ok
+test cancellation::tests::empty_slot_publication_rejects_existing_and_releases_reentrant_item ... ok
+test cancellation::tests::rejected_publication_returns_item_after_releasing_lifecycle_lock ... ok
+test tests::batch_fault_does_not_rewrite_prior_completed_query ... ok
+test tests::batch_release_fault_does_not_hide_prior_worker_failure ... ok
+test tests::owned_batch_outlives_query_session_and_releases_once ... ok
+test tests::batch_fault_records_first_error_and_preserves_computation ... ok
+test tests::owned_batch_ack_rejects_foreign_budget_witness ... ok
+test tests::buffered_output_must_be_released_before_delivery_completion ... ok
+test tests::computation_delivery_and_catalog_generations_remain_distinct ... ok
+test tests::handles_reject_wrong_owner_parent_generation_and_released_identity ... ok
+test cancellation::tests::native_query_cancel_and_explicit_dataset_profile_have_distinct_ownership ... ok
+test tests::concurrent_close_and_computation_never_reopen_a_cancelled_query ... ok
+test tests::shared_budget_reservations_and_releases_are_enforced_across_sessions ... ok
+test tests::owned_batch_rejects_foreign_query_and_reports_release_fault ... ok
+test tests::owned_batch_release_is_independent_of_worker_and_concurrent_close ... ok
+test cancellation::tests::checkpoint_retains_first_terminal_and_rejects_completed_query ... ok
+test cancellation::tests::delivery_cursor_and_budget_commit_are_atomic ... ok
+test tests::owned_batch_partial_ack_requires_exact_existing_failure ... ok
+test cancellation::tests::checkpoint_with_budget_preserves_first_error_and_checks_owner ... ok
+test cancellation::tests::delivery_budget_deadline_keeps_computation_and_first_terminal ... ok
+test tests::snapshot_close_and_release_preserve_existing_owned_leases ... ok
+test tests::owned_batch_requires_ack_and_keeps_bytes_after_delivery ... ok
+test tests::worker_loss_fails_every_unfinished_request_but_keeps_completed_terminal ... ok
+test cancellation::tests::never_started_terminal_cannot_be_marked_computed ... ok
+test tests::terminal_queries_keep_live_buffer_accounting_until_release ... ok
+test tests::deadlines_cover_queue_time_and_zero_is_not_unlimited ... ok
+test cancellation::tests::atomic_publication_orders_cancellation_after_committed_item ... ok
+
+test result: ok. 30 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

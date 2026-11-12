@@ -38,6 +38,22 @@ def encode(value):
     raise TypeError('unknown SQLite value')
 
 
+def storage_class(value):
+    """Storage class of a fetched value; the driver maps each class onto one
+    Python type, so this needs no extra typeof() SQL probe."""
+    if value is None:
+        return 'null'
+    if isinstance(value, int):
+        return 'integer'
+    if isinstance(value, float):
+        return 'real'
+    if isinstance(value, str):
+        return 'text'
+    if isinstance(value, bytes):
+        return 'blob'
+    raise TypeError('unknown SQLite value')
+
+
 def main():
     require(len(sys.argv) == 2, 'usage: verify_sqlite_literals.py OUTPUT.json')
     target = Path(sys.argv[1]).resolve()
@@ -88,9 +104,7 @@ def main():
             cursor = db.execute(fixed)
             names = [column[0] for column in cursor.description]
             rows = cursor.fetchall()
-            projected = ','.join('typeof("' + n.replace('"', '""') + '")' for n in names)
-            classes = db.execute('SELECT ' + projected + ' FROM (' + fixed + ') AS sample').fetchall()
-            require(len(rows) == len(classes), 'incomplete SQLite result')
+            classes = [list(storage_class(v) for v in row) for row in rows]
             records.append({'id': name, 'original_sql': original_sql, 'executed_sql': fixed,
                             'corrected_alias_only': fixed != original_sql, 'columns': names,
                             'rows': [[encode(v) for v in row] for row in rows],

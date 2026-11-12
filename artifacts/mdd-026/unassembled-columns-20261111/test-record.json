@@ -1,0 +1,161 @@
+{
+  "schema_version": "mdd.mdd-026.unassembled-columns-test-record.v1",
+  "created_utc": "2026-11-11",
+  "task": "MDD-026",
+  "scope": "crates/mdd-facts/src/** only; Cargo.toml/Cargo.lock/STATE.md/tasks/backlog.json/artifacts are untouched inputs",
+  "commands": [
+    {
+      "command": "cargo test --offline -p mdd-facts",
+      "result": "passed",
+      "suites": [
+        {"target": "lib", "tests": 145, "failed": 0},
+        {"target": "tests/hostlab_skeleton.rs", "tests": 10, "failed": 0},
+        {"target": "tests/opcode_projection.rs", "tests": 1, "failed": 0},
+        {"target": "tests/parallel_equivalence.rs", "tests": 6, "failed": 0},
+        {"target": "tests/parameter_descriptors.rs", "tests": 3, "failed": 0},
+        {"target": "doc-tests (session)", "tests": 1, "failed": 0},
+        {"target": "doc-tests (compile_fail)", "tests": 4, "failed": 0}
+      ],
+      "log": "cargo-test.log"
+    },
+    {
+      "command": "cargo clippy --offline -p mdd-facts --all-targets -- -D warnings",
+      "result": "passed",
+      "warnings": 0,
+      "log": "cargo-clippy.log"
+    },
+    {
+      "command": "python -I artifacts/mdd-026/unassembled-columns-20261111/run_probe.py",
+      "result": "passed",
+      "note": "standalone rustc probe against cargo-reported rlibs; no new Cargo target or dependency",
+      "artifacts": ["probe.json", "native-rows.json", "build/record.json", "compile/record.json", "run/record.json"]
+    },
+    {
+      "command": "python -I artifacts/mdd-026/unassembled-columns-20261111/readback.py",
+      "result": "passed",
+      "failures": 0,
+      "log": "readback.json"
+    }
+  ],
+  "new_and_updated_tests": [
+    {
+      "name": "code::tests::methods_rows_assemble_all_contract_columns_and_match_recorded_a0",
+      "covers": ["methods.param_descriptors", "methods.opcode_count", "methods.opcode_hex"],
+      "asserts": [
+        "13 rows for definitions-035.dex, exactly the recorded A0 slice",
+        "the serialized key set equals MethodCodeRow::COLUMNS",
+        "opcode columns are NULL exactly for the reference-only method",
+        "native/abstract report (0, \"\"), present reports decoded (count, hex)",
+        "every A0 row's param_descriptors / opcode_count / opcode_hex matches"
+      ]
+    },
+    {
+      "name": "code::tests::methods_rows_reject_unknown_columns_and_accept_the_full_contract",
+      "covers": ["methods.*"],
+      "asserts": ["'*' and the full 14-column list are accepted", "unknown column is InvalidArgument"]
+    },
+    {
+      "name": "definitions::tests::param_descriptors_match_recorded_a0_rows",
+      "covers": ["methods.param_descriptors"],
+      "asserts": [
+        "definitions/shared/dynamic A0 row counts are 13/5/6",
+        "param_descriptors equals the recorded A0 text for every row",
+        "the comma count agrees with param_count"
+      ]
+    },
+    {
+      "name": "definitions::tests::method_rows_preserve_reference_only_nulls_and_definition_join",
+      "covers": ["methods.param_descriptors"],
+      "asserts": ["param_descriptors is exactly parameter_descriptors.join(\",\")"]
+    },
+    {
+      "name": "definitions::tests::methods_and_classes_wildcard_columns_match_frozen_reference_schema",
+      "covers": ["methods.*"],
+      "asserts": ["only opcode_count/opcode_hex remain unassembled on the definition object"]
+    },
+    {
+      "name": "indexes::scope::metadata_rows_tests::dex_file_rows_bind_scope_provenance_and_match_recorded_a0",
+      "covers": ["dex_files.source_path", "dex_files.entry_name"],
+      "asserts": [
+        "28 columns exactly, in a set equal to ScopeDexFileRow::COLUMNS",
+        "source_path is the captured path and entry_name the recorded name",
+        "every header atom equals the same-occurrence metadata row",
+        "raw DEX and multi-DEX APK both covered"
+      ]
+    },
+    {
+      "name": "indexes::scope::metadata_rows_tests::dex_file_provenance_matches_recorded_a0_entries",
+      "covers": ["dex_files.source_path", "dex_files.entry_name"],
+      "asserts": [
+        "three recorded A0 multi-input cases reproduce byte-for-byte",
+        "duplicate raw input keeps two rows with the same provenance (no dedup)"
+      ]
+    },
+    {
+      "name": "indexes::scope::metadata_rows_tests::dex_file_column_gate_accepts_the_contract_and_rejects_unknown_columns",
+      "covers": ["dex_files.*"],
+      "asserts": ["'*' and the 28 columns are accepted", "an unknown column is InvalidArgument"]
+    },
+    {
+      "name": "indexes::scope::metadata_rows_tests::dex_file_provenance_policy_and_budgets_fail_closed",
+      "covers": ["dex_files.source_path", "dex_files.entry_name"],
+      "asserts": [
+        "raw DEX entry_name is the captured leaf name",
+        "a pool coordinate list shorter or longer than the roster is InvalidArgument",
+        "a non-UTF-8 member name is UnsupportedQuery with reason ENTRY_NAME_NOT_UTF8"
+      ]
+    },
+    {
+      "name": "indexes::tests::newly_assembled_columns_keep_contract_type_and_nullability",
+      "covers": [
+        "dex_files.source_path",
+        "dex_files.entry_name",
+        "methods.param_descriptors",
+        "methods.opcode_count",
+        "methods.opcode_hex"
+      ],
+      "asserts": [
+        "assembled_projection is true for all five",
+        "data_type/nullable match both the frozen column table and relations.json",
+        "opcode columns stay IncompleteFacts on the definition object with required_layer=code_layout",
+        "provenance columns stay IncompleteFacts on the metadata object with assembled_by=SelectedScope::dex_file_rows"
+      ]
+    },
+    {
+      "name": "coverage::coverage_column_gate_tests::provider_gate_rejection_reports_unknown_with_provider_error",
+      "covers": ["all five"],
+      "asserts": [
+        "provenance and param_descriptors report Complete via their owning provider",
+        "opcode columns are not Complete without the code provider and are accepted with it",
+        "an unknown column still carries the provider's InvalidArgument"
+      ]
+    },
+    {
+      "name": "indexes::tests::index_quota_deadline_and_unbuilt_failures_never_publish_ready_or_zero",
+      "covers": ["all five"],
+      "asserts": ["zero columns remain with assembled_projection == false"]
+    }
+  ],
+  "independent_oracles": {
+    "readback.py": "recomputes dex_files provenance from the archive directory and the recorded A0 rows, and recomputes every methods parameter vector from proto_ids -> type_list -> string_ids -> type_ids in the raw DEX bytes; it never imports the Rust parser",
+    "existing_harnesses_reused": [
+      "artifacts/mdd-026/method-atom-audit/20261028T165707192974Z (recorded A0 methods stdout)",
+      "artifacts/mdd-026/column-audit-v10/_probe-verify_cross_dex_identity/20261109T045613053519Z/result.json (recorded A0 dex_files rows)"
+    ]
+  },
+  "negative_controls": [
+    "unknown dex_files column -> InvalidArgument",
+    "unknown methods column -> InvalidArgument",
+    "pool coordinate list length mismatch -> InvalidArgument",
+    "non-UTF-8 member name -> UnsupportedQuery / ENTRY_NAME_NOT_UTF8",
+    "opcode columns without the code-layout provider -> not Complete (column_provider_not_built)",
+    "'*' on the definition object still rejected because it would include the two code-layout opcode columns"
+  ],
+  "not_run": [
+    "HostLab workloads and private inputs",
+    "any performance measurement",
+    "end-to-end non-UTF-8 source path/entry name fixture (only constructed unit coverage)"
+  ],
+  "task_complete_proven": false,
+  "profile_admitted": false
+}

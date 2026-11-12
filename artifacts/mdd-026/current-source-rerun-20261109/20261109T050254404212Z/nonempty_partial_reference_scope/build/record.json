@@ -1,0 +1,22 @@
+{
+  "argv": [
+    "cargo",
+    "build",
+    "-p",
+    "mdd-facts",
+    "--lib",
+    "--jobs",
+    "1",
+    "--locked",
+    "--offline",
+    "--message-format=json"
+  ],
+  "started_utc": "2026-11-09T05:04:16.231651+00:00",
+  "finished_utc": "2026-11-09T05:04:16.746748+00:00",
+  "elapsed_seconds": 0.5150816000004852,
+  "exit_code": 0,
+  "timed_out": false,
+  "stdout_sha256": "00c333c7e05e483f97acc6098770ead4471d6676108bdab46d7bc56d38f501aa",
+  "stderr_sha256": "8950be1e8f4499f41b8e38ef15f09a0e2671be53a43aa5dec4d794320908881d",
+  "scope": "synthetic static reference test; no performance claim"
+}

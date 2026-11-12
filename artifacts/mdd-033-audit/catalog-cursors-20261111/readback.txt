@@ -1,0 +1,84 @@
+# MDD-033 readback（代码与证据回读）
+
+- 时间：2026-11-11（Asia/Shanghai）
+- 用途：证明本目录声明的实现确实存在于工作树，且证据文件与恢复后的绿色状态一致（变异已清除）。
+
+## 1. 工作树实际状态
+
+`git status --short crates/mdd-session`（实测）：
+
+```
+ M crates/mdd-session/src/cancellation.rs
+ M crates/mdd-session/src/lib.rs
+?? crates/mdd-session/src/catalog.rs
+?? crates/mdd-session/src/cursors.rs
+```
+
+`cancellation.rs` 的改动是**本轮之前就存在的既有未提交修改**（两处 `.err().expect(..)` → `.expect_err(..)`），本轮未触碰该文件。
+
+本轮未修改的受保护文件（`git status` 中本目录无对应新增/修改）：
+
+- `Cargo.toml`、`Cargo.lock`（`M` 状态来自本轮之前的其他工作）
+- `STATE.md`、`tasks/backlog.json`
+- `artifacts/**` 下除本目录外的任何文件
+
+## 2. 文件指纹
+
+| 文件 | 字节 | 行 | SHA-256 |
+| --- | --- | --- | --- |
+| `crates/mdd-session/src/lib.rs` | 83954 | 2274 | `e56acf5e82438a2343ba86566f52fedbf2f22c151bb157fa7cf7258606f5003b` |
+| `crates/mdd-session/src/catalog.rs` | 38670 | 1040 | `28edf706d63da7949bddf011d7d340552a2f755e78a94073ae1263f90169804e` |
+| `crates/mdd-session/src/cursors.rs` | 58256 | 1516 | `46eab4955044c0c63d0be41bb5643fc8196ea1d72e6cae203659b7e2fb61ba26` |
+| `crates/mdd-session/src/cancellation.rs` | 39555 | 1058 | `4bffcd2bd43b71e32feaab3ea929ce82d837d242bd9ad37a50f7449a8b1da03d` |
+
+## 3. 关键代码位置（行号为实测）
+
+| 声明 | 位置 |
+| --- | --- |
+| `mod catalog; mod cursors;`（私有） | `crates/mdd-session/src/lib.rs:5-6` |
+| `SessionEntry.temp` / `QueryEntry.temp_binding` / `CursorEntry` 新增字段 | `lib.rs:335-375` |
+| `State.worker_generation` | `lib.rs:388-393` |
+| `claim_supervision` 推进 worker generation | `lib.rs:747-760` |
+| `advance_catalog` 委托 catalog | `lib.rs:868-875` |
+| `TempCatalog` | `catalog.rs:129-135` |
+| `TempCatalog::resolve_at`（保留退役代次） | `catalog.rs:154-171` |
+| `TempCatalog::create` / `drop` / `inject_materialization` | `catalog.rs:182` / `:291` / `:249` |
+| `TempCatalog::validate_dependencies`（环 + 前向引用） | `catalog.rs:328-360` |
+| `Lifecycle::temp_catalog_create` | `catalog.rs:477` |
+| `Lifecycle::bind_query_temp` / `verify_query_temp_binding` | `catalog.rs:551` / `:608` |
+| `CursorMode` / `CursorSpec` / `CursorBinding` | `cursors.rs:24` / `:44` / `:89` |
+| `PageRequestShape`（混合页拒绝） | `cursors.rs:116-186` |
+| `CompatOffsetContract` / `CompatOffsetAdmission` / `CompatOffsetState` | `cursors.rs:192` / `:254` / `:273` |
+| `PageResponseMetadata`（双模式互斥 + `native_page`） | `cursors.rs:474-600` |
+| `Lifecycle::validate_page_request` | `cursors.rs:607` |
+| `Lifecycle::open_cursor_with_spec` / `cursor_binding` | `cursors.rs:618` / `:690` |
+| `Lifecycle::validate_page_continuation` / `cursor_page_count` | `cursors.rs:757` / `:810` |
+| `Lifecycle::validate_paged_cursor` | `cursors.rs:821` |
+| `Lifecycle::open_compat_offset` | `cursors.rs:846` |
+
+## 4. 变异清除验证
+
+```
+$ grep -n "true &&\|false &&" crates/mdd-session/src/*.rs
+（无输出）
+$ git diff --stat crates/mdd-session/
+ crates/mdd-session/src/cancellation.rs |  6 ++--
+ crates/mdd-session/src/lib.rs          | 50 +++++++++++++++++++++++++-------
+ 2 files changed, 42 insertions(+), 14 deletions(-)
+```
+
+恢复后重跑：`cargo test --offline -p mdd-session` → 53 passed；`cargo clippy ... -D warnings` → exit 0。
+
+## 5. 本目录文件清单
+
+| 文件 | 内容 |
+| --- | --- |
+| `IMPLEMENTATION.md` | 实现说明、设计取舍、未做的事 |
+| `TEST-RECORD.md` | 逐条测试与反例、变异验证、未执行声明 |
+| `readback.txt` | 本文件 |
+| `test.stdout.txt` | `cargo test -p mdd-session` 完整输出（绿） |
+| `clippy.stdout.txt` | `cargo clippy -p mdd-session --all-targets -- -D warnings` 完整输出（绿） |
+| `mutation-cursors.red.txt` | cursors 变异后的失败输出（红） |
+| `mutation-catalog.red.txt` | catalog 变异后的失败输出（红） |
+| `record.json` | 机读汇总 |
+| `SUMMARY.md` | 验收 5 条状态与主代理待决事项 |

@@ -1,0 +1,191 @@
+{
+  "schema_version": "mdd.mdd-031.acceptance-coverage-matrix.v1",
+  "generated_utc": "2026-11-11T07:09:30Z",
+  "task": "MDD-031",
+  "scope": "SQL bridge implementation and independent oracle evidence; no profile admitted, no HostLab qualification",
+  "current_state": {
+    "relations_registered": {
+      "metadata": [
+        "native_string_pools",
+        "native_dex_occurrences",
+        "native_strings",
+        "native_types",
+        "native_prototypes",
+        "native_prototype_parameters"
+      ],
+      "definitions": [
+        "native_class_definition_details",
+        "native_classes",
+        "native_class_interfaces",
+        "native_method_references",
+        "native_method_definitions",
+        "native_field_references",
+        "native_field_definitions"
+      ],
+      "annotations": [
+        "native_annotation_items",
+        "native_encoded_value_nodes",
+        "native_annotation_owners",
+        "native_annotation_sets",
+        "native_annotation_set_entries",
+        "native_annotation_ref_lists",
+        "native_annotation_ref_entries",
+        "native_annotation_parameter_lists",
+        "native_annotation_directories",
+        "native_annotation_directory_entries",
+        "native_annotation_directory_bindings"
+      ],
+      "code": [
+        "native_code_items",
+        "native_code_bytes",
+        "native_code_tries",
+        "native_code_handlers",
+        "native_code_catches"
+      ],
+      "references": [
+        "native_reference_sites",
+        "native_method_call_sites",
+        "native_dynamic_call_sites"
+      ],
+      "total": 32,
+      "note": "The frozen HostLab Q-series uses unprefixed names (classes, class_fields, ...). The real provider exposes native_* names; the unprefixed mapping is MDD-032 scope. The Q-series shape tests use synthetic providers with the frozen names and column shapes."
+    },
+    "dialects_declared": [
+      "NativeV1",
+      "DexSql010",
+      "DexSql011"
+    ],
+    "pushdown_flags": {
+      "omit": false,
+      "order_by_consumed": false,
+      "limit_offset_pushdown": false,
+      "in_pushdown": false,
+      "source": "crates/mdd-sql/src/virtual_tables/mod.rs VTB_POLICY, reported verbatim by OptimizerPolicy",
+      "note": "No constraint is passed to xFilter (argv_index 0); SQLite applies all filtering, ORDER BY, LIMIT/OFFSET and IN. No candidate prefilter is claimed."
+    },
+    "error_categories": {
+      "input": [
+        "InvalidArgument (syntax/binding/input, e.g. SQL_PARSE_ERROR, UNKNOWN_RELATION, UNBOUND_SQL_PARAMETER)"
+      ],
+      "unsupported": [
+        "UnsupportedQuery (real unimplemented feature, e.g. RECURSIVE CTE, window functions, unsupported functions)"
+      ],
+      "resource": [
+        "QuotaExceeded",
+        "UnavailableBackend",
+        "InternalFault",
+        "IncompleteFacts"
+      ],
+      "lifecycle": [
+        "Cancelled",
+        "DeadlineExceeded"
+      ],
+      "separation_mechanism": "AST parse errors carry confirm_sqlite_syntax=true and are re-checked against a read-only SQLite binding; a syntax/binding failure stays InvalidArgument, a SQLite-accepted but unimplemented feature becomes UnsupportedQuery. No regular-expression SQL rewriting is used."
+    },
+    "snapshot_session_binding": {
+      "binding": [
+        "provider_identity",
+        "snapshot_id",
+        "catalog_epoch"
+      ],
+      "execution_binding": [
+        "schema_version",
+        "worker_owner_id",
+        "session_id",
+        "query_id",
+        "snapshot_id",
+        "catalog_epoch",
+        "provider_identity",
+        "request_key",
+        "schema_id",
+        "semantic_version"
+      ],
+      "query_binding": "mdd_session::QueryBinding derived from binding+sql+parameters+dialect; execution capture rejects snapshot/epoch/fingerprint mismatch",
+      "profiles_admitted": "always empty; no compatibility profile is signed by this module"
+    }
+  },
+  "acceptance": [
+    {
+      "id": 1,
+      "text": "不进行全量 facts ETL 作为默认访问方式，装载或惰性构建成本均在测量内",
+      "status": "已覆盖 + 新覆盖",
+      "existing_evidence": [
+        "artifacts/mdd-031-audit/vtab-prewarm-20261030",
+        "artifacts/mdd-031-audit/aggregate-input-workspace-20261101",
+        "bridge.rs schema_prewarm_preserves_limits_and_never_opens_facts",
+        "bridge.rs short_circuit_cannot_skip_required_layers_and_unused_cte_does_not_build_them",
+        "bridge.rs owned_cursor_is_lazy_and_preserves_multiplicity_and_nul"
+      ],
+      "new_evidence": [
+        "bridge.rs lazy_scan_cost_is_measured_after_prepare"
+      ],
+      "residual_gap": "No end-to-end measurement of a real provider's lazy fact-build wall/RSS cost; the logical step/scanned/result accounting is covered, SQLite allocator/RSS is explicitly out of scope."
+    },
+    {
+      "id": 2,
+      "text": "NULL、CAST、LIKE/ESCAPE、字符串长度、比较、聚合、ORDER、JOIN/CTE 对各声明方言逐项验证",
+      "status": "新覆盖（逐方言矩阵）+ 已覆盖（专项）",
+      "existing_evidence": [
+        "artifacts/mdd-031-audit/like-independent-20261029",
+        "artifacts/mdd-031-audit/length-independent-20261029",
+        "artifacts/mdd-031-audit/null-aggregate-independent-20261029",
+        "artifacts/mdd-031-audit/compound-numeric-carriers-20261101",
+        "artifacts/mdd-031-audit/legacy-exact-real-text-20261030",
+        "artifacts/mdd-031-audit/typed-in-subquery-20261030",
+        "artifacts/mdd-031-audit/direct-cte-types-20261030"
+      ],
+      "new_evidence": [
+        "bridge.rs dialect_feature_matrix_matches_sqlite_for_null_cast_like_length_compare_aggregate_order_join_cte",
+        "bridge.rs hostlab_q_series_shapes_match_sqlite_per_dialect",
+        "artifacts/mdd-031-audit/acceptance-coverage-20261111T070145Z/oracle/oracle-results.json"
+      ],
+      "residual_gap": "NativeV1 text-to-integer CAST intentionally diverges from SQLite (exact parse vs legacy prefix parse); recorded as a dialect policy, not a defect. Non-ASCII length/LIKE/UTF-16 ordering is covered by dedicated tests, not by this ASCII matrix."
+    },
+    {
+      "id": 3,
+      "text": "omit、orderByConsumed、LIMIT/OFFSET 和 IN 下推只在完整等价证据下启用；候选过滤不谎报精确处理",
+      "status": "新覆盖（防谎报绑定 + 等价矩阵）",
+      "existing_evidence": [
+        "artifacts/mdd-031-audit/limit-carrier-20261101",
+        "artifacts/mdd-031-audit/ordered-distinct-limit-20261101",
+        "artifacts/mdd-031-audit/in-subquery-order-20261030"
+      ],
+      "new_evidence": [
+        "crates/mdd-sql/src/virtual_tables/mod.rs VTB_POLICY shared by xBestIndex and OptimizerPolicy",
+        "bridge.rs pushdown_policy_matches_vtab_capabilities_and_results_match_sqlite"
+      ],
+      "residual_gap": "No pushdown is enabled, so there is no candidate-filter precision claim to falsify. If a future change enables one, it must update VTB_POLICY and the equivalence matrix."
+    },
+    {
+      "id": 4,
+      "text": "语法/绑定/输入错误与真正 unsupported 分开，不以正则改写 SQL 改变用户语义",
+      "status": "已覆盖 + 新覆盖",
+      "existing_evidence": [
+        "crates/mdd-sql/src/dialects/ast.rs structural AST adaptation",
+        "bridge.rs original_binding_error",
+        "bridge.rs unsupported_function_in_visible_cte_keeps_real_binding_errors",
+        "artifacts/mdd-031-audit/compound-numeric-carriers-20261101"
+      ],
+      "new_evidence": [
+        "bridge.rs compatibility_failure_preserves_counterexample_and_blocks_profile"
+      ],
+      "residual_gap": "None identified for the separation itself; the AST adapter is structural, not regex-based."
+    },
+    {
+      "id": 5,
+      "text": "所有查询绑定统一 snapshot/session；兼容失败保留具体反例并阻断对应 profile",
+      "status": "部分覆盖（快照/会话已覆盖；profile 阻断机制缺失）",
+      "existing_evidence": [
+        "crates/mdd-sql/src/runtime.rs SqlExecutionBinding",
+        "bridge.rs runtime_query_binding",
+        "bridge.rs execute runtime owner check",
+        "artifacts/mdd-031-audit/dto-resume-20261029",
+        "artifacts/mdd-031-audit/dto-type-observations"
+      ],
+      "new_evidence": [
+        "bridge.rs compatibility_failure_preserves_counterexample_and_blocks_profile"
+      ],
+      "residual_gap": "There is no named compatibility-profile registry in mdd-sql; profiles_admitted is always empty, so 'block the corresponding profile' is vacuous rather than enforced. A concrete counterexample is retained on the error (code+details+ast_error), and no profile is signed. The main agent must decide whether a profile registry belongs to MDD-032/033 or here."
+    }
+  ]
+}

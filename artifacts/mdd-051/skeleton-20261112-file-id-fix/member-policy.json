@@ -1,0 +1,182 @@
+{
+  "admitted": false,
+  "catalog": "hostlab-audit-v1/bilibili-9.16.1",
+  "class_count": 0,
+  "complete": false,
+  "coverage": {
+    "archive_directory_complete": true,
+    "class_index_entries": 0,
+    "duplicate_class_descriptor_count": 0,
+    "duplicate_class_descriptor_limit": 64,
+    "duplicate_class_descriptors": [],
+    "duplicate_class_descriptors_truncated": false,
+    "occurrences": [
+      {
+        "annotations": "not_built",
+        "class_count": 0,
+        "code": "not_built",
+        "content_id": "sha256:e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae",
+        "definitions": "complete",
+        "dex_occurrence_id": "snapshot-c39ed1082b6b5de4b29a18e08bfd56e4eb589830747e10a23c2d36162a00d554:source:0:member:0:dex:header:0",
+        "dex_ordinal": 0,
+        "entry_name": "classes10.dex",
+        "field_count": 0,
+        "metadata": "complete",
+        "method_count": 0,
+        "references": "not_built"
+      },
+      {
+        "annotations": "not_built",
+        "class_count": 0,
+        "code": "not_built",
+        "content_id": "sha256:e0aeaa1d698e1d1149ffdcf116e7b3e98b3a3097814e01718c80caaee147b7ae",
+        "definitions": "complete",
+        "dex_occurrence_id": "snapshot-c39ed1082b6b5de4b29a18e08bfd56e4eb589830747e10a23c2d36162a00d554:source:0:member:1:dex:header:0",
+        "dex_ordinal": 1,
+        "entry_name": "classes2.dex",
+        "field_count": 0,
+        "metadata": "complete",
+        "method_count": 0,
+        "references": "not_built"
+      }
+    ],
+    "schema_version": "mdd.hostlab-native-coverage.v1",
+    "selected_dex_bytes_complete": true,
+    "selected_dex_count": 2,
+    "snapshot_id": "snapshot-c39ed1082b6b5de4b29a18e08bfd56e4eb589830747e10a23c2d36162a00d554",
+    "total_class_definitions": 0
+  },
+  "discoveries": {},
+  "elapsed_ms": {
+    "open": 0.3383,
+    "prepare": 0.4172,
+    "rules": 0.0369,
+    "total": 0.4541
+  },
+  "features": {
+    "block_update": {
+      "detail": "-",
+      "status": "MISSING"
+    },
+    "bottom_bar": {
+      "detail": "not implemented in the MDD-051 skeleton; migration requires [definitions]",
+      "status": "NOT_IMPLEMENTED"
+    },
+    "comment_filter": {
+      "detail": "not implemented in the MDD-051 skeleton; migration requires [definitions,signature_generics]",
+      "status": "NOT_IMPLEMENTED"
+    },
+    "comment_free_copy": {
+      "detail": "not implemented in the MDD-051 skeleton; migration requires [definitions]",
+      "status": "NOT_IMPLEMENTED"
+    },
+    "comment_purify": {
+      "detail": "not implemented in the MDD-051 skeleton; migration requires [definitions]",
+      "status": "NOT_IMPLEMENTED"
+    },
+    "comment_section": {
+      "detail": "not implemented in the MDD-051 skeleton; migration requires [definitions,signature_generics]",
+      "status": "NOT_IMPLEMENTED"
+    },
+    "comment_topology": {
+      "detail": "not implemented in the MDD-051 skeleton; migration requires [definitions]",
+      "status": "NOT_IMPLEMENTED"
+    },
+    "description_free_copy": {
+      "detail": "not implemented in the MDD-051 skeleton; migration requires [definitions]",
+      "status": "NOT_IMPLEMENTED"
+    },
+    "dynamic_tabs": {
+      "detail": "not implemented in the MDD-051 skeleton; migration requires [definitions,signature_generics]",
+      "status": "NOT_IMPLEMENTED"
+    },
+    "full_number": {
+      "detail": "-",
+      "status": "MISSING"
+    },
+    "game_promotion": {
+      "detail": "not implemented in the MDD-051 skeleton; migration requires [definitions]",
+      "status": "NOT_IMPLEMENTED"
+    },
+    "home_banner": {
+      "detail": "not implemented in the MDD-051 skeleton; migration requires [definitions]",
+      "status": "NOT_IMPLEMENTED"
+    },
+    "home_recommend": {
+      "detail": "not implemented in the MDD-051 skeleton; migration requires [definitions]",
+      "status": "NOT_IMPLEMENTED"
+    },
+    "home_tabs": {
+      "detail": "not implemented in the MDD-051 skeleton; migration requires [definitions,signature_generics]",
+      "status": "NOT_IMPLEMENTED"
+    },
+    "home_top_bar": {
+      "detail": "not implemented in the MDD-051 skeleton; migration requires [definitions]",
+      "status": "NOT_IMPLEMENTED"
+    },
+    "merchandise": {
+      "detail": "false",
+      "status": "MISSING"
+    },
+    "mine_components": {
+      "detail": "not implemented in the MDD-051 skeleton; migration requires [definitions,signature_generics]",
+      "status": "NOT_IMPLEMENTED"
+    },
+    "mine_entry": {
+      "detail": "not implemented in the MDD-051 skeleton; migration requires [definitions]",
+      "status": "NOT_IMPLEMENTED"
+    },
+    "mine_vip": {
+      "detail": "not implemented in the MDD-051 skeleton; migration requires [definitions]",
+      "status": "NOT_IMPLEMENTED"
+    },
+    "paused_ad": {
+      "detail": "not implemented in the MDD-051 skeleton; migration requires [definitions]",
+      "status": "NOT_IMPLEMENTED"
+    },
+    "player_default_quality": {
+      "detail": "not implemented in the MDD-051 skeleton; migration requires [definitions,method_strings]",
+      "status": "NOT_IMPLEMENTED"
+    },
+    "player_portrait": {
+      "detail": "not implemented in the MDD-051 skeleton; migration requires [definitions]",
+      "status": "NOT_IMPLEMENTED"
+    },
+    "player_status_bar": {
+      "detail": "-",
+      "status": "MISSING"
+    },
+    "splash_ads": {
+      "detail": "not implemented in the MDD-051 skeleton; migration requires [definitions]",
+      "status": "NOT_IMPLEMENTED"
+    },
+    "story_purify": {
+      "detail": "not implemented in the MDD-051 skeleton; migration requires [definitions,signature_generics]",
+      "status": "NOT_IMPLEMENTED"
+    },
+    "teenagers_mode": {
+      "detail": "-",
+      "status": "MISSING"
+    },
+    "video_relate": {
+      "detail": "not implemented in the MDD-051 skeleton; migration requires [definitions]",
+      "status": "NOT_IMPLEMENTED"
+    }
+  },
+  "hostlab_file_id_by_dex_ordinal": [
+    0,
+    1
+  ],
+  "implemented": 5,
+  "input": "tests/fixtures/generated/member-policy.apk",
+  "pending": 22,
+  "semantic_divergence_ids": [
+    "file-id-vs-dex-ordinal",
+    "block-update-missing-catalog",
+    "raw-dex-entry-name",
+    "signature-generics-absent",
+    "descriptor-order",
+    "catalog-in-core",
+    "admission-gate"
+  ]
+}

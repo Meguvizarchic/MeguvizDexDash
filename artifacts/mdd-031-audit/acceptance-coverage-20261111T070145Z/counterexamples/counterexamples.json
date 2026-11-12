@@ -1,0 +1,46 @@
+{
+  "schema_version": "mdd.mdd-031.acceptance-counterexamples.v1",
+  "generated_utc": "2026-11-11T07:08:00Z",
+  "scope": "real counterexamples observed while building the acceptance matrix; retained, not hidden",
+  "cases": [
+    {
+      "id": "unsupported-total-aggregate",
+      "sql": "SELECT NULL IS NULL, NULL = NULL, COALESCE(NULL, 1), COUNT(value), COUNT(*), SUM(opt), total(opt) FROM vals",
+      "dialects": ["NativeV1", "DexSql010", "DexSql011"],
+      "observed": {
+        "code": "UNSUPPORTED_QUERY",
+        "stage": "sql.ast",
+        "message": "SQLite accepts this read-only syntax but the AST adapter does not yet implement it",
+        "details": {"ast_error": "FUNCTION_NOT_IMPLEMENTED"}
+      },
+      "interpretation": "total() is a real unsupported feature. The error is correctly separated from syntax/binding errors (UnsupportedQuery, not InvalidArgument) and the concrete reason is retained. This is a coverage gap in the aggregate function set, not a misclassification.",
+      "effect_on_acceptance": "Acceptance item 2 requires aggregation to be verified per dialect; total() is not implemented and is not claimed. SUM/COUNT/MIN/MAX are covered."
+    },
+    {
+      "id": "native-v1-text-integer-cast-divergence",
+      "sql": "SELECT CAST('1.9' AS INTEGER)",
+      "dialects": ["NativeV1"],
+      "observed": {
+        "code": "INVALID_ARGUMENT",
+        "message": "INVALID_INTEGER_CAST"
+      },
+      "sqlite_oracle": "returns 1 (prefix parse)",
+      "legacy_dialects": "DexSql010/DexSql011 return 1 via sqlite_integer_prefix, matching SQLite",
+      "interpretation": "NativeV1 deliberately requires an exact integer text and rejects a fractional prefix; legacy dialects reproduce SQLite's prefix parse. This is a documented dialect policy, not a silent wrong answer, but it is a real divergence from the SQLite oracle for NativeV1.",
+      "effect_on_acceptance": "The shared feature matrix excludes text-to-integer CAST for this reason; dedicated cast tests (legacy_integer_cast_matches_sqlite_prefix_and_saturation_without_lossy_text, cast-replay) cover both policies."
+    },
+    {
+      "id": "native-v1-non-numeric-text-integer-cast",
+      "sql": "SELECT CAST('abc' AS INTEGER)",
+      "dialects": ["NativeV1"],
+      "observed": {
+        "code": "INVALID_ARGUMENT",
+        "message": "INVALID_INTEGER_CAST"
+      },
+      "sqlite_oracle": "returns 0",
+      "legacy_dialects": "DexSql010/DexSql011 return 0 via sqlite_integer_prefix, matching SQLite",
+      "interpretation": "Same documented NativeV1 exact-cast policy as the fractional case.",
+      "effect_on_acceptance": "Recorded so the NativeV1/SQLite divergence is explicit rather than implied by a green matrix."
+    }
+  ]
+}

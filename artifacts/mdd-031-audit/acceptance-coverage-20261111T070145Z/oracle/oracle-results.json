@@ -1,0 +1,638 @@
+{
+  "schema_version": "mdd.mdd-031.acceptance-oracle.v1",
+  "oracle": "python-stdlib-sqlite3",
+  "sqlite_version": "3.53.1",
+  "python_version": "3.12.14",
+  "scope": "synthetic rows and frozen HostLab Q-series shapes; no real APK facts, no profile admission",
+  "q_series": [
+    {
+      "id": "Q01",
+      "sql": "SELECT file_id,entry_name FROM dex_files ORDER BY file_id",
+      "status": "ok",
+      "rows": [
+        [
+          0,
+          "classes.dex"
+        ],
+        [
+          1,
+          "two.dex"
+        ],
+        [
+          2,
+          "classes2.dex"
+        ]
+      ]
+    },
+    {
+      "id": "Q02",
+      "sql": "SELECT cf.* FROM class_fields cf WHERE class_descriptor IN ('Lfixture/A;') ORDER BY file_id,class_idx,kind,field_idx",
+      "status": "ok",
+      "rows": [
+        [
+          0,
+          1,
+          "Lfixture/A;",
+          7,
+          "fieldOne",
+          "I",
+          "instance",
+          2
+        ],
+        [
+          0,
+          1,
+          "Lfixture/A;",
+          8,
+          "fieldTwo",
+          "Ljava/lang/String;",
+          "instance",
+          2
+        ],
+        [
+          1,
+          1,
+          "Lfixture/A;",
+          7,
+          "fieldOne",
+          "I",
+          "instance",
+          2
+        ]
+      ]
+    },
+    {
+      "id": "Q03",
+      "sql": "SELECT ci.interface_descriptor,c.descriptor FROM class_interfaces ci JOIN classes c ON c.file_id=ci.file_id AND c.class_idx=ci.class_idx WHERE c.descriptor IN ('Lfixture/A;') ORDER BY ci.file_id,ci.class_idx,ci.ordinal",
+      "status": "ok",
+      "rows": [
+        [
+          "Lfixture/Iface;",
+          "Lfixture/A;"
+        ],
+        [
+          "Ljava/io/Serializable;",
+          "Lfixture/A;"
+        ],
+        [
+          "Lfixture/Iface;",
+          "Lfixture/A;"
+        ]
+      ]
+    },
+    {
+      "id": "Q05",
+      "sql": "SELECT DISTINCT m.class_descriptor FROM class_methods c JOIN methods m ON m.file_id=c.file_id AND m.method_idx=c.method_idx WHERE m.return_descriptor='Lfixture/Result;' ORDER BY m.class_descriptor",
+      "status": "ok",
+      "rows": [
+        [
+          "Lfixture/A;"
+        ]
+      ]
+    },
+    {
+      "id": "Q07",
+      "sql": "SELECT COUNT(*) AS n FROM classes ORDER BY n",
+      "status": "ok",
+      "rows": [
+        [
+          4
+        ]
+      ]
+    },
+    {
+      "id": "Q08",
+      "sql": "SELECT file_id,class_def_idx,descriptor,superclass_descriptor FROM classes WHERE file_id=0 AND (descriptor LIKE 'Lfixture/%' ESCAPE '\\') ORDER BY file_id,class_def_idx",
+      "status": "ok",
+      "rows": [
+        [
+          0,
+          0,
+          "Lfixture/A;",
+          "Lfixture/Base;"
+        ],
+        [
+          0,
+          1,
+          "Lfixture/B;",
+          "Lfixture/Base;"
+        ]
+      ]
+    },
+    {
+      "id": "Q09",
+      "sql": "SELECT method_idx,insns_off,insns_size FROM code_items WHERE file_id=0 AND method_idx BETWEEN 0 AND 8 ORDER BY method_idx",
+      "status": "ok",
+      "rows": []
+    },
+    {
+      "id": "Q11",
+      "sql": "SELECT file_id,method_descriptor FROM class_methods WHERE file_id=0 AND (class_descriptor IN ('Lfixture/Protocol;') OR class_descriptor LIKE 'Lcom/bapis/%Moss;') ORDER BY file_id,class_idx,method_idx",
+      "status": "ok",
+      "rows": [
+        [
+          0,
+          "()V"
+        ],
+        [
+          0,
+          "()V"
+        ]
+      ]
+    },
+    {
+      "id": "Q12",
+      "sql": "SELECT file_id,method AS descriptor FROM method_calls WHERE callee='Lfixture/A;->f()V' ORDER BY file_id,method_idx",
+      "status": "ok",
+      "rows": []
+    }
+  ],
+  "features": [
+    {
+      "id": "null-aggregate",
+      "sql": "SELECT NULL IS NULL, NULL = NULL, COALESCE(NULL, 1), COUNT(value), COUNT(*), SUM(opt) FROM vals",
+      "status": "ok",
+      "rows": [
+        [
+          1,
+          null,
+          1,
+          6,
+          7,
+          190
+        ]
+      ]
+    },
+    {
+      "id": "null-predicate",
+      "sql": "SELECT id, value, opt, opt IS NULL, value IS NOT NULL FROM vals ORDER BY id",
+      "status": "ok",
+      "rows": [
+        [
+          0,
+          "alpha",
+          10,
+          0,
+          1
+        ],
+        [
+          1,
+          "beta",
+          null,
+          1,
+          1
+        ],
+        [
+          2,
+          "alpha",
+          30,
+          0,
+          1
+        ],
+        [
+          3,
+          null,
+          40,
+          0,
+          0
+        ],
+        [
+          4,
+          "",
+          50,
+          0,
+          1
+        ],
+        [
+          5,
+          "a_c",
+          null,
+          1,
+          1
+        ],
+        [
+          6,
+          "a-c",
+          60,
+          0,
+          1
+        ]
+      ]
+    },
+    {
+      "id": "cast-text-real",
+      "sql": "SELECT CAST(NULL AS TEXT), CAST(opt AS TEXT), CAST(opt AS REAL) FROM vals ORDER BY id",
+      "status": "ok",
+      "rows": [
+        [
+          null,
+          "10",
+          10.0
+        ],
+        [
+          null,
+          null,
+          null
+        ],
+        [
+          null,
+          "30",
+          30.0
+        ],
+        [
+          null,
+          "40",
+          40.0
+        ],
+        [
+          null,
+          "50",
+          50.0
+        ],
+        [
+          null,
+          null,
+          null
+        ],
+        [
+          null,
+          "60",
+          60.0
+        ]
+      ]
+    },
+    {
+      "id": "cast-blob-eq",
+      "sql": "SELECT id, CAST(value AS BLOB)=CAST(value AS BLOB) AS same FROM vals ORDER BY id",
+      "status": "ok",
+      "rows": [
+        [
+          0,
+          1
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          2,
+          1
+        ],
+        [
+          3,
+          null
+        ],
+        [
+          4,
+          1
+        ],
+        [
+          5,
+          1
+        ],
+        [
+          6,
+          1
+        ]
+      ]
+    },
+    {
+      "id": "like-escape-prefix",
+      "sql": "SELECT id FROM vals WHERE value LIKE 'a%' ESCAPE '\\' ORDER BY id",
+      "status": "ok",
+      "rows": [
+        [
+          0
+        ],
+        [
+          2
+        ],
+        [
+          5
+        ],
+        [
+          6
+        ]
+      ]
+    },
+    {
+      "id": "like-escape-underscore",
+      "sql": "SELECT id FROM vals WHERE value LIKE 'a\\_c' ESCAPE '\\' ORDER BY id",
+      "status": "ok",
+      "rows": [
+        [
+          5
+        ]
+      ]
+    },
+    {
+      "id": "like-escape-dash",
+      "sql": "SELECT id FROM vals WHERE value LIKE 'a\\-c' ESCAPE '\\' ORDER BY id",
+      "status": "ok",
+      "rows": [
+        [
+          6
+        ]
+      ]
+    },
+    {
+      "id": "like-null",
+      "sql": "SELECT id FROM vals WHERE value LIKE NULL ORDER BY id",
+      "status": "ok",
+      "rows": []
+    },
+    {
+      "id": "length",
+      "sql": "SELECT id, length(value), length(opt), length('') FROM vals ORDER BY id",
+      "status": "ok",
+      "rows": [
+        [
+          0,
+          5,
+          2,
+          0
+        ],
+        [
+          1,
+          4,
+          null,
+          0
+        ],
+        [
+          2,
+          5,
+          2,
+          0
+        ],
+        [
+          3,
+          null,
+          2,
+          0
+        ],
+        [
+          4,
+          0,
+          2,
+          0
+        ],
+        [
+          5,
+          3,
+          null,
+          0
+        ],
+        [
+          6,
+          3,
+          2,
+          0
+        ]
+      ]
+    },
+    {
+      "id": "comparison",
+      "sql": "SELECT id, value='alpha', value>'b', value IN ('alpha','beta'), opt>20 FROM vals ORDER BY id",
+      "status": "ok",
+      "rows": [
+        [
+          0,
+          1,
+          0,
+          1,
+          0
+        ],
+        [
+          1,
+          0,
+          1,
+          1,
+          null
+        ],
+        [
+          2,
+          1,
+          0,
+          1,
+          1
+        ],
+        [
+          3,
+          null,
+          null,
+          null,
+          1
+        ],
+        [
+          4,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          5,
+          0,
+          0,
+          0,
+          null
+        ],
+        [
+          6,
+          0,
+          0,
+          0,
+          1
+        ]
+      ]
+    },
+    {
+      "id": "between-in",
+      "sql": "SELECT id FROM vals WHERE value IN ('alpha','beta') AND opt BETWEEN 20 AND 50 ORDER BY id",
+      "status": "ok",
+      "rows": [
+        [
+          2
+        ]
+      ]
+    },
+    {
+      "id": "aggregate-group",
+      "sql": "SELECT value, COUNT(*) AS n, SUM(opt) AS s FROM vals GROUP BY value ORDER BY value",
+      "status": "ok",
+      "rows": [
+        [
+          null,
+          1,
+          40
+        ],
+        [
+          "",
+          1,
+          50
+        ],
+        [
+          "a-c",
+          1,
+          60
+        ],
+        [
+          "a_c",
+          1,
+          null
+        ],
+        [
+          "alpha",
+          2,
+          40
+        ],
+        [
+          "beta",
+          1,
+          null
+        ]
+      ]
+    },
+    {
+      "id": "aggregate-distinct",
+      "sql": "SELECT COUNT(DISTINCT value) AS d, MIN(opt) AS lo, MAX(opt) AS hi FROM vals",
+      "status": "ok",
+      "rows": [
+        [
+          5,
+          10,
+          60
+        ]
+      ]
+    },
+    {
+      "id": "order-asc-mixed",
+      "sql": "SELECT id, value, opt FROM vals ORDER BY value ASC, id DESC",
+      "status": "ok",
+      "rows": [
+        [
+          3,
+          null,
+          40
+        ],
+        [
+          4,
+          "",
+          50
+        ],
+        [
+          6,
+          "a-c",
+          60
+        ],
+        [
+          5,
+          "a_c",
+          null
+        ],
+        [
+          2,
+          "alpha",
+          30
+        ],
+        [
+          0,
+          "alpha",
+          10
+        ],
+        [
+          1,
+          "beta",
+          null
+        ]
+      ]
+    },
+    {
+      "id": "order-desc-mixed",
+      "sql": "SELECT id, value FROM vals ORDER BY value DESC, id ASC",
+      "status": "ok",
+      "rows": [
+        [
+          1,
+          "beta"
+        ],
+        [
+          0,
+          "alpha"
+        ],
+        [
+          2,
+          "alpha"
+        ],
+        [
+          5,
+          "a_c"
+        ],
+        [
+          6,
+          "a-c"
+        ],
+        [
+          4,
+          ""
+        ],
+        [
+          3,
+          null
+        ]
+      ]
+    },
+    {
+      "id": "join",
+      "sql": "SELECT v.id, w.value FROM vals v JOIN vals w ON v.id=w.id WHERE v.id IN (0,2) ORDER BY v.id",
+      "status": "ok",
+      "rows": [
+        [
+          0,
+          "alpha"
+        ],
+        [
+          2,
+          "alpha"
+        ]
+      ]
+    },
+    {
+      "id": "cte",
+      "sql": "WITH t AS (SELECT id, value FROM vals WHERE id>1) SELECT value FROM t ORDER BY id",
+      "status": "ok",
+      "rows": [
+        [
+          "alpha"
+        ],
+        [
+          null
+        ],
+        [
+          ""
+        ],
+        [
+          "a_c"
+        ],
+        [
+          "a-c"
+        ]
+      ]
+    },
+    {
+      "id": "cte-in-subquery",
+      "sql": "WITH t AS (SELECT id FROM vals WHERE opt IS NULL) SELECT id, value FROM vals WHERE id IN (SELECT id FROM t) ORDER BY id",
+      "status": "ok",
+      "rows": [
+        [
+          1,
+          "beta"
+        ],
+        [
+          5,
+          "a_c"
+        ]
+      ]
+    }
+  ]
+}

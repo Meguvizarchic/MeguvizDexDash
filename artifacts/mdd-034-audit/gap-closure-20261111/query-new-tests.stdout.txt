@@ -1,0 +1,38 @@
+=== production_queue_native_cancel_is_isolated_from_sibling_and_keeps_partial_failure ===
+
+running 1 test
+{"case":"production-queue-native-cancel-isolated","emitted_rows":1,"execution_complete":false,"mode":"streaming","more_available":false,"next_cursor":null,"operation_status":"cancelled","sibling_rows":4,"truncated":true}
+{"case":"production-queue-native-cancel-isolated","emitted_rows":1,"execution_complete":true,"mode":"materialized_reference","more_available":false,"next_cursor":null,"operation_status":"cancelled","sibling_rows":4,"truncated":true}
+test executor::runtime_tests::production_queue_native_cancel_is_isolated_from_sibling_and_keeps_partial_failure ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 200 filtered out; finished in 0.00s
+
+exit=0
+=== in_process_worker_lost_fails_inflight_query_and_is_not_a_fallback_error ===
+
+running 1 test
+{"case":"in-process-worker-lost-inflight-and-sibling","emitted_rows":1,"error":{"code":"WORKER_LOST","stage":"worker"},"execution_complete":false,"fallback_allowed":false,"mode":"streaming","more_available":false,"next_cursor":null,"operation_status":"error","sibling_phase":"failed","truncated":true}
+{"case":"in-process-worker-lost-inflight-and-sibling","emitted_rows":1,"error":{"code":"WORKER_LOST","stage":"worker"},"execution_complete":true,"fallback_allowed":false,"mode":"materialized_reference","more_available":false,"next_cursor":null,"operation_status":"error","sibling_phase":"failed","truncated":true}
+test executor::runtime_tests::in_process_worker_lost_fails_inflight_query_and_is_not_a_fallback_error ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 200 filtered out; finished in 0.00s
+
+exit=0
+=== compat_cancel_profile_closes_only_owning_dataset_and_is_distinct_from_native ===
+
+running 1 test
+{"case":"compat-cancel-profile-dataset-scope","compat_closes_dataset":true,"native_closes_dataset":false,"owning_dataset_closed":true,"sibling_after_rows":4,"sibling_before_rows":4,"sibling_snapshot_lease_ok":true}
+test executor::runtime_tests::compat_cancel_profile_closes_only_owning_dataset_and_is_distinct_from_native ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 200 filtered out; finished in 0.00s
+
+exit=0
+=== fallback_whitelist_rejects_real_query_terminal_errors ===
+
+running 1 test
+{"accepted_rows_disqualify":true,"case":"fallback-whitelist-query-boundary","permitted_under_pristine":true,"rejected":[{"class":"quota_exceeded","code":"QUOTA_EXCEEDED"},{"class":"deadline_exceeded","code":"DEADLINE_EXCEEDED"},{"class":"cancelled","code":"CANCELLED"},{"class":"worker_lost","code":"WORKER_LOST"}]}
+test executor::runtime_tests::fallback_whitelist_rejects_real_query_terminal_errors ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 200 filtered out; finished in 0.00s
+
+exit=0

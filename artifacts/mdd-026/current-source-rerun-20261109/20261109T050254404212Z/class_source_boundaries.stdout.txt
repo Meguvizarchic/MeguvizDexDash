@@ -1,0 +1,1 @@
+{"path": "artifacts\\mdd-026\\current-source-rerun-20261109\\20261109T050254404212Z\\class_source_boundaries", "source_occurrences": 4, "a0_rows": 4, "negative_controls": 5, "sdk_valid_exit_codes": [0, 0, 0, 0], "bad_native_exit": 1, "bad_sdk_exit": 1, "bad_a0_exit": 0, "task_complete_proven": false}

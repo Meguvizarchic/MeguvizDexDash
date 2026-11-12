@@ -1,0 +1,1 @@
+{"path": "artifacts\\mdd-026\\current-source-rerun-20261109\\20261109T050254404212Z\\owned_try", "valid_cases": 2, "negative_controls": 6, "bad_native_exit": 1, "bad_sdk_exit": 1, "bad_a0_exit": 0, "task_complete_proven": false}

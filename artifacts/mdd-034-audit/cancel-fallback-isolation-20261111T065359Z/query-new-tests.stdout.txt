@@ -1,0 +1,20 @@
+
+running 4 tests
+{"case":"compat-cancel-profile-dataset-scope","compat_closes_dataset":true,"native_closes_dataset":false,"owning_dataset_closed":true,"sibling_dataset_usable":true}
+test executor::runtime_tests::compat_cancel_profile_closes_only_owning_dataset_and_is_distinct_from_native ... ok
+{"case":"worker-kill-inflight-and-sibling","error":{"code":"WORKER_LOST","stage":"worker"},"fallback_allowed":false,"mode":"streaming","sibling_phase":"failed"}
+{"case":"production-queue-native-cancel-isolated","emitted_rows":1,"mode":"streaming","sibling_active":true,"terminal":{"catalog_epoch":"0","coverage":{"facts":"complete","input":"complete","issues":[],"required_layers":["structure"],"scope_id":"generic-owned-test-table"},"data":null,"error":{"code":"CANCELLED","details":{"emitted_rows":"1","execution_complete":false,"scope_id":"generic-owned-test-table"},"message":"query cancelled","retryable":false,"stage":"lifecycle"},"execution":{"complete":false},"operation":"query","operation_status":"cancelled","profile":"mdd-native-v1-unqualified","query_id":"query-c0688b52e0d0f104dd9568996d74fd914c1cbd080f6122f78822562f25508119","request_id":"runtime-request","response":{"emitted_rows":"1","more_available":false,"next_cursor":null,"schema_id":"mdd.rows.v1:b905d0d31699ce3162cc7ae59b799b5c7acacfe7efad757d7f986e5f7df88eca","total_rows":null,"total_rows_exact":false,"truncated":true},"schema_version":"mdd.result.v1","session_id":"session-3b191e1dab848a761a948a5ecdbb8c9ab28152675ead3f5672b3d1ed55745215","snapshot_id":"snapshot-c7b8957cb3e64d02def16b7e556856e283acca55e4ffb692e4d1297620d82554","sql_dialect":null,"warnings":[]}}
+{"case":"worker-kill-inflight-and-sibling","error":{"code":"WORKER_LOST","stage":"worker"},"fallback_allowed":false,"mode":"materialized_reference","sibling_phase":"failed"}
+test executor::runtime_tests::worker_kill_fails_inflight_query_and_is_not_a_fallback_error ... ok
+{"accepted_rows_disqualify":true,"case":"fallback-whitelist-query-boundary","permitted_under_pristine":true,"rejected":[{"class":"quota_exceeded","code":"QUOTA_EXCEEDED"},{"class":"deadline_exceeded","code":"DEADLINE_EXCEEDED"},{"class":"cancelled","code":"CANCELLED"},{"class":"worker_lost","code":"WORKER_LOST"}]}
+test executor::runtime_tests::fallback_whitelist_rejects_real_query_terminal_errors ... ok
+{"case":"production-queue-native-cancel-isolated","emitted_rows":1,"mode":"materialized_reference","sibling_active":true,"terminal":{"catalog_epoch":"0","coverage":{"facts":"complete","input":"complete","issues":[],"required_layers":["structure"],"scope_id":"generic-owned-test-table"},"data":null,"error":{"code":"CANCELLED","details":{"emitted_rows":"1","execution_complete":true,"scope_id":"generic-owned-test-table"},"message":"query cancelled","retryable":false,"stage":"lifecycle"},"execution":{"complete":true},"operation":"query","operation_status":"cancelled","profile":"mdd-native-v1-unqualified","query_id":"query-045bc9a8efde6d4ea9e4c86d4268fbc6059733755506c57b9acd2a5d5604b6b7","request_id":"runtime-request","response":{"emitted_rows":"1","more_available":false,"next_cursor":null,"schema_id":"mdd.rows.v1:b905d0d31699ce3162cc7ae59b799b5c7acacfe7efad757d7f986e5f7df88eca","total_rows":"4","total_rows_exact":true,"truncated":true},"schema_version":"mdd.result.v1","session_id":"session-31eb7376dff1daf77735f96f1aae1f3173bb49e4ee6dc3627d75604928b3b085","snapshot_id":"snapshot-add793eeaed3620344d6a044a3bb76a8b03369787d53d086d846cff2c6e6ad55","sql_dialect":null,"warnings":[]}}
+test executor::runtime_tests::production_queue_native_cancel_is_isolated_from_sibling_and_keeps_partial_failure ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 197 filtered out; finished in 0.00s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s
+

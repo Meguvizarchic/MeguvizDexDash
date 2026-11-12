@@ -1,5 +1,15 @@
 #!/usr/bin/env python3
-"""Merge independent executed native-fact gates; compatibility projection admission stays separate."""
+"""Merge independent executed native-fact gates; compatibility projection admission stays separate.
+
+Historical generator. It pins the source hashes of the frozen 2026-10-28 index component run
+(`INDEX`) and the independent matrix `required-columns.json`, and asserts the 69 compatibility
+projections that were unassembled then. It is meant to fail with `tested source drift` once
+those sources move; ADR-017 keeps the file it wrote as the record of that bounded check, not as
+proof of task completion. The current column state is derived from
+`crates/mdd-facts/src/indexes/columns.rs` (all 156 assembled) and merged by
+`artifacts/mdd-026/merge_evidence_clean.py`; re-issuing a qualification needs a new index run
+and a new generator, not an edit of this one.
+"""
 from datetime import datetime, timezone
 from pathlib import Path
 import hashlib

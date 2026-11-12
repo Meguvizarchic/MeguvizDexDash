@@ -1,0 +1,15 @@
+{
+  "schema_version": "mdd.post-run-manifest-update.v1",
+  "task_id": "MDD-022",
+  "recorded_run": "20261109T044316003186Z",
+  "updated_file": "conformance/relations/annotation-and-signature.json",
+  "sha256_in_recorded_run": "8b1ec28889e7baa6f64e4ef1eb1d214bb8b4832a6ea4890f7509e11146d301c3",
+  "sha256_after_update": "2f447886cad6f6adc325eea87491247f72f3f8400ac27271dda9c5d801d8f4c2",
+  "changed": "Appended the 2026-11-09 requalification evidence pointers and rewrote parameter_coverage to attribute positional binding to the ART implementation rather than the DEX format specification.",
+  "impact": "The recorded run's source_sha256 for this file no longer matches the working tree; the recorded run remains valid as a historical record of the state at that time. Re-running artifacts/mdd-022/reproduce.py refreshes the binding.",
+  "verified_by": "python artifacts/mdd-022/reproduce.py (run 20261109T044316003186Z, 12 commands exit 0); post-run hash comparison distinguishing LF/CRLF forms",
+  "line_ending_note": "After the recorded run, working-tree line endings were normalised from CRLF back to LF for files that were LF at HEAD (a side effect of Windows text-mode writes during this round). For crates/mdd-facts/src/annotations.rs and artifacts/mdd-022/reproduce.py the recorded hash matches the CRLF form and the current file matches after CRLF->LF conversion, so their CONTENT is unchanged; only line endings differ. crates/mdd-dex/src/annotations.rs, crates/mdd-facts/examples/annotation_summary.rs, Cargo.lock, rust-toolchain.toml and the three tests/fixtures/annotations files still match their recorded LF hashes exactly.",
+  "content_changed_files": [
+    "conformance/relations/annotation-and-signature.json"
+  ]
+}

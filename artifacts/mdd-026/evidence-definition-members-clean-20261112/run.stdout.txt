@@ -1,0 +1,1 @@
+{"columns": 107, "states": {"satisfied": 92, "partial": 14, "missing": 1}, "comparisons": 104, "task_complete_proven": false}

@@ -1,0 +1,113 @@
+{
+  "schema_version": "mdd.relation-projection-readback.v1",
+  "created_utc": "2026-11-11T09:12:11.634994+00:00",
+  "task": "MDD-026",
+  "native_dump": "native-row-dump.txt",
+  "native_dump_sha256": "0e3f3dbea6cbec52a90f1f6ce3c928113a164a6089181d54c15ceea6ae19d91a",
+  "a0_source": "artifacts/mdd-026/current-source-rerun-20261109/20261109T050254404212Z",
+  "native_projection_scope": "single-occurrence row APIs with caller-supplied file_id=0/string_pool_id=0",
+  "results": [
+    {
+      "label": "methods:definitions-035.dex",
+      "a0_rows": 13,
+      "native_rows": 13,
+      "compared_rows": 13,
+      "compared_columns": [
+        "file_id",
+        "method_idx",
+        "class_idx",
+        "class_descriptor",
+        "proto_idx",
+        "name",
+        "descriptor",
+        "return_descriptor",
+        "param_count",
+        "access_flags",
+        "method_kind"
+      ],
+      "differences": [],
+      "equal": true
+    },
+    {
+      "label": "methods:shared-code-035.dex",
+      "a0_rows": 5,
+      "native_rows": 5,
+      "compared_rows": 5,
+      "compared_columns": [
+        "file_id",
+        "method_idx",
+        "class_idx",
+        "class_descriptor",
+        "proto_idx",
+        "name",
+        "descriptor",
+        "return_descriptor",
+        "param_count",
+        "access_flags",
+        "method_kind"
+      ],
+      "differences": [],
+      "equal": true
+    },
+    {
+      "label": "code_items:classic-035.dex",
+      "a0_rows": 2,
+      "native_rows": 2,
+      "compared_rows": 2,
+      "compared_columns": "intersection",
+      "differences": [],
+      "equal": true
+    },
+    {
+      "label": "code_items:shared-code-035.dex",
+      "a0_rows": 3,
+      "native_rows": 3,
+      "compared_rows": 3,
+      "compared_columns": "intersection",
+      "differences": [],
+      "equal": true
+    },
+    {
+      "label": "types:type-names-035.dex",
+      "a0_rows": 7,
+      "native_rows": 7,
+      "compared_rows": 7,
+      "compared_columns": "intersection",
+      "differences": [],
+      "equal": true
+    },
+    {
+      "label": "strings:classic-035.dex",
+      "a0_rows": 13,
+      "native_rows": 13,
+      "compared_rows": 13,
+      "compared_columns": [
+        "file_id",
+        "string_pool_id",
+        "string_idx",
+        "value"
+      ],
+      "differences": [],
+      "equal": true
+    },
+    {
+      "label": "dex_files:classic-035.dex (catalog ids only)",
+      "a0_rows": 2,
+      "native_rows": 1,
+      "compared_rows": 1,
+      "compared_columns": [
+        "file_id",
+        "string_pool_id"
+      ],
+      "differences": [],
+      "equal": true,
+      "note": "source_path/entry_name are unassembled by design; the A0 slice measures only these four columns"
+    }
+  ],
+  "all_equal": true,
+  "limits": [
+    "Small synthetic fixtures only; no private inputs and no HostLab workload.",
+    "The A0 dumps were recorded by the frozen verifier before this change; the native rows were produced by the new row APIs on the same fixture bytes.",
+    "dex_files and strings A0 slices measure only a subset of the contract columns."
+  ]
+}

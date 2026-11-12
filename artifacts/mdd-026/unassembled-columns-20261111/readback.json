@@ -1,0 +1,13 @@
+{
+  "status": "passed",
+  "failures": [],
+  "checks": {
+    "dex_file_rows_compared": 6,
+    "methods_rows_compared": 24
+  },
+  "probe_sha256": "e7f0269615f55f19890d9b5392639cc2156e6e4e67d8d6516df060eb9ac88df9",
+  "readback_source_sha256": "58259cdbfa91def2d751fbbcdef04083843138505a45498926568e33924a8653",
+  "task_complete_proven": false,
+  "profile_admitted": false,
+  "scope": "tiny development fixtures; not a profile admission"
+}

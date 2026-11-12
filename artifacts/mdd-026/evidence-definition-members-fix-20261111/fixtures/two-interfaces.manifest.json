@@ -1,0 +1,244 @@
+{
+  "schema_version": "mdd.evidence-two-interfaces-fixture.v1",
+  "generator": "artifacts/mdd-026/evidence-definition-members-fix-20261111/generate_two_interfaces.py",
+  "derived_from": "tests/fixtures/definitions/generate.py",
+  "source_url": "https://source.android.com/docs/core/runtime/dex-format",
+  "runtime_installability_verified": false,
+  "files": [
+    {
+      "id": "two-interfaces",
+      "path": "fixtures/generated/two-interfaces.dex",
+      "bytes": 1312,
+      "sha256": "1c2eb98c8dd937c2c9e6769fd45ace66c7374944d84eef8c81b69130ab8bdca9",
+      "expected": "two_distinct_interfaces",
+      "layout": {
+        "field_indices": {
+          "Lfixture/Base;->iValue": 0,
+          "Lfixture/Base;->mValue": 1,
+          "Lfixture/Base;->sValue": 2,
+          "Lfixture/Base;->zStatic": 3,
+          "Lfixture/Child;->childRef": 4,
+          "Lfixture/External;->outside": 5
+        },
+        "method_indices": {
+          "Lfixture/Base;-><init>": 0,
+          "Lfixture/Base;->nativeCall": 1,
+          "Lfixture/Base;->privateCall": 2,
+          "Lfixture/Base;->staticCall": 3,
+          "Lfixture/Base;->virtualCall": 4,
+          "Lfixture/Child;-><init>": 5,
+          "Lfixture/Child;->abstractCall": 6,
+          "Lfixture/Child;->overrideCall": 7,
+          "Lfixture/External;->externalCall": 8,
+          "Lfixture/I0;->iMethod": 9,
+          "Lfixture/I1;->jMethod": 10,
+          "Ljava/lang/Object;-><init>": 11,
+          "[Lfixture/Base;->clone": 12
+        },
+        "class_data": {
+          "Lfixture/I0;": {
+            "byte_offset": 1094,
+            "byte_end": 1102,
+            "groups": {
+              "static": [],
+              "instance": [],
+              "direct": [],
+              "virtual": [
+                {
+                  "ordinal": 0,
+                  "name": "iMethod",
+                  "reference_idx": 9,
+                  "delta": 9,
+                  "byte_offset": 1098,
+                  "access_flags": 1025,
+                  "code_off": 0
+                }
+              ]
+            }
+          },
+          "Lfixture/I1;": {
+            "byte_offset": 1102,
+            "byte_end": 1110,
+            "groups": {
+              "static": [],
+              "instance": [],
+              "direct": [],
+              "virtual": [
+                {
+                  "ordinal": 0,
+                  "name": "jMethod",
+                  "reference_idx": 10,
+                  "delta": 10,
+                  "byte_offset": 1106,
+                  "access_flags": 1025,
+                  "code_off": 0
+                }
+              ]
+            }
+          },
+          "Lfixture/Base;": {
+            "byte_offset": 1110,
+            "byte_end": 1144,
+            "groups": {
+              "static": [
+                {
+                  "ordinal": 0,
+                  "name": "sValue",
+                  "reference_idx": 2,
+                  "delta": 2,
+                  "byte_offset": 1114,
+                  "access_flags": 9,
+                  "code_off": null
+                },
+                {
+                  "ordinal": 1,
+                  "name": "zStatic",
+                  "reference_idx": 3,
+                  "delta": 1,
+                  "byte_offset": 1116,
+                  "access_flags": 9,
+                  "code_off": null
+                }
+              ],
+              "instance": [
+                {
+                  "ordinal": 0,
+                  "name": "iValue",
+                  "reference_idx": 0,
+                  "delta": 0,
+                  "byte_offset": 1118,
+                  "access_flags": 1,
+                  "code_off": null
+                },
+                {
+                  "ordinal": 1,
+                  "name": "mValue",
+                  "reference_idx": 1,
+                  "delta": 1,
+                  "byte_offset": 1120,
+                  "access_flags": 1,
+                  "code_off": null
+                }
+              ],
+              "direct": [
+                {
+                  "ordinal": 0,
+                  "name": "<init>",
+                  "reference_idx": 0,
+                  "delta": 0,
+                  "byte_offset": 1122,
+                  "access_flags": 65537,
+                  "code_off": 968
+                },
+                {
+                  "ordinal": 1,
+                  "name": "nativeCall",
+                  "reference_idx": 1,
+                  "delta": 1,
+                  "byte_offset": 1128,
+                  "access_flags": 265,
+                  "code_off": 0
+                },
+                {
+                  "ordinal": 2,
+                  "name": "privateCall",
+                  "reference_idx": 2,
+                  "delta": 1,
+                  "byte_offset": 1132,
+                  "access_flags": 2,
+                  "code_off": 992
+                },
+                {
+                  "ordinal": 3,
+                  "name": "staticCall",
+                  "reference_idx": 3,
+                  "delta": 1,
+                  "byte_offset": 1136,
+                  "access_flags": 9,
+                  "code_off": 1012
+                }
+              ],
+              "virtual": [
+                {
+                  "ordinal": 0,
+                  "name": "virtualCall",
+                  "reference_idx": 4,
+                  "delta": 4,
+                  "byte_offset": 1140,
+                  "access_flags": 1,
+                  "code_off": 1032
+                }
+              ]
+            }
+          },
+          "Lfixture/Child;": {
+            "byte_offset": 1144,
+            "byte_end": 1164,
+            "groups": {
+              "static": [],
+              "instance": [
+                {
+                  "ordinal": 0,
+                  "name": "childRef",
+                  "reference_idx": 4,
+                  "delta": 4,
+                  "byte_offset": 1148,
+                  "access_flags": 1,
+                  "code_off": null
+                }
+              ],
+              "direct": [
+                {
+                  "ordinal": 0,
+                  "name": "<init>",
+                  "reference_idx": 5,
+                  "delta": 5,
+                  "byte_offset": 1150,
+                  "access_flags": 65537,
+                  "code_off": 1052
+                }
+              ],
+              "virtual": [
+                {
+                  "ordinal": 0,
+                  "name": "abstractCall",
+                  "reference_idx": 6,
+                  "delta": 6,
+                  "byte_offset": 1156,
+                  "access_flags": 1025,
+                  "code_off": 0
+                },
+                {
+                  "ordinal": 1,
+                  "name": "overrideCall",
+                  "reference_idx": 7,
+                  "delta": 1,
+                  "byte_offset": 1160,
+                  "access_flags": 1,
+                  "code_off": 1076
+                }
+              ]
+            }
+          }
+        },
+        "type_indices": {
+          "I": 0,
+          "Lfixture/Base;": 1,
+          "Lfixture/Child;": 2,
+          "Lfixture/External;": 3,
+          "Lfixture/I0;": 4,
+          "Lfixture/I1;": 5,
+          "Ljava/lang/Object;": 6,
+          "V": 7,
+          "[Lfixture/Base;": 8
+        },
+        "class_order": [
+          "Lfixture/I0;",
+          "Lfixture/I1;",
+          "Lfixture/Base;",
+          "Lfixture/Child;"
+        ]
+      }
+    }
+  ]
+}

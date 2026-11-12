@@ -1,0 +1,113 @@
+{
+  "annotation_calculation_complete": true,
+  "captured_input_bytes": "10885562",
+  "engine": "MeguvizDexDash",
+  "full_audit_complete": false,
+  "input_content_id": "sha256:e56ef6280b700696172797f94513ffd3f9aae9349945a2f06e235ec24446be58",
+  "operation_status": "ok",
+  "qualification": "actual self-owned reader construction only; not a HostLab or performance compatibility qualification",
+  "relations": null,
+  "scope": "physical-annotations-encoded-values-signature-fragments-v1",
+  "selected_dexes": [
+    {
+      "annotation_calculation_complete": true,
+      "class_directory_bindings": 2634,
+      "completed_layers": [
+        "strings",
+        "types",
+        "prototypes",
+        "definitions",
+        "annotations",
+        "encoded_values",
+        "signature_fragments"
+      ],
+      "content_id": "sha256:b661eaad3277de9147c4461f27c15b949d2a360ab61ef05b7a9e82b3e6c27521",
+      "dex_occurrence_id": "snapshot-015fd862cecb63bd460ac5da27f13d3cb03aa7b13d06e188156e2f785e625524:source:0:member:4:dex:header:0",
+      "encoded_parameter_slots": 16,
+      "explicit_null_parameter_slots": 6,
+      "full_audit_complete": false,
+      "full_dex_validation_complete": false,
+      "owner_bindings": 5538,
+      "parameter_lists_longer_than_prototype": 0,
+      "parameter_lists_shorter_than_prototype": 1,
+      "parameter_slot_scope": "exact encoded slots only; absent slots are not manufactured NULL rows",
+      "physical_annotation_items": 3688,
+      "physical_annotation_sets": 3398,
+      "physical_directories": 2291,
+      "physical_encoded_arrays": 686,
+      "physical_ref_lists": 4,
+      "prototype_parameter_position_coverage": "unknown",
+      "signature_facts": 2937,
+      "signature_parts": 12300,
+      "signature_utf16_units": 261411,
+      "signatures_without_scalar_utf8": 0,
+      "unbuilt_layers": [
+        "code_layout",
+        "references",
+        "resources",
+        "derived_analysis",
+        "static_initial_values",
+        "prototype_parameter_annotation_positions"
+      ],
+      "usage": {
+        "decoded_bytes": 4564420,
+        "physical_items": 10067,
+        "relation_rows": 37976,
+        "value_nodes": 20814
+      },
+      "validated_call_site_prefixes": 0,
+      "value_nodes": 20814,
+      "version": "035"
+    },
+    {
+      "annotation_calculation_complete": true,
+      "class_directory_bindings": 62,
+      "completed_layers": [
+        "strings",
+        "types",
+        "prototypes",
+        "definitions",
+        "annotations",
+        "encoded_values",
+        "signature_fragments"
+      ],
+      "content_id": "sha256:e95ea094cdfb755304f5027ba6e64fa98f9b10e874c4093f3b19c43d62bfee3f",
+      "dex_occurrence_id": "snapshot-015fd862cecb63bd460ac5da27f13d3cb03aa7b13d06e188156e2f785e625524:source:0:member:5:dex:header:0",
+      "encoded_parameter_slots": 0,
+      "explicit_null_parameter_slots": 0,
+      "full_audit_complete": false,
+      "full_dex_validation_complete": false,
+      "owner_bindings": 186,
+      "parameter_lists_longer_than_prototype": 0,
+      "parameter_lists_shorter_than_prototype": 0,
+      "parameter_slot_scope": "exact encoded slots only; absent slots are not manufactured NULL rows",
+      "physical_annotation_items": 156,
+      "physical_annotation_sets": 148,
+      "physical_directories": 62,
+      "physical_encoded_arrays": 59,
+      "physical_ref_lists": 0,
+      "prototype_parameter_position_coverage": "complete",
+      "signature_facts": 184,
+      "signature_parts": 904,
+      "signature_utf16_units": 11143,
+      "signatures_without_scalar_utf8": 0,
+      "unbuilt_layers": [
+        "code_layout",
+        "references",
+        "resources",
+        "derived_analysis",
+        "static_initial_values"
+      ],
+      "usage": {
+        "decoded_bytes": 221182,
+        "physical_items": 425,
+        "relation_rows": 1585,
+        "value_nodes": 1044
+      },
+      "validated_call_site_prefixes": 0,
+      "value_nodes": 1044,
+      "version": "035"
+    }
+  ],
+  "snapshot_id": "snapshot-015fd862cecb63bd460ac5da27f13d3cb03aa7b13d06e188156e2f785e625524"
+}

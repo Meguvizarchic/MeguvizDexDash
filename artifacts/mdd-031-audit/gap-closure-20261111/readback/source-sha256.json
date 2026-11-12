@@ -1,0 +1,19 @@
+{
+  "schema_version": "mdd.mdd-031.gap-closure-source-identity.v1",
+  "generated_utc": "2026-11-11T08:56:00Z",
+  "files": {
+    "crates/mdd-sql/src/bridge.rs": "80b727efef76a57226e0a4ea861a07660af3429762dab6aa640a93546fb83e8e",
+    "crates/mdd-sql/src/control.rs": "cf7c34cb2083c3a089cbf19af7680e85cd034e0b901acc89334ae9cb850c1a32",
+    "crates/mdd-sql/src/dialects/ast.rs": "09b66faa08eb9cf1929bc9c2f4a7261bdf0af44a0d60c8d9904303ce76234df8",
+    "crates/mdd-sql/src/dialects/functions.rs": "29a7b0cc007181a21cef187cab969acde75b805779b64c32978138f869c05669",
+    "crates/mdd-sql/src/dialects/mod.rs": "b86349330e76a79a7049897ca50eddb5f3bed16cf8a6bde17ff1c471e98d57f4",
+    "crates/mdd-sql/src/join_tests.rs": "368ace29747636e0637d933562ac1295c7e800581ee3e59277c4a509e176d92b",
+    "crates/mdd-sql/src/lib.rs": "4045b5a1c1cbc2cae32b601bac11e9509365a42d3b6835bca6e0e0fb9ca9f15a",
+    "crates/mdd-sql/src/provider/metadata.rs": "53cd214f3afffb7cc76453612987246bb48319b9f40f2eba0b1ef71d1fbb0be5",
+    "crates/mdd-sql/src/provider.rs": "27cdcc535265c054e4c470ab737cf5402abb9c734b2d5894a2b1cb439d0ace56",
+    "crates/mdd-sql/src/runtime.rs": "b842c26d3a534e948970f0181e46c2089cdadfbc345f803a0c0f01313f9b814b",
+    "crates/mdd-sql/src/runtime_tests.rs": "c1effa63d78c39044034804463eadad36e933525c50afdfebbd4f4fd5689a18b",
+    "crates/mdd-sql/src/values.rs": "13d19c9e8df6057a5adba421458b361a7e44eb6fb3834f7c299aa246b1a1babb",
+    "crates/mdd-sql/src/virtual_tables/mod.rs": "84d1b33f94ae93b0de86d3afb300b7fb875898f966e7e88ce72ede91de446753"
+  }
+}

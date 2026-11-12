@@ -1,0 +1,1 @@
+{"relations": 3, "columns": 21, "two_source_occurrences": true, "negative_controls": 3, "task_complete_proven": false}

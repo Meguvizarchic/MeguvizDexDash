@@ -288,7 +288,8 @@
     "artifacts/mdd-022/probes/sdk-physical-items.json",
     "artifacts/mdd-022/probes/parameter-arity-sdk/adjudication.json",
     "artifacts/mdd-022/progress.json",
-    "artifacts/mdd-022/annotation-conformance.json"
+    "artifacts/mdd-022/annotation-conformance.json",
+    "artifacts/mdd-022/parameter-position-art-adjudication-20261109/adjudication.json"
   ],
-  "parameter_coverage": "Exact encoded slots are complete; per-list prototype-position coverage is separately complete/unknown, and require_complete_parameter_positions fails closed on unknown."
+  "parameter_coverage": "Exact encoded slots are complete; per-list prototype-position coverage is separately complete/unknown, and require_complete_parameter_positions fails closed on unknown. Positional binding of slot i to prototype parameter i follows the ART implementation, which indexes annotation_set_ref_list.list_[parameter_idx] directly; the DEX format specification alone does not require the encoded list length to equal the prototype parameter count, so equal length is treated as sufficient for known positions and any mismatch is reported Unknown, never as manufactured NULL rows."
 }

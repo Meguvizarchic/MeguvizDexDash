@@ -1,0 +1,114 @@
+{
+  "scope": "tiny isolated public API fact composition; no coverage signer or full relation provider claimed",
+  "cases": [
+    {
+      "case": "classic",
+      "inputs": [
+        {
+          "path": "tests/fixtures/references/generated/classic-035.dex",
+          "bytes": 660,
+          "sha256": "076dcc64b96b8369327e7ee6e5c05c864ef3bde26c746b6318ee12c52c654dc8"
+        }
+      ],
+      "native_record": "artifacts/mdd-026/native/classic/stdout.txt",
+      "complete_probe": true,
+      "dex_occurrences": 1
+    },
+    {
+      "case": "shared-code",
+      "inputs": [
+        {
+          "path": "tests/fixtures/references/generated/shared-code-035.dex",
+          "bytes": 692,
+          "sha256": "22eb2d4020f172334a99f5c75538af5f2b3e80673adb11803b368cc68aaec0ab"
+        }
+      ],
+      "native_record": "artifacts/mdd-026/native/shared-code/stdout.txt",
+      "complete_probe": true,
+      "dex_occurrences": 1
+    },
+    {
+      "case": "dynamic",
+      "inputs": [
+        {
+          "path": "tests/fixtures/references/generated/poly-custom-038.dex",
+          "bytes": 1116,
+          "sha256": "25bc5a03641d31d87212a9a292d798e64c563e2666d03f579e7fc894ac8ee425"
+        }
+      ],
+      "native_record": "artifacts/mdd-026/native/dynamic/stdout.txt",
+      "complete_probe": true,
+      "dex_occurrences": 1
+    },
+    {
+      "case": "annotations",
+      "inputs": [
+        {
+          "path": "tests/fixtures/annotations/generated/annotations-038.dex",
+          "bytes": 1452,
+          "sha256": "65380a8b23601e17339379be211e417d8b4c8383b686b6d173f800656b985360"
+        }
+      ],
+      "native_record": "artifacts/mdd-026/native/annotations/stdout.txt",
+      "complete_probe": true,
+      "dex_occurrences": 1
+    },
+    {
+      "case": "parameter-positions-unknown",
+      "inputs": [
+        {
+          "path": "tests/fixtures/annotations/generated/bad-parameter-arity.dex",
+          "bytes": 1452,
+          "sha256": "dac87eb4842227104f1a7b3f215eb1fdc452422273c54020de89e88939ceea4f"
+        }
+      ],
+      "native_record": "artifacts/mdd-026/native/parameter-positions-unknown/stdout.txt",
+      "complete_probe": true,
+      "dex_occurrences": 1
+    },
+    {
+      "case": "annotations-bad-independent-scope",
+      "inputs": [
+        {
+          "path": "tests/fixtures/references/generated/ordinary-unrelated-bad-annotation.dex",
+          "bytes": 760,
+          "sha256": "05bdd53bfc54760a1fb41425f492b4c5eaadcaf3b1ca82e2a5ea9998d950b3d7"
+        }
+      ],
+      "native_record": "artifacts/mdd-026/native/annotations-bad-independent-scope/stdout.txt",
+      "complete_probe": true,
+      "dex_occurrences": 1
+    },
+    {
+      "case": "nonscalar",
+      "inputs": [
+        {
+          "path": "tests/fixtures/references/generated/nonscalar-string-035.dex",
+          "bytes": 672,
+          "sha256": "d2bc2a79ed9d2304a3ffeb9bc0c762fccc5460019a280ab923901b84ddd9510a"
+        }
+      ],
+      "native_record": "artifacts/mdd-026/native/nonscalar/stdout.txt",
+      "complete_probe": true,
+      "dex_occurrences": 1
+    },
+    {
+      "case": "duplicate-occurrences",
+      "inputs": [
+        {
+          "path": "tests/fixtures/references/generated/classic-035.dex",
+          "bytes": 660,
+          "sha256": "076dcc64b96b8369327e7ee6e5c05c864ef3bde26c746b6318ee12c52c654dc8"
+        },
+        {
+          "path": "tests/fixtures/references/generated/classic-035.dex",
+          "bytes": 660,
+          "sha256": "076dcc64b96b8369327e7ee6e5c05c864ef3bde26c746b6318ee12c52c654dc8"
+        }
+      ],
+      "native_record": "artifacts/mdd-026/native/duplicate-occurrences/stdout.txt",
+      "complete_probe": true,
+      "dex_occurrences": 2
+    }
+  ]
+}

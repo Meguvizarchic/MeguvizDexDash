@@ -1,0 +1,31 @@
+{
+  "schema_version": "mdd.evidence-definition-members-fix-fixtures.v1",
+  "task": "MDD-026",
+  "generated_utc": "2026-11-12T09:51:14.100130+00:00",
+  "source_fixture": {
+    "path": "tests/fixtures/definitions/generated/definitions-035.dex",
+    "sha256": "4e8f9e8deedf44c8793e10d99f2614e0bed705dcac617c0d74137e7b2bd459cc",
+    "bytes": 1308
+  },
+  "fixtures": [
+    {
+      "id": "duplicate-content.apk",
+      "path": "evidence/duplicate-content.apk",
+      "bytes": 2836,
+      "sha256": "5d3ad17e18fd25c956523911015a018742e1c238dba1d974c69d7b98b4fc6590",
+      "members": [
+        "classes.dex",
+        "classes2.dex"
+      ],
+      "member_sha256": "4e8f9e8deedf44c8793e10d99f2614e0bed705dcac617c0d74137e7b2bd459cc",
+      "purpose": "two byte-identical DEX members so content projections contain exact duplicate rows"
+    },
+    {
+      "id": "two-interfaces.dex",
+      "path": "fixtures/generated/two-interfaces.dex",
+      "bytes": 1312,
+      "sha256": "1c2eb98c8dd937c2c9e6769fd45ace66c7374944d84eef8c81b69130ab8bdca9",
+      "purpose": "valid DEX; class Lfixture/Base; implements Lfixture/I0; and Lfixture/I1; (ordinal 0/1)"
+    }
+  ]
+}

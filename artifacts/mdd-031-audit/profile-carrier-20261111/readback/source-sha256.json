@@ -1,0 +1,5 @@
+{
+  "crates/mdd-sql/src/bridge.rs": "8f1d173fac97758b068b741d5e2b3fb9667f067f6a34fae6141452f31f0bfa88",
+  "crates/mdd-sql/src/provider.rs": "c0599c05a516103d345bd908739aa8b890bb364ff47a12a5a828bcd576676ad7",
+  "crates/mdd-sql/src/dialects/mod.rs": "4142a85c412979468973b7ad9c10748731ab777d31afa521b9cc04b06f7fd548"
+}

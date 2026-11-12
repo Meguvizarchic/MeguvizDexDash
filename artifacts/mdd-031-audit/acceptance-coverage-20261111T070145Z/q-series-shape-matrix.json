@@ -1,0 +1,129 @@
+{
+  "schema_version": "mdd.mdd-031.q-series-shape-matrix.v1",
+  "generated_utc": "2026-11-11T07:09:55Z",
+  "scope": "SQL shape semantics over synthetic providers using frozen HostLab relation names/columns; no real APK facts, no relation mapping, no profile admission",
+  "sqlite_oracles": {
+    "rust_rusqlite": "3.53.2",
+    "python_stdlib": "3.53.1"
+  },
+  "cases": [
+    {
+      "id": "Q01",
+      "title": "Input inventory and string pools",
+      "status": "covered-shape",
+      "evidence": "bridge.rs hostlab_q_series_shapes_match_sqlite_per_dialect; oracle Q01",
+      "residual": "real relation mapping is MDD-032"
+    },
+    {
+      "id": "Q02",
+      "title": "Class metadata and wildcard members",
+      "status": "covered-shape",
+      "evidence": "bridge.rs hostlab_q_series_shapes_match_sqlite_per_dialect (cf.* wildcard); oracle Q02",
+      "residual": "real relation mapping is MDD-032"
+    },
+    {
+      "id": "Q03",
+      "title": "Interfaces join with local identities",
+      "status": "covered",
+      "evidence": "artifacts/mdd-031-audit/native-q03-join-20261101; artifacts/mdd-031-audit/q03-join-review; bridge.rs hostlab_q_series_shapes_match_sqlite_per_dialect",
+      "residual": ""
+    },
+    {
+      "id": "Q04",
+      "title": "Ordered Signature annotation hierarchy",
+      "status": "covered",
+      "evidence": "artifacts/mdd-031-audit/hostlab-q04-filter-20261101; artifacts/mdd-031-audit/q04-annotation-review; bridge.rs hostlab_q04_annotation_filters_match_sqlite_with_duplicate_occurrences",
+      "residual": ""
+    },
+    {
+      "id": "Q05",
+      "title": "Definition-to-reference return discovery",
+      "status": "covered-shape",
+      "evidence": "bridge.rs hostlab_q_series_shapes_match_sqlite_per_dialect (DISTINCT + two-key JOIN); oracle Q05",
+      "residual": "real relation mapping is MDD-032"
+    },
+    {
+      "id": "Q06",
+      "title": "String candidate and LIKE/ESCAPE",
+      "status": "covered",
+      "evidence": "artifacts/mdd-031-audit/hostlab-q06-filter-20261101; bridge.rs hostlab_q06_candidates_two_like_and_distinct_match_sqlite",
+      "residual": ""
+    },
+    {
+      "id": "Q07",
+      "title": "Complete class count",
+      "status": "covered-shape",
+      "evidence": "bridge.rs hostlab_q_series_shapes_match_sqlite_per_dialect (COUNT(*) ORDER BY alias); oracle Q07",
+      "residual": ""
+    },
+    {
+      "id": "Q08",
+      "title": "Per-DEX classes and member surface",
+      "status": "covered-shape",
+      "evidence": "bridge.rs hostlab_q_series_shapes_match_sqlite_per_dialect (LIKE ESCAPE + ORDER); oracle Q08",
+      "residual": "full family prefix OR + lower/LIKE Python classifier is MDD-032"
+    },
+    {
+      "id": "Q09",
+      "title": "Raw body range and exact membership",
+      "status": "covered-shape",
+      "evidence": "bridge.rs hostlab_q_series_shapes_match_sqlite_per_dialect (BETWEEN); oracle Q09",
+      "residual": "exact Python membership and raw code units are MDD-032"
+    },
+    {
+      "id": "Q10",
+      "title": "Call-site multiplicity aggregate",
+      "status": "covered",
+      "evidence": "artifacts/mdd-031-audit/q10-aggregation-audit; artifacts/mdd-031-audit/q10-group-calls-20261101; bridge.rs hostlab_q10_group_count_and_order_match_sqlite_for_duplicate_calls",
+      "residual": ""
+    },
+    {
+      "id": "Q11",
+      "title": "Protocol definitions",
+      "status": "covered-shape",
+      "evidence": "bridge.rs hostlab_q_series_shapes_match_sqlite_per_dialect (IN OR LIKE); oracle Q11",
+      "residual": ""
+    },
+    {
+      "id": "Q12",
+      "title": "Locate and four refs generators",
+      "status": "covered-shape",
+      "evidence": "bridge.rs hostlab_q_series_shapes_match_sqlite_per_dialect (alias + ORDER); oracle Q12",
+      "residual": "LIMIT limit+1 overflow probe and four refs generators are MDD-032/033"
+    },
+    {
+      "id": "Q13",
+      "title": "CLI shape and lossless value wrapper",
+      "status": "covered",
+      "evidence": "bridge.rs hostlab_shape_and_hex_wrapper_preserve_columns_rows_and_required_layers; artifacts/mdd-031-audit/hostlab-q13-wrapper-20261101",
+      "residual": ""
+    },
+    {
+      "id": "Q14",
+      "title": "Stable paging SELECT/WITH",
+      "status": "out-of-scope",
+      "evidence": "MDD-033 session TEMP catalog and snapshot-bound paging",
+      "residual": "not an MDD-031 SQL semantics shape"
+    },
+    {
+      "id": "Q15",
+      "title": "Legacy SQLite definitions and TSV",
+      "status": "covered",
+      "evidence": "bridge.rs hostlab_q15_descriptor_concat_order_matches_sqlite; artifacts/mdd-031-audit/q15-concat-shape-20261101",
+      "residual": ""
+    },
+    {
+      "id": "Q16",
+      "title": "Native TEMP and multistatement",
+      "status": "out-of-scope",
+      "evidence": "MDD-033 session TEMP catalog",
+      "residual": "not an MDD-031 SQL semantics shape"
+    }
+  ],
+  "summary": {
+    "covered_or_shape": 14,
+    "out_of_scope": 2,
+    "real_relation_mapping": "MDD-032",
+    "paging_and_temp": "MDD-033"
+  }
+}

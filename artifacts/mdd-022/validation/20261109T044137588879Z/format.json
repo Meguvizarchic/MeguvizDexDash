@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "rustfmt",
+    "--check",
+    "--edition",
+    "2024",
+    "crates/mdd-dex/src/annotations.rs",
+    "crates/mdd-facts/src/annotations.rs",
+    "crates/mdd-facts/examples/annotation_summary.rs"
+  ],
+  "exit_code": 0,
+  "stdout": "",
+  "stderr": ""
+}

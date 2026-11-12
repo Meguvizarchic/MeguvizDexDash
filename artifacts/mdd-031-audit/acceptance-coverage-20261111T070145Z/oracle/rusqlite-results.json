@@ -1,0 +1,83 @@
+[
+  {
+    "rows": [
+      [
+        1,
+        null,
+        1,
+        6,
+        7,
+        190
+      ]
+    ],
+    "sql": "SELECT NULL IS NULL, NULL = NULL, COALESCE(NULL, 1), COUNT(value), COUNT(*), SUM(opt) FROM vals"
+  },
+  {
+    "rows": [
+      [
+        null,
+        1,
+        40
+      ],
+      [
+        "",
+        1,
+        50
+      ],
+      [
+        "a-c",
+        1,
+        60
+      ],
+      [
+        "a_c",
+        1,
+        null
+      ],
+      [
+        "alpha",
+        2,
+        40
+      ],
+      [
+        "beta",
+        1,
+        null
+      ]
+    ],
+    "sql": "SELECT value, COUNT(*) AS n, SUM(opt) AS s FROM vals GROUP BY value ORDER BY value"
+  },
+  {
+    "rows": [
+      [
+        5
+      ]
+    ],
+    "sql": "SELECT id FROM vals WHERE value LIKE 'a\\_c' ESCAPE '\\' ORDER BY id"
+  },
+  {
+    "rows": [
+      [
+        4
+      ]
+    ],
+    "sql": "SELECT COUNT(*) AS n FROM classes ORDER BY n"
+  },
+  {
+    "rows": [
+      [
+        0,
+        0,
+        "Lfixture/A;",
+        "Lfixture/Base;"
+      ],
+      [
+        0,
+        1,
+        "Lfixture/B;",
+        "Lfixture/Base;"
+      ]
+    ],
+    "sql": "SELECT file_id,class_def_idx,descriptor,superclass_descriptor FROM classes WHERE file_id=0 AND (descriptor LIKE 'Lfixture/%' ESCAPE '\\') ORDER BY file_id,class_def_idx"
+  }
+]

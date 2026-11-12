@@ -1,0 +1,53 @@
+{
+  "run_id": "20261109T043905499484Z",
+  "success": false,
+  "commands": [
+    {
+      "label": "generate-1",
+      "path": "artifacts/mdd-022/validation/20261109T043905499484Z/generate-1.json",
+      "exit_code": 0
+    },
+    {
+      "label": "generate-2",
+      "path": "artifacts/mdd-022/validation/20261109T043905499484Z/generate-2.json",
+      "exit_code": 0
+    },
+    {
+      "label": "oracle",
+      "path": "artifacts/mdd-022/validation/20261109T043905499484Z/oracle.json",
+      "exit_code": 0
+    },
+    {
+      "label": "oracle-optimized",
+      "path": "artifacts/mdd-022/validation/20261109T043905499484Z/oracle-optimized.json",
+      "exit_code": 0
+    },
+    {
+      "label": "A0-compare",
+      "path": "artifacts/mdd-022/validation/20261109T043905499484Z/A0-compare.json",
+      "exit_code": 0
+    },
+    {
+      "label": "targeted-tests",
+      "path": "artifacts/mdd-022/validation/20261109T043905499484Z/targeted-tests.json",
+      "exit_code": 0
+    },
+    {
+      "label": "facts-doc-tests",
+      "path": "artifacts/mdd-022/validation/20261109T043905499484Z/facts-doc-tests.json",
+      "exit_code": 0
+    },
+    {
+      "label": "clippy",
+      "path": "artifacts/mdd-022/validation/20261109T043905499484Z/clippy.json",
+      "exit_code": 101
+    }
+  ],
+  "completed": [
+    "42 immutable SDK observations match current exact fixture hashes and classifications"
+  ],
+  "error": {
+    "type": "ValueError",
+    "message": "command failed: clippy"
+  }
+}

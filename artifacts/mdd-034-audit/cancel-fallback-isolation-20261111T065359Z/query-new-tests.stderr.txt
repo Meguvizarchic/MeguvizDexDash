@@ -1,0 +1,3 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+     Running unittests src\lib.rs (target\debug\deps\mdd_query-488f1126835e5875.exe)
+   Doc-tests mdd_query

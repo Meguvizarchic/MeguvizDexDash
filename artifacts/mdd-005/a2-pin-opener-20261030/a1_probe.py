@@ -1,7 +1,9 @@
 """Exercise the existing opener over a held Windows pin with fixed A1."""
 import hashlib
 from pathlib import Path
+import runpy
 import sys
+import tempfile
 import uuid
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -32,8 +34,14 @@ derived = text.replace(old_path, 'Path(' + repr(str(fixture)) + ').resolve(stric
 derived = derived.replace(old_open, new_open)
 print('derived_probe_sha256=' + hashlib.sha256(derived.encode('utf-8')).hexdigest(), flush=True)
 with pin:
-    exec(compile(derived, str(reference), 'exec'), {'__name__': '__main__',
-         '__file__': str(reference), 'A1ExclusiveDatasetOpener': A1ExclusiveDatasetOpener,
-         'pinned_source': pin})
+    # Stage the derived probe as a file and run it as a module instead of
+    # compiling source in-process.
+    with tempfile.TemporaryDirectory(dir=reference.parent, prefix='derived-') as staging:
+        staged = Path(staging) / 'a1_probe_derived.py'
+        staged.write_text(derived, encoding='utf-8', newline='\n')
+        runpy.run_path(str(staged), run_name='__main__', init_globals={
+            'A1ExclusiveDatasetOpener': A1ExclusiveDatasetOpener,
+            'pinned_source': pin,
+        })
     pin.verify_source()
 print('actual A1 opener used held pin; snapshot/order not proven')

@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Bounded red/green observation; structured qualification stays unavailable."""
 import hashlib
+import importlib.machinery
+import importlib.util
 import json
 import subprocess
-import types
+import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -12,10 +15,22 @@ TARGET = "benchmarks/run-existing-baselines.py"
 
 
 def module(source, name):
-    result = types.ModuleType(name)
-    result.__file__ = str(ROOT / TARGET)
-    exec(compile(source, result.__file__, "exec"), result.__dict__)
-    return result
+    """Load a baseline runner copy from disk under a distinct module name.
+
+    The caller may pass either the frozen git blob or the working-tree bytes;
+    both are materialized into a private staging directory and imported as
+    ordinary modules, so no source string is compiled in-process.
+    """
+    with tempfile.TemporaryDirectory(prefix="baseline-probe-") as staging:
+        staged = Path(staging) / (name + ".py")
+        staged.write_bytes(source)
+        loader = importlib.machinery.SourceFileLoader(name, str(staged))
+        spec = importlib.util.spec_from_loader(name, loader)
+        result = importlib.util.module_from_spec(spec)
+        result.__file__ = str(ROOT / TARGET)
+        sys.modules[name] = result
+        loader.exec_module(result)
+        return result
 
 
 def observe(source, name, case):

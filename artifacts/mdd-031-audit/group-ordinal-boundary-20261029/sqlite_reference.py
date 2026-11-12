@@ -7,6 +7,18 @@ import sqlite3
 HERE=Path(__file__).resolve().parent
 CASES=[('max','2147483647'),('above','2147483648'),('negmax','-2147483647'),
        ('negmin','-2147483648'),('posabove','+2147483648'),('real','1.0')]
+EXPRESSIONS=tuple(expr for _,expr in CASES)
+
+
+def build_statement(op, expr):
+    """Compose a statement from this file's frozen case table only."""
+    if expr not in EXPRESSIONS:
+        raise RuntimeError('expression outside the frozen case table: '+repr(expr))
+    if op=='order':
+        return 'SELECT k FROM facts WHERE k IS NOT NULL ORDER BY '+expr
+    if op=='group':
+        return 'SELECT COUNT(*) AS n FROM facts WHERE k IS NOT NULL GROUP BY '+expr
+    raise RuntimeError('operator outside the frozen operator table: '+repr(op))
 
 
 def main():
@@ -16,8 +28,7 @@ def main():
         db.executemany('INSERT INTO facts(k,alt) VALUES (?,?)',[(None,9),(1,10),(1,20),(2,30)])
         for name,expr in CASES:
             for op in ('order','group'):
-                sql=('SELECT k FROM facts WHERE k IS NOT NULL ORDER BY '+expr if op=='order' else
-                     'SELECT COUNT(*) AS n FROM facts WHERE k IS NOT NULL GROUP BY '+expr)
+                sql=build_statement(op,expr)
                 try:
                     cur=db.execute(sql)
                     records.append({'case':op+'_'+name,'sql':sql,'status':'ok',

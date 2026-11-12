@@ -1,0 +1,302 @@
+{
+  "schema_version": "mdd.fact-composition-differential.v1",
+  "probe_cases": 8,
+  "dex_occurrences": 9,
+  "native_fact_composition_checks_passed": true,
+  "indexed_scalar_target_checks": 331,
+  "complete_relation_comparisons": [
+    {
+      "case": "classic",
+      "relation": "method_strings",
+      "rows": 2,
+      "complete_multiset_equal": true
+    },
+    {
+      "case": "classic",
+      "relation": "method_calls",
+      "rows": 4,
+      "complete_multiset_equal": true
+    },
+    {
+      "case": "classic",
+      "relation": "method_field_accesses",
+      "rows": 2,
+      "complete_multiset_equal": true
+    },
+    {
+      "case": "classic",
+      "relation": "method_used_types",
+      "rows": 2,
+      "complete_multiset_equal": true
+    },
+    {
+      "case": "shared-code",
+      "relation": "method_strings",
+      "rows": 4,
+      "complete_multiset_equal": true
+    },
+    {
+      "case": "shared-code",
+      "relation": "method_calls",
+      "rows": 8,
+      "complete_multiset_equal": true
+    },
+    {
+      "case": "shared-code",
+      "relation": "method_field_accesses",
+      "rows": 4,
+      "complete_multiset_equal": true
+    },
+    {
+      "case": "shared-code",
+      "relation": "method_used_types",
+      "rows": 4,
+      "complete_multiset_equal": true
+    },
+    {
+      "case": "dynamic",
+      "relation": "method_strings",
+      "rows": 2,
+      "complete_multiset_equal": true
+    },
+    {
+      "case": "dynamic",
+      "relation": "method_calls",
+      "rows": 6,
+      "complete_multiset_equal": true
+    },
+    {
+      "case": "dynamic",
+      "relation": "method_field_accesses",
+      "rows": 3,
+      "complete_multiset_equal": true
+    },
+    {
+      "case": "dynamic",
+      "relation": "method_used_types",
+      "rows": 2,
+      "complete_multiset_equal": true
+    },
+    {
+      "case": "annotations",
+      "relation": "method_strings",
+      "rows": 0,
+      "complete_multiset_equal": true
+    },
+    {
+      "case": "annotations",
+      "relation": "method_calls",
+      "rows": 0,
+      "complete_multiset_equal": true
+    },
+    {
+      "case": "annotations",
+      "relation": "method_field_accesses",
+      "rows": 0,
+      "complete_multiset_equal": true
+    },
+    {
+      "case": "annotations",
+      "relation": "method_used_types",
+      "rows": 0,
+      "complete_multiset_equal": true
+    },
+    {
+      "case": "annotations",
+      "relation": "annotation_directory_entries",
+      "rows": 5,
+      "complete_multiset_equal": true
+    },
+    {
+      "case": "annotations",
+      "relation": "annotation_elements",
+      "rows": 44,
+      "complete_multiset_equal": true
+    },
+    {
+      "case": "annotations",
+      "relation": "annotation_set_entries",
+      "rows": 5,
+      "complete_multiset_equal": true
+    },
+    {
+      "case": "annotations",
+      "relation": "annotations",
+      "rows": 4,
+      "complete_multiset_equal": true
+    },
+    {
+      "case": "parameter-positions-unknown",
+      "relation": "method_strings",
+      "rows": 0,
+      "complete_multiset_equal": true
+    },
+    {
+      "case": "parameter-positions-unknown",
+      "relation": "method_calls",
+      "rows": 0,
+      "complete_multiset_equal": true
+    },
+    {
+      "case": "parameter-positions-unknown",
+      "relation": "method_field_accesses",
+      "rows": 0,
+      "complete_multiset_equal": true
+    },
+    {
+      "case": "parameter-positions-unknown",
+      "relation": "method_used_types",
+      "rows": 0,
+      "complete_multiset_equal": true
+    },
+    {
+      "case": "parameter-positions-unknown",
+      "relation": "annotation_directory_entries",
+      "rows": 5,
+      "complete_multiset_equal": true
+    },
+    {
+      "case": "parameter-positions-unknown",
+      "relation": "annotation_elements",
+      "rows": 44,
+      "complete_multiset_equal": true
+    },
+    {
+      "case": "parameter-positions-unknown",
+      "relation": "annotation_set_entries",
+      "rows": 5,
+      "complete_multiset_equal": true
+    },
+    {
+      "case": "parameter-positions-unknown",
+      "relation": "annotations",
+      "rows": 4,
+      "complete_multiset_equal": true
+    },
+    {
+      "case": "annotations-bad-independent-scope",
+      "relation": "method_strings",
+      "rows": 2,
+      "complete_multiset_equal": true
+    },
+    {
+      "case": "annotations-bad-independent-scope",
+      "relation": "method_calls",
+      "rows": 4,
+      "complete_multiset_equal": true
+    },
+    {
+      "case": "annotations-bad-independent-scope",
+      "relation": "method_field_accesses",
+      "rows": 2,
+      "complete_multiset_equal": true
+    },
+    {
+      "case": "annotations-bad-independent-scope",
+      "relation": "method_used_types",
+      "rows": 2,
+      "complete_multiset_equal": true
+    },
+    {
+      "case": "nonscalar",
+      "relation": "method_calls",
+      "rows": 4,
+      "complete_multiset_equal": true
+    },
+    {
+      "case": "nonscalar",
+      "relation": "method_field_accesses",
+      "rows": 2,
+      "complete_multiset_equal": true
+    },
+    {
+      "case": "nonscalar",
+      "relation": "method_used_types",
+      "rows": 2,
+      "complete_multiset_equal": true
+    },
+    {
+      "case": "duplicate-occurrences",
+      "relation": "method_strings",
+      "rows": 2,
+      "complete_multiset_equal": true
+    },
+    {
+      "case": "duplicate-occurrences",
+      "relation": "method_calls",
+      "rows": 4,
+      "complete_multiset_equal": true
+    },
+    {
+      "case": "duplicate-occurrences",
+      "relation": "method_field_accesses",
+      "rows": 2,
+      "complete_multiset_equal": true
+    },
+    {
+      "case": "duplicate-occurrences",
+      "relation": "method_used_types",
+      "rows": 2,
+      "complete_multiset_equal": true
+    },
+    {
+      "case": "duplicate-occurrences",
+      "relation": "method_strings",
+      "rows": 2,
+      "complete_multiset_equal": true
+    },
+    {
+      "case": "duplicate-occurrences",
+      "relation": "method_calls",
+      "rows": 4,
+      "complete_multiset_equal": true
+    },
+    {
+      "case": "duplicate-occurrences",
+      "relation": "method_field_accesses",
+      "rows": 2,
+      "complete_multiset_equal": true
+    },
+    {
+      "case": "duplicate-occurrences",
+      "relation": "method_used_types",
+      "rows": 2,
+      "complete_multiset_equal": true
+    }
+  ],
+  "retained_scope_boundaries": [
+    {
+      "case": "parameter-positions-unknown",
+      "status": "encoded_annotation_rows_complete_prototype_positions_unknown"
+    },
+    {
+      "case": "annotations-bad-independent-scope",
+      "status": "required_annotation_layer_failure_must_block_whole_scope"
+    },
+    {
+      "case": "nonscalar",
+      "relation": "method_strings",
+      "status": "lossless_raw_complete_plain_utf8_unavailable"
+    }
+  ],
+  "metadata_definitions_code_and_raw_fingerprints": "independent source-byte scalar oracle compared all tested occurrences",
+  "production_coverage_signer_and_lazy_index_gate": "not_run; implementation delegated separately; this report never signs task completion",
+  "native_method_atoms": {
+    "ordered_parameters": true,
+    "positioned_instruction_opcodes_and_count": true,
+    "raw_bytes": true
+  },
+  "compatibility_relation_boundaries": [
+    "DefinitionFacts rejects code columns at its narrow layer boundary; validated CodeFacts supplies the native atoms",
+    "native ordered parameter vector is exact; legacy UTF8 text serialization is a separate032 projection",
+    "unassembled full Methods compatibility relation does not itself block native026 fact qualification"
+  ],
+  "not_claimed": [
+    "all 17 production compatibility relation projections (separate032)",
+    "lazy/concurrent index lifecycle",
+    "production required_layers scope signer",
+    "full SQL/HostLab audit",
+    "private input",
+    "performance"
+  ]
+}

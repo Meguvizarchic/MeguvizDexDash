@@ -1,0 +1,86 @@
+{
+  "schema_version": "mdd.relation-projection-test-record.v1",
+  "created_utc": "2026-11-11T09:09:50.779022+00:00",
+  "task": "MDD-026",
+  "commands": {
+    "unit_tests": {
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "mdd-facts",
+        "--lib",
+        "--locked",
+        "--offline"
+      ],
+      "exit_code": 0,
+      "stdout_tail": [
+        "test result: ok. 125 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s"
+      ],
+      "stderr_tail": [
+        "Finished `test` profile [unoptimized + debuginfo] target(s) in 0.13s",
+        "     Running unittests src\\lib.rs (target\\debug\\deps\\mdd_facts-eb5ce50af3306359.exe)"
+      ]
+    },
+    "clippy": {
+      "argv": [
+        "cargo",
+        "clippy",
+        "-p",
+        "mdd-facts",
+        "--lib",
+        "--locked",
+        "--offline"
+      ],
+      "exit_code": 0,
+      "stdout_tail": [],
+      "stderr_tail": [
+        "Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.31s"
+      ]
+    },
+    "workspace_check": {
+      "argv": [
+        "cargo",
+        "check",
+        "--workspace",
+        "--locked",
+        "--offline"
+      ],
+      "exit_code": 0,
+      "stdout_tail": [],
+      "stderr_tail": [
+        "Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.24s"
+      ]
+    }
+  },
+  "new_tests": [
+    "metadata::tests::dex_file_rows_project_validated_raw_header_words",
+    "metadata::tests::dex_file_relation_rejects_provenance_columns_and_star",
+    "metadata::tests::string_rows_preserve_dex_order_and_lossless_text",
+    "metadata::tests::type_rows_use_exact_descriptor_display_names",
+    "metadata::tests::relation_projections_match_contract_columns_types_and_nullability",
+    "metadata::tests::method_relation_keeps_restricted_columns_rejected",
+    "definitions::tests::methods_and_classes_wildcard_columns_match_frozen_reference_schema",
+    "definitions::tests::method_rows_preserve_reference_only_nulls_and_definition_join",
+    "definitions::tests::class_rows_match_independent_raw_class_def_oracle",
+    "definitions::tests::class_rows_project_encoded_no_index_as_genuine_null",
+    "code::tests::code_item_rows_match_independent_raw_header_oracle",
+    "code::tests::code_item_rows_expand_shared_bodies_once_per_method_owner",
+    "indexes::tests::index_quota_deadline_and_unbuilt_failures_never_publish_ready_or_zero"
+  ],
+  "missing_tests": [],
+  "changed_sources": {
+    "crates\\mdd-facts\\src\\metadata.rs": "246cbc4fe210e3458ac1fe6030a2cc762745271f0ffdb2a71e018bdd39887e46",
+    "crates\\mdd-facts\\src\\definitions.rs": "1f016c122efdd8d2e02dce614fa11830ee2d0cbc4a80dde4060c0b881040dccf",
+    "crates\\mdd-facts\\src\\code.rs": "58371c57a94e03c96b398e40f956c50cf91a067b41982ef0bb2194fff68addc5",
+    "crates\\mdd-facts\\src\\indexes\\columns.rs": "282bfe0dabfaebb7cc380a279d0813871d7d49b9f19068e9d867e826d8a39dd2",
+    "crates\\mdd-facts\\src\\indexes\\tests.rs": "f26e3c2d099ad61f57f36de96e28cd483644225237713926e6f10751b725645b"
+  },
+  "not_run": [
+    "HostLab workload and private inputs (out of scope for this task)",
+    "SQL transport qualification (no mdd-sql change was authorised)",
+    "performance measurement (no performance claim is made)"
+  ],
+  "task_complete_proven": false,
+  "profile_admitted": false
+}

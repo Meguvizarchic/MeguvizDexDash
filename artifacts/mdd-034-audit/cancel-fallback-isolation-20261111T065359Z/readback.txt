@@ -1,0 +1,52 @@
+READBACK — cancel-fallback-isolation-20261111T065359Z
+====================================================
+
+复核方式：独立 Python（-I）重新解析本轮证据文件并断言终态字段与哈希，
+不依赖测试框架自身的通过结论。
+
+[1] query-new-tests.stdout.txt 的 6 条 JSON 终态逐字段断言
+    - production-queue-native-cancel-isolated (streaming):
+      operation_status=cancelled, error=CANCELLED, emitted_rows=1,
+      truncated=true, more_available=false, next_cursor=null,
+      execution.complete=false, sibling_active=true
+    - production-queue-native-cancel-isolated (materialized_reference):
+      同上，execution.complete=true
+    - worker-kill-inflight-and-sibling (两种 mode):
+      error=WORKER_LOST/worker, sibling_phase=failed, fallback_allowed=false
+    - compat-cancel-profile-dataset-scope:
+      native_closes_dataset=false, compat_closes_dataset=true,
+      owning_dataset_closed=true, sibling_dataset_usable=true
+    - fallback-whitelist-query-boundary:
+      rejected = QUOTA_EXCEEDED / DEADLINE_EXCEEDED / CANCELLED / WORKER_LOST,
+      permitted_under_pristine=true, accepted_rows_disqualify=true
+    结果：全部 OK
+
+[2] 探针记录与二进制
+    - sqlite-interrupt: exit_code=0, binary_sha256=a86db254…,
+      stdout_sha256 与 record 一致
+    - supervisor-kill: exit_code=0, binary_sha256=a86db254…,
+      stdout_sha256 与 record 一致
+    结果：OK
+
+[3] 源码哈希
+    - crates/mdd-query/src/executor/runtime_tests.rs
+      sha256=48d9f50cb3fc7e47c9de6f72a681870349cf70da1275b450ae57612c52b85ac7
+    与 record.json 一致。结果：OK
+
+[4] supervisor-kill 语义
+    - cause=worker_deadline, direct_child_reaped=true
+    - affected_requests=2
+    - computing_query.phase=failed
+    - unconsumed_spool_query.execution_complete=true, phase=failed
+    - prior_complete_query.phase=completed, error=null
+    - process_tree_isolated=false（明确保留，未夸大）
+    结果：OK
+
+[5] sqlite-interrupt 语义
+    - a_error=OperationInterrupted, b_sum=20000100000,
+      connection_reuse_values=[7,7]
+    - 记录自带 scope: connection-level evidence only;
+      query token ownership remains bridge integration
+    结果：OK（仅 connection 级，未夸大为 bridge 级）
+
+总体：READBACK PASS

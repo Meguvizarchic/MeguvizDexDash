@@ -1,0 +1,29 @@
+{
+  "schema_version": "mdd.annotation-adjudication.v1",
+  "task_id": "MDD-022",
+  "recorded_at": "2026-11-09",
+  "question": "Is annotation_set_ref_list slot i positionally bound to method prototype parameter i, and may equal-length lists be treated as known positions?",
+  "previous_state": "MDD-022 was reopened because a short encoded parameter list still exposed prototype positions as known (Some(true)). The subsequent fix treated equal length as proof of known positions, which was itself an unadjudicated inference.",
+  "new_evidence": {
+    "art_implementation": {
+      "file": "art/runtime/dex_file_annotations.cc",
+      "function": "art::annotations::GetAnnotationForMethodParameter(ArtMethod*, uint32_t parameter_idx, ...)",
+      "observed_shape": "if (parameter_idx >= set_ref_list->size_) return nullptr; const DexFile::AnnotationSetRefItem* annotation_set_ref = &set_ref_list->list_[parameter_idx];",
+      "meaning": "ART indexes the ref-list directly by the requested parameter index, so slot i denotes parameter i. Positional binding is an implementation fact rather than a reader inference."
+    },
+    "format_spec": {
+      "url": "https://source.android.com/docs/core/runtime/dex-format",
+      "observed": "The specification defines annotation_set_ref_list as an ordered array and the per-method annotation as an annotation_set_ref_list, but does not state a size equality requirement with proto_id_item.parameters_off.",
+      "meaning": "Equal length is not a format requirement; it is only sufficient (given positional binding) to place every encoded slot inside the prototype."
+    },
+    "prior_adjudication": "artifacts/mdd-022/probes/parameter-arity-sdk/adjudication.json already removed the size-equality assumption after fixed SDK and A0 accepted a short list."
+  },
+  "decision": "Keep exact encoded slots and their ordinal. Report prototype_position_coverage=Complete only when the encoded slot count equals the prototype parameter count, Unknown otherwise; never manufacture NULL rows for missing trailing positions. Positional binding is attributed to the ART implementation, not to the format specification alone.",
+  "scope": "Controlled synthetic bytes plus ART implementation reading. Does not prove ART runtime reflection output, complete Android installation behaviour, or HostLab/SQL profile equivalence.",
+  "not_claimed": [
+    "runtime reflection results for annotated parameters",
+    "behaviour of ART versions other than the cited implementation shape",
+    "static initial-value type compatibility",
+    "HostLab or SQL profile qualification"
+  ]
+}

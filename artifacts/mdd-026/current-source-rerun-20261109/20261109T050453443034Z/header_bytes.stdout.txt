@@ -1,0 +1,1 @@
+{"path": "artifacts\\mdd-026\\current-source-rerun-20261109\\20261109T050453443034Z\\header_bytes", "cases": 3, "columns": 24, "native_occurrences": 6, "negative_controls": 4, "task_complete_proven": false}

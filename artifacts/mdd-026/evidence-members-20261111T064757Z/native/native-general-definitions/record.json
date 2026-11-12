@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "artifacts/mdd-026/evidence-members-20261111T064757Z/native/native_probe.exe",
+    "tests/fixtures/definitions/generated/definitions-035.dex"
+  ],
+  "started_utc": "2026-11-11T07:10:49.707496+00:00",
+  "finished_utc": "2026-11-11T07:10:49.707504+00:00",
+  "elapsed_seconds": 0.0,
+  "exit_code": 0,
+  "stdout_sha256": "4bed2db64707a45565e90c348842b2b56b6c2f280f7c41cf008bd37df1962336",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "scope": "manual run of the compiled general probe on definitions-035; tiny conformance, not performance"
+}

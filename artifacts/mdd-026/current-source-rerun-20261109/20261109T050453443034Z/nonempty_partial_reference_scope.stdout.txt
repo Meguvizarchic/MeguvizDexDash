@@ -1,0 +1,1 @@
+{"path": "artifacts/mdd-026/current-source-rerun-20261109/20261109T050453443034Z/nonempty_partial_reference_scope", "cases": 2, "partial_sites_each": 10, "a0_full_rows": 8, "task_complete_proven": false}

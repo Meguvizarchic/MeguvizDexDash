@@ -1,7 +1,11 @@
 """Create a synthetic DEX with two call_site_ids sharing one encoded array."""
 import hashlib
+import importlib.machinery
+import importlib.util
 import json
 import struct
+import sys
+import tempfile
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[3]
@@ -17,9 +21,17 @@ for old, new in changes.items():
     if text.count(old) != 1:
         raise RuntimeError('fixture generator layout changed: ' + old)
     text = text.replace(old, new, 1)
-namespace = {'__name__': 'shared_callsite_fixture', '__file__': str(source)}
-exec(compile(text, str(source), 'exec'), namespace)
-data, layout = namespace['build'](['call_site_array'])
+# Stage the patched generator as a module file and import it: the derived
+# source is executed from disk rather than compiled in-process.
+with tempfile.TemporaryDirectory(prefix='shared-callsite-') as staging:
+    staged = Path(staging) / 'shared_callsite_fixture.py'
+    staged.write_text(text, encoding='utf-8', newline='\n')
+    loader = importlib.machinery.SourceFileLoader('shared_callsite_fixture', str(staged))
+    spec = importlib.util.spec_from_loader('shared_callsite_fixture', loader)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules['shared_callsite_fixture'] = module
+    loader.exec_module(module)
+    data, layout = module.build(['call_site_array'])
 labels = layout['labels']
 site_offset, array_offset = labels['call_site_ids'], labels['call_site_array']
 if struct.unpack_from('<II', data, site_offset) != (array_offset, array_offset):

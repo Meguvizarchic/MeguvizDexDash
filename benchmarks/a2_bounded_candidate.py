@@ -14,6 +14,7 @@ from pathlib import Path
 import re
 import time
 
+import anyio
 from mcp import Client
 
 if __package__:
@@ -109,6 +110,7 @@ class A1BoundedCandidate:
         self._deadline = min(time.monotonic() + timeout, owner._deadline)
         self._state = 'new'
         self._failed = False
+        self._foreign_exit_attempted = False
         self._active_query = False
         self._receipts = []
         self._task = None
@@ -271,13 +273,40 @@ class A1BoundedCandidate:
                 self._failed = True
 
     async def __aexit__(self, exc_type, exc, traceback):
-        self._same_task()
-        if self._state != 'active':
+        if asyncio.current_task() is not self._task:
+            # AnyIO scopes belong to the entering task: never unwind them
+            # here. Stop only this candidate's owned Job and leave the original
+            # task responsible for unwinding its stack.
+            error = CandidateError('candidate must be closed by its entering task')
+            self._failed = True
+            self._foreign_exit_attempted = True
+            self._state = 'failed'
+            cleanup_failure = None
+            try:
+                with anyio.fail_after(
+                        min(30, 2 * self.owner._job_limits.cleanup_seconds + 1), shield=True):
+                    await self.owner.close()
+            except asyncio.CancelledError as cancellation:
+                cancellation.add_note('cross-task exit was rejected; owned cleanup may be unconfirmed')
+                raise
+            except Exception as cleanup_error:
+                cleanup_failure = cleanup_error
+                error.add_note('owned Job cleanup was not confirmed: ' + str(cleanup_error))
+            else:
+                if not self.owner.tree_empty_verified:
+                    error.add_note('owned Job emptiness was not confirmed')
+            if cleanup_failure is not None:
+                raise error from cleanup_failure
+            raise error
+        if self._state != 'active' and not (self._state == 'failed' and self._foreign_exit_attempted):
             raise CandidateError('candidate is not active')
-        incomplete = self._failed or self._active_query
+        incomplete = self._failed or self._active_query or self._foreign_exit_attempted
+        generated_incomplete = False
         if exc is None and incomplete:
-            exc = CandidateError('query was not fully consumed')
+            exc = CandidateError('cross-task exit left the candidate incomplete' if self._foreign_exit_attempted
+                                 else 'query was not fully consumed')
             exc_type, traceback = type(exc), exc.__traceback__
+            generated_incomplete = True
         elif exc is not None and incomplete:
             exc.add_note('candidate also has an unconsumed or failed query')
         self._state = 'closing'
@@ -292,7 +321,7 @@ class A1BoundedCandidate:
         else:
             self._state = 'closed' if exc is None else 'failed'
         if exc is not None:
-            if incomplete and isinstance(exc, CandidateError) and str(exc) == 'query was not fully consumed':
+            if generated_incomplete:
                 raise exc
             return False
         if not self._lifecycle.close_confirmed or not self.owner.tree_empty_verified:

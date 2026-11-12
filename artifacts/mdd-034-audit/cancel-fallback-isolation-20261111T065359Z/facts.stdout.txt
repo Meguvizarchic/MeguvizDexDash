@@ -1,0 +1,174 @@
+
+running 113 tests
+test annotations::tests::signature_absent_preserves_shared_empty_and_orphan_sets ... ok
+test annotations::tests::nested_annotation_in_array_keeps_tree_and_cross_array_identity ... ok
+test annotations::tests::nested_array_direct_value_is_source_bound_and_preserves_raw_tree ... ok
+test annotations::tests::short_parameter_lists_have_explicit_unknown_prototype_coverage ... ok
+test annotations::tests::encoded_slots_distinguish_shared_physical_empty_set_zero_and_orphan ... ok
+test annotations::tests::shared_call_sites_retain_independent_identity_and_physical_bytes ... ok
+test annotations::tests::shared_parameter_signature_keeps_method_and_unknown_encoded_slots_distinct ... ok
+test annotations::tests::signature_owner_lookup_keeps_member_kinds_and_rejects_bad_layout ... ok
+test annotations::tests::signature_expansion_charges_every_retained_owner_identity ... ok
+test annotations::tests::same_snapshot_duplicate_occurrences_keep_distinct_annotation_refs ... ok
+test annotations::tests::long_parameter_lists_keep_duplicate_source_occurrences_distinct ... ok
+test annotations::tests::empty_parameter_list_and_absent_binding_remain_distinct ... ok
+test annotations::tests::physical_collection_views_preserve_bytes_nulls_and_scope ... ok
+test annotations::tests::empty_and_long_encoded_lists_are_not_inferred_as_complete_positions ... ok
+test annotations::tests::signature_name_matches_utf16_units_without_losing_errors ... ok
+test annotations::tests::encoded_array_view_retains_physical_items_and_enforces_scope ... ok
+test coverage::error_detail_tests::source_error_scope_detail_is_preserved ... ok
+test annotations::tests::encoded_parameter_list_retains_unknown_positions_and_physical_bytes ... ok
+test annotations::tests::owner_annotation_view_preserves_slots_sets_and_occurrences ... ok
+test code::tests::decoded_opcode_iteration_excludes_payload_words ... ok
+test annotations::tests::encoded_parameter_slots_preserve_zero_shared_and_absent_lists ... ok
+test annotations::tests::annotation_value_view_preserves_raw_nodes_scope_and_budgets ... ok
+test annotations::tests::encoded_array_bindings_keep_shared_classes_call_sites_and_orphans ... ok
+test definitions::tests::borrowed_field_views_distinguish_reference_static_and_instance ... ok
+test annotations::tests::annotation_owner_view_preserves_shared_sets_slots_and_scope ... ok
+test annotations::tests::signature_parts_keep_array_order_pool_and_owner_source ... ok
+test indexes::lazy::tests::panic_quota_deadline_failures_are_audited_without_implicit_retry ... ok
+test definitions::tests::direct_class_lookup_preserves_identity_and_interfaces ... ok
+test definitions::tests::class_members_preserve_direct_owners_order_and_limits ... ok
+test definitions::tests::borrowed_method_views_distinguish_reference_native_abstract_and_present ... ok
+test definitions::tests::class_lookup_rejects_unbuilt_partial_and_duplicate_occurrences ... ok
+test annotations::tests::signature_physical_search_keeps_shared_empty_and_orphan_items ... ok
+test definitions::tests::direct_member_lookup_matches_iteration_and_binds_occurrence ... ok
+test annotations::tests::owner_signature_view_preserves_reference_definition_and_occurrence ... ok
+test indexes::lazy::tests::concurrent_first_build_publishes_one_immutable_terminal ... ok
+test annotations::tests::signature_parameter_position_distinguishes_unknown_and_proven_slots ... ok
+test indexes::lazy::tests::joined_failed_attempt_survives_immediate_ready_retry ... ok
+test definitions::tests::prototype_parameter_types_preserve_identity_without_annotations ... ok
+test indexes::tests::definition_name_postings_use_utf16_code_unit_order ... ok
+test annotations::tests::signature_type_search_matches_linear_physical_sets ... ok
+test annotations::tests::method_parameter_view_distinguishes_missing_list_zero_slot_and_unknown_position ... ok
+test indexes::tests::coverage_retains_late_genuine_errors_and_rejects_terminal_overwrite ... ok
+test code::tests::method_code_views_bind_exact_source_and_distinguish_body_states ... ok
+test code::tests::raw_code_retains_exact_member_lease_scope_and_occurrence_after_source_changes ... ok
+test annotations::tests::six_full_relations_equal_independent_oracle_and_reference ... ok
+test indexes::scope::metadata_rows_tests::selected_metadata_rows_preserve_occurrences_and_scope ... ok
+test definitions::tests::occurrences_and_reference_definition_kinds_remain_distinct ... ok
+test indexes::scope::metadata_rows_tests::scope_commitment_preimage_binds_snapshot_and_selected_members ... ok
+test definitions::tests::wildcard_definition_columns_match_frozen_reference_schema ... ok
+test indexes::scope::metadata_rows_tests::scope_inventory_metadata_binds_captured_member_and_occurrence ... ok
+test definitions::tests::borrowed_class_views_preserve_occurrences_direct_interfaces_and_lossless_source ... ok
+test indexes::tests::definitions_owners_and_encoded_reference_symbols_preserve_distinct_sites ... ok
+test indexes::tests::exact_class_lookup_exposes_scope_and_rejects_unbuilt_coverage ... ok
+test indexes::tests::descriptor_owner_members_preserve_occurrences_and_exact_direct_declarations ... ok
+test indexes::tests::callsite_encoded_byte_key_keeps_same_content_and_all_occurrence_sites ... ok
+test metadata::tests::duplicate_content_occurrences_keep_distinct_refs_and_owned_leases ... ok
+test pipeline::tests::in_flight_window_is_bounded_and_rejects_zero ... ok
+test indexes::tests::annotation_type_owner_index_preserves_source_owners_and_rejects_incomplete ... ok
+test metadata::tests::unrelated_snapshot_inventory_and_zero_quota_fail_closed ... ok
+test metadata::tests::same_archive_duplicate_dexes_retain_independent_local_indices ... ok
+test indexes::tests::explicit_subset_negative_proof_and_foreign_generation_are_bounded ... ok
+test indexes::tests::field_symbol_indexes_preserve_sites_and_source_occurrences ... ok
+test indexes::scope::metadata_rows_tests::pool_coordinates_preserve_occurrences_and_match_saved_a0_sample ... ok
+test indexes::tests::fine_coverage_parameter_positions_projection_bodies_source_and_resource ... ok
+test indexes::tests::scalar_reference_scan_is_independent_of_lazy_candidate_failure ... ok
+test metadata::tests::java_type_names_are_bounded_and_bound_to_occurrences ... ok
+test pipeline::tests::windowed_map_claims_each_index_exactly_once ... ok
+test pipeline::tests::windowed_map_handles_empty_and_single_occurrence_inputs ... ok
+test pipeline::tests::windowed_map_serial_path_matches_pool_path ... ok
+test indexes::tests::caller_site_index_rechecks_occurrence_kind_duplicates_and_coverage ... ok
+test indexes::tests::type_descriptor_reference_index_preserves_exact_sites_and_occurrences ... ok
+test raw_fingerprints::tests::raw_body_bytes_and_explicit_order_match_handwritten_python_digests ... ok
+test raw_fingerprints::tests::present_empty_insns_has_empty_digest_not_absent_body ... ok
+test indexes::tests::utf16_raw_candidates_match_scalar_and_hand_oracle_without_occurrence_dedup ... ok
+test indexes::tests::method_handle_index_keeps_exact_kind_target_and_occurrence_sites ... ok
+test raw_fingerprints::tests::raw_evidence_keeps_occurrences_shared_bodies_and_unique_definitions ... ok
+test indexes::tests::index_quota_deadline_and_unbuilt_failures_never_publish_ready_or_zero ... ok
+test raw_fingerprints::tests::missing_projection_bad_item_source_and_zero_quotas_fail_closed ... ok
+test references::tests::borrowed_named_sites_preserve_target_kind_occurrences_and_coverage ... ok
+test references::tests::borrowed_string_sites_preserve_nonscalar_bytes_occurrences_and_coverage ... ok
+test indexes::tests::prototype_descriptor_reference_index_preserves_encoded_sites_and_occurrences ... ok
+test surface::tests::canonical_json_matches_cpython_ensure_ascii ... ok
+test indexes::tests::string_utf16_reference_index_preserves_nonscalar_sites_and_occurrences ... ok
+test session::tests::occurrence_matches_inventory_order ... ok
+test indexes::tests::raw_mutf8_reference_index_preserves_exact_sites_and_source_occurrences ... ok
+test surface::tests::empty_family_fingerprint_is_the_cpython_empty_list_digest ... ok
+test surface::tests::legacy_body_order_matches_the_reference_spaced_prototypes ... ok
+test surface::tests::absent_family_keeps_a_zero_row_and_unknown_family_is_listed ... ok
+test session::tests::session_reuses_each_layer_and_rejects_out_of_range ... ok
+test references::tests::physical_invalid_body_is_not_downgraded_to_unbuilt_partial_scope ... ok
+test references::tests::partial_or_missing_code_never_becomes_complete_empty_rows ... ok
+test surface::tests::dex_file_order_is_numeric_and_rejects_ambiguous_ordinals ... ok
+test references::tests::exact_site_lookup_preserves_occurrence_and_complete_scope ... ok
+test references::tests::custom_narrow_metadata_scope_and_definition_candidate_budget_are_explicit ... ok
+test references::tests::index_and_scalar_definition_search_keep_world_scope_external_and_ambiguity ... ok
+test surface::tests::resource_fingerprints_cover_arsc_and_res_xml_only ... ok
+test surface::tests::structured_fixture_digest_matches_an_independent_python_oracle ... ok
+test references::tests::csr_target_index_matches_independent_per_target_scan ... ok
+test references::tests::source_and_snapshot_guards_reject_local_id_cross_joins ... ok
+test indexes::tests::exhaustive_candidate_probe_for_independent_code_unit_oracle ... ok
+test code::tests::all_hand_fixtures_match_independent_python_oracle_fields_and_raw_bytes ... ok
+test references::tests::shared_code_expands_callers_without_counting_projection_duplicates_or_fake_callers ... ok
+test references::tests::ordinary_scope_does_not_consume_unrelated_annotations_and_custom_does_not_fake_callee ... ok
+test raw_fingerprints::tests::resource_fingerprint_is_raw_same_snapshot_and_survives_source_mutation ... ok
+test threads::tests::affinity_mask_bounds_the_detected_thread_count ... ok
+test threads::tests::leased_count_is_at_least_one_and_reports_no_more_than_the_portable_api ... ok
+test references::tests::borrowed_method_calls_match_independent_oracle_and_preserve_sites ... ok
+test references::tests::caller_site_expansion_query_and_search_budgets_fail_before_partial_success ... ok
+test threads::tests::env_override_is_honoured_and_invalid_values_fall_back ... ok
+test references::tests::dynamic_call_reference_view_preserves_oracle_sites_and_sources ... ok
+test references::tests::all_hand_fixtures_match_independent_sites_ranges_and_complete_rows ... ok
+test pipeline::tests::windowed_map_stops_at_the_first_failing_index ... ok
+test pipeline::tests::windowed_map_delivers_in_inventory_order_not_completion_order ... ok
+
+test result: ok. 113 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+
+running 10 tests
+test dotted_and_descriptor_helpers_are_exact ... ok
+test catalog_matches_the_frozen_feature_order ... ok
+test structural_gate_rejects_an_unprepared_session ... ok
+test session_binds_one_snapshot_and_reports_occurrence_identity ... ok
+test unknown_catalog_keys_fail_loudly ... ok
+test multidex_occurrences_keep_ordinals_and_duplicate_class_evidence ... ok
+test graph_subclass_keeps_platform_shortcuts ... ok
+test graph_returns_headers_members_and_inheritance_like_the_reference ... ok
+test duplicate_class_descriptor_is_an_explicit_ambiguity ... ok
+test rule_run_reports_every_feature_and_refuses_admission ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 1 test
+test opcode_projection_matches_retained_a0_synthetic_methods ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 6 tests
+test thread_resolution_is_bounded_and_rejects_zero ... ok
+test single_dex_input_never_starts_a_pool ... ok
+test identical_member_content_keeps_separate_occurrences ... ok
+test arc_graph_matches_serial_sharing ... ok
+test parallel_layers_are_byte_identical_to_serial ... ok
+test repeated_parallel_builds_are_deterministic ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 3 tests
+test nonscalar_parameter_descriptor_is_rejected_during_metadata_read ... ok
+test parameter_text_preserves_utf16_mutf8_occurrences_and_limits ... ok
+test parameter_text_matches_retained_a0_rows ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 1 test
+test crates\mdd-facts\src\session.rs - session (line 7) - compile ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 4 tests
+test crates\mdd-facts\src\annotations.rs - annotations::AnnotationFacts (line 490) - compile fail ... ok
+test crates\mdd-facts\src\references.rs - references::ReferenceFacts (line 230) - compile fail ... ok
+test crates\mdd-facts\src\metadata.rs - metadata::MetadataFacts (line 175) - compile fail ... ok
+test crates\mdd-facts\src\code.rs - code::CodeFacts (line 635) - compile fail ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.19s
+
+all doctests ran in 2.32s; merged doctests compilation took 0.45s

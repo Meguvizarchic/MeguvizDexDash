@@ -1,0 +1,156 @@
+{
+  "schema_version": "mdd.prep-analysis-baseline.v1",
+  "created_utc": "2026-11-11T11:21:47Z",
+  "created_local": "2026-11-11T19:21:47+08:00",
+  "note": "analysis-time hashes; production tree is being edited concurrently by other subagents, re-take before implementing",
+  "files": {
+    "crates/mdd-sql/src/bridge.rs": {
+      "sha256": "8f1d173fac97758b068b741d5e2b3fb9667f067f6a34fae6141452f31f0bfa88",
+      "bytes": 382338
+    },
+    "crates/mdd-sql/src/provider.rs": {
+      "sha256": "c0599c05a516103d345bd908739aa8b890bb364ff47a12a5a828bcd576676ad7",
+      "bytes": 7118
+    },
+    "crates/mdd-sql/src/provider/metadata.rs": {
+      "sha256": "53cd214f3afffb7cc76453612987246bb48319b9f40f2eba0b1ef71d1fbb0be5",
+      "bytes": 217127
+    },
+    "crates/mdd-sql/src/dialects/ast.rs": {
+      "sha256": "09b66faa08eb9cf1929bc9c2f4a7261bdf0af44a0d60c8d9904303ce76234df8",
+      "bytes": 187915
+    },
+    "crates/mdd-sql/src/dialects/functions.rs": {
+      "sha256": "29a7b0cc007181a21cef187cab969acde75b805779b64c32978138f869c05669",
+      "bytes": 106786
+    },
+    "crates/mdd-sql/src/dialects/mod.rs": {
+      "sha256": "4142a85c412979468973b7ad9c10748731ab777d31afa521b9cc04b06f7fd548",
+      "bytes": 350
+    },
+    "crates/mdd-sql/src/virtual_tables/mod.rs": {
+      "sha256": "0cf136b999f963051165af1feaea625c1a9d531d00f2d18465bd3b042f6b586f",
+      "bytes": 9673
+    },
+    "crates/mdd-sql/src/control.rs": {
+      "sha256": "cf7c34cb2083c3a089cbf19af7680e85cd034e0b901acc89334ae9cb850c1a32",
+      "bytes": 11718
+    },
+    "crates/mdd-sql/src/lib.rs": {
+      "sha256": "4045b5a1c1cbc2cae32b601bac11e9509365a42d3b6835bca6e0e0fb9ca9f15a",
+      "bytes": 1883
+    },
+    "crates/mdd-sql/src/runtime.rs": {
+      "sha256": "b842c26d3a534e948970f0181e46c2089cdadfbc345f803a0c0f01313f9b814b",
+      "bytes": 1992
+    },
+    "crates/mdd-facts/src/definitions.rs": {
+      "sha256": "a579b2a4ed9f668ce110b339106ef7e7644ac61900d48e03eaf5e396259a1830",
+      "bytes": 103217
+    },
+    "crates/mdd-facts/src/code.rs": {
+      "sha256": "21954b19a2089636099df20280491c83fc90cf16b603b3a6b4d564f04d6ac34d",
+      "bytes": 56300
+    },
+    "crates/mdd-facts/src/references.rs": {
+      "sha256": "2f39582808e5a894b5a052fe74581b681aa8de842b49bc76d7772d57b6490090",
+      "bytes": 132033
+    },
+    "crates/mdd-facts/src/annotations.rs": {
+      "sha256": "3b89020e5a79b73b58621e50c5f487f15132e073678919a39103ae7c003f9209",
+      "bytes": 234028
+    },
+    "crates/mdd-facts/src/metadata.rs": {
+      "sha256": "4e7d3f8bf0bbf10d72d7fce9df4937d5011eaffa0746ddf3bf6739aa8fe14b5a",
+      "bytes": 55763
+    },
+    "crates/mdd-facts/src/coverage.rs": {
+      "sha256": "d25278cb715b903d241777018107de620edcf5370e01d86b2b289810ba340fe7",
+      "bytes": 59628
+    },
+    "crates/mdd-facts/src/indexes/columns.rs": {
+      "sha256": "282bfe0dabfaebb7cc380a279d0813871d7d49b9f19068e9d867e826d8a39dd2",
+      "bytes": 28148
+    },
+    "crates/mdd-facts/src/indexes/scope.rs": {
+      "sha256": "3fc13c036409a0abe526cb9a2da83f35f88f606a1b7f61d45bd3f38b689f84b3",
+      "bytes": 46380
+    },
+    "crates/mdd-facts/src/hostlab/mod.rs": {
+      "sha256": "442dadb53c03d390b513cc3d48a1cf50ce01505c00f4be4e8a271dd7eaabf8b7",
+      "bytes": 23234
+    },
+    "crates/mdd-facts/src/hostlab/rules.rs": {
+      "sha256": "3d371a5e06b2e74463d9e6bb0e9095c0b21b84b430ab494dbc18f1e3de9335ea",
+      "bytes": 30224
+    },
+    "crates/mdd-facts/src/surface.rs": {
+      "sha256": "c51c7b818996ae4d224dc2dffff4944efce86950e48c0a1fb5a56163a0ad7cc5",
+      "bytes": 41432
+    },
+    "crates/mdd-session/src/lib.rs": {
+      "sha256": "afda23d2dbb014680afa204ed7574387c017740223c6d5f68431c4b5f893efdd",
+      "bytes": 82454
+    },
+    "crates/mdd-session/src/cancellation.rs": {
+      "sha256": "4bffcd2bd43b71e32feaab3ea929ce82d837d242bd9ad37a50f7449a8b1da03d",
+      "bytes": 39555
+    },
+    "crates/mdd-session/Cargo.toml": {
+      "sha256": "567a80a7446067885639ac10d2c2326d7128b3ae536374a385e3ee1072051965",
+      "bytes": 255
+    },
+    "crates/mdd-query/src/executor.rs": {
+      "sha256": "50362df8a6743ff354bf636f9b87f0ff50906079de698b9bc75cc450eb8e636c",
+      "bytes": 93002
+    },
+    "crates/mdd-query/src/ir/mod.rs": {
+      "sha256": "a4fe8a1a66d70684b868eeb61a77e56aecc10377ded6acd517b3c59407cfe46f",
+      "bytes": 11982
+    },
+    "crates/mdd-query/src/budget.rs": {
+      "sha256": "1234b15ebbec4eeec977d623ab7368b61ebe409d8e63b241b3f296ada6ec0852",
+      "bytes": 88019
+    },
+    "crates/mdd-types/src/lib.rs": {
+      "sha256": "46dc484d01995fe9e6b5399a233e328b72da9e36d12dcd6a567d06a947da2c28",
+      "bytes": 13042
+    },
+    "crates/mdd-types/src/result.rs": {
+      "sha256": "f93e5f7a79d0664bfda0c5c19d16f180dce654e1c92e8cd81944cb47b608a4e6",
+      "bytes": 30757
+    },
+    "crates/mdd-input/src/archive/mod.rs": {
+      "sha256": "9d28713d28d0f6fea7342a74d64fe2131d53e7c115986f3bfc7cc3d13be85973",
+      "bytes": 19403
+    },
+    "conformance/manifests/relations.json": {
+      "sha256": "f416926d6da3467b5cfea625978c2e4faac08c914cf2930d2c64878c261bb82d",
+      "bytes": 60791
+    },
+    "conformance/manifests/profile-requirements.json": {
+      "sha256": "a8dce3b4082195c16f0c7b426b612767c3b6d8abaf6fa2ba8b11e0d5909ad6eb",
+      "bytes": 3490
+    },
+    "conformance/corpus/hostlab/queries.jsonl": {
+      "sha256": "e6a94471466af10c2482d851358296c1a5fcc3809c8eb3c7531a9262af2391b4",
+      "bytes": 117836
+    },
+    "artifacts/mdd-026/evidence-merged-20261111/merged-matrix.json": {
+      "sha256": "48c577ddc79eb24fe76e559d14d023690508cee1562a4835616c7002ee21c706",
+      "bytes": 619552
+    },
+    "conformance/facts/required-columns.json": {
+      "sha256": "7283875ca5372848bf08a0e91beb981e18ed9b96ff9bb586c9597ee6397f069c",
+      "bytes": 143235
+    },
+    "compatibility/ledger.json": {
+      "sha256": "118962284606d2419e34d1d5dbbd7ec36f08034317896dea130962fcc8e63026",
+      "bytes": 104189
+    },
+    "tasks/backlog.json": {
+      "sha256": "a9f3f5b7dca5113c7d2d23a78334e28f91c05340818703e325dcc5e5b2f10772",
+      "bytes": 92652
+    }
+  }
+}

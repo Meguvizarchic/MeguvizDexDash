@@ -1,7 +1,9 @@
 """Fixed A1 lifecycle with locked synthetic input; no A2 qualification."""
 import hashlib
 from pathlib import Path
+import runpy
 import sys
+import tempfile
 import uuid
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -43,8 +45,15 @@ derived = text.replace(old_path, 'Path(' + repr(str(fixture)) + ').resolve(stric
 derived = derived.replace(old_open, new_open).replace(old_close, new_close)
 print('derived_probe_sha256=' + hashlib.sha256(derived.encode('utf-8')).hexdigest(), flush=True)
 with pin:
-    exec(compile(derived, str(reference), 'exec'), {'__name__': '__main__',
-         '__file__': str(reference), 'A1DatasetLifecycle': A1DatasetLifecycle,
-         'pinned_source': pin})
+    # Materialize the derived probe next to its reference and run it as a
+    # module, so the probe executes from a file rather than an in-process
+    # compile step.
+    with tempfile.TemporaryDirectory(dir=reference.parent, prefix='derived-') as staging:
+        staged = Path(staging) / 'a1_probe_derived.py'
+        staged.write_text(derived, encoding='utf-8', newline='\n')
+        runpy.run_path(str(staged), run_name='__main__', init_globals={
+            'A1DatasetLifecycle': A1DatasetLifecycle,
+            'pinned_source': pin,
+        })
     pin.verify_source()
 print('actual A1 lifecycle observed close and source; no snapshot or A2 qualification')

@@ -1,0 +1,17 @@
+dex_files 2
+strings 68476
+types 10664
+methods 63560
+classes 8540
+class_interfaces 4168
+class_fields 33972
+class_methods 55763
+code_items 52332
+annotation_directory_entries 3431
+annotation_set_entries 5835
+annotations 3844
+annotation_elements 15472
+method_strings 42054
+method_calls 236644
+method_field_accesses 163617
+method_used_types 67007
