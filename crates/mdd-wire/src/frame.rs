@@ -152,6 +152,18 @@ impl Header {
         }
         let mut stream = [0u8; 8];
         stream.copy_from_slice(&bytes[16..24]);
+        // Connection frames (Hello) live on stream 0, every stream frame on a
+        // non-zero id.
+        if (kind == FrameKind::Hello) != (u64::from_le_bytes(stream) == 0) {
+            return Err(WireError::new(
+                WireErrorKind::BadStreamId,
+                format!(
+                    "a {} frame cannot be on stream {}",
+                    kind.name(),
+                    u64::from_le_bytes(stream)
+                ),
+            ));
+        }
         let mut body = [0u8; 8];
         body.copy_from_slice(&bytes[24..32]);
         let body_bytes = u64::from_le_bytes(body);
@@ -238,6 +250,9 @@ impl<R: Read> FrameReader<R> {
 pub struct FrameWriter<W> {
     sink: W,
     max_body_bytes: u64,
+    /// Set by the first I/O failure: a frame may be half written, so nothing
+    /// more may follow it on this sink.
+    failed: bool,
 }
 
 impl<W: Write> FrameWriter<W> {
@@ -252,10 +267,17 @@ impl<W: Write> FrameWriter<W> {
         Ok(Self {
             sink,
             max_body_bytes,
+            failed: false,
         })
     }
 
     pub fn write_frame(&mut self, kind: FrameKind, stream_id: u64, body: &[u8]) -> WireResult<()> {
+        if self.failed {
+            return Err(WireError::new(
+                WireErrorKind::Io,
+                "an earlier write failed and may have left a partial frame",
+            ));
+        }
         if body.len() as u64 > self.max_body_bytes {
             return Err(WireError::new(
                 WireErrorKind::FrameTooLarge,
@@ -267,10 +289,15 @@ impl<W: Write> FrameWriter<W> {
             ));
         }
         let header = Header::new(kind, stream_id, body.len() as u64).encode();
-        let io = |error: std::io::Error| WireError::new(WireErrorKind::Io, error.to_string());
-        self.sink.write_all(&header).map_err(io)?;
-        self.sink.write_all(body).map_err(io)?;
-        self.sink.flush().map_err(io)
+        let result = self
+            .sink
+            .write_all(&header)
+            .and_then(|()| self.sink.write_all(body))
+            .and_then(|()| self.sink.flush());
+        result.map_err(|error| {
+            self.failed = true;
+            WireError::new(WireErrorKind::Io, error.to_string())
+        })
     }
 
     pub fn into_inner(self) -> W {
@@ -310,6 +337,11 @@ impl Hello {
         let object = value
             .as_object()
             .ok_or_else(|| malformed("hello must be a JSON object"))?;
+        if let Some(extra) = object.keys().find(|key| {
+            !["protocol", "versions", "max_frame_bytes", "encodings"].contains(&key.as_str())
+        }) {
+            return Err(malformed(format!("hello has an unknown field `{extra}`")));
+        }
         if object.get("protocol").and_then(Value::as_str) != Some("mdd-wire") {
             return Err(malformed("hello protocol is not mdd-wire"));
         }
@@ -371,28 +403,28 @@ pub struct Agreed {
 /// first one of `local`'s preference that `peer` also lists and that this
 /// implementation can read (`json` only).
 pub fn negotiate(local: &Hello, peer: &Hello) -> WireResult<Agreed> {
-    let common = local
-        .versions
-        .iter()
-        .filter_map(|(major, minor)| {
-            peer.versions
+    // Only a major this implementation speaks can be agreed. A higher major both
+    // sides happen to list is not a reason to fail while major 1 is common too.
+    let minor = [&local.versions, &peer.versions]
+        .map(|versions| {
+            versions
                 .iter()
-                .find(|(peer_major, _)| peer_major == major)
-                .map(|(_, peer_minor)| (*major, (*minor).min(*peer_minor)))
+                .filter(|(major, _)| *major == MAJOR)
+                .map(|(_, minor)| *minor)
+                .max()
         })
-        .max();
-    let Some((major, minor)) = common else {
+        .into_iter()
+        .collect::<Option<Vec<u16>>>()
+        .and_then(|minors| minors.into_iter().min());
+    let Some(minor) = minor else {
         return Err(WireError::new(
             WireErrorKind::NegotiationFailed,
-            "no common major version",
+            format!(
+                "no common implemented major version (this implementation speaks major {MAJOR})"
+            ),
         ));
     };
-    if major != MAJOR {
-        return Err(WireError::new(
-            WireErrorKind::NegotiationFailed,
-            format!("major version {major} is not implemented"),
-        ));
-    }
+    let major = MAJOR;
     let max_frame_bytes = local.max_frame_bytes.min(peer.max_frame_bytes);
     if max_frame_bytes < MIN_FRAME_BYTES {
         return Err(WireError::new(

@@ -76,7 +76,11 @@ impl WireErrorKind {
 
     fn error_code(self) -> ErrorCode {
         match self {
-            Self::Disconnected => ErrorCode::WorkerLost,
+            // A peer that vanished mid-frame is a lost worker like one that vanished
+            // between frames.
+            Self::Disconnected | Self::TruncatedHeader | Self::TruncatedBody => {
+                ErrorCode::WorkerLost
+            }
             Self::Cancelled => ErrorCode::Cancelled,
             Self::DeadlineExceeded => ErrorCode::DeadlineExceeded,
             Self::FrameTooLarge

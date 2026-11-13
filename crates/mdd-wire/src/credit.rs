@@ -8,6 +8,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Condvar, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
+/// Longest a producer may wait for credit in one call.
+pub const MAX_WAIT: Duration = Duration::from_secs(24 * 60 * 60);
+
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct Credit {
     pub bytes: u64,
@@ -92,7 +95,8 @@ impl CreditGate {
     /// as soon as `cancel` is set and `DeadlineExceeded` when the consumer did not
     /// grant credit in time; in both cases nothing was spent.
     pub fn reserve(&self, bytes: u64, wait: Duration, cancel: &AtomicBool) -> WireResult<()> {
-        let deadline = Instant::now() + wait;
+        // `wait` is capped so an absurd value cannot overflow the clock.
+        let deadline = Instant::now() + wait.min(MAX_WAIT);
         let mut ledger = self.ledger.lock().unwrap_or_else(PoisonError::into_inner);
         loop {
             if cancel.load(Ordering::SeqCst) {

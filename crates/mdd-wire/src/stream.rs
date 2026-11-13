@@ -7,7 +7,7 @@
 //! count, batch count and digest equal what was actually received. Receiving
 //! batches is not completing: a stream that ends without End, ends with an Error,
 //! or repeats a terminal is never an empty or short success.
-use crate::cell::{Cell, ColumnType, cell_type_error, decimal_field, hex};
+use crate::cell::{Cell, ColumnType, cell_type_error, decimal_field};
 use crate::credit::{Credit, CreditLedger};
 use crate::error::{WireError, WireErrorKind, WireResult, malformed};
 use crate::frame::{Frame, FrameKind};
@@ -190,6 +190,17 @@ impl Schema {
                 }
                 _ => {}
             }
+            if let Cell::DexMutf8 { bytes, utf16_units } = cell
+                && mutf8_units(bytes) != Some(*utf16_units)
+            {
+                return Err(WireError::new(
+                    WireErrorKind::CellTypeMismatch,
+                    format!(
+                        "column `{}`: the bytes are not MUTF-8 of exactly {utf16_units} UTF-16 units",
+                        column.stable_id
+                    ),
+                ));
+            }
             if cell.payload_bytes() > limits.max_cell_bytes {
                 return Err(WireError::new(
                     WireErrorKind::CellTooLarge,
@@ -283,12 +294,13 @@ impl PeerError {
     pub fn to_mdd(&self) -> MddError {
         let code = serde_json::from_value::<ErrorCode>(Value::String(self.code.clone()))
             .unwrap_or(ErrorCode::InternalFault);
-        let mut error = MddError::new(code, "wire.peer", self.message.clone())
-            .detail("peer_code", self.code.clone());
+        let mut error = MddError::new(code, "wire.peer", self.message.clone());
         for (key, value) in &self.details {
             error = error.detail(key.clone(), value.clone());
         }
-        error
+        // Set last: the peer's own details can never replace what the engine
+        // recorded about where the error came from.
+        error.detail("peer_code", self.code.clone())
     }
 }
 
@@ -816,7 +828,58 @@ impl ResponseStream {
     }
 }
 
-/// Hex of a digest or payload, for diagnostics and the conformance cases.
-pub fn digest_hex(bytes: &[u8]) -> String {
-    hex(bytes)
+/// UTF-16 code units of a MUTF-8 byte string, or `None` when it is not well formed:
+/// one to three byte sequences only (supplementary characters are two three-byte
+/// surrogates, NUL is `C0 80`), a raw NUL byte is invalid, and every continuation
+/// byte must be `10xxxxxx`.
+pub(crate) fn mutf8_units(bytes: &[u8]) -> Option<u64> {
+    let mut units = 0u64;
+    let mut at = 0;
+    while at < bytes.len() {
+        let extra = match bytes[at] {
+            0x01..=0x7f => 0,
+            0xc0..=0xdf => 1,
+            0xe0..=0xef => 2,
+            _ => return None,
+        };
+        let tail = bytes.get(at + 1..at + 1 + extra)?;
+        if tail.iter().any(|b| b & 0xc0 != 0x80) {
+            return None;
+        }
+        units += 1;
+        at += 1 + extra;
+    }
+    Some(units)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::mutf8_units;
+
+    #[test]
+    fn mutf8_unit_counts_follow_the_dex_encoding() {
+        assert_eq!(mutf8_units(b""), Some(0));
+        assert_eq!(mutf8_units(b"ab"), Some(2));
+        assert_eq!(mutf8_units(&[0xc0, 0x80]), Some(1), "NUL is C0 80");
+        assert_eq!(mutf8_units(&[0xc3, 0xa9]), Some(1));
+        assert_eq!(mutf8_units(&[0xe2, 0x82, 0xac]), Some(1));
+        assert_eq!(
+            mutf8_units(&[0xed, 0xa0, 0x80]),
+            Some(1),
+            "a lone surrogate is one unit"
+        );
+        // U+1F600 is a surrogate pair: two three-byte sequences, two units.
+        assert_eq!(mutf8_units(&[0xed, 0xa0, 0xbd, 0xed, 0xb8, 0x80]), Some(2));
+        for bad in [
+            &[0x00][..],
+            &[0xff],
+            &[0xf0, 0x9f, 0x98, 0x80],
+            &[0xc3],
+            &[0xe2, 0x82],
+            &[0xc3, 0x28],
+            &[0x80],
+        ] {
+            assert_eq!(mutf8_units(bad), None, "{bad:?}");
+        }
+    }
 }

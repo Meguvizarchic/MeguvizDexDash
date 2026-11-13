@@ -148,6 +148,10 @@ def frame_cases():
         ok(("progress", 2, ok_body), ("end", 2, b"{}")))
     add("optional_high_flag_is_ignored", header(kind=2, flags=0x0100, body=len(ok_body)) + ok_body, ok(("request", 1, ok_body)))
     add("minor_version_above_zero_is_accepted", header(kind=2, minor=5, body=len(ok_body)) + ok_body, ok(("request", 1, ok_body)))
+    add("hello_on_stream_zero", header(kind=1, stream=0, body=2) + b"{}", ok(("hello", 0, b"{}")))
+    add("hello_on_a_stream", header(kind=1, stream=7), failure("bad_stream_id"))
+    add("request_on_stream_zero", header(kind=2, stream=0), failure("bad_stream_id"))
+    add("batch_on_stream_zero", header(kind=4, stream=0), failure("bad_stream_id"))
     add("bad_magic", header(magic=b"MDDX"), failure("bad_magic"))
     add("major_two", header(major=2), failure("unsupported_version"))
     add("major_zero", header(major=0), failure("unsupported_version"))
@@ -190,6 +194,9 @@ def negotiation_cases():
         {"agreed": {"major": 1, "minor": 1, "max_frame_bytes": 8192, "encoding": "json"}})
     add("local_preference_picks_first_common_readable_encoding",
         hello_body([(1, 0)], 8192, ["columns-v1", "json"]), hello_body([(1, 0)], 8192, ["json", "columns-v1"]),
+        {"agreed": {"major": 1, "minor": 0, "max_frame_bytes": 8192, "encoding": "json"}})
+    add("highest_common_implemented_major_when_a_higher_one_is_also_common",
+        hello_body([(1, 1), (2, 0)], 8192, ["json"]), hello_body([(2, 5), (1, 0)], 8192, ["json"]),
         {"agreed": {"major": 1, "minor": 0, "max_frame_bytes": 8192, "encoding": "json"}})
     add("no_common_major", hello_body([(2, 0)], 8192, ["json"]), base, failure("negotiation_failed"))
     add("common_major_that_is_not_implemented", hello_body([(2, 0), (1, 0)], 8192, ["json"]),
@@ -269,7 +276,19 @@ def stream_cases():
     changed_units = list(full_row)
     changed_units[6] = c_mutf8(b"\xed\xa0\x80", 2)
     mutf8_units[1] = f("batch", 1, batch_body(wide, 0, [changed_units]))
-    add("err_utf16_unit_count_changed", mutf8_units, failure("digest_mismatch", 2))
+    add("err_utf16_unit_count_does_not_match_the_bytes", mutf8_units, failure("cell_type_mismatch", 1))
+    other_mutf8 = stream_frames(wide, [[full_row]])
+    changed_bytes = list(full_row)
+    changed_bytes[6] = c_mutf8(bytes([0xed, 0xa0, 0x81]), 1)
+    other_mutf8[1] = f("batch", 1, batch_body(wide, 0, [changed_bytes]))
+    add("err_mutf8_bytes_changed_after_digest", other_mutf8, failure("digest_mismatch", 2))
+    bad_mutf8 = stream_frames(wide, [])
+    broken = list(full_row)
+    broken[6] = c_mutf8(bytes([0xc3]), 1)
+    add("err_truncated_mutf8_sequence", [bad_mutf8[0], f("batch", 1, batch_body(wide, 0, [broken]))], failure("cell_type_mismatch", 1))
+    raw_nul = list(full_row)
+    raw_nul[6] = c_mutf8(bytes([0]), 1)
+    add("err_raw_nul_byte_in_mutf8", [bad_mutf8[0], f("batch", 1, batch_body(wide, 0, [raw_nul]))], failure("cell_type_mismatch", 1))
     nan_payload = stream_frames(wide, [[full_row]])
     other_nan = list(full_row)
     other_nan[3] = c_f64_bits(0x7ff8000000000002)

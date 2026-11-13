@@ -417,3 +417,109 @@ fn consumer_credit_is_spent_by_batches_and_refilled_by_grants() {
         WireErrorKind::CreditExceeded
     );
 }
+
+#[test]
+fn a_failed_write_latches_the_writer_so_no_frame_follows_a_partial_one() {
+    struct FailsAfter {
+        budget: usize,
+        written: Vec<u8>,
+    }
+    impl std::io::Write for FailsAfter {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            if self.budget == 0 {
+                return Err(std::io::Error::other("pipe closed"));
+            }
+            let count = bytes.len().min(self.budget);
+            self.budget -= count;
+            self.written.extend_from_slice(&bytes[..count]);
+            Ok(count)
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    // Room for the 32 byte header and part of the body.
+    let sink = FailsAfter {
+        budget: 40,
+        written: Vec::new(),
+    };
+    let mut writer = FrameWriter::new(sink, ChannelKind::Dedicated, 1024).unwrap();
+    assert_eq!(
+        writer
+            .write_frame(FrameKind::Progress, 1, &[b'x'; 100])
+            .unwrap_err()
+            .kind,
+        WireErrorKind::Io
+    );
+    let before = writer.into_inner().written.len();
+    // A second writer over the same state would append; the latched one refuses.
+    let sink = FailsAfter {
+        budget: 40,
+        written: Vec::new(),
+    };
+    let mut writer = FrameWriter::new(sink, ChannelKind::Dedicated, 1024).unwrap();
+    let _ = writer.write_frame(FrameKind::Progress, 1, &[b'x'; 100]);
+    let error = writer.write_frame(FrameKind::Cancel, 1, b"").unwrap_err();
+    assert_eq!(error.kind, WireErrorKind::Io);
+    assert!(error.message.contains("partial"), "{}", error.message);
+    assert_eq!(
+        writer.into_inner().written.len(),
+        before,
+        "nothing was appended after the failure"
+    );
+}
+
+#[test]
+fn an_unbounded_wait_is_capped_instead_of_overflowing_the_clock() {
+    let gate = CreditGate::new();
+    let cancel = AtomicBool::new(true);
+    // Cancel is already set, so this returns at once; the point is that the
+    // deadline arithmetic with Duration::MAX does not panic.
+    let error = gate.reserve(1, Duration::MAX, &cancel).unwrap_err();
+    assert_eq!(error.kind, WireErrorKind::Cancelled);
+}
+
+#[test]
+fn a_frame_cut_short_is_a_lost_worker_like_a_vanished_one() {
+    let mut reader = FrameReader::new(Cursor::new(vec![b'M', b'D']));
+    let error = reader.read_frame(1024).unwrap_err();
+    assert_eq!(error.kind, WireErrorKind::TruncatedHeader);
+    assert_eq!(error.to_mdd().code, ErrorCode::WorkerLost);
+    let mut bytes = Header::new(FrameKind::Batch, 1, 10).encode().to_vec();
+    bytes.extend_from_slice(b"abc");
+    let error = FrameReader::new(Cursor::new(bytes))
+        .read_frame(1024)
+        .unwrap_err();
+    assert_eq!(error.kind, WireErrorKind::TruncatedBody);
+    assert_eq!(error.to_mdd().code, ErrorCode::WorkerLost);
+}
+
+#[test]
+fn hello_is_as_strict_as_every_other_body() {
+    let mut hello = mdd_wire::Hello::v1(4096).to_json();
+    assert!(mdd_wire::Hello::from_json(&hello).is_ok());
+    hello["extra"] = serde_json::json!(1);
+    assert_eq!(
+        mdd_wire::Hello::from_json(&hello).unwrap_err().kind,
+        WireErrorKind::MalformedBody
+    );
+}
+
+#[test]
+fn a_peer_cannot_overwrite_the_engines_own_error_details() {
+    let mut details = serde_json::Map::new();
+    details.insert("peer_code".to_owned(), serde_json::json!("QUOTA_EXCEEDED"));
+    details.insert("budget".to_owned(), serde_json::json!("max_rows"));
+    let peer = mdd_wire::PeerError {
+        code: "WORKER_LOST".to_owned(),
+        message: "gone".to_owned(),
+        details,
+    };
+    let error = peer.to_mdd();
+    assert_eq!(error.code, ErrorCode::WorkerLost);
+    assert_eq!(
+        error.details["peer_code"], "WORKER_LOST",
+        "the engine's record wins"
+    );
+    assert_eq!(error.details["budget"], "max_rows");
+}

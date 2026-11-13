@@ -88,6 +88,44 @@
    }
   },
   {
+   "name": "hello_on_stream_zero",
+   "hex": "4d444457010000000100000020000000000000000000000002000000000000007b7d",
+   "max_body_bytes": 1048576,
+   "expect": {
+    "frames": [
+     {
+      "kind": "hello",
+      "stream_id": 0,
+      "body_hex": "7b7d"
+     }
+    ]
+   }
+  },
+  {
+   "name": "hello_on_a_stream",
+   "hex": "4d44445701000000010000002000000007000000000000000000000000000000",
+   "max_body_bytes": 1048576,
+   "expect": {
+    "error": "bad_stream_id"
+   }
+  },
+  {
+   "name": "request_on_stream_zero",
+   "hex": "4d44445701000000020000002000000000000000000000000000000000000000",
+   "max_body_bytes": 1048576,
+   "expect": {
+    "error": "bad_stream_id"
+   }
+  },
+  {
+   "name": "batch_on_stream_zero",
+   "hex": "4d44445701000000040000002000000000000000000000000000000000000000",
+   "max_body_bytes": 1048576,
+   "expect": {
+    "error": "bad_stream_id"
+   }
+  },
+  {
    "name": "bad_magic",
    "hex": "4d44445801000000040000002000000001000000000000000000000000000000",
    "max_body_bytes": 1048576,
@@ -365,6 +403,51 @@
     "encodings": [
      "json",
      "columns-v1"
+    ]
+   },
+   "expect": {
+    "agreed": {
+     "major": 1,
+     "minor": 0,
+     "max_frame_bytes": 8192,
+     "encoding": "json"
+    }
+   }
+  },
+  {
+   "name": "highest_common_implemented_major_when_a_higher_one_is_also_common",
+   "local": {
+    "protocol": "mdd-wire",
+    "versions": [
+     {
+      "major": 1,
+      "minor": 1
+     },
+     {
+      "major": 2,
+      "minor": 0
+     }
+    ],
+    "max_frame_bytes": "8192",
+    "encodings": [
+     "json"
+    ]
+   },
+   "peer": {
+    "protocol": "mdd-wire",
+    "versions": [
+     {
+      "major": 2,
+      "minor": 5
+     },
+     {
+      "major": 1,
+      "minor": 0
+     }
+    ],
+    "max_frame_bytes": "8192",
+    "encodings": [
+     "json"
     ]
    },
    "expect": {
@@ -1220,7 +1303,7 @@
    }
   },
   {
-   "name": "err_utf16_unit_count_changed",
+   "name": "err_utf16_unit_count_does_not_match_the_bytes",
    "stream_id": 1,
    "frames": [
     {
@@ -1240,8 +1323,73 @@
     }
    ],
    "expect": {
+    "error": "cell_type_mismatch",
+    "at_frame": 1
+   }
+  },
+  {
+   "name": "err_mutf8_bytes_changed_after_digest",
+   "stream_id": 1,
+   "frames": [
+    {
+     "kind": "schema",
+     "stream_id": 1,
+     "body_text": "{\"schema_id\":\"mdd.rows.v1:case\",\"columns\":[{\"ordinal\":0,\"stable_id\":\"b\",\"name\":\"b\",\"type\":\"bool\",\"nullable\":true},{\"ordinal\":1,\"stable_id\":\"i\",\"name\":\"i\",\"type\":\"i64\",\"nullable\":true},{\"ordinal\":2,\"stable_id\":\"u\",\"name\":\"u\",\"type\":\"u64\",\"nullable\":true},{\"ordinal\":3,\"stable_id\":\"f\",\"name\":\"f\",\"type\":\"f64\",\"nullable\":true},{\"ordinal\":4,\"stable_id\":\"s\",\"name\":\"s\",\"type\":\"utf8\",\"nullable\":true},{\"ordinal\":5,\"stable_id\":\"y\",\"name\":\"y\",\"type\":\"bytes\",\"nullable\":true},{\"ordinal\":6,\"stable_id\":\"m\",\"name\":\"m\",\"type\":\"dex_mutf8\",\"nullable\":true}]}"
+    },
+    {
+     "kind": "batch",
+     "stream_id": 1,
+     "body_text": "{\"schema_id\":\"mdd.rows.v1:case\",\"sequence\":\"0\",\"row_count\":\"1\",\"rows\":[[{\"t\":\"bool\",\"v\":true},{\"t\":\"i64\",\"v\":\"-9223372036854775808\"},{\"t\":\"u64\",\"v\":\"18446744073709551615\"},{\"t\":\"f64\",\"bits\":\"7ff8000000000001\"},{\"t\":\"utf8\",\"v\":\"é😀\"},{\"t\":\"bytes\",\"v\":\"00ff\"},{\"t\":\"dex_mutf8\",\"v\":\"eda081\",\"utf16_units\":\"1\"}]]}"
+    },
+    {
+     "kind": "end",
+     "stream_id": 1,
+     "body_text": "{\"rows\":\"1\",\"batches\":\"1\",\"digest\":\"d520d0793b5fe5ac924ed934f254a642b98432494e603e04c26a599144a0e242\"}"
+    }
+   ],
+   "expect": {
     "error": "digest_mismatch",
     "at_frame": 2
+   }
+  },
+  {
+   "name": "err_truncated_mutf8_sequence",
+   "stream_id": 1,
+   "frames": [
+    {
+     "kind": "schema",
+     "stream_id": 1,
+     "body_text": "{\"schema_id\":\"mdd.rows.v1:case\",\"columns\":[{\"ordinal\":0,\"stable_id\":\"b\",\"name\":\"b\",\"type\":\"bool\",\"nullable\":true},{\"ordinal\":1,\"stable_id\":\"i\",\"name\":\"i\",\"type\":\"i64\",\"nullable\":true},{\"ordinal\":2,\"stable_id\":\"u\",\"name\":\"u\",\"type\":\"u64\",\"nullable\":true},{\"ordinal\":3,\"stable_id\":\"f\",\"name\":\"f\",\"type\":\"f64\",\"nullable\":true},{\"ordinal\":4,\"stable_id\":\"s\",\"name\":\"s\",\"type\":\"utf8\",\"nullable\":true},{\"ordinal\":5,\"stable_id\":\"y\",\"name\":\"y\",\"type\":\"bytes\",\"nullable\":true},{\"ordinal\":6,\"stable_id\":\"m\",\"name\":\"m\",\"type\":\"dex_mutf8\",\"nullable\":true}]}"
+    },
+    {
+     "kind": "batch",
+     "stream_id": 1,
+     "body_text": "{\"schema_id\":\"mdd.rows.v1:case\",\"sequence\":\"0\",\"row_count\":\"1\",\"rows\":[[{\"t\":\"bool\",\"v\":true},{\"t\":\"i64\",\"v\":\"-9223372036854775808\"},{\"t\":\"u64\",\"v\":\"18446744073709551615\"},{\"t\":\"f64\",\"bits\":\"7ff8000000000001\"},{\"t\":\"utf8\",\"v\":\"é😀\"},{\"t\":\"bytes\",\"v\":\"00ff\"},{\"t\":\"dex_mutf8\",\"v\":\"c3\",\"utf16_units\":\"1\"}]]}"
+    }
+   ],
+   "expect": {
+    "error": "cell_type_mismatch",
+    "at_frame": 1
+   }
+  },
+  {
+   "name": "err_raw_nul_byte_in_mutf8",
+   "stream_id": 1,
+   "frames": [
+    {
+     "kind": "schema",
+     "stream_id": 1,
+     "body_text": "{\"schema_id\":\"mdd.rows.v1:case\",\"columns\":[{\"ordinal\":0,\"stable_id\":\"b\",\"name\":\"b\",\"type\":\"bool\",\"nullable\":true},{\"ordinal\":1,\"stable_id\":\"i\",\"name\":\"i\",\"type\":\"i64\",\"nullable\":true},{\"ordinal\":2,\"stable_id\":\"u\",\"name\":\"u\",\"type\":\"u64\",\"nullable\":true},{\"ordinal\":3,\"stable_id\":\"f\",\"name\":\"f\",\"type\":\"f64\",\"nullable\":true},{\"ordinal\":4,\"stable_id\":\"s\",\"name\":\"s\",\"type\":\"utf8\",\"nullable\":true},{\"ordinal\":5,\"stable_id\":\"y\",\"name\":\"y\",\"type\":\"bytes\",\"nullable\":true},{\"ordinal\":6,\"stable_id\":\"m\",\"name\":\"m\",\"type\":\"dex_mutf8\",\"nullable\":true}]}"
+    },
+    {
+     "kind": "batch",
+     "stream_id": 1,
+     "body_text": "{\"schema_id\":\"mdd.rows.v1:case\",\"sequence\":\"0\",\"row_count\":\"1\",\"rows\":[[{\"t\":\"bool\",\"v\":true},{\"t\":\"i64\",\"v\":\"-9223372036854775808\"},{\"t\":\"u64\",\"v\":\"18446744073709551615\"},{\"t\":\"f64\",\"bits\":\"7ff8000000000001\"},{\"t\":\"utf8\",\"v\":\"é😀\"},{\"t\":\"bytes\",\"v\":\"00ff\"},{\"t\":\"dex_mutf8\",\"v\":\"00\",\"utf16_units\":\"1\"}]]}"
+    }
+   ],
+   "expect": {
+    "error": "cell_type_mismatch",
+    "at_frame": 1
    }
   },
   {
