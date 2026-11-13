@@ -202,6 +202,13 @@
 - 032/033 的依赖 MDD-031 已 done，二者随之标 done；`tools/check_progress.py` 通过。这是依据上面的证据所作的判断，若认为 031 的口径偏松（尤其验收 1 的实机成本），应重开 031 并连带复核 032/033。
 - 本节改动后的门禁：native 24 个目标 780 passed / 0 failed / 0 ignored、clippy 0 告警；static、progress、cli、conformance 均通过（conformance 门禁仍会改写 `artifacts/mdd-004` 里的解释器路径，已还原）。
 
+### 2026-11-13：分批推送到远端 main（用户授权，快进，未强推）
+
+- **做法**：本分支相对 `origin/main`（a9aa1f0）领先 87 个提交、0 落后，且已包含 `origin/main`，所以 main 只需快进。分支前 76 个提交是改写过的旧链、不含 a9aa1f0，不能直接逐个快进 main，所以先把它们分 5 批推到临时分支 `staging/m2-batch`（到第 20、45、71、74、80 个提交），最后一批把 main 从 a9aa1f0 快进到 e3679e0，随后删除临时分支。远端现在只有 `main` 指向 e3679e0（含本节之前的全部提交）。
+- **脱敏扫描**（推送前，对 `origin/main..HEAD` 的全部 6,413 个对象、3,729 个 blob，而不只是最终树）：用户目录、个人名字/邮箱、应用类名、令牌/私钥、主机名均为 0；提交作者全为 `jichuo1@users.noreply.github.com`，提交说明无路径、无附加署名；3 个二进制 blob 都是合成的小 DEX 夹具；唯一的“外来盘符路径”是测试字符串 `C:\outside`。
+- **有意保留、需要知情的两类**：(1) 205 个文件含工程目录约定路径 `D:\MeguvisDexDash`（编译输出、回溯、JSON 记录）——这是本项目文档化的目录拼写（AGENTS.md、本文件“Checkout 与交付”），公开 main 上本来就有 457 个这样的文件，未做改写，因为这些是原始运行记录，改写会使其中记录的哈希失配；(2) 文档与证据中出现“Bilibili 9.16.1”这一样本应用名及其大小、sha256 前缀等度量，不含类名，公开 main 上已有 196 个文件提到它。若要把这两类也清掉，需要再改写历史，属于另一项决定。
+- 之前各节里“本地分支尚未推送”的表述以本节为准。
+
 ## Checkout 与交付
 
 工程目录 D:\MeguvisDexDash（保留目录原拼写）。远端已迁移到 https://github.com/Meguvizarchic/MeguvizDexDash（**公开仓库**，旧地址 jichuo1/MeguvizDexDash 自动转发）；PR #1 已于 2026-11-04 合并，`main` 现为 a9aa1f0，其中 27ac27e 是由本分支 71dfce9 生成的「脱敏工程进度快照」，之后 8 个提交是修补与 README/图标。本地分支 codex/m2-facts-20261028 当前**没有远端分支**：2026-11-12 曾整体推送，随后发现仓库公开，已按用户决定删除远端分支（GitHub 上提交仍可按 SHA 读取）。重新推送前必须先决定公开范围，见下节。
