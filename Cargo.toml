@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["tools/build-probe", "tools/mdd-timing", "crates/mdd-types", "crates/mdd-cli", "crates/mdd-input", "crates/mdd-dex", "crates/mdd-session", "crates/mdd-worker", "crates/mdd-facts", "crates/mdd-query", "crates/mdd-sql"]
+members = ["tools/build-probe", "tools/mdd-timing", "crates/mdd-types", "crates/mdd-cli", "crates/mdd-input", "crates/mdd-dex", "crates/mdd-session", "crates/mdd-worker", "crates/mdd-facts", "crates/mdd-query", "crates/mdd-sql", "crates/mdd-wire"]
 
 [workspace.package]
 version = "0.1.0-dev"
@@ -15,6 +15,7 @@ mdd-dex = { path = "crates/mdd-dex" }
 mdd-session = { path = "crates/mdd-session" }
 mdd-facts = { path = "crates/mdd-facts" }
 mdd-query = { path = "crates/mdd-query" }
+mdd-wire = { path = "crates/mdd-wire" }
 serde = { version = "=1.0.229", features = ["derive", "rc"] }
 serde_json = "=1.0.151"
 sha2 = "=0.11.0"

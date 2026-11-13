@@ -293,13 +293,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "mdd-wire"
+version = "0.1.0-dev"
+dependencies = [
+ "mdd-types",
+ "serde_json",
+]
+
+[[package]]
 name = "mdd-worker"
 version = "0.1.0-dev"
 dependencies = [
  "mdd-input",
  "mdd-session",
  "mdd-types",
+ "mdd-wire",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
