@@ -8,10 +8,16 @@ publish.workspace = true
 [dependencies]
 mdd-types.workspace = true
 mdd-session.workspace = true
+mdd-wire.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 
 [dev-dependencies]
 mdd-input.workspace = true
 
 [lints]
 workspace = true
+
+[[test]]
+name = "wire_child"
+harness = false

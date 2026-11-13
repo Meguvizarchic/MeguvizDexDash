@@ -1,2 +1,3 @@
-//! Direct worker-process lifecycle supervision. No query or wire protocol yet.
+//! Direct worker-process lifecycle supervision and the `mdd-wire/1` worker protocol.
 pub mod lifecycle;
+pub mod protocol;
