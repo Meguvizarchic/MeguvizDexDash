@@ -1,0 +1,175 @@
+{
+ "schema_version": "mdd.budget-terminal-current.v1",
+ "task": "MDD-034",
+ "kind": "development evidence; admits no profile",
+ "supersedes_nothing": "the 2026-10-28 record artifacts/mdd-034/budget-and-terminal-states.json keeps its historical meaning",
+ "acceptance": [
+  {
+   "acceptance": "operation_status, input/facts three-state coverage, execution.complete and more_available/truncated/next_cursor are independently verifiable",
+   "tests": [
+    {
+     "test": "result::tests::coverage_execution_and_delivery_axes_are_independent_and_protocol_faults_sticky",
+     "outcome": "ok"
+    },
+    {
+     "test": "result::tests::computed_spool_cancel_page_and_complete_zero_are_independent",
+     "outcome": "ok"
+    },
+    {
+     "test": "result::tests::complete_result_requires_an_exact_matching_total",
+     "outcome": "ok"
+    },
+    {
+     "test": "result::tests::exact_total_larger_than_delivered_is_not_complete",
+     "outcome": "ok"
+    },
+    {
+     "test": "result::tests::blocking_warning_cannot_be_a_complete_result",
+     "outcome": "ok"
+    },
+    {
+     "test": "result::tests::pristine_builder_rejects_even_a_recorded_zero_row_batch",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  },
+  {
+   "acceptance": "budget exhaustion and deadlines never return ordinary EOF; an explicit failure terminal follows partial rows and the consumer cannot take it as complete",
+   "tests": [
+    {
+     "test": "result::tests::part_rows_error_and_eof_never_complete",
+     "outcome": "ok"
+    },
+    {
+     "test": "executor::runtime_tests::queue_deadline_has_explicit_error_end_and_no_complete_success",
+     "outcome": "ok"
+    },
+    {
+     "test": "executor::runtime_tests::zero_deadline_and_unconsumed_cursor_do_not_become_empty_success",
+     "outcome": "ok"
+    },
+    {
+     "test": "executor::runtime_tests::quota_after_rows_has_failure_terminal_and_preserves_real_compute_axis",
+     "outcome": "ok"
+    },
+    {
+     "test": "executor::runtime_tests::json_batches_zero_partial_and_limits_never_fake_complete",
+     "outcome": "ok"
+    },
+    {
+     "test": "budget::tests::unbound_terminal_delivered_after_deadline_is_not_success",
+     "outcome": "ok"
+    },
+    {
+     "test": "executor::runtime_tests::worker_loss_and_cancel_before_final_receipt_are_not_success",
+     "outcome": "ok"
+    },
+    {
+     "test": "result::tests::consumer_count_errors_remain_failed_and_do_not_partially_commit",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  },
+  {
+   "acceptance": "native cancel affects only the target query; SQLite interrupt is isolated per connection; a killed worker visibly fails all its unfinished tasks",
+   "tests": [
+    {
+     "test": "executor::runtime_tests::native_cancel_after_prefix_isolated_from_sibling_and_computed_spool_retained",
+     "outcome": "ok"
+    },
+    {
+     "test": "executor::runtime_tests::production_queue_native_cancel_is_isolated_from_sibling_and_keeps_partial_failure",
+     "outcome": "ok"
+    },
+    {
+     "test": "executor::runtime_tests::in_process_worker_lost_fails_inflight_query_and_is_not_a_fallback_error",
+     "outcome": "ok"
+    },
+    {
+     "test": "budget::tests::producer_drop_after_prefix_is_worker_lost_and_explicit_failure_stays_failure",
+     "outcome": "ok"
+    },
+    {
+     "test": "lifecycle::tests::supervisor_observes_real_process_exit_pipe_close_and_limits",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  },
+  {
+   "acceptance": "compat_cancel_closes_dataset is declared per profile and verified, never confused with native cancel",
+   "tests": [
+    {
+     "test": "executor::runtime_tests::compat_cancel_profile_closes_only_owning_dataset_and_is_distinct_from_native",
+     "outcome": "ok"
+    },
+    {
+     "test": "cancellation::tests::native_query_cancel_and_explicit_dataset_profile_have_distinct_ownership",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  },
+  {
+   "acceptance": "only UNAVAILABLE_BACKEND, UNSUPPORTED_CAPABILITY and UNSUPPORTED_QUERY may fall back, under an explicit equivalence policy",
+   "tests": [
+    {
+     "test": "result::tests::fallback_is_exact_three_code_gate_and_never_replays_partial_or_mutated_work",
+     "outcome": "ok"
+    },
+    {
+     "test": "executor::runtime_tests::fallback_whitelist_rejects_real_query_terminal_errors",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  }
+ ],
+ "runtime_check": {
+  "command": [
+   "python",
+   "-O",
+   "conformance/runtime/qualify.py"
+  ],
+  "exit_code": 0,
+  "summary": {
+   "status": "passed-scoped-budget-cancel-terminal-mechanisms",
+   "tests": 46,
+   "profiles_admitted": false
+  }
+ },
+ "residual": [
+  "the production worker IPC, framing and cross-process consumption acknowledgement are task MDD-040; here a worker is an in-process producer or an owned child process under the supervisor",
+  "budgets are logical, conservative reservations, not allocator or RSS measurements",
+  "no profile is admitted and no formal performance run was made"
+ ],
+ "run": {
+  "command": [
+   "cargo",
+   "test",
+   "--offline",
+   "--locked",
+   "-p",
+   "mdd-types",
+   "-p",
+   "mdd-session",
+   "-p",
+   "mdd-query",
+   "-p",
+   "mdd-worker",
+   "--lib"
+  ],
+  "started_utc": "2026-11-13T03:01:31.175637+00:00",
+  "finished_utc": "2026-11-13T03:01:36.294637+00:00",
+  "exit_code": 0,
+  "raw_log_sha256": "e6f86cae9f1a1f87d746c41a62ec98ad458a63261518a4bab83ca07a82b0dab1",
+  "raw_log_bytes": 25600,
+  "raw_log_kept_at": "artifacts/local/ (ignored; carries developer-machine output)",
+  "targets": 4,
+  "passed": 272,
+  "failed": 0,
+  "ignored": 0
+ }
+}
