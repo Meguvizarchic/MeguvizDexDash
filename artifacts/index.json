@@ -52823,6 +52823,11 @@
       "sha256": "368883a557d79bc7f407d0596e6a04db7744f7696bdd4aa9fea178a94fcd6d92"
     },
     {
+      "path": "artifacts/mdd-034/current-conformance.json",
+      "bytes": 5555,
+      "sha256": "98167512bed1101cf4aaa422f673f6fbbebf8cbefb93e75cfde8433d316d2c4f"
+    },
+    {
       "path": "artifacts/mdd-034/delivery-confirmation-20261029/external-new-entry.rs",
       "bytes": 238,
       "sha256": "b40bcab1bc4e1eca2fbdb3ac687c19b3b28ad9f050d6bac28ea3fd8cca7fc533"
@@ -54321,6 +54326,21 @@
       "path": "artifacts/mdd-034/supervisor-1/stdout.txt",
       "bytes": 2345,
       "sha256": "9d586d7a5e7ecdf0efca487cdb801024af42c69e4c135e21417f4fbacd94cf1e"
+    },
+    {
+      "path": "artifacts/mdd-040/mutation/mutate_wire.py",
+      "bytes": 5936,
+      "sha256": "2220f7621662bd506bc76d9292e200d0bbfffe731be50d2dae943a33c9e2c7ff"
+    },
+    {
+      "path": "artifacts/mdd-040/mutation/results.txt",
+      "bytes": 1480,
+      "sha256": "41ebb4001998824e2ed47709dcf4e200135c84e18ad9fbd14121c975229b6c56"
+    },
+    {
+      "path": "artifacts/mdd-040/wire-conformance.json",
+      "bytes": 8060,
+      "sha256": "bdba7d40956ad6b3c917a3f57f65695e242afb386a6d4991d01ef93ec1422d0c"
     },
     {
       "path": "artifacts/mdd-051/skeleton-20261110/newpipe.err",

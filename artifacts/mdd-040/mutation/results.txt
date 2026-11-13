@@ -1,0 +1,33 @@
+KILLED  : body length is not checked against the limit
+KILLED  : unknown required flags are accepted
+KILLED  : header length is not checked
+KILLED  : a short body is returned as a frame
+KILLED  : frames are written to any channel
+KILLED  : batch sequence is not checked
+KILLED  : End digest is not compared
+KILLED  : End counts are not compared
+KILLED  : frames after a terminal are accepted
+KILLED  : NULL is absent from the digest
+KILLED  : non-canonical decimals are accepted
+KILLED  : unknown cell fields are accepted
+KILLED  : the per-cell hard limit is ignored
+KILLED  : NULL is accepted in a non-nullable column
+KILLED  : credit is not enforced by the consumer
+KILLED  : batch credit is not counted
+KILLED  : a waiting producer ignores cancel
+KILLED  : wire frames may be written to MCP stdout
+KILLED  : negotiation fails on a higher common major
+KILLED  : Hello is accepted on any stream
+KILLED  : the writer keeps writing after a failure
+KILLED  : a truncated frame is not a lost worker
+KILLED  : UTF-16 unit counts are not checked
+KILLED  : credit waits are not capped
+KILLED  : the client never sends Cancel
+KILLED  : oversized batches are not split
+KILLED  : an unencodable row sends no Error terminal
+KILLED  : a worker that ended with Error is killed at once
+KILLED  : trailing frames after End are not read
+KILLED  : credit is re-granted after the deadline
+restored tree passes (wire): True
+restored tree passes (child): True
+exit=0

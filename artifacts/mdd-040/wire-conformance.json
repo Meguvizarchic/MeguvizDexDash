@@ -1,0 +1,241 @@
+{
+ "schema_version": "mdd.wire-conformance.v1",
+ "task": "MDD-040",
+ "kind": "development evidence; admits no profile",
+ "protocol": "mdd-wire/1 (JSON batches; serial streams; no columnar encoding)",
+ "independent_oracle": {
+  "generator": "conformance/protocol/generate_wire_cases.py",
+  "generator_sha256": "9e33fdda5963e088f72518649106b3550db58e43b68fe2caff3417b779b2e40b",
+  "cases": "conformance/protocol/wire-v1-cases.json",
+  "cases_sha256": "14d5d88319fc735f611e3e367f9aa765ce414e53950ea201349dc6972d83b255",
+  "frame_cases": 31,
+  "negotiation_cases": 9,
+  "stream_cases": 70,
+  "note": "framing layout, cell JSON and the integrity digest are re-implemented in Python with struct/json/hashlib; Rust must decode those bytes and the Rust producer must reproduce the Python bodies and digests"
+ },
+ "worker_scenarios": {
+  "count": 18,
+  "all_finished": true,
+  "names": [
+   "complete stream is verified, negotiated and reaped",
+   "an error after rows is a failure that keeps the worker's code",
+   "a worker that exits before End is a disconnect, not a short result",
+   "a worker killed mid-stream reports its exit status and a disconnect",
+   "a half frame is a truncated body",
+   "log text on the dedicated channel is a protocol failure",
+   "a duplicate terminal is not ignored",
+   "a batch after End is not ignored",
+   "a frame size below the minimum fails negotiation and the worker is reaped",
+   "a worker that stops talking is bounded by the deadline and killed",
+   "cancel reaches a stalled worker promptly",
+   "a paused consumer bounds what the worker may write",
+   "a consumer that never resumes ends at the deadline with the worker stopped",
+   "a worker that never reads cannot hold the client past its deadline",
+   "cancel is sent to a live worker, which stops by itself and is not killed",
+   "a worker that ignores end of input leaves only because Cancel was sent",
+   "rows too large for one frame are split into several batches",
+   "a row the worker cannot encode ends in an Error terminal with the reason"
+  ]
+ },
+ "acceptance": [
+  {
+   "acceptance": "frame length, version, schema, source and budget are verifiable; half frames, oversized frames, reordering and repeated terminals fail explicitly",
+   "tests": [
+    {
+     "test": "frame_cases_reach_the_recorded_verdicts",
+     "outcome": "ok"
+    },
+    {
+     "test": "stream_cases_reach_the_recorded_verdicts",
+     "outcome": "ok"
+    },
+    {
+     "test": "negotiation_cases_reach_the_recorded_verdicts",
+     "outcome": "ok"
+    },
+    {
+     "test": "header_round_trips_and_has_the_documented_layout",
+     "outcome": "ok"
+    },
+    {
+     "test": "wire_child::a half frame is a truncated body",
+     "outcome": "ok"
+    },
+    {
+     "test": "wire_child::a duplicate terminal is not ignored",
+     "outcome": "ok"
+    },
+    {
+     "test": "wire_child::a batch after End is not ignored",
+     "outcome": "ok"
+    },
+    {
+     "test": "a_sticky_failure_is_reported_again_instead_of_being_reinterpreted",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  },
+  {
+   "acceptance": "NULL, integer precision, UTF-16/MUTF-8 display boundaries, empty batches and duplicate rows are not lost to encoding",
+   "tests": [
+    {
+     "test": "stream_cases_reach_the_recorded_verdicts",
+     "outcome": "ok"
+    },
+    {
+     "test": "the_rust_producer_reproduces_the_independent_implementations_bodies_and_digest",
+     "outcome": "ok"
+    },
+    {
+     "test": "a_producer_stream_is_accepted_by_a_consumer_and_returns_exactly_its_rows",
+     "outcome": "ok"
+    },
+    {
+     "test": "a_batch_over_the_frame_limit_is_refused_not_truncated",
+     "outcome": "ok"
+    },
+    {
+     "test": "wire_child::rows too large for one frame are split into several batches",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  },
+  {
+   "acceptance": "a stopped or cancelling consumer stalls the producer only boundedly and the queue never grows without limit",
+   "tests": [
+    {
+     "test": "a_producer_without_credit_waits_boundedly_and_gives_up",
+     "outcome": "ok"
+    },
+    {
+     "test": "cancellation_releases_a_waiting_producer_promptly",
+     "outcome": "ok"
+    },
+    {
+     "test": "a_late_grant_wakes_a_waiting_producer",
+     "outcome": "ok"
+    },
+    {
+     "test": "consumer_credit_is_spent_by_batches_and_refilled_by_grants",
+     "outcome": "ok"
+    },
+    {
+     "test": "wire_child::a paused consumer bounds what the worker may write",
+     "outcome": "ok"
+    },
+    {
+     "test": "wire_child::a consumer that never resumes ends at the deadline with the worker stopped",
+     "outcome": "ok"
+    },
+    {
+     "test": "wire_child::cancel reaches a stalled worker promptly",
+     "outcome": "ok"
+    },
+    {
+     "test": "wire_child::a worker that stops talking is bounded by the deadline and killed",
+     "outcome": "ok"
+    },
+    {
+     "test": "wire_child::a worker that never reads cannot hold the client past its deadline",
+     "outcome": "ok"
+    },
+    {
+     "test": "wire_child::cancel is sent to a live worker, which stops by itself and is not killed",
+     "outcome": "ok"
+    },
+    {
+     "test": "wire_child::a worker that ignores end of input leaves only because Cancel was sent",
+     "outcome": "ok"
+    },
+    {
+     "test": "a_failed_write_latches_the_writer_so_no_frame_follows_a_partial_one",
+     "outcome": "ok"
+    },
+    {
+     "test": "an_unbounded_wait_is_capped_instead_of_overflowing_the_clock",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  },
+  {
+   "acceptance": "receiving row batches is not completion: rows are committed only when the End counts and digest match everything received",
+   "tests": [
+    {
+     "test": "wire_child::a worker that exits before End is a disconnect, not a short result",
+     "outcome": "ok"
+    },
+    {
+     "test": "wire_child::a worker killed mid-stream reports its exit status and a disconnect",
+     "outcome": "ok"
+    },
+    {
+     "test": "wire_child::an error after rows is a failure that keeps the worker's code",
+     "outcome": "ok"
+    },
+    {
+     "test": "an_error_terminal_after_rows_is_a_failure_with_the_rows_counted",
+     "outcome": "ok"
+    },
+    {
+     "test": "wire_child::a row the worker cannot encode ends in an Error terminal with the reason",
+     "outcome": "ok"
+    },
+    {
+     "test": "wire_child::complete stream is verified, negotiated and reaped",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  },
+  {
+   "acceptance": "MCP stdout carries only valid JSON protocol; binary batches never enter that stream",
+   "tests": [
+    {
+     "test": "mcp_stdout_accepts_only_one_json_rpc_line",
+     "outcome": "ok"
+    },
+    {
+     "test": "frames_round_trip_through_a_writer_and_reader_and_only_on_the_dedicated_channel",
+     "outcome": "ok"
+    },
+    {
+     "test": "wire_child::log text on the dedicated channel is a protocol failure",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  }
+ ],
+ "residual": [
+  "streams are serial; multiplexing stays off until multi-stream state, cancel and quota are verified",
+  "only the JSON batch encoding exists; a columnar encoding needs its own cases and an end-to-end measurement before it can be a default",
+  "the CLI, MCP façade and SDK do not use this protocol yet (MDD-041 to MDD-043); here the client is a library and the worker a test child process",
+  "pipes only (no socket transport) and Windows only in this run; Linux was not run",
+  "buffers and credit are logical byte counts of frame bodies, not allocator or RSS measurements"
+ ],
+ "run": {
+  "command": [
+   "cargo",
+   "test",
+   "--offline",
+   "--locked",
+   "-p",
+   "mdd-wire",
+   "-p",
+   "mdd-worker"
+  ],
+  "started_utc": "2026-11-13T04:44:36.862247+00:00",
+  "finished_utc": "2026-11-13T04:44:53.946822+00:00",
+  "exit_code": 0,
+  "raw_log_sha256": "57aecc103050ba2fc6c7c8f7b0be1efd3280c55a51deb682af8f8e0acc01402a",
+  "raw_log_bytes": 4325,
+  "raw_log_kept_at": "artifacts/local/ (ignored; carries developer-machine output)",
+  "targets": 6,
+  "passed": 24,
+  "failed": 0,
+  "ignored": 0
+ }
+}

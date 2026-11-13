@@ -209,6 +209,22 @@
 - **有意保留、需要知情的两类**：(1) 205 个文件含工程目录约定路径 `D:\MeguvisDexDash`（编译输出、回溯、JSON 记录）——这是本项目文档化的目录拼写（AGENTS.md、本文件“Checkout 与交付”），公开 main 上本来就有 457 个这样的文件，未做改写，因为这些是原始运行记录，改写会使其中记录的哈希失配；(2) 文档与证据中出现“Bilibili 9.16.1”这一样本应用名及其大小、sha256 前缀等度量，不含类名，公开 main 上已有 196 个文件提到它。若要把这两类也清掉，需要再改写历史，属于另一项决定。
 - 之前各节里“本地分支尚未推送”的表述以本节为准。
 
+## 2026-11-13 MDD-034 收口与 MDD-040 实现（mdd-wire/1）
+
+**结论**：MDD-034、MDD-040 标 done。MDD-005、MDD-026 仍是 `in_progress`，所以 MDD-035 及以后依赖它们的任务仍被挡着；本次不动它们。
+
+**MDD-034**：`tools/build_mdd034_evidence.py` 现场跑 mdd-types/session/query/worker 的库测试（272 项）与仓库自带的运行时检查（`conformance/runtime/qualify.py`，46 项：两条真实 SQLite 连接的 interrupt 隔离、受监督的自有子进程），生成 `artifacts/mdd-034/current-conformance.json`，五条验收各对应具体测试名与结果。`qualify.py` 会用新的源码身份重写 2026-10-28 的历史记录，脚本在运行后用 git 还原它，历史记录保持原义。剩余项：预算是逻辑预留不是 allocator/RSS；跨进程 worker 通道归 MDD-040；未准入任何 profile，也没有正式性能运行。
+
+**MDD-040（新 crate `mdd-wire` + `mdd-worker::protocol`）**
+- `mdd-wire`：32 字节小端头（长度在读 body 前核验）、Hello 协商（取双方都实现的最高主版本）、类型化 JSON 单元（NULL、i64/u64 十进制串、f64 原始位型、utf8、bytes、dex_mutf8 且核对 UTF-16 单元数）、Schema/Batch/End/Error/Cancel/Credit、校验状态机（缺 End、重复终态、序号缺口、计数与摘要不符都不是成功）、字节+批次双重 credit、MCP stdout 守卫（只放行单行 JSON-RPC，帧只能写专用通道）。
+- `mdd-worker::protocol`：`serve_rows`（worker 侧，按 credit 写、遇 Cancel 或输入断开即停、源错误以 Error 终态结束、过大的批自动二分）与 `run_child`（客户端：协商、按消费回补 credit、截止或取消后不再补、独立写线程使写入不会越过 deadline、取消先发 Cancel 帧再给宽限期、终态后继续读取以发现多余帧、对辅助线程的 join 有上限、始终回收子进程）。
+- **独立 oracle**：`conformance/protocol/generate_wire_cases.py` 只用 struct/json/hashlib 重新实现头布局、单元 JSON 与摘要，生成 31 个帧用例、9 个协商用例、70 个流用例；Rust 解码这些字节得到相同的裁决，且 Rust 生产者对全部完整用例复现出 Python 的 body 与摘要。
+- **验证**：mdd-wire 23 项测试，mdd-worker 真实子进程 18 个场景（自带 main 的测试，子进程的 stdout 只能有帧），30 个变异全部被抓住（`artifacts/mdd-040/mutation/`）。变异检查先后暴露了测试自身的几个缺陷并已改正：一个 `Duration::MAX` 测试在变异下会挂 24 小时（改为线程+超时，变异脚本也加了超时）；“截止后补 credit”的检测靠竞态（改为统计客户端发出的 credit 帧数）；“取消”场景在 stdin 关闭时也能让 worker 自己停，测不出 Cancel 帧是否发出（新增只认 Cancel 的 worker 模式）。
+- **两批代码审查共 20 条发现，修了 14 条**：协商在双方都列出更高主版本时误失败、写失败后不锁存、Hello 与流 ID 规则、MUTF-8 单元数未校验、截断帧不算 WORKER_LOST、对端 details 可覆盖引擎字段、信用等待溢出；以及 stdin 写入不受 deadline 约束、join 可能永久挂起、生产者侧编码失败无 Error 终态、取消不发 Cancel 等。
+- **审查后保留的限制**：(1) 批的编解码经由 `serde_json::Value`，大单元会多份拷贝，留给 MDD-060/061 的实测热点优化；(2) `run_child` 是单请求客户端，等 worker 在 End 后退出并在宽限期后杀掉它，可复用的 worker 池需要持久客户端（MDD-063/064）；(3) 客户端有自己的有界帧队列，没有接入 mdd-query 的预算树和 mdd-session 的 worker 监督租约，队列帧不计入任何预算（接入随 MDD-041/042 的入口一起做）；(4) `serve_rows` 的控制线程在函数返回后分离，适合一请求一进程的 worker，常驻进程嵌入时调用方须自行关闭输入；(5) `on_batch`/`ClientProbe` 是测试用接缝，已标 `#[doc(hidden)]`；`wire_child` 用自带 main 的测试（子进程 stdout 只能有帧），不响应 cargo 的过滤参数，且含按墙钟的休眠；(6) 只有 JSON 批和串行流，CLI/MCP/SDK 尚未使用该协议，只在 Windows 上跑过。
+
+**仍挡在上线前的任务**：MDD-005（A0/A1/A2 配对基线，需要真实运行时与样本）与 MDD-026（16 列未满足六类，折算口径待定）未收口，直接挡住 MDD-035、041、042、044、050 以后的链条。34 与 40 完成后，依赖已全部满足的 todo 只有 MDD-043（通用 Python SDK 与稳定 C ABI）。
+
 ## Checkout 与交付
 
 工程目录 D:\MeguvisDexDash（保留目录原拼写）。远端已迁移到 https://github.com/Meguvizarchic/MeguvizDexDash（**公开仓库**，旧地址 jichuo1/MeguvizDexDash 自动转发）；PR #1 已于 2026-11-04 合并，`main` 现为 a9aa1f0，其中 27ac27e 是由本分支 71dfce9 生成的「脱敏工程进度快照」，之后 8 个提交是修补与 README/图标。本地分支 codex/m2-facts-20261028 当前**没有远端分支**：2026-11-12 曾整体推送，随后发现仓库公开，已按用户决定删除远端分支（GitHub 上提交仍可按 SHA 读取）。重新推送前必须先决定公开范围，见下节。

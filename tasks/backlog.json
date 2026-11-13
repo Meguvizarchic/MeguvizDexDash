@@ -947,7 +947,7 @@
       "id": "MDD-034",
       "phase": "M3",
       "title": "实现预算、取消、背压与完整结果终态",
-      "status": "in_progress",
+      "status": "done",
       "depends_on": [
         "MDD-014",
         "MDD-030"
@@ -977,7 +977,7 @@
         "docs/03_HOSTLAB_MIGRATION.md",
         "docs/04_VALIDATION_AND_PERFORMANCE.md"
       ],
-      "implementation_notes": "Reopened after real unconsumed-queue false completion. Candidate query-bound packet and End acknowledgment, private legacy callback, buffered-output guard and independent 16-scenario/20-race proof now exist. Original acceptance unchanged; production worker/IPC, complete paging and per-profile compatibility remain unqualified.",
+      "implementation_notes": "Reopened after real unconsumed-queue false completion. Candidate query-bound packet and End acknowledgment, private legacy callback, buffered-output guard and independent 16-scenario/20-race proof now exist. Original acceptance unchanged; production worker/IPC, complete paging and per-profile compatibility remain unqualified. 2026-11-13 closure: the five acceptance clauses are mapped to named tests whose outcomes come from a run made at closure (artifacts/mdd-034/current-conformance.json, built by tools/build_mdd034_evidence.py), together with the repository's own runtime check (conformance/runtime/qualify.py: two live SQLite connections, an owned child under the supervisor; 46 checks). The 2026-10-28 record budget-and-terminal-states.json keeps its historical meaning (qualify.py rewrites it with fresh source identities, so the builder restores it from git). Residual: budgets are logical reservations, not allocator/RSS; the cross-process worker channel is MDD-040; no profile admitted and no formal performance run.",
       "implementation_evidence": [
         "artifacts/mdd-034/budget-and-terminal-states.json",
         "artifacts/mdd-034/root-final-units/record.json",
@@ -987,7 +987,8 @@
         "artifacts/mdd-034-audit/delivery-boundary-independent-20261029/probe/stdout.txt",
         "artifacts/mdd-034-audit/buffered-delivery-20261029/red-selected/record.json",
         "artifacts/mdd-034-audit/buffered-delivery-20261029/green/record.json",
-        "artifacts/mdd-034-audit/delivery-confirmation-independent-20261029/final-20261029/verify-run/record.json"
+        "artifacts/mdd-034-audit/delivery-confirmation-independent-20261029/final-20261029/verify-run/record.json",
+        "artifacts/mdd-034/current-conformance.json"
       ]
     },
     {
@@ -1030,7 +1031,7 @@
       "id": "MDD-040",
       "phase": "M4",
       "title": "实现版本化 JSON 批与隔离 worker 协议",
-      "status": "todo",
+      "status": "done",
       "depends_on": [
         "MDD-014",
         "MDD-033",
@@ -1059,6 +1060,12 @@
       "references": [
         "docs/02_ARCHITECTURE_AND_CONTRACTS.md",
         "docs/04_VALIDATION_AND_PERFORMANCE.md"
+      ],
+      "implementation_notes": "2026-11-13: new crate mdd-wire (framing, Hello negotiation, typed JSON cells, Schema/Batch/End/Error/Cancel/Credit, a verifying ResponseStream, byte+batch credit, MCP stdout guard) and mdd-worker::protocol (serve_rows for the worker, run_child for the client: negotiation, credit re-granted per consumed batch and withheld after deadline/cancel, bounded frame queue, a writer thread so no write outlives the deadline, Cancel frame then grace before kill, bounded joins, drain after the terminal). Expected bytes and verdicts come from an independent Python implementation of the layout, cell JSON and digest (conformance/protocol/generate_wire_cases.py -> wire-v1-cases.json: 31 frame, 9 negotiation, 70 stream cases) and the Rust producer reproduces its bodies and digests. 17 behaviour tests; 18 scenarios against a real child process (custom harness, the child must write only frames to stdout); 30 mutations are all caught (artifacts/mdd-040/mutation/results.txt). Two batches of code review were applied. Residual (also in artifacts/mdd-040/wire-conformance.json): JSON batches and serial streams only; the CLI/MCP/SDK do not use it yet (MDD-041..043); the client keeps its own bounded frame queue instead of the mdd-query budget tree and the mdd-session supervision lease; run_child is a one-request client; pipes only, Windows only so far.",
+      "implementation_evidence": [
+        "artifacts/mdd-040/wire-conformance.json",
+        "artifacts/mdd-040/mutation/results.txt",
+        "conformance/protocol/wire-v1-cases.json"
       ]
     },
     {
