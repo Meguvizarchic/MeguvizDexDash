@@ -244,6 +244,8 @@
 
 **收口时保留的限制**：(1) typed-IR 执行器路径（mdd-query）仍只请求层，列级 coverage 只接在 HostLab SQL 提供者路径上；原验收写的是 `required_layers`，所以不挡收口，但 MDD-035 以后若要求 typed-IR 路径按列放行，需要另做；(2) 证据来自夹具与记录的 A0 读回，没有私有工作负载或真实 APK 全量；(3) 未准入任何 profile，也没有性能运行。
 
+**推送记录**：2026-11-13 分 4 批快进推送远端 main（1292ab1 → 99ab95a → c94be41 → ab65625），不强推。推送前对 `origin/main..HEAD` 的全部新增行做脱敏扫描（机器路径、邮箱、凭据、AI 署名），无命中，无二进制文件，作者仅 `jichuo1`。远端回显“仓库已迁移到 Meguvizarchic/MeguvizDexDash”，本地 `origin` 地址未改。
+
 **推翻条件**：若你不接受 R2 对 `dex_files.file_id/string_pool_id` 的 `not_applicable`，或不接受“相等记录里的值重复”作为 `file_id` 等列的 multiplicity 证据，去掉对应规则重跑工具，该列会回到 partial，MDD-026 随之重开。
 
 ## Checkout 与交付
