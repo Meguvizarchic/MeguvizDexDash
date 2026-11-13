@@ -1,0 +1,147 @@
+{
+ "schema_version": "mdd.sql-bridge-conformance.v1",
+ "task": "MDD-031",
+ "kind": "development evidence; admits no profile",
+ "sources": {
+  "artifacts/mdd-031-audit/gap-closure-20261111/oracle/oracle-results.json": "59377535c64e29f7a0327744d1fd876d4a093b20e83348a381c9acc604d51b6e",
+  "conformance/corpus/hostlab/expected-results/hostlab-a0-golden.json": "fc6df45f33b0e6f67a759e9065cb116d3d1b66cd25b515b09f9f99a720331d2f",
+  "crates/mdd-sql/src/virtual_tables/mod.rs": "0cf136b999f963051165af1feaea625c1a9d531d00f2d18465bd3b042f6b586f"
+ },
+ "acceptance": [
+  {
+   "acceptance": "no full facts ETL as the default access path; load and lazy-build cost is inside the measured budget",
+   "tests": [
+    {
+     "test": "bridge::tests::schema_prewarm_preserves_limits_and_never_opens_facts",
+     "outcome": "ok"
+    },
+    {
+     "test": "bridge::tests::owned_cursor_is_lazy_and_preserves_multiplicity_and_nul",
+     "outcome": "ok"
+    },
+    {
+     "test": "bridge::tests::lazy_scan_cost_is_measured_after_prepare",
+     "outcome": "ok"
+    },
+    {
+     "test": "provider::hostlab::tests::coverage_ledger_gates_each_relation_on_the_layers_that_prove_it",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  },
+  {
+   "acceptance": "NULL, CAST, LIKE/ESCAPE, string length, comparison, aggregate, ORDER, JOIN/CTE verified per declared dialect",
+   "tests": [
+    {
+     "test": "bridge::tests::dialect_feature_matrix_matches_sqlite_for_null_cast_like_length_compare_aggregate_order_join_cte",
+     "outcome": "ok"
+    },
+    {
+     "test": "bridge::tests::hostlab_q_series_shapes_match_sqlite_per_dialect",
+     "outcome": "ok"
+    },
+    {
+     "test": "bridge::tests::native_v1_integer_cast_requires_exact_text_and_diverges_from_sqlite_prefix",
+     "outcome": "ok"
+    },
+    {
+     "test": "provider::hostlab::tests::hostlab_variants_match_the_a0_golden_results",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  },
+  {
+   "acceptance": "omit, orderByConsumed, LIMIT/OFFSET and IN pushdown only with full equivalence evidence; a candidate filter never claims exact handling",
+   "tests": [
+    {
+     "test": "bridge::tests::pushdown_policy_matches_vtab_capabilities_and_results_match_sqlite",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  },
+  {
+   "acceptance": "syntax, binding and input errors are separate from real unsupported; no regex rewriting of user SQL",
+   "tests": [
+    {
+     "test": "bridge::tests::sql_authority_and_real_errors_are_not_success_or_unsupported",
+     "outcome": "ok"
+    },
+    {
+     "test": "bridge::tests::unsupported_function_in_visible_cte_keeps_real_binding_errors",
+     "outcome": "ok"
+    },
+    {
+     "test": "provider::hostlab::tests::known_unsupported_forms_fail_closed_with_the_unsupported_classification",
+     "outcome": "ok"
+    },
+    {
+     "test": "bridge::tests::compatibility_failure_preserves_counterexample_without_profile_admission",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  },
+  {
+   "acceptance": "every query binds one snapshot/session; a compatibility failure keeps its counterexample and blocks the declared profile",
+   "tests": [
+    {
+     "test": "bridge::tests::cross_scope_execute_is_rejected",
+     "outcome": "ok"
+    },
+    {
+     "test": "provider::hostlab::temp_tests::a_bridge_over_another_snapshot_is_refused_at_construction",
+     "outcome": "ok"
+    },
+    {
+     "test": "bridge::tests::unsupported_query_blocks_declared_profile_and_preserves_counterexample",
+     "outcome": "ok"
+    },
+    {
+     "test": "bridge::tests::non_compatibility_failures_never_block_profile",
+     "outcome": "ok"
+    },
+    {
+     "test": "bridge::tests::execute_stage_gap_blocks_profile_for_prepared_statement",
+     "outcome": "ok"
+    },
+    {
+     "test": "bridge::tests::profile_block_is_scoped_to_declared_profile_and_registry",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  }
+ ],
+ "residual": [
+  "acceptance 3 holds because no pushdown is enabled (all four flags are false and the xBestIndex report is asserted); enabling any of them later needs its own equivalence evidence and a changed constant",
+  "wall-clock and RSS of a real-APK lazy fact build are not measured here: the budget accounting is (steps, scanned rows, result bytes), and formal performance comparison belongs to the exclusive-measurement task MDD-082",
+  "the independent feature oracle runs on synthetic rows and the frozen HostLab Q-series shapes; DexSql010 and NativeV1 have no reference backend beyond SQLite itself",
+  "the fail-closed gaps listed in sql-semantics.json are real functionality the reference has; none is used by a frozen HostLab template"
+ ],
+ "run": {
+  "command": [
+   "cargo",
+   "test",
+   "--offline",
+   "--locked",
+   "-p",
+   "mdd-sql",
+   "-p",
+   "mdd-session",
+   "--lib"
+  ],
+  "started_utc": "2026-11-13T02:25:13.881917+00:00",
+  "finished_utc": "2026-11-13T02:25:21.891276+00:00",
+  "exit_code": 0,
+  "raw_log_sha256": "d5fcf70177003cfb3dbca6fc7cdf2a90869a99acaeff8bb94258516aa6e27197",
+  "raw_log_bytes": 27519,
+  "raw_log_kept_at": "artifacts/local/ (ignored; carries developer-machine output)",
+  "targets": 2,
+  "passed": 307,
+  "failed": 0,
+  "ignored": 0
+ }
+}

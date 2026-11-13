@@ -155,7 +155,7 @@
 
 ## 2026-11-12 收口 MDD-032/033
 
-**结论**：两个任务各自的验收条款都有了对应的可复跑证据，但**状态仍是 `in_progress`**。原因不在 032/033 自身：`tools/check_progress.py` 拒绝「依赖未完成却标 done」，而二者都依赖 MDD-031（SQL 桥，`in_progress`）。验收条款一字未改。
+**结论**：两个任务各自的验收条款都有了对应的可复跑证据，但**状态仍是 `in_progress`**。原因不在 032/033 自身：`tools/check_progress.py` 拒绝「依赖未完成却标 done」，而二者都依赖 MDD-031（SQL 桥，`in_progress`）。验收条款一字未改。（2026-11-13 更新：MDD-031 收口后三者均已标 done，见「MDD-031 收口」一节。）
 
 **032-B（Q13/Q14 与黄金比对）**
 - `crates/mdd-sql/src/window.rs`：响应窗口 `SqlWindow`/`SqlWindowReport`（limit 1..1000、offset+limit≤100000、总数不变量与参考校验器一致）、`split_statements`、`paging_blocker`/`is_volatile`。`SqlBridge::query_window`、`query_batch`（1–16 条，首个失败即停并带 `statement_index`）、`SqlResult::window()`/`schema_id()`、`PreparedSql::cursor_spec()`。窗口作用于每条语句自己的结果流，与 SQL 里的 LIMIT/OFFSET 无关，SQL 文本从不被改写。此前 `cursors.rs` 里「SQL 带 LIMIT 就拒绝分页」的规则与参考引擎相悖，已删除（参考引擎先做 SQL 的 LIMIT，再切窗口）。
@@ -167,7 +167,7 @@
 
 **033-B（会话 TEMP 与分页接线）**
 - `catalog`/`cursors` 改为 `pub mod`；`crates/mdd-sql/src/temp.rs` 的 `TempSqlSession` 解析 `CREATE [TEMP] TABLE|VIEW [IF NOT EXISTS] name AS query` 与 `DROP TABLE|VIEW [IF EXISTS] name`，把定义作为**晚绑定查询**存进会话 catalog，查询在 prepare 时按当时的 catalog 展开成 CTE；展开所用定义的摘要并入分页来源指纹。A0 实测 `CREATE TEMP TABLE` 也是晚绑定（`tt AS SELECT * FROM t` 在 t 重定义后读到新值），所以**不物化**，与 `docs/02` §6.4「不能因为名称有 TABLE 就默认物化」一致。
-- `conformance/session/catalog-and-paging.json`：22 个场景 / 158 步从 A0 录制（创建、重定义、IF NOT EXISTS、带种类校验的 DROP、未知依赖与环、跨会话隔离、遮蔽 provider 关系、失败列表保留此前效果、子集之外的语法、定义体、带窗口的 DDL、定义上的分页）。引擎全部 158 步的结果、行与窗口都一致（`temp_scenarios_match_the_recorded_a0_behaviour`）。
+- `conformance/session/catalog-and-paging.json`：23 个场景 / 191 步从 A0 录制（含 `named_temp_queries`）（创建、重定义、IF NOT EXISTS、带种类校验的 DROP、未知依赖与环、跨会话隔离、遮蔽 provider 关系、失败列表保留此前效果、子集之外的语法、定义体、带窗口的 DDL、定义上的分页）。引擎全部 191 步的结果、行与窗口都一致（`temp_scenarios_match_the_recorded_a0_behaviour`）。
 - 真实 `Lifecycle` 上的集成测试：原生 cursor 在 catalog 重定义后仍读旧定义且 `verify_query_temp_binding` 通过；兼容 offset 序列的完整遍历与重执行计数；重定义后第 2 页被拒为 `source_changed`；同语句形状但总数变化被拒为 `query_schema_or_total_changed`；定义形状变化被拒为语句不匹配；跨会话定义与绑定不互通。
 
 **声明的差异**（`compatibility/ledger.json` 的 `hostlab_sql_a0_golden` 与 `session_temp_catalog_a0_scenarios`）
@@ -177,13 +177,13 @@
 
 **验证**
 - native：`cargo check` / `clippy -D warnings`（0 告警）/ `test --workspace`，按 `test result:` 行统计 24 个目标、778 passed / 0 failed / 0 ignored（同口径上一次是 764；本节上方更早的「35 个 target / 763」口径不同，不可直接相减）。static（含 `fmt --all --check`）、progress、cli、conformance 均通过。
-- 变异检查：对窗口代码、调用展平与黄金比对自身的 10 个变异，以及对 TEMP 层、命名规则、调用展平与快照校验的 16 个变异全部被测试抓住（`artifacts/mdd-032/mutation/`、`artifacts/mdd-033/mutation/`，含脚本与结果）。其中第一轮曾有 1 个存活（NULL 单元格渲染成文本），原因是黄金里没有任何 NULL/实数/blob 单元格；补上值保真变体后被抓住。
+- 变异检查：对窗口代码、调用展平与黄金比对自身的 10 个变异，以及对 TEMP 层、命名规则、调用展平、快照校验与 named_temp_queries 的 19 个变异全部被测试抓住（`artifacts/mdd-032/mutation/`、`artifacts/mdd-033/mutation/`，含脚本与结果）。其中第一轮曾有 1 个存活（NULL 单元格渲染成文本），原因是黄金里没有任何 NULL/实数/blob 单元格；补上值保真变体后被抓住。
 - 证据记录：`artifacts/mdd-032/hostlab-query-matrix.json`、`artifacts/mdd-033/paging-isolation.json` 由 `tools/build_mdd032_033_evidence.py` 现场跑一遍库测试后生成（验收条款 → 具体测试名与结果；任何测试缺失会记为 `not_run`）。原始 cargo 日志留在被忽略的 `artifacts/local/`。
 
 **过程中放弃的方案**：物化 TEMP 表（A0 不物化，且 provider 的 `validate_row` 要求静态列类型，装不下动态列）；开启 `sqlparser` 的 `visitor` feature 来遍历关系名（会带来新的传递依赖，须先问用户）→ 改为 token 扫描取超集，并排除 `AS` 之后的输出别名，漏判会让同名 provider 关系悄悄代替 TEMP 定义，多判只多一个没用到的 CTE；给展开的 CTE 补列名清单来对齐命名 → 改为修正顶层命名规则，一处修复同时覆盖子查询与 CTE。
 
 **仍未做 / 范围外**
-- 传输层接线：没有 MCP/CLI 入口调用 `TempSqlSession` 或 cursor API；`named_temp_queries` 工具参数未实现。
+- 传输层接线：没有 MCP/CLI 入口调用 `TempSqlSession` 或 cursor API。`named_temp_queries` 已实现（`TempSqlSession::execute_call`，A0 里它们登记为 TABLE、同名静默替换、至多 16 个、按序处理、体必须恰为一条查询、调用形状先于任何定义校验），并入场景回放。
 - 依赖 MDD-031 先完成，二者才能标 done；`16 列未满足全部六类`（MDD-026）的口径决定仍然开放。
 - 范围外问题，只说不改：`conformance` 门禁每次运行会把 `artifacts/mdd-004/fixture-reproducibility.json` 里的解释器路径改写成本机 venv 的绝对路径（本次已 `git checkout` 还原，未提交）；`reproduce.py` 应只记录解释器文件名。
 
@@ -192,6 +192,15 @@
 - **已修**：`TempSqlSession::new` 现在校验桥的 provider 快照等于会话 pin 住的快照，否则拒绝（此前测试里两次独立 capture 的快照 id 其实不同，恰好掩盖了这个缺口；现在改为共用同一次 capture，并新增失配测试）。未加别名的 `substr()/substring()` 被命名为 `column`，而 A0 按函数名——补进黄金并改为按函数名；同一变体还固定了 CAST/EXISTS/标量子查询/IS NULL/BETWEEN/IN/NOT/COUNT(DISTINCT)/coalesce 等形状。清掉没有调用方的接口（`relation_names`、`is_complete_result`、`temp_fingerprint()`、两个未用常量），修正错位的文档注释，Python 里依赖 `assert` 的必要校验改为显式报错（AGENTS.md：不依赖可被 `-O` 删除的 assert），定义体的标识符集合在创建时缓存，`REFERENCE_A0_SHA256` 不再重复。
 - **保留并写明**：(1) TEMP 依赖名用 token 扫描取超集，只排除 `AS` 后的输出别名；与某个 TEMP 名同名的列/函数参数会造成假依赖，极端时报假环或多带一个无用的 CTE，根治办法是改用适配器解析出的关系名。(2) 若一个 TEMP 名遮蔽了 provider 关系，依赖它的视图在该名被 DROP 后仍读 provider 关系（与 A0 一致），但 catalog 里存的依赖仍列该名，`bind_query_temp` 会报 `unknown_relation`。(3) 审查指出的「结果列名折小写在 prepare 时未体现」经核对没有预备期 schema id，`SqlResult::schema_id()` 只由实际列名生成，无需改动。
 - **又确认的未支持项**（失败即关闭）：`abs()`、`trim()`。
+
+### 2026-11-13：MDD-031 收口，031/032/033 标 done
+
+- **031**：新增 `tools/build_mdd031_evidence.py`，现场跑库测试后生成 `conformance/query/sql-semantics.json`（三个声明方言、独立 python sqlite3 oracle 的 19 个特性形状与 9 个 Q 系列形状、冻结 A0 的 77 个变体、四项下推全为 false、方言政策差异、失败即关闭清单）与 `artifacts/mdd-031/sql-bridge-conformance.json`（五条验收 → 具体测试名与结果）。此前审计留下的「验收 5 的 profile 阻断缺失」已被后来加入的 `CompatibilityProfileRegistry` 关闭，对应测试都在本次运行里通过；旧审计目录保持历史含义不改。
+- **验收 3 的口径要说清**：成立是因为没有启用任何下推（四个标志都是 false，`xBestIndex` 的上报被断言）；将来开启任何一项都要自己的等价证据并改常量。
+- **031 的剩余项，不阻断但写明**：真实 APK 上惰性构建的 wall/RSS 未在此测量（预算记账是步数/扫描行/结果字节，正式性能比较归 MDD-082）；特性 oracle 只覆盖合成行与 Q 系列形状，DexSql010/NativeV1 除 SQLite 本身外没有参考后端；`GLOB`、递归 CTE、`abs()`、`trim()`、`total()`、双引号字符串回退是已分类的失败即关闭缺口，新增测试 `known_unsupported_forms_fail_closed_with_the_unsupported_classification` 固定其分类。
+- **Q16 补齐**：`named_temp_queries` 已实现并入回放（23 个场景 / 191 步全部一致），因此 032 的「十六类模板」不再有未覆盖的一类。
+- 032/033 的依赖 MDD-031 已 done，二者随之标 done；`tools/check_progress.py` 通过。这是依据上面的证据所作的判断，若认为 031 的口径偏松（尤其验收 1 的实机成本），应重开 031 并连带复核 032/033。
+- 本节改动后的门禁：native 24 个目标 780 passed / 0 failed / 0 ignored、clippy 0 告警；static、progress、cli、conformance 均通过（conformance 门禁仍会改写 `artifacts/mdd-004` 里的解释器路径，已还原）。
 
 ## Checkout 与交付
 

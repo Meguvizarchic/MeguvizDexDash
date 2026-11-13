@@ -7,12 +7,12 @@
   "sha256": "f354ebcf715de9a66ef8ebe08b2b36807ab58e25cd5a1c0812e497fc1fcfc448"
  },
  "sources": {
-  "conformance/session/catalog-and-paging.json": "6ff32f815e120df66a611fedd846a839aaba64fbcbeb860fb4058c88cfc4a670"
+  "conformance/session/catalog-and-paging.json": "a45142f5135f3fe407c1664b60fe6931f81170660f2b342b89ee33e9a8628af7"
  },
  "scenario_replay": {
-  "scenarios": 22,
-  "steps": 158,
-  "a0_refusals": 44,
+  "scenarios": 23,
+  "steps": 191,
+  "a0_refusals": 59,
   "engine_matches_a0_on_every_step": true,
   "names": [
    "create_query_drop",
@@ -36,7 +36,8 @@
    "definitions_echo_the_window_offset",
    "paging_over_a_definition",
    "paging_across_a_redefinition",
-   "paging_across_a_row_count_change"
+   "paging_across_a_row_count_change",
+   "named_temp_queries"
   ]
  },
  "acceptance": [
@@ -173,7 +174,6 @@
  "not_covered": [
   "transport wiring: no MCP/CLI entry point calls TempSqlSession or the cursor APIs yet",
   "mdd.result.v1 carries no offset field by design; compatible offsets are request-side",
-  "named_temp_queries tool argument of the reference query tool",
   "recursive CTE inside a definition (the engine refuses recursive CTEs everywhere)"
  ],
  "run": {
@@ -188,14 +188,14 @@
    "mdd-session",
    "--lib"
   ],
-  "started_utc": "2026-11-13T02:17:01.957085+00:00",
-  "finished_utc": "2026-11-13T02:17:11.661682+00:00",
+  "started_utc": "2026-11-13T02:25:22.027663+00:00",
+  "finished_utc": "2026-11-13T02:25:30.018899+00:00",
   "exit_code": 0,
-  "raw_log_sha256": "4d955bef4936fe8f23f1512febe7327ef2c5a343a98aa3e63f1f068652c0ee10",
-  "raw_log_bytes": 27409,
+  "raw_log_sha256": "510950eea9e3b00fb6283ae69b4dd89ca5478c5f62d23da9c0f72afe1bd3e9ef",
+  "raw_log_bytes": 27519,
   "raw_log_kept_at": "artifacts/local/ (ignored; carries developer-machine output)",
   "targets": 2,
-  "passed": 306,
+  "passed": 307,
   "failed": 0,
   "ignored": 0
  }

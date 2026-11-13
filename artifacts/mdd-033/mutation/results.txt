@@ -12,6 +12,9 @@ KILLED  : IF NOT EXISTS ignored for views
 KILLED  : unaliased expressions keep SQLite text names
 KILLED  : result names keep their case
 KILLED  : bridge snapshot is not checked against the session
+KILLED  : named temporary queries become views
+KILLED  : named call shape is checked after definitions
+KILLED  : named identifiers accept keywords
 KILLED  : items are not split into statements
 KILLED  : failed list rolls back nothing (stops early)
 restored tree passes: True

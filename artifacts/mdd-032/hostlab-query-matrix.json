@@ -1534,7 +1534,6 @@
   }
  ],
  "not_covered": [
-  "Q16 named_temp_queries tool argument",
   "recursive CTE (engine refuses with RECURSIVE_CTE_NOT_YET_QUALIFIED; no frozen template uses it)",
   "GLOB operator (engine refuses with BINARY_OPERATOR_NOT_IMPLEMENTED; no frozen template uses it)",
   "double-quoted string literals: the reference falls back to a string literal for an unknown double-quoted identifier, the engine refuses it",
@@ -1552,14 +1551,14 @@
    "mdd-session",
    "--lib"
   ],
-  "started_utc": "2026-11-13T02:17:01.957085+00:00",
-  "finished_utc": "2026-11-13T02:17:11.661682+00:00",
+  "started_utc": "2026-11-13T02:25:22.027663+00:00",
+  "finished_utc": "2026-11-13T02:25:30.018899+00:00",
   "exit_code": 0,
-  "raw_log_sha256": "4d955bef4936fe8f23f1512febe7327ef2c5a343a98aa3e63f1f068652c0ee10",
-  "raw_log_bytes": 27409,
+  "raw_log_sha256": "510950eea9e3b00fb6283ae69b4dd89ca5478c5f62d23da9c0f72afe1bd3e9ef",
+  "raw_log_bytes": 27519,
   "raw_log_kept_at": "artifacts/local/ (ignored; carries developer-machine output)",
   "targets": 2,
-  "passed": 306,
+  "passed": 307,
   "failed": 0,
   "ignored": 0
  }

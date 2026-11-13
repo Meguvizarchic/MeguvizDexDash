@@ -538,7 +538,7 @@
       "golden": "conformance/session/catalog-and-paging.json",
       "regression_test": "crates/mdd-sql/src/provider/hostlab/temp_tests.rs",
       "not_a_qualification": "Development comparison only; Q16 is outside hostlab-audit-v1 and no profile is admitted by it",
-      "scope": "22 scenarios / 158 steps: create, query, redefine, drop, IF NOT EXISTS, kind-checked DROP, unknown dependency, cycle, cross-session isolation, shadowing a provider relation, effects kept by a failed list, syntax outside the subset, bodies, windowed definitions and paging over a definition",
+      "scope": "23 scenarios / 191 steps: create, query, redefine, drop, IF NOT EXISTS, kind-checked DROP, unknown dependency, cycle, cross-session isolation, shadowing a provider relation, effects kept by a failed list, syntax outside the subset, bodies, windowed definitions paging over a definition and named_temp_queries",
       "entries": [
         {
           "id": "compat-offset-redefinition-is-refused",
@@ -560,9 +560,9 @@
         },
         {
           "id": "named-temp-queries",
-          "reference_behavior": "the query tool accepts named_temp_queries",
-          "engine_behavior": "not implemented",
-          "decision": "open_gap"
+          "reference_behavior": "named_temp_queries are lazy named SELECT definitions registered as TABLEs, processed in order, replacing a same-named definition silently, at most 16 per call, each body exactly one query; the call shape is validated before any definition is made",
+          "engine_behavior": "identical (TempSqlSession::execute_call)",
+          "decision": "match_reference"
         }
       ]
     }
