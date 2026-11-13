@@ -16,6 +16,7 @@ import argparse
 import hashlib
 import importlib.util
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -104,6 +105,16 @@ def qualification_status() -> dict:
     }
 
 
+def run_tool_tests() -> dict:
+    """The negative controls of the qualification tool (unittest assertions, immune to -O)."""
+    command = [sys.executable, "-I", "tools/test_qualify_columns_from_differential.py"]
+    done = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, encoding="utf-8",
+                          errors="replace", check=False)
+    tail = done.stderr.strip().splitlines()[-3:]
+    return {"command": ["python", "-I", "tools/test_qualify_columns_from_differential.py"],
+            "exit_code": done.returncode, "summary": tail}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--raw-dir", type=Path, default=ROOT / "artifacts/local/mdd-026-runs-20261113")
@@ -113,12 +124,18 @@ def main() -> int:
     run = sibling.run_tests(args.raw_dir)
     rows = sibling.acceptance_rows(ACCEPTANCE, run["results"])
     qualification = qualification_status()
+    tool_tests = run_tool_tests()
     document = {
         "schema_version": "mdd.facts-qualification-conformance.v1",
         "task": "MDD-026",
         "kind": "development evidence; admits no profile",
         "acceptance": rows,
         "column_qualification": qualification,
+        "qualification_tool_negative_controls": {
+            **tool_tests,
+            "mutation_results": f"{OUT}/mutation/results.txt",
+            "mutation_script": f"{OUT}/mutation/mutate_qualify.py",
+        },
         "residual": [
             "the typed-IR executor path (mdd-query) requests layers only; column-level coverage is wired for the HostLab SQL provider path",
             "column evidence rests on the 185 fixture inputs of the A0 differential, the recorded A0 readback and the fix-round harnesses; no private workload or real APK corpus",
@@ -133,10 +150,11 @@ def main() -> int:
     unproven = [r["acceptance"] for r in rows if not r["all_passed"]]
     print(f"acceptance rows={len(rows)} unproven={len(unproven)} tests: exit={run['exit_code']} "
           f"passed={run['passed']} failed={run['failed']} qualification: inputs_current={qualification['inputs_current']} "
-          f"unresolved={qualification['unresolved']}")
+          f"unresolved={qualification['unresolved']} tool_tests_exit={tool_tests['exit_code']}")
     for item in unproven:
         print("UNPROVEN:", item)
-    ok = (run["exit_code"] == 0 and not unproven and qualification["inputs_current"] and not qualification["unresolved"])
+    ok = (run["exit_code"] == 0 and not unproven and qualification["inputs_current"]
+          and not qualification["unresolved"] and tool_tests["exit_code"] == 0)
     return 0 if ok else 1
 
 

@@ -161,10 +161,10 @@
    "mdd-worker",
    "--lib"
   ],
-  "started_utc": "2026-11-13T03:01:31.175637+00:00",
-  "finished_utc": "2026-11-13T03:01:36.294637+00:00",
+  "started_utc": "2026-11-13T05:30:28.420446+00:00",
+  "finished_utc": "2026-11-13T05:30:31.504835+00:00",
   "exit_code": 0,
-  "raw_log_sha256": "e6f86cae9f1a1f87d746c41a62ec98ad458a63261518a4bab83ca07a82b0dab1",
+  "raw_log_sha256": "ad51b8a2183ed0f77e52886ba75f15668f4866a7cd63cbb6e4fa6a639d475861",
   "raw_log_bytes": 25600,
   "raw_log_kept_at": "artifacts/local/ (ignored; carries developer-machine output)",
   "targets": 4,

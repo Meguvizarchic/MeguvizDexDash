@@ -234,6 +234,7 @@
 - **R1 field_type / raw_fingerprint**（`strings.string_pool_id`、`dex_files.string_pool_id` 的类型；`methods.param_descriptors/opcode_count/opcode_hex` 的类型与 raw 指纹）：在相等记录里，所有非 NULL 单元的 SQLite 存储类与声明类型一致，NULL 只出现在可空列，且至少有一个非 NULL 单元逐字节（hex）比较过。
 - **R2 multiplicity**：`file_id` 在其余 7 个关系里按“值重复被保留且与 A0 相等”计（重复单元数 14–904）；`dex_files.source_path/entry_name` 用已记录的 A0 用例 `duplicate-raw-input`（同一输入列两次，A0 回两行同值）和 `indexes::scope::metadata_rows_tests::dex_file_provenance_matches_recorded_a0_entries`。`dex_files.file_id/string_pool_id` 是 occurrence 坐标，行内唯一，声明 `not_applicable`——**这是政策声明不是证据**，单列在 `declared_not_applicable`。
 - **R3 using_type 的 NULL 分支**：新增 mdd-dex 测试 `instructions::tests::every_field_referencing_opcode_is_a_get_or_a_put`，枚举全部 28 个 `kIndexFieldRef` 操作码都是 iget/iput/sget/sput，而 `references.rs` 只对其余助记符给 NULL，所以该分支不可达；变异（把 `iget` 改成 `kIndexTypeRef`）被该测试抓住。
+- raw_fingerprint 还要求值有内容（非空文本或非零数），并在 A0 数据内部交叉核对 `opcode_count` 与 `opcode_hex`（计数 0 对应空文本，否则恰为该数目的两位十六进制记号；130 行非空、0 处违反）。工具本身有 16 项负例测试（`tools/test_qualify_columns_from_differential.py`），对其规则的 13 个变异全部被抓住（`artifacts/mdd-026/column-qualification-20261113/mutation/`）；变异曾暴露一个只被配对规则挡住、内容规则没有独立测试的缺口，已补测试。
 - 局限：差分比较的是整关系投影，单列投影由它派生，没有另外做单列差分；证据限于 185 个夹具输入；`not_applicable` 不是证据。
 
 **交付**

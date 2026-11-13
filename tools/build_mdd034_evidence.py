@@ -69,17 +69,24 @@ def load_sibling():
 
 
 def run_qualify() -> dict:
-    done = subprocess.run([sys.executable, "-O", "conformance/runtime/qualify.py"], cwd=ROOT,
-                          capture_output=True, text=True, encoding="utf-8", errors="replace", check=False)
-    # Keep the historical record as it was; only the stdout summary is evidence here.
-    subprocess.run(["git", "checkout", "--", HISTORICAL], cwd=ROOT, check=True)
+    historical = ROOT / HISTORICAL
+    before = historical.read_bytes()
+    try:
+        done = subprocess.run([sys.executable, "-O", "conformance/runtime/qualify.py"], cwd=ROOT,
+                              capture_output=True, text=True, encoding="utf-8", errors="replace", check=False)
+    finally:
+        # Put back exactly the bytes that were there (not a git checkout, which would also
+        # discard uncommitted edits); only the stdout summary is evidence here.
+        historical.write_bytes(before)
     summary = None
     for line in done.stdout.strip().splitlines()[::-1]:
         try:
-            summary = json.loads(line)
-            break
+            candidate = json.loads(line)
         except ValueError:
             continue
+        if isinstance(candidate, dict):
+            summary = candidate
+            break
     return {"command": ["python", "-O", "conformance/runtime/qualify.py"], "exit_code": done.returncode,
             "summary": summary}
 

@@ -16859,13 +16859,23 @@
     },
     {
       "path": "artifacts/mdd-026/column-qualification-20261113/column-qualification.json",
-      "bytes": 160220,
-      "sha256": "d7cae1f6698e5af1ed687be323c15e5418d1c3cdf22cc425ff442f2e74d5575f"
+      "bytes": 160688,
+      "sha256": "ccfe0a9e5491cd43172266dec221f17f91861baa7f60c0dd251c2157cb0b7b9e"
     },
     {
       "path": "artifacts/mdd-026/column-qualification-20261113/conformance.json",
-      "bytes": 7715,
-      "sha256": "c25e6f86693411f0ea9897dba192e683c73d51176cbc42c137bef7af70693f38"
+      "bytes": 8131,
+      "sha256": "2e40e9486cefd78ff6befe75d7625fe7f8534f25c479018cbbba4adc7bc55f41"
+    },
+    {
+      "path": "artifacts/mdd-026/column-qualification-20261113/mutation/mutate_qualify.py",
+      "bytes": 2573,
+      "sha256": "30599a80397f19f94399eec5da6d1684b4ca2ab878383d8caaaa5cd895a74a4c"
+    },
+    {
+      "path": "artifacts/mdd-026/column-qualification-20261113/mutation/results.txt",
+      "bytes": 530,
+      "sha256": "9051226c01ae1cea46c47e544b42d7343e538b469594b548d7f7c6de24926723"
     },
     {
       "path": "artifacts/mdd-026/coverage-error-detail-20261030/green/output.txt",
@@ -52845,7 +52855,7 @@
     {
       "path": "artifacts/mdd-034/current-conformance.json",
       "bytes": 5555,
-      "sha256": "98167512bed1101cf4aaa422f673f6fbbebf8cbefb93e75cfde8433d316d2c4f"
+      "sha256": "e71ff261587e447f569ef107ccf1e2a6e9f5258bda040fd4e4e4e4e8afd13286"
     },
     {
       "path": "artifacts/mdd-034/delivery-confirmation-20261029/external-new-entry.rs",

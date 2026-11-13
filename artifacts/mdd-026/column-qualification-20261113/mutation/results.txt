@@ -1,0 +1,14 @@
+KILLED   raw_fingerprint ignores content
+KILLED   pair violations ignored
+KILLED   storage class not compared
+KILLED   nullability not enforced
+KILLED   N/A allowed on repeating key
+KILLED   value repetition not required
+KILLED   repetition applies to any column
+KILLED   provenance needs no repeat
+KILLED   NULL exhaustion needs no cell
+KILLED   manifest completeness not checked
+KILLED   A0 answer not required
+KILLED   manifest duplicates allowed
+KILLED   records outside the manifest count
+restored passes: True

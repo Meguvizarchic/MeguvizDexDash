@@ -83,6 +83,41 @@ def require(condition: bool, message: str) -> None:
         raise Refused(message)
 
 
+OPCODE_PAIR = ("methods", "<opcode_count/opcode_hex pair>")
+HEX_DIGITS = set("0123456789abcdef")
+
+
+def payload_hex(cell: str) -> str:
+    """Hex of the value's bytes; storage classes without a payload (real) have none."""
+    return cell.split(":", 1)[1] if ":" in cell else ""
+
+
+def decode_payload(cell: str) -> str:
+    """Text a differential cell stands for: cells are `class:HEX` of the value's UTF-8 rendering."""
+    return bytes.fromhex(cell.split(":", 1)[1]).decode("utf-8")
+
+
+def opcode_pair_verdict(count_cell: str, hex_cell: str) -> str:
+    """Cross-check that needs no engine: the A0 count equals the number of two-digit tokens in the A0 text.
+
+    `empty` is a count of 0 with an empty text; `non_empty` is a count of n >= 1 with exactly n
+    lower-case two-digit hex tokens separated by single spaces; both NULL is `null`.
+    """
+    if count_cell == "N" or hex_cell == "N":
+        return "null" if count_cell == hex_cell else "violation"
+    try:
+        count, text = decode_payload(count_cell), decode_payload(hex_cell)
+    except (ValueError, IndexError):
+        return "violation"
+    if not count.isdigit():
+        return "violation"
+    if int(count) == 0:
+        return "empty" if text == "" else "violation"
+    tokens = text.split(" ")
+    well_formed = all(len(token) == 2 and set(token) <= HEX_DIGITS for token in tokens)
+    return "non_empty" if well_formed and len(tokens) == int(count) else "violation"
+
+
 def load_inputs(base_path: Path):
     base = json.loads(base_path.read_text(encoding="utf-8"))
     corpus = json.loads((ROOT / CORPUS).read_text(encoding="utf-8"))
@@ -110,8 +145,8 @@ def collect(corpus, equal):
         columns = record["columns"]
         for position, column in enumerate(columns):
             entry = stats.setdefault((record["relation"], column), {
-                "records": 0, "records_with_rows": 0, "cells": 0, "null_cells": 0, "classes": Counter(),
-                "records_with_repeat": 0, "repeated_cells": 0, "inputs": []})
+                "records": 0, "records_with_rows": 0, "cells": 0, "null_cells": 0, "informative_cells": 0,
+                "classes": Counter(), "records_with_repeat": 0, "repeated_cells": 0, "inputs": []})
             values = [row[position] for row in rows]
             entry["records"] += 1
             if values:
@@ -124,11 +159,21 @@ def collect(corpus, equal):
                     entry["null_cells"] += 1
                 else:
                     entry["classes"][value.split(":", 1)[0]] += 1
+                    if payload_hex(value) not in ("", "30"):  # "30" is the text 0
+                        entry["informative_cells"] += 1
             counts = Counter(values)
             repeated = sum(count - 1 for count in counts.values() if count > 1)
             if repeated:
                 entry["records_with_repeat"] += 1
                 entry["repeated_cells"] += repeated
+        if record["relation"] == "methods":
+            pair = stats.setdefault(OPCODE_PAIR, {"rows": 0, "non_empty_rows": 0, "violations": 0})
+            count_at, hex_at = columns.index("opcode_count"), columns.index("opcode_hex")
+            for row in rows:
+                pair["rows"] += 1
+                verdict = opcode_pair_verdict(row[count_at], row[hex_at])
+                pair["non_empty_rows"] += verdict == "non_empty"
+                pair["violations"] += verdict == "violation"
     require(seen == equal_keys, f"{len(equal_keys - seen)} manifest records are not in the corpus")
     return stats, len(equal_keys)
 
@@ -164,12 +209,21 @@ def evaluate(column, stats, provenance):
         classes = set(entry["classes"])
         non_null = entry["cells"] - entry["null_cells"]
         ok = (classes <= {expected_class}) and non_null > 0 and (nullable or entry["null_cells"] == 0)
+        extra = {"informative_cells": entry["informative_cells"]}
+        if category == "raw_fingerprint":
+            # The value must carry content (a non-empty text or a non-zero number), not only the right type.
+            ok = ok and entry["informative_cells"] > 0
+            if name in ("opcode_count", "opcode_hex"):
+                pair = stats.get(OPCODE_PAIR)
+                require(pair is not None, "no methods records for the opcode_count/opcode_hex cross-check")
+                ok = ok and pair["violations"] == 0 and pair["non_empty_rows"] > 0
+                extra["opcode_pair_cross_check"] = dict(pair)
         if ok:
             changes[category] = {"state": "satisfied", "basis": "a0_differential_engine_equal_records",
-                                 "rule": "R1", "expected_storage_class": expected_class, **counts_of(entry)}
+                                 "rule": "R1", "expected_storage_class": expected_class, **counts_of(entry), **extra}
         else:
             changes[category] = {"state": state[category], "basis": "a0_differential_insufficient",
-                                 "rule": "R1", "expected_storage_class": expected_class, **counts_of(entry)}
+                                 "rule": "R1", "expected_storage_class": expected_class, **counts_of(entry), **extra}
 
     if state["multiplicity"] != "satisfied":
         if key in NOT_APPLICABLE_MULTIPLICITY:

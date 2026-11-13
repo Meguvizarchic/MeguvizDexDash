@@ -150,7 +150,8 @@
       "tests/fixtures/annotations/generated/annotations-038.dex",
       "tests/fixtures/annotations/generated/bad-annotation-interior.dex",
       "tests/fixtures/annotations/generated/bad-annotation-type.dex"
-     ]
+     ],
+     "informative_cells": 4
     },
     "null": {
      "state": "satisfied",
@@ -1349,7 +1350,8 @@
       "tests/fixtures/annotations/generated/annotations-038.dex",
       "tests/fixtures/annotations/generated/bad-annotation-interior.dex",
       "tests/fixtures/annotations/generated/bad-annotation-type.dex"
-     ]
+     ],
+     "informative_cells": 7
     },
     "null": {
      "state": "satisfied",
@@ -2081,7 +2083,8 @@
       "tests/fixtures/annotations/generated/annotations-038.dex",
       "tests/fixtures/annotations/generated/bad-annotation-interior.dex",
       "tests/fixtures/annotations/generated/bad-annotation-type.dex"
-     ]
+     ],
+     "informative_cells": 149
     },
     "null": {
      "state": "satisfied",
@@ -2115,7 +2118,8 @@
       "tests/fixtures/annotations/generated/annotations-038.dex",
       "tests/fixtures/annotations/generated/bad-annotation-interior.dex",
       "tests/fixtures/annotations/generated/bad-annotation-type.dex"
-     ]
+     ],
+     "informative_cells": 149
     }
    },
    "resolved": true,
@@ -2195,7 +2199,8 @@
       "tests/fixtures/annotations/generated/annotations-038.dex",
       "tests/fixtures/annotations/generated/bad-annotation-interior.dex",
       "tests/fixtures/annotations/generated/bad-annotation-type.dex"
-     ]
+     ],
+     "informative_cells": 130
     },
     "null": {
      "state": "satisfied",
@@ -2229,7 +2234,13 @@
       "tests/fixtures/annotations/generated/annotations-038.dex",
       "tests/fixtures/annotations/generated/bad-annotation-interior.dex",
       "tests/fixtures/annotations/generated/bad-annotation-type.dex"
-     ]
+     ],
+     "informative_cells": 130,
+     "opcode_pair_cross_check": {
+      "rows": 377,
+      "non_empty_rows": 130,
+      "violations": 0
+     }
     }
    },
    "resolved": true,
@@ -2266,7 +2277,8 @@
       "tests/fixtures/annotations/generated/annotations-038.dex",
       "tests/fixtures/annotations/generated/bad-annotation-interior.dex",
       "tests/fixtures/annotations/generated/bad-annotation-type.dex"
-     ]
+     ],
+     "informative_cells": 130
     },
     "null": {
      "state": "satisfied",
@@ -2300,7 +2312,13 @@
       "tests/fixtures/annotations/generated/annotations-038.dex",
       "tests/fixtures/annotations/generated/bad-annotation-interior.dex",
       "tests/fixtures/annotations/generated/bad-annotation-type.dex"
-     ]
+     ],
+     "informative_cells": 130,
+     "opcode_pair_cross_check": {
+      "rows": 377,
+      "non_empty_rows": 130,
+      "violations": 0
+     }
     }
    },
    "resolved": true,
