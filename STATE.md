@@ -225,6 +225,26 @@
 
 **仍挡在上线前的任务**：MDD-005（A0/A1/A2 配对基线，需要真实运行时与样本）与 MDD-026（16 列未满足六类，折算口径待定）未收口，直接挡住 MDD-035、041、042、044、050 以后的链条。34 与 40 完成后，依赖已全部满足的 todo 只有 MDD-043（通用 Python SDK 与稳定 C ABI）。
 
+## 2026-11-13 MDD-026 逐列资格折算与收口
+
+**结论**：MDD-026 标 done。156 列里 **154 列六类全满足**（此前 140），另 2 列（`dex_files.file_id`、`dex_files.string_pool_id`）的 multiplicity 声明为 `not_applicable`，没有未决列。这依赖两条我替你定下的口径，**可逆**，见下。MDD-035 的依赖（026/032/033/034）因此全部满足；MDD-005 与 MDD-035 无依赖关系，仍不动。
+
+**口径（可逆的政策选择，写在 `column-qualification.json` 的 `policy` 里）**
+- **只认引擎与 A0 逐值相等的记录**：新增 `artifacts/mdd-032-audit/a0-differential-20261112/engine-equal-records.json`（2091 条 `(输入, 关系)`），Rust 差分测试对它做精确集合断言，不再只比数量。已声明的 3 处差异（非 BMP 参数描述符）、双方都拒绝的 440 条、引擎独有的 2 条都不计入证据。
+- **R1 field_type / raw_fingerprint**（`strings.string_pool_id`、`dex_files.string_pool_id` 的类型；`methods.param_descriptors/opcode_count/opcode_hex` 的类型与 raw 指纹）：在相等记录里，所有非 NULL 单元的 SQLite 存储类与声明类型一致，NULL 只出现在可空列，且至少有一个非 NULL 单元逐字节（hex）比较过。
+- **R2 multiplicity**：`file_id` 在其余 7 个关系里按“值重复被保留且与 A0 相等”计（重复单元数 14–904）；`dex_files.source_path/entry_name` 用已记录的 A0 用例 `duplicate-raw-input`（同一输入列两次，A0 回两行同值）和 `indexes::scope::metadata_rows_tests::dex_file_provenance_matches_recorded_a0_entries`。`dex_files.file_id/string_pool_id` 是 occurrence 坐标，行内唯一，声明 `not_applicable`——**这是政策声明不是证据**，单列在 `declared_not_applicable`。
+- **R3 using_type 的 NULL 分支**：新增 mdd-dex 测试 `instructions::tests::every_field_referencing_opcode_is_a_get_or_a_put`，枚举全部 28 个 `kIndexFieldRef` 操作码都是 iget/iput/sget/sput，而 `references.rs` 只对其余助记符给 NULL，所以该分支不可达；变异（把 `iget` 改成 `kIndexTypeRef`）被该测试抓住。
+- 局限：差分比较的是整关系投影，单列投影由它派生，没有另外做单列差分；证据限于 185 个夹具输入；`not_applicable` 不是证据。
+
+**交付**
+- `tools/qualify_columns_from_differential.py`：读本地不入库的 v10 合并矩阵（`--base`），写不含本机路径的 `artifacts/mdd-026/column-qualification-20261113/{column-qualification.json,SUMMARY.md}`；输出内嵌基础状态，所以不依赖被扣留的目录。
+- `tools/build_mdd026_evidence.py`：现场跑 mdd-facts / mdd-dex / mdd-sql 库测试（451 项全过），把 5 条验收映射到具体测试名，并校验已提交的资格文件所依据的三份输入哈希未漂移，写 `conformance.json`。
+- 历史记录不改写：`conformance/manifests/hostlab-fact-qualification.json`、`artifacts/mdd-026/facts-differential.json`、2026-11-12 的 `evidence-merged-clean` 目录与 `conformance/facts/qualify.py`（仍按设计在源码漂移时失败）保持原义（ADR-017）。
+
+**收口时保留的限制**：(1) typed-IR 执行器路径（mdd-query）仍只请求层，列级 coverage 只接在 HostLab SQL 提供者路径上；原验收写的是 `required_layers`，所以不挡收口，但 MDD-035 以后若要求 typed-IR 路径按列放行，需要另做；(2) 证据来自夹具与记录的 A0 读回，没有私有工作负载或真实 APK 全量；(3) 未准入任何 profile，也没有性能运行。
+
+**推翻条件**：若你不接受 R2 对 `dex_files.file_id/string_pool_id` 的 `not_applicable`，或不接受“相等记录里的值重复”作为 `file_id` 等列的 multiplicity 证据，去掉对应规则重跑工具，该列会回到 partial，MDD-026 随之重开。
+
 ## Checkout 与交付
 
 工程目录 D:\MeguvisDexDash（保留目录原拼写）。远端已迁移到 https://github.com/Meguvizarchic/MeguvizDexDash（**公开仓库**，旧地址 jichuo1/MeguvizDexDash 自动转发）；PR #1 已于 2026-11-04 合并，`main` 现为 a9aa1f0，其中 27ac27e 是由本分支 71dfce9 生成的「脱敏工程进度快照」，之后 8 个提交是修补与 README/图标。本地分支 codex/m2-facts-20261028 当前**没有远端分支**：2026-11-12 曾整体推送，随后发现仓库公开，已按用户决定删除远端分支（GitHub 上提交仍可按 SHA 读取）。重新推送前必须先决定公开范围，见下节。

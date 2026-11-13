@@ -1,0 +1,7045 @@
+{
+ "schema_version": "mdd.column-qualification.v1",
+ "task": "MDD-026",
+ "kind": "development evidence; admits no profile and does not by itself close the task",
+ "inputs": {
+  "merged_matrix_v10": {
+   "sha256": "078f8203e1dae6eb4d53835d30389066b52ad6ff6a3dc46af6cba7d91f412df4",
+   "note": "local-only; its states are embedded below, its evidence paths are not"
+  },
+  "a0_corpus": {
+   "path": "artifacts/mdd-032-audit/a0-differential-20261112/a0-corpus.json",
+   "sha256": "229dc21d126e6319c3b5fe7c084895714899c394d4eb4c6bccdf054981cf5136"
+  },
+  "engine_equal_records": {
+   "path": "artifacts/mdd-032-audit/a0-differential-20261112/engine-equal-records.json",
+   "sha256": "76a645843689ac24665259c239e42a219336fea78e9e042d9d0fdf68175b8bef",
+   "records": 2091
+  },
+  "recorded_a0_provenance": {
+   "path": "tests/fixtures/provenance/a0-dex-files-provenance.json",
+   "sha256": "8e8e832491097b33e2ff367485da7273245efa16d72bb8284ef0ae8a41ed26a0"
+  },
+  "a0_sha256": "f354ebcf715de9a66ef8ebe08b2b36807ab58e25cd5a1c0812e497fc1fcfc448"
+ },
+ "policy": "R1  field_type / raw_fingerprint. A column the harness demoted statically may be\n      raised by the production-path differential: in every record the engine\n      answered identically to A0 (the committed engine-equal-records manifest, which\n      the Rust differential test asserts exactly), all non-NULL cells have the\n      SQLite storage class the declared type implies, NULL only where the column is\n      nullable, and at least one non-NULL cell was compared byte-for-byte (hex).\n  R2  multiplicity. Value repetition kept by the engine and equal to A0 counts for a\n      column whose relation has unique full rows by construction. dex_files.file_id\n      and dex_files.string_pool_id are occurrence coordinates, unique per row, so the\n      category is not_applicable (reported separately, never folded into the count of\n      satisfied). dex_files.source_path / entry_name repeat only when the same input\n      is listed twice; the recorded A0 case for that is used.\n  R3  NULL. A nullable column whose NULL branch is unreachable is satisfied by\n      exhaustion only when a named test proves the branch unreachable; the tool does\n      not decide that, it records the named test.\n\nOnly engine-equal records are evidence. Declared divergences, A0 failures and\nengine-only answers are never counted.",
+ "summary": {
+  "columns": 156,
+  "satisfied_in_all_six_by_base": 140,
+  "satisfied_in_all_six_after_fold": 154,
+  "resolved_with_not_applicable": 2,
+  "unresolved": [],
+  "raised_by_fold": [
+   "annotation_elements.file_id:multiplicity",
+   "class_fields.file_id:multiplicity",
+   "class_interfaces.file_id:multiplicity",
+   "class_methods.file_id:multiplicity",
+   "classes.file_id:multiplicity",
+   "dex_files.entry_name:multiplicity",
+   "dex_files.source_path:multiplicity",
+   "dex_files.string_pool_id:field_type",
+   "method_field_accesses.using_type:null",
+   "methods.file_id:multiplicity",
+   "methods.opcode_count:field_type",
+   "methods.opcode_count:raw_fingerprint",
+   "methods.opcode_hex:field_type",
+   "methods.opcode_hex:raw_fingerprint",
+   "methods.param_descriptors:field_type",
+   "methods.param_descriptors:raw_fingerprint",
+   "strings.string_pool_id:field_type",
+   "types.file_id:multiplicity"
+  ],
+  "declared_not_applicable": [
+   "dex_files.file_id:multiplicity",
+   "dex_files.string_pool_id:multiplicity"
+  ],
+  "not_raised_by_fold": []
+ },
+ "limits": [
+  "The differential compares whole-relation projections; single-column projections are derived from them, not separately differential-tested.",
+  "Evidence is limited to the 185 fixture inputs of the corpus and to records on which the engine equals A0; declared divergences (non-BMP parameter descriptors) are not qualified by this fold.",
+  "not_applicable is a policy statement about unique row keys, not evidence; it is reported separately from satisfied.",
+  "This is a policy decision about how differential evidence counts toward the six categories; it can be reversed by re-running this tool without the fold rules."
+ ],
+ "columns": [
+  {
+   "relation": "dex_files",
+   "ordinal": 0,
+   "name": "file_id",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "partial",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "not_applicable",
+     "basis": "occurrence coordinate: one dex_files row per occurrence, unique by construction",
+     "rule": "R2",
+     "records_compared": 157,
+     "cells": 161,
+     "non_null_cells": 161,
+     "null_cells": 0,
+     "storage_classes": {
+      "integer": 161
+     },
+     "example_inputs": [
+      "tests/fixtures/annotations/generated/annotations-038.dex",
+      "tests/fixtures/annotations/generated/bad-annotation-interior.dex",
+      "tests/fixtures/annotations/generated/bad-annotation-type.dex"
+     ],
+     "repeated_cells": 0
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": false
+  },
+  {
+   "relation": "dex_files",
+   "ordinal": 1,
+   "name": "string_pool_id",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "partial",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "partial",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "a0_differential_engine_equal_records",
+     "rule": "R1",
+     "expected_storage_class": "integer",
+     "records_compared": 157,
+     "cells": 161,
+     "non_null_cells": 161,
+     "null_cells": 0,
+     "storage_classes": {
+      "integer": 161
+     },
+     "example_inputs": [
+      "tests/fixtures/annotations/generated/annotations-038.dex",
+      "tests/fixtures/annotations/generated/bad-annotation-interior.dex",
+      "tests/fixtures/annotations/generated/bad-annotation-type.dex"
+     ]
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "not_applicable",
+     "basis": "occurrence coordinate: one dex_files row per occurrence, unique by construction",
+     "rule": "R2",
+     "records_compared": 157,
+     "cells": 161,
+     "non_null_cells": 161,
+     "null_cells": 0,
+     "storage_classes": {
+      "integer": 161
+     },
+     "example_inputs": [
+      "tests/fixtures/annotations/generated/annotations-038.dex",
+      "tests/fixtures/annotations/generated/bad-annotation-interior.dex",
+      "tests/fixtures/annotations/generated/bad-annotation-type.dex"
+     ],
+     "repeated_cells": 0
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": false
+  },
+  {
+   "relation": "dex_files",
+   "ordinal": 2,
+   "name": "source_path",
+   "data_type": "Utf8",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "partial",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "recorded_a0_case_with_the_same_input_listed_twice",
+     "rule": "R2",
+     "case": "duplicate-raw-input",
+     "a0_rows": 2,
+     "a0_distinct_values": 1,
+     "engine_test": "indexes::scope::metadata_rows_tests::dex_file_provenance_matches_recorded_a0_entries"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "dex_files",
+   "ordinal": 3,
+   "name": "entry_name",
+   "data_type": "Utf8",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "partial",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "recorded_a0_case_with_the_same_input_listed_twice",
+     "rule": "R2",
+     "case": "duplicate-raw-input",
+     "a0_rows": 2,
+     "a0_distinct_values": 1,
+     "engine_test": "indexes::scope::metadata_rows_tests::dex_file_provenance_matches_recorded_a0_entries"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "dex_files",
+   "ordinal": 4,
+   "name": "byte_len",
+   "data_type": "UInt64",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "dex_files",
+   "ordinal": 5,
+   "name": "dex_version",
+   "data_type": "Utf8",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "dex_files",
+   "ordinal": 6,
+   "name": "checksum",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "dex_files",
+   "ordinal": 7,
+   "name": "signature_hex",
+   "data_type": "Utf8",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "dex_files",
+   "ordinal": 8,
+   "name": "file_size",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "dex_files",
+   "ordinal": 9,
+   "name": "header_size",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "dex_files",
+   "ordinal": 10,
+   "name": "endian_tag",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "dex_files",
+   "ordinal": 11,
+   "name": "link_size",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "dex_files",
+   "ordinal": 12,
+   "name": "link_off",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "dex_files",
+   "ordinal": 13,
+   "name": "map_off",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "dex_files",
+   "ordinal": 14,
+   "name": "string_count",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "dex_files",
+   "ordinal": 15,
+   "name": "string_ids_off",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "dex_files",
+   "ordinal": 16,
+   "name": "type_count",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "dex_files",
+   "ordinal": 17,
+   "name": "type_ids_off",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "dex_files",
+   "ordinal": 18,
+   "name": "proto_count",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "dex_files",
+   "ordinal": 19,
+   "name": "proto_ids_off",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "dex_files",
+   "ordinal": 20,
+   "name": "field_count",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "dex_files",
+   "ordinal": 21,
+   "name": "field_ids_off",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "dex_files",
+   "ordinal": 22,
+   "name": "method_count",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "dex_files",
+   "ordinal": 23,
+   "name": "method_ids_off",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "dex_files",
+   "ordinal": 24,
+   "name": "class_count",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "dex_files",
+   "ordinal": 25,
+   "name": "class_defs_off",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "dex_files",
+   "ordinal": 26,
+   "name": "data_size",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "dex_files",
+   "ordinal": 27,
+   "name": "data_off",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "strings",
+   "ordinal": 0,
+   "name": "string_pool_id",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "partial",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "a0_differential_engine_equal_records",
+     "rule": "R1",
+     "expected_storage_class": "integer",
+     "records_compared": 116,
+     "cells": 4023,
+     "non_null_cells": 4023,
+     "null_cells": 0,
+     "storage_classes": {
+      "integer": 4023
+     },
+     "example_inputs": [
+      "tests/fixtures/annotations/generated/annotations-038.dex",
+      "tests/fixtures/annotations/generated/bad-annotation-interior.dex",
+      "tests/fixtures/annotations/generated/bad-annotation-type.dex"
+     ]
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "strings",
+   "ordinal": 1,
+   "name": "string_idx",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "strings",
+   "ordinal": 2,
+   "name": "value",
+   "data_type": "Utf8View",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "types",
+   "ordinal": 0,
+   "name": "file_id",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "partial",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "a0_differential_value_repetition_engine_equal_records",
+     "rule": "R2",
+     "records_with_repeat": 123,
+     "repeated_cells": 904,
+     "records_compared": 123,
+     "cells": 1028,
+     "non_null_cells": 1028,
+     "null_cells": 0,
+     "storage_classes": {
+      "integer": 1028
+     },
+     "example_inputs": [
+      "tests/fixtures/annotations/generated/annotations-038.dex",
+      "tests/fixtures/annotations/generated/bad-annotation-interior.dex",
+      "tests/fixtures/annotations/generated/bad-annotation-type.dex"
+     ]
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "types",
+   "ordinal": 1,
+   "name": "type_idx",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "types",
+   "ordinal": 2,
+   "name": "descriptor",
+   "data_type": "Utf8",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "types",
+   "ordinal": 3,
+   "name": "java_name",
+   "data_type": "Utf8",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "methods",
+   "ordinal": 0,
+   "name": "file_id",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "partial",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "a0_differential_value_repetition_engine_equal_records",
+     "rule": "R2",
+     "records_with_repeat": 83,
+     "repeated_cells": 291,
+     "records_compared": 85,
+     "cells": 377,
+     "non_null_cells": 377,
+     "null_cells": 0,
+     "storage_classes": {
+      "integer": 377
+     },
+     "example_inputs": [
+      "tests/fixtures/annotations/generated/annotations-038.dex",
+      "tests/fixtures/annotations/generated/bad-annotation-interior.dex",
+      "tests/fixtures/annotations/generated/bad-annotation-type.dex"
+     ]
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "methods",
+   "ordinal": 1,
+   "name": "method_idx",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "methods",
+   "ordinal": 2,
+   "name": "class_idx",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "methods",
+   "ordinal": 3,
+   "name": "class_descriptor",
+   "data_type": "Utf8View",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "methods",
+   "ordinal": 4,
+   "name": "proto_idx",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "methods",
+   "ordinal": 5,
+   "name": "name",
+   "data_type": "Utf8View",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "methods",
+   "ordinal": 6,
+   "name": "descriptor",
+   "data_type": "Utf8View",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "methods",
+   "ordinal": 7,
+   "name": "return_descriptor",
+   "data_type": "Utf8View",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "methods",
+   "ordinal": 8,
+   "name": "param_count",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "methods",
+   "ordinal": 9,
+   "name": "param_descriptors",
+   "data_type": "Utf8View",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "partial",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "partial"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "a0_differential_engine_equal_records",
+     "rule": "R1",
+     "expected_storage_class": "text",
+     "records_compared": 85,
+     "cells": 377,
+     "non_null_cells": 377,
+     "null_cells": 0,
+     "storage_classes": {
+      "text": 377
+     },
+     "example_inputs": [
+      "tests/fixtures/annotations/generated/annotations-038.dex",
+      "tests/fixtures/annotations/generated/bad-annotation-interior.dex",
+      "tests/fixtures/annotations/generated/bad-annotation-type.dex"
+     ]
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "a0_differential_engine_equal_records",
+     "rule": "R1",
+     "expected_storage_class": "text",
+     "records_compared": 85,
+     "cells": 377,
+     "non_null_cells": 377,
+     "null_cells": 0,
+     "storage_classes": {
+      "text": 377
+     },
+     "example_inputs": [
+      "tests/fixtures/annotations/generated/annotations-038.dex",
+      "tests/fixtures/annotations/generated/bad-annotation-interior.dex",
+      "tests/fixtures/annotations/generated/bad-annotation-type.dex"
+     ]
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "methods",
+   "ordinal": 10,
+   "name": "access_flags",
+   "data_type": "UInt32",
+   "nullable": true,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "methods",
+   "ordinal": 11,
+   "name": "opcode_count",
+   "data_type": "UInt32",
+   "nullable": true,
+   "base_category_state": {
+    "field_type": "partial",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "partial"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "a0_differential_engine_equal_records",
+     "rule": "R1",
+     "expected_storage_class": "integer",
+     "records_compared": 85,
+     "cells": 377,
+     "non_null_cells": 306,
+     "null_cells": 71,
+     "storage_classes": {
+      "integer": 306
+     },
+     "example_inputs": [
+      "tests/fixtures/annotations/generated/annotations-038.dex",
+      "tests/fixtures/annotations/generated/bad-annotation-interior.dex",
+      "tests/fixtures/annotations/generated/bad-annotation-type.dex"
+     ]
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "a0_differential_engine_equal_records",
+     "rule": "R1",
+     "expected_storage_class": "integer",
+     "records_compared": 85,
+     "cells": 377,
+     "non_null_cells": 306,
+     "null_cells": 71,
+     "storage_classes": {
+      "integer": 306
+     },
+     "example_inputs": [
+      "tests/fixtures/annotations/generated/annotations-038.dex",
+      "tests/fixtures/annotations/generated/bad-annotation-interior.dex",
+      "tests/fixtures/annotations/generated/bad-annotation-type.dex"
+     ]
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "methods",
+   "ordinal": 12,
+   "name": "opcode_hex",
+   "data_type": "Utf8View",
+   "nullable": true,
+   "base_category_state": {
+    "field_type": "partial",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "partial"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "a0_differential_engine_equal_records",
+     "rule": "R1",
+     "expected_storage_class": "text",
+     "records_compared": 85,
+     "cells": 377,
+     "non_null_cells": 306,
+     "null_cells": 71,
+     "storage_classes": {
+      "text": 306
+     },
+     "example_inputs": [
+      "tests/fixtures/annotations/generated/annotations-038.dex",
+      "tests/fixtures/annotations/generated/bad-annotation-interior.dex",
+      "tests/fixtures/annotations/generated/bad-annotation-type.dex"
+     ]
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "a0_differential_engine_equal_records",
+     "rule": "R1",
+     "expected_storage_class": "text",
+     "records_compared": 85,
+     "cells": 377,
+     "non_null_cells": 306,
+     "null_cells": 71,
+     "storage_classes": {
+      "text": 306
+     },
+     "example_inputs": [
+      "tests/fixtures/annotations/generated/annotations-038.dex",
+      "tests/fixtures/annotations/generated/bad-annotation-interior.dex",
+      "tests/fixtures/annotations/generated/bad-annotation-type.dex"
+     ]
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "methods",
+   "ordinal": 13,
+   "name": "method_kind",
+   "data_type": "Utf8",
+   "nullable": true,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "classes",
+   "ordinal": 0,
+   "name": "file_id",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "partial",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "a0_differential_value_repetition_engine_equal_records",
+     "rule": "R2",
+     "records_with_repeat": 16,
+     "repeated_cells": 43,
+     "records_compared": 97,
+     "cells": 141,
+     "non_null_cells": 141,
+     "null_cells": 0,
+     "storage_classes": {
+      "integer": 141
+     },
+     "example_inputs": [
+      "tests/fixtures/annotations/generated/annotations-038.dex",
+      "tests/fixtures/annotations/generated/bad-annotation-interior.dex",
+      "tests/fixtures/annotations/generated/bad-annotation-type.dex"
+     ]
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "classes",
+   "ordinal": 1,
+   "name": "class_def_idx",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "classes",
+   "ordinal": 2,
+   "name": "class_idx",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "classes",
+   "ordinal": 3,
+   "name": "descriptor",
+   "data_type": "Utf8",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "classes",
+   "ordinal": 4,
+   "name": "access_flags",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "classes",
+   "ordinal": 5,
+   "name": "superclass_descriptor",
+   "data_type": "Utf8",
+   "nullable": true,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "classes",
+   "ordinal": 6,
+   "name": "interface_count",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "classes",
+   "ordinal": 7,
+   "name": "source_file",
+   "data_type": "Utf8",
+   "nullable": true,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "class_interfaces",
+   "ordinal": 0,
+   "name": "file_id",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "partial",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "a0_differential_value_repetition_engine_equal_records",
+     "rule": "R2",
+     "records_with_repeat": 14,
+     "repeated_cells": 14,
+     "records_compared": 14,
+     "cells": 28,
+     "non_null_cells": 28,
+     "null_cells": 0,
+     "storage_classes": {
+      "integer": 28
+     },
+     "example_inputs": [
+      "tests/fixtures/definitions/generated/definitions-035.dex",
+      "tests/fixtures/definitions/generated/definitions-037.dex",
+      "tests/fixtures/definitions/generated/definitions-038.dex"
+     ]
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "class_interfaces",
+   "ordinal": 1,
+   "name": "class_idx",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "class_interfaces",
+   "ordinal": 2,
+   "name": "ordinal",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "class_interfaces",
+   "ordinal": 3,
+   "name": "interface_type_idx",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "class_interfaces",
+   "ordinal": 4,
+   "name": "interface_descriptor",
+   "data_type": "Utf8",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "class_fields",
+   "ordinal": 0,
+   "name": "file_id",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "partial",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "a0_differential_value_repetition_engine_equal_records",
+     "rule": "R2",
+     "records_with_repeat": 63,
+     "repeated_cells": 105,
+     "records_compared": 64,
+     "cells": 169,
+     "non_null_cells": 169,
+     "null_cells": 0,
+     "storage_classes": {
+      "integer": 169
+     },
+     "example_inputs": [
+      "tests/fixtures/annotations/generated/annotations-038.dex",
+      "tests/fixtures/annotations/generated/bad-annotation-interior.dex",
+      "tests/fixtures/annotations/generated/bad-annotation-type.dex"
+     ]
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "class_fields",
+   "ordinal": 1,
+   "name": "class_idx",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "class_fields",
+   "ordinal": 2,
+   "name": "class_descriptor",
+   "data_type": "Utf8",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "class_fields",
+   "ordinal": 3,
+   "name": "field_idx",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "class_fields",
+   "ordinal": 4,
+   "name": "field_name",
+   "data_type": "Utf8",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "class_fields",
+   "ordinal": 5,
+   "name": "field_descriptor",
+   "data_type": "Utf8",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "class_fields",
+   "ordinal": 6,
+   "name": "kind",
+   "data_type": "Utf8",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "class_fields",
+   "ordinal": 7,
+   "name": "access_flags",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "class_methods",
+   "ordinal": 0,
+   "name": "file_id",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "partial",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "a0_differential_value_repetition_engine_equal_records",
+     "rule": "R2",
+     "records_with_repeat": 90,
+     "repeated_cells": 234,
+     "records_compared": 93,
+     "cells": 328,
+     "non_null_cells": 328,
+     "null_cells": 0,
+     "storage_classes": {
+      "integer": 328
+     },
+     "example_inputs": [
+      "tests/fixtures/annotations/generated/annotations-038.dex",
+      "tests/fixtures/annotations/generated/bad-annotation-interior.dex",
+      "tests/fixtures/annotations/generated/bad-annotation-type.dex"
+     ]
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "class_methods",
+   "ordinal": 1,
+   "name": "class_idx",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "class_methods",
+   "ordinal": 2,
+   "name": "class_descriptor",
+   "data_type": "Utf8",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "class_methods",
+   "ordinal": 3,
+   "name": "method_idx",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "class_methods",
+   "ordinal": 4,
+   "name": "method_name",
+   "data_type": "Utf8",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "class_methods",
+   "ordinal": 5,
+   "name": "method_descriptor",
+   "data_type": "Utf8",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "class_methods",
+   "ordinal": 6,
+   "name": "kind",
+   "data_type": "Utf8",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "class_methods",
+   "ordinal": 7,
+   "name": "access_flags",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "code_items",
+   "ordinal": 0,
+   "name": "file_id",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "code_items",
+   "ordinal": 1,
+   "name": "method_idx",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "code_items",
+   "ordinal": 2,
+   "name": "code_off",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "code_items",
+   "ordinal": 3,
+   "name": "registers_size",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "code_items",
+   "ordinal": 4,
+   "name": "ins_size",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "code_items",
+   "ordinal": 5,
+   "name": "outs_size",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "code_items",
+   "ordinal": 6,
+   "name": "tries_size",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "code_items",
+   "ordinal": 7,
+   "name": "debug_info_off",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "code_items",
+   "ordinal": 8,
+   "name": "insns_size",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "code_items",
+   "ordinal": 9,
+   "name": "insns_off",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "code_items",
+   "ordinal": 10,
+   "name": "tries_off",
+   "data_type": "UInt32",
+   "nullable": true,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "code_items",
+   "ordinal": 11,
+   "name": "handlers_off",
+   "data_type": "UInt32",
+   "nullable": true,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "annotation_directory_entries",
+   "ordinal": 0,
+   "name": "file_id",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "annotation_directory_entries",
+   "ordinal": 1,
+   "name": "class_idx",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "annotation_directory_entries",
+   "ordinal": 2,
+   "name": "annotations_off",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "annotation_directory_entries",
+   "ordinal": 3,
+   "name": "entry_kind",
+   "data_type": "Utf8",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "annotation_directory_entries",
+   "ordinal": 4,
+   "name": "entry_idx",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "annotation_directory_entries",
+   "ordinal": 5,
+   "name": "annotation_set_off",
+   "data_type": "UInt32",
+   "nullable": true,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "annotation_directory_entries",
+   "ordinal": 6,
+   "name": "annotation_set_ref_list_off",
+   "data_type": "UInt32",
+   "nullable": true,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "annotation_set_entries",
+   "ordinal": 0,
+   "name": "file_id",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "annotation_set_entries",
+   "ordinal": 1,
+   "name": "annotation_set_off",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "annotation_set_entries",
+   "ordinal": 2,
+   "name": "ordinal",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "annotation_set_entries",
+   "ordinal": 3,
+   "name": "annotation_off",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "annotations",
+   "ordinal": 0,
+   "name": "file_id",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "annotations",
+   "ordinal": 1,
+   "name": "annotation_off",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "annotations",
+   "ordinal": 2,
+   "name": "visibility",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "annotations",
+   "ordinal": 3,
+   "name": "type_idx",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "annotations",
+   "ordinal": 4,
+   "name": "element_count",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "annotation_elements",
+   "ordinal": 0,
+   "name": "file_id",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "partial",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "a0_differential_value_repetition_engine_equal_records",
+     "rule": "R2",
+     "records_with_repeat": 19,
+     "repeated_cells": 813,
+     "records_compared": 19,
+     "cells": 832,
+     "non_null_cells": 832,
+     "null_cells": 0,
+     "storage_classes": {
+      "integer": 832
+     },
+     "example_inputs": [
+      "tests/fixtures/annotations/generated/annotations-038.dex",
+      "tests/fixtures/annotations/generated/bad-parameter-arity.dex",
+      "tests/fixtures/annotations/generated/parameter-empty-nonzero-proto.dex"
+     ]
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "annotation_elements",
+   "ordinal": 1,
+   "name": "annotation_off",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "annotation_elements",
+   "ordinal": 2,
+   "name": "depth",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "annotation_elements",
+   "ordinal": 3,
+   "name": "ordinal",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "annotation_elements",
+   "ordinal": 4,
+   "name": "name_idx",
+   "data_type": "UInt32",
+   "nullable": true,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "annotation_elements",
+   "ordinal": 5,
+   "name": "value_off",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "annotation_elements",
+   "ordinal": 6,
+   "name": "value_end_off",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "annotation_elements",
+   "ordinal": 7,
+   "name": "value_kind",
+   "data_type": "Utf8",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "annotation_elements",
+   "ordinal": 8,
+   "name": "value_index",
+   "data_type": "UInt32",
+   "nullable": true,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "annotation_elements",
+   "ordinal": 9,
+   "name": "value_i64",
+   "data_type": "Int64",
+   "nullable": true,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "annotation_elements",
+   "ordinal": 10,
+   "name": "value_f64",
+   "data_type": "Float64",
+   "nullable": true,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "method_strings",
+   "ordinal": 0,
+   "name": "method",
+   "data_type": "Utf8View",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "method_strings",
+   "ordinal": 1,
+   "name": "method_class",
+   "data_type": "Utf8View",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "method_strings",
+   "ordinal": 2,
+   "name": "method_name",
+   "data_type": "Utf8View",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "method_strings",
+   "ordinal": 3,
+   "name": "value",
+   "data_type": "Utf8View",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "method_strings",
+   "ordinal": 4,
+   "name": "file_id",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "method_strings",
+   "ordinal": 5,
+   "name": "class_idx",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "method_strings",
+   "ordinal": 6,
+   "name": "method_idx",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "method_strings",
+   "ordinal": 7,
+   "name": "string_idx",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "method_calls",
+   "ordinal": 0,
+   "name": "method",
+   "data_type": "Utf8View",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "method_calls",
+   "ordinal": 1,
+   "name": "method_class",
+   "data_type": "Utf8View",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "method_calls",
+   "ordinal": 2,
+   "name": "method_name",
+   "data_type": "Utf8View",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "method_calls",
+   "ordinal": 3,
+   "name": "callee",
+   "data_type": "Utf8View",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "method_calls",
+   "ordinal": 4,
+   "name": "callee_class",
+   "data_type": "Utf8View",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "method_calls",
+   "ordinal": 5,
+   "name": "callee_name",
+   "data_type": "Utf8View",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "method_calls",
+   "ordinal": 6,
+   "name": "file_id",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "method_calls",
+   "ordinal": 7,
+   "name": "class_idx",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "method_calls",
+   "ordinal": 8,
+   "name": "method_idx",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "method_calls",
+   "ordinal": 9,
+   "name": "callee_method_idx",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "method_field_accesses",
+   "ordinal": 0,
+   "name": "method",
+   "data_type": "Utf8View",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "method_field_accesses",
+   "ordinal": 1,
+   "name": "method_class",
+   "data_type": "Utf8View",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "method_field_accesses",
+   "ordinal": 2,
+   "name": "method_name",
+   "data_type": "Utf8View",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "method_field_accesses",
+   "ordinal": 3,
+   "name": "field",
+   "data_type": "Utf8View",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "method_field_accesses",
+   "ordinal": 4,
+   "name": "field_class",
+   "data_type": "Utf8View",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "method_field_accesses",
+   "ordinal": 5,
+   "name": "field_name",
+   "data_type": "Utf8View",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "method_field_accesses",
+   "ordinal": 6,
+   "name": "field_type",
+   "data_type": "Utf8View",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "method_field_accesses",
+   "ordinal": 7,
+   "name": "using_type",
+   "data_type": "Utf8",
+   "nullable": true,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "missing",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "null_branch_unreachable_by_exhaustion",
+     "rule": "R3",
+     "test": "instructions::tests::every_field_referencing_opcode_is_a_get_or_a_put",
+     "crate": "mdd-dex",
+     "claim": "every opcode that references a field is an iget, iput, sget or sput; using_type is NULL only for any other opcode, so no instruction can produce NULL",
+     "records_compared": 14,
+     "cells": 35,
+     "non_null_cells": 35,
+     "null_cells": 0,
+     "storage_classes": {
+      "text": 35
+     },
+     "example_inputs": [
+      "tests/fixtures/mixed_reference_boundary/generated/classic.dex",
+      "tests/fixtures/mixed_reference_boundary/generated/shared.dex",
+      "tests/fixtures/parameter_descriptors/unicode-parameters-038.dex"
+     ]
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "method_field_accesses",
+   "ordinal": 8,
+   "name": "file_id",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "method_field_accesses",
+   "ordinal": 9,
+   "name": "class_idx",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "method_field_accesses",
+   "ordinal": 10,
+   "name": "method_idx",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "method_field_accesses",
+   "ordinal": 11,
+   "name": "field_idx",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "method_used_types",
+   "ordinal": 0,
+   "name": "method",
+   "data_type": "Utf8View",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "method_used_types",
+   "ordinal": 1,
+   "name": "method_class",
+   "data_type": "Utf8View",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "method_used_types",
+   "ordinal": 2,
+   "name": "method_name",
+   "data_type": "Utf8View",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "method_used_types",
+   "ordinal": 3,
+   "name": "type_descriptor",
+   "data_type": "Utf8View",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "method_used_types",
+   "ordinal": 4,
+   "name": "type_name",
+   "data_type": "Utf8View",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "method_used_types",
+   "ordinal": 5,
+   "name": "file_id",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "method_used_types",
+   "ordinal": 6,
+   "name": "class_idx",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "method_used_types",
+   "ordinal": 7,
+   "name": "method_idx",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  },
+  {
+   "relation": "method_used_types",
+   "ordinal": 8,
+   "name": "type_idx",
+   "data_type": "UInt32",
+   "nullable": false,
+   "base_category_state": {
+    "field_type": "satisfied",
+    "null": "satisfied",
+    "order": "satisfied",
+    "multiplicity": "satisfied",
+    "source": "satisfied",
+    "raw_fingerprint": "satisfied"
+   },
+   "categories": {
+    "field_type": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "null": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "order": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "multiplicity": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "source": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    },
+    "raw_fingerprint": {
+     "state": "satisfied",
+     "basis": "merged_matrix_v10"
+    }
+   },
+   "resolved": true,
+   "satisfied_in_all_six": true
+  }
+ ]
+}

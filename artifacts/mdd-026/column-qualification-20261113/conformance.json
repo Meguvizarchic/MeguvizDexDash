@@ -1,0 +1,225 @@
+{
+ "schema_version": "mdd.facts-qualification-conformance.v1",
+ "task": "MDD-026",
+ "kind": "development evidence; admits no profile",
+ "acceptance": [
+  {
+   "acceptance": "candidate indexes never miss a hit; every approximate candidate passes an exact predicate before it enters a result",
+   "tests": [
+    {
+     "test": "indexes::tests::utf16_raw_candidates_match_scalar_and_hand_oracle_without_occurrence_dedup",
+     "outcome": "ok"
+    },
+    {
+     "test": "indexes::tests::exhaustive_candidate_probe_for_independent_code_unit_oracle",
+     "outcome": "ok"
+    },
+    {
+     "test": "indexes::tests::scalar_reference_scan_is_independent_of_lazy_candidate_failure",
+     "outcome": "ok"
+    },
+    {
+     "test": "indexes::tests::raw_mutf8_reference_index_preserves_exact_sites_and_source_occurrences",
+     "outcome": "ok"
+    },
+    {
+     "test": "indexes::tests::string_utf16_reference_index_preserves_nonscalar_sites_and_occurrences",
+     "outcome": "ok"
+    },
+    {
+     "test": "indexes::tests::definition_name_postings_use_utf16_code_unit_order",
+     "outcome": "ok"
+    },
+    {
+     "test": "indexes::tests::type_descriptor_reference_index_preserves_exact_sites_and_occurrences",
+     "outcome": "ok"
+    },
+    {
+     "test": "indexes::tests::callsite_encoded_byte_key_keeps_same_content_and_all_occurrence_sites",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  },
+  {
+   "acceptance": "lazy build, concurrent first build and error retry have one auditable terminal state; an unbuilt index is never read as zero facts",
+   "tests": [
+    {
+     "test": "indexes::lazy::tests::concurrent_first_build_publishes_one_immutable_terminal",
+     "outcome": "ok"
+    },
+    {
+     "test": "indexes::lazy::tests::panic_quota_deadline_failures_are_audited_without_implicit_retry",
+     "outcome": "ok"
+    },
+    {
+     "test": "indexes::lazy::tests::joined_failed_attempt_survives_immediate_ready_retry",
+     "outcome": "ok"
+    },
+    {
+     "test": "indexes::tests::index_quota_deadline_and_unbuilt_failures_never_publish_ready_or_zero",
+     "outcome": "ok"
+    },
+    {
+     "test": "indexes::tests::exact_class_lookup_exposes_scope_and_rejects_unbuilt_coverage",
+     "outcome": "ok"
+    },
+    {
+     "test": "indexes::tests::coverage_retains_late_genuine_errors_and_rejects_terminal_overwrite",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  },
+  {
+   "acceptance": "the input/facts three-state coverage of required_layers and scope_id is recomputable and a failed required layer blocks a complete result",
+   "tests": [
+    {
+     "test": "coverage::coverage_column_gate_tests::missing_provider_object_is_unknown_not_complete",
+     "outcome": "ok"
+    },
+    {
+     "test": "coverage::coverage_column_gate_tests::provider_gate_rejection_reports_unknown_with_provider_error",
+     "outcome": "ok"
+    },
+    {
+     "test": "coverage::coverage_column_gate_tests::unmapped_relation_is_never_gated_to_complete",
+     "outcome": "ok"
+    },
+    {
+     "test": "coverage::coverage_column_gate_tests::relation_request_fills_columns_and_scope_request_stays_layer_only",
+     "outcome": "ok"
+    },
+    {
+     "test": "indexes::tests::coverage_for_relations_fills_columns_and_uses_the_provider_gate",
+     "outcome": "ok"
+    },
+    {
+     "test": "indexes::tests::fine_coverage_parameter_positions_projection_bodies_source_and_resource",
+     "outcome": "ok"
+    },
+    {
+     "test": "indexes::tests::explicit_subset_negative_proof_and_foreign_generation_are_bounded",
+     "outcome": "ok"
+    },
+    {
+     "test": "provider::hostlab::tests::coverage_ledger_gates_each_relation_on_the_layers_that_prove_it",
+     "outcome": "ok"
+    },
+    {
+     "test": "coverage::error_detail_tests::source_error_scope_detail_is_preserved",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  },
+  {
+   "acceptance": "every required HostLab fact has field/type, NULL, order, multiplicity, source and raw-fingerprint evidence (see the column qualification below)",
+   "tests": [
+    {
+     "test": "indexes::tests::newly_assembled_columns_keep_contract_type_and_nullability",
+     "outcome": "ok"
+    },
+    {
+     "test": "metadata::tests::relation_projections_match_contract_columns_types_and_nullability",
+     "outcome": "ok"
+    },
+    {
+     "test": "provider::hostlab::tests::every_relation_matches_the_recorded_a0_readback_row_for_row",
+     "outcome": "ok"
+    },
+    {
+     "test": "provider::hostlab::tests::a0_differential_over_the_fixture_corpus_has_only_declared_divergences",
+     "outcome": "ok"
+    },
+    {
+     "test": "indexes::scope::metadata_rows_tests::dex_file_provenance_matches_recorded_a0_entries",
+     "outcome": "ok"
+    },
+    {
+     "test": "instructions::tests::every_field_referencing_opcode_is_a_get_or_a_put",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  },
+  {
+   "acceptance": "verified through hand fixtures, independent oracles and the scalar path, not a parser compared with itself",
+   "tests": [
+    {
+     "test": "indexes::tests::utf16_raw_candidates_match_scalar_and_hand_oracle_without_occurrence_dedup",
+     "outcome": "ok"
+    },
+    {
+     "test": "indexes::tests::exhaustive_candidate_probe_for_independent_code_unit_oracle",
+     "outcome": "ok"
+    },
+    {
+     "test": "provider::hostlab::tests::hostlab_variants_match_the_a0_golden_results",
+     "outcome": "ok"
+    },
+    {
+     "test": "provider::hostlab::tests::a0_differential_over_the_fixture_corpus_has_only_declared_divergences",
+     "outcome": "ok"
+    },
+    {
+     "test": "definitions::tests::param_descriptors_match_recorded_a0_rows",
+     "outcome": "ok"
+    },
+    {
+     "test": "code::tests::methods_rows_assemble_all_contract_columns_and_match_recorded_a0",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  }
+ ],
+ "column_qualification": {
+  "file": "artifacts/mdd-026/column-qualification-20261113/column-qualification.json",
+  "file_sha256": "d7cae1f6698e5af1ed687be323c15e5418d1c3cdf22cc425ff442f2e74d5575f",
+  "merged_matrix_v10_sha256": "078f8203e1dae6eb4d53835d30389066b52ad6ff6a3dc46af6cba7d91f412df4",
+  "inputs_current": true,
+  "stale_inputs": [],
+  "columns": 156,
+  "satisfied_in_all_six_by_base": 140,
+  "satisfied_in_all_six_after_fold": 154,
+  "declared_not_applicable": [
+   "dex_files.file_id:multiplicity",
+   "dex_files.string_pool_id:multiplicity"
+  ],
+  "unresolved": [],
+  "not_raised_by_fold": []
+ },
+ "residual": [
+  "the typed-IR executor path (mdd-query) requests layers only; column-level coverage is wired for the HostLab SQL provider path",
+  "column evidence rests on the 185 fixture inputs of the A0 differential, the recorded A0 readback and the fix-round harnesses; no private workload or real APK corpus",
+  "the fold of differential evidence into the six categories is a policy choice recorded in the qualification file; it can be reversed by regenerating without it",
+  "dex_files.file_id and dex_files.string_pool_id multiplicity is declared not_applicable (unique occurrence coordinates), not proven",
+  "the 2026-10-28 qualification generator conformance/facts/qualify.py stays a historical record and still fails on source drift by design"
+ ],
+ "run": {
+  "command": [
+   "cargo",
+   "test",
+   "--offline",
+   "--locked",
+   "-p",
+   "mdd-facts",
+   "-p",
+   "mdd-dex",
+   "-p",
+   "mdd-sql",
+   "--lib"
+  ],
+  "started_utc": "2026-11-13T05:24:33.425582+00:00",
+  "finished_utc": "2026-11-13T05:24:46.027662+00:00",
+  "exit_code": 0,
+  "raw_log_sha256": "ee1a72d75ca05968fd673e4c2a1a0a2fce53233f795a08a5911bfd7f69cf9fd3",
+  "raw_log_bytes": 41792,
+  "raw_log_kept_at": "artifacts/local/ (ignored; carries developer-machine output)",
+  "targets": 3,
+  "passed": 451,
+  "failed": 0,
+  "ignored": 0
+ }
+}

@@ -16853,6 +16853,21 @@
       "sha256": "dca2fae8dbfbcae2127b1fe33aad6c8cbcc3a4a75f6221174e698dda4f821245"
     },
     {
+      "path": "artifacts/mdd-026/column-qualification-20261113/SUMMARY.md",
+      "bytes": 3158,
+      "sha256": "3942123df528e9b2718796c3bcd8f1076992c418ae312ee2e7cbd96a8966b760"
+    },
+    {
+      "path": "artifacts/mdd-026/column-qualification-20261113/column-qualification.json",
+      "bytes": 160220,
+      "sha256": "d7cae1f6698e5af1ed687be323c15e5418d1c3cdf22cc425ff442f2e74d5575f"
+    },
+    {
+      "path": "artifacts/mdd-026/column-qualification-20261113/conformance.json",
+      "bytes": 7715,
+      "sha256": "c25e6f86693411f0ea9897dba192e683c73d51176cbc42c137bef7af70693f38"
+    },
+    {
       "path": "artifacts/mdd-026/coverage-error-detail-20261030/green/output.txt",
       "bytes": 642,
       "sha256": "f3846436ecc9daa97270c798512e0a7d567d408bc3f6b477fd319e0e35492dd5"
