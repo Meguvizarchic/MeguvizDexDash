@@ -1,0 +1,85 @@
+{
+ "schema_version": "mdd.sql-semantics.v1",
+ "task": "MDD-031",
+ "kind": "development evidence; admits no profile",
+ "engine_sqlite": {
+  "libsqlite3_sys": "0.38.2",
+  "bundled": true
+ },
+ "dialects": [
+  "NativeV1",
+  "DexSql010",
+  "DexSql011"
+ ],
+ "pushdown_policy": {
+  "omit": false,
+  "order_by_consumed": false,
+  "limit_offset_pushdown": false,
+  "in_pushdown": false,
+  "all_disabled": true,
+  "source": "crates/mdd-sql/src/virtual_tables/mod.rs",
+  "meaning": "xFilter receives argv_index 0 and SQLite performs every filter, sort, LIMIT, OFFSET and IN itself; nothing is claimed as exactly handled"
+ },
+ "independent_oracles": [
+  {
+   "name": "python stdlib sqlite3",
+   "sqlite_version": "3.53.1",
+   "file": "artifacts/mdd-031-audit/gap-closure-20261111/oracle/oracle-results.json",
+   "sha256": "59377535c64e29f7a0327744d1fd876d4a093b20e83348a381c9acc604d51b6e",
+   "scope": "synthetic rows and frozen HostLab Q-series shapes; no real APK facts, no profile admission",
+   "q_series_shapes": 9,
+   "feature_shapes": 19,
+   "integer_cast_cases": 5
+  },
+  {
+   "name": "frozen A0 dexsql 0.1.0",
+   "file": "conformance/corpus/hostlab/expected-results/hostlab-a0-golden.json",
+   "sha256": "fc6df45f33b0e6f67a759e9065cb116d3d1b66cd25b515b09f9f99a720331d2f",
+   "scope": "DexSql011 only: 77 variants over three synthetic DEX fixtures"
+  }
+ ],
+ "documented_dialect_policy": [
+  {
+   "dialect": "NativeV1",
+   "behavior": "CAST of text to INTEGER requires exact text (INVALID_INTEGER_CAST); SQLite and the legacy dialects use the numeric prefix",
+   "test": "native_v1_integer_cast_requires_exact_text_and_diverges_from_sqlite_prefix"
+  },
+  {
+   "dialect": "NativeV1",
+   "behavior": "unaliased result expressions keep SQLite's expression-text names and result names keep their case; the DexSql dialects follow the reference (`column`, function name, ASCII lower case)",
+   "test": "hostlab_variants_match_the_a0_golden_results"
+  }
+ ],
+ "fail_closed_gaps": [
+  {
+   "form": "GLOB operator",
+   "classification": "UnsupportedQuery",
+   "test": "known_unsupported_forms_fail_closed_with_the_unsupported_classification"
+  },
+  {
+   "form": "recursive CTE",
+   "classification": "UnsupportedQuery",
+   "test": "known_unsupported_forms_fail_closed_with_the_unsupported_classification"
+  },
+  {
+   "form": "abs()",
+   "classification": "UnsupportedQuery",
+   "test": "known_unsupported_forms_fail_closed_with_the_unsupported_classification"
+  },
+  {
+   "form": "trim()",
+   "classification": "UnsupportedQuery",
+   "test": "known_unsupported_forms_fail_closed_with_the_unsupported_classification"
+  },
+  {
+   "form": "total()",
+   "classification": "UnsupportedQuery",
+   "test": "known_unsupported_forms_fail_closed_with_the_unsupported_classification"
+  },
+  {
+   "form": "unknown double-quoted identifier as a string literal",
+   "classification": "InvalidArgument (binding error)",
+   "test": "known_unsupported_forms_fail_closed_with_the_unsupported_classification"
+  }
+ ]
+}

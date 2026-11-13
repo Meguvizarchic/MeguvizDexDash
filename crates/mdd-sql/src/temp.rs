@@ -52,6 +52,42 @@ pub const KIND_CREATE: &str = "create_temp_table";
 /// Statement kind reported for every `DROP`.
 pub const KIND_DROP: &str = "drop_definition";
 
+/// Named temporary queries one `query` call may carry in the reference tool.
+pub const MAX_NAMED_TEMP_QUERIES: usize = 16;
+
+/// One `named_temp_queries` entry of a call.
+#[derive(Clone, Copy, Debug)]
+pub struct NamedTempQuery<'a> {
+    pub name: &'a str,
+    pub sql: &'a str,
+}
+
+/// A name for a named temporary query: a plain ASCII identifier that is not an
+/// SQL keyword, folded to lower case. Anything else is refused as invalid input
+/// without a statement index, like the reference.
+fn named_identifier(name: &str) -> MddResult<String> {
+    let plain = name
+        .chars()
+        .next()
+        .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+        && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+        && name.len() <= 128;
+    let keyword = Tokenizer::new(&SQLiteDialect {}, name)
+        .tokenize()
+        .ok()
+        .and_then(|tokens| {
+            tokens.into_iter().find_map(|token| match token {
+                Token::Word(word) => Some(word.keyword != Keyword::NoKeyword),
+                _ => None,
+            })
+        })
+        .unwrap_or(true);
+    if !plain || keyword {
+        return Err(invalid("INVALID_TEMP_TABLE_NAME").detail("name", name.to_owned()));
+    }
+    Ok(name.to_ascii_lowercase())
+}
+
 fn unsupported(reason: &str) -> MddError {
     MddError::new(ErrorCode::UnsupportedQuery, "sql.temp", reason)
 }
@@ -564,6 +600,45 @@ impl TempSqlSession {
             }
         }
         Ok(results)
+    }
+
+    /// A whole `query` call: `named_temp_queries` first, then the `sql[]` items.
+    ///
+    /// A named temporary query is a lazy named `SELECT` definition kept in the
+    /// session like a TEMP table: the reference engine registers it as a TABLE
+    /// (so `DROP TABLE name` removes it and `DROP VIEW name` is refused), replaces
+    /// an earlier definition of the same name silently, and processes the list in
+    /// order, so a definition may read an earlier one but not a later one. Each
+    /// body is exactly one query. The call shape (item count, blank items, byte
+    /// budget, at most [`MAX_NAMED_TEMP_QUERIES`] definitions) is checked before
+    /// anything changes; after that, definitions already made stay even when a
+    /// later definition or statement fails, as with ordinary statements.
+    pub fn execute_call(
+        &self,
+        items: &[&str],
+        named: &[NamedTempQuery<'_>],
+        window: Option<SqlWindow>,
+    ) -> MddResult<Vec<TempStatementResult>> {
+        if named.len() > MAX_NAMED_TEMP_QUERIES {
+            return Err(invalid("NAMED_TEMP_QUERY_COUNT_OUT_OF_RANGE")
+                .detail("named_temp_queries", named.len().to_string())
+                .detail("maximum", MAX_NAMED_TEMP_QUERIES.to_string()));
+        }
+        script_statements(items)?;
+        for definition in named {
+            let name = named_identifier(definition.name)?;
+            let Parsed::Query(query) = parse_statement(definition.sql, self.bridge.limits())?
+            else {
+                return Err(
+                    unsupported("a named temporary query body must be a read-only query")
+                        .detail("relation", name),
+                );
+            };
+            // The reference reports a body that fails to bind at statement 0.
+            self.create(&name, TempKind::Table, false, &query)
+                .map_err(|error| error.detail("statement_index", "0"))?;
+        }
+        self.execute_batch(items, window)
     }
 
     fn create(

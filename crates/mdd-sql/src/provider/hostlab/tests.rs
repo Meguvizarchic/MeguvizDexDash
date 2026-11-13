@@ -1869,3 +1869,40 @@ fn calls_the_reference_refuses_are_refused_with_the_same_failing_statement() {
         }
     }
 }
+
+/// Forms the reference answers and the engine knowingly does not implement. They
+/// must be refused as the *classified* gap they are, never answered wrongly, never
+/// reported as a syntax error, and the refusal is what the ledger records as open.
+#[test]
+fn known_unsupported_forms_fail_closed_with_the_unsupported_classification() {
+    let harness = open(&[(
+        "tests/fixtures/definitions/generated/definitions-035.dex",
+        InputKind::RawDex,
+    )]);
+    let bridge = harness.bridge(SqlDialect::DexSql011);
+    for (label, sql) in [
+        ("GLOB", "SELECT 'abc' GLOB 'a*' AS g"),
+        (
+            "recursive CTE",
+            "WITH RECURSIVE c(n) AS (SELECT 1 UNION ALL SELECT n+1 FROM c WHERE n<3) SELECT n FROM c",
+        ),
+        ("abs()", "SELECT abs(-1) AS a"),
+        ("trim()", "SELECT trim(' a ') AS t"),
+        ("total()", "SELECT total(file_id) AS t FROM dex_files"),
+    ] {
+        let error = bridge
+            .query(sql)
+            .expect_err(&format!("{label} is documented as not implemented"));
+        assert_eq!(
+            error.code,
+            mdd_types::ErrorCode::UnsupportedQuery,
+            "{label}: {error:?}"
+        );
+    }
+    // An unknown double-quoted identifier is a binding error in the engine (the
+    // reference falls back to a string literal); it is not silently a string.
+    let error = bridge
+        .query("SELECT \"no_such_column\" AS q FROM dex_files")
+        .expect_err("a double-quoted unknown identifier must not become a string literal");
+    assert_eq!(error.code, mdd_types::ErrorCode::InvalidArgument);
+}

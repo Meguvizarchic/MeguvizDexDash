@@ -173,7 +173,6 @@ def build_032(run: dict) -> dict:
                        for r in golden["rejections"]],
         "acceptance": acceptance_rows(MDD032_ACCEPTANCE, run["results"]),
         "not_covered": [
-            "Q16 named_temp_queries tool argument",
             "recursive CTE (engine refuses with RECURSIVE_CTE_NOT_YET_QUALIFIED; no frozen template uses it)",
             "GLOB operator (engine refuses with BINARY_OPERATOR_NOT_IMPLEMENTED; no frozen template uses it)",
             "double-quoted string literals: the reference falls back to a string literal for an unknown double-quoted identifier, the engine refuses it",
@@ -218,7 +217,6 @@ def build_033(run: dict) -> dict:
         "not_covered": [
             "transport wiring: no MCP/CLI entry point calls TempSqlSession or the cursor APIs yet",
             "mdd.result.v1 carries no offset field by design; compatible offsets are request-side",
-            "named_temp_queries tool argument of the reference query tool",
             "recursive CTE inside a definition (the engine refuses recursive CTEs everywhere)",
         ],
         "run": {k: v for k, v in run.items() if k != "results"},

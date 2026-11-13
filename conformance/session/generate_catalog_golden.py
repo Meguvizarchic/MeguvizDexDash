@@ -38,10 +38,13 @@ PAGE_AFTER = PAGE_BEFORE.replace("'before'", "'after'")
 PAGE_SELECT = "SELECT id,tag FROM page_base ORDER BY id"
 
 
-def step(statements, session="a", limit=50, offset=0):
+def step(statements, session="a", limit=50, offset=0, named=None):
     if isinstance(statements, str):
         statements = [statements]
-    return {"session": session, "statements": statements, "limit": limit, "offset": offset}
+    item = {"session": session, "statements": statements, "limit": limit, "offset": offset}
+    if named is not None:
+        item["named_temp_queries"] = [{"name": n, "sql": q} for n, q in named]
+    return item
 
 
 SCENARIOS = [
@@ -187,6 +190,40 @@ SCENARIOS = [
         step(PAGE_BEFORE), step(PAGE_SELECT, limit=2, offset=0),
         step("CREATE TEMP TABLE page_base AS SELECT 1 AS id,'x' AS tag UNION ALL SELECT 2,'x'"),
         step(PAGE_SELECT, limit=2, offset=2), step(PAGE_SELECT, limit=2, offset=0)]},
+    {"name": "named_temp_queries", "steps": [
+        step("SELECT n FROM nq", named=[("nq", "SELECT 1 AS n")]),
+        step("SELECT n FROM nq"),
+        step("DROP VIEW nq"),
+        step("SELECT n FROM nq"),
+        step("DROP TABLE nq"),
+        step("SELECT n FROM nq"),
+        step("SELECT m FROM b", named=[("a", "SELECT 1 AS n"), ("b", "SELECT n+1 AS m FROM a")]),
+        step("SELECT m FROM b2", named=[("b2", "SELECT n+1 AS m FROM a2"), ("a2", "SELECT 1 AS n")]),
+        step("SELECT n FROM d1", named=[("d1", "SELECT 1 AS n"), ("d1", "SELECT 2 AS n")]),
+        step("SELECT n FROM CASEQ", named=[("CaseQ", "SELECT 3 AS n")]),
+        step("SELECT n FROM w1", named=[("w1", "WITH q AS (SELECT 4 AS n) SELECT n FROM q")]),
+        step("SELECT * FROM nope", named=[("k1", "SELECT 7 AS n")]),
+        step("SELECT n FROM k1"),
+        step("SELECT COUNT(*) AS c FROM strings", named=[("strings", "SELECT 9 AS c")]),
+        step("SELECT COUNT(*) AS c FROM strings"),
+        step("DROP TABLE strings"),
+        step("SELECT COUNT(*) AS c FROM strings"),
+        step("CREATE TEMP VIEW v1 AS SELECT 1 AS n"),
+        step("SELECT n FROM v1", named=[("v1", "SELECT 2 AS n")]),
+        step("DROP VIEW v1"),
+        step("DROP TABLE v1"),
+        step("SELECT 1", named=[("e1", "")]),
+        step("SELECT 1", named=[("e2", "SELECT 1; SELECT 2")]),
+        step("SELECT 1", named=[("e3", "CREATE TEMP VIEW zz AS SELECT 1")]),
+        step("SELECT 1", named=[("e4", "DROP TABLE x")]),
+        step("SELECT 1", named=[("e5", "SELECT * FROM nope")]),
+        step("SELECT 1", named=[("a b", "SELECT 1")]),
+        step("SELECT 1", named=[("select", "SELECT 1")]),
+        step("SELECT 1", named=[("x%d" % i, "SELECT 1") for i in range(17)]),
+        step("SELECT 1", named=[("x%d" % i, "SELECT 1") for i in range(16)]),
+        step(["SELECT 1", "   "], named=[("late", "SELECT 8 AS n")]),
+        step("SELECT n FROM late"),
+        step("SELECT n FROM nq2", named=[("nq2", "SELECT 1 AS n")], limit=1, offset=3)]},
 ]
 
 
@@ -201,8 +238,9 @@ def record(statement):
 
 
 def run_step(client, datasets, item):
+    extra = {"named_temp_queries": item["named_temp_queries"]} if "named_temp_queries" in item else {}
     reply = client.tool("query", dataset_id=datasets[item["session"]], sql=item["statements"],
-                        limit=item["limit"], offset=item["offset"])
+                        limit=item["limit"], offset=item["offset"], **extra)
     if reply["_is_error"] or "statements" not in reply:
         return G.error_record(reply)
     return {"statements": [record(s) for s in reply["statements"]]}

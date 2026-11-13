@@ -96,7 +96,21 @@ fn run_step(engine: &Engine, step: &serde_json::Value) -> serde_json::Value {
         step["offset"].as_u64().unwrap(),
         step["limit"].as_u64().unwrap(),
     )
-    .and_then(|window| session.execute_batch(&statements, Some(window.counting_total())));
+    .and_then(|window| {
+        let named: Vec<crate::temp::NamedTempQuery<'_>> = step
+            .get("named_temp_queries")
+            .and_then(|list| list.as_array())
+            .map(|list| {
+                list.iter()
+                    .map(|entry| crate::temp::NamedTempQuery {
+                        name: entry["name"].as_str().unwrap(),
+                        sql: entry["sql"].as_str().unwrap(),
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        session.execute_call(&statements, &named, Some(window.counting_total()))
+    });
     match outcome {
         Ok(results) => serde_json::json!({
             "statements": results.iter().map(engine_record).collect::<Vec<_>>()
@@ -163,7 +177,7 @@ fn temp_scenarios_match_the_recorded_a0_behaviour() {
     assert_eq!(golden["a0_sha256"], REFERENCE_A0_SHA256);
     let inputs: Vec<&str> = strings_of(&golden["inputs"]);
     let scenarios = golden["scenarios"].as_array().unwrap();
-    assert!(scenarios.len() >= 22, "scenario set shrank");
+    assert!(scenarios.len() >= 23, "scenario set shrank");
     let mut compared = 0usize;
     let mut divergent = Vec::new();
     for scenario in scenarios {
@@ -185,7 +199,7 @@ fn temp_scenarios_match_the_recorded_a0_behaviour() {
             compared += 1;
         }
     }
-    assert!(compared >= 158, "only {compared} steps compared");
+    assert!(compared >= 191, "only {compared} steps compared");
     let mut declared: Vec<String> = DECLARED_DIVERGENCES
         .iter()
         .map(|(key, _)| (*key).to_owned())
