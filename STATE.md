@@ -248,6 +248,22 @@
 
 **推翻条件**：若你不接受 R2 对 `dex_files.file_id/string_pool_id` 的 `not_applicable`，或不接受“相等记录里的值重复”作为 `file_id` 等列的 multiplicity 证据，去掉对应规则重跑工具，该列会回到 partial，MDD-026 随之重开。
 
+## 2026-11-13 远端 CI 连续失败：测试依赖被忽略的本机文件
+
+**现象**：GitHub Actions `Native build and conformance` 自 2026-11-06 的 a9aa1f0 全绿之后，2026-11-13 推送的 e3679e0 起到 f2c6bc6 共 7 次推送全部失败。windows 任务停在 `Test native implementation`，ubuntu 任务停在 `setup-python`。上一节“门禁全过”只在本机成立，当时没有查远端 CI。
+
+**证据与根因**
+- windows：`indexes::scope::metadata_rows_tests::dex_file_provenance_matches_recorded_a0_entries` 在 `scope.rs` 的 `Snapshot::capture(...).unwrap()` 处 panic（`input_ordinal=0`，文件不存在）。第一次失败 e3679e0 与最近一次失败是同一测试、同一行。
+- 该测试第三个用例读 `artifacts/mdd-026/column-audit-v10/_probe-verify_cross_dex_identity/20261109T045613053519Z/synthetic-same-content.apk`，而该文件被 `.gitignore` 的 `*.apk` 忽略（仓库只豁免了 `tests/fixtures/generated/*.apk`），从未入库。本机因为文件在磁盘上所以一直通过，干净检出必然失败。MDD-026 收口把这个测试列为 multiplicity 证据，所以该证据在干净检出下原本不可复现。
+- 该 APK 是纯合成件：两个 stored 条目 `classes.dex`/`classes2.dex`（各 660 字节，内容是 classic 夹具），固定时间戳，无注释、无路径或用户名字符串；1540 字节，sha256 `79998e76…54f9` 与 2026-10-28 的 cross-dex 审计里记录的 `content_id` 一致，由 `conformance/facts/verify_cross_dex_identity.py` 确定性生成。
+- ubuntu：`ubuntu-latest` 现在是 Ubuntu 26.04，没有 Python 3.12.10（`The version '3.12.10' with architecture 'x64' was not found for Ubuntu 26.04`）。这是 runner 镜像漂移，与本仓库改动无关，**本次未处理**；`ci.yml` 里的 Python 固定是 2026-10-28 的 d9ce060 有意为之，改动需另行决定。
+
+**最终方案**：在 `.gitignore` 为这一个文件加精确豁免并入库，路径不动（A0 记录的 `source_path` 与 `probe_rows.rs`、`readback.py` 都指向它）；`artifacts/index.json` 登记该文件。失败/未采用的做法：把文件挪进 `tests/fixtures/generated/`（会让测试里与 A0 记录路径的比对需要额外映射，并改动已记录的历史路径含义）；让测试在运行时生成 APK（改测试语义，不在本次范围）。
+
+**验证范围**：用 `git archive HEAD` 造出只含已跟踪文件的干净副本（与 CI 等价），不加修复时 `cargo test --offline --locked --workspace --no-fail-fast` 为 39 个测试二进制、803 项通过、1 项失败（即上述测试，仅此一项）；加入该 APK 后同命令为 804 项通过、0 失败。同一副本里 `cargo build -p mdd-cli`、`conformance/check-cli-contract.py`、`conformance/check-inspection.py`、`cargo run -p mdd-build-probe` 均退出码 0。本机 `static`、`progress` 门禁通过。**未验证**：远端 Actions 在本修复推送后的实际结果；ubuntu 任务；这是 Windows 本机的等价复现，不是 GitHub runner。
+
+**教训**：证据所依赖的夹具必须能从干净检出得到；推送前除本机门禁外要在干净检出（`git archive HEAD`）里跑一遍与 CI 相同的命令。
+
 ## Checkout 与交付
 
 工程目录 D:\MeguvisDexDash（保留目录原拼写）。远端已迁移到 https://github.com/Meguvizarchic/MeguvizDexDash（**公开仓库**，旧地址 jichuo1/MeguvizDexDash 自动转发）；PR #1 已于 2026-11-04 合并，`main` 现为 a9aa1f0，其中 27ac27e 是由本分支 71dfce9 生成的「脱敏工程进度快照」，之后 8 个提交是修补与 README/图标。本地分支 codex/m2-facts-20261028 当前**没有远端分支**：2026-11-12 曾整体推送，随后发现仓库公开，已按用户决定删除远端分支（GitHub 上提交仍可按 SHA 读取）。重新推送前必须先决定公开范围，见下节。

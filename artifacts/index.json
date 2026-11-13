@@ -12663,6 +12663,11 @@
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     {
+      "path": "artifacts/mdd-026/column-audit-v10/_probe-verify_cross_dex_identity/20261109T045613053519Z/synthetic-same-content.apk",
+      "bytes": 1540,
+      "sha256": "79998e767c89d769bdb8adf38b12727aab852659faed6e87b193ba90c6e554f9"
+    },
+    {
       "path": "artifacts/mdd-026/column-audit-v10/_probe-verify_header_bytes/20261109T045613053519Z/a0-classic-035/stderr.txt",
       "bytes": 0,
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"

@@ -7,6 +7,10 @@
 .env.*
 *.apk
 !tests/fixtures/generated/*.apk
+# Synthetic two-entry APK (classic.dex twice, fixed timestamps) that
+# crates/mdd-facts scope.rs dex_file_provenance_matches_recorded_a0_entries reads;
+# A0's recorded source_path points here, so the file stays at this path.
+!artifacts/mdd-026/column-audit-v10/_probe-verify_cross_dex_identity/20261109T045613053519Z/synthetic-same-content.apk
 /artifacts/local/
 /artifacts/**/*.exe
 /artifacts/**/*.dll
