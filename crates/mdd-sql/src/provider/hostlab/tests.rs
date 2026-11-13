@@ -1445,6 +1445,7 @@ fn a0_differential_over_the_fixture_corpus_has_only_declared_divergences() {
     let mut bridges: std::collections::BTreeMap<String, Result<SqlBridge, String>> =
         std::collections::BTreeMap::new();
     let (mut equal, mut both_fail) = (0usize, 0usize);
+    let mut equal_records: Vec<(String, String)> = Vec::new();
     let mut divergent: Vec<(String, String)> = Vec::new();
     let mut engine_only: Vec<(String, String)> = Vec::new();
     let mut problems: Vec<String> = Vec::new();
@@ -1528,6 +1529,7 @@ fn a0_differential_over_the_fixture_corpus_has_only_declared_divergences() {
                 expected.sort();
                 if actual == expected {
                     equal += 1;
+                    equal_records.push((input.clone(), relation.clone()));
                 } else {
                     divergent.push((short, relation));
                 }
@@ -1555,6 +1557,35 @@ fn a0_differential_over_the_fixture_corpus_has_only_declared_divergences() {
     // Guard against the comparison silently shrinking: these are the records
     // on which both engines answered identically when the corpus was frozen.
     assert_eq!(equal, EXPECTED_EQUAL_RECORDS, "records equal to A0");
+    // The exact set, not just its size, is what the column qualification relies on:
+    // a record counts as evidence for a column only if the engine answered it
+    // identically to A0. The set is committed next to the corpus and compared here.
+    equal_records.sort();
+    let manifest_path =
+        fixture("artifacts/mdd-032-audit/a0-differential-20261112/engine-equal-records.json");
+    let current = serde_json::json!({
+        "schema_version": "mdd.a0-engine-equal-records.v1",
+        "a0_sha256": corpus["a0_sha256"],
+        "records": equal_records
+            .iter()
+            .map(|(input, relation)| serde_json::json!({"input": input, "relation": relation}))
+            .collect::<Vec<_>>(),
+    });
+    if std::env::var_os("MDD_WRITE_EQUAL_RECORDS").is_some() {
+        std::fs::write(
+            &manifest_path,
+            serde_json::to_string_pretty(&current).unwrap()
+                + "
+",
+        )
+        .unwrap();
+    }
+    let recorded: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&manifest_path).expect(
+            "engine-equal-records.json must exist; regenerate with MDD_WRITE_EQUAL_RECORDS=1",
+        ))
+        .unwrap();
+    assert_eq!(recorded, current, "the set of records equal to A0 changed");
     assert_eq!(both_fail, EXPECTED_BOTH_FAIL_RECORDS, "records both refuse");
 }
 

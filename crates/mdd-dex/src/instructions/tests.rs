@@ -1142,3 +1142,35 @@ fn instruction_names_are_borrowed_from_the_static_table() {
     assert_eq!(value["mnemonic"], "return-void");
     assert_eq!(value["format"], "10x");
 }
+
+/// `method_field_accesses.using_type` is NULL only for a field-referencing opcode
+/// that is neither a get nor a put. This proves there is none: every opcode whose
+/// index operand is a field reference is one of the four instance/static
+/// get/put families, so the NULL branch of the relation cannot be reached from any
+/// instruction this decoder accepts.
+#[test]
+fn every_field_referencing_opcode_is_a_get_or_a_put() {
+    let field_opcodes: Vec<&str> = opcodes::OPCODES
+        .iter()
+        .filter(|info| info.index == "kIndexFieldRef")
+        .map(|info| info.name)
+        .collect();
+    // 14 instance and 14 static accessors in the DEX instruction set.
+    assert_eq!(field_opcodes.len(), 28, "{field_opcodes:?}");
+    for name in field_opcodes {
+        assert!(
+            ["iget", "iput", "sget", "sput"]
+                .iter()
+                .any(|prefix| name.starts_with(prefix)),
+            "{name} references a field but is neither a get nor a put"
+        );
+    }
+    // The converse holds too: no get/put-named opcode skips the field index, so
+    // the relation's prefix test sees every one of them.
+    for info in opcodes::OPCODES.iter().filter(|info| !info.reserved) {
+        let accessor = ["iget", "iput", "sget", "sput"]
+            .iter()
+            .any(|prefix| info.name.starts_with(prefix));
+        assert_eq!(accessor, info.index == "kIndexFieldRef", "{}", info.name);
+    }
+}

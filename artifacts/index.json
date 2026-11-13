@@ -46473,6 +46473,11 @@
       "sha256": "229dc21d126e6319c3b5fe7c084895714899c394d4eb4c6bccdf054981cf5136"
     },
     {
+      "path": "artifacts/mdd-032-audit/a0-differential-20261112/engine-equal-records.json",
+      "bytes": 263759,
+      "sha256": "76a645843689ac24665259c239e42a219336fea78e9e042d9d0fdf68175b8bef"
+    },
+    {
       "path": "artifacts/mdd-032-audit/a0-differential-20261112/generate.py",
       "bytes": 3808,
       "sha256": "00caa0666aff3c00824b89c1ade774923a70103c0a89444e9015a08695e59aa8"
