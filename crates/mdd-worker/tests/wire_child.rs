@@ -95,6 +95,56 @@ fn child(mode: &str) -> ! {
             );
             std::process::exit(i32::from(end.is_err()));
         }
+        "wide" => {
+            // 300 KB rows, eight per batch: one batch cannot fit the 1 MiB frame.
+            let end = serve_rows(
+                std::io::stdin(),
+                std::io::stdout(),
+                ServeConfig {
+                    hello,
+                    schema: schema(),
+                    limits: StreamLimits::default(),
+                    batch_rows: 8,
+                    credit_wait: Duration::from_secs(10),
+                },
+                rows_of(20, 300_000),
+                |_| {},
+            );
+            std::process::exit(i32::from(end.is_err()));
+        }
+        "cell_limit" => {
+            let end = serve_rows(
+                std::io::stdin(),
+                std::io::stdout(),
+                ServeConfig {
+                    hello,
+                    schema: schema(),
+                    limits: StreamLimits {
+                        max_cell_bytes: 10,
+                        ..StreamLimits::default()
+                    },
+                    batch_rows: 4,
+                    credit_wait: Duration::from_secs(10),
+                },
+                rows_of(10, 100),
+                |_| {},
+            );
+            std::process::exit(i32::from(end.is_err()));
+        }
+        "deaf" => {
+            // Says Hello and then never reads stdin again.
+            let mut writer =
+                FrameWriter::new(std::io::stdout(), ChannelKind::Dedicated, 1 << 20).unwrap();
+            writer
+                .write_frame(
+                    FrameKind::Hello,
+                    0,
+                    &serde_json::to_vec(&hello.to_json()).unwrap(),
+                )
+                .unwrap();
+            std::thread::sleep(Duration::from_secs(60));
+            std::process::exit(0);
+        }
         "source_error" => {
             let mut next = 0;
             let end = serve_rows(
@@ -208,6 +258,22 @@ fn raw(mode: &str, hello: Hello) -> ! {
             }
             std::process::exit(0);
         }
+        "cancel_only" => {
+            // Sends one batch, then ignores end of input and leaves only on a
+            // Cancel frame, so a client that merely closes stdin cannot stop it.
+            writer
+                .write_frame(FrameKind::Batch, 1, &batch(&mut producer, 1, 4))
+                .unwrap();
+            loop {
+                match reader.read_frame(1 << 20) {
+                    Ok(Some(frame)) if frame.header.kind == FrameKind::Cancel => {
+                        std::process::exit(0)
+                    }
+                    Ok(Some(_)) => {}
+                    _ => std::thread::sleep(Duration::from_millis(50)),
+                }
+            }
+        }
         "stall" => {
             writer
                 .write_frame(FrameKind::Batch, 1, &batch(&mut producer, 1, 4))
@@ -240,9 +306,13 @@ fn config(deadline: Duration) -> ClientConfig {
 }
 
 fn run(mode: &str, config: ClientConfig) -> ClientOutcome {
+    run_with_body(mode, br#"{"op":"query"}"#, config)
+}
+
+fn run_with_body(mode: &str, body: &[u8], config: ClientConfig) -> ClientOutcome {
     let mut command = Command::new(std::env::current_exe().unwrap());
     command.env("MDD_WIRE_CHILD", mode);
-    run_child(command, br#"{"op":"query"}"#, config)
+    run_child(command, body, config)
 }
 
 fn failure_kind(outcome: &ClientOutcome) -> WireErrorKind {
@@ -402,7 +472,10 @@ fn main() {
             mdd_worker::protocol::failure_to_mdd(outcome.result.as_ref().unwrap_err()).code,
             ErrorCode::Cancelled
         );
-        assert!(outcome.killed && !outcome.exit.unwrap().success());
+        // The stalled worker is killed, or, if the cancel landed during the
+        // handshake, it dies on the unexpected Cancel by itself; either way it is
+        // reaped and did not finish normally.
+        assert!(!outcome.exit.unwrap().success());
         assert!(
             started.elapsed() < Duration::from_secs(10),
             "took {:?}",
@@ -464,6 +537,12 @@ fn main() {
             let started = Instant::now();
             let outcome = run("big_stalled_consumer", cfg);
             assert_eq!(failure_kind(&outcome), WireErrorKind::DeadlineExceeded);
+            // The hook outlived the deadline, so the client must not have refilled the
+            // credit it had just consumed: only the initial grant went out.
+            assert_eq!(
+                outcome.credit_frames, 1,
+                "credit was re-granted after the deadline"
+            );
             // The client closes the worker's stdin and kills what is still running.
             // A worker that sees the closed pipe first stops by itself, so either
             // way it must be gone and reaped; what must never happen is more output.
@@ -481,6 +560,125 @@ fn main() {
                 "took {:?}",
                 started.elapsed()
             );
+        },
+    );
+
+    scenario(
+        "a worker that never reads cannot hold the client past its deadline",
+        || {
+            // A request far larger than a pipe buffer, to a worker that stopped
+            // reading: the write blocks, the exchange must still end at the deadline.
+            let big_request = vec![b'x'; 900_000];
+            let started = Instant::now();
+            let outcome = run_with_body("deaf", &big_request, config(Duration::from_millis(700)));
+            assert_eq!(failure_kind(&outcome), WireErrorKind::DeadlineExceeded);
+            assert!(outcome.killed && !outcome.exit.unwrap().success());
+            assert_eq!(
+                outcome.detached_threads, 0,
+                "the killed worker released its pipes"
+            );
+            assert!(
+                started.elapsed() < Duration::from_secs(10),
+                "took {:?}",
+                started.elapsed()
+            );
+        },
+    );
+
+    scenario(
+        "cancel is sent to a live worker, which stops by itself and is not killed",
+        || {
+            let mut cfg = config(Duration::from_secs(60));
+            cfg.initial_credit = Credit {
+                bytes: 1 << 20,
+                batches: 2,
+            };
+            let cancel = Arc::clone(&cfg.cancel);
+            cfg.on_batch = Some(Box::new(move |consumed, _| {
+                if consumed == 1 {
+                    cancel.store(true, Ordering::SeqCst);
+                }
+            }));
+            let outcome = run("big", cfg);
+            assert_eq!(failure_kind(&outcome), WireErrorKind::Cancelled);
+            assert!(
+                !outcome.killed,
+                "the worker obeyed Cancel; stderr: {}",
+                outcome.stderr
+            );
+            assert!(outcome.exit.unwrap().success());
+            assert!(
+                sent_count(&outcome.stderr) <= 2,
+                "worker wrote {}",
+                sent_count(&outcome.stderr)
+            );
+        },
+    );
+
+    scenario(
+        "a worker that ignores end of input leaves only because Cancel was sent",
+        || {
+            let mut cfg = config(Duration::from_secs(60));
+            cfg.exit_grace = Duration::from_secs(5);
+            let cancel = Arc::clone(&cfg.cancel);
+            cfg.on_batch = Some(Box::new(move |consumed, _| {
+                if consumed == 1 {
+                    cancel.store(true, Ordering::SeqCst);
+                }
+            }));
+            let started = Instant::now();
+            let outcome = run("cancel_only", cfg);
+            assert_eq!(failure_kind(&outcome), WireErrorKind::Cancelled);
+            assert!(!outcome.killed, "the Cancel frame did not reach the worker");
+            assert!(outcome.exit.unwrap().success());
+            assert!(
+                started.elapsed() < Duration::from_secs(4),
+                "took {:?}",
+                started.elapsed()
+            );
+        },
+    );
+
+    scenario(
+        "rows too large for one frame are split into several batches",
+        || {
+            let outcome = run("wide", config(Duration::from_secs(30)));
+            let done = outcome.result.as_ref().expect("the stream completes");
+            assert_eq!(done.rows.len(), 20);
+            assert!(
+                done.batches > 3,
+                "eight 300 KB rows cannot fit one 1 MiB frame; got {} batches",
+                done.batches
+            );
+            let ids: Vec<i64> = done
+                .rows
+                .iter()
+                .map(|row| match row[0] {
+                    Cell::I64(id) => id,
+                    ref other => panic!("{other:?}"),
+                })
+                .collect();
+            assert_eq!(
+                ids,
+                (1..=20).collect::<Vec<_>>(),
+                "order and content are intact"
+            );
+        },
+    );
+
+    scenario(
+        "a row the worker cannot encode ends in an Error terminal with the reason",
+        || {
+            let outcome = run("cell_limit", config(Duration::from_secs(20)));
+            let failure = outcome.result.as_ref().unwrap_err();
+            assert_eq!(failure.error.kind, WireErrorKind::PeerError);
+            assert_eq!(failure.peer.as_ref().unwrap().code, "QUOTA_EXCEEDED");
+            assert_eq!(failure.rows_received, 0);
+            assert_eq!(
+                mdd_worker::protocol::failure_to_mdd(failure).details["wire_error"],
+                "cell_too_large"
+            );
+            assert!(outcome.exit.unwrap().success() && !outcome.killed);
         },
     );
 

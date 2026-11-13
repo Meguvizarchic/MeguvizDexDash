@@ -471,12 +471,20 @@ fn a_failed_write_latches_the_writer_so_no_frame_follows_a_partial_one() {
 
 #[test]
 fn an_unbounded_wait_is_capped_instead_of_overflowing_the_clock() {
-    let gate = CreditGate::new();
-    let cancel = AtomicBool::new(true);
-    // Cancel is already set, so this returns at once; the point is that the
-    // deadline arithmetic with Duration::MAX does not panic.
-    let error = gate.reserve(1, Duration::MAX, &cancel).unwrap_err();
-    assert_eq!(error.kind, WireErrorKind::Cancelled);
+    // Cancel is already set, so a correct gate returns at once; the point is that
+    // the deadline arithmetic with Duration::MAX does not panic. The call runs on
+    // a thread with a timeout so a regression fails fast instead of waiting out
+    // the 24 hour cap.
+    let (done, result) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let gate = CreditGate::new();
+        let cancel = AtomicBool::new(true);
+        let _ = done.send(gate.reserve(1, Duration::MAX, &cancel));
+    });
+    let outcome = result
+        .recv_timeout(Duration::from_secs(5))
+        .expect("reserve returned promptly");
+    assert_eq!(outcome.unwrap_err().kind, WireErrorKind::Cancelled);
 }
 
 #[test]

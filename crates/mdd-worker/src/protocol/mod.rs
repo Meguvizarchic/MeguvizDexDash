@@ -17,7 +17,6 @@ use mdd_wire::{
     FrameReader, FrameWriter, Hello, ProducerStream, ResponseStream, Schema, StreamLimits,
     WireError, WireErrorKind, negotiate,
 };
-use serde_json::Value;
 use std::io::{Read, Write};
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -42,6 +41,8 @@ pub enum ServeEnd {
     SourceFailed,
     /// The consumer cancelled or vanished before End.
     Stopped(WireErrorKind),
+    /// The rows could not be encoded within the limits; an Error terminal says why.
+    Rejected(WireErrorKind),
 }
 
 /// What a worker serves and how it paces itself.
@@ -146,13 +147,33 @@ where
             }
         }
         if !batch.is_empty() {
-            let body = producer.batch(&batch)?;
-            if let Err(error) = gate.reserve(body.len() as u64, credit_wait, &stop) {
-                break Ok(ServeEnd::Stopped(error.kind));
+            let bodies = match encode_split(&mut producer, &batch) {
+                Ok(bodies) => bodies,
+                Err(error) => {
+                    // The rows cannot be encoded (for example one cell over the
+                    // hard limit). Say so with an Error terminal instead of
+                    // leaving the consumer to guess from a closed pipe.
+                    send(
+                        &mut writer,
+                        FrameKind::Error,
+                        &producer.error(&error.to_mdd())?,
+                    )?;
+                    break Ok(ServeEnd::Rejected(error.kind));
+                }
+            };
+            let mut stopped = None;
+            for body in bodies {
+                if let Err(error) = gate.reserve(body.len() as u64, credit_wait, &stop) {
+                    stopped = Some(error.kind);
+                    break;
+                }
+                send(&mut writer, FrameKind::Batch, &body)?;
+                sent += 1;
+                on_sent(sent);
             }
-            send(&mut writer, FrameKind::Batch, &body)?;
-            sent += 1;
-            on_sent(sent);
+            if let Some(kind) = stopped {
+                break Ok(ServeEnd::Stopped(kind));
+            }
         }
         if let Some(error) = failure {
             send(&mut writer, FrameKind::Error, &producer.error(&error)?)?;
@@ -161,25 +182,35 @@ where
         if batch.len() < batch_rows {
             let body = producer.end()?;
             send(&mut writer, FrameKind::End, &body)?;
-            // Counts are in the End body; recompute for the caller from the body.
-            let end: Value = serde_json::from_slice(&body).unwrap_or(Value::Null);
-            let count = |key: &str| {
-                end.get(key)
-                    .and_then(Value::as_str)
-                    .and_then(|v| v.parse().ok())
-                    .unwrap_or(0)
-            };
-            break Ok(ServeEnd::Completed {
-                rows: count("rows"),
-                batches: count("batches"),
-            });
+            let (rows, batches) = producer.counts();
+            break Ok(ServeEnd::Completed { rows, batches });
         }
     };
-    // Dropping the writer's sink closes our stdout; the control thread ends when
-    // the consumer closes our stdin or sends Cancel. Do not wait on it forever.
+    // The control thread ends when the consumer closes our stdin or sends Cancel.
+    // It is detached on purpose: joining it would wait on a pipe the consumer may
+    // keep open. That is right for a one-request worker process; a long-lived
+    // embedder must close `input` when it is done with the request.
     stop.store(true, Ordering::SeqCst);
     drop(control);
     outcome
+}
+
+/// Encode `rows` as one batch, or as the fewest consecutive halves that each fit
+/// the frame limit. A failed attempt consumes no sequence number.
+fn encode_split(
+    producer: &mut ProducerStream,
+    rows: &[Vec<Cell>],
+) -> Result<Vec<Vec<u8>>, WireError> {
+    match producer.batch(rows) {
+        Ok(body) => Ok(vec![body]),
+        Err(error) if error.kind == WireErrorKind::FrameTooLarge && rows.len() > 1 => {
+            let (left, right) = rows.split_at(rows.len() / 2);
+            let mut bodies = encode_split(producer, left)?;
+            bodies.extend(encode_split(producer, right)?);
+            Ok(bodies)
+        }
+        Err(error) => Err(error),
+    }
 }
 
 fn expect_frame<R: Read>(
@@ -209,6 +240,7 @@ fn expect_frame<R: Read>(
 // ---------------------------------------------------------------------------
 
 /// Called with the number of batches consumed so far.
+#[doc(hidden)]
 pub type BatchHook = Box<dyn Fn(u64, &ClientProbe) + Send>;
 
 pub struct ClientConfig {
@@ -228,6 +260,8 @@ pub struct ClientConfig {
     pub cancel: Arc<AtomicBool>,
     /// Called with the number of batches consumed so far, before the matching
     /// credit is re-granted. A slow or stopped consumer is modelled here.
+    /// Test seam: models a slow or stopped consumer.
+    #[doc(hidden)]
     pub on_batch: Option<BatchHook>,
 }
 
@@ -262,6 +296,11 @@ pub struct ClientOutcome {
     /// Most frames read ahead of the consumer at once; at most `queue_frames + 1`.
     pub peak_queued_frames: usize,
     pub stderr: String,
+    /// Helper threads that did not end within the join grace after the worker was
+    /// reaped (a descendant of the worker still holds a pipe). Zero normally.
+    pub detached_threads: usize,
+    /// Credit frames handed to the worker: the initial grant plus one per refill.
+    pub credit_frames: usize,
 }
 
 enum Item {
@@ -278,7 +317,11 @@ fn fail(error: WireError, rows_received: u64) -> Failure {
     }
 }
 
-/// Run `command` as a worker and collect one verified result.
+/// Run `command` as a one-request worker and collect one verified result.
+///
+/// The worker is expected to exit after End: the client reads on until it does
+/// (up to `exit_grace`, to catch frames after the terminal), then kills what is
+/// left. A worker that serves many requests needs a persistent client, not this.
 pub fn run_child(mut command: Command, request_body: &[u8], config: ClientConfig) -> ClientOutcome {
     command
         .stdin(Stdio::piped())
@@ -300,6 +343,8 @@ pub fn run_child(mut command: Command, request_body: &[u8], config: ClientConfig
                 killed: false,
                 peak_queued_frames: 0,
                 stderr: String::new(),
+                detached_threads: 0,
+                credit_frames: 0,
             };
         }
     };
@@ -350,12 +395,32 @@ pub fn run_child(mut command: Command, request_body: &[u8], config: ClientConfig
             }
         })
     });
-    let mut stdin = child.stdin.take();
+    // All writes to the worker go through one thread. A worker that stops reading
+    // stdin can block that thread, never the caller, whose deadline and cancel
+    // checks stay live; killing the worker then makes the pending write fail.
+    let (out, writer_thread) = {
+        let (out, queue) = mpsc::channel::<Outgoing>();
+        let sink = child.stdin.take();
+        let handle = thread::spawn(move || {
+            let Some(sink) = sink else { return };
+            let Ok(mut writer) = FrameWriter::new(sink, ChannelKind::Dedicated, max_frame) else {
+                return;
+            };
+            for (kind, stream, body) in queue {
+                if writer.write_frame(kind, stream, &body).is_err() {
+                    return;
+                }
+            }
+        });
+        (out, handle)
+    };
+    let mut out = Some(out);
     let probe = ClientProbe {
         stderr: Arc::clone(&stderr_text),
         queued: Arc::clone(&queued),
     };
 
+    let credit_frames = AtomicUsize::new(0);
     let mut killed = false;
     let mut agreed = None;
     let result = (|| -> Result<Completed, Failure> {
@@ -393,20 +458,19 @@ pub fn run_child(mut command: Command, request_body: &[u8], config: ClientConfig
                 }
             }
         };
-        let write = |stdin: &mut Option<std::process::ChildStdin>,
+        let write = |out: &mut Option<mpsc::Sender<Outgoing>>,
                      kind,
                      stream,
                      body: &[u8]|
          -> Result<(), Failure> {
-            let sink = stdin.as_mut().ok_or_else(|| {
-                fail(
-                    WireError::new(WireErrorKind::Io, "worker stdin is closed"),
-                    0,
-                )
-            })?;
-            FrameWriter::new(sink, ChannelKind::Dedicated, max_frame)
-                .and_then(|mut w| w.write_frame(kind, stream, body))
-                .map_err(|e| fail(e, 0))
+            out.as_ref()
+                .and_then(|queue| queue.send((kind, stream, body.to_vec())).ok())
+                .ok_or_else(|| {
+                    fail(
+                        WireError::new(WireErrorKind::Io, "the worker's input is closed"),
+                        0,
+                    )
+                })
         };
 
         // Negotiate.
@@ -441,12 +505,12 @@ pub fn run_child(mut command: Command, request_body: &[u8], config: ClientConfig
         let negotiated = negotiate(&config.hello, &peer).map_err(|e| fail(e, 0))?;
         agreed = Some(negotiated.clone());
         write(
-            &mut stdin,
+            &mut out,
             FrameKind::Hello,
             0,
             &serde_json::to_vec(&config.hello.to_json()).unwrap_or_default(),
         )?;
-        write(&mut stdin, FrameKind::Request, REQUEST_STREAM, request_body)?;
+        write(&mut out, FrameKind::Request, REQUEST_STREAM, request_body)?;
 
         let limits = StreamLimits {
             max_body_bytes: negotiated.max_frame_bytes.min(config.limits.max_body_bytes),
@@ -457,7 +521,8 @@ pub fn run_child(mut command: Command, request_body: &[u8], config: ClientConfig
         let grant = stream
             .grant_credit(config.initial_credit)
             .map_err(|e| fail(e, 0))?;
-        write(&mut stdin, FrameKind::Credit, REQUEST_STREAM, &grant)?;
+        write(&mut out, FrameKind::Credit, REQUEST_STREAM, &grant)?;
+        credit_frames.fetch_add(1, Ordering::SeqCst);
 
         let mut consumed = 0u64;
         while !stream.is_terminated() {
@@ -492,7 +557,9 @@ pub fn run_child(mut command: Command, request_body: &[u8], config: ClientConfig
                         if !stream.is_terminated() && !over {
                             // A closed pipe means the worker is gone; the next
                             // read reports it as a disconnect.
-                            let _ = write(&mut stdin, FrameKind::Credit, REQUEST_STREAM, &refill);
+                            if write(&mut out, FrameKind::Credit, REQUEST_STREAM, &refill).is_ok() {
+                                credit_frames.fetch_add(1, Ordering::SeqCst);
+                            }
                         }
                     }
                 }
@@ -525,12 +592,42 @@ pub fn run_child(mut command: Command, request_body: &[u8], config: ClientConfig
 
     // Reap, whatever happened. A worker still running after a failure or beyond
     // its grace period is killed; its pipes then close and both threads end.
-    drop(stdin.take());
-    let exit = reap(&mut child, result.is_ok(), config.exit_grace, &mut killed);
+    //
+    // A cancelled exchange first tells the worker with a Cancel frame and gives it
+    // the grace period to stop on its own; only then is it killed.
+    let cancelled =
+        matches!(&result, Err(failure) if failure.error.kind == WireErrorKind::Cancelled);
+    // An Error terminal is the worker ending the stream itself; it is on its way
+    // out and gets the grace period too.
+    let ended_by_peer_error =
+        matches!(&result, Err(failure) if failure.error.kind == WireErrorKind::PeerError);
+    if cancelled && let Some(queue) = &out {
+        let _ = queue.send((FrameKind::Cancel, REQUEST_STREAM, b"{}".to_vec()));
+    }
+    drop(out.take());
+    let exit = reap(
+        &mut child,
+        result.is_ok() || cancelled || ended_by_peer_error,
+        config.exit_grace,
+        &mut killed,
+    );
     drop(receiver);
-    let reader_panicked = reader_thread.is_some_and(|thread| thread.join().is_err());
-    if let Some(thread) = stderr_thread {
-        let _ = thread.join();
+    // The pipes close when the worker dies, which ends these threads. A worker
+    // descendant that inherited a pipe can keep one open, so each join is bounded
+    // and a thread that will not end is counted instead of waited for.
+    let mut detached_threads = 0;
+    let mut reader_panicked = false;
+    if let Some(thread) = reader_thread {
+        match join_bounded(thread, JOIN_GRACE) {
+            Joined::Panicked => reader_panicked = true,
+            Joined::Detached => detached_threads += 1,
+            Joined::Ended => {}
+        }
+    }
+    for thread in stderr_thread.into_iter().chain(Some(writer_thread)) {
+        if matches!(join_bounded(thread, JOIN_GRACE), Joined::Detached) {
+            detached_threads += 1;
+        }
     }
     // A panic in the reader would otherwise look like a quiet disconnect.
     let result = if reader_panicked {
@@ -555,6 +652,35 @@ pub fn run_child(mut command: Command, request_body: &[u8], config: ClientConfig
         killed,
         peak_queued_frames: peak.load(Ordering::SeqCst),
         stderr,
+        detached_threads,
+        credit_frames: credit_frames.load(Ordering::SeqCst),
+    }
+}
+
+/// One frame queued for the worker: kind, stream id, body.
+type Outgoing = (FrameKind, u64, Vec<u8>);
+
+/// How long the client waits for one of its helper threads after the worker is gone.
+const JOIN_GRACE: Duration = Duration::from_secs(2);
+
+enum Joined {
+    Ended,
+    Panicked,
+    Detached,
+}
+
+fn join_bounded(handle: thread::JoinHandle<()>, grace: Duration) -> Joined {
+    let until = Instant::now() + grace;
+    while !handle.is_finished() {
+        if Instant::now() >= until {
+            return Joined::Detached;
+        }
+        thread::sleep(Duration::from_millis(2));
+    }
+    if handle.join().is_err() {
+        Joined::Panicked
+    } else {
+        Joined::Ended
     }
 }
 

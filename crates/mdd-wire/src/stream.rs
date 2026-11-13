@@ -371,6 +371,11 @@ impl ProducerStream {
         self.stream_id
     }
 
+    /// Rows and batches produced so far.
+    pub fn counts(&self) -> (u64, u64) {
+        (self.rows, self.next_sequence)
+    }
+
     fn open(&self) -> WireResult<()> {
         if self.terminal {
             return Err(WireError::new(

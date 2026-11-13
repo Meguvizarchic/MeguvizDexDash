@@ -48,6 +48,10 @@ MUTATIONS = [
     ('a truncated frame is not a lost worker', ERROR, 'Self::Disconnected | Self::TruncatedHeader | Self::TruncatedBody => {', 'Self::Disconnected => {', WIRE),
     ('UTF-16 unit counts are not checked', STREAM, '&& mutf8_units(bytes) != Some(*utf16_units)', '&& false', WIRE),
     ('credit waits are not capped', CREDIT, 'wait.min(MAX_WAIT)', 'wait', WIRE),
+    ('the client never sends Cancel', PROTOCOL, 'if cancelled && let Some(queue) = &out {', 'if false && let Some(queue) = &out {', CHILD),
+    ('oversized batches are not split', PROTOCOL, 'Err(error) if error.kind == WireErrorKind::FrameTooLarge && rows.len() > 1 => {', 'Err(error) if false => {', CHILD),
+    ('an unencodable row sends no Error terminal', PROTOCOL, '&producer.error(&error.to_mdd())?,', '&[],', CHILD),
+    ('a worker that ended with Error is killed at once', PROTOCOL, 'result.is_ok() || cancelled || ended_by_peer_error,', 'result.is_ok() || cancelled,', CHILD),
     ('trailing frames after End are not read', PROTOCOL, 'if stream.finish_ready() {', 'if false {', CHILD),
     ('credit is re-granted after the deadline', PROTOCOL,
      'config.cancel.load(Ordering::SeqCst) || Instant::now() >= deadline;', 'false;', CHILD),
@@ -55,7 +59,11 @@ MUTATIONS = [
 
 
 def run(command):
-    done = subprocess.run(command, capture_output=True, text=True, encoding='utf-8', errors='replace')
+    try:
+        done = subprocess.run(command, capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=900)
+    except subprocess.TimeoutExpired:
+        # A hang is a failure of the tests, never a pass.
+        return 124, 'timeout'
     return done.returncode, done.stdout + done.stderr
 
 
