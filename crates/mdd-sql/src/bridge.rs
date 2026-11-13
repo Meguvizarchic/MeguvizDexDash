@@ -89,12 +89,6 @@ impl SqlResult {
     pub fn window(&self) -> Option<&SqlWindowReport> {
         self.window.as_ref()
     }
-    /// The whole statement result is in `rows`: the calculation finished and no
-    /// further window exists. A truncated window is a correct page, not a
-    /// complete result.
-    pub fn is_complete_result(&self) -> bool {
-        self.calculation_complete && self.window.as_ref().is_none_or(|window| !window.truncated)
-    }
     pub fn binding(&self) -> &SqlBinding {
         &self.binding
     }
@@ -505,10 +499,6 @@ impl PreparedSql {
     pub fn sql(&self) -> &str {
         &self.sql
     }
-    /// Identity of the statement for cursor and page binding. The AST fingerprint
-    /// hashes the adapted statement the AST frontend produced (not the caller's
-    /// spelling), the parameter fingerprint hashes the parameter *types* only, and
-    /// the source fingerprint hashes the immutable snapshot the facts came from.
     /// Bind the TEMP definitions this statement was expanded with into its source
     /// identity. Two statements with the same text but different TEMP bodies then
     /// get different cursor specs.
@@ -516,10 +506,11 @@ impl PreparedSql {
         self.temp_fingerprint = Some(fingerprint);
         self
     }
-    /// TEMP definitions digest, when the statement reads any.
-    pub fn temp_fingerprint(&self) -> Option<&str> {
-        self.temp_fingerprint.as_deref()
-    }
+    /// Identity of the statement for cursor and page binding. The AST fingerprint
+    /// hashes the adapted statement the AST frontend produced (not the caller's
+    /// spelling), the parameter fingerprint hashes the parameter *types* only, and
+    /// the source fingerprint hashes the immutable snapshot the facts came from
+    /// plus the digest of any TEMP definitions the statement was expanded with.
     pub fn cursor_spec(&self) -> MddResult<mdd_session::cursors::CursorSpec> {
         let parameter_types = self
             .parameters
@@ -678,14 +669,9 @@ impl SqlBridge {
     pub fn limits(&self) -> SqlLimits {
         self.limits
     }
-    /// Relations the provider exposes, for name classification above the bridge.
-    pub fn relation_names(&self) -> MddResult<Vec<String>> {
-        Ok(self
-            .provider
-            .relations()?
-            .into_iter()
-            .map(|relation| relation.name)
-            .collect())
+    /// The provider generation every statement of this bridge is bound to.
+    pub fn provider_binding(&self) -> &SqlBinding {
+        self.provider.binding()
     }
     pub fn prepare_with_parameters(
         &self,

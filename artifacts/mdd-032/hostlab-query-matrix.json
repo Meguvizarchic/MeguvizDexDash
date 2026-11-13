@@ -13,15 +13,15 @@
   "tests/fixtures/annotations/generated/annotations-038.dex"
  ],
  "sources": {
-  "conformance/corpus/hostlab/required-variants.json": "25fc93f57c25ff6f54d23dd5b607e9d5931060bddae35068ef0da9cfdae8d05d",
-  "conformance/corpus/hostlab/expected-results/hostlab-a0-golden.json": "c93bf06d67cb41a64ff2558d34f4c127d2e03f377de4e0acfafdeb30eb1dbabb",
+  "conformance/corpus/hostlab/required-variants.json": "134a2a389ba16369dc454a600a0a524e882078cd804506158aed8076a2aa24c2",
+  "conformance/corpus/hostlab/expected-results/hostlab-a0-golden.json": "fc6df45f33b0e6f67a759e9065cb116d3d1b66cd25b515b09f9f99a720331d2f",
   "conformance/corpus/hostlab/paging-blocker-cases.json": "f2b56a4f806d8716787ccc3aee53466cbb3b72b1a4f10f0b88099c62076ed7d2",
   "conformance/corpus/hostlab/queries.jsonl": "e6a94471466af10c2482d851358296c1a5fcc3809c8eb3c7531a9262af2391b4"
  },
  "comparison": {
   "engine_cells_equal_to_a0": true,
-  "variants": 76,
-  "pages": 144,
+  "variants": 77,
+  "pages": 145,
   "rejections_checked": 10,
   "paging_blocker_cases": 53
  },
@@ -1161,6 +1161,36 @@
       3
      ],
      "engine_vs_a0": "cell_equal"
+    },
+    {
+     "variant": "unaliased_names_c",
+     "statement_count": 16,
+     "window": {
+      "limit": 1000,
+      "offset": 0,
+      "walk": false
+     },
+     "pages": 1,
+     "rows_returned": 41,
+     "a0_total_rows": [
+      3,
+      1,
+      1,
+      3,
+      1,
+      3,
+      3,
+      3,
+      6,
+      6,
+      1,
+      1,
+      3,
+      1,
+      4,
+      1
+     ],
+     "engine_vs_a0": "cell_equal"
     }
    ]
   },
@@ -1522,14 +1552,14 @@
    "mdd-session",
    "--lib"
   ],
-  "started_utc": "2026-11-12T12:22:47.183361+00:00",
-  "finished_utc": "2026-11-12T12:22:56.602569+00:00",
+  "started_utc": "2026-11-13T02:17:01.957085+00:00",
+  "finished_utc": "2026-11-13T02:17:11.661682+00:00",
   "exit_code": 0,
-  "raw_log_sha256": "e1db652754543b97962bf16d765748703c8af1a11c90342806a870f324ff21ad",
-  "raw_log_bytes": 27308,
+  "raw_log_sha256": "4d955bef4936fe8f23f1512febe7327ef2c5a343a98aa3e63f1f068652c0ee10",
+  "raw_log_bytes": 27409,
   "raw_log_kept_at": "artifacts/local/ (ignored; carries developer-machine output)",
   "targets": 2,
-  "passed": 305,
+  "passed": 306,
   "failed": 0,
   "ignored": 0
  }

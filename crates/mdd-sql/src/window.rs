@@ -15,15 +15,12 @@ use crate::invalid;
 use mdd_types::{MddError, MddResult};
 use serde::Serialize;
 
-/// Rows per window the reference accepts (`limit`, 1 to 1000, default 200).
-pub const DEFAULT_LIMIT: u64 = 200;
+/// Rows per window the reference accepts (`limit`, 1 to 1000).
 pub const MAX_LIMIT: u64 = 1_000;
 /// `offset + limit` is at most this value in the reference tool.
 pub const MAX_WINDOW_END: u64 = 100_000;
 /// Statements per call in the reference tool (`sql` has 1 to 16 items).
 pub const MAX_STATEMENTS: usize = 16;
-/// `analysis_plan.text(task.get("sql"), 12000, "SQL")`.
-pub const MAX_PAGED_SQL_CHARS: usize = 12_000;
 
 /// A validated `(offset, limit)` window. `count_total` asks the executor to keep
 /// stepping after the window so that the exact total can be reported; leaving it

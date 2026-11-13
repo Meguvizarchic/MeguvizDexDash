@@ -159,7 +159,7 @@
 
 **032-B（Q13/Q14 与黄金比对）**
 - `crates/mdd-sql/src/window.rs`：响应窗口 `SqlWindow`/`SqlWindowReport`（limit 1..1000、offset+limit≤100000、总数不变量与参考校验器一致）、`split_statements`、`paging_blocker`/`is_volatile`。`SqlBridge::query_window`、`query_batch`（1–16 条，首个失败即停并带 `statement_index`）、`SqlResult::window()`/`schema_id()`、`PreparedSql::cursor_spec()`。窗口作用于每条语句自己的结果流，与 SQL 里的 LIMIT/OFFSET 无关，SQL 文本从不被改写。此前 `cursors.rs` 里「SQL 带 LIMIT 就拒绝分页」的规则与参考引擎相悖，已删除（参考引擎先做 SQL 的 LIMIT，再切窗口）。
-- **独立 oracle**：冻结的 A0（dexsql 0.1.0，sha256 f354ebcf…）通过它自己的 `mcp` 服务驱动，`conformance/corpus/hostlab/generate_golden.py` 记录 `required-variants.json` 的每个变体 → `expected-results/hostlab-a0-golden.json`（76 个变体、144 页、10 个被拒调用）。引擎逐页逐单元格一致（`hostlab_variants_match_the_a0_golden_results`）；原先内联的 29 个变体常量并入 JSON 并扩展：Q13 shape/hex 包装/边界标记/值保真，Q14 各类窗口与整页遍历，Q02 的 80/120 元素 IN 批、12000/12001 字符边界、跨 DEX 字符串自连接、逐 DEX 计数多重性、NULL/空串/实数/blob、LIKE/ESCAPE、排序与 NULL 排序。
+- **独立 oracle**：冻结的 A0（dexsql 0.1.0，sha256 f354ebcf…）通过它自己的 `mcp` 服务驱动，`conformance/corpus/hostlab/generate_golden.py` 记录 `required-variants.json` 的每个变体 → `expected-results/hostlab-a0-golden.json`（77 个变体、145 页、10 个被拒调用）。引擎逐页逐单元格一致（`hostlab_variants_match_the_a0_golden_results`）；原先内联的 29 个变体常量并入 JSON 并扩展：Q13 shape/hex 包装/边界标记/值保真，Q14 各类窗口与整页遍历，Q02 的 80/120 元素 IN 批、12000/12001 字符边界、跨 DEX 字符串自连接、逐 DEX 计数多重性、NULL/空串/实数/blob、LIKE/ESCAPE、排序与 NULL 排序。
 - `paging_blocker` 与冻结 Python（`analysis_paging.py`）在 53 个录制用例上一致（用例由 `generate_paging_cases.py` 从冻结源码生成，不取自 Rust）。
 - 比对**发现并修复了两个真实缺陷**（此前没有任何测试固定它们）：未加别名的表达式列，A0 命名为 `column`（函数调用则为小写函数名），引擎输出的是 SQLite 的表达式原文；结果列名 A0 一律折成 ASCII 小写，引擎保留原写法。两处只对 `DexSql010/011` 方言生效，`NativeV1` 保持 SQLite 原样。
 - 过程中确认的**未支持项（失败即关闭，不是静默错答）**：`GLOB` 运算符（`BINARY_OPERATOR_NOT_IMPLEMENTED`）、递归 CTE（`RECURSIVE_CTE_NOT_YET_QUALIFIED`）、未知双引号标识符回退成字符串字面量（SQLite DQS，引擎按未知列拒绝）。冻结模板不使用二者，故不影响验收，但记入台账为开放缺口。
@@ -177,7 +177,7 @@
 
 **验证**
 - native：`cargo check` / `clippy -D warnings`（0 告警）/ `test --workspace`，按 `test result:` 行统计 24 个目标、778 passed / 0 failed / 0 ignored（同口径上一次是 764；本节上方更早的「35 个 target / 763」口径不同，不可直接相减）。static（含 `fmt --all --check`）、progress、cli、conformance 均通过。
-- 变异检查：对窗口代码、调用展平与黄金比对自身的 10 个变异，以及对 TEMP 层、命名规则与调用展平的 15 个变异全部被测试抓住（`artifacts/mdd-032/mutation/`、`artifacts/mdd-033/mutation/`，含脚本与结果）。其中第一轮曾有 1 个存活（NULL 单元格渲染成文本），原因是黄金里没有任何 NULL/实数/blob 单元格；补上值保真变体后被抓住。
+- 变异检查：对窗口代码、调用展平与黄金比对自身的 10 个变异，以及对 TEMP 层、命名规则、调用展平与快照校验的 16 个变异全部被测试抓住（`artifacts/mdd-032/mutation/`、`artifacts/mdd-033/mutation/`，含脚本与结果）。其中第一轮曾有 1 个存活（NULL 单元格渲染成文本），原因是黄金里没有任何 NULL/实数/blob 单元格；补上值保真变体后被抓住。
 - 证据记录：`artifacts/mdd-032/hostlab-query-matrix.json`、`artifacts/mdd-033/paging-isolation.json` 由 `tools/build_mdd032_033_evidence.py` 现场跑一遍库测试后生成（验收条款 → 具体测试名与结果；任何测试缺失会记为 `not_run`）。原始 cargo 日志留在被忽略的 `artifacts/local/`。
 
 **过程中放弃的方案**：物化 TEMP 表（A0 不物化，且 provider 的 `validate_row` 要求静态列类型，装不下动态列）；开启 `sqlparser` 的 `visitor` feature 来遍历关系名（会带来新的传递依赖，须先问用户）→ 改为 token 扫描取超集，并排除 `AS` 之后的输出别名，漏判会让同名 provider 关系悄悄代替 TEMP 定义，多判只多一个没用到的 CTE；给展开的 CTE 补列名清单来对齐命名 → 改为修正顶层命名规则，一处修复同时覆盖子查询与 CTE。
@@ -186,6 +186,12 @@
 - 传输层接线：没有 MCP/CLI 入口调用 `TempSqlSession` 或 cursor API；`named_temp_queries` 工具参数未实现。
 - 依赖 MDD-031 先完成，二者才能标 done；`16 列未满足全部六类`（MDD-026）的口径决定仍然开放。
 - 范围外问题，只说不改：`conformance` 门禁每次运行会把 `artifacts/mdd-004/fixture-reproducibility.json` 里的解释器路径改写成本机 venv 的绝对路径（本次已 `git checkout` 还原，未提交）；`reproduce.py` 应只记录解释器文件名。
+
+### 复查（2026-11-13）：对上面四个提交做 high 档代码审查
+
+- **已修**：`TempSqlSession::new` 现在校验桥的 provider 快照等于会话 pin 住的快照，否则拒绝（此前测试里两次独立 capture 的快照 id 其实不同，恰好掩盖了这个缺口；现在改为共用同一次 capture，并新增失配测试）。未加别名的 `substr()/substring()` 被命名为 `column`，而 A0 按函数名——补进黄金并改为按函数名；同一变体还固定了 CAST/EXISTS/标量子查询/IS NULL/BETWEEN/IN/NOT/COUNT(DISTINCT)/coalesce 等形状。清掉没有调用方的接口（`relation_names`、`is_complete_result`、`temp_fingerprint()`、两个未用常量），修正错位的文档注释，Python 里依赖 `assert` 的必要校验改为显式报错（AGENTS.md：不依赖可被 `-O` 删除的 assert），定义体的标识符集合在创建时缓存，`REFERENCE_A0_SHA256` 不再重复。
+- **保留并写明**：(1) TEMP 依赖名用 token 扫描取超集，只排除 `AS` 后的输出别名；与某个 TEMP 名同名的列/函数参数会造成假依赖，极端时报假环或多带一个无用的 CTE，根治办法是改用适配器解析出的关系名。(2) 若一个 TEMP 名遮蔽了 provider 关系，依赖它的视图在该名被 DROP 后仍读 provider 关系（与 A0 一致），但 catalog 里存的依赖仍列该名，`bind_query_temp` 会报 `unknown_relation`。(3) 审查指出的「结果列名折小写在 prepare 时未体现」经核对没有预备期 schema id，`SqlResult::schema_id()` 只由实际列名生成，无需改动。
+- **又确认的未支持项**（失败即关闭）：`abs()`、`trim()`。
 
 ## Checkout 与交付
 

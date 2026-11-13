@@ -602,6 +602,28 @@
    "statements": [
     "SELECT descriptor,access_flags FROM classes ORDER BY 2 DESC,1"
    ]
+  },
+  {
+   "family": "Q13",
+   "variant": "unaliased_names_c",
+   "statements": [
+    "SELECT CAST(file_id AS TEXT) FROM dex_files ORDER BY file_id",
+    "SELECT EXISTS(SELECT 1 FROM dex_files)",
+    "SELECT (SELECT COUNT(*) FROM types)",
+    "SELECT file_id IS NULL FROM dex_files ORDER BY file_id",
+    "SELECT COUNT(DISTINCT descriptor) FROM types",
+    "SELECT file_id BETWEEN 0 AND 1 FROM dex_files ORDER BY file_id",
+    "SELECT file_id IN (0,1) FROM dex_files ORDER BY file_id",
+    "SELECT NOT file_id FROM dex_files ORDER BY file_id",
+    "SELECT coalesce(source_file, 'x') FROM classes ORDER BY file_id,class_def_idx",
+    "SELECT ifnull(source_file, 'x') AS a, length('ab') FROM classes ORDER BY file_id,class_def_idx",
+    "SELECT substr(descriptor,1,2), length(descriptor) FROM types ORDER BY file_id,type_idx LIMIT 1",
+    "SELECT UPPER(descriptor) FROM types ORDER BY file_id,type_idx LIMIT 1",
+    "SELECT file_id * 2 AS d, file_id FROM dex_files ORDER BY file_id",
+    "SELECT 1 AS column, 2",
+    "SELECT file_id, 1 FROM dex_files UNION ALL SELECT 1, 2",
+    "SELECT substring(descriptor,1,2), SUBSTR(descriptor,2) FROM types ORDER BY file_id,type_idx LIMIT 1"
+   ]
   }
  ],
  "rejections": [

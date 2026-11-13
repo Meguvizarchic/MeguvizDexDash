@@ -5,36 +5,22 @@
 //! The A0 side of every comparison was recorded by
 //! `conformance/session/generate_catalog_golden.py` from the reference backend;
 //! nothing here derives an expected value from the engine under test.
-use super::tests::{open, read_json, strings_of};
+use super::tests::{REFERENCE_A0_SHA256, open, read_json, strings_of};
 use crate::{
     SqlBridge, SqlResult,
     dialects::SqlDialect,
     temp::{TempSqlSession, TempStatementResult},
     window::SqlWindow,
 };
-use mdd_input::snapshot::{CaptureLimits, InputKind, InputSpec, Snapshot};
+use mdd_input::snapshot::InputKind;
 use mdd_session::{Lifecycle, ResourceLimits, SessionHandle};
 use std::{collections::BTreeMap, sync::Arc};
 
-const REFERENCE_A0_SHA256: &str =
-    "f354ebcf715de9a66ef8ebe08b2b36807ab58e25cd5a1c0812e497fc1fcfc448";
 const GOLDEN: &str = "conformance/session/catalog-and-paging.json";
 
 /// Steps where the engine knowingly answers differently from A0, keyed
 /// `scenario#step_index`, each with the reason. Anything else that differs fails.
 const DECLARED_DIVERGENCES: &[(&str, &str)] = &[];
-
-fn fixture_snapshot(inputs: &[&str]) -> Arc<Snapshot> {
-    let specs: Vec<InputSpec> = inputs
-        .iter()
-        .map(|relative| InputSpec {
-            path: super::tests::fixture(relative),
-            kind: InputKind::RawDex,
-            expected_sha256: None,
-        })
-        .collect();
-    Arc::new(Snapshot::capture(&specs, CaptureLimits::default()).unwrap())
-}
 
 /// One engine under test: a lifecycle plus the sessions a scenario names.
 struct Engine {
@@ -47,9 +33,8 @@ fn engine(inputs: &[&str], names: &[&str]) -> Engine {
     let pairs: Vec<(&str, InputKind)> = inputs.iter().map(|p| (*p, InputKind::RawDex)).collect();
     let harness = open(&pairs);
     let lifecycle = Arc::new(Lifecycle::new(ResourceLimits::default()).unwrap());
-    let snapshot = lifecycle
-        .register_snapshot(fixture_snapshot(inputs))
-        .unwrap();
+    // The session pins the snapshot the provider reads: the same capture.
+    let snapshot = lifecycle.register_snapshot(harness.snapshot()).unwrap();
     let mut sessions = BTreeMap::new();
     let mut handles = BTreeMap::new();
     for name in names {
@@ -60,7 +45,7 @@ fn engine(inputs: &[&str], names: &[&str]) -> Engine {
         let bridge: SqlBridge = harness.bridge(SqlDialect::DexSql011);
         sessions.insert(
             (*name).to_owned(),
-            TempSqlSession::new(Arc::clone(&lifecycle), handle.clone(), bridge),
+            TempSqlSession::new(Arc::clone(&lifecycle), handle.clone(), bridge).unwrap(),
         );
         handles.insert((*name).to_owned(), handle);
     }
@@ -664,4 +649,28 @@ fn a_name_that_is_only_an_output_alias_is_not_a_dependency() {
         .execute("CREATE TEMP TABLE n AS SELECT id FROM n", None)
         .unwrap_err();
     assert_eq!(error.details["temp_error"], "cycle");
+}
+
+#[test]
+fn a_bridge_over_another_snapshot_is_refused_at_construction() {
+    // The session pins definitions-035; the bridge reads classic-035. Statements
+    // would be answered from facts the session never admitted.
+    let engine = engine(&[BASE_INPUT], &["a"]);
+    let other = open(&[(
+        "tests/fixtures/references/generated/classic-035.dex",
+        InputKind::RawDex,
+    )]);
+    let error = TempSqlSession::new(
+        Arc::clone(&engine.lifecycle),
+        engine.handles["a"].clone(),
+        other.bridge(SqlDialect::DexSql011),
+    )
+    .err()
+    .expect("a bridge over a different snapshot must be refused");
+    assert_eq!(error.code, mdd_types::ErrorCode::InvalidArgument);
+    assert!(error.details.contains_key("session_snapshot_id"));
+    assert_ne!(
+        error.details["session_snapshot_id"],
+        error.details["provider_snapshot_id"]
+    );
 }

@@ -2898,6 +2898,19 @@ impl Rewrite<'_> {
                                             |ident| ident.value.to_ascii_lowercase(),
                                         )
                                 }
+                                // sqlparser parses `substr(..)`/`substring(..)`/`trim(..)`
+                                // into dedicated nodes, but they are calls to the
+                                // reference engine and are named after the function.
+                                Expr::Substring { .. } | Expr::Trim { .. }
+                                    if self.dialect != super::SqlDialect::NativeV1 =>
+                                {
+                                    expr.to_string()
+                                        .split('(')
+                                        .next()
+                                        .unwrap_or("column")
+                                        .trim()
+                                        .to_ascii_lowercase()
+                                }
                                 _ if self.dialect != super::SqlDialect::NativeV1 => {
                                     "column".to_owned()
                                 }

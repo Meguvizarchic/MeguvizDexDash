@@ -124,7 +124,8 @@ def main():
         limit, offset = variant.get("limit", DEFAULT_LIMIT), variant.get("offset", 0)
         pages = []
         if variant.get("walk"):
-            assert len(variant["statements"]) == 1, "walk follows one statement"
+            if len(variant["statements"]) != 1:
+                raise SystemExit(f"{variant['variant']}: a walk follows exactly one statement")
             cursor = offset
             for _ in range(MAX_PAGES):
                 page = run_window(client, dataset, variant["statements"], limit, cursor)

@@ -58,6 +58,10 @@
     {
      "test": "provider::hostlab::temp_tests::definitions_and_bindings_do_not_cross_sessions",
      "outcome": "ok"
+    },
+    {
+     "test": "provider::hostlab::temp_tests::a_bridge_over_another_snapshot_is_refused_at_construction",
+     "outcome": "ok"
     }
    ],
    "all_passed": true
@@ -184,14 +188,14 @@
    "mdd-session",
    "--lib"
   ],
-  "started_utc": "2026-11-12T12:22:47.183361+00:00",
-  "finished_utc": "2026-11-12T12:22:56.602569+00:00",
+  "started_utc": "2026-11-13T02:17:01.957085+00:00",
+  "finished_utc": "2026-11-13T02:17:11.661682+00:00",
   "exit_code": 0,
-  "raw_log_sha256": "e1db652754543b97962bf16d765748703c8af1a11c90342806a870f324ff21ad",
-  "raw_log_bytes": 27308,
+  "raw_log_sha256": "4d955bef4936fe8f23f1512febe7327ef2c5a343a98aa3e63f1f068652c0ee10",
+  "raw_log_bytes": 27409,
   "raw_log_kept_at": "artifacts/local/ (ignored; carries developer-machine output)",
   "targets": 2,
-  "passed": 305,
+  "passed": 306,
   "failed": 0,
   "ignored": 0
  }

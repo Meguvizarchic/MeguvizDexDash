@@ -35,7 +35,7 @@ pub(super) fn fixture(relative: &str) -> PathBuf {
 
 /// One captured snapshot, its inventories and the selected scope.
 pub(super) struct Harness {
-    snapshot: Snapshot,
+    snapshot: Arc<Snapshot>,
     inventories: Vec<ArchiveInventory>,
     scope: SelectedScope,
     /// Cached `(metadata, definitions, code, references, annotations)` per
@@ -58,7 +58,7 @@ pub(super) fn open(inputs: &[(&str, InputKind)]) -> Harness {
             expected_sha256: None,
         })
         .collect();
-    let snapshot = Snapshot::capture(&specs, CaptureLimits::default()).unwrap();
+    let snapshot = Arc::new(Snapshot::capture(&specs, CaptureLimits::default()).unwrap());
     let inventories: Vec<ArchiveInventory> = snapshot
         .sources()
         .iter()
@@ -79,6 +79,12 @@ pub(super) fn open(inputs: &[(&str, InputKind)]) -> Harness {
 }
 
 impl Harness {
+    /// The captured snapshot, shared so a lifecycle session can pin the very same
+    /// one the provider reads.
+    pub(super) fn snapshot(&self) -> Arc<Snapshot> {
+        Arc::clone(&self.snapshot)
+    }
+
     /// Map a selected-roster position back to `(inventory, local DEX index)`.
     fn locate(&self, roster_position: usize) -> (&ArchiveInventory, usize) {
         let mut remaining = roster_position;
@@ -1562,7 +1568,7 @@ const EXPECTED_EQUAL_RECORDS: usize = 2091;
 const EXPECTED_BOTH_FAIL_RECORDS: usize = 440;
 
 /// The A0 build the goldens were recorded from (frozen `dexsql 0.1.0`).
-const REFERENCE_A0_SHA256: &str =
+pub(super) const REFERENCE_A0_SHA256: &str =
     "f354ebcf715de9a66ef8ebe08b2b36807ab58e25cd5a1c0812e497fc1fcfc448";
 
 /// Variants whose engine answer is allowed to differ from A0, with the reason.

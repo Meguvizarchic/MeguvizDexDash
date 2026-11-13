@@ -52,7 +52,8 @@ MDD032_ACCEPTANCE = [
 MDD033_ACCEPTANCE = [
     ("a cursor binds snapshot, session, catalog_epoch, query and schema; other scope or an old generation fails explicitly",
      ["native_cursor_binds_every_identity_component", "forged_worker_generation_is_rejected",
-      "a_new_worker_generation_invalidates_older_cursors", "definitions_and_bindings_do_not_cross_sessions"]),
+      "a_new_worker_generation_invalidates_older_cursors", "definitions_and_bindings_do_not_cross_sessions",
+      "a_bridge_over_another_snapshot_is_refused_at_construction"]),
     ("catalog_epoch is a decimal u64 string and a running cursor is never migrated to a new TEMP definition",
      ["a_native_cursor_keeps_the_definition_it_was_prepared_with"]),
     ("the same SQL with the same row count and schema over a changed source cannot be stitched into mixed pages",
@@ -135,8 +136,11 @@ def build_032(run: dict) -> dict:
         titles[entry["id"]] = {"title": entry["title"], "required_profile": entry["required_profile"]}
     compared = run["results"].get("provider::hostlab::tests::hostlab_variants_match_the_a0_golden_results") == "ok"
     families = {}
+    if len(variants["variants"]) != len(golden["cases"]):
+        raise SystemExit("golden and variants differ in length; regenerate the golden")
     for variant, case in zip(variants["variants"], golden["cases"]):
-        assert (variant["family"], variant["variant"]) == (case["family"], case["variant"])
+        if (variant["family"], variant["variant"]) != (case["family"], case["variant"]):
+            raise SystemExit(f"golden is out of step with {VARIANTS}: {variant['variant']} vs {case['variant']}")
         statements = [s for page in case["pages"] for s in page["statements"]]
         families.setdefault(case["family"], []).append({
             "variant": case["variant"],

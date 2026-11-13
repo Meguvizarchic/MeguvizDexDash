@@ -299,6 +299,8 @@ struct StoredBody {
     definition_hash: String,
     /// Normalized (AST-printed) text of the defining query.
     query_sql: String,
+    /// [`identifier_words`] of `query_sql`, computed once at creation.
+    words: BTreeSet<String>,
 }
 
 /// One session's TEMP statements. Cheap to build; holds no result data.
@@ -310,13 +312,32 @@ pub struct TempSqlSession {
 }
 
 impl TempSqlSession {
-    pub fn new(lifecycle: Arc<Lifecycle>, session: SessionHandle, bridge: SqlBridge) -> Self {
-        Self {
+    /// Bind a bridge to a lifecycle session. The bridge's provider must read the
+    /// snapshot the session pinned: the TEMP catalog epochs, cursor bindings and
+    /// page source identities are recorded under the session, so a bridge over any
+    /// other snapshot would answer from facts the session never admitted.
+    pub fn new(
+        lifecycle: Arc<Lifecycle>,
+        session: SessionHandle,
+        bridge: SqlBridge,
+    ) -> MddResult<Self> {
+        let pinned = lifecycle.snapshot_lease(&session)?;
+        let provider = bridge.provider_binding();
+        if pinned.manifest().snapshot_id != provider.snapshot_id {
+            return Err(MddError::new(
+                ErrorCode::InvalidArgument,
+                "sql.temp",
+                "bridge provider reads a different snapshot than the session pinned",
+            )
+            .detail("session_snapshot_id", pinned.manifest().snapshot_id.clone())
+            .detail("provider_snapshot_id", provider.snapshot_id.clone()));
+        }
+        Ok(Self {
             lifecycle,
             session,
             bridge,
             bodies: Mutex::new(BTreeMap::new()),
-        }
+        })
     }
 
     pub fn bridge(&self) -> &SqlBridge {
@@ -401,7 +422,7 @@ impl TempSqlSession {
         let mut done = BTreeSet::new();
         let mut visiting = Vec::new();
         for seed in &seeds {
-            self.visit(seed, bodies, &mut visiting, &mut done, &mut order, limits)?;
+            self.visit(seed, bodies, &mut visiting, &mut done, &mut order)?;
         }
         let list = order
             .iter()
@@ -444,7 +465,6 @@ impl TempSqlSession {
         visiting: &mut Vec<String>,
         done: &mut BTreeSet<String>,
         order: &mut Vec<String>,
-        limits: SqlLimits,
     ) -> MddResult<()> {
         if done.contains(name) {
             return Ok(());
@@ -462,9 +482,9 @@ impl TempSqlSession {
         }
         let body = &bodies[name];
         visiting.push(name.to_owned());
-        for word in identifier_words(&body.query_sql, limits)? {
-            if bodies.contains_key(&word) {
-                self.visit(&word, bodies, visiting, done, order, limits)?;
+        for word in &body.words {
+            if bodies.contains_key(word) {
+                self.visit(word, bodies, visiting, done, order)?;
             }
         }
         visiting.pop();
@@ -582,9 +602,11 @@ impl TempSqlSession {
         }
         // Validate before anything changes: the body must prepare against the
         // catalog as it is, and the catalog must accept its dependencies.
-        let dependencies: Vec<String> = identifier_words(&query_sql, self.bridge.limits())?
-            .into_iter()
-            .filter(|word| bodies.contains_key(word))
+        let words = identifier_words(&query_sql, self.bridge.limits())?;
+        let dependencies: Vec<String> = words
+            .iter()
+            .filter(|word| bodies.contains_key(*word))
+            .cloned()
             .collect();
         let probe: Box<Query> = Box::new(query.clone());
         self.prepare_locked(&query_sql, probe, &bodies)?;
@@ -605,6 +627,7 @@ impl TempSqlSession {
                 StoredBody {
                     definition_hash,
                     query_sql,
+                    words,
                 },
             );
         }

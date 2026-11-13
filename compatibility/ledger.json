@@ -486,7 +486,7 @@
       "golden": "conformance/corpus/hostlab/expected-results/hostlab-a0-golden.json",
       "regression_test": "crates/mdd-sql/src/provider/hostlab/tests.rs::hostlab_variants_match_the_a0_golden_results",
       "not_a_qualification": "Development comparison over synthetic fixtures only; no profile is admitted by it, and the real-APK corpus run remains separate",
-      "scope": "76 variants / 144 pages / 10 refused calls: Q01-Q15 templates and helpers (shape probe, hex wrapper, boundary marker), response windows independent of SQL LIMIT/OFFSET, value fidelity (NULL, empty, real, blob, negative), LIKE/ESCAPE, ordering, multiplicity, IN batches of 80 and 120, the 12000/12001-character boundary",
+      "scope": "77 variants / 145 pages / 10 refused calls: Q01-Q15 templates and helpers (shape probe, hex wrapper, boundary marker), response windows independent of SQL LIMIT/OFFSET, value fidelity (NULL, empty, real, blob, negative), LIKE/ESCAPE, ordering, multiplicity, IN batches of 80 and 120, the 12000/12001-character boundary",
       "entries": [
         {
           "id": "unaliased-expression-names",
