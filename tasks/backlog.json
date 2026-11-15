@@ -1157,7 +1157,7 @@
       "id": "MDD-043",
       "phase": "M4",
       "title": "实现通用 Python SDK 与稳定 C ABI",
-      "status": "todo",
+      "status": "in_progress",
       "depends_on": [
         "MDD-014",
         "MDD-034",
@@ -1187,6 +1187,27 @@
       "references": [
         "docs/02_ARCHITECTURE_AND_CONTRACTS.md",
         "docs/04_VALIDATION_AND_PERFORMANCE.md"
+      ],
+      "implementation_notes": "2026-11-15, in progress: everything in the outputs list exists and is proven except one case of acceptance clause 4. crates/mdd-ffi exports 29 mdd_* symbols declared in include/mdd.h (ABI major 1): handles are generation-tagged 64-bit values, not addresses, so a forged, stale, released or wrong-kind handle returns INVALID_HANDLE and touches no memory; views are length-prefixed and borrowed from their owner; the event owns its batch reference and the caller can release only what it retained; a Rust panic is contained and poisons the object; one consumer per query (BUSY), cancel from any thread. It wraps the mdd-session Lifecycle (snapshot/session close and release, query start/cancel, owned batches) and requires an explicit acknowledgement of every batch before the stream can end successfully. python/mdd is a standard-library ctypes binding with explicit close, context managers and a GC backstop; it decodes NULL, exact 64-bit integers, unpaired surrogates and original MUTF-8 without loss, and raises instead of returning a short list. Evidence artifacts/mdd-043/sdk-and-abi-conformance.json: 24 Rust tests, 21 Python tests, 14 data-driven ownership cases through the raw ABI, the dependency-boundary check; 16 mutants, all killed. Two defects were found by the tests and fixed: a query cancelled before it ran ended as INVALID_ARGUMENT, and an over-wide error rewrite hid that a cancel did not stop a statement. Review: 8 findings, 5 fixed. OPEN: acceptance clause 4 names 'worker lost'. The ABI is in-process, so there is no worker whose loss it can observe; the Python SDK has no worker transport and the repository has no production worker. The in-process analogues are proven. Closing the clause needs either a worker transport in the SDK or an explicit decision that the case does not apply to the in-process ABI. Not supported in this ABI version, each refused by name: typed IR queries, query parameters, the code, reference and annotation fact layers. The result is computed completely before the first batch leaves.",
+      "implementation_evidence": [
+        "artifacts/mdd-043/sdk-and-abi-conformance.json",
+        "artifacts/mdd-043/mutation/results.txt",
+        "artifacts/mdd-043/mutation/mutate_abi.py",
+        "conformance/abi/ownership-cases.json",
+        "conformance/abi/ownership_cases.py",
+        "conformance/abi/run_abi_conformance.py",
+        "conformance/abi/test_run_abi_conformance.py",
+        "crates/mdd-ffi/Cargo.toml",
+        "crates/mdd-ffi/src/abi.rs",
+        "crates/mdd-ffi/src/engine.rs",
+        "crates/mdd-ffi/src/handle.rs",
+        "crates/mdd-ffi/tests/abi_contract.rs",
+        "include/mdd.h",
+        "python/mdd/core.py",
+        "python/tests/test_sdk.py"
+      ],
+      "blocking_reasons": [
+        "acceptance clause 4, case 'worker lost': no worker transport in the Python SDK and no production worker in the repository; decide whether to build one or to declare the case not applicable to the in-process ABI"
       ]
     },
     {

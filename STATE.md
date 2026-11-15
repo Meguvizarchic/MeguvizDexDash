@@ -281,6 +281,24 @@
 
 **残余**：method_definitions、code、reference、annotation 关系没有经 typed IR 比较（只经 SQL 路径对 A0）；取消组合用的是调用前已取消的控制，不是运行中竞态；只在一台 Windows 主机上跑，Linux 只靠仓库 CI；运行器与 `--check` 尚未接入 CI；Q16 无标注语料。
 
+## 2026-11-15 MDD-043 稳定 C ABI 与 Python SDK（进行中，一处条款未关闭）
+
+**结论**：产出清单（`python/`、`crates/mdd-ffi/`、`include/mdd.h`、`conformance/abi/ownership-cases.json`、`artifacts/mdd-043/sdk-and-abi-conformance.json`）都已落地并有证据，**除验收第 4 条里的 "worker lost" 外全部证明**，所以 MDD-043 **保持 in_progress，不标 done**。原因：进程内 ABI 没有可丢失的 worker，Python SDK 没有 worker 传输，仓库里也没有生产 worker；把该情形记为“不适用”就是缩小原验收，这由你决定，**2026-11-15 已决定：保持 in_progress**，待 SDK 有 worker 传输后再关闭该条款。进程内的对应情形（句柄在运行中的查询下被释放、会话在查询下被关闭、被捕获的 panic）已证明。
+
+**设计要点**
+- **句柄不是地址**：`kind(8) | generation(32) | index(24)` 的 64 位值，每次使用都查表。伪造、过期、已释放、种类错用都返回 `INVALID_HANDLE`，不碰内存；槽位复用时代数递增，旧值够不到新对象。
+- **所有权**：视图带长度、借自所属对象；事件拥有其批的引用并“钉住”，调用者只能释放自己 retain 过的那份（评审发现并修复了可释放借用句柄的缺陷）；close 与 release 分开，close 幂等。
+- **批的确认与背压**：每个批必须 `ack` 且所有引用释放后才产生下一个；释放而未确认则流以失败终态结束，不会悄悄成功。终态才是查询的结论，调用成功不等于查询成功。
+- **panic 与并发**：panic 在边界被捕获并报 `INTERNAL_FAULT`，对象中毒、下次使用失败；每个查询一个消费者（第二个得到 `BUSY`，不等待）；取消可在任意线程。
+- **复用核心**：包的是 `mdd-session::Lifecycle`（快照/会话、查询启停、拥有的批），覆盖从事实推导而不是调用方给定。
+- **Python**：只用标准库 `ctypes`。NULL 是 `None`，64 位整数是精确 `int`，孤立代理文本还原为带代理码点的 `str`，原始 MUTF-8 保留字节与单元数；失败、取消、被截断的查询抛异常，从不返回更短的列表。
+
+**证据**（`artifacts/mdd-043/sdk-and-abi-conformance.json`）：Rust 24 项、Python 21 项、经原始 ABI 的 14 个数据驱动所有权用例、依赖边界检查；16 个变异全部被抓住（`artifacts/mdd-043/mutation/`，结果与被测源码、测试的哈希绑定）。
+
+**测试发现并修复的缺陷**：(1) 在第一次 `next` 前取消的查询以 `INVALID_ARGUMENT` 而不是 `CANCELLED` 结束；(2) 我写得过宽的错误改写把“取消没能打断语句、语句后来因配额失败”也报成 CANCELLED，变异检查暴露后收窄；(3) 评审：借用的批句柄可被调用者释放、失败后查询可被重启、关闭与启动的竞态、变异记录没绑定被测源码。
+
+**限制（不是缺陷，已逐项拒绝并写入能力清单）**：只有 SQL，没有 typed IR 与查询参数；只有 metadata 与 structure 两层，没有 code、reference、annotation；结果在第一个批发出前整体算完，峰值内存是整个结果（`SqlResult` 的行被有意封死，避免拷贝要改 `mdd-sql`）；批是 JSON，没有列式编码；进程级会话与查询上限固定；只在一台 Windows 主机验证，CI 尚未运行 Python 测试与本运行器。
+
 ## Checkout 与交付
 
 工程目录 D:\MeguvisDexDash（保留目录原拼写）。远端已迁移到 https://github.com/Meguvizarchic/MeguvizDexDash（**公开仓库**，旧地址 jichuo1/MeguvizDexDash 自动转发）；PR #1 已于 2026-11-04 合并，`main` 现为 a9aa1f0，其中 27ac27e 是由本分支 71dfce9 生成的「脱敏工程进度快照」，之后 8 个提交是修补与 README/图标。本地分支 codex/m2-facts-20261028 当前**没有远端分支**：2026-11-12 曾整体推送，随后发现仓库公开，已按用户决定删除远端分支（GitHub 上提交仍可按 SHA 读取）。重新推送前必须先决定公开范围，见下节。

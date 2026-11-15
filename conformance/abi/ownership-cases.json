@@ -1,0 +1,830 @@
+{
+  "schema_version": "mdd.abi-ownership-cases.v1",
+  "abi": "mdd_* major 1",
+  "note": "Data for conformance/abi/ownership_cases.py. Each case runs through the raw C ABI and must leave the number of live handles where it found it. Ops: snapshot, session, query (also keeps the prepared handle), next, batch, call (a function that takes handles only), view (a function that fills a view), live_delta. A handle argument is a name or {\"literal\": n}. Statuses are the MDD_E_* names without the prefix.",
+  "fixture": "tests/fixtures/definitions/generated/definitions-038.dex",
+  "sql": "SELECT dex_occurrence_id,class_def_idx,descriptor FROM native_classes ORDER BY dex_occurrence_id,class_def_idx",
+  "cases": [
+    {
+      "id": "release-twice-snapshot",
+      "why": "a second release of the same reference is a detected error, not a fault",
+      "ops": [
+        {
+          "op": "snapshot",
+          "as": "snap"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_snapshot_release",
+          "args": [
+            "snap"
+          ],
+          "expect": "OK"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_snapshot_release",
+          "args": [
+            "snap"
+          ],
+          "expect": "INVALID_HANDLE"
+        }
+      ]
+    },
+    {
+      "id": "release-twice-session",
+      "why": "same, for a session",
+      "ops": [
+        {
+          "op": "snapshot",
+          "as": "snap"
+        },
+        {
+          "op": "session",
+          "from": "snap",
+          "as": "sess"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_session_release",
+          "args": [
+            "sess"
+          ],
+          "expect": "OK"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_session_release",
+          "args": [
+            "sess"
+          ],
+          "expect": "INVALID_HANDLE"
+        }
+      ]
+    },
+    {
+      "id": "release-twice-prepared-and-query",
+      "why": "same, for a prepared query and a query",
+      "ops": [
+        {
+          "op": "snapshot",
+          "as": "snap"
+        },
+        {
+          "op": "session",
+          "from": "snap",
+          "as": "sess"
+        },
+        {
+          "op": "query",
+          "from": "sess",
+          "as": "q",
+          "prepared": "prep"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_prepared_release",
+          "args": [
+            "prep"
+          ],
+          "expect": "OK"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_prepared_release",
+          "args": [
+            "prep"
+          ],
+          "expect": "INVALID_HANDLE"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_query_release",
+          "args": [
+            "q"
+          ],
+          "expect": "OK"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_query_release",
+          "args": [
+            "q"
+          ],
+          "expect": "INVALID_HANDLE"
+        }
+      ]
+    },
+    {
+      "id": "event-owns-the-borrowed-batch",
+      "why": "the batch handle of an event is borrowed: gone with the event unless retained",
+      "ops": [
+        {
+          "op": "snapshot",
+          "as": "snap"
+        },
+        {
+          "op": "session",
+          "from": "snap",
+          "as": "sess"
+        },
+        {
+          "op": "query",
+          "from": "sess",
+          "as": "q",
+          "prepared": "prep"
+        },
+        {
+          "op": "next",
+          "query": "q",
+          "demand": 2,
+          "as": "ev",
+          "expect": "OK"
+        },
+        {
+          "op": "batch",
+          "event": "ev",
+          "as": "b"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_batch_ack_v1",
+          "args": [
+            "b"
+          ],
+          "expect": "OK"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_event_release",
+          "args": [
+            "ev"
+          ],
+          "expect": "OK"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_event_release",
+          "args": [
+            "ev"
+          ],
+          "expect": "INVALID_HANDLE"
+        },
+        {
+          "op": "view",
+          "fn": "mdd_batch_json_v1",
+          "args": [
+            "b"
+          ],
+          "expect": "INVALID_HANDLE"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_batch_release",
+          "args": [
+            "b"
+          ],
+          "expect": "INVALID_HANDLE"
+        }
+      ]
+    },
+    {
+      "id": "retained-batch-outlives-its-event",
+      "why": "retain gives an independent reference that keeps the bytes valid",
+      "ops": [
+        {
+          "op": "snapshot",
+          "as": "snap"
+        },
+        {
+          "op": "session",
+          "from": "snap",
+          "as": "sess"
+        },
+        {
+          "op": "query",
+          "from": "sess",
+          "as": "q",
+          "prepared": "prep"
+        },
+        {
+          "op": "next",
+          "query": "q",
+          "demand": 2,
+          "as": "ev",
+          "expect": "OK"
+        },
+        {
+          "op": "batch",
+          "event": "ev",
+          "as": "b"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_batch_retain",
+          "args": [
+            "b"
+          ],
+          "expect": "OK"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_event_release",
+          "args": [
+            "ev"
+          ],
+          "expect": "OK"
+        },
+        {
+          "op": "view",
+          "fn": "mdd_batch_json_v1",
+          "args": [
+            "b"
+          ],
+          "expect": "OK"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_batch_release",
+          "args": [
+            "b"
+          ],
+          "expect": "OK"
+        },
+        {
+          "op": "view",
+          "fn": "mdd_batch_json_v1",
+          "args": [
+            "b"
+          ],
+          "expect": "INVALID_HANDLE"
+        }
+      ]
+    },
+    {
+      "id": "borrowed-batch-release-needs-retain",
+      "why": "the caller cannot free the reference the event owns; only what it retained itself",
+      "ops": [
+        {
+          "op": "snapshot",
+          "as": "snap"
+        },
+        {
+          "op": "session",
+          "from": "snap",
+          "as": "sess"
+        },
+        {
+          "op": "query",
+          "from": "sess",
+          "as": "q",
+          "prepared": "prep"
+        },
+        {
+          "op": "next",
+          "query": "q",
+          "demand": 2,
+          "as": "ev",
+          "expect": "OK"
+        },
+        {
+          "op": "batch",
+          "event": "ev",
+          "as": "b"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_batch_release",
+          "args": [
+            "b"
+          ],
+          "expect": "INVALID_HANDLE"
+        },
+        {
+          "op": "view",
+          "fn": "mdd_batch_json_v1",
+          "args": [
+            "b"
+          ],
+          "expect": "OK"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_batch_retain",
+          "args": [
+            "b"
+          ],
+          "expect": "OK"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_batch_release",
+          "args": [
+            "b"
+          ],
+          "expect": "OK"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_batch_release",
+          "args": [
+            "b"
+          ],
+          "expect": "INVALID_HANDLE"
+        },
+        {
+          "op": "view",
+          "fn": "mdd_batch_json_v1",
+          "args": [
+            "b"
+          ],
+          "expect": "OK"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_batch_ack_v1",
+          "args": [
+            "b"
+          ],
+          "expect": "OK"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_event_release",
+          "args": [
+            "ev"
+          ],
+          "expect": "OK"
+        }
+      ]
+    },
+    {
+      "id": "forged-handles",
+      "why": "zero, small and all-ones values never reach an object",
+      "ops": [
+        {
+          "op": "call",
+          "fn": "mdd_snapshot_release",
+          "args": [
+            {
+              "literal": 0
+            }
+          ],
+          "expect": "INVALID_HANDLE"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_snapshot_release",
+          "args": [
+            {
+              "literal": 1
+            }
+          ],
+          "expect": "INVALID_HANDLE"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_session_release",
+          "args": [
+            {
+              "literal": 18446744073709551615
+            }
+          ],
+          "expect": "INVALID_HANDLE"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_prepared_release",
+          "args": [
+            {
+              "literal": 144115188075855872
+            }
+          ],
+          "expect": "INVALID_HANDLE"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_query_release",
+          "args": [
+            {
+              "literal": 0
+            }
+          ],
+          "expect": "INVALID_HANDLE"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_event_release",
+          "args": [
+            {
+              "literal": 0
+            }
+          ],
+          "expect": "INVALID_HANDLE"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_batch_release",
+          "args": [
+            {
+              "literal": 7
+            }
+          ],
+          "expect": "INVALID_HANDLE"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_batch_retain",
+          "args": [
+            {
+              "literal": 0
+            }
+          ],
+          "expect": "INVALID_HANDLE"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_error_release",
+          "args": [
+            {
+              "literal": 0
+            }
+          ],
+          "expect": "INVALID_HANDLE"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_query_cancel_v1",
+          "args": [
+            {
+              "literal": 0
+            }
+          ],
+          "expect": "INVALID_HANDLE"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_session_close_v1",
+          "args": [
+            {
+              "literal": 0
+            }
+          ],
+          "expect": "INVALID_HANDLE"
+        }
+      ]
+    },
+    {
+      "id": "wrong-kind-handles",
+      "why": "a live handle of another kind is as invalid as a forged one, and does no harm",
+      "ops": [
+        {
+          "op": "snapshot",
+          "as": "snap"
+        },
+        {
+          "op": "session",
+          "from": "snap",
+          "as": "sess"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_session_release",
+          "args": [
+            "snap"
+          ],
+          "expect": "INVALID_HANDLE"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_snapshot_close_v1",
+          "args": [
+            "sess"
+          ],
+          "expect": "INVALID_HANDLE"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_query_cancel_v1",
+          "args": [
+            "sess"
+          ],
+          "expect": "INVALID_HANDLE"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_session_close_v1",
+          "args": [
+            "snap"
+          ],
+          "expect": "INVALID_HANDLE"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_session_release",
+          "args": [
+            "sess"
+          ],
+          "expect": "OK"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_snapshot_release",
+          "args": [
+            "snap"
+          ],
+          "expect": "OK"
+        }
+      ]
+    },
+    {
+      "id": "use-after-release",
+      "why": "operations on a released handle are refused, never followed",
+      "ops": [
+        {
+          "op": "snapshot",
+          "as": "snap"
+        },
+        {
+          "op": "session",
+          "from": "snap",
+          "as": "sess"
+        },
+        {
+          "op": "query",
+          "from": "sess",
+          "as": "q",
+          "prepared": "prep"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_query_release",
+          "args": [
+            "q"
+          ],
+          "expect": "OK"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_query_cancel_v1",
+          "args": [
+            "q"
+          ],
+          "expect": "INVALID_HANDLE"
+        },
+        {
+          "op": "next",
+          "query": "q",
+          "demand": 1,
+          "expect": "INVALID_HANDLE"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_session_release",
+          "args": [
+            "sess"
+          ],
+          "expect": "OK"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_session_close_v1",
+          "args": [
+            "sess"
+          ],
+          "expect": "INVALID_HANDLE"
+        }
+      ]
+    },
+    {
+      "id": "release-order-does-not-matter",
+      "why": "a query keeps its session and snapshot alive; releasing parents first is safe",
+      "ops": [
+        {
+          "op": "snapshot",
+          "as": "snap"
+        },
+        {
+          "op": "session",
+          "from": "snap",
+          "as": "sess"
+        },
+        {
+          "op": "query",
+          "from": "sess",
+          "as": "q",
+          "prepared": "prep"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_snapshot_release",
+          "args": [
+            "snap"
+          ],
+          "expect": "OK"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_session_release",
+          "args": [
+            "sess"
+          ],
+          "expect": "OK"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_prepared_release",
+          "args": [
+            "prep"
+          ],
+          "expect": "OK"
+        },
+        {
+          "op": "drain",
+          "query": "q",
+          "demand": 3,
+          "expect_terminal": "ok"
+        }
+      ]
+    },
+    {
+      "id": "close-is-idempotent",
+      "why": "close repeats without error; release is the one-shot",
+      "ops": [
+        {
+          "op": "snapshot",
+          "as": "snap"
+        },
+        {
+          "op": "session",
+          "from": "snap",
+          "as": "sess"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_session_close_v1",
+          "args": [
+            "sess"
+          ],
+          "expect": "OK"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_session_close_v1",
+          "args": [
+            "sess"
+          ],
+          "expect": "OK"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_snapshot_close_v1",
+          "args": [
+            "snap"
+          ],
+          "expect": "OK"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_snapshot_close_v1",
+          "args": [
+            "snap"
+          ],
+          "expect": "OK"
+        }
+      ]
+    },
+    {
+      "id": "acknowledge-only-once",
+      "why": "one receipt per batch",
+      "ops": [
+        {
+          "op": "snapshot",
+          "as": "snap"
+        },
+        {
+          "op": "session",
+          "from": "snap",
+          "as": "sess"
+        },
+        {
+          "op": "query",
+          "from": "sess",
+          "as": "q",
+          "prepared": "prep"
+        },
+        {
+          "op": "next",
+          "query": "q",
+          "demand": 1,
+          "as": "ev",
+          "expect": "OK"
+        },
+        {
+          "op": "batch",
+          "event": "ev",
+          "as": "b"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_batch_ack_v1",
+          "args": [
+            "b"
+          ],
+          "expect": "OK"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_batch_ack_v1",
+          "args": [
+            "b"
+          ],
+          "expect": "INVALID_ARGUMENT"
+        }
+      ]
+    },
+    {
+      "id": "next-needs-the-previous-batch-released",
+      "why": "back-pressure: one batch outstanding at a time",
+      "ops": [
+        {
+          "op": "snapshot",
+          "as": "snap"
+        },
+        {
+          "op": "session",
+          "from": "snap",
+          "as": "sess"
+        },
+        {
+          "op": "query",
+          "from": "sess",
+          "as": "q",
+          "prepared": "prep"
+        },
+        {
+          "op": "next",
+          "query": "q",
+          "demand": 1,
+          "as": "ev",
+          "expect": "OK"
+        },
+        {
+          "op": "next",
+          "query": "q",
+          "demand": 1,
+          "expect": "OUTSTANDING_BATCH"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_event_release",
+          "args": [
+            "ev"
+          ],
+          "expect": "OK"
+        }
+      ]
+    },
+    {
+      "id": "error-handle-is-released-once",
+      "why": "error objects obey the same ownership rule",
+      "ops": [
+        {
+          "op": "call",
+          "fn": "mdd_session_close_v1",
+          "args": [
+            {
+              "literal": 0
+            }
+          ],
+          "expect": "INVALID_HANDLE",
+          "error_as": "err"
+        },
+        {
+          "op": "view",
+          "fn": "mdd_error_json_v1",
+          "args": [
+            "err"
+          ],
+          "expect": "OK"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_error_release",
+          "args": [
+            "err"
+          ],
+          "expect": "OK"
+        },
+        {
+          "op": "call",
+          "fn": "mdd_error_release",
+          "args": [
+            "err"
+          ],
+          "expect": "INVALID_HANDLE"
+        }
+      ]
+    }
+  ]
+}

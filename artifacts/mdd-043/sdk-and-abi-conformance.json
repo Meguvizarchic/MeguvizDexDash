@@ -1,0 +1,359 @@
+{
+ "schema_version": "mdd.sdk-and-abi-conformance.v1",
+ "task": "MDD-043",
+ "kind": "development evidence for the in-process C ABI and its Python binding; admits no profile",
+ "abi": {
+  "major": 1,
+  "minor": 0,
+  "header": "include/mdd.h",
+  "exported_symbols": 29
+ },
+ "acceptance": [
+  {
+   "acceptance": "open_snapshot, open_session, prepare_query, start_query, next_batch, cancel_query, close_session and close_snapshot are implemented, with version negotiation",
+   "tests": [
+    {
+     "test": "negotiation_accepts_1_0_and_refuses_other_majors_and_future_minors",
+     "outcome": "ok"
+    },
+    {
+     "test": "capabilities_name_the_profile_as_unadmitted_and_list_what_is_unsupported",
+     "outcome": "ok"
+    },
+    {
+     "test": "a_full_stream_ends_in_a_complete_terminal_with_derived_coverage",
+     "outcome": "ok"
+    },
+    {
+     "test": "cancel_before_the_first_batch_ends_in_a_cancelled_terminal_and_after_the_end_is_accepted",
+     "outcome": "ok"
+    },
+    {
+     "test": "close_is_idempotent_refuses_new_work_and_keeps_what_exists",
+     "outcome": "ok"
+    },
+    {
+     "test": "unsupported_forms_are_refused_by_name_and_not_ignored",
+     "outcome": "ok"
+    },
+    {
+     "test": "the_header_declares_exactly_the_exported_symbols",
+     "outcome": "ok"
+    },
+    {
+     "test": "test_the_library_negotiates_abi_1_0_and_is_not_an_admitted_profile",
+     "outcome": "ok"
+    },
+    {
+     "test": "test_a_future_abi_is_refused_with_the_offered_version",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  },
+  {
+   "acceptance": "no Rust private layout crosses the ABI; buffers have an explicit owner; double release and old handles cause no undefined access",
+   "tests": [
+    {
+     "test": "the_header_exposes_only_fixed_width_scalars_and_two_plain_structs",
+     "outcome": "ok"
+    },
+    {
+     "test": "double_release_is_a_detected_error_for_every_handle_kind",
+     "outcome": "ok"
+    },
+    {
+     "test": "forged_zero_and_wrong_kind_handles_are_refused_without_touching_anything",
+     "outcome": "ok"
+    },
+    {
+     "test": "a_reused_slot_does_not_answer_to_an_old_handle",
+     "outcome": "ok"
+    },
+    {
+     "test": "null_and_misaligned_pointers_are_refused",
+     "outcome": "ok"
+    },
+    {
+     "test": "a_retained_batch_outlives_its_event_query_session_and_snapshot",
+     "outcome": "ok"
+    },
+    {
+     "test": "a_batch_must_be_released_before_the_next_and_acknowledged_before_the_end",
+     "outcome": "ok"
+    },
+    {
+     "test": "ownership-cases (every data-driven case, through the raw ABI)",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  },
+  {
+   "acceptance": "Python keeps NULL, exact integers, provenance, duplicates, error codes and the final coverage, and never reads a missing page as an empty list",
+   "tests": [
+    {
+     "test": "cells_keep_null_exact_integers_and_unpaired_surrogates",
+     "outcome": "ok"
+    },
+    {
+     "test": "test_rows_keep_null_exact_integers_unpaired_surrogates_and_duplicates",
+     "outcome": "ok"
+    },
+    {
+     "test": "test_original_mutf8_text_keeps_its_bytes_and_unit_count",
+     "outcome": "ok"
+    },
+    {
+     "test": "test_a_complete_result_carries_its_coverage_and_binds_the_snapshot",
+     "outcome": "ok"
+    },
+    {
+     "test": "test_batches_respect_the_demand_and_are_contiguous",
+     "outcome": "ok"
+    },
+    {
+     "test": "test_a_statement_that_cannot_run_raises_with_the_engine_code_never_an_empty_list",
+     "outcome": "ok"
+    },
+    {
+     "test": "test_a_cancelled_query_raises_and_never_returns_a_short_list",
+     "outcome": "ok"
+    },
+    {
+     "test": "test_an_unavailable_layer_is_refused_by_name",
+     "outcome": "ok"
+    },
+    {
+     "test": "test_a_missing_input_is_an_input_error",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  },
+  {
+   "acceptance": "concurrency, cancellation, GC and explicit close, and abnormal exit have bounded cleanup evidence",
+   "tests": [
+    {
+     "test": "cancel_from_another_thread_stops_a_running_statement",
+     "outcome": "ok"
+    },
+    {
+     "test": "a_second_consumer_gets_busy_instead_of_waiting",
+     "outcome": "ok"
+    },
+    {
+     "test": "releasing_the_query_handle_while_another_thread_consumes_it_is_safe",
+     "outcome": "ok"
+    },
+    {
+     "test": "abi::tests::a_panic_is_contained_and_reported_as_an_internal_fault",
+     "outcome": "ok"
+    },
+    {
+     "test": "engine::tests::a_panic_inside_a_query_poisons_it_so_the_next_use_fails_instead_of_running_on",
+     "outcome": "ok"
+    },
+    {
+     "test": "engine::tests::a_poisoned_session_list_makes_close_fail_loudly",
+     "outcome": "ok"
+    },
+    {
+     "test": "test_cancel_from_another_thread_stops_a_running_statement",
+     "outcome": "ok"
+    },
+    {
+     "test": "test_parallel_queries_on_one_session_give_identical_complete_results",
+     "outcome": "ok"
+    },
+    {
+     "test": "test_the_session_thread_limit_is_enforced_and_reported_not_queued",
+     "outcome": "ok"
+    },
+    {
+     "test": "test_a_second_consumer_of_one_query_is_told_to_retry_not_blocked",
+     "outcome": "ok"
+    },
+    {
+     "test": "test_leaving_a_with_block_by_exception_cancels_and_releases",
+     "outcome": "ok"
+    },
+    {
+     "test": "test_abandoning_a_generator_midway_leaves_nothing_behind",
+     "outcome": "ok"
+    },
+    {
+     "test": "test_unclosed_objects_are_released_by_the_garbage_collector",
+     "outcome": "ok"
+    },
+    {
+     "test": "test_use_after_close_raises_closed_and_close_is_idempotent",
+     "outcome": "ok"
+    },
+    {
+     "test": "test_closing_the_snapshot_keeps_the_sessions_that_already_exist",
+     "outcome": "ok"
+    },
+    {
+     "test": "test_a_parent_is_not_collected_under_a_live_child",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  },
+  {
+   "acceptance": "a public fixture is read without importing any HostLab or BIL business package",
+   "tests": [
+    {
+     "test": "test_no_business_package_is_imported_or_named",
+     "outcome": "ok"
+    },
+    {
+     "test": "workspace-boundaries (mdd-ffi depends only on core crates)",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  }
+ ],
+ "open_clauses": [
+  {
+   "acceptance_clause": 4,
+   "case": "worker lost",
+   "status": "open",
+   "reason": "The ABI is in-process, so there is no worker whose loss it could observe, and the Python SDK has no worker transport: the repository has a wire protocol and a test worker but no production worker. The in-process analogues (a handle released under a running query, a session closed under it, a contained panic) are proven; the worker case needs a worker transport in the SDK."
+  }
+ ],
+ "ownership_cases": [
+  {
+   "id": "release-twice-snapshot",
+   "why": "a second release of the same reference is a detected error, not a fault",
+   "ops": 3,
+   "passed": true
+  },
+  {
+   "id": "release-twice-session",
+   "why": "same, for a session",
+   "ops": 4,
+   "passed": true
+  },
+  {
+   "id": "release-twice-prepared-and-query",
+   "why": "same, for a prepared query and a query",
+   "ops": 7,
+   "passed": true
+  },
+  {
+   "id": "event-owns-the-borrowed-batch",
+   "why": "the batch handle of an event is borrowed: gone with the event unless retained",
+   "ops": 10,
+   "passed": true
+  },
+  {
+   "id": "retained-batch-outlives-its-event",
+   "why": "retain gives an independent reference that keeps the bytes valid",
+   "ops": 10,
+   "passed": true
+  },
+  {
+   "id": "borrowed-batch-release-needs-retain",
+   "why": "the caller cannot free the reference the event owns; only what it retained itself",
+   "ops": 13,
+   "passed": true
+  },
+  {
+   "id": "forged-handles",
+   "why": "zero, small and all-ones values never reach an object",
+   "ops": 11,
+   "passed": true
+  },
+  {
+   "id": "wrong-kind-handles",
+   "why": "a live handle of another kind is as invalid as a forged one, and does no harm",
+   "ops": 8,
+   "passed": true
+  },
+  {
+   "id": "use-after-release",
+   "why": "operations on a released handle are refused, never followed",
+   "ops": 8,
+   "passed": true
+  },
+  {
+   "id": "release-order-does-not-matter",
+   "why": "a query keeps its session and snapshot alive; releasing parents first is safe",
+   "ops": 7,
+   "passed": true
+  },
+  {
+   "id": "close-is-idempotent",
+   "why": "close repeats without error; release is the one-shot",
+   "ops": 6,
+   "passed": true
+  },
+  {
+   "id": "acknowledge-only-once",
+   "why": "one receipt per batch",
+   "ops": 7,
+   "passed": true
+  },
+  {
+   "id": "next-needs-the-previous-batch-released",
+   "why": "back-pressure: one batch outstanding at a time",
+   "ops": 6,
+   "passed": true
+  },
+  {
+   "id": "error-handle-is-released-once",
+   "why": "error objects obey the same ownership rule",
+   "ops": 4,
+   "passed": true
+  }
+ ],
+ "tests": {
+  "rust": {
+   "exit_code": 0,
+   "passed": 24,
+   "failed": 0
+  },
+  "python": {
+   "exit_code": 0,
+   "ran": 21
+  },
+  "boundaries_exit_code": 0,
+  "log_sha256": {
+   "build": "1ff3677fa09ae68e144956e3a52efc2ae298db5a75e79950973be8fed1a4c9bd",
+   "rust": "e412e5a911844194e481760dbc520fd03820c14b999ced03e5a4b74722180269",
+   "python": "33b6dc0b6e63386472c3086589df0a7ea51fb72bc39076cda16ca963644d13e3",
+   "boundaries": "ed6232f4870167f9b561575467f7c3869b983cce22d60443a873584d370a6fbf"
+  },
+  "raw_logs_kept_at": "artifacts/local/ (ignored; carries developer-machine output)"
+ },
+ "inputs_sha256": {
+  "include/mdd.h": "2ea595cfa6d04c426f4ad52260b144bf4284c286e0e5778efda0bf95d28e2d6a",
+  "conformance/abi/ownership-cases.json": "feae22991b28e99ca9c7c50019a4a631619f87c1c7091d236548f54fbbd24a32",
+  "crates/mdd-ffi/Cargo.toml": "d81c9b530a6d7a75f38376c1086659ac952e9de9618e148fc08e7fbe0c306042"
+ },
+ "mutation_check": {
+  "file": "artifacts/mdd-043/mutation/results.txt",
+  "script": "artifacts/mdd-043/mutation/mutate_abi.py",
+  "present": true,
+  "current": true,
+  "killed": 16,
+  "survived": [],
+  "errors": 0,
+  "restored_tree_passes": true
+ },
+ "residual": [
+  "worker lost is open: the SDK has no worker transport and the repository has no production worker; see open_clauses",
+  "typed IR queries, query parameters and the code, reference and annotation fact layers are not available through this ABI version; each is refused by name (UNSUPPORTED_QUERY or UNSUPPORTED_CAPABILITY)",
+  "the result is computed completely before the first batch leaves; a cursor then serves it in owned batches, so peak memory is the whole result, not a window",
+  "batches are JSON (schema mdd.sdk-batch.v1); there is no columnar or Arrow encoding",
+  "one Windows host; Linux and macOS are covered only by the repository CI, which does not yet run the Python tests",
+  "the conformance runner and its --check are not wired into CI"
+ ],
+ "run": {
+  "started_utc": "2026-11-15T04:50:07.645928+00:00",
+  "profile": "native-unqualified (never admitted)"
+ }
+}
