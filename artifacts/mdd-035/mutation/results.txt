@@ -1,0 +1,8 @@
+KILLED   typed IR orders text by UTF-8 bytes instead of UTF-16 code units
+KILLED   typed IR entity order ignores the DEX occurrence, so joins and groups merge occurrences
+KILLED   SQL bridge writes text units little-endian, so byte order is no longer unit order
+KILLED   cancel() no longer sets the cancellation flag
+KILLED   next_offset skips one row
+SURVIVED coverage ledger and require_layer both bypassed (a third guard, the fact accessor, remains)
+restored tree passes both test sets: True
+tests sha256: 6956470032096303228fb57783d759d5cb49a7c2789e78246006ae474a3ea365

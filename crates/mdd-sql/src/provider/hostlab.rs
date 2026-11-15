@@ -1444,6 +1444,8 @@ impl SqlFactProvider for HostLabSqlProvider {
 }
 
 #[cfg(test)]
+mod combo_tests;
+#[cfg(test)]
 mod temp_tests;
 #[cfg(test)]
 mod tests;

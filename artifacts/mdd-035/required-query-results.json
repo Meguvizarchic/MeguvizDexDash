@@ -1,0 +1,362 @@
+{
+ "schema_version": "mdd.required-query-results.v1",
+ "task": "MDD-035",
+ "kind": "development evidence for the query layer; admits no profile",
+ "acceptance": [
+  {
+   "acceptance": "every frozen required HostLab statement agrees with A0 field by field, type by type, in multiplicity and in the required order",
+   "tests": [
+    {
+     "test": "provider::hostlab::tests::hostlab_variants_match_the_a0_golden_results",
+     "outcome": "ok"
+    },
+    {
+     "test": "provider::hostlab::tests::calls_the_reference_refuses_are_refused_with_the_same_failing_statement",
+     "outcome": "ok"
+    },
+    {
+     "test": "provider::hostlab::temp_tests::temp_scenarios_match_the_recorded_a0_behaviour",
+     "outcome": "ok"
+    },
+    {
+     "test": "provider::hostlab::tests::every_relation_matches_the_recorded_a0_readback_row_for_row",
+     "outcome": "ok"
+    },
+    {
+     "test": "provider::hostlab::tests::a0_differential_over_the_fixture_corpus_has_only_declared_divergences",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  },
+  {
+   "acceptance": "complete holds only when the required scope's input and facts are complete, execution finished and no page remains",
+   "tests": [
+    {
+     "test": "coverage::coverage_column_gate_tests::missing_provider_object_is_unknown_not_complete",
+     "outcome": "ok"
+    },
+    {
+     "test": "coverage::coverage_column_gate_tests::unmapped_relation_is_never_gated_to_complete",
+     "outcome": "ok"
+    },
+    {
+     "test": "provider::hostlab::tests::coverage_ledger_gates_each_relation_on_the_layers_that_prove_it",
+     "outcome": "ok"
+    },
+    {
+     "test": "result::tests::blocking_warning_cannot_be_a_complete_result",
+     "outcome": "ok"
+    },
+    {
+     "test": "result::tests::exact_total_larger_than_delivered_is_not_complete",
+     "outcome": "ok"
+    },
+    {
+     "test": "cursors::tests::pages_that_disagree_with_the_exact_total_are_rejected",
+     "outcome": "ok"
+    },
+    {
+     "test": "executor::runtime_tests::all_rows_dequeued_but_one_unacknowledged_still_cannot_complete",
+     "outcome": "ok"
+    },
+    {
+     "test": "executor::runtime_tests::dropped_unacknowledged_rows_and_unread_end_never_complete",
+     "outcome": "ok"
+    },
+    {
+     "test": "result::tests::part_rows_error_and_eof_never_complete",
+     "outcome": "ok"
+    },
+    {
+     "test": "provider::hostlab::combo_tests::an_unbuilt_layer_is_an_error_under_every_window_and_never_an_empty_page",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  },
+  {
+   "acceptance": "the same request gives no silent difference between the typed IR, the SQL bridge and the conservative reference path",
+   "tests": [
+    {
+     "test": "executor::tests::independent_small_table_oracle_both_execution_paths",
+     "outcome": "ok"
+    },
+    {
+     "test": "full_scan_projection_agrees_on_all_paths",
+     "outcome": "ok"
+    },
+    {
+     "test": "order_by_text_follows_utf16_code_units_on_all_paths",
+     "outcome": "ok"
+    },
+    {
+     "test": "offset_window_over_an_ordered_request_agrees_on_all_paths",
+     "outcome": "ok"
+    },
+    {
+     "test": "grouped_count_keeps_the_multiplicity_of_both_occurrences",
+     "outcome": "ok"
+    },
+    {
+     "test": "equality_filter_hits_and_misses_agree_on_all_paths",
+     "outcome": "ok"
+    },
+    {
+     "test": "join_through_the_descriptor_string_keeps_occurrence_identity",
+     "outcome": "ok"
+    },
+    {
+     "test": "class_scan_agrees_on_all_paths_for_definition_relations",
+     "outcome": "ok"
+    },
+    {
+     "test": "field_kind_histogram_agrees_on_all_paths_for_definition_relations",
+     "outcome": "ok"
+    },
+    {
+     "test": "field_to_class_join_keeps_occurrence_identity_for_definition_relations",
+     "outcome": "ok"
+    },
+    {
+     "test": "class_interface_pairs_agree_on_all_paths_for_definition_relations",
+     "outcome": "ok"
+    },
+    {
+     "test": "sql_order_puts_the_supplementary_string_where_the_python_record_does",
+     "outcome": "ok"
+    },
+    {
+     "test": "sql_original_mutf8_cells_declare_the_unit_count_of_their_text",
+     "outcome": "ok"
+    },
+    {
+     "test": "count_star_is_unsigned_in_the_typed_ir_and_signed_in_the_sql_bridge",
+     "outcome": "ok"
+    },
+    {
+     "test": "fixture_discriminates_utf16_order_from_utf8_order",
+     "outcome": "ok"
+    },
+    {
+     "test": "the_comparison_itself_rejects_a_wrong_row_a_missing_row_and_a_wrong_order",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  },
+  {
+   "acceptance": "paging, cancellation, TEMP and unusable-input combinations are refused or preserved correctly, and failure or an unknown format is never recorded as a normal MISSING",
+   "tests": [
+    {
+     "test": "provider::hostlab::combo_tests::a_cancelled_page_is_an_error_and_the_walk_resumes_with_identical_rows",
+     "outcome": "ok"
+    },
+    {
+     "test": "provider::hostlab::combo_tests::a_cancelled_read_of_a_temp_definition_changes_neither_the_catalog_nor_the_rows",
+     "outcome": "ok"
+    },
+    {
+     "test": "provider::hostlab::combo_tests::an_unbuilt_layer_is_an_error_under_every_window_and_never_an_empty_page",
+     "outcome": "ok"
+    },
+    {
+     "test": "result::tests::computed_spool_cancel_page_and_complete_zero_are_independent",
+     "outcome": "ok"
+    },
+    {
+     "test": "provider::hostlab::tests::calls_the_reference_refuses_are_refused_with_the_same_failing_statement",
+     "outcome": "ok"
+    },
+    {
+     "test": "provider::hostlab::tests::known_unsupported_forms_fail_closed_with_the_unsupported_classification",
+     "outcome": "ok"
+    },
+    {
+     "test": "provider::hostlab::tests::a0_differential_over_the_fixture_corpus_has_only_declared_divergences",
+     "outcome": "ok"
+    },
+    {
+     "test": "provider::hostlab::temp_tests::temp_scenarios_match_the_recorded_a0_behaviour",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  }
+ ],
+ "scope_declaration": {
+  "acceptance": "only the query layer is registered; the whole hostlab-audit-v1 workflow needs MDD-055 before it can be called a replacement",
+  "no_profile_admitted": true,
+  "workflow_replacement": "not claimed"
+ },
+ "known_representation_differences": [
+  {
+   "what": "COUNT(*)",
+   "typed_ir": "u64",
+   "sql_bridge": "i64",
+   "pinned_by": "count_star_is_unsigned_in_the_typed_ir_and_signed_in_the_sql_bridge",
+   "comparison": "the SQL cell is converted to unsigned for that one column, from a non-negative signed value only"
+  },
+  {
+   "what": "original MUTF-8 text bytes (strings.raw_mutf8)",
+   "typed_ir": "bytes",
+   "sql_bridge": "dex_mutf8 with a declared UTF-16 unit count",
+   "pinned_by": "sql_original_mutf8_cells_declare_the_unit_count_of_their_text",
+   "comparison": "bytes are compared across paths; the unit count is checked against the text on the SQL side"
+  }
+ ],
+ "families": {
+  "Q01": {
+   "variants": 4,
+   "statements": 4,
+   "pages": 4,
+   "verdict": "equal_to_a0"
+  },
+  "Q02": {
+   "variants": 5,
+   "statements": 5,
+   "pages": 5,
+   "verdict": "equal_to_a0"
+  },
+  "Q03": {
+   "variants": 1,
+   "statements": 1,
+   "pages": 1,
+   "verdict": "equal_to_a0"
+  },
+  "Q04": {
+   "variants": 6,
+   "statements": 6,
+   "pages": 6,
+   "verdict": "equal_to_a0"
+  },
+  "Q05": {
+   "variants": 1,
+   "statements": 1,
+   "pages": 1,
+   "verdict": "equal_to_a0"
+  },
+  "Q06": {
+   "variants": 4,
+   "statements": 9,
+   "pages": 4,
+   "verdict": "equal_to_a0"
+  },
+  "Q07": {
+   "variants": 5,
+   "statements": 5,
+   "pages": 5,
+   "verdict": "equal_to_a0"
+  },
+  "Q08": {
+   "variants": 4,
+   "statements": 4,
+   "pages": 4,
+   "verdict": "equal_to_a0"
+  },
+  "Q09": {
+   "variants": 1,
+   "statements": 1,
+   "pages": 1,
+   "verdict": "equal_to_a0"
+  },
+  "Q10": {
+   "variants": 1,
+   "statements": 1,
+   "pages": 1,
+   "verdict": "equal_to_a0"
+  },
+  "Q11": {
+   "variants": 1,
+   "statements": 1,
+   "pages": 1,
+   "verdict": "equal_to_a0"
+  },
+  "Q12": {
+   "variants": 12,
+   "statements": 12,
+   "pages": 13,
+   "verdict": "equal_to_a0"
+  },
+  "Q13": {
+   "variants": 19,
+   "statements": 65,
+   "pages": 19,
+   "verdict": "equal_to_a0"
+  },
+  "Q14": {
+   "variants": 12,
+   "statements": 14,
+   "pages": 79,
+   "verdict": "equal_to_a0"
+  },
+  "Q15": {
+   "variants": 1,
+   "statements": 1,
+   "pages": 1,
+   "verdict": "equal_to_a0"
+  }
+ },
+ "temp_and_paging": {
+  "corpus": "conformance/session/catalog-and-paging.json",
+  "scenarios": 23,
+  "replayed_equal_to_a0": true
+ },
+ "inputs_sha256": {
+  "conformance/corpus/hostlab/required-variants.json": "134a2a389ba16369dc454a600a0a524e882078cd804506158aed8076a2aa24c2",
+  "conformance/corpus/hostlab/expected-results/hostlab-a0-golden.json": "fc6df45f33b0e6f67a759e9065cb116d3d1b66cd25b515b09f9f99a720331d2f",
+  "conformance/session/catalog-and-paging.json": "a45142f5135f3fe407c1664b60fe6931f81170660f2b342b89ee33e9a8628af7",
+  "conformance/manifests/profile-requirements.json": "a8dce3b4082195c16f0c7b426b612767c3b6d8abaf6fa2ba8b11e0d5909ad6eb"
+ },
+ "mutation_check": {
+  "current": true,
+  "errors": 0,
+  "file": "artifacts/mdd-035/mutation/results.txt",
+  "present": true,
+  "script": "artifacts/mdd-035/mutation/mutate_query_paths.py",
+  "killed": 5,
+  "survived": [
+   "coverage ledger and require_layer both bypassed (a third guard, the fact accessor, remains)"
+  ],
+  "restored_tree_passes": true
+ },
+ "residual": [
+  "the three-path comparison (typed IR streaming, typed IR reference, SQL bridge) covers the native relations strings, types, classes, class_interfaces and field_definitions over two small two-occurrence fixtures; method_definitions, code, reference and annotation relations are compared with A0 through the SQL path only, not through the typed IR",
+  "no Q16-labelled corpus exists in required-variants.json: Q16 is evidenced only through the recorded TEMP and paging scenarios and the MDD-031 SQL semantics suite, so the dexsql compatibility profiles stay partial",
+  "unusable inputs reach the query layer through the A0 differential, whose corpus holds malformed DEX files: wherever A0 refuses, the engine refuses too and none becomes a zero-row success; they are not combined again with paging beyond the rejection corpus, which is replayed under windows",
+  "cancellation combinations use a control cancelled before the call, which is deterministic; a cancel racing a running page is covered by the separate cancellation tests, not by these combinations",
+  "one mutant survived: bypassing both the coverage ledger and require_layer still fails closed because the fact accessor is a third guard; the two guards are tested separately in coverage_ledger_gates_each_relation_on_the_layers_that_prove_it",
+  "run on one Windows host; Linux is covered only by the repository CI",
+  "no performance run and no profile admitted; the whole hostlab-audit-v1 workflow needs MDD-055"
+ ],
+ "run": {
+  "command": [
+   "cargo",
+   "test",
+   "--offline",
+   "--locked",
+   "-p",
+   "mdd-types",
+   "-p",
+   "mdd-facts",
+   "-p",
+   "mdd-query",
+   "-p",
+   "mdd-session",
+   "-p",
+   "mdd-sql",
+   "--lib",
+   "--tests"
+  ],
+  "started_utc": "2026-11-15T04:10:00.226705+00:00",
+  "finished_utc": "2026-11-15T04:10:13.530348+00:00",
+  "exit_code": 0,
+  "raw_log_sha256": "01c1ecf6259e08d2b95a2d1ecb121f34e71c66416d42ab01d1d8254c4c7c95d2",
+  "raw_log_bytes": 65665,
+  "raw_log_kept_at": "artifacts/local/ (ignored; carries developer-machine output)",
+  "targets": 10,
+  "passed": 708,
+  "failed": 0,
+  "ignored": 0
+ }
+}

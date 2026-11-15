@@ -265,6 +265,22 @@
 
 **教训**：证据所依赖的夹具必须能从干净检出得到；推送前除本机门禁外要在干净检出（`git archive HEAD`）里跑一遍与 CI 相同的命令。
 
+## 2026-11-15 MDD-035 查询层资格与收口
+
+**结论**：MDD-035 标 done，**只登记查询层**。`hostlab-audit-v1` 的查询层通过（Q01 至 Q14 与 A0 逐项一致，Q15 也一致）；`dexsql-0.1.0` 与 `0.1.1` 兼容 profile 仍是 `partial`，因为 Q16 没有标注语料。没有任何 profile 被准入，整个 HostLab 工作流要等 MDD-055。MDD-041、042、044、051、052、070 至 072 的依赖因此不再被 035 挡住。
+
+**交付**
+- `conformance/run-required-query-suite.py`：现场跑 mdd-types/facts/query/session/sql 的单元与集成测试（708 项通过），把验收映射到具名测试，按 profile 逐族给出裁决，写 `artifacts/mdd-035/required-query-results.json` 与 `conformance/manifests/query-profile-qualification.json`。`--check` 不跑 cargo，只核对已提交记录与输入是否一致。负例测试 `conformance/test_run_required_query_suite.py` 共 21 项。
+- 验收第 3 条是新做的：`crates/mdd-sql/tests/cross_path_equivalence.rs` 把同一请求送进 typed IR 快路径、typed IR 保守参考路径和 SQL 桥，与直接由事实算出的手写结果比较，覆盖 strings、types、classes、class_interfaces、field_definitions（全扫描、排序、窗口、分组计数、等值过滤、连接）。夹具 `tests/fixtures/query/generate_unicode_order.py` 造出的最小 DEX 只含 `U+E000` 与 `U+1F600` 两个仅差一个标量的串，使 UTF-16 序与 UTF-8 序相反；产物哈希在捕获阶段核对，顺序另有 Python 独立记录。
+- 验收第 4 条：`combo_tests.rs` 把取消与分页遍历、取消与 TEMP 定义、缺层与各种窗口两两组合。损坏输入走 A0 差分里的拒绝记录。
+- 变异检查 `artifacts/mdd-035/mutation/`：6 个变异，5 个被抓住（文本按 UTF-8 排序、实体比较忽略所属 DEX、SQL 文本写成小端、取消标志被吞、`next_offset` 偏一位）。1 个存活：同时绕过账本与 `require_layer`，仍因事实访问器这第三道防线而拒绝。
+
+**发现并钉住的两处表示差异**（不是引擎错误，是两个界面的类型系统不同，之前会被静默吞掉）：`COUNT(*)` 在 typed IR 是 u64、在 SQL 桥是 i64；原始 MUTF-8 文本在 typed IR 是 bytes、在 SQL 桥是带 UTF-16 单元数的 dex_mutf8。各有测试钉住，任何一边变化都会失败。
+
+**审查**：high 级，8 条，修了 6 条（变异脚本把编译失败误判为抓住、记录不与当前输入绑定、差异解析过松、夹具生成器不核对字符串是否写入、测试注释夸大证明范围）；跳过 2 条（原始记录覆盖写与其他构建器一致；两个世界的构造重复，合并得不偿失）。过程中我有一次误用 `git checkout` 还原了带未提交改动的 `hostlab.rs`，立即补回，之后变异脚本改为在内存里保存原字节。
+
+**残余**：method_definitions、code、reference、annotation 关系没有经 typed IR 比较（只经 SQL 路径对 A0）；取消组合用的是调用前已取消的控制，不是运行中竞态；只在一台 Windows 主机上跑，Linux 只靠仓库 CI；运行器与 `--check` 尚未接入 CI；Q16 无标注语料。
+
 ## Checkout 与交付
 
 工程目录 D:\MeguvisDexDash（保留目录原拼写）。远端已迁移到 https://github.com/Meguvizarchic/MeguvizDexDash（**公开仓库**，旧地址 jichuo1/MeguvizDexDash 自动转发）；PR #1 已于 2026-11-04 合并，`main` 现为 a9aa1f0，其中 27ac27e 是由本分支 71dfce9 生成的「脱敏工程进度快照」，之后 8 个提交是修补与 README/图标。本地分支 codex/m2-facts-20261028 当前**没有远端分支**：2026-11-12 曾整体推送，随后发现仓库公开，已按用户决定删除远端分支（GitHub 上提交仍可按 SHA 读取）。重新推送前必须先决定公开范围，见下节。

@@ -1,0 +1,41 @@
+{
+  "fixture_sha256": "bc69b3385a595bf8e2e409b371b4eb7eba264b1970ad6aaa1e76aef6f4a9f3da",
+  "utf16_units": {
+    "Lfixture/\ue000;": [
+      76,
+      102,
+      105,
+      120,
+      116,
+      117,
+      114,
+      101,
+      47,
+      57344,
+      59
+    ],
+    "Lfixture/\ud83d\ude00;": [
+      76,
+      102,
+      105,
+      120,
+      116,
+      117,
+      114,
+      101,
+      47,
+      55357,
+      56832,
+      59
+    ]
+  },
+  "order_by_utf16_units": [
+    "Lfixture/\ud83d\ude00;",
+    "Lfixture/\ue000;"
+  ],
+  "order_by_utf8_bytes": [
+    "Lfixture/\ue000;",
+    "Lfixture/\ud83d\ude00;"
+  ],
+  "scope": "independent synthetic writer, not A0 qualification"
+}

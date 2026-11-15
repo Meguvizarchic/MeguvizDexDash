@@ -54363,6 +54363,21 @@
       "sha256": "9d586d7a5e7ecdf0efca487cdb801024af42c69e4c135e21417f4fbacd94cf1e"
     },
     {
+      "path": "artifacts/mdd-035/mutation/mutate_query_paths.py",
+      "bytes": 5348,
+      "sha256": "4db65139e15efdfd3d9a4ddde0846c1d64668ea4fed4d60f75c009e95943af2f"
+    },
+    {
+      "path": "artifacts/mdd-035/mutation/results.txt",
+      "bytes": 582,
+      "sha256": "50ec3ad083aec17da69ae3a137a230139df61eb8f3c8a876c8ea0d49cc2a7813"
+    },
+    {
+      "path": "artifacts/mdd-035/required-query-results.json",
+      "bytes": 11406,
+      "sha256": "8db46024c6740301ba8024024d7298e5f31e54fd91521901b50e985447a85b89"
+    },
+    {
       "path": "artifacts/mdd-040/mutation/mutate_wire.py",
       "bytes": 5936,
       "sha256": "2220f7621662bd506bc76d9292e200d0bbfffe731be50d2dae943a33c9e2c7ff"

@@ -994,7 +994,7 @@
       "id": "MDD-035",
       "phase": "M3",
       "title": "完成必需查询组合验证与 profile 准入门禁",
-      "status": "todo",
+      "status": "done",
       "depends_on": [
         "MDD-026",
         "MDD-032",
@@ -1024,6 +1024,20 @@
         "docs/02_ARCHITECTURE_AND_CONTRACTS.md",
         "docs/03_HOSTLAB_MIGRATION.md",
         "docs/04_VALIDATION_AND_PERFORMANCE.md"
+      ],
+      "implementation_notes": "2026-11-15 closure, query layer only. conformance/run-required-query-suite.py runs the unit and integration tests of mdd-types/facts/query/session/sql (708 passed), maps the acceptance clauses to named tests and derives a verdict per required query family; its negative controls are conformance/test_run_required_query_suite.py, and --check verifies the committed records against their inputs. Clause 1: 77 frozen variants over Q01-Q15 equal A0 with no declared divergence (hostlab_variants_match_the_a0_golden_results), 23 TEMP and paging scenarios replay equal to A0, rejected calls fail with the same statement. Clause 3 is new work: crates/mdd-sql/tests/cross_path_equivalence.rs runs one request through the typed IR (streaming and materialized reference) and the SQL bridge against a hand oracle for strings, types, classes, class_interfaces and field_definitions, on a synthetic fixture that separates UTF-16 order from UTF-8 order (tests/fixtures/query/generate_unicode_order.py, hash checked at capture, independent Python order record). It found and now pins two intended representation differences: COUNT(*) is u64 in the typed IR and i64 in the SQL bridge, and original MUTF-8 text is bytes versus dex_mutf8. Clause 4: crates/mdd-sql/src/provider/hostlab/combo_tests.rs combines cancellation with paged walks and TEMP definitions, and an unbuilt layer with every window; unusable inputs are covered by the A0 differential refusals. Mutation check artifacts/mdd-035/mutation: 5 of 6 mutants killed, 1 survived because a third guard remains. Result: hostlab-audit-v1 passes at the query layer; the dexsql compatibility profiles stay partial because no Q16-labelled corpus exists. Only the query layer is registered; no profile is admitted and the whole workflow needs MDD-055. Residual: method_definitions, code, reference and annotation relations are not compared through the typed IR; cancellation combinations use a control cancelled before the call; one Windows host, Linux only through CI; the runner and its --check are not wired into CI.",
+      "implementation_evidence": [
+        "artifacts/mdd-035/required-query-results.json",
+        "conformance/manifests/query-profile-qualification.json",
+        "conformance/run-required-query-suite.py",
+        "conformance/test_run_required_query_suite.py",
+        "crates/mdd-sql/tests/cross_path_equivalence.rs",
+        "crates/mdd-sql/src/provider/hostlab/combo_tests.rs",
+        "tests/fixtures/query/generate_unicode_order.py",
+        "tests/fixtures/query/generated/unicode-order-038.dex",
+        "tests/fixtures/query/generated/unicode-order-038.json",
+        "artifacts/mdd-035/mutation/mutate_query_paths.py",
+        "artifacts/mdd-035/mutation/results.txt"
       ]
     },
     {

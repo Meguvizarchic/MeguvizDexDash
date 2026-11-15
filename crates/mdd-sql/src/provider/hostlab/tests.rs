@@ -178,6 +178,23 @@ impl Harness {
         )
         .unwrap()
     }
+
+    /// A bridge over a provider that built only the named layers, so a relation
+    /// that needs an unbuilt layer is reachable and can be asked for.
+    pub(super) fn bridge_with_layers(
+        &self,
+        dialect: SqlDialect,
+        code: bool,
+        references: bool,
+        annotations: bool,
+    ) -> SqlBridge {
+        SqlBridge::new(
+            self.provider(code, references, annotations),
+            dialect,
+            SqlLimits::default(),
+        )
+        .unwrap()
+    }
 }
 
 fn cell_text(value: &SqlValue) -> Option<String> {

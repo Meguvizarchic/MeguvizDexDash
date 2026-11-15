@@ -1,0 +1,223 @@
+{
+ "schema_version": "mdd.query-profile-qualification.v1",
+ "task": "MDD-035",
+ "scope": "query layer only: statements, typed results, completeness and paging; not the HostLab workflow",
+ "source": "artifacts/mdd-035/required-query-results.json",
+ "results_run_exit_code": 0,
+ "profiles": [
+  {
+   "id": "hostlab-audit-v1",
+   "admitted": false,
+   "query_layer": "passed",
+   "families": {
+    "Q01": {
+     "verdict": "equal_to_a0",
+     "variants": 4
+    },
+    "Q02": {
+     "verdict": "equal_to_a0",
+     "variants": 5
+    },
+    "Q03": {
+     "verdict": "equal_to_a0",
+     "variants": 1
+    },
+    "Q04": {
+     "verdict": "equal_to_a0",
+     "variants": 6
+    },
+    "Q05": {
+     "verdict": "equal_to_a0",
+     "variants": 1
+    },
+    "Q06": {
+     "verdict": "equal_to_a0",
+     "variants": 4
+    },
+    "Q07": {
+     "verdict": "equal_to_a0",
+     "variants": 5
+    },
+    "Q08": {
+     "verdict": "equal_to_a0",
+     "variants": 4
+    },
+    "Q09": {
+     "verdict": "equal_to_a0",
+     "variants": 1
+    },
+    "Q10": {
+     "verdict": "equal_to_a0",
+     "variants": 1
+    },
+    "Q11": {
+     "verdict": "equal_to_a0",
+     "variants": 1
+    },
+    "Q12": {
+     "verdict": "equal_to_a0",
+     "variants": 12
+    },
+    "Q13": {
+     "verdict": "equal_to_a0",
+     "variants": 19
+    },
+    "Q14": {
+     "verdict": "equal_to_a0",
+     "variants": 12
+    }
+   },
+   "families_without_full_evidence": [],
+   "workflow_replacement": "not claimed; needs MDD-055"
+  },
+  {
+   "id": "dexsql-0.1.0-compat-v1",
+   "admitted": false,
+   "query_layer": "partial",
+   "families": {
+    "Q01": {
+     "verdict": "equal_to_a0",
+     "variants": 4
+    },
+    "Q02": {
+     "verdict": "equal_to_a0",
+     "variants": 5
+    },
+    "Q03": {
+     "verdict": "equal_to_a0",
+     "variants": 1
+    },
+    "Q04": {
+     "verdict": "equal_to_a0",
+     "variants": 6
+    },
+    "Q05": {
+     "verdict": "equal_to_a0",
+     "variants": 1
+    },
+    "Q06": {
+     "verdict": "equal_to_a0",
+     "variants": 4
+    },
+    "Q07": {
+     "verdict": "equal_to_a0",
+     "variants": 5
+    },
+    "Q08": {
+     "verdict": "equal_to_a0",
+     "variants": 4
+    },
+    "Q09": {
+     "verdict": "equal_to_a0",
+     "variants": 1
+    },
+    "Q10": {
+     "verdict": "equal_to_a0",
+     "variants": 1
+    },
+    "Q11": {
+     "verdict": "equal_to_a0",
+     "variants": 1
+    },
+    "Q12": {
+     "verdict": "equal_to_a0",
+     "variants": 12
+    },
+    "Q13": {
+     "verdict": "equal_to_a0",
+     "variants": 19
+    },
+    "Q14": {
+     "verdict": "equal_to_a0",
+     "variants": 12
+    },
+    "Q15": {
+     "verdict": "equal_to_a0",
+     "variants": 1
+    },
+    "Q16": {
+     "verdict": "no_labelled_corpus"
+    }
+   },
+   "families_without_full_evidence": [
+    "Q16"
+   ],
+   "workflow_replacement": "not claimed; needs MDD-055"
+  },
+  {
+   "id": "dexsql-0.1.1-compat-v1",
+   "admitted": false,
+   "query_layer": "partial",
+   "families": {
+    "Q01": {
+     "verdict": "equal_to_a0",
+     "variants": 4
+    },
+    "Q02": {
+     "verdict": "equal_to_a0",
+     "variants": 5
+    },
+    "Q03": {
+     "verdict": "equal_to_a0",
+     "variants": 1
+    },
+    "Q04": {
+     "verdict": "equal_to_a0",
+     "variants": 6
+    },
+    "Q05": {
+     "verdict": "equal_to_a0",
+     "variants": 1
+    },
+    "Q06": {
+     "verdict": "equal_to_a0",
+     "variants": 4
+    },
+    "Q07": {
+     "verdict": "equal_to_a0",
+     "variants": 5
+    },
+    "Q08": {
+     "verdict": "equal_to_a0",
+     "variants": 4
+    },
+    "Q09": {
+     "verdict": "equal_to_a0",
+     "variants": 1
+    },
+    "Q10": {
+     "verdict": "equal_to_a0",
+     "variants": 1
+    },
+    "Q11": {
+     "verdict": "equal_to_a0",
+     "variants": 1
+    },
+    "Q12": {
+     "verdict": "equal_to_a0",
+     "variants": 12
+    },
+    "Q13": {
+     "verdict": "equal_to_a0",
+     "variants": 19
+    },
+    "Q14": {
+     "verdict": "equal_to_a0",
+     "variants": 12
+    },
+    "Q15": {
+     "verdict": "equal_to_a0",
+     "variants": 1
+    },
+    "Q16": {
+     "verdict": "no_labelled_corpus"
+    }
+   },
+   "families_without_full_evidence": [
+    "Q16"
+   ],
+   "workflow_replacement": "not claimed; needs MDD-055"
+  }
+ ],
+ "note": "query_layer passed means every required family equals A0 on the frozen corpus; it does not admit the profile"
+}

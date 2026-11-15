@@ -2,7 +2,7 @@
   "schema_version": "mdd.compatibility-ledger.v1",
   "product": "MeguvizDexDash",
   "implementation_state": "in_progress",
-  "updated_date": "2026-11-13",
+  "updated_date": "2026-11-15",
   "timezone": "Asia/Shanghai",
   "authority": "Qualification for the new implementation only; historical DexSQL checks do not admit MeguvizDexDash.",
   "profiles": [
@@ -565,6 +565,7 @@
           "decision": "match_reference"
         }
       ]
-    }
+    },
+    "required_query_suite": "MDD035 accepted within task scope on 2026-11-15 (development evidence; no profile admitted): hostlab-audit-v1 passes at the query layer (Q01-Q14 equal A0 on the frozen corpus; Q15 too); dexsql-0.1.0 and 0.1.1 compatibility stay partial because Q16 has no labelled corpus. The typed IR, its reference path and the SQL bridge agree on strings, types, classes, class_interfaces and field_definitions; COUNT(*) and original MUTF-8 differ in representation by design and are pinned. This registers the query layer only; the whole hostlab-audit-v1 workflow needs MDD-055. Records: artifacts/mdd-035/required-query-results.json, conformance/manifests/query-profile-qualification.json"
   }
 }
