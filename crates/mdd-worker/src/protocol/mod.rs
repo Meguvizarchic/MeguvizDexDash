@@ -370,7 +370,7 @@ pub fn run_child(mut command: Command, request_body: &[u8], config: ClientConfig
     let max_frame = config.hello.max_frame_bytes;
     let (sender, receiver) = mpsc::sync_channel::<Item>(config.queue_frames.max(1));
     let reader_thread = child.stdout.take().map(|stdout| {
-        let (queued, peak) = (Arc::clone(&queued), Arc::clone(&peak));
+        let queued = Arc::clone(&queued);
         thread::spawn(move || {
             let mut reader = FrameReader::new(stdout);
             loop {
@@ -382,9 +382,11 @@ pub fn run_child(mut command: Command, request_body: &[u8], config: ClientConfig
                 let last = !matches!(item, Item::Frame(_));
                 // Counted before the send so the consumer's decrement can never
                 // run first: the count includes the one frame this thread holds
-                // while the queue is full.
-                let now = queued.fetch_add(1, Ordering::SeqCst) + 1;
-                peak.fetch_max(now, Ordering::SeqCst);
+                // while the queue is full. The peak is not taken here: between the
+                // consumer receiving a frame (which frees a slot) and decrementing,
+                // this thread can already count the next frame, so a count taken
+                // now can include a frame that has already left the queue.
+                queued.fetch_add(1, Ordering::SeqCst);
                 if sender.send(item).is_err() {
                     queued.fetch_sub(1, Ordering::SeqCst);
                     return;
@@ -445,7 +447,7 @@ pub fn run_child(mut command: Command, request_body: &[u8], config: ClientConfig
                 }
                 match receiver.recv_timeout((deadline - now).min(Duration::from_millis(10))) {
                     Ok(item) => {
-                        queued.fetch_sub(1, Ordering::SeqCst);
+                        note_peak(&queued, &peak);
                         return Ok(item);
                     }
                     Err(RecvTimeoutError::Timeout) => continue,
@@ -575,7 +577,7 @@ pub fn run_child(mut command: Command, request_body: &[u8], config: ClientConfig
             while let Ok(item) =
                 receiver.recv_timeout(drain_until.saturating_duration_since(Instant::now()))
             {
-                queued.fetch_sub(1, Ordering::SeqCst);
+                note_peak(&queued, &peak);
                 match item {
                     Item::Frame(frame) => {
                         if let Err(error) = stream.accept(&frame) {
@@ -655,6 +657,15 @@ pub fn run_child(mut command: Command, request_body: &[u8], config: ClientConfig
         detached_threads,
         credit_frames: credit_frames.load(Ordering::SeqCst),
     }
+}
+
+/// The consumer has taken one frame: take it off the count and record how many are
+/// still read ahead of it. Sampling after the decrement makes the figure exact -
+/// the queue's slots plus the one frame the reader may hold - so it can never
+/// exceed `queue_frames + 1` unless the queue really holds more.
+fn note_peak(queued: &AtomicUsize, peak: &AtomicUsize) {
+    let ahead = queued.fetch_sub(1, Ordering::SeqCst).saturating_sub(1);
+    peak.fetch_max(ahead, Ordering::SeqCst);
 }
 
 /// One frame queued for the worker: kind, stream id, body.

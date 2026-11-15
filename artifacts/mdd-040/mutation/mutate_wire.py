@@ -48,6 +48,7 @@ MUTATIONS = [
     ('a truncated frame is not a lost worker', ERROR, 'Self::Disconnected | Self::TruncatedHeader | Self::TruncatedBody => {', 'Self::Disconnected => {', WIRE),
     ('UTF-16 unit counts are not checked', STREAM, '&& mutf8_units(bytes) != Some(*utf16_units)', '&& false', WIRE),
     ('credit waits are not capped', CREDIT, 'wait.min(MAX_WAIT)', 'wait', WIRE),
+    ('the read-ahead queue holds one more frame than configured', PROTOCOL, 'mpsc::sync_channel::<Item>(config.queue_frames.max(1));', 'mpsc::sync_channel::<Item>(config.queue_frames.max(1) + 1);', CHILD),
     ('the client never sends Cancel', PROTOCOL, 'if cancelled && let Some(queue) = &out {', 'if false && let Some(queue) = &out {', CHILD),
     ('oversized batches are not split', PROTOCOL, 'Err(error) if error.kind == WireErrorKind::FrameTooLarge && rows.len() > 1 => {', 'Err(error) if false => {', CHILD),
     ('an unencodable row sends no Error terminal', PROTOCOL, '&producer.error(&error.to_mdd())?,', '&[],', CHILD),

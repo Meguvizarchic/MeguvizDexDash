@@ -299,6 +299,18 @@
 
 **限制（不是缺陷，已逐项拒绝并写入能力清单）**：只有 SQL，没有 typed IR 与查询参数；只有 metadata 与 structure 两层，没有 code、reference、annotation；结果在第一个批发出前整体算完，峰值内存是整个结果（`SqlResult` 的行被有意封死，避免拷贝要改 `mdd-sql`）；批是 JSON，没有列式编码；进程级会话与查询上限固定；只在一台 Windows 主机验证，CI 尚未运行 Python 测试与本运行器。
 
+## 2026-11-15 远端 CI：wire_child 的队列峰值断言有竞态，且从未被变异验证
+
+**现象**：推送 95042bc（MDD-043）后，运行 43679632287 的 windows 任务在 `Test native implementation` 失败：`crates/mdd-worker/tests/wire_child.rs` 报 `queue held 4 frames`（断言 `peak_queued_frames <= QUEUE + 1`，即 ≤ 3）。ubuntu-24.04 同一运行全绿；该测试此前在 Windows 上连续 4 次通过；本次改动没有碰 `mdd-worker`。本机 72 次、12 路并行压力下未能复现。
+
+**根因**：读线程在 `send` 之前先 `fetch_add`，消费者 `recv` 返回的瞬间槽位就空出来，但它的 `fetch_sub` 晚一步。若读线程恰好在这个间隙里多读一帧并 `fetch_add`，计数同时含有“已被取走但尚未扣减”的那一帧，瞬时多算 1。真实在队列里的帧始终 ≤ 3，是**计数器的瞬时过计，不是队列超界**。窗口很窄，所以此前能连续通过。
+
+**更深的缺口**：把通道容量改大一格（`sync_channel(queue_frames + 1)`）的变异，`wire_child` 全过。原因是现有背压场景用信用额度（2 个批）限住了工作进程，队列从未被填满，“队列有界”其实一直没被检验；MDD-040 的 30 个变异里也没有一个针对队列容量。
+
+**修法**：(1) 峰值改在消费者扣减之后采样（`note_peak`：`fetch_sub` 的返回值减 1），此时“领先于消费者的帧”≤ 通道槽位 + 读线程手里的 1 帧，精确 ≤ `queue_frames + 1`，无竞态。(2) 新增场景“a paused consumer leaves the read-ahead queue full but never past its bound”：信用额度充足、消费者暂停 600 ms，此时读线程被通道挡住，计数是稳定值，断言恰好等于 `QUEUE + 1`。(3) 新增变异“the read-ahead queue holds one more frame than configured”，被新场景抓住（`left: 4, right: 3`）。历史记录 `artifacts/mdd-040/mutation/results.txt` 不改，新结果追加在 `results-20261115-queue-bound.txt`。
+
+**验证范围**：`mdd-worker` 与 `mdd-wire` 全部测试、fmt、clippy 通过；修复后 `wire_child` 在 12 路并行下连续 60 次无失败。**未验证**：远端 Windows runner 上的结果（修复尚未推送）；竞态本身在本机未复现，所以“不再有竞态”靠的是推理加稳定值断言，不是靠“跑了很多次没挂”。
+
 ## Checkout 与交付
 
 工程目录 D:\MeguvisDexDash（保留目录原拼写）。远端已迁移到 https://github.com/Meguvizarchic/MeguvizDexDash（**公开仓库**，旧地址 jichuo1/MeguvizDexDash 自动转发）；PR #1 已于 2026-11-04 合并，`main` 现为 a9aa1f0，其中 27ac27e 是由本分支 71dfce9 生成的「脱敏工程进度快照」，之后 8 个提交是修补与 README/图标。本地分支 codex/m2-facts-20261028 当前**没有远端分支**：2026-11-12 曾整体推送，随后发现仓库公开，已按用户决定删除远端分支（GitHub 上提交仍可按 SHA 读取）。重新推送前必须先决定公开范围，见下节。

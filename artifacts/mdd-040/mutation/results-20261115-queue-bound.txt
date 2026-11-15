@@ -1,0 +1,2 @@
+KILLED   the read-ahead queue holds one more frame than configured
+scenario: a paused consumer leaves the read-ahead queue full but never past its bound (expects exactly queue_frames + 1 frames read ahead while the consumer is paused)

@@ -54379,8 +54379,13 @@
     },
     {
       "path": "artifacts/mdd-040/mutation/mutate_wire.py",
-      "bytes": 5936,
-      "sha256": "2220f7621662bd506bc76d9292e200d0bbfffe731be50d2dae943a33c9e2c7ff"
+      "bytes": 6142,
+      "sha256": "7d6f99b3e9139275fd3acae2f0ecc06b3de58c475b8f1f0270562a8a2a60648c"
+    },
+    {
+      "path": "artifacts/mdd-040/mutation/results-20261115-queue-bound.txt",
+      "bytes": 235,
+      "sha256": "f5ffec6e804208c224908e1949d9a3c0c98211b0322dfc8812b6eb40fcf19627"
     },
     {
       "path": "artifacts/mdd-040/mutation/results.txt",

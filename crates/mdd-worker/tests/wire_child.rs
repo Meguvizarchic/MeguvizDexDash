@@ -522,6 +522,40 @@ fn main() {
     });
 
     scenario(
+        "a paused consumer leaves the read-ahead queue full but never past its bound",
+        || {
+            // Plenty of credit, so the worker is not what limits the stream: only the
+            // client's own queue and the pipe are. While the consumer is paused the
+            // reader fills the queue and then holds one more frame, and that is a
+            // stable state, so the figure is exact and not a timing sample.
+            let mut cfg = config(Duration::from_secs(60));
+            cfg.initial_credit = Credit {
+                bytes: 1 << 24,
+                batches: 64,
+            };
+            let seen = Arc::new(std::sync::Mutex::new(None));
+            let slot = Arc::clone(&seen);
+            cfg.on_batch = Some(Box::new(move |consumed, probe| {
+                if consumed == 1 {
+                    std::thread::sleep(Duration::from_millis(600));
+                    *slot.lock().unwrap() = Some(probe.queued_frames());
+                }
+            }));
+            let outcome = run("big", cfg);
+            let done = outcome.result.as_ref().expect("the stream completes");
+            assert_eq!(done.rows.len(), 300);
+            let queued = seen.lock().unwrap().expect("the hook ran");
+            assert_eq!(
+                queued,
+                QUEUE + 1,
+                "a paused consumer should leave exactly the queue plus the reader's one frame read ahead"
+            );
+            assert!(outcome.peak_queued_frames <= QUEUE + 1);
+            assert!(outcome.exit.unwrap().success() && !outcome.killed);
+        },
+    );
+
+    scenario(
         "a consumer that never resumes ends at the deadline with the worker stopped",
         || {
             let mut cfg = config(Duration::from_millis(900));
