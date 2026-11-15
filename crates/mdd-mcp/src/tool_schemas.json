@@ -1,0 +1,494 @@
+{
+ "close_dataset": {
+  "annotations": {
+   "destructiveHint": false,
+   "openWorldHint": false,
+   "readOnlyHint": false
+  },
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "additionalProperties": false,
+   "properties": {
+    "dataset_id": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "dataset_id"
+   ],
+   "type": "object"
+  }
+ },
+ "describe_table": {
+  "annotations": {
+   "openWorldHint": false,
+   "readOnlyHint": true
+  },
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "additionalProperties": false,
+   "properties": {
+    "name": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "name"
+   ],
+   "type": "object"
+  }
+ },
+ "list_datasets": {
+  "annotations": {
+   "openWorldHint": false,
+   "readOnlyHint": true
+  },
+  "inputSchema": {
+   "properties": {},
+   "type": "object"
+  }
+ },
+ "list_tables": {
+  "annotations": {
+   "openWorldHint": false,
+   "readOnlyHint": true
+  },
+  "inputSchema": {
+   "properties": {},
+   "type": "object"
+  }
+ },
+ "open_dataset": {
+  "annotations": {
+   "destructiveHint": false,
+   "openWorldHint": false,
+   "readOnlyHint": false
+  },
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "additionalProperties": false,
+   "properties": {
+    "inputs": {
+     "description": "Local DEX/APK/JAR/ZIP paths, resolved relative to the server working directory.",
+     "items": {
+      "type": "string"
+     },
+     "maxItems": 64,
+     "minItems": 1,
+     "type": "array"
+    },
+    "timeout_ms": {
+     "description": "Optional shorter operation deadline; cannot exceed the server's timeout.",
+     "format": "uint64",
+     "minimum": 1,
+     "type": [
+      "integer",
+      "null"
+     ]
+    }
+   },
+   "required": [
+    "inputs"
+   ],
+   "type": "object"
+  }
+ },
+ "query": {
+  "annotations": {
+   "destructiveHint": false,
+   "openWorldHint": false,
+   "readOnlyHint": true
+  },
+  "inputSchema": {
+   "$defs": {
+    "NamedTempQuery": {
+     "additionalProperties": false,
+     "properties": {
+      "name": {
+       "type": "string"
+      },
+      "sql": {
+       "type": "string"
+      }
+     },
+     "required": [
+      "name",
+      "sql"
+     ],
+     "type": "object"
+    }
+   },
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "additionalProperties": false,
+   "properties": {
+    "dataset_id": {
+     "type": "string"
+    },
+    "limit": {
+     "description": "Returned rows per statement, default 200; use a deterministic ORDER BY when paging.",
+     "format": "uint",
+     "maximum": 1000,
+     "minimum": 1,
+     "type": [
+      "integer",
+      "null"
+     ]
+    },
+    "max_bytes": {
+     "description": "Optional lower serialized result-byte budget; rows are never silently clipped.",
+     "format": "uint",
+     "minimum": 0,
+     "type": [
+      "integer",
+      "null"
+     ]
+    },
+    "named_temp_queries": {
+     "default": [],
+     "description": "Lazy named SELECT definitions, retained in this dataset with the same lifetime as TEMP tables.",
+     "items": {
+      "$ref": "#/$defs/NamedTempQuery"
+     },
+     "type": "array"
+    },
+    "offset": {
+     "default": 0,
+     "description": "Rows to skip in each statement's result, default 0. offset + limit is at most 100000.",
+     "format": "uint",
+     "minimum": 0,
+     "type": "integer"
+    },
+    "sql": {
+     "description": "Read-only SQL statements. VIEW and TEMP definitions are lazy and persist in this dataset\nuntil DROP, redefinition, or close_dataset; results are not cached across calls.",
+     "items": {
+      "type": "string"
+     },
+     "maxItems": 16,
+     "minItems": 1,
+     "type": "array"
+    },
+    "timeout_ms": {
+     "format": "uint64",
+     "minimum": 0,
+     "type": [
+      "integer",
+      "null"
+     ]
+    },
+    "timing": {
+     "default": false,
+     "type": "boolean"
+    }
+   },
+   "required": [
+    "dataset_id",
+    "sql"
+   ],
+   "type": "object"
+  },
+  "outputSchema": {
+   "$defs": {
+    "Cell": {
+     "oneOf": [
+      {
+       "properties": {
+        "type": {
+         "const": "null",
+         "type": "string"
+        },
+        "value": {
+         "type": "null"
+        }
+       },
+       "required": [
+        "type",
+        "value"
+       ],
+       "type": "object"
+      },
+      {
+       "properties": {
+        "type": {
+         "const": "int64",
+         "type": "string"
+        },
+        "value": {
+         "type": "string"
+        }
+       },
+       "required": [
+        "type",
+        "value"
+       ],
+       "type": "object"
+      },
+      {
+       "properties": {
+        "type": {
+         "const": "uint64",
+         "type": "string"
+        },
+        "value": {
+         "type": "string"
+        }
+       },
+       "required": [
+        "type",
+        "value"
+       ],
+       "type": "object"
+      },
+      {
+       "properties": {
+        "type": {
+         "const": "float64",
+         "type": "string"
+        },
+        "value": {
+         "$ref": "#/$defs/FloatValue"
+        }
+       },
+       "required": [
+        "type",
+        "value"
+       ],
+       "type": "object"
+      },
+      {
+       "properties": {
+        "type": {
+         "const": "utf8",
+         "type": "string"
+        },
+        "value": {
+         "type": "string"
+        }
+       },
+       "required": [
+        "type",
+        "value"
+       ],
+       "type": "object"
+      },
+      {
+       "properties": {
+        "type": {
+         "const": "binary",
+         "type": "string"
+        },
+        "value": {
+         "type": "string"
+        }
+       },
+       "required": [
+        "type",
+        "value"
+       ],
+       "type": "object"
+      }
+     ]
+    },
+    "Column": {
+     "properties": {
+      "data_type": {
+       "type": "string"
+      },
+      "name": {
+       "type": "string"
+      },
+      "nullable": {
+       "type": "boolean"
+      }
+     },
+     "required": [
+      "name",
+      "data_type",
+      "nullable"
+     ],
+     "type": "object"
+    },
+    "Diagnostic": {
+     "properties": {
+      "code": {
+       "type": "string"
+      },
+      "message": {
+       "type": "string"
+      }
+     },
+     "required": [
+      "code",
+      "message"
+     ],
+     "type": "object"
+    },
+    "FloatValue": {
+     "anyOf": [
+      {
+       "format": "double",
+       "type": "number"
+      },
+      {
+       "$ref": "#/$defs/SpecialFloat"
+      }
+     ]
+    },
+    "SpecialFloat": {
+     "enum": [
+      "NaN",
+      "Infinity",
+      "-Infinity"
+     ],
+     "type": "string"
+    },
+    "Statement": {
+     "properties": {
+      "columns": {
+       "items": {
+        "$ref": "#/$defs/Column"
+       },
+       "type": "array"
+      },
+      "execute_ms": {
+       "format": "double",
+       "type": [
+        "number",
+        "null"
+       ]
+      },
+      "kind": {
+       "type": "string"
+      },
+      "next_offset": {
+       "format": "uint",
+       "minimum": 0,
+       "type": [
+        "integer",
+        "null"
+       ]
+      },
+      "offset": {
+       "format": "uint",
+       "minimum": 0,
+       "type": "integer"
+      },
+      "rows": {
+       "items": {
+        "items": {
+         "$ref": "#/$defs/Cell"
+        },
+        "type": "array"
+       },
+       "type": "array"
+      },
+      "sql": {
+       "type": "string"
+      },
+      "sql_truncated": {
+       "type": [
+        "boolean",
+        "null"
+       ]
+      },
+      "statement_index": {
+       "format": "uint",
+       "minimum": 0,
+       "type": "integer"
+      },
+      "total_rows": {
+       "format": "uint",
+       "minimum": 0,
+       "type": "integer"
+      },
+      "truncated": {
+       "type": "boolean"
+      }
+     },
+     "required": [
+      "statement_index",
+      "sql",
+      "kind",
+      "columns",
+      "rows",
+      "total_rows",
+      "truncated",
+      "offset"
+     ],
+     "type": "object"
+    },
+    "Timing": {
+     "properties": {
+      "cache_total_ms": {
+       "format": "double",
+       "type": "number"
+      },
+      "load_inputs_ms": {
+       "format": "double",
+       "type": "number"
+      },
+      "parse_ms": {
+       "format": "double",
+       "type": "number"
+      },
+      "sql_wall_ms": {
+       "format": "double",
+       "type": "number"
+      },
+      "table_build_ms": {
+       "format": "double",
+       "type": "number"
+      },
+      "total_ms": {
+       "format": "double",
+       "type": "number"
+      }
+     },
+     "required": [
+      "total_ms",
+      "load_inputs_ms",
+      "parse_ms",
+      "table_build_ms",
+      "cache_total_ms",
+      "sql_wall_ms"
+     ],
+     "type": "object"
+    }
+   },
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "dataset_id": {
+     "type": "string"
+    },
+    "diagnostics": {
+     "items": {
+      "$ref": "#/$defs/Diagnostic"
+     },
+     "type": "array"
+    },
+    "statements": {
+     "items": {
+      "$ref": "#/$defs/Statement"
+     },
+     "type": "array"
+    },
+    "timing": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/Timing"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "dataset_id",
+    "statements",
+    "diagnostics"
+   ],
+   "title": "QueryOutput",
+   "type": "object"
+  }
+ }
+}

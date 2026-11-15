@@ -14,18 +14,16 @@
 //! error object. After a 0 or 1 from `query`, stdout ends with a terminal envelope.
 mod args;
 mod commands;
-mod dataset;
 mod output;
-mod run;
 mod serve;
 
 use args::{Command, QueryArgs, ServeArgs, SqlSource};
-use dataset::Dataset;
 use mdd_input::snapshot::InputKind;
+use mdd_service::Dataset;
+use mdd_service::RunOptions;
 use mdd_session::ResourceLimits;
 use mdd_types::{ErrorCode, MddError, MddResult, OperationStatus, ResultEnvelope};
 use output::{Format, JsonlSink, TextSink};
-use run::RunOptions;
 use serde_json::json;
 use std::io::{self, Read, Write};
 
@@ -169,6 +167,18 @@ fn serve(args: ServeArgs) -> MddResult<i32> {
     }
 }
 
+/// The MCP server: protocol messages on stdout, nothing else. A closed stdin is a clean
+/// end; stdout that cannot be written is exit 4, as for the other commands.
+fn mcp(config: mdd_mcp::Config) -> MddResult<i32> {
+    let mut server = mdd_mcp::Server::new(config);
+    let stdin = io::stdin();
+    let stdout = io::stdout();
+    match mdd_mcp::run_stdio(&mut server, &mut stdin.lock(), &mut stdout.lock()) {
+        Ok(()) => Ok(OK),
+        Err(_) => Ok(OUTPUT),
+    }
+}
+
 fn single(value: serde_json::Value) -> MddResult<i32> {
     let encoded = serde_json::to_string(&value)
         .map_err(|e| MddError::new(ErrorCode::InternalFault, "serialization", e.to_string()))?;
@@ -205,6 +215,7 @@ fn run() -> MddResult<i32> {
         Command::InspectApk(paths) => single(commands::inspect(InputKind::Apk, &paths)?),
         Command::Query(args) => query(*args),
         Command::Serve(args) => serve(*args),
+        Command::Mcp(config) => mcp(*config),
     }
 }
 

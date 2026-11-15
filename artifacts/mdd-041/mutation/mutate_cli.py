@@ -20,16 +20,18 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 PYTHON = ROOT / ".venv" / ("Scripts" if os.name == "nt" else "bin") / ("python.exe" if os.name == "nt" else "python")
-RUST = ["cargo", "test", "--offline", "--locked", "-p", "mdd-cli"]
+RUST = ["cargo", "test", "--offline", "--locked", "-p", "mdd-cli", "-p", "mdd-service", "--lib", "--bins", "--test", "cli"]
 BUILD = ["cargo", "build", "--offline", "--locked", "-p", "mdd-cli"]
 CASES = [str(PYTHON if PYTHON.exists() else sys.executable), "-I", "conformance/cli/cli_cases.py"]
 CONTROLS = [str(PYTHON if PYTHON.exists() else sys.executable), "-I", "conformance/cli/test_cli_cases.py"]
 
 SRC = "crates/mdd-cli/src/"
-MAIN, RUN, SERVE, ARGS, OUTPUT, DATASET = (SRC + n for n in ("main.rs", "run.rs", "serve.rs", "args.rs", "output.rs", "dataset.rs"))
+SERVICE = "crates/mdd-service/src/"
+MAIN, SERVE, ARGS, OUTPUT = (SRC + n for n in ("main.rs", "serve.rs", "args.rs", "output.rs"))
+RUN, DATASET, LINES = (SERVICE + n for n in ("run.rs", "dataset.rs", "lines.rs"))
 
 SOURCES = [
-    MAIN, RUN, SERVE, ARGS, OUTPUT, DATASET, SRC + "commands.rs", "crates/mdd-cli/tests/cli.rs",
+    MAIN, RUN, SERVE, ARGS, OUTPUT, DATASET, LINES, SRC + "commands.rs", SERVICE + "lib.rs", "crates/mdd-cli/tests/cli.rs",
     "conformance/cli/command-and-output-cases.json", "conformance/cli/cli_cases.py",
     "conformance/cli/test_cli_cases.py", "benchmarks/hostlab-b0-pipeline.py",
     "benchmarks/workloads/b0-bulk-statements.json",
@@ -64,8 +66,8 @@ MUTANTS = [
        "            if outcome.output_lost.is_some() || sink.terminal(&outcome.terminal).is_err() {\n                return Ok(FAILED);")]),
     ("close does not end the session", SERVE,
      [("            Some(\"close\") => return Ok(()),", "            Some(\"close\") => continue,")]),
-    ("an over-long request is accepted", SERVE,
-     [("            if line.len() + take > MAX_REQUEST_BYTES + 1 {", "            if line.len() + take > MAX_REQUEST_BYTES * 2 {")]),
+    ("an over-long request is accepted", LINES,
+     [("            if line.len() + take > max_bytes + 1 {", "            if line.len() + take > max_bytes * 2 {")]),
     ("a request that is not JSON ends the session", SERVE,
      [("                rejected(out, None, &invalid(format!(\"not a valid request: {error}\")))?;\n                continue;",
        "                rejected(out, None, &invalid(format!(\"not a valid request: {error}\")))?;\n                return Ok(());")]),

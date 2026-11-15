@@ -195,6 +195,8 @@ dependencies = [
  "mdd-facts",
  "mdd-ffi",
  "mdd-input",
+ "mdd-mcp",
+ "mdd-service",
  "mdd-session",
  "mdd-sql",
  "mdd-types",
@@ -254,6 +256,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "mdd-mcp"
+version = "0.1.0-dev"
+dependencies = [
+ "mdd-service",
+ "mdd-session",
+ "mdd-sql",
+ "mdd-types",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "mdd-query"
 version = "0.1.0-dev"
 dependencies = [
@@ -264,6 +278,20 @@ dependencies = [
  "mdd-types",
  "rusqlite",
  "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "mdd-service"
+version = "0.1.0-dev"
+dependencies = [
+ "mdd-dex",
+ "mdd-facts",
+ "mdd-ffi",
+ "mdd-input",
+ "mdd-session",
+ "mdd-sql",
+ "mdd-types",
  "serde_json",
 ]
 

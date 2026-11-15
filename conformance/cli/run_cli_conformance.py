@@ -41,12 +41,13 @@ BULK = "benchmarks/workloads/b0-bulk-statements.json"
 BINARY = cli_cases.DEFAULT_BINARY
 SOURCES = [
     "crates/mdd-cli/src/main.rs", "crates/mdd-cli/src/args.rs", "crates/mdd-cli/src/commands.rs",
-    "crates/mdd-cli/src/dataset.rs", "crates/mdd-cli/src/output.rs", "crates/mdd-cli/src/run.rs",
-    "crates/mdd-cli/src/serve.rs", "crates/mdd-cli/tests/cli.rs", CASES,
+    "crates/mdd-cli/src/output.rs", "crates/mdd-cli/src/serve.rs", "crates/mdd-service/src/dataset.rs",
+    "crates/mdd-service/src/run.rs", "crates/mdd-service/src/lines.rs", "crates/mdd-service/src/lib.rs",
+    "crates/mdd-cli/tests/cli.rs", CASES,
     "conformance/cli/cli_cases.py", "conformance/cli/test_cli_cases.py", B0, BULK,
 ]
 
-RUST = ["cargo", "test", "--offline", "--locked", "-p", "mdd-cli"]
+RUST = ["cargo", "test", "--offline", "--locked", "-p", "mdd-cli", "-p", "mdd-service", "--lib", "--bins", "--test", "cli"]
 CLIPPY = ["cargo", "clippy", "--offline", "--locked", "-p", "mdd-cli", "--all-targets", "--", "-D", "warnings"]
 BUILD = ["cargo", "build", "--offline", "--locked", "-p", "mdd-cli"]
 PY = [sys.executable, "-I"]

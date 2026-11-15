@@ -338,13 +338,31 @@
 - 行数上限（`--max-rows`）以**截断的失败终态**结束，不是成功；缺失的事实层在 `opened.layer_issues` 点名，依赖它的关系以 `INCOMPLETE_FACTS` 拒绝，不返回空表。
 - 人读 `text` 只对完整答案打印表格，且有损（NULL 与文本 `NULL` 同形，控制字符被转义）；`--format dexsql-table` 以 `UNSUPPORTED_CAPABILITY` 拒绝。
 
-**证据**（`artifacts/mdd-041/cli-pipeline-conformance.json`）：37 项会启动真实二进制的 Rust 测试；39 个冻结用例对真实二进制成立，并有自己的负向对照；B0 重放冻结的 HostLab 必需变体——109 条语句的类型化行经真实进程与 A0 golden 逐值相等，96 条的 HostLab DTO 与之一致（窗口化、脚本、无 ORDER BY、重名列的语句单独计数，不隐藏）；21 个变异全部被抓住。
+**证据**（`artifacts/mdd-041/cli-pipeline-conformance.json`）：38 项 Rust 测试（25 项会启动真实二进制；数据集与语句执行后来抽到 `mdd-service`，证据已重跑）；39 个冻结用例对真实二进制成立，并有自己的负向对照；B0 重放冻结的 HostLab 必需变体——109 条语句的类型化行经真实进程与 A0 golden 逐值相等，96 条的 HostLab DTO 与之一致（窗口化、脚本、无 ORDER BY、重名列的语句单独计数，不隐藏）；21 个变异全部被抓住。
 
 **评审发现并修复**：超过 60 秒的 deadline 被生命周期上限静默压成 60 秒；语句读取无上界；请求流读失败被报成输出管道关闭；`emitted_rows` 在 sink 接收前就计数；CLI 无法调高引擎的 SQL 预算，导致 HostLab 式整表读取在真实 APK 上被拒（现有 `--sql-max-steps/--sql-max-scanned-rows/--sql-max-result-rows`）。
 
 **真实数据上的两个未决发现**：(1) 引擎默认 SQL 预算（结果 10 万行）会拒绝真实 APK 的整表读取（NewPipe 的 `method_calls` 有 236,644 行）；调高后适配器对公开 NewPipe 0.28.6 重放三轮（429,940 行，每轮结果摘要一致，debug 构建，约 23 秒/轮——只证明流水线完整，不是性能结果）。HostLab 的真实 APK 需要多少预算，要等 MDD-005 拿到样本才知道。(2) HostLab 对十六进制投影做严格 UTF-8 解码，会拒绝含 NUL 的字符串（DEX 存为 `C0 80`，NewPipe 里 68,476 条中有 19 条）；冻结的 A0 对这些字符串是否给出相同字节，没有核对。
 
 **限制**：一次一条语句（无脚本拆分、参数、typed IR、分页）；整个结果算完才发出第一批；B0 没有导入 HostLab 自己的模块，所以不证明 HostLab 规则原样可跑（MDD-050），其计时只是单机、非独占窗口、无 A0 对照的流水线完整性检查；两个私有 APK 不可得；只在一台 Windows 主机验证；冻结用例与 B0 校验已加入 CI 工作流但尚未在 CI 上运行。
+
+## 2026-11-15 MDD-042 原生 MCP 必需工具（部分完成，保持 in_progress）
+
+**结论**：`meguvizdexdash mcp` 是真实的 MCP stdio 服务（JSON-RPC 2.0，一行一条消息，请求逐个处理），已提供 `open_dataset`、`list_datasets`、`close_dataset`、`list_tables`、`describe_table`、`query` 六个工具。**`decode` 与 `get_manifest` 没有实现，也不在 `tools/list` 里**（按未知工具拒绝）。所以 MDD-042 **不标 done**；你 2026-11-15 选择了“先做不依赖 A0 的部分”。
+
+**共享库**：数据集与语句执行从 `mdd-cli` 原样抽到新的 `crates/mdd-service`（`Dataset`、`run`、有界行读取器），CLI 与 MCP 共用，所以两者读同一套事实、对同一条语句的含义和结局不会不一致。MDD-041 的变异检查与运行器在搬迁后已重跑，记录是当前的。
+
+**已证明的部分**（`artifacts/mdd-042/mcp-required-conformance.json`）
+- 六个工具的输入/输出 schema 与参考引擎 `tools/list` 的录制逐字段相等；描述是本服务自己的（参考的描述里有本服务没有的行为）。
+- `query` 工具与冻结的 A0 录制逐页相等：77 个用例、145 页、1,149 行、9 次 `next_offset` 续页，10 个被拒请求全部被拒，语句序号一致。回放的负向对照 8 项通过。
+- 所有权、配额、关闭、错误与来源身份经真实 JSON-RPC 的 21 项进程测试：初始化顺序、坏行不终止会话、参数违反 schema 为 -32602、数据集配额、重复关闭、数据集互不可见对方的 TEMP 定义、字节预算超限拒绝而不截断、超时只关闭本数据集、管道两端的退出码。
+- 41 项 Rust 测试通过；17 个变异全部被抓住。
+
+**没有证明的部分**
+- 验收第 1 条只对 `query` 成立；第 2、3 条（decode 的指令与上下文、Smali/Manifest 分页单位）完全没有做。
+- 参考引擎的可执行文件不在本机（记录的原路径 `D:\Bilibili_Innocent_Lab\...\dexsql-windows-amd64.exe` 不存在），`decode`、`get_manifest`、`open_dataset`、`close_dataset` 的响应从未被录制，所以即便实现了也无法在本机证明等价。关闭第 1 条需要：提供该可执行文件（0.1.0，sha256 `f354ebcf…c448`），或逐工具声明与参考的差异并以手推 oracle 收口。
+
+**限制**：`list_tables` 只列 17 个契约关系（参考有 56 个）；列的类型由返回值推断，空列写 `unknown`；语句无法从外部停止，所以 deadline 到期会关闭该数据集；含孤立代理项的文本无 UTF-8 形式，被拒绝而不是修复；没有 DEX 的归档被拒绝（参考支持纯资源归档）；没有取消与进度通知；只在一台 Windows 主机验证。
 
 ## Checkout 与交付
 

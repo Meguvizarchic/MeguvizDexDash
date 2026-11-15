@@ -38,6 +38,7 @@ use mdd_sql::{
         hostlab::{HostLabOccurrenceFacts, HostLabSqlProvider},
         metadata::{CombinedSqlProvider, DefinitionSqlProvider, MetadataSqlProvider},
     },
+    temp::TempSqlSession,
 };
 use mdd_types::{DecimalU64, ErrorCode, MddError, MddResult};
 use serde_json::{Value, json};
@@ -106,11 +107,13 @@ pub struct LayerIssue {
 }
 
 pub struct Dataset {
-    pub(crate) lifecycle: Lifecycle,
+    pub(crate) lifecycle: Arc<Lifecycle>,
     pub(crate) snapshot: Arc<Snapshot>,
     snapshot_handle: SnapshotHandle,
     pub(crate) session: SessionHandle,
-    pub(crate) bridge: SqlBridge,
+    /// The session's SQL front: plain statements, TEMP definitions and windows. Its
+    /// bridge is what `run` prepares and executes against.
+    temp: TempSqlSession,
     pub(crate) scope_id: String,
     pub(crate) dialect: Dialect,
     pub(crate) limits: ResourceLimits,
@@ -152,7 +155,7 @@ impl Dataset {
         if dex_count == 0 {
             return Err(MddError::new(
                 ErrorCode::InvalidInput,
-                "cli",
+                "service",
                 "the inputs select no DEX",
             ));
         }
@@ -168,19 +171,20 @@ impl Dataset {
         // A session or query can only restrict the lifecycle's ceiling, never raise it,
         // so the ceiling is what was asked for: a longer deadline must not be cut to the
         // default without a word.
-        let lifecycle = Lifecycle::new(ResourceLimits {
+        let lifecycle = Arc::new(Lifecycle::new(ResourceLimits {
             max_threads: limits.max_threads.max(2),
             deadline_ms: limits.deadline_ms,
             ..ResourceLimits::default()
-        })?;
+        })?);
         let snapshot_handle = lifecycle.register_snapshot(Arc::clone(&snapshot))?;
         let session = lifecycle.open_session(&snapshot_handle, limits)?;
+        let temp = TempSqlSession::new(Arc::clone(&lifecycle), session.clone(), bridge)?;
         Ok(Self {
             lifecycle,
             snapshot,
             snapshot_handle,
             session,
-            bridge,
+            temp,
             scope_id: scope.scope_id().to_owned(),
             dialect,
             limits,
@@ -287,6 +291,37 @@ impl Dataset {
         Ok((bridge, issues))
     }
 
+    /// The session's SQL front, for callers that run TEMP definitions and windows.
+    pub fn temp(&self) -> &TempSqlSession {
+        &self.temp
+    }
+
+    pub fn snapshot(&self) -> &Snapshot {
+        &self.snapshot
+    }
+
+    pub fn bridge(&self) -> &SqlBridge {
+        self.temp.bridge()
+    }
+
+    pub fn scope_id(&self) -> &str {
+        &self.scope_id
+    }
+
+    pub fn dialect(&self) -> Dialect {
+        self.dialect
+    }
+
+    /// The input paths of the opened snapshot's sources are not repeated here; the
+    /// number of selected DEX occurrences is.
+    pub fn dex_count(&self) -> usize {
+        self.dex_count
+    }
+
+    pub fn layer_issues(&self) -> &[LayerIssue] {
+        &self.layer_issues
+    }
+
     pub fn snapshot_id(&self) -> &str {
         &self.snapshot.manifest().snapshot_id
     }
@@ -361,7 +396,7 @@ mod tests {
         for dialect in [Dialect::NativeV1, Dialect::DexSql010] {
             let dataset =
                 Dataset::open(&[fixture()], dialect, ResourceLimits::default(), asked).unwrap();
-            let got = dataset.bridge.limits();
+            let got = dataset.bridge().limits();
             assert_eq!(
                 (got.max_steps, got.max_scanned_rows, got.max_result_rows),
                 (11, 22, 33),

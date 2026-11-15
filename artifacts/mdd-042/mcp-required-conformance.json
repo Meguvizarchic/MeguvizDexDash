@@ -1,0 +1,324 @@
+{
+ "schema_version": "mdd.mcp-required-conformance.v1",
+ "task": "MDD-042",
+ "status": "partial: the dataset, table and query tools; decode and get_manifest are not implemented",
+ "kind": "development evidence; admits no profile",
+ "capabilities": [
+  {
+   "name": "open_dataset",
+   "provided": true,
+   "scope": "DEX and APK paths with at least one DEX; resource-only archives are refused"
+  },
+  {
+   "name": "list_datasets",
+   "provided": true,
+   "scope": "open datasets, quotas and usage in this server's own shape"
+  },
+  {
+   "name": "close_dataset",
+   "provided": true,
+   "scope": "idempotent; later requests naming the dataset are refused"
+  },
+  {
+   "name": "list_tables",
+   "provided": true,
+   "scope": "the 17 HostLab contract relations, not the reference's 56"
+  },
+  {
+   "name": "describe_table",
+   "provided": true,
+   "scope": "columns, types, fact layers; case-insensitive name"
+  },
+  {
+   "name": "query",
+   "provided": true,
+   "scope": "up to 16 statements, row windows with exact totals, TEMP and named temporary queries; equal to the frozen A0 recording; timing refused"
+  },
+  {
+   "name": "decode",
+   "provided": false,
+   "reason": "not implemented (Smali; MDD-042 remainder and MDD-071)"
+  },
+  {
+   "name": "get_manifest",
+   "provided": false,
+   "reason": "not implemented (MDD-042 remainder and MDD-072)"
+  },
+  {
+   "name": "get_manifest_components",
+   "provided": false,
+   "reason": "MDD-072"
+  },
+  {
+   "name": "list_resource_files",
+   "provided": false,
+   "reason": "MDD-072"
+  },
+  {
+   "name": "read_resource",
+   "provided": false,
+   "reason": "MDD-072"
+  },
+  {
+   "name": "query_resources",
+   "provided": false,
+   "reason": "MDD-072"
+  },
+  {
+   "name": "cancellation_and_progress_notifications",
+   "provided": false,
+   "reason": "requests are served one at a time; a deadline closes the dataset instead"
+  },
+  {
+   "name": "resources_prompts_logging",
+   "provided": false,
+   "reason": "not offered"
+  }
+ ],
+ "acceptance": [
+  {
+   "acceptance": "the five HostLab tools open_dataset/query/decode/get_manifest/close_dataset answer request by request like the reference, and the three discovery tools carry the real schema",
+   "proofs": [
+    {
+     "check": "tools/list: the six registered tools carry the reference engine's published schemas",
+     "outcome": "ok"
+    },
+    {
+     "check": "A0 replay: every recorded query page equals the reference through the real server",
+     "outcome": "ok"
+    },
+    {
+     "check": "A0 replay: every recorded refusal is refused, at the same statement index",
+     "outcome": "ok"
+    },
+    {
+     "check": "A0 replay: damaged recordings are caught",
+     "outcome": "ok"
+    }
+   ],
+   "not_proven": [
+    "decode: not implemented",
+    "get_manifest: not implemented",
+    "open_dataset and close_dataset responses: the reference's responses were never recorded and its executable is not available, so only their lifecycle behaviour is tested"
+   ],
+   "status": "partial"
+  },
+  {
+   "acceptance": "decode produces the instructions, method context and declarations production uses, never placeholder text or opcodes alone",
+   "proofs": [],
+   "not_proven": [
+    "decode: not implemented"
+   ],
+   "status": "not_proven"
+  },
+  {
+   "acceptance": "Smali and Manifest paging keep their own units (UTF-8 byte offsets, line counts, permission rows) and do not mix with DEX byte offsets",
+   "proofs": [],
+   "not_proven": [
+    "decode and get_manifest: not implemented; the query tool pages in rows, whose window is proven by the replay"
+   ],
+   "status": "not_proven"
+  },
+  {
+   "acceptance": "tool ownership, quotas, closing, errors and source identity are checked through real MCP JSON-RPC",
+   "proofs": [
+    {
+     "check": "the_session_must_be_initialized_before_tools_and_may_be_initialized_once",
+     "outcome": "ok"
+    },
+    {
+     "check": "only_protocol_messages_reach_stdout_and_bad_lines_do_not_end_the_session",
+     "outcome": "ok"
+    },
+    {
+     "check": "arguments_that_break_the_published_schema_are_protocol_errors",
+     "outcome": "ok"
+    },
+    {
+     "check": "opening_a_dataset_names_its_source_and_roster",
+     "outcome": "ok"
+    },
+    {
+     "check": "an_input_that_cannot_be_opened_is_a_tool_error_naming_the_cause",
+     "outcome": "ok"
+    },
+    {
+     "check": "closing_releases_a_dataset_and_later_requests_that_name_it_are_refused",
+     "outcome": "ok"
+    },
+    {
+     "check": "the_dataset_quota_is_enforced_and_closing_frees_a_slot",
+     "outcome": "ok"
+    },
+    {
+     "check": "datasets_are_isolated_from_each_other",
+     "outcome": "ok"
+    },
+    {
+     "check": "a_query_that_outlives_its_deadline_closes_its_dataset_and_only_that_one",
+     "outcome": "ok"
+    },
+    {
+     "check": "a_result_over_the_byte_budget_is_refused_never_clipped",
+     "outcome": "ok"
+    },
+    {
+     "check": "a_closed_stdin_is_a_clean_end_and_a_closed_stdout_is_exit_four",
+     "outcome": "ok"
+    }
+   ],
+   "not_proven": [],
+   "status": "proven"
+  },
+  {
+   "acceptance": "the M4 capability registers only what passes; get_manifest_components, list_resource_files, read_resource and query_resources are unavailable or unregistered",
+   "proofs": [
+    {
+     "check": "exactly_the_implemented_tools_are_listed_with_their_published_schemas",
+     "outcome": "ok"
+    },
+    {
+     "check": "an_option_the_server_does_not_implement_is_refused_not_ignored",
+     "outcome": "ok"
+    }
+   ],
+   "not_proven": [],
+   "status": "proven"
+  }
+ ],
+ "schemas": {
+  "compared_with": "conformance/manifests/tools-and-options.json",
+  "differences": []
+ },
+ "a0_replay": {
+  "cases": 77,
+  "pages": 145,
+  "rows": 1149,
+  "walks": 9,
+  "equal": true
+ },
+ "a0_replay_rejections": [
+  {
+   "name": "second_statement_fails",
+   "refused": true,
+   "recorded_refused": true,
+   "statement_index": 1,
+   "recorded_statement_index": 1
+  },
+  {
+   "name": "seventeen_statements",
+   "refused": true,
+   "recorded_refused": true,
+   "recorded_statement_index": null
+  },
+  {
+   "name": "no_statements",
+   "refused": true,
+   "recorded_refused": true,
+   "recorded_statement_index": null
+  },
+  {
+   "name": "limit_zero",
+   "refused": true,
+   "recorded_refused": true,
+   "recorded_statement_index": null
+  },
+  {
+   "name": "limit_over_maximum",
+   "refused": true,
+   "recorded_refused": true,
+   "recorded_statement_index": null
+  },
+  {
+   "name": "window_end_over_cap",
+   "refused": true,
+   "recorded_refused": true,
+   "recorded_statement_index": null
+  },
+  {
+   "name": "blank_item",
+   "refused": true,
+   "recorded_refused": true,
+   "statement_index": null,
+   "recorded_statement_index": null
+  },
+  {
+   "name": "sql_over_64kib",
+   "refused": true,
+   "recorded_refused": true,
+   "statement_index": null,
+   "recorded_statement_index": null
+  },
+  {
+   "name": "unterminated_quote_in_second_item",
+   "refused": true,
+   "recorded_refused": true,
+   "statement_index": 1,
+   "recorded_statement_index": 1
+  },
+  {
+   "name": "bad_statement_in_second_item",
+   "refused": true,
+   "recorded_refused": true,
+   "statement_index": 2,
+   "recorded_statement_index": 2
+  }
+ ],
+ "tests": {
+  "rust": {
+   "exit_code": 0,
+   "passed": 41,
+   "failed": 0
+  },
+  "clippy_exit_code": 0,
+  "build_exit_code": 0,
+  "controls_exit_code": 0,
+  "log_sha256": {
+   "rust": "a9af1ac8321f5eef274a4096500fc1b5926e8f6420c9c268c001b9af5de9eb21",
+   "clippy": "4a67aed65c78981919dadd3c32fb07c19e5786ad7e489e6410dc2511f9e3d902",
+   "controls": "2ae2691b3d3801ad0641d8313b60970e02727334cee88f780f22f77a9b498b9f"
+  },
+  "raw_logs_kept_at": "artifacts/local/ (ignored; carries developer-machine output)"
+ },
+ "inputs_sha256": {
+  "crates/mdd-mcp/src/tools.rs": "944cbda56c3ee50043b38a7eff589cbcc987a06245649a198be5e991200184e8",
+  "crates/mdd-mcp/src/server.rs": "18a3635886aebb2577f35f12abed19e3c0310d6e61902af0314f1688baec2711",
+  "crates/mdd-mcp/src/protocol.rs": "dcc1508b6f61ffa6632f27954b0aaa6801367dd543fff7648a0d4862bdcda020",
+  "crates/mdd-mcp/src/lib.rs": "04c090fad25cd89003d79350892283c307366246c8c3ac41b454656813dc9879",
+  "crates/mdd-mcp/src/tool_schemas.json": "ea88e3f973321c1205fc82f2850403759cea1e014f784bb62b5f03dacfaba869",
+  "crates/mdd-cli/tests/mcp.rs": "99e5d4ff30fcacff5cd27a0cb46a9d3f878db58be925c70731d4be54aad38279",
+  "conformance/mcp/mcp_client.py": "55c470322ba59f432edbb63603188170f47485d1854cc5e97abb792700bec611",
+  "conformance/mcp/golden_replay.py": "3ccbb853796f0edec0d52efe2e5305e70f18e73131e2c5a4b208aa4fa17e795a",
+  "conformance/mcp/test_golden_replay.py": "9413ec6ec059537cb7e5a0b25f650bd029ebcb7ca63f761e18352a00fe502496",
+  "conformance/mcp/run_mcp_conformance.py": "a5157f62636418407f89f060dfad9d912ef0830888da765f707ddac57bffb841",
+  "conformance/corpus/hostlab/required-variants.json": "134a2a389ba16369dc454a600a0a524e882078cd804506158aed8076a2aa24c2",
+  "conformance/corpus/hostlab/expected-results/hostlab-a0-golden.json": "fc6df45f33b0e6f67a759e9065cb116d3d1b66cd25b515b09f9f99a720331d2f",
+  "conformance/manifests/tools-and-options.json": "1b84fc50d9ae2f2eaa555ed5db6e5e0629e7b3ade98c285ed5dfa8a990db97d9"
+ },
+ "mutation_check": {
+  "file": "artifacts/mdd-042/mutation/results.txt",
+  "script": "artifacts/mdd-042/mutation/mutate_mcp.py",
+  "present": true,
+  "current": true,
+  "killed": 17,
+  "survived": [],
+  "errors": 0,
+  "skipped": 0,
+  "restored_tree_passes": true
+ },
+ "residual": [
+  "decode, get_manifest and the resource tools are not implemented; the clauses about them are not proven",
+  "the reference engine's executable is not on this machine, so open_dataset, close_dataset, list_tables, describe_table and list_datasets responses were never compared with it; their shapes are this server's own",
+  "only the query tool's responses were compared with the reference, through the recording made from its own MCP server",
+  "list_tables names the 17 HostLab contract relations, not the reference's 56",
+  "column data_type and nullable are derived from the returned values because the result carries no declared types; an empty column says \"unknown\"",
+  "a statement cannot be stopped from outside, so a deadline closes the dataset and the statement ends under the engine's own budgets",
+  "requests are served one at a time; there is no cancellation or progress",
+  "text with an unpaired surrogate has no UTF-8 form and is refused rather than repaired",
+  "archives without a DEX are refused, although the reference supports resource-only archives",
+  "one Windows host; the MCP process tests run on Linux only in the repository CI"
+ ],
+ "run": {
+  "started_utc": "2026-11-15T07:28:35.994308+00:00"
+ }
+}

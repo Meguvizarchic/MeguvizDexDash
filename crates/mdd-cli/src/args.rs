@@ -1,16 +1,13 @@
 //! Command-line parsing. Hand written: the grammar is small, every refusal is a
 //! named `INVALID_ARGUMENT`, and nothing here may accept an option it does not act on.
-use crate::{
-    dataset::{Dialect, InputRequest},
-    output::Format,
-    run::{DEFAULT_BATCH_ROWS, MAX_BATCH_ROWS},
-};
+use crate::output::Format;
+use mdd_service::{DEFAULT_BATCH_ROWS, Dialect, InputRequest, MAX_BATCH_ROWS};
 use mdd_sql::control::SqlLimits;
 use mdd_types::{ErrorCode, MddError, MddResult};
 use std::ffi::OsString;
 use std::path::PathBuf;
 
-pub const USAGE: &str = "usage: meguvizdexdash version | capabilities | inspect-dex PATH... | inspect-apk PATH... | query --input PATH... (--sql TEXT | --sql-file PATH|-) [--dialect native-v1|dexsql-0.1.0|dexsql-0.1.1] [--format jsonl|text] [--batch-rows N] [--max-rows N] [--deadline-ms N] [SQL BUDGETS] | serve --input PATH... [--dialect NAME] [--deadline-ms N] [SQL BUDGETS]; SQL BUDGETS: --sql-max-steps N --sql-max-scanned-rows N --sql-max-result-rows N";
+pub const USAGE: &str = "usage: meguvizdexdash version | capabilities | inspect-dex PATH... | inspect-apk PATH... | query --input PATH... (--sql TEXT | --sql-file PATH|-) [--dialect native-v1|dexsql-0.1.0|dexsql-0.1.1] [--format jsonl|text] [--batch-rows N] [--max-rows N] [--deadline-ms N] [SQL BUDGETS] | serve --input PATH... [--dialect NAME] [--deadline-ms N] [SQL BUDGETS]; mcp [--dialect dexsql-0.1.0|dexsql-0.1.1] [--timeout-ms N] [--max-datasets N] [--max-result-bytes N] [SQL BUDGETS]; SQL BUDGETS: --sql-max-steps N --sql-max-scanned-rows N --sql-max-result-rows N";
 
 pub enum Command {
     Version,
@@ -19,6 +16,7 @@ pub enum Command {
     InspectApk(Vec<OsString>),
     Query(Box<QueryArgs>),
     Serve(Box<ServeArgs>),
+    Mcp(Box<mdd_mcp::Config>),
 }
 
 pub struct DataArgs {
@@ -80,6 +78,9 @@ struct Options {
     batch_rows: Option<u64>,
     max_rows: Option<u64>,
     deadline_ms: Option<u64>,
+    timeout_ms: Option<u64>,
+    max_datasets: Option<u64>,
+    max_result_bytes: Option<u64>,
     sql_max_steps: Option<u64>,
     sql_max_scanned_rows: Option<u64>,
     sql_max_result_rows: Option<u64>,
@@ -115,6 +116,9 @@ fn options(rest: &[OsString], allowed: &[&str]) -> MddResult<Options> {
             "--batch-rows" => once(&mut found.batch_rows, name, number(name, value)?)?,
             "--max-rows" => once(&mut found.max_rows, name, number(name, value)?)?,
             "--deadline-ms" => once(&mut found.deadline_ms, name, number(name, value)?)?,
+            "--timeout-ms" => once(&mut found.timeout_ms, name, number(name, value)?)?,
+            "--max-datasets" => once(&mut found.max_datasets, name, number(name, value)?)?,
+            "--max-result-bytes" => once(&mut found.max_result_bytes, name, number(name, value)?)?,
             "--sql-max-steps" => once(&mut found.sql_max_steps, name, number(name, value)?)?,
             "--sql-max-scanned-rows" => {
                 once(&mut found.sql_max_scanned_rows, name, number(name, value)?)?;
@@ -139,6 +143,19 @@ fn data(found: &mut Options) -> MddResult<DataArgs> {
     if found.deadline_ms == Some(0) {
         return Err(bad("--deadline-ms must be positive"));
     }
+    let sql_limits = sql_limits(found)?;
+    Ok(DataArgs {
+        inputs: std::mem::take(&mut found.inputs)
+            .into_iter()
+            .map(|path| InputRequest { path, kind: None })
+            .collect(),
+        dialect,
+        deadline_ms: found.deadline_ms,
+        sql_limits,
+    })
+}
+
+fn sql_limits(found: &Options) -> MddResult<SqlLimits> {
     let mut sql_limits = SqlLimits::default();
     for (name, asked, slot) in [
         (
@@ -163,15 +180,40 @@ fn data(found: &mut Options) -> MddResult<DataArgs> {
             None => {}
         }
     }
-    Ok(DataArgs {
-        inputs: std::mem::take(&mut found.inputs)
-            .into_iter()
-            .map(|path| InputRequest { path, kind: None })
-            .collect(),
-        dialect,
-        deadline_ms: found.deadline_ms,
-        sql_limits,
-    })
+    Ok(sql_limits)
+}
+
+fn positive(name: &str, asked: Option<u64>) -> MddResult<Option<u64>> {
+    match asked {
+        Some(0) => Err(bad(format!("{name} must be positive"))),
+        other => Ok(other),
+    }
+}
+
+fn mcp_config(found: &Options) -> MddResult<mdd_mcp::Config> {
+    let mut config = mdd_mcp::Config::default();
+    if let Some(name) = &found.dialect {
+        config.dialect = Dialect::parse(name)?;
+    }
+    if config.dialect == Dialect::NativeV1 {
+        return Err(MddError::new(
+            ErrorCode::UnsupportedCapability,
+            "cli",
+            "the MCP server serves the HostLab contract relations; use dexsql-0.1.0 or dexsql-0.1.1",
+        ));
+    }
+    if let Some(ms) = positive("--timeout-ms", found.timeout_ms)? {
+        config.operation_timeout_ms = ms;
+    }
+    if let Some(n) = positive("--max-datasets", found.max_datasets)? {
+        config.max_datasets =
+            usize::try_from(n).map_err(|_| bad("--max-datasets is out of range"))?;
+    }
+    if let Some(n) = positive("--max-result-bytes", found.max_result_bytes)? {
+        config.max_result_bytes = n;
+    }
+    config.sql_limits = sql_limits(found)?;
+    Ok(config)
 }
 
 pub fn parse(args: &[OsString]) -> MddResult<Command> {
@@ -250,6 +292,21 @@ pub fn parse(args: &[OsString]) -> MddResult<Command> {
             Ok(Command::Serve(Box::new(ServeArgs {
                 data: data(&mut found)?,
             })))
+        }
+        "mcp" => {
+            let found = options(
+                rest,
+                &[
+                    "--dialect",
+                    "--timeout-ms",
+                    "--max-datasets",
+                    "--max-result-bytes",
+                    "--sql-max-steps",
+                    "--sql-max-scanned-rows",
+                    "--sql-max-result-rows",
+                ],
+            )?;
+            Ok(Command::Mcp(Box::new(mcp_config(&found)?)))
         }
         _ => Err(bad(USAGE)),
     }

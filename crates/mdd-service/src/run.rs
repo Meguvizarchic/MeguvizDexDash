@@ -172,7 +172,7 @@ impl<'a> Run<'a> {
                 format!("batch rows must be between 1 and {MAX_BATCH_ROWS}"),
             ));
         }
-        let prepared = dataset.bridge.prepare(sql)?;
+        let prepared = dataset.bridge().prepare(sql)?;
         self.required_layers = prepared
             .required_layers()
             .iter()
@@ -191,9 +191,9 @@ impl<'a> Run<'a> {
         )?;
         self.query = Some(query.clone());
         let deadline = Instant::now().checked_add(Duration::from_millis(limits.deadline_ms));
-        let control = SqlControl::new(dataset.bridge.limits(), deadline);
+        let control = SqlControl::new(dataset.bridge().limits(), deadline);
         lifecycle.start_query(&dataset.session, &query, 1)?;
-        let result = dataset.bridge.execute(&prepared, control)?;
+        let result = dataset.bridge().execute(&prepared, control)?;
         lifecycle.checkpoint(&query)?;
         if !result.calculation_complete() {
             return Err(MddError::new(

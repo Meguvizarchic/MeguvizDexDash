@@ -1,0 +1,23 @@
+[package]
+name = "mdd-service"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+description = "Opened datasets and statement execution shared by the command line and the MCP server"
+
+[dependencies]
+mdd-types.workspace = true
+mdd-input.workspace = true
+mdd-dex.workspace = true
+mdd-facts.workspace = true
+mdd-session.workspace = true
+mdd-sql = { path = "../mdd-sql" }
+# Only for the `mdd.sdk-batch.v1` cell encoding. The encoding belongs below both
+# adapters; moving it out of mdd-ffi would invalidate that crate's recorded mutation
+# result, so the dependency stays until the ABI record is next re-run.
+mdd-ffi = { path = "../mdd-ffi" }
+serde_json.workspace = true
+
+[lints]
+workspace = true

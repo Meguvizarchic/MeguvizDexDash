@@ -20,4 +20,4 @@ KILLED   a newline in text is printed raw [rust]
 KILLED   the SQL budgets asked for are dropped for the contract dialects [rust]
 KILLED   a failed layer is reported under the wrong name [rust]
 restored tree passes the CLI tests, the frozen cases and their controls: True
-sources sha256: 911b4e3ac9c0299e10a270c242426b4c15bc1b85434285eea7e3feb0b18bd889
+sources sha256: 502afc70f802faf9ab0781ceed3b717f723fd827562af796b7fa4380263585f9

@@ -5,7 +5,7 @@
 //! a JSON number or a lossy string. `text` is the human form: an aligned table that
 //! is lossy by design (see `cell_text`) and says so in the documentation, never a
 //! machine interface.
-use crate::run::{Batch, Sink};
+use mdd_service::{Batch, Sink};
 use mdd_sql::values::SqlValue;
 use mdd_types::{MddError, ResultEnvelope};
 use serde_json::{Value, json};

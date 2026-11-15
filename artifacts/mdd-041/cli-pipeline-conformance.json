@@ -237,8 +237,8 @@
    "rounds": [
     {
      "round": 1,
-     "open_seconds": 0.106,
-     "request_seconds": 0.0234,
+     "open_seconds": 0.1071,
+     "request_seconds": 0.0224,
      "total_seconds": 0.1326,
      "rows": 154,
      "cells": 395,
@@ -247,9 +247,9 @@
     },
     {
      "round": 2,
-     "open_seconds": 0.1075,
-     "request_seconds": 0.0227,
-     "total_seconds": 0.1333,
+     "open_seconds": 0.1064,
+     "request_seconds": 0.0218,
+     "total_seconds": 0.1313,
      "rows": 154,
      "cells": 395,
      "stdout_bytes": 31245,
@@ -257,9 +257,9 @@
     },
     {
      "round": 3,
-     "open_seconds": 0.11,
-     "request_seconds": 0.0223,
-     "total_seconds": 0.1353,
+     "open_seconds": 0.1085,
+     "request_seconds": 0.0221,
+     "total_seconds": 0.1334,
      "rows": 154,
      "cells": 395,
      "stdout_bytes": 31245,
@@ -318,9 +318,9 @@
    "rounds": [
     {
      "round": 1,
-     "open_seconds": 2.9728,
-     "request_seconds": 19.6133,
-     "total_seconds": 22.9684,
+     "open_seconds": 2.9648,
+     "request_seconds": 19.2498,
+     "total_seconds": 22.5924,
      "rows": 429940,
      "cells": 1069764,
      "stdout_bytes": 49626301,
@@ -328,9 +328,9 @@
     },
     {
      "round": 2,
-     "open_seconds": 2.9526,
-     "request_seconds": 19.4997,
-     "total_seconds": 22.8223,
+     "open_seconds": 2.9156,
+     "request_seconds": 19.474,
+     "total_seconds": 22.7689,
      "rows": 429940,
      "cells": 1069764,
      "stdout_bytes": 49626301,
@@ -338,9 +338,9 @@
     },
     {
      "round": 3,
-     "open_seconds": 2.9179,
-     "request_seconds": 19.4545,
-     "total_seconds": 22.7542,
+     "open_seconds": 2.9307,
+     "request_seconds": 19.6208,
+     "total_seconds": 22.9296,
      "rows": 429940,
      "cells": 1069764,
      "stdout_bytes": 49626301,
@@ -356,27 +356,29 @@
  "tests": {
   "rust": {
    "exit_code": 0,
-   "passed": 37,
+   "passed": 38,
    "failed": 0
   },
   "clippy_exit_code": 0,
   "build_exit_code": 0,
   "controls_exit_code": 0,
   "log_sha256": {
-   "rust": "a9c5246a0eda355b9f7707b9ee4f0416aa4d6a75d80fd6838d47f509bf984bf7",
-   "clippy": "399d48a88ee5771ab58d201e54cf386be3d2dbc9b95494e15da73723d38031ad",
-   "controls": "c6f1990249be4fceb0c7560966d16c89868ea2b4a070717469fce82024113b9d"
+   "rust": "1564c0467139c8ddcfd316cefb8f8a6499118dd87f231a09283242b433043a0e",
+   "clippy": "2f6ebcf562150027de1e6a9a931184c47ad2baaeb8db685d60b829227d2d4da4",
+   "controls": "6ea9bda91c537a90788f4565d012072c67dcf953de24c19b8fb5383b1b535f7a"
   },
   "raw_logs_kept_at": "artifacts/local/ (ignored; carries developer-machine output)"
  },
  "inputs_sha256": {
-  "crates/mdd-cli/src/main.rs": "7d8c401c20bce2980477b2395f4ea6a3047fdb6ed8d42345316e58568c856907",
-  "crates/mdd-cli/src/args.rs": "2f95960bbe67f05cecd1deea41208138eefa3fa88dc72c59d8d3197815e9710f",
+  "crates/mdd-cli/src/main.rs": "788af2835f1c709e37bf477c635ed8334bd3da2b83ee60c7e2fcde8c9423c1cc",
+  "crates/mdd-cli/src/args.rs": "94e241aa99acc6c5636d8f92758c6202b691c7768f3d0498925d3b05a9271c62",
   "crates/mdd-cli/src/commands.rs": "2e41ac0620f8aed388d1d285d45159bb991189cbefd1fb0b55e454d26036b13c",
-  "crates/mdd-cli/src/dataset.rs": "fc82af211605bcd2a890e999784758c9c7ee930c0508ad1034e2e4b653529c2f",
-  "crates/mdd-cli/src/output.rs": "59dbe172c5564c7178ca0bfc1bb3e059f6bc07119b904e22baca157c2c34e0a8",
-  "crates/mdd-cli/src/run.rs": "50e9870a85e9ca69238ff4ce659b2c3212425de8e773a01e7488c1127b6c4e4f",
-  "crates/mdd-cli/src/serve.rs": "0164cf74cb99e78b8958f77e53375d41639521d1018fe64f9c2aeb3f93bcf978",
+  "crates/mdd-cli/src/output.rs": "d8fff76514e63495c4353a0624d8eeb9c79d657ebee7641f93ce155778c55715",
+  "crates/mdd-cli/src/serve.rs": "9eed6e88e6cb3087a0e84c0b51baad1d75cf5b07ef13ab09296b59367829be8e",
+  "crates/mdd-service/src/dataset.rs": "c91154f185c5e75ae61b0d17ac564c5b670ea9e03c3c8120527a2b323bb99f64",
+  "crates/mdd-service/src/run.rs": "9372aed8d8fd910ea0712c12e4c25bbd7d5e0897649fe4bb4b36b3659c60cd27",
+  "crates/mdd-service/src/lines.rs": "503e6f60fa677447d382128766480f79a317dbdaf340f18b1bb02bef16e6e042",
+  "crates/mdd-service/src/lib.rs": "00b98a63e78a4d41d4cbeb40d57201d8952b2708437d42095d6acbeb6eae3123",
   "crates/mdd-cli/tests/cli.rs": "54510efa8e9c30bd5445c1f53c44cfb9c6a665f88a7e36f36af6e8310e4ddbf5",
   "conformance/cli/command-and-output-cases.json": "387c828a8ecd8c10bb7420b1fc0861edf7135fa4aee965a8023f01afa815f71c",
   "conformance/cli/cli_cases.py": "e22350a44a57330935b4de05518d8a9dc597b160dc023d4ff25ba7ce6e0194ec",
@@ -408,6 +410,6 @@
   "one Windows host; the frozen cases and the B0 verify are added to the CI workflow but have not yet run there, so Linux is unverified"
  ],
  "run": {
-  "started_utc": "2026-11-15T06:44:47.679321+00:00"
+  "started_utc": "2026-11-15T07:27:12.178122+00:00"
  }
 }
