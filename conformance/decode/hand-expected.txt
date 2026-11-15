@@ -1,0 +1,579 @@
+### Written by hand, from the symbolic programs in tests/fixtures/decode/generate.py and the
+### format description in crates/mdd-facts/src/smali_required/mod.rs. Neither the engine nor
+### oracle.py produced any of it. A line starting with three hash signs and a space starts the
+### entry for the method descriptor that follows; the entry runs to the next such line.
+### Descriptors are those of the fixture decode-all.dex.
+### Ldecode/T;->op_00()V
+.method public static op_00()V
+    .registers 16
+
+    nop
+    return-void
+.end method
+### Ldecode/T;->op_01()V
+.method public static op_01()V
+    .registers 16
+
+    move v1, v2
+    return-void
+.end method
+### Ldecode/T;->op_02()V
+.method public static op_02()V
+    .registers 16
+
+    move/from16 v1, v5
+    return-void
+.end method
+### Ldecode/T;->op_03()V
+.method public static op_03()V
+    .registers 16
+
+    move/16 v7, v8
+    return-void
+.end method
+### Ldecode/T;->op_04()V
+.method public static op_04()V
+    .registers 16
+
+    move-wide v1, v2
+    return-void
+.end method
+### Ldecode/T;->op_07()V
+.method public static op_07()V
+    .registers 16
+
+    move-object v1, v2
+    return-void
+.end method
+### Ldecode/T;->op_0a()V
+.method public static op_0a()V
+    .registers 16
+
+    move-result v3
+    return-void
+.end method
+### Ldecode/T;->op_0e()V
+.method public static op_0e()V
+    .registers 16
+
+    return-void
+    return-void
+.end method
+### Ldecode/T;->op_0f()V
+.method public static op_0f()V
+    .registers 16
+
+    return v3
+    return-void
+.end method
+### Ldecode/T;->op_12()V
+.method public static op_12()V
+    .registers 16
+
+    const/4 v1, -0x3
+    return-void
+.end method
+### Ldecode/T;->op_13()V
+.method public static op_13()V
+    .registers 16
+
+    const/16 v2, -0x3039
+    return-void
+.end method
+### Ldecode/T;->op_14()V
+.method public static op_14()V
+    .registers 16
+
+    const v2, -0x75bcd15
+    return-void
+.end method
+### Ldecode/T;->op_15()V
+.method public static op_15()V
+    .registers 16
+
+    const/high16 v2, 0x3f800000
+    return-void
+.end method
+### Ldecode/T;->op_16()V
+.method public static op_16()V
+    .registers 16
+
+    const-wide/16 v2, -0x3039L
+    return-void
+.end method
+### Ldecode/T;->op_17()V
+.method public static op_17()V
+    .registers 16
+
+    const-wide/32 v2, -0x75bcd15L
+    return-void
+.end method
+### Ldecode/T;->op_18()V
+.method public static op_18()V
+    .registers 16
+
+    const-wide v2, -0x123456789abcdefL
+    return-void
+.end method
+### Ldecode/T;->op_19()V
+.method public static op_19()V
+    .registers 16
+
+    const-wide/high16 v2, -0x4010000000000000L
+    return-void
+.end method
+### Ldecode/T;->op_1a()V
+.method public static op_1a()V
+    .registers 16
+
+    const-string v4, "needle"
+    return-void
+.end method
+### Ldecode/T;->op_1b()V
+.method public static op_1b()V
+    .registers 16
+
+    const-string/jumbo v2, "needle"
+    return-void
+.end method
+### Ldecode/T;->op_1c()V
+.method public static op_1c()V
+    .registers 16
+
+    const-class v4, Ljava/lang/String;
+    return-void
+.end method
+### Ldecode/T;->op_1d()V
+.method public static op_1d()V
+    .registers 16
+
+    monitor-enter v3
+    return-void
+.end method
+### Ldecode/T;->op_20()V
+.method public static op_20()V
+    .registers 16
+
+    instance-of v1, v2, Ljava/lang/String;
+    return-void
+.end method
+### Ldecode/T;->op_21()V
+.method public static op_21()V
+    .registers 16
+
+    array-length v1, v2
+    return-void
+.end method
+### Ldecode/T;->op_22()V
+.method public static op_22()V
+    .registers 16
+
+    new-instance v4, Ljava/lang/String;
+    return-void
+.end method
+### Ldecode/T;->op_23()V
+.method public static op_23()V
+    .registers 16
+
+    new-array v1, v2, [I
+    return-void
+.end method
+### Ldecode/T;->op_24()V
+.method public static op_24()V
+    .registers 16
+
+    filled-new-array {v1, v2, v3}, [I
+    return-void
+.end method
+### Ldecode/T;->op_25()V
+.method public static op_25()V
+    .registers 16
+
+    filled-new-array/range {v2 .. v4}, [I
+    return-void
+.end method
+### Ldecode/T;->op_27()V
+.method public static op_27()V
+    .registers 16
+
+    throw v3
+    return-void
+.end method
+### Ldecode/T;->op_28()V
+.method public static op_28()V
+    .registers 16
+
+    goto :goto_1
+    :goto_1
+    return-void
+.end method
+### Ldecode/T;->op_29()V
+.method public static op_29()V
+    .registers 16
+
+    goto/16 :goto_2
+    :goto_2
+    return-void
+.end method
+### Ldecode/T;->op_2a()V
+.method public static op_2a()V
+    .registers 16
+
+    goto/32 :goto_3
+    :goto_3
+    return-void
+.end method
+### Ldecode/T;->op_2d()V
+.method public static op_2d()V
+    .registers 16
+
+    cmpl-float v1, v2, v3
+    return-void
+.end method
+### Ldecode/T;->op_32()V
+.method public static op_32()V
+    .registers 16
+
+    if-eq v1, v2, :cond_2
+    :cond_2
+    return-void
+.end method
+### Ldecode/T;->op_38()V
+.method public static op_38()V
+    .registers 16
+
+    if-eqz v2, :cond_2
+    :cond_2
+    return-void
+.end method
+### Ldecode/T;->op_44()V
+.method public static op_44()V
+    .registers 16
+
+    aget v1, v2, v3
+    return-void
+.end method
+### Ldecode/T;->op_52()V
+.method public static op_52()V
+    .registers 16
+
+    iget v1, v2, Ldecode/T;->count:I
+    return-void
+.end method
+### Ldecode/T;->op_60()V
+.method public static op_60()V
+    .registers 16
+
+    sget v4, Ldecode/T;->count:I
+    return-void
+.end method
+### Ldecode/T;->op_6e()V
+.method public static op_6e()V
+    .registers 16
+
+    invoke-virtual {v1, v2, v3}, Ldecode/Other;->i2(II)V
+    return-void
+.end method
+### Ldecode/T;->op_70()V
+.method public static op_70()V
+    .registers 16
+
+    invoke-direct {v1, v2, v3}, Ldecode/Other;->i2(II)V
+    return-void
+.end method
+### Ldecode/T;->op_71()V
+.method public static op_71()V
+    .registers 16
+
+    invoke-static {v1, v2, v3}, Ldecode/Other;->s3(III)V
+    return-void
+.end method
+### Ldecode/T;->op_74()V
+.method public static op_74()V
+    .registers 16
+
+    invoke-virtual/range {v2 .. v4}, Ldecode/Other;->i2(II)V
+    return-void
+.end method
+### Ldecode/T;->op_77()V
+.method public static op_77()V
+    .registers 16
+
+    invoke-static/range {v2 .. v4}, Ldecode/Other;->s3(III)V
+    return-void
+.end method
+### Ldecode/T;->op_7b()V
+.method public static op_7b()V
+    .registers 16
+
+    neg-int v1, v2
+    return-void
+.end method
+### Ldecode/T;->op_90()V
+.method public static op_90()V
+    .registers 16
+
+    add-int v1, v2, v3
+    return-void
+.end method
+### Ldecode/T;->op_b0()V
+.method public static op_b0()V
+    .registers 16
+
+    add-int/2addr v1, v2
+    return-void
+.end method
+### Ldecode/T;->op_d0()V
+.method public static op_d0()V
+    .registers 16
+
+    add-int/lit16 v1, v2, -0x4d2
+    return-void
+.end method
+### Ldecode/T;->op_d8()V
+.method public static op_d8()V
+    .registers 16
+
+    add-int/lit8 v1, v2, -0x5
+    return-void
+.end method
+### Ldecode/T;->op_fa()V
+.method public static op_fa()V
+    .registers 16
+
+    invoke-polymorphic {v1, v2}, Ljava/lang/invoke/MethodHandle;->invokeExact([Ljava/lang/Object;)Ljava/lang/Object;, (I)V
+    return-void
+.end method
+### Ldecode/T;->op_fb()V
+.method public static op_fb()V
+    .registers 16
+
+    invoke-polymorphic/range {v2 .. v3}, Ljava/lang/invoke/MethodHandle;->invokeExact([Ljava/lang/Object;)Ljava/lang/Object;, (I)V
+    return-void
+.end method
+### Ldecode/T;->params_instance(IJLjava/lang/String;)I
+.method public params_instance(IJLjava/lang/String;)I
+    .registers 7
+
+    move v0, v1
+    move-wide p0, p1
+    move-object p2, p4
+    invoke-virtual {p0, p3}, Ldecode/Other;->poke(I)V
+    return v0
+.end method
+### Ldecode/T;->params_static(JI)J
+.method public static params_static(JI)J
+    .registers 4
+
+    move-wide v0, p1
+    return-wide v0
+.end method
+### Ldecode/T;->literals()V
+.method public static literals()V
+    .registers 4
+
+    const/4 v0, 0x7
+    const/4 v0, -0x8
+    const/16 v1, 0x7fff
+    const v1, -0x80000000
+    const v1, 0x7fffffff
+    const/high16 v1, -0x80000000
+    const-wide/16 v2, -0x1L
+    const-wide/32 v2, 0x7fffffffL
+    const-wide v2, -0x8000000000000000L
+    const-wide v2, 0x7fffffffffffffffL
+    const-wide/high16 v2, -0x8000000000000000L
+    add-int/lit8 v0, v1, 0x7f
+    add-int/lit8 v0, v1, -0x80
+    add-int/lit16 v0, v1, -0x8000
+    rsub-int v0, v1, 0x7fff
+    return-void
+.end method
+### Ldecode/T;->strings()V
+.method public static strings()V
+    .registers 2
+
+    const-string v0, "plain"
+    const-string v0, "quote\"and\'apostrophe"
+    const-string v0, "back\\slash"
+    const-string v0, "line\nbreak\ttab\rreturn"
+    const-string v0, "bell\bform\f"
+    const-string v0, "nul\u0000char"
+    const-string v0, "caf\u00e9"
+    const-string v0, "\u4e2d\u6587"
+    const-string v0, "emoji\ud83d\ude00"
+    const-string v0, "lone\ud800surrogate"
+    const-string v0, "\u007fdel"
+    const-string/jumbo v1, "plain"
+    return-void
+.end method
+### Ldecode/T;->branches()V
+.method public static branches()V
+    .registers 3
+
+    :cond_0
+    :goto_0
+    if-eq v0, v1, :cond_a
+    if-nez v0, :cond_0
+    goto/16 :goto_a
+    goto/32 :goto_0
+    goto :goto_a
+    :cond_a
+    :goto_a
+    return-void
+.end method
+### Ldecode/T;->switch_packed()V
+.method public static switch_packed()V
+    .registers 4
+
+    packed-switch v0, :pswitch_data_6
+    goto :goto_5
+    :pswitch_4
+    const/4 v1, 0x1
+    :goto_5
+    :pswitch_5
+    return-void
+    :pswitch_data_6
+    .packed-switch -0x1
+        :pswitch_4
+        :pswitch_5
+        :pswitch_4
+    .end packed-switch
+.end method
+### Ldecode/T;->switch_sparse()V
+.method public static switch_sparse()V
+    .registers 4
+
+    sparse-switch v0, :sswitch_data_6
+    goto :goto_5
+    :sswitch_4
+    const/4 v1, 0x1
+    :goto_5
+    :sswitch_5
+    return-void
+    :sswitch_data_6
+    .sparse-switch
+        -0x5 -> :sswitch_4
+        0x7 -> :sswitch_5
+        0x186a0 -> :sswitch_4
+    .end sparse-switch
+.end method
+### Ldecode/T;->array_w1()V
+.method public static array_w1()V
+    .registers 3
+
+    fill-array-data v0, :array_4
+    return-void
+    :array_4
+    .array-data 1
+        0x1t
+        -0x2t
+        0x3t
+    .end array-data
+.end method
+### Ldecode/T;->array_w2()V
+.method public static array_w2()V
+    .registers 3
+
+    fill-array-data v0, :array_4
+    return-void
+    :array_4
+    .array-data 2
+        0x1s
+        -0x2s
+        0x3s
+    .end array-data
+.end method
+### Ldecode/T;->array_w4()V
+.method public static array_w4()V
+    .registers 3
+
+    fill-array-data v0, :array_4
+    return-void
+    :array_4
+    .array-data 4
+        0x1
+        -0x2
+        0x3
+    .end array-data
+.end method
+### Ldecode/T;->array_w8()V
+.method public static array_w8()V
+    .registers 3
+
+    fill-array-data v0, :array_4
+    return-void
+    :array_4
+    .array-data 8
+        0x1L
+        -0x2L
+        0x7fffffffffffffffL
+    .end array-data
+.end method
+### Ldecode/T;->try_catch()V
+.method public static try_catch()V
+    .registers 3
+
+    :try_start_0
+    invoke-static {}, Ldecode/Other;->work()V
+    :try_end_3
+    :try_start_3
+    .catch Ljava/io/IOException; {:try_start_0 .. :try_end_3} :catch_a
+    .catch Ljava/lang/RuntimeException; {:try_start_0 .. :try_end_3} :catch_c
+    invoke-static {}, Ldecode/Other;->work()V
+    invoke-static {}, Ldecode/Other;->work()V
+    :try_end_9
+    .catch Ljava/lang/Exception; {:try_start_3 .. :try_end_9} :catch_c
+    .catchall {:try_start_3 .. :try_end_9} :catchall_a
+    return-void
+    :catch_a
+    :catchall_a
+    move-exception v0
+    throw v0
+    :catch_c
+    move-exception v1
+    return-void
+.end method
+### Ldecode/T;->try_to_end()V
+.method public static try_to_end()V
+    .registers 2
+
+    :catchall_0
+    :try_start_0
+    invoke-static {}, Ldecode/Other;->work()V
+    nop
+    :try_end_4
+    .catchall {:try_start_0 .. :try_end_4} :catchall_0
+.end method
+### Ldecode/T;->é中()V
+.method public static é中()V
+    .registers 1
+
+    const-string v0, "needle"
+    return-void
+.end method
+### Ldecode/T;->abstract_one(I)I
+.method public abstract abstract_one(I)I
+.end method
+### Ldecode/T;->native_one(Ljava/lang/String;)Z
+.method public static synchronized native native_one(Ljava/lang/String;)Z
+.end method
+### Ldecode/T;-><init>()V
+.method public constructor <init>()V
+    .registers 1
+
+    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
+    return-void
+.end method
+### Ldecode/T;-><clinit>()V
+.method static constructor <clinit>()V
+    .registers 1
+
+    return-void
+.end method
+### Ldecode/T;->all_flags([I)V
+.method public final synchronized bridge varargs synthetic all_flags([I)V
+    .registers 2
+
+    return-void
+.end method

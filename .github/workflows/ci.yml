@@ -64,6 +64,16 @@ jobs:
           python benchmarks/hostlab-b0-pipeline.py verify --binary $binary
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python conformance/mcp/golden_replay.py --binary $binary
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python tests/fixtures/decode/generate.py --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python conformance/mcp/lifecycle_replay.py --binary $binary
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python conformance/decode/run_decode_conformance.py --binary $binary
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python conformance/mcp/manifest_replay.py --binary $binary
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python conformance/mcp/test_replays.py
       - name: Run actual dependency and SQL probes
         run: python tools/record_command.py --output artifacts/ci/probe -- cargo run --locked -p mdd-build-probe
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

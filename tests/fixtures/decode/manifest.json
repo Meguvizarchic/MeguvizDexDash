@@ -1,0 +1,27 @@
+{
+ "files": {
+  "decode-all.dex": {
+   "bytes": 15676,
+   "sha256": "e8c3b982b4c2aeeed45c46e00fcc01d008f1fbe9547cf29cb6a1f2bf84de266b"
+  },
+  "decode-bad-invoke.dex": {
+   "bytes": 544,
+   "sha256": "b60337d2b676f282d564ce53d199a77d63122a556c18c427306df1b152663489"
+  },
+  "decode-v035.dex": {
+   "bytes": 448,
+   "sha256": "67f13c5b15bd25c5c1256faebcb6e99f3ada6c5f094c391900685b582ec7eae1"
+  },
+  "manifest-small.apk": {
+   "bytes": 2662,
+   "sha256": "915a8bd741696e2e3530292e1fd9324f5dae0072ec314fd3ba2f0a6bae7429ce"
+  },
+  "no-manifest.apk": {
+   "bytes": 568,
+   "sha256": "56f0c34985fc31b42f000cefeb592f9c22aac18b210c76adfb323e705df0fdd7"
+  }
+ },
+ "generator": "tests/fixtures/decode/generate.py",
+ "note": "synthetic layout fixtures, not installable APKs; programs are written symbolically and assembled here",
+ "schema_version": "mdd.decode-fixtures.v1"
+}

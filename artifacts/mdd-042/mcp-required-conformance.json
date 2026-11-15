@@ -1,23 +1,23 @@
 {
- "schema_version": "mdd.mcp-required-conformance.v1",
+ "schema_version": "mdd.mcp-required-conformance.v2",
  "task": "MDD-042",
- "status": "partial: the dataset, table and query tools; decode and get_manifest are not implemented",
+ "status": "partial: every request that was recorded is equal to the reference's; what nobody recorded is this server's own and is listed",
  "kind": "development evidence; admits no profile",
  "capabilities": [
   {
    "name": "open_dataset",
    "provided": true,
-   "scope": "DEX and APK paths with at least one DEX; resource-only archives are refused"
+   "scope": "DEX and APK paths with at least one DEX; resource-only archives are refused; the reference's six fields plus this engine's snapshot identity"
   },
   {
    "name": "list_datasets",
    "provided": true,
-   "scope": "open datasets, quotas and usage in this server's own shape"
+   "scope": "the reference's shape; limits are this server's own configuration"
   },
   {
    "name": "close_dataset",
    "provided": true,
-   "scope": "idempotent; later requests naming the dataset are refused"
+   "scope": "a dataset that is not open, closed or never opened, is refused as unknown_dataset, as the reference does"
   },
   {
    "name": "list_tables",
@@ -32,17 +32,17 @@
   {
    "name": "query",
    "provided": true,
-   "scope": "up to 16 statements, row windows with exact totals, TEMP and named temporary queries; equal to the frozen A0 recording; timing refused"
+   "scope": "up to 16 statements, row windows with exact totals, TEMP and named temporary queries, timing; equal to the frozen A0 recording"
   },
   {
    "name": "decode",
-   "provided": false,
-   "reason": "not implemented (Smali; MDD-042 remainder and MDD-071)"
+   "provided": true,
+   "scope": "one method by descriptor or by file_id+method_idx; smali and summary modes; class selection and context mode refused as not implemented (MDD-071)"
   },
   {
    "name": "get_manifest",
-   "provided": false,
-   "reason": "not implemented (MDD-042 remainder and MDD-072)"
+   "provided": true,
+   "scope": "summary mode with paged permission rows; xml mode refused as not implemented (MDD-072)"
   },
   {
    "name": "get_manifest_components",
@@ -80,7 +80,7 @@
    "acceptance": "the five HostLab tools open_dataset/query/decode/get_manifest/close_dataset answer request by request like the reference, and the three discovery tools carry the real schema",
    "proofs": [
     {
-     "check": "tools/list: the six registered tools carry the reference engine's published schemas",
+     "check": "tools/list: the eight registered tools carry the reference engine's published schemas",
      "outcome": "ok"
     },
     {
@@ -92,32 +92,69 @@
      "outcome": "ok"
     },
     {
-     "check": "A0 replay: damaged recordings are caught",
+     "check": "recorded sessions: open, list, close, errors, TEMP, deadline, identity and the recorded decode answers equal the reference's",
+     "outcome": "ok"
+    },
+    {
+     "check": "recorded NewPipe get_manifest summary: all six pages equal the reference's",
+     "outcome": "ok"
+    },
+    {
+     "check": "negative controls: damaged recordings, hand texts and renderers are caught",
      "outcome": "ok"
     }
    ],
    "not_proven": [
-    "decode: not implemented",
-    "get_manifest: not implemented",
-    "open_dataset and close_dataset responses: the reference's responses were never recorded and its executable is not available, so only their lifecycle behaviour is tested"
+    "the reference's executable is not available: every comparison is with what was recorded; a request nobody recorded is not compared",
+    "decode: only the default smali mode of one four-instruction method, by descriptor and by file_id+method_idx, the ambiguous error, and a deleted source are recorded; the text of every other instruction, the paging of a long method (offset, max_bytes, mid-line flags) and the summary mode are this server's own",
+    "get_manifest: the summary of one public APK is recorded; the xml mode is not provided; values of float, dimension, fraction, color and null types are refused because no recording shows how the reference writes them",
+    "query: integer type tags for negative numbers and booleans, column data_type (sqlite_dynamic in the reference) and optimizer diagnostics are not equal; they are listed as declared differences",
+    "server_busy cannot arise (one request at a time); the path-plus-symlink identity case needs a link this account could not make"
    ],
    "status": "partial"
   },
   {
    "acceptance": "decode produces the instructions, method context and declarations production uses, never placeholder text or opcodes alone",
-   "proofs": [],
-   "not_proven": [
-    "decode: not implemented"
+   "proofs": [
+    {
+     "check": "decode conformance: the engine's text equals an independent renderer and hand-written texts for every method of the fixtures",
+     "outcome": "ok"
+    },
+    {
+     "check": "negative controls: damaged recordings, hand texts and renderers are caught",
+     "outcome": "ok"
+    }
    ],
-   "status": "not_proven"
+   "not_proven": [
+    "no fixture holds invoke-custom, const-method-handle or const-method-type (call-site and method-handle tables are not built); their operands print as call_site_N / method_handle_N",
+    "debug info and annotations are not shown (the reference points to SQL tables for them); the class selection and the context mode are refused as not implemented (MDD-071)"
+   ],
+   "status": "partial"
   },
   {
    "acceptance": "Smali and Manifest paging keep their own units (UTF-8 byte offsets, line counts, permission rows) and do not mix with DEX byte offsets",
-   "proofs": [],
-   "not_proven": [
-    "decode and get_manifest: not implemented; the query tool pages in rows, whose window is proven by the replay"
+   "proofs": [
+    {
+     "check": "decode conformance: the engine's text equals an independent renderer and hand-written texts for every method of the fixtures",
+     "outcome": "ok"
+    },
+    {
+     "check": "recorded NewPipe get_manifest summary: all six pages equal the reference's",
+     "outcome": "ok"
+    },
+    {
+     "check": "decode_pages_by_utf8_byte_offset_and_lines_apart",
+     "outcome": "ok"
+    },
+    {
+     "check": "permissions_page_by_rows_and_the_rest_of_the_summary_repeats_unchanged",
+     "outcome": "ok"
+    }
    ],
-   "status": "not_proven"
+   "not_proven": [
+    "the reference's own behaviour at a page cut inside a line or past the end is not recorded; the manifest xml mode (UTF-8 byte offsets) is not provided (MDD-072)"
+   ],
+   "status": "partial"
   },
   {
    "acceptance": "tool ownership, quotas, closing, errors and source identity are checked through real MCP JSON-RPC",
@@ -135,7 +172,7 @@
      "outcome": "ok"
     },
     {
-     "check": "opening_a_dataset_names_its_source_and_roster",
+     "check": "opening_a_dataset_answers_in_the_references_shape_and_names_its_source",
      "outcome": "ok"
     },
     {
@@ -147,7 +184,15 @@
      "outcome": "ok"
     },
     {
+     "check": "listing_answers_with_the_references_fields_and_no_others_per_dataset",
+     "outcome": "ok"
+    },
+    {
      "check": "the_dataset_quota_is_enforced_and_closing_frees_a_slot",
+     "outcome": "ok"
+    },
+    {
+     "check": "the_total_input_byte_quota_is_enforced_like_the_dataset_quota",
      "outcome": "ok"
     },
     {
@@ -160,6 +205,14 @@
     },
     {
      "check": "a_result_over_the_byte_budget_is_refused_never_clipped",
+     "outcome": "ok"
+    },
+    {
+     "check": "a_dataset_decodes_from_its_snapshot_after_the_source_is_gone",
+     "outcome": "ok"
+    },
+    {
+     "check": "the_manifest_tool_says_why_it_cannot_answer",
      "outcome": "ok"
     },
     {
@@ -178,7 +231,7 @@
      "outcome": "ok"
     },
     {
-     "check": "an_option_the_server_does_not_implement_is_refused_not_ignored",
+     "check": "timing_is_reported_when_asked_for_and_absent_otherwise",
      "outcome": "ok"
     }
    ],
@@ -190,14 +243,14 @@
   "compared_with": "conformance/manifests/tools-and-options.json",
   "differences": []
  },
- "a0_replay": {
+ "a0_query_replay": {
   "cases": 77,
   "pages": 145,
   "rows": 1149,
   "walks": 9,
   "equal": true
  },
- "a0_replay_rejections": [
+ "a0_query_replay_rejections": [
   {
    "name": "second_statement_fails",
    "refused": true,
@@ -264,61 +317,565 @@
    "recorded_statement_index": 2
   }
  ],
+ "recorded_sessions_replay": {
+  "checks": [
+   {
+    "name": "open_dataset answers with the reference's six fields",
+    "equal": true
+   },
+   {
+    "name": "open_dataset field types equal the recording's",
+    "equal": true
+   },
+   {
+    "name": "open_dataset values the recording fixes: has_dex, archive_inputs, the inputs echoed, the byte count",
+    "equal": true
+   },
+   {
+    "name": "open_dataset adds exactly the declared identity fields",
+    "equal": true
+   },
+   {
+    "name": "close_dataset answers {closed, dataset_id} exactly",
+    "equal": true
+   },
+   {
+    "name": "a dataset over the quota is refused with the reference's kind and message",
+    "equal": true
+   },
+   {
+    "name": "list_datasets has the reference's keys at every level",
+    "equal": true
+   },
+   {
+    "name": "list_datasets counts what is open, as the reference does",
+    "equal": true
+   },
+   {
+    "name": "closing the first dataset",
+    "equal": true
+   },
+   {
+    "name": "a query on the closed handle is refused as unknown_dataset, in the reference's words",
+    "equal": true
+   },
+   {
+    "name": "closing twice is refused as unknown_dataset, in the reference's words",
+    "equal": true
+   },
+   {
+    "name": "a slot freed by closing can be opened again",
+    "equal": true
+   },
+   {
+    "name": "the second dataset closes",
+    "equal": true
+   },
+   {
+    "name": "TEMP step 54: CREATE TEMP TABLE page_base AS SELECT 1 AS id,'b (statements, cell types included)",
+    "equal": true
+   },
+   {
+    "name": "TEMP step 56: SELECT id,tag FROM page_base ORDER BY id (statements, cell types included)",
+    "equal": true
+   },
+   {
+    "name": "TEMP step 58: CREATE TEMP TABLE page_base AS SELECT 11 AS id,' (statements, cell types included)",
+    "equal": true
+   },
+   {
+    "name": "TEMP step 60: SELECT id,tag FROM page_base ORDER BY id (statements, cell types included)",
+    "equal": true
+   },
+   {
+    "name": "TEMP step 62: CREATE TEMP TABLE base AS SELECT 1 AS x (statements, cell types included)",
+    "equal": true
+   },
+   {
+    "name": "TEMP step 64: SELECT x FROM derived (statements, cell types included)",
+    "equal": true
+   },
+   {
+    "name": "TEMP step 66: DROP TABLE base (statements, cell types included)",
+    "equal": true
+   },
+   {
+    "name": "TEMP step 68: SELECT x FROM derived (refused: kind and statement index)",
+    "equal": true
+   },
+   {
+    "name": "TEMP step 68: SELECT x FROM derived (refused: the message, word for word)",
+    "equal": true
+   },
+   {
+    "name": "TEMP step 70: CREATE TEMP TABLE base AS SELECT 7 AS x (statements, cell types included)",
+    "equal": true
+   },
+   {
+    "name": "TEMP step 72: SELECT x FROM derived (statements, cell types included)",
+    "equal": true
+   },
+   {
+    "name": "TEMP step 74: DROP TABLE derived (statements, cell types included)",
+    "equal": true
+   },
+   {
+    "name": "TEMP step 76: SELECT x FROM derived (refused: kind and statement index)",
+    "equal": true
+   },
+   {
+    "name": "TEMP step 76: SELECT x FROM derived (refused: the message, word for word)",
+    "equal": true
+   },
+   {
+    "name": "a deadline closes the dataset and says so, in the reference's shape",
+    "equal": true
+   },
+   {
+    "name": "the dataset is gone from list_datasets after its deadline",
+    "equal": true
+   },
+   {
+    "name": "a second request while one runs is refused as server_busy",
+    "equal": null
+   },
+   {
+    "name": "method_strings: the one string 'needle' is used twice, cell types included",
+    "equal": true
+   },
+   {
+    "name": "DECLARED DIFFERENCE: after the source file changed, decode still answers from the snapshot (the reference refuses decode with source_changed and keeps answering SQL)",
+    "equal": true
+   },
+   {
+    "name": "after the source file changed, SQL and decode read the same snapshot",
+    "equal": true
+   },
+   {
+    "name": "decode after the source file was deleted answers exactly as the reference did",
+    "equal": true
+   },
+   {
+    "name": "a_then_b: open_dataset counts both inputs' bytes and echoes both paths",
+    "equal": true
+   },
+   {
+    "name": "a_then_b: each input keeps its own file_id, in the order given",
+    "equal": true
+   },
+   {
+    "name": "a_then_b: methods count(*), count(DISTINCT descriptor), count(method_kind), cell types included",
+    "equal": true
+   },
+   {
+    "name": "a_then_b: decode by descriptor answers exactly as the reference did (file_id, text, byte and line counts)",
+    "equal": true
+   },
+   {
+    "name": "a_then_b: decode by file_id and method_idx answers exactly as the reference did",
+    "equal": true
+   },
+   {
+    "name": "b_then_a: open_dataset counts both inputs' bytes and echoes both paths",
+    "equal": true
+   },
+   {
+    "name": "b_then_a: each input keeps its own file_id, in the order given",
+    "equal": true
+   },
+   {
+    "name": "b_then_a: methods count(*), count(DISTINCT descriptor), count(method_kind), cell types included",
+    "equal": true
+   },
+   {
+    "name": "b_then_a: decode by descriptor answers exactly as the reference did (file_id, text, byte and line counts)",
+    "equal": true
+   },
+   {
+    "name": "b_then_a: decode by file_id and method_idx answers exactly as the reference did",
+    "equal": true
+   },
+   {
+    "name": "same_path_twice: open_dataset counts both inputs' bytes and echoes both paths",
+    "equal": true
+   },
+   {
+    "name": "same_path_twice: each input keeps its own file_id, in the order given",
+    "equal": true
+   },
+   {
+    "name": "same_path_twice: methods count(*), count(DISTINCT descriptor), count(method_kind), cell types included",
+    "equal": true
+   },
+   {
+    "name": "same_path_twice: decode by descriptor is refused as ambiguous, naming the DEX files, in the reference's shape",
+    "equal": true
+   },
+   {
+    "name": "same_path_twice: decode by file_id and method_idx answers exactly as the reference did",
+    "equal": true
+   },
+   {
+    "name": "same_content_two_paths: open_dataset counts both inputs' bytes and echoes both paths",
+    "equal": true
+   },
+   {
+    "name": "same_content_two_paths: each input keeps its own file_id, in the order given",
+    "equal": true
+   },
+   {
+    "name": "same_content_two_paths: methods count(*), count(DISTINCT descriptor), count(method_kind), cell types included",
+    "equal": true
+   },
+   {
+    "name": "same_content_two_paths: decode by descriptor is refused as ambiguous, naming the DEX files, in the reference's shape",
+    "equal": true
+   },
+   {
+    "name": "same_content_two_paths: decode by file_id and method_idx answers exactly as the reference did",
+    "equal": true
+   },
+   {
+    "name": "path_plus_symlink",
+    "equal": null
+   }
+  ],
+  "passed": 53,
+  "failed": 0,
+  "not_run": 2,
+  "recording": "evidence/compatibility/0.1.0/mcp-records.json",
+  "recorded_messages": 195,
+  "declared_differences": [
+   "The reference's `diagnostics` of a query carries sql_static_optimizer_rewrite notes; this server's is empty.",
+   "The reference's column data_type is `sqlite_dynamic` for TEMP tables and expressions; this server derives uint64/int64/utf8 from the values.",
+   "A dataset whose source file changed: the reference refuses decode (source_changed) and still answers SQL; this server reads one immutable snapshot for both and answers both.",
+   "The reference's server_busy (a second request while one runs) cannot arise: this server answers one request at a time.",
+   "A recursive CTE is the reference's way to run long; this server's SQL does not offer it, so the deadline is exercised with a cross join.",
+   "Dataset identifiers are opaque here (dataset-<hex>); the reference counts dataset-1, dataset-2.",
+   "limits values (max_datasets, max_output_bytes, timeout_ms, ...) are each server's own configuration; only their names are compared."
+  ]
+ },
+ "decode_conformance": {
+  "checks": [
+   {
+    "name": "the fixtures reproduce byte for byte from their generator",
+    "equal": true
+   },
+   {
+    "name": "both fixtures open with every layer built",
+    "equal": true
+   },
+   {
+    "name": "decode-all.dex: the engine's text equals the independent renderer's, and the numbers equal the code item's, for all 238 methods",
+    "equal": true
+   },
+   {
+    "name": "decode-v035.dex: the engine's text equals the independent renderer's, and the numbers equal the code item's, for all 2 methods",
+    "equal": true
+   },
+   {
+    "name": "the 68 hand-written texts equal both the engine's and the independent renderer's",
+    "equal": true
+   },
+   {
+    "name": "every opcode that has a valid operand set in these fixtures is covered",
+    "equal": true
+   },
+   {
+    "name": "a first page holds max_lines (200) lines, ends on a line boundary and says where it continues",
+    "equal": true
+   },
+   {
+    "name": "a walk by lines (200 per page) rebuilds the text, with offsets in bytes and lines counted apart",
+    "equal": true
+   },
+   {
+    "name": "a walk by bytes (max_bytes=1) never exceeds the budget, cuts mid-line and rebuilds the text",
+    "equal": true
+   },
+   {
+    "name": "a walk by bytes (max_bytes=7) never exceeds the budget, cuts mid-line and rebuilds the text",
+    "equal": true
+   },
+   {
+    "name": "a walk by bytes (max_bytes=100) never exceeds the budget, cuts mid-line and rebuilds the text",
+    "equal": true
+   },
+   {
+    "name": "max_bytes=14 over a method name with 2- and 3-byte characters keeps every page valid and joins back",
+    "equal": true
+   },
+   {
+    "name": "max_bytes=15 over a method name with 2- and 3-byte characters keeps every page valid and joins back",
+    "equal": true
+   },
+   {
+    "name": "max_bytes=16 over a method name with 2- and 3-byte characters keeps every page valid and joins back",
+    "equal": true
+   },
+   {
+    "name": "max_bytes=17 over a method name with 2- and 3-byte characters keeps every page valid and joins back",
+    "equal": true
+   },
+   {
+    "name": "max_bytes=18 over a method name with 2- and 3-byte characters keeps every page valid and joins back",
+    "equal": true
+   },
+   {
+    "name": "max_bytes=20 over a method name with 2- and 3-byte characters keeps every page valid and joins back",
+    "equal": true
+   },
+   {
+    "name": "an offset inside a character is refused",
+    "equal": true
+   },
+   {
+    "name": "an offset past the end is refused",
+    "equal": true
+   },
+   {
+    "name": "an offset at the end is an empty final page",
+    "equal": true
+   },
+   {
+    "name": "a byte budget smaller than the next character is refused, not answered with an empty page",
+    "equal": true
+   },
+   {
+    "name": "a page that starts inside a line says so and counts that line as one of its lines",
+    "equal": true
+   },
+   {
+    "name": "a descriptor defined in two DEX files is refused as ambiguous and names both",
+    "equal": true
+   },
+   {
+    "name": "file_id 0 chooses its own definition of the ambiguous descriptor",
+    "equal": true
+   },
+   {
+    "name": "file_id 1 chooses its own definition of the ambiguous descriptor",
+    "equal": true
+   },
+   {
+    "name": "a descriptor defined once needs no file_id and reports the file it is in",
+    "equal": true
+   },
+   {
+    "name": "a method that is only referred to is not found",
+    "equal": true
+   },
+   {
+    "name": "a descriptor nobody defines is not found",
+    "equal": true
+   },
+   {
+    "name": "a file_id that is not in the dataset is not found",
+    "equal": true
+   },
+   {
+    "name": "a method_idx that is only a reference is not found",
+    "equal": true
+   },
+   {
+    "name": "no selector is refused as an invalid argument",
+    "equal": true
+   },
+   {
+    "name": "two selectors is refused as an invalid argument",
+    "equal": true
+   },
+   {
+    "name": "method_idx without file_id is refused as an invalid argument",
+    "equal": true
+   },
+   {
+    "name": "a class is refused as not implemented, not answered with a stand-in",
+    "equal": true
+   },
+   {
+    "name": "the context mode is refused as not implemented, not answered with a stand-in",
+    "equal": true
+   },
+   {
+    "name": "the summary mode answers the method's numbers and no text",
+    "equal": true
+   },
+   {
+    "name": "max_lines 0 is a protocol error",
+    "equal": true
+   },
+   {
+    "name": "max_lines 1001 is a protocol error",
+    "equal": true
+   },
+   {
+    "name": "an unknown mode is a protocol error",
+    "equal": true
+   },
+   {
+    "name": "method_limit 51 is a protocol error",
+    "equal": true
+   },
+   {
+    "name": "an unknown argument is a protocol error",
+    "equal": true
+   },
+   {
+    "name": "a negative offset is a protocol error",
+    "equal": true
+   },
+   {
+    "name": "an unknown dataset is refused as unknown_dataset",
+    "equal": true
+   },
+   {
+    "name": "the server exits cleanly",
+    "equal": true
+   }
+  ],
+  "passed": 44,
+  "failed": 0,
+  "not_run": 0
+ },
+ "manifest_replay": {
+  "checks": [
+   {
+    "name": "open_dataset on the APK answers the recorded fields: archive_inputs [0], has_dex, the byte count",
+    "equal": true
+   },
+   {
+    "name": "the same number of permission pages",
+    "equal": true
+   },
+   {
+    "name": "page 0: every field equals the recording (2 permission rows)",
+    "equal": true
+   },
+   {
+    "name": "page 1: every field equals the recording (2 permission rows)",
+    "equal": true
+   },
+   {
+    "name": "page 2: every field equals the recording (2 permission rows)",
+    "equal": true
+   },
+   {
+    "name": "page 3: every field equals the recording (2 permission rows)",
+    "equal": true
+   },
+   {
+    "name": "page 4: every field equals the recording (2 permission rows)",
+    "equal": true
+   },
+   {
+    "name": "page 5: every field equals the recording (2 permission rows)",
+    "equal": true
+   },
+   {
+    "name": "without limit, all 12 rows come in one page and no page is cut",
+    "equal": true
+   },
+   {
+    "name": "close_dataset answers the recorded {closed, dataset_id}",
+    "equal": true
+   },
+   {
+    "name": "the server exits cleanly",
+    "equal": true
+   }
+  ],
+  "passed": 11,
+  "failed": 0,
+  "not_run": 0,
+  "public_apk_present": true
+ },
  "tests": {
   "rust": {
    "exit_code": 0,
-   "passed": 41,
+   "passed": 77,
    "failed": 0
   },
   "clippy_exit_code": 0,
   "build_exit_code": 0,
-  "controls_exit_code": 0,
+  "controls_exit_codes": [
+   0,
+   0
+  ],
   "log_sha256": {
-   "rust": "a9af1ac8321f5eef274a4096500fc1b5926e8f6420c9c268c001b9af5de9eb21",
-   "clippy": "4a67aed65c78981919dadd3c32fb07c19e5786ad7e489e6410dc2511f9e3d902",
-   "controls": "2ae2691b3d3801ad0641d8313b60970e02727334cee88f780f22f77a9b498b9f"
+   "rust": [
+    "51f0c0d2d8ad16863f9b845ffb4357289b5d53acafb0c2f04c9206d785b96b82",
+    "636eb8812244b206edeef0b797b6f35a8ad568077021623fbe604e401f2584bc",
+    "274f643d0ffa20d146e5d450c499d8d9de50d462b3cf17c6468eb8550f188cab"
+   ],
+   "clippy": "f3f54f7f9be73f43a9fa6d706f8e26c15f224737b358c6fe3aa03e185d3bf0ae",
+   "controls": [
+    "2ae2691b3d3801ad0641d8313b60970e02727334cee88f780f22f77a9b498b9f",
+    "9bbcf613c3342dc0d98fa672f988e182ae1383c031707ba204512ab7dea4a857"
+   ]
   },
   "raw_logs_kept_at": "artifacts/local/ (ignored; carries developer-machine output)"
  },
  "inputs_sha256": {
-  "crates/mdd-mcp/src/tools.rs": "944cbda56c3ee50043b38a7eff589cbcc987a06245649a198be5e991200184e8",
-  "crates/mdd-mcp/src/server.rs": "18a3635886aebb2577f35f12abed19e3c0310d6e61902af0314f1688baec2711",
+  "crates/mdd-mcp/src/tools.rs": "5f8a1b9ed36668564da6a480356455b452aee4a35e400db1f1247c37d7571372",
+  "crates/mdd-mcp/src/server.rs": "92d533d0184883d63a52753af925d8fdeebb0d511af09057cd824860ef71668b",
   "crates/mdd-mcp/src/protocol.rs": "dcc1508b6f61ffa6632f27954b0aaa6801367dd543fff7648a0d4862bdcda020",
   "crates/mdd-mcp/src/lib.rs": "04c090fad25cd89003d79350892283c307366246c8c3ac41b454656813dc9879",
-  "crates/mdd-mcp/src/tool_schemas.json": "ea88e3f973321c1205fc82f2850403759cea1e014f784bb62b5f03dacfaba869",
-  "crates/mdd-cli/tests/mcp.rs": "99e5d4ff30fcacff5cd27a0cb46a9d3f878db58be925c70731d4be54aad38279",
+  "crates/mdd-mcp/src/tool_schemas.json": "4f3fc454c010dbc6c000ea9a1528dd6e7acd4f011c10232548b881edb459b724",
+  "crates/mdd-cli/tests/mcp.rs": "124ac6b08d3fd00fba03b6d22559caa5a08fbfd300a72b7ebeaeab530ebcd775",
+  "crates/mdd-service/src/decode.rs": "f204b6248c2cc7539cec5e54df27fe4ee4a08ee935f122572bff31919dd0d45c",
+  "crates/mdd-service/src/dataset.rs": "1550b191e4acf65de6fb49ee847c6745c7b00f2fa2d08c557eab230b7df97f43",
+  "crates/mdd-service/src/manifest.rs": "54b533e54e9e0fc6770347ec62a819a35e09e2e6446eda831bd36e2f4a5ed061",
+  "crates/mdd-facts/src/smali_required/mod.rs": "8f618539ad6c09a90e4c6bc8675187555898bedcf922d465457956449cf8efee",
+  "crates/mdd-facts/src/smali_required/render.rs": "fefe2584db10a6af225325f812119205dc6af84ea8e5b7f445d87dfb7f6028c4",
+  "crates/mdd-facts/src/smali_required/tests.rs": "43bc7f45d53abac8f1064f4360c94327fcce10d963d42aedc4d375a79aebec74",
   "conformance/mcp/mcp_client.py": "55c470322ba59f432edbb63603188170f47485d1854cc5e97abb792700bec611",
   "conformance/mcp/golden_replay.py": "3ccbb853796f0edec0d52efe2e5305e70f18e73131e2c5a4b208aa4fa17e795a",
   "conformance/mcp/test_golden_replay.py": "9413ec6ec059537cb7e5a0b25f650bd029ebcb7ca63f761e18352a00fe502496",
-  "conformance/mcp/run_mcp_conformance.py": "a5157f62636418407f89f060dfad9d912ef0830888da765f707ddac57bffb841",
+  "conformance/mcp/lifecycle_replay.py": "3deb276ff39ed5ba4028fa605d469984b659142b328d29a306b354ffaf84d32a",
+  "conformance/mcp/manifest_replay.py": "145150259f2b50877fcf08b5f1f3a096e66c06fb2d1d03c35291e44b2304f0e9",
+  "conformance/mcp/test_replays.py": "98c05c58ad78b1f8b34f22bf8748273da317a15b215cf6fb8a4aea61d8ff50b4",
+  "conformance/mcp/tiny_dex.py": "e051c06d951b5973a8ef6972139fb977e58fbb44fa1f2ff0cd2663070a95e8f5",
+  "conformance/mcp/run_mcp_conformance.py": "86a283312ee56b1ba0ee4d8f766fc74f2e170c8f30916aa5ce69d0a2d1b07eb6",
+  "conformance/decode/oracle.py": "fd59e719043bb50a227c7cf41bd171b3c4313c81705b5f59320ff7612b4babba",
+  "conformance/decode/run_decode_conformance.py": "460a7754742dd9595f72f967ea1cce33ae03849898bd0817e999745c63deb9bc",
+  "conformance/decode/hand-expected.txt": "3dfad5ab67a2c9e86a60024d06a1284ab08002a1953c8cd39eb89e505af218e8",
+  "tests/fixtures/decode/generate.py": "8dd3ff79c7a24249a92ee1c0456f94bda8c92be89a452acd429035d7ac142a9b",
+  "tests/fixtures/decode/manifest.json": "43e35c6889b508c11d6c808285fcdcadd6e636843aa2b32751631fdd9adc34cf",
   "conformance/corpus/hostlab/required-variants.json": "134a2a389ba16369dc454a600a0a524e882078cd804506158aed8076a2aa24c2",
   "conformance/corpus/hostlab/expected-results/hostlab-a0-golden.json": "fc6df45f33b0e6f67a759e9065cb116d3d1b66cd25b515b09f9f99a720331d2f",
-  "conformance/manifests/tools-and-options.json": "1b84fc50d9ae2f2eaa555ed5db6e5e0629e7b3ade98c285ed5dfa8a990db97d9"
+  "conformance/manifests/tools-and-options.json": "1b84fc50d9ae2f2eaa555ed5db6e5e0629e7b3ade98c285ed5dfa8a990db97d9",
+  "evidence/compatibility/0.1.0/mcp-records.json": "79244ec529db739dfa2a087a5926f43f7ce83712e5b13b94a953fb8d48ff2c0e",
+  "artifacts/mdd-025/manifest/a0/summary-pages.json": "5a53b95156c6d2a76bc746e5df3a2ee08fa723c570d866955029b8a7db28cf34"
  },
  "mutation_check": {
   "file": "artifacts/mdd-042/mutation/results.txt",
+  "present": false,
+  "current": false,
+  "status": "not run yet: it runs in .github/workflows/mutation-mcp.yml on request; no result is claimed",
   "script": "artifacts/mdd-042/mutation/mutate_mcp.py",
-  "present": true,
-  "current": true,
-  "killed": 17,
-  "survived": [],
-  "errors": 0,
-  "skipped": 0,
-  "restored_tree_passes": true
+  "mutants": 52,
+  "earlier_result": "artifacts/mdd-042/mutation/results-first-slice.txt (17 mutants, the first slice, 2e38019)"
  },
  "residual": [
-  "decode, get_manifest and the resource tools are not implemented; the clauses about them are not proven",
-  "the reference engine's executable is not on this machine, so open_dataset, close_dataset, list_tables, describe_table and list_datasets responses were never compared with it; their shapes are this server's own",
-  "only the query tool's responses were compared with the reference, through the recording made from its own MCP server",
+  "the reference engine's executable is not on this machine; no request outside the recordings was compared with it",
+  "decode text beyond the recorded method follows baksmali's default conventions (pN parameter registers, hex-address labels, .catch after the try_end label, no debug or annotation directives); it is checked against an independent renderer and hand-written texts written from the same description, which shows the description is unambiguous, not that it is what the reference prints",
+  "decode paging (offset, max_bytes, mid-line flags, summary mode) and the context mode, class selection and manifest xml mode: unrecorded; the last three are refused as not implemented",
+  "get_manifest refuses attribute values of float, dimension, fraction, color, null and unknown types, and attributes in namespaces other than android; the recording shows neither",
+  "get_manifest page size defaults to 200 rows; the reference's default is unrecorded",
+  "when a manifest has several <application> or <uses-sdk> elements the summary shows the first; the reference's choice is unrecorded",
+  "an activity-alias is counted under its own name in component_counts; the recording has no alias",
+  "the NewPipe manifest replay needs a local public APK (ignored input); without it the check is reported as not run, as in CI",
   "list_tables names the 17 HostLab contract relations, not the reference's 56",
-  "column data_type and nullable are derived from the returned values because the result carries no declared types; an empty column says \"unknown\"",
+  "column data_type and nullable are derived from the returned values; the reference says sqlite_dynamic for TEMP and expression columns",
   "a statement cannot be stopped from outside, so a deadline closes the dataset and the statement ends under the engine's own budgets",
   "requests are served one at a time; there is no cancellation or progress",
   "text with an unpaired surrogate has no UTF-8 form and is refused rather than repaired",
   "archives without a DEX are refused, although the reference supports resource-only archives",
+  "decode needs a DEX whose code layer builds: one code item that fails validation withholds every method body of that DEX",
   "one Windows host; the MCP process tests run on Linux only in the repository CI"
  ],
  "run": {
-  "started_utc": "2026-11-15T07:28:35.994308+00:00"
+  "started_utc": "2026-11-15T10:23:36.113514+00:00"
  }
 }

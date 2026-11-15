@@ -9,6 +9,7 @@ description = "MCP stdio server over the MeguvizDexDash facts: dataset lifecycle
 [dependencies]
 mdd-types.workspace = true
 mdd-session.workspace = true
+mdd-facts.workspace = true
 mdd-sql = { path = "../mdd-sql" }
 mdd-service = { path = "../mdd-service" }
 serde.workspace = true

@@ -12,8 +12,8 @@ pub use crate::tools::Config;
 /// The largest message accepted. A larger line is refused and skipped.
 pub const MAX_MESSAGE_BYTES: usize = 4 * 1024 * 1024;
 
-const INSTRUCTIONS: &str = "Tools: open_dataset, list_datasets, close_dataset, list_tables, describe_table, query. \
-decode, get_manifest and the resource tools are not implemented and are not listed. \
+const INSTRUCTIONS: &str = "Tools: open_dataset, list_datasets, close_dataset, list_tables, describe_table, query, decode, get_manifest. \
+get_manifest_components and the resource tools are not implemented and are not listed. \
 Requests are served one at a time. A query that outlives its deadline closes its dataset.";
 
 #[derive(Clone, Copy, Eq, PartialEq)]
@@ -144,10 +144,7 @@ impl Server {
                 format!("unknown tool `{name}`"),
                 None,
             ),
-            Err(Failure::Execution(error)) => {
-                let body = serde_json::to_value(&error).unwrap_or(Value::Null);
-                tool_result(id, json!({"error": body}), true)
-            }
+            Err(Failure::Execution(error)) => tool_result(id, tools::error_result(&error), true),
         }
     }
 }

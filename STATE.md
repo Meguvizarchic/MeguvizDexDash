@@ -348,21 +348,24 @@
 
 ## 2026-11-15 MDD-042 原生 MCP 必需工具（部分完成，保持 in_progress）
 
-**结论**：`meguvizdexdash mcp` 是真实的 MCP stdio 服务（JSON-RPC 2.0，一行一条消息，请求逐个处理），已提供 `open_dataset`、`list_datasets`、`close_dataset`、`list_tables`、`describe_table`、`query` 六个工具。**`decode` 与 `get_manifest` 没有实现，也不在 `tools/list` 里**（按未知工具拒绝）。所以 MDD-042 **不标 done**；你 2026-11-15 选择了“先做不依赖 A0 的部分”。
+**结论**：`meguvizdexdash mcp` 现在提供八个工具：`open_dataset`、`list_datasets`、`close_dataset`、`list_tables`、`describe_table`、`query`、`decode`、`get_manifest`。**逐请求等价只对录制过的请求成立**；参考引擎的可执行文件不在本机，没录制过的请求只能写成“本服务自己的行为”。所以 MDD-042 **不标 done**。
 
-**共享库**：数据集与语句执行从 `mdd-cli` 原样抽到新的 `crates/mdd-service`（`Dataset`、`run`、有界行读取器），CLI 与 MCP 共用，所以两者读同一套事实、对同一条语句的含义和结局不会不一致。MDD-041 的变异检查与运行器在搬迁后已重跑，记录是当前的。
+**这轮发现并改正的偏差（已推送的第一版切片有的）**：仓库里 `evidence/compatibility/0.1.0/mcp-records.json` 有 195 条参考引擎的真实 MCP 消息，我此前误判为“没有录制”。对照后发现第一版与参考在 HostLab 读取的地方不同：`open_dataset` 缺 `has_dex`（HostLab 会拒绝该数据集）、`query` 拒绝 `timing:true`（HostLab 每条 SQL 都带）、错误对象形状不同（HostLab 读 `error.dataset_closed`）、重复关闭返回成功（参考返回 `unknown_dataset`）、`list_datasets` 字段不同、整数标签不同。均已改正并回放验证。
 
-**已证明的部分**（`artifacts/mdd-042/mcp-required-conformance.json`）
-- 六个工具的输入/输出 schema 与参考引擎 `tools/list` 的录制逐字段相等；描述是本服务自己的（参考的描述里有本服务没有的行为）。
-- `query` 工具与冻结的 A0 录制逐页相等：77 个用例、145 页、1,149 行、9 次 `next_offset` 续页，10 个被拒请求全部被拒，语句序号一致。回放的负向对照 8 项通过。
-- 所有权、配额、关闭、错误与来源身份经真实 JSON-RPC 的 21 项进程测试：初始化顺序、坏行不终止会话、参数违反 schema 为 -32602、数据集配额、重复关闭、数据集互不可见对方的 TEMP 定义、字节预算超限拒绝而不截断、超时只关闭本数据集、管道两端的退出码。
-- 41 项 Rust 测试通过；17 个变异全部被抓住。
+**与参考比对过的内容**（经真实服务回放）
+- `query`：冻结的 77 个用例、145 页、1,149 行、9 次续页，10 个被拒请求同样被拒。
+- 录制会话：`open_dataset`/`list_datasets`/`close_dataset`、错误（`unknown_dataset`、`session_quota_exceeded`、`invalid_query`、`timeout` 及其措辞）、TEMP 定义依赖、超时关闭数据集、重复输入的身份、含单元格类型的计数查询，以及录制过的 `decode` 应答（默认 smali，按描述符与按 `file_id`+`method_idx`，`ambiguous` 错误，源文件删除后）——53 项相等，2 项未运行（`server_busy` 在逐个处理请求的设计下不会出现；符号链接需要本机权限）。
+- `get_manifest`：NewPipe 0.28.6 的 6 页摘要逐页相等；`open_dataset` 对该 APK 的 `archive_inputs`/`has_dex`/`input_bytes` 也与录制一致。
 
-**没有证明的部分**
-- 验收第 1 条只对 `query` 成立；第 2、3 条（decode 的指令与上下文、Smali/Manifest 分页单位）完全没有做。
-- 参考引擎的可执行文件不在本机（记录的原路径 `D:\Bilibili_Innocent_Lab\...\dexsql-windows-amd64.exe` 不存在），`decode`、`get_manifest`、`open_dataset`、`close_dataset` 的响应从未被录制，所以即便实现了也无法在本机证明等价。关闭第 1 条需要：提供该可执行文件（0.1.0，sha256 `f354ebcf…c448`），或逐工具声明与参考的差异并以手推 oracle 收口。
+**decode 与 Smali 渲染器**（`crates/mdd-facts/src/smali_required`、`crates/mdd-service/src/decode.rs`）
+- 引擎文本与独立 Python 渲染器（只读 DEX 字节）逐字相等，覆盖夹具里全部 238 个方法（每个能给出合法操作数的操作码、packed/sparse switch、1/2/4/8 字节数组 payload、try/catch/catchall、`pN` 参数寄存器、字符串转义、非 ASCII 方法名、abstract/native）；另有 68 条手写期望文本同时与引擎和独立渲染器相等。
+- 分页：UTF-8 字节 offset、行数、`starts_mid_line`/`ends_mid_line` 各自独立计数；按字节切分永不落在字符中间；offset 在字符内/越界被拒。
+- **没有参考输出可证的部分**：录制只给出一个四条指令方法的文本。其余指令的写法（`pN` 寄存器、十六进制地址标签、`.catch` 位置、字面量后缀）取 baksmali 默认约定，是本服务的选择；独立渲染器与手写文本说明这套描述无歧义，**不说明参考引擎也这样打印**。
+- 修了一个会让 decode 大面积失效的设计：代码层现在单独保留，引用层或注解层校验失败（例如某个 invoke 的实参字数与原型不符）不再让该 DEX 的所有方法体都无法反汇编。
 
-**限制**：`list_tables` 只列 17 个契约关系（参考有 56 个）；列的类型由返回值推断，空列写 `unknown`；语句无法从外部停止，所以 deadline 到期会关闭该数据集；含孤立代理项的文本无 UTF-8 形式，被拒绝而不是修复；没有 DEX 的归档被拒绝（参考支持纯资源归档）；没有取消与进度通知；只在一台 Windows 主机验证。
+**限制与未提供**：`decode` 的 class 选择与 `context` 模式（MDD-071）、`get_manifest` 的 `xml` 模式（MDD-072）按“未实现”拒绝；`get_manifest` 对 float/dimension/fraction/color/null 类型的属性值和非 android 命名空间的属性明确拒绝（录制里没有它们的写法）；页大小默认 200 行（参考的默认未录制）；`list_tables` 仍只列 17 个契约关系；列 `data_type` 由返回值推断（参考对 TEMP/表达式列写 `sqlite_dynamic`）；`diagnostics` 不含参考的优化器提示；源文件被改动后，参考拒绝 decode 但继续回答 SQL，本服务对二者读同一个快照；语句无法从外部停止，超时会关闭该数据集；只在一台 Windows 主机验证（Linux 由 CI 的新增步骤验证）。
+
+**验证**：77 项 Rust 测试通过；回放与独立渲染器各有负向对照（损坏录制、手写文本、渲染器均被发现）。**变异检查还没跑，不声称结果**：52 个变异要重复构建约一小时，不在开发机上跑，改由 GitHub 工作流 `mutation-mcp.yml` 按需运行（`gh workflow run mutation-mcp.yml`），结果的 `results.txt` 事后另行提交；第一版切片的 17 变异结果保留为 `results-first-slice.txt`。
 
 ## Checkout 与交付
 

@@ -5,7 +5,9 @@
 //! read the same facts through this crate, so they cannot disagree about what a
 //! statement means or how it ends.
 pub mod dataset;
+pub mod decode;
 pub mod lines;
+pub mod manifest;
 pub mod run;
 
 pub use dataset::{Dataset, Dialect, InputRequest, LayerIssue};

@@ -14,6 +14,7 @@
 //!   over every fact layer. A layer that cannot be built is not an empty table: the
 //!   relations that need it refuse with the layer's own error, and the dataset says
 //!   which layer is missing and why in `layer_issues`.
+use crate::decode::{Occurrence, OccurrenceIndex};
 use mdd_dex::{
     annotations::AnnotationLimits, definitions::DefinitionLimits, instructions::CodeLimits,
     strings::StringLimits,
@@ -27,6 +28,7 @@ use mdd_facts::{
 };
 use mdd_input::{
     archive::{ArchiveInventory, ArchiveLimits, InventoryPolicy},
+    manifest::ManifestDocument,
     snapshot::{CaptureLimits, InputKind, InputSpec, Snapshot},
 };
 use mdd_session::{Lifecycle, ResourceLimits, SessionHandle, SnapshotHandle};
@@ -42,7 +44,11 @@ use mdd_sql::{
 };
 use mdd_types::{DecimalU64, ErrorCode, MddError, MddResult};
 use serde_json::{Value, json};
-use std::{path::PathBuf, sync::Arc};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    sync::{Arc, Mutex, OnceLock},
+};
 
 /// The SQL dialect a dataset answers in. The name is the stable spelling used on the
 /// command line and in every result.
@@ -119,6 +125,13 @@ pub struct Dataset {
     pub(crate) limits: ResourceLimits,
     layer_issues: Vec<LayerIssue>,
     dex_count: usize,
+    /// The facts of each DEX, for `decode`. Empty for the native dialect.
+    occurrences: Vec<Occurrence>,
+    decode_indexes: OnceLock<Vec<OccurrenceIndex>>,
+    /// One inventory per input, in the order given; `get_manifest` reads from them.
+    pub(crate) inventories: Vec<ArchiveInventory>,
+    /// Parsed manifests by input position, so paging the permissions parses once.
+    pub(crate) manifests: Mutex<HashMap<usize, Arc<ManifestDocument>>>,
 }
 
 impl Dataset {
@@ -159,9 +172,10 @@ impl Dataset {
                 "the inputs select no DEX",
             ));
         }
-        let (bridge, layer_issues) = match dialect {
+        let (bridge, layer_issues, occurrences) = match dialect {
             Dialect::NativeV1 => (
                 Self::native_bridge(&snapshot, &inventories, sql_limits)?,
+                Vec::new(),
                 Vec::new(),
             ),
             Dialect::DexSql010 | Dialect::DexSql011 => {
@@ -190,6 +204,10 @@ impl Dataset {
             limits,
             layer_issues,
             dex_count,
+            occurrences,
+            decode_indexes: OnceLock::new(),
+            inventories,
+            manifests: Mutex::new(HashMap::new()),
         })
     }
 
@@ -229,9 +247,10 @@ impl Dataset {
         inventories: &[ArchiveInventory],
         scope: &SelectedScope,
         sql_limits: SqlLimits,
-    ) -> MddResult<(SqlBridge, Vec<LayerIssue>)> {
+    ) -> MddResult<(SqlBridge, Vec<LayerIssue>, Vec<Occurrence>)> {
         let mut facts = Vec::new();
         let mut issues = Vec::new();
+        let mut occurrences = Vec::new();
         for inventory in inventories {
             for local in 0..inventory.selected_dexes().len() {
                 let occurrence = inventory.selected_dexes()[local].dex_occurrence_id.clone();
@@ -247,13 +266,19 @@ impl Dataset {
                     Arc::clone(&metadata),
                     DefinitionLimits::default(),
                 )?);
+                // The code layer is built first and kept on its own: a DEX whose references or
+                // annotations cannot be validated can still show its instructions, and `decode`
+                // must not lose every method body to a fault in one other layer.
+                let code = CodeFacts::build_all_code_items(
+                    snapshot,
+                    inventory,
+                    local,
+                    CodeLimits::default(),
+                )
+                .map(Arc::new);
+                let kept_code = code.as_ref().ok().cloned();
                 let upper = || -> MddResult<_> {
-                    let code = Arc::new(CodeFacts::build_all_code_items(
-                        snapshot,
-                        inventory,
-                        local,
-                        CodeLimits::default(),
-                    )?);
+                    let code = Arc::clone(code.as_ref().map_err(Clone::clone)?);
                     let references = Arc::new(ReferenceFacts::build_arc(
                         Arc::clone(&definitions),
                         Arc::clone(&code),
@@ -265,6 +290,15 @@ impl Dataset {
                     )?);
                     Ok((code, references, annotations))
                 };
+                let file_id = u32::try_from(facts.len()).map_err(|_| {
+                    MddError::new(ErrorCode::QuotaExceeded, "service", "too many DEX files")
+                })?;
+                occurrences.push(Occurrence {
+                    file_id,
+                    metadata: Arc::clone(&metadata),
+                    definitions: Arc::clone(&definitions),
+                    code: kept_code,
+                });
                 match upper() {
                     Ok((code, references, annotations)) => {
                         facts.push(HostLabOccurrenceFacts::complete(
@@ -288,7 +322,7 @@ impl Dataset {
         }
         let provider = HostLabSqlProvider::from_scope(scope, facts, DecimalU64(0))?;
         let bridge = SqlBridge::new(Arc::new(provider), dialect.sql(), sql_limits)?;
-        Ok((bridge, issues))
+        Ok((bridge, issues, occurrences))
     }
 
     /// The session's SQL front, for callers that run TEMP definitions and windows.
@@ -320,6 +354,42 @@ impl Dataset {
 
     pub fn layer_issues(&self) -> &[LayerIssue] {
         &self.layer_issues
+    }
+
+    /// The facts of each DEX, in `file_id` order; empty for the native dialect.
+    pub fn occurrences(&self) -> &[Occurrence] {
+        &self.occurrences
+    }
+
+    /// Built on the first decode, once.
+    pub(crate) fn decode_indexes(&self) -> &[OccurrenceIndex] {
+        self.decode_indexes.get_or_init(|| {
+            self.occurrences
+                .iter()
+                .map(OccurrenceIndex::build)
+                .collect()
+        })
+    }
+
+    /// The bytes captured from all inputs: what the snapshot holds, not what a later
+    /// `stat` of the paths would say.
+    pub fn input_bytes(&self) -> u64 {
+        self.snapshot
+            .sources()
+            .iter()
+            .map(|source| source.bytes().len() as u64)
+            .sum()
+    }
+
+    /// The positions, among the inputs as given, of those that are archives.
+    pub fn archive_inputs(&self) -> Vec<usize> {
+        self.snapshot
+            .sources()
+            .iter()
+            .enumerate()
+            .filter(|(_, source)| matches!(source.kind(), InputKind::Apk))
+            .map(|(index, _)| index)
+            .collect()
     }
 
     pub fn snapshot_id(&self) -> &str {

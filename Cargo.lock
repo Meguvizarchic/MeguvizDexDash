@@ -259,6 +259,7 @@ dependencies = [
 name = "mdd-mcp"
 version = "0.1.0-dev"
 dependencies = [
+ "mdd-facts",
  "mdd-service",
  "mdd-session",
  "mdd-sql",
