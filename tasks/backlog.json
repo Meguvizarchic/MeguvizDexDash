@@ -1085,7 +1085,7 @@
       "id": "MDD-041",
       "phase": "M4",
       "title": "实现 CLI、机器输出与 B0 对照入口",
-      "status": "todo",
+      "status": "done",
       "depends_on": [
         "MDD-035",
         "MDD-040"
@@ -1114,6 +1114,26 @@
         "docs/02_ARCHITECTURE_AND_CONTRACTS.md",
         "docs/03_HOSTLAB_MIGRATION.md",
         "docs/04_VALIDATION_AND_PERFORMANCE.md"
+      ],
+      "implementation_notes": "2026-11-15 closure within the declared scope. crates/mdd-cli now has, besides version, capabilities and inspect-*: `query` (one statement; native-v1 over metadata and structure, or dexsql-0.1.0/0.1.1 over the 17 HostLab contract relations with every fact layer) and `serve` (one dataset, many statements, framed JSON-lines requests). Machine output is mdd.cli-stream.v1 lines whose batches are mdd.sdk-batch.v1; human output is an aligned table printed only for a complete answer. Exit codes are frozen: 0 complete success, 1 failure terminal on stdout (error, quota, deadline, truncation), 2 refused before anything ran (stdout empty, JSON error on stderr), 3 internal fault, 4 output could not be written. A row limit ends in a truncated failure, never a success; an empty result carries its column names in the terminal; a fact layer that cannot be built is named in the opened line and its relations refuse with INCOMPLETE_FACTS instead of answering empty. No process is spawned and no other program is needed, so DexSQL is not a hidden producer. Evidence artifacts/mdd-041/cli-pipeline-conformance.json: 37 Rust tests that start the real binary, 39 frozen cases (conformance/cli/command-and-output-cases.json) checked against it with their own negative controls, and the B0 adapter (benchmarks/hostlab-b0-pipeline.py) replaying the frozen HostLab variants: 109 statements' typed rows equal the frozen A0 golden through the process and 96 HostLab DTOs (str or None per cell, built with HostLab's own shape query and hex projection) equal them; windowed, script and unordered statements are counted, not hidden. 21 mutants killed, none survived. B0 keeps the DTO, request order and guards of CliSession but not its Unicode table wire; the wire, serialization, reader and producer differences are listed in the record. It does not import HostLab's own modules, so it does not show that HostLab's rules run unchanged (that is MDD-050), and its timings are one host outside an exclusive window with no A0 beside them: they say the pipeline completes, not that it is faster. Found by review and fixed: a deadline above 60 s was silently cut to 60 s by the lifecycle ceiling; an unbounded read of the statement; an unreadable request stream was reported as a closed output pipe; `emitted_rows` was counted before the sink took the rows; the CLI had no way to raise the engine's SQL budgets, so a HostLab-style bulk read of a real APK was refused (now --sql-max-steps, --sql-max-scanned-rows, --sql-max-result-rows). With raised budgets the adapter replayed the bulk statements over the public NewPipe 0.28.6 APK three times (429,940 rows, identical result digest each round, debug build, about 23 s a round); that is a completeness check, not a performance result. Two findings stay open: the engine's default SQL budgets (100,000 result rows) refuse bulk reads of a real APK, and HostLab's strict UTF-8 decode of the hex projection refuses the 19 of 68,476 NewPipe strings that contain NUL (stored as C0 80); whether the frozen A0 emits the same bytes for them was not checked. The frozen cases and the B0 verify are added to the CI workflow but have not run there. Not provided: scripts of several statements, parameters, typed IR, pagination, the old Unicode table output (refused by name).",
+      "implementation_evidence": [
+        "artifacts/mdd-041/cli-pipeline-conformance.json",
+        "artifacts/mdd-041/mutation/results.txt",
+        "artifacts/mdd-041/mutation/mutate_cli.py",
+        "benchmarks/hostlab-b0-pipeline.py",
+        "benchmarks/workloads/b0-bulk-statements.json",
+        "conformance/cli/command-and-output-cases.json",
+        "conformance/cli/cli_cases.py",
+        "conformance/cli/test_cli_cases.py",
+        "conformance/cli/run_cli_conformance.py",
+        "crates/mdd-cli/src/main.rs",
+        "crates/mdd-cli/src/args.rs",
+        "crates/mdd-cli/src/commands.rs",
+        "crates/mdd-cli/src/dataset.rs",
+        "crates/mdd-cli/src/output.rs",
+        "crates/mdd-cli/src/run.rs",
+        "crates/mdd-cli/src/serve.rs",
+        "crates/mdd-cli/tests/cli.rs"
       ]
     },
     {

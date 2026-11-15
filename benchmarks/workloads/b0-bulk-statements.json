@@ -1,0 +1,37 @@
+{
+  "schema_version": "mdd.b0-statements.v1",
+  "note": "Bulk reads over contract relations, each ordered, for replay through benchmarks/hostlab-b0-pipeline.py on any input. They are written for this adapter, not taken from HostLab's audit: they exercise open, session reuse, long results and full DTO consumption, and say nothing about HostLab's request mix. Replace with HostLab's recorded requests once MDD-005 has them. String values are not selected: on the public NewPipe 0.28.6 APK 19 of 68,476 strings contain NUL, which a DEX stores as the two bytes C0 80, and HostLab's strict UTF-8 decode of the hex cell refuses them ('malformed hex cell'). The adapter keeps that guard; whether the frozen A0 gives the same bytes for those strings was not checked. On large inputs the statements also need raised SQL budgets (--sql-max-*).",
+  "variants": [
+    {
+      "family": "bulk",
+      "variant": "inventory",
+      "statements": [
+        "SELECT file_id,entry_name FROM dex_files ORDER BY file_id"
+      ]
+    },
+    {
+      "family": "bulk",
+      "variant": "pools",
+      "statements": [
+        "SELECT string_pool_id,string_idx FROM strings ORDER BY string_pool_id,string_idx",
+        "SELECT file_id,type_idx,descriptor FROM types ORDER BY file_id,type_idx"
+      ]
+    },
+    {
+      "family": "bulk",
+      "variant": "definitions",
+      "statements": [
+        "SELECT file_id,class_idx,descriptor FROM classes ORDER BY file_id,class_idx",
+        "SELECT file_id,method_idx,class_descriptor,name,descriptor FROM methods ORDER BY file_id,method_idx"
+      ]
+    },
+    {
+      "family": "bulk",
+      "variant": "references",
+      "statements": [
+        "SELECT file_id,method_idx FROM method_calls ORDER BY file_id,method_idx",
+        "SELECT file_id,method_idx FROM method_strings ORDER BY file_id,method_idx"
+      ]
+    }
+  ]
+}

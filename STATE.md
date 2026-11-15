@@ -328,6 +328,24 @@
 
 **残余（不声称）**：无调用图和跨方法可达性；无常量传播、类型、堆分析；handler 类型不匹配；反射识别路径只用手造的方法引用练过（fixture 里没有）；宽寄存器配对未校验；只在一台 Windows 主机验证；运行器未接入 CI。新增一个仅测试用的 dev 依赖 `sha1`（合成 DEX 的校验和）。
 
+## 2026-11-15 MDD-041 CLI、机器输出与 B0 对照入口（done，限声明范围）
+
+**结论**：`mdd-cli` 现在有 `query`（单条 SQL）和 `serve`（一个数据集、多条语句、一行一个请求）。答案全部来自本引擎的事实层，不起任何子进程，所以 DexSQL 不是隐藏 producer。B0 用适配器保留 HostLab 的 DTO、请求次序和守卫，不模仿旧 Unicode 表格 wire。**不准入任何 profile，不是性能资格。**
+
+**冻结的契约**
+- 退出码：0 完整成功；1 失败终态在 stdout（错误、配额、deadline、截断）；2 运行前拒绝（stdout 空，stderr 一个 JSON 错误）；3 内部故障；4 输出写不出去（管道关闭）。
+- 机器输出 `mdd.cli-stream.v1`：`opened` → `batch`* → 恰好一个 `terminal`；批次是 `mdd.sdk-batch.v1`（精确整数、NULL、原始文本单元）。空结果没有批次，列名放在 `terminal.data.columns`。
+- 行数上限（`--max-rows`）以**截断的失败终态**结束，不是成功；缺失的事实层在 `opened.layer_issues` 点名，依赖它的关系以 `INCOMPLETE_FACTS` 拒绝，不返回空表。
+- 人读 `text` 只对完整答案打印表格，且有损（NULL 与文本 `NULL` 同形，控制字符被转义）；`--format dexsql-table` 以 `UNSUPPORTED_CAPABILITY` 拒绝。
+
+**证据**（`artifacts/mdd-041/cli-pipeline-conformance.json`）：37 项会启动真实二进制的 Rust 测试；39 个冻结用例对真实二进制成立，并有自己的负向对照；B0 重放冻结的 HostLab 必需变体——109 条语句的类型化行经真实进程与 A0 golden 逐值相等，96 条的 HostLab DTO 与之一致（窗口化、脚本、无 ORDER BY、重名列的语句单独计数，不隐藏）；21 个变异全部被抓住。
+
+**评审发现并修复**：超过 60 秒的 deadline 被生命周期上限静默压成 60 秒；语句读取无上界；请求流读失败被报成输出管道关闭；`emitted_rows` 在 sink 接收前就计数；CLI 无法调高引擎的 SQL 预算，导致 HostLab 式整表读取在真实 APK 上被拒（现有 `--sql-max-steps/--sql-max-scanned-rows/--sql-max-result-rows`）。
+
+**真实数据上的两个未决发现**：(1) 引擎默认 SQL 预算（结果 10 万行）会拒绝真实 APK 的整表读取（NewPipe 的 `method_calls` 有 236,644 行）；调高后适配器对公开 NewPipe 0.28.6 重放三轮（429,940 行，每轮结果摘要一致，debug 构建，约 23 秒/轮——只证明流水线完整，不是性能结果）。HostLab 的真实 APK 需要多少预算，要等 MDD-005 拿到样本才知道。(2) HostLab 对十六进制投影做严格 UTF-8 解码，会拒绝含 NUL 的字符串（DEX 存为 `C0 80`，NewPipe 里 68,476 条中有 19 条）；冻结的 A0 对这些字符串是否给出相同字节，没有核对。
+
+**限制**：一次一条语句（无脚本拆分、参数、typed IR、分页）；整个结果算完才发出第一批；B0 没有导入 HostLab 自己的模块，所以不证明 HostLab 规则原样可跑（MDD-050），其计时只是单机、非独占窗口、无 A0 对照的流水线完整性检查；两个私有 APK 不可得；只在一台 Windows 主机验证；冻结用例与 B0 校验已加入 CI 工作流但尚未在 CI 上运行。
+
 ## Checkout 与交付
 
 工程目录 D:\MeguvisDexDash（保留目录原拼写）。远端已迁移到 https://github.com/Meguvizarchic/MeguvizDexDash（**公开仓库**，旧地址 jichuo1/MeguvizDexDash 自动转发）；PR #1 已于 2026-11-04 合并，`main` 现为 a9aa1f0，其中 27ac27e 是由本分支 71dfce9 生成的「脱敏工程进度快照」，之后 8 个提交是修补与 README/图标。本地分支 codex/m2-facts-20261028 当前**没有远端分支**：2026-11-12 曾整体推送，随后发现仓库公开，已按用户决定删除远端分支（GitHub 上提交仍可按 SHA 读取）。重新推送前必须先决定公开范围，见下节。

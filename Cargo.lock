@@ -192,8 +192,13 @@ name = "mdd-cli"
 version = "0.1.0-dev"
 dependencies = [
  "mdd-dex",
+ "mdd-facts",
+ "mdd-ffi",
  "mdd-input",
+ "mdd-session",
+ "mdd-sql",
  "mdd-types",
+ "serde",
  "serde_json",
  "sha2",
 ]

@@ -1,0 +1,413 @@
+{
+ "schema_version": "mdd.cli-pipeline-conformance.v1",
+ "task": "MDD-041",
+ "kind": "development evidence for the command line and the B0 path; admits no profile and is not a performance qualification",
+ "capabilities": [
+  {
+   "name": "query",
+   "provided": true,
+   "scope": "one SQL statement per run; dialects native-v1 (metadata and structure layers) and dexsql-0.1.0 / dexsql-0.1.1 over the 17 HostLab contract relations"
+  },
+  {
+   "name": "serve",
+   "provided": true,
+   "scope": "one dataset, many statements, one framed JSON-lines request per input line; one statement at a time"
+  },
+  {
+   "name": "machine_output_jsonl",
+   "provided": true,
+   "scope": "mdd.cli-stream.v1 lines; batches in mdd.sdk-batch.v1 (exact integers, NULL, bytes, original text units)"
+  },
+  {
+   "name": "human_output_text",
+   "provided": true,
+   "scope": "an aligned table for a complete answer only; lossy by design (NULL and the word NULL print alike, controls are escaped)"
+  },
+  {
+   "name": "dexsql_unicode_table_output",
+   "provided": false,
+   "reason": "refused as UNSUPPORTED_CAPABILITY; B0 does not need it"
+  },
+  {
+   "name": "multi_statement_scripts",
+   "provided": false,
+   "reason": "one statement per request; splitting scripts belongs to the MCP layer (MDD-042)"
+  },
+  {
+   "name": "query_parameters",
+   "provided": false,
+   "reason": "not implemented"
+  },
+  {
+   "name": "typed_ir_queries",
+   "provided": false,
+   "reason": "not implemented"
+  },
+  {
+   "name": "pagination_and_cursors",
+   "provided": false,
+   "reason": "the whole result is computed before the first batch leaves; a row limit ends in a truncated failure"
+  }
+ ],
+ "exit_codes": {
+  "0": "complete success: the statement ran and every row was delivered",
+  "1": "the statement ended in a failure terminal on stdout: error, cancellation, quota, deadline or truncation",
+  "2": "refused before anything ran: usage, input or open error; stdout empty, stderr holds one JSON error object",
+  "3": "internal fault or lost worker",
+  "4": "the output could not be written (closed pipe)"
+ },
+ "acceptance": [
+  {
+   "acceptance": "every result comes from this engine's facts; DexSQL is not a hidden producer",
+   "tests": [
+    {
+     "test": "the CLI answers with no other program on PATH and spawns none",
+     "outcome": "ok"
+    },
+    {
+     "test": "B0: typed rows equal the frozen A0 golden through the real process",
+     "outcome": "ok"
+    },
+    {
+     "test": "a_layer_that_cannot_be_built_is_named_and_its_relations_refuse_instead_of_answering_empty",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  },
+  {
+   "acceptance": "exit codes, stdout/stderr, errors, empty results and complete or truncated status are a frozen contract",
+   "tests": [
+    {
+     "test": "frozen cases: every case holds against the real binary",
+     "outcome": "ok"
+    },
+    {
+     "test": "frozen cases: damaged expectations and broken streams are caught",
+     "outcome": "ok"
+    },
+    {
+     "test": "a_complete_query_ends_in_an_ok_terminal_with_exit_zero_and_a_clean_stderr",
+     "outcome": "ok"
+    },
+    {
+     "test": "an_empty_result_is_a_complete_success_with_no_batch",
+     "outcome": "ok"
+    },
+    {
+     "test": "a_row_limit_ends_in_a_truncated_failure_never_a_success",
+     "outcome": "ok"
+    },
+    {
+     "test": "a_statement_the_engine_refuses_is_a_failure_terminal_on_stdout_with_exit_one",
+     "outcome": "ok"
+    },
+    {
+     "test": "a_refusal_has_an_empty_stdout_a_json_error_on_stderr_and_exit_two",
+     "outcome": "ok"
+    },
+    {
+     "test": "a_statement_that_outlives_its_deadline_ends_in_a_deadline_terminal_with_no_rows",
+     "outcome": "ok"
+    },
+    {
+     "test": "a_closed_output_pipe_ends_the_command_with_exit_four",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  },
+  {
+   "acceptance": "B0 restores the same DTO, request order and consumer boundary through an adapter, without imitating the old table wire, and records what it does not imitate",
+   "tests": [
+    {
+     "test": "B0: typed rows equal the frozen A0 golden through the real process",
+     "outcome": "ok"
+    },
+    {
+     "test": "B0: the HostLab DTO built by the adapter equals the typed rows",
+     "outcome": "ok"
+    },
+    {
+     "test": "serve_answers_requests_in_order_and_each_ends_in_exactly_one_terminal",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  },
+  {
+   "acceptance": "B0 timing covers the real producer, transport and complete DTO consumption, and each wire, serialization and producer difference is listed",
+   "tests": [
+    {
+     "test": "B0: bulk statements replay end to end with a stable result digest",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  },
+  {
+   "acceptance": "the human and machine forms each state their scope, and an option that is not implemented is refused, never a fake success",
+   "tests": [
+    {
+     "test": "text_output_is_a_table_on_stdout_and_the_summary_is_on_stderr",
+     "outcome": "ok"
+    },
+    {
+     "test": "text_output_of_a_failed_statement_prints_no_table_and_exits_one",
+     "outcome": "ok"
+    },
+    {
+     "test": "a_relation_the_dialect_does_not_have_is_an_error_not_an_empty_table",
+     "outcome": "ok"
+    },
+    {
+     "test": "the_dialect_that_was_asked_for_is_the_one_that_answers",
+     "outcome": "ok"
+    },
+    {
+     "test": "frozen cases: every case holds against the real binary",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  }
+ ],
+ "frozen_cases": {
+  "file": "conformance/cli/command-and-output-cases.json",
+  "cases": 39,
+  "failed": [],
+  "all_hold": true
+ },
+ "no_external_producer": {
+  "holds": true,
+  "note": "exit 0"
+ },
+ "b0": {
+  "adapter": "benchmarks/hostlab-b0-pipeline.py",
+  "does_not": "import or run HostLab's own modules; shows the DTO, request order and guards, not that HostLab's rules run unchanged",
+  "verify": {
+   "dialect": "dexsql-0.1.1",
+   "counts": {
+    "statements": 130,
+    "compared_to_a0": 109,
+    "skipped_windowed": 15,
+    "dto_compared": 96,
+    "dto_skipped_no_order_by": 25,
+    "dto_skipped_duplicate_names": 2,
+    "dto_skipped_float_or_bytes": 1,
+    "cells": 1731,
+    "script_variants_refused": 6
+   },
+   "equal": true,
+   "script_refusals": [
+    {
+     "case": "Q13/script_boundary",
+     "statement": 0,
+     "reason": "statement failed: {\"code\": \"INVALID_ARGUMENT\", \"stage\": \"sql\", \"message\": \"SQL_REQUIRES_ONE_STATEMENT\", \"retryable\": false, \"details\": {\"emitted_rows\": \"0\", \"ex"
+    },
+    {
+     "case": "Q13/script_splitting",
+     "statement": 0,
+     "reason": "statement failed: {\"code\": \"INVALID_ARGUMENT\", \"stage\": \"sql\", \"message\": \"SQL_REQUIRES_ONE_STATEMENT\", \"retryable\": false, \"details\": {\"emitted_rows\": \"0\", \"ex"
+    },
+    {
+     "case": "Q13/script_splitting",
+     "statement": 1,
+     "reason": "statement failed: {\"code\": \"INVALID_ARGUMENT\", \"stage\": \"sql\", \"message\": \"SQL_REQUIRES_ONE_STATEMENT\", \"retryable\": false, \"details\": {\"emitted_rows\": \"0\", \"ex"
+    },
+    {
+     "case": "Q13/script_splitting",
+     "statement": 2,
+     "reason": "statement failed: {\"code\": \"INVALID_ARGUMENT\", \"stage\": \"sql\", \"message\": \"SQL_REQUIRES_ONE_STATEMENT\", \"retryable\": false, \"details\": {\"emitted_rows\": \"0\", \"ex"
+    },
+    {
+     "case": "Q13/script_splitting",
+     "statement": 3,
+     "reason": "statement failed: {\"code\": \"INVALID_ARGUMENT\", \"stage\": \"sql\", \"message\": \"SQL_TOKEN_ERROR: Unexpected EOF while in a multi-line comment at Line: 1, Column: 34\""
+    },
+    {
+     "case": "Q13/script_65_statements",
+     "statement": 0,
+     "reason": "statement failed: {\"code\": \"INVALID_ARGUMENT\", \"stage\": \"sql\", \"message\": \"SQL_REQUIRES_ONE_STATEMENT\", \"retryable\": false, \"details\": {\"emitted_rows\": \"0\", \"ex"
+    }
+   ]
+  },
+  "bulk_replay": {
+   "statements_run": 7,
+   "rounds": [
+    {
+     "round": 1,
+     "open_seconds": 0.106,
+     "request_seconds": 0.0234,
+     "total_seconds": 0.1326,
+     "rows": 154,
+     "cells": 395,
+     "stdout_bytes": 31245,
+     "result_digest": "2b566512c181522be77e556a69e63fda1609fd1e5329307641f73d4750665841"
+    },
+    {
+     "round": 2,
+     "open_seconds": 0.1075,
+     "request_seconds": 0.0227,
+     "total_seconds": 0.1333,
+     "rows": 154,
+     "cells": 395,
+     "stdout_bytes": 31245,
+     "result_digest": "2b566512c181522be77e556a69e63fda1609fd1e5329307641f73d4750665841"
+    },
+    {
+     "round": 3,
+     "open_seconds": 0.11,
+     "request_seconds": 0.0223,
+     "total_seconds": 0.1353,
+     "rows": 154,
+     "cells": 395,
+     "stdout_bytes": 31245,
+     "result_digest": "2b566512c181522be77e556a69e63fda1609fd1e5329307641f73d4750665841"
+    }
+   ],
+   "digest_stable_across_rounds": true
+  },
+  "differences_from_a0": [
+   {
+    "layer": "producer",
+    "a0": "DexSQL 0.1.0 (frozen build)",
+    "b0": "MeguvizDexDash facts and SQL bridge",
+    "attributable": "engine implementation, not isolated"
+   },
+   {
+    "layer": "wire",
+    "a0": "Unicode table lines on stdout",
+    "b0": "framed JSON lines (mdd.cli-stream.v1)",
+    "attributable": "transport"
+   },
+   {
+    "layer": "serialization",
+    "a0": "hex text cells inside table rows",
+    "b0": "typed cells in JSON, then the same hex projection decoded by the adapter",
+    "attributable": "serialization"
+   },
+   {
+    "layer": "reader",
+    "a0": "64 KiB read1 into an 8-slot queue, boundary marker query",
+    "b0": "blocking line reads, one terminal per request, no marker query",
+    "attributable": "consumer plumbing"
+   },
+   {
+    "layer": "process model",
+    "a0": "one process per APK, interactive",
+    "b0": "one process per input set, serve",
+    "attributable": "same shape"
+   },
+   {
+    "layer": "consumer",
+    "a0": "HostLab native_cli.CliSession and native_audit",
+    "b0": "B0Session, same DTO and request order, HostLab modules not imported",
+    "attributable": "adapter"
+   }
+  ],
+  "local_public_apk_run": {
+   "input_sha256": "e56ef6280b700696172797f94513ffd3f9aae9349945a2f06e235ec24446be58",
+   "input_bytes": 10885562,
+   "binary": "debug",
+   "sql_budgets_raised_to": {
+    "result-rows": 500000,
+    "scanned-rows": 100000000,
+    "steps": 2000000000
+   },
+   "rounds": [
+    {
+     "round": 1,
+     "open_seconds": 2.9728,
+     "request_seconds": 19.6133,
+     "total_seconds": 22.9684,
+     "rows": 429940,
+     "cells": 1069764,
+     "stdout_bytes": 49626301,
+     "result_digest": "4a3d2336d449efd0fc0ac37812082b64d176c4f9dedf0c10fd714d489b4c7410"
+    },
+    {
+     "round": 2,
+     "open_seconds": 2.9526,
+     "request_seconds": 19.4997,
+     "total_seconds": 22.8223,
+     "rows": 429940,
+     "cells": 1069764,
+     "stdout_bytes": 49626301,
+     "result_digest": "4a3d2336d449efd0fc0ac37812082b64d176c4f9dedf0c10fd714d489b4c7410"
+    },
+    {
+     "round": 3,
+     "open_seconds": 2.9179,
+     "request_seconds": 19.4545,
+     "total_seconds": 22.7542,
+     "rows": 429940,
+     "cells": 1069764,
+     "stdout_bytes": 49626301,
+     "result_digest": "4a3d2336d449efd0fc0ac37812082b64d176c4f9dedf0c10fd714d489b4c7410"
+    }
+   ],
+   "digest_stable_across_rounds": true,
+   "raw_kept_at": "artifacts/local/ (ignored)",
+   "caveat": "one host, no exclusive window, not compared with an A0 run: a pipeline completeness check, not a performance result"
+  },
+  "timing_scope": "producer, transport and complete DTO consumption inside one adapter process tree; wall clock on one host outside an exclusive window"
+ },
+ "tests": {
+  "rust": {
+   "exit_code": 0,
+   "passed": 37,
+   "failed": 0
+  },
+  "clippy_exit_code": 0,
+  "build_exit_code": 0,
+  "controls_exit_code": 0,
+  "log_sha256": {
+   "rust": "a9c5246a0eda355b9f7707b9ee4f0416aa4d6a75d80fd6838d47f509bf984bf7",
+   "clippy": "399d48a88ee5771ab58d201e54cf386be3d2dbc9b95494e15da73723d38031ad",
+   "controls": "c6f1990249be4fceb0c7560966d16c89868ea2b4a070717469fce82024113b9d"
+  },
+  "raw_logs_kept_at": "artifacts/local/ (ignored; carries developer-machine output)"
+ },
+ "inputs_sha256": {
+  "crates/mdd-cli/src/main.rs": "7d8c401c20bce2980477b2395f4ea6a3047fdb6ed8d42345316e58568c856907",
+  "crates/mdd-cli/src/args.rs": "2f95960bbe67f05cecd1deea41208138eefa3fa88dc72c59d8d3197815e9710f",
+  "crates/mdd-cli/src/commands.rs": "2e41ac0620f8aed388d1d285d45159bb991189cbefd1fb0b55e454d26036b13c",
+  "crates/mdd-cli/src/dataset.rs": "fc82af211605bcd2a890e999784758c9c7ee930c0508ad1034e2e4b653529c2f",
+  "crates/mdd-cli/src/output.rs": "59dbe172c5564c7178ca0bfc1bb3e059f6bc07119b904e22baca157c2c34e0a8",
+  "crates/mdd-cli/src/run.rs": "50e9870a85e9ca69238ff4ce659b2c3212425de8e773a01e7488c1127b6c4e4f",
+  "crates/mdd-cli/src/serve.rs": "0164cf74cb99e78b8958f77e53375d41639521d1018fe64f9c2aeb3f93bcf978",
+  "crates/mdd-cli/tests/cli.rs": "54510efa8e9c30bd5445c1f53c44cfb9c6a665f88a7e36f36af6e8310e4ddbf5",
+  "conformance/cli/command-and-output-cases.json": "387c828a8ecd8c10bb7420b1fc0861edf7135fa4aee965a8023f01afa815f71c",
+  "conformance/cli/cli_cases.py": "e22350a44a57330935b4de05518d8a9dc597b160dc023d4ff25ba7ce6e0194ec",
+  "conformance/cli/test_cli_cases.py": "8863f91cd091a2e0cf1cdbce86945da74ad1a8e10fc8fb980ad315bd494aedba",
+  "benchmarks/hostlab-b0-pipeline.py": "11afa0c1d65356cb91e1f167869f5033913e324d2b029ad2e5d1a20a3c0b1183",
+  "benchmarks/workloads/b0-bulk-statements.json": "8f9a9a2ea6e948ce8ec2b4f20089c059e456a8af2a7ed7abb93e5e1860c306a5"
+ },
+ "mutation_check": {
+  "file": "artifacts/mdd-041/mutation/results.txt",
+  "script": "artifacts/mdd-041/mutation/mutate_cli.py",
+  "present": true,
+  "current": true,
+  "killed": 21,
+  "survived": [],
+  "errors": 0,
+  "skipped": 0,
+  "restored_tree_passes": true
+ },
+ "residual": [
+  "one statement per request: no script splitting, no parameters, no typed IR, no pagination or cursors",
+  "the whole result is computed before the first batch leaves; peak memory is the whole result",
+  "native-v1 reads the metadata and structure layers only; a DEX whose code, reference or annotation layer cannot be built keeps its structure relations and refuses the others",
+  "the text form is lossy and for people; machine consumers use jsonl",
+  "B0 does not run HostLab's own audit code and does not use the real HostLab request mix; its bulk statements are written for this adapter",
+  "the two private HostLab APKs are not available, so only the frozen fixtures and, with --apk, a public APK were replayed",
+  "the engine's default SQL budgets (100,000 result rows, 1,000,000 scanned rows, 5,000,000 steps) refuse HostLab-style bulk reads of a real APK; the CLI exposes --sql-max-* to raise them, and what HostLab's real APKs need is not known until MDD-005 has them",
+  "HostLab's strict UTF-8 decode of the hex projection refuses string values that contain NUL (stored as C0 80): 19 of 68,476 strings in NewPipe 0.28.6; whether the frozen A0 emits the same bytes for them was not checked",
+  "no A0 run took place beside the B0 run, so the timings give no ratio",
+  "one Windows host; the frozen cases and the B0 verify are added to the CI workflow but have not yet run there, so Linux is unverified"
+ ],
+ "run": {
+  "started_utc": "2026-11-15T06:44:47.679321+00:00"
+ }
+}

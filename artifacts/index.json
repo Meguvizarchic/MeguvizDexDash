@@ -54398,6 +54398,21 @@
       "sha256": "bdba7d40956ad6b3c917a3f57f65695e242afb386a6d4991d01ef93ec1422d0c"
     },
     {
+      "path": "artifacts/mdd-041/cli-pipeline-conformance.json",
+      "bytes": 15164,
+      "sha256": "b96dd922021be688a5fe268114422b36d796957e24c9cc7f7b3ee86fb8a76a7c"
+    },
+    {
+      "path": "artifacts/mdd-041/mutation/mutate_cli.py",
+      "bytes": 8201,
+      "sha256": "d8010482d2532a933f2b1da44b1d35b130257f199c8fca45bd53a7ddae096517"
+    },
+    {
+      "path": "artifacts/mdd-041/mutation/results.txt",
+      "bytes": 1354,
+      "sha256": "ff3d5231f84a5da0108f14bc8e5378667d2a2b0e6b8d40e915dc5d8fb9e32659"
+    },
+    {
       "path": "artifacts/mdd-043/mutation/mutate_abi.py",
       "bytes": 7618,
       "sha256": "4cc231afa737b5c0820ea8dade1ea8e9902ef78ff5c62a9579b0c656f1feadbd"

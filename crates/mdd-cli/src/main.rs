@@ -1,206 +1,176 @@
-use mdd_input::{
-    archive::{ArchiveInventory, ArchiveLimits, InventoryPolicy},
-    snapshot::{CaptureLimits, InputKind, InputSpec, Snapshot},
-};
-use mdd_types::{
-    Completeness, Coverage, DecimalU64, ErrorCode, Execution, MddError, OperationStatus, Response,
-    ResultEnvelope,
-};
-use serde_json::{Value, json};
+//! `meguvizdexdash`: the command-line adapter over the engine.
+//!
+//! Exit codes are a frozen contract (see `conformance/cli`):
+//!
+//! | code | meaning                                                                     |
+//! |------|-----------------------------------------------------------------------------|
+//! | 0    | complete success: the statement ran and every row was delivered             |
+//! | 1    | the statement ended in a failure terminal (error, cancel, quota, truncation) |
+//! | 2    | refused before anything ran: usage, input or open error; stderr holds JSON   |
+//! | 3    | internal fault or lost worker                                               |
+//! | 4    | the output could not be written (closed pipe)                               |
+//!
+//! stdout carries results only; diagnostics and refusals go to stderr as one JSON
+//! error object. After a 0 or 1 from `query`, stdout ends with a terminal envelope.
+mod args;
+mod commands;
+mod dataset;
+mod output;
+mod run;
+mod serve;
 
-fn capabilities() -> Value {
-    let mut limits = serde_json::Map::new();
-    for (name, unit) in [
-        ("max_input_bytes", "bytes"),
-        ("max_archive_members", "count"),
-        ("max_member_uncompressed_bytes", "bytes"),
-        ("max_total_uncompressed_bytes", "bytes"),
-        ("max_fact_rows", "count"),
-        ("max_build_memory_bytes", "bytes"),
-        ("max_resident_facts_bytes", "bytes"),
-        ("max_query_workspace_bytes", "bytes"),
-        ("max_result_bytes", "bytes"),
-        ("max_buffered_bytes", "bytes"),
-        ("max_cursors", "count"),
-        ("max_spool_bytes", "bytes"),
-        ("max_threads", "threads"),
-        ("deadline_ms", "milliseconds"),
-    ] {
-        limits.insert(
-            name.to_owned(),
-            json!({"value":null, "unit":unit,
-            "scope":"worker", "enforcement":"unavailable"}),
-        );
+use args::{Command, QueryArgs, ServeArgs, SqlSource};
+use dataset::Dataset;
+use mdd_input::snapshot::InputKind;
+use mdd_session::ResourceLimits;
+use mdd_types::{ErrorCode, MddError, MddResult, OperationStatus, ResultEnvelope};
+use output::{Format, JsonlSink, TextSink};
+use run::RunOptions;
+use serde_json::json;
+use std::io::{self, Read, Write};
+
+const OK: i32 = 0;
+const FAILED: i32 = 1;
+const REFUSED: i32 = 2;
+const FAULT: i32 = 3;
+const OUTPUT: i32 = 4;
+
+/// Exit code for an error that stopped the command before a terminal existed.
+fn refusal_code(error: &MddError) -> i32 {
+    match error.code {
+        ErrorCode::InternalFault | ErrorCode::WorkerLost => FAULT,
+        _ => REFUSED,
     }
-    for (name, value) in [
-        ("max_input_bytes", CaptureLimits::default().max_input_bytes),
-        (
-            "max_archive_members",
-            ArchiveLimits::default().max_members as u64,
-        ),
-        (
-            "max_member_uncompressed_bytes",
-            ArchiveLimits::default().max_member_bytes,
-        ),
-        (
-            "max_total_uncompressed_bytes",
-            ArchiveLimits::default().max_total_uncompressed_bytes,
-        ),
-        ("max_fact_rows", 256),
-        ("max_result_bytes", 16 * 1024 * 1024),
-        ("max_threads", 1),
-    ] {
-        let unit = limits[name]["unit"].clone();
-        limits.insert(
-            name.to_owned(),
-            json!({"value":value.to_string(),"unit":unit,
-            "scope":"worker","enforcement":"soft"}),
-        );
-    }
-    json!({
-        "schema_version":"mdd.capabilities.v1", "product":"MeguvizDexDash",
-        "engine_version":env!("CARGO_PKG_VERSION"),
-        "build_id":format!("source-sha256:{}",env!("MDD_SOURCE_SHA256")),
-        "fact_schema_id":"mdd.facts.unimplemented.v1",
-        "relation_schema_hash":mdd_types::sha256(b"[]"),
-        "profiles":[{"name":"mdd-native-v1","admitted":false,"conformance_manifest_sha256":null},
-            {"name":"mdd-header-inspection-dev-v1","admitted":false,"conformance_manifest_sha256":null}],
-        "sql_dialects":[],
-        "capabilities":[{"name":"result-contract","version":"1","available":true},
-            {"name":"inspect-dex-header","version":"1","available":true}],
-        "input_formats":[{"kind":"dex-header","versions":["035","037","038","039","040"],"available":true},
-            {"kind":"apk-zip","versions":["stored","deflated","zip64-single-disk"],"available":true}],
-        "transports":[{"name":"cli-json","version":"1","result_encodings":["json"]}],
-        "semantics":{"pagination_modes":[],"native_cancel_scope":"query","compat_cancel_closes_dataset":false},
-        "effective_limits":limits,"providers":[]
-    })
 }
 
-fn inspect(kind: InputKind, paths: &[std::ffi::OsString]) -> Result<Value, MddError> {
-    if paths.is_empty() {
-        return Err(MddError::new(
-            ErrorCode::InvalidArgument,
-            "cli",
-            "inspect requires at least one path",
-        ));
+fn terminal_code(terminal: &ResultEnvelope) -> i32 {
+    if terminal.operation_status == OperationStatus::Ok && terminal.error.is_none() {
+        return OK;
     }
-    let inputs: Vec<_> = paths
-        .iter()
-        .map(|path| InputSpec {
-            path: path.into(),
-            kind,
-            expected_sha256: None,
-        })
-        .collect();
-    let snapshot = Snapshot::capture(&inputs, CaptureLimits::default())?;
-    let mut inventories = Vec::new();
-    let mut rows = Vec::new();
-    let mut remaining = ArchiveLimits::default().max_total_uncompressed_bytes;
-    for source in snapshot.sources() {
-        let limits = ArchiveLimits {
-            max_total_uncompressed_bytes: remaining,
-            ..ArchiveLimits::default()
-        };
-        let inventory = ArchiveInventory::build(source, InventoryPolicy::default(), limits)?;
-        remaining = remaining
-            .checked_sub(inventory.manifest().declared_uncompressed_bytes.0)
-            .ok_or_else(|| {
-                MddError::new(
-                    ErrorCode::QuotaExceeded,
-                    "inventory",
-                    "total archive byte budget exceeded",
-                )
-            })?;
-        for candidate in inventory.selected_dexes() {
-            if rows.len() >= 256 {
-                return Err(MddError::new(
-                    ErrorCode::QuotaExceeded,
-                    "inspect",
-                    "header row budget exceeded",
-                )
-                .detail("budget", "max_fact_rows")
-                .detail("limit", "256"));
+    match terminal.error.as_ref().map(|e| e.code) {
+        Some(ErrorCode::InternalFault | ErrorCode::WorkerLost) => FAULT,
+        _ => FAILED,
+    }
+}
+
+fn limits(deadline_ms: Option<u64>) -> ResourceLimits {
+    let base = ResourceLimits::default();
+    ResourceLimits {
+        deadline_ms: deadline_ms.unwrap_or(base.deadline_ms),
+        ..base
+    }
+}
+
+/// The engine refuses statements over 256 KiB; reading more than four times that
+/// is pointless, and an unbounded read of a pipe or a huge file is a way to run out
+/// of memory before the engine gets to say no.
+const MAX_STATEMENT_BYTES: u64 = 1024 * 1024;
+
+fn read_sql(source: SqlSource) -> MddResult<String> {
+    let refuse = |message: String| MddError::new(ErrorCode::InvalidArgument, "cli", message);
+    let bounded = |reader: &mut dyn Read| -> MddResult<String> {
+        let mut bytes = Vec::new();
+        reader
+            .take(MAX_STATEMENT_BYTES + 1)
+            .read_to_end(&mut bytes)
+            .map_err(|error| refuse(format!("cannot read the statement: {error}")))?;
+        if bytes.len() as u64 > MAX_STATEMENT_BYTES {
+            return Err(refuse(format!(
+                "the statement is longer than {MAX_STATEMENT_BYTES} bytes"
+            )));
+        }
+        String::from_utf8(bytes).map_err(|_| refuse("the statement is not valid UTF-8".to_owned()))
+    };
+    match source {
+        SqlSource::Text(text) => Ok(text),
+        SqlSource::File(path) => {
+            let mut file = std::fs::File::open(&path)
+                .map_err(|error| refuse(format!("cannot read the statement: {error}")))?;
+            bounded(&mut file)
+        }
+        SqlSource::Stdin => bounded(&mut io::stdin().lock()),
+    }
+}
+
+fn query(args: QueryArgs) -> MddResult<i32> {
+    let sql = read_sql(args.sql)?;
+    let dataset = Dataset::open(
+        &args.data.inputs,
+        args.data.dialect,
+        limits(args.data.deadline_ms),
+        args.data.sql_limits,
+    )?;
+    let options = RunOptions {
+        batch_rows: args.batch_rows,
+        max_rows: args.max_rows,
+        deadline_ms: args.data.deadline_ms,
+    };
+    let stdout = io::stdout();
+    let mut out = stdout.lock();
+    match args.format {
+        Format::Jsonl => {
+            if JsonlSink::opened(&mut out, &dataset.description()).is_err() {
+                return Ok(OUTPUT);
             }
-            let header = mdd_dex::validate_header(candidate.blob.bytes()).map_err(|error| {
-                error
-                    .detail("snapshot_id", snapshot.manifest().snapshot_id.clone())
-                    .detail("dex_occurrence_id", candidate.dex_occurrence_id.clone())
-                    .detail("content_id", candidate.blob.content_id.clone())
-            })?;
-            rows.push(json!({"dex_occurrence_id":candidate.dex_occurrence_id,
-                "physical_dex_id":candidate.physical_dex_id,
-                "logical_header_byte_offset":candidate.logical_header_byte_offset,
-                "member":candidate.blob.identity,"content_id":candidate.blob.content_id,
-                "header":header}));
+            let mut sink = JsonlSink {
+                out: &mut out,
+                id: None,
+            };
+            let outcome = dataset.run(&sql, &options, &mut sink)?;
+            if outcome.output_lost.is_some() || sink.terminal(&outcome.terminal).is_err() {
+                return Ok(OUTPUT);
+            }
+            Ok(terminal_code(&outcome.terminal))
         }
-        inventories.push(serde_json::to_value(inventory.manifest()).map_err(|error| {
-            MddError::new(ErrorCode::InternalFault, "inspect", error.to_string())
-        })?);
+        Format::Text => {
+            let mut sink = TextSink::new(&mut out);
+            let outcome = dataset.run(&sql, &options, &mut sink)?;
+            let code = terminal_code(&outcome.terminal);
+            let rows = sink.row_count();
+            // A table is printed only for a complete answer: half a table that
+            // ends in an error would read like a result.
+            if code == OK && sink.finish().is_err() {
+                return Ok(OUTPUT);
+            }
+            match &outcome.terminal.error {
+                None => eprintln!("-- {rows} row(s), complete"),
+                Some(error) => eprintln!(
+                    "{}",
+                    serde_json::to_string(error).unwrap_or_else(|_| "{}".to_owned())
+                ),
+            }
+            if outcome.output_lost.is_some() {
+                return Ok(OUTPUT);
+            }
+            Ok(code)
+        }
     }
-    let count = DecimalU64(rows.len() as u64);
-    let scope_id = mdd_types::opaque_id("scope-header-inventory")?;
-    let data = json!({"rows":rows,"snapshot_manifest":snapshot.manifest(),"inventories":inventories,
-        "scope_manifest":{"scope_id":scope_id,"selection":"top-level-classes-or-raw",
-            "required_layers":["inventory","dex_header"],"full_dex_validation_required":false,
-            "signature_verification":"SHA-1 over captured DEX bytes 32..file_size; source identity uses SHA-256",
-            "profile_qualification":"unadmitted development inspection"}});
-    let envelope = ResultEnvelope {
-        schema_version: "mdd.result.v1".to_owned(),
-        request_id: mdd_types::opaque_id("request")?,
-        operation: "inspect_dex_headers".to_owned(),
-        profile: "mdd-header-inspection-dev-v1".to_owned(),
-        sql_dialect: None,
-        session_id: None,
-        snapshot_id: Some(snapshot.manifest().snapshot_id.clone()),
-        catalog_epoch: None,
-        query_id: None,
-        operation_status: OperationStatus::Ok,
-        coverage: Coverage {
-            scope_id,
-            input: Completeness::Complete,
-            facts: Completeness::Complete,
-            required_layers: vec!["inventory".to_owned(), "dex_header".to_owned()],
-            issues: vec![],
-        },
-        execution: Execution { complete: true },
-        response: Response {
-            schema_id: Some("mdd.rows.dex-headers.v1".to_owned()),
-            emitted_rows: count,
-            total_rows: Some(count),
-            total_rows_exact: true,
-            more_available: false,
-            truncated: false,
-            next_cursor: None,
-        },
-        data: data.as_object().cloned(),
-        error: None,
-        warnings: vec![],
-    };
-    envelope.validate()?;
-    serde_json::to_value(envelope)
-        .map_err(|error| MddError::new(ErrorCode::InternalFault, "inspect", error.to_string()))
 }
 
-fn run() -> Result<(), MddError> {
-    let args: Vec<_> = std::env::args_os().skip(1).collect();
-    let output = match args.as_slice() {
-        [command] if command == "capabilities" => capabilities(),
-        [command] if command == "version" || command == "--version" => json!({
-            "product":"MeguvizDexDash", "engine_version":env!("CARGO_PKG_VERSION"),
-            "build_id":capabilities()["build_id"],
-            "implementation_scope":"unqualified development build"
-        }),
-        [command, paths @ ..] if command == "inspect-dex" => inspect(InputKind::RawDex, paths)?,
-        [command, paths @ ..] if command == "inspect-apk" => inspect(InputKind::Apk, paths)?,
-        _ => {
-            return Err(MddError::new(
-                ErrorCode::InvalidArgument,
-                "cli",
-                "usage: meguvizdexdash version | capabilities | inspect-dex PATH... | inspect-apk PATH...",
-            ));
-        }
-    };
-    let encoded = serde_json::to_string(&output)
+fn serve(args: ServeArgs) -> MddResult<i32> {
+    let dataset = Dataset::open(
+        &args.data.inputs,
+        args.data.dialect,
+        limits(args.data.deadline_ms),
+        args.data.sql_limits,
+    )?;
+    let stdin = io::stdin();
+    let stdout = io::stdout();
+    let mut input = stdin.lock();
+    let mut out = stdout.lock();
+    match serve::serve(&dataset, &mut input, &mut out) {
+        Ok(()) => Ok(OK),
+        Err(serve::Failure::Output) => Ok(OUTPUT),
+        Err(serve::Failure::Input(error)) => Err(MddError::new(
+            ErrorCode::InternalFault,
+            "cli.serve",
+            format!("the request stream could not be read: {error}"),
+        )),
+    }
+}
+
+fn single(value: serde_json::Value) -> MddResult<i32> {
+    let encoded = serde_json::to_string(&value)
         .map_err(|e| MddError::new(ErrorCode::InternalFault, "serialization", e.to_string()))?;
     if encoded.len() >= 16 * 1024 * 1024 {
         return Err(MddError::new(
@@ -212,16 +182,42 @@ fn run() -> Result<(), MddError> {
         .detail("limit", "16777216")
         .detail("observed", (encoded.len() + 1).to_string()));
     }
-    println!("{encoded}");
-    Ok(())
+    let mut out = io::stdout().lock();
+    if writeln!(out, "{encoded}")
+        .and_then(|()| out.flush())
+        .is_err()
+    {
+        return Ok(OUTPUT);
+    }
+    Ok(OK)
+}
+
+fn run() -> MddResult<i32> {
+    let argv: Vec<_> = std::env::args_os().skip(1).collect();
+    match args::parse(&argv)? {
+        Command::Version => single(json!({
+            "product":"MeguvizDexDash", "engine_version":env!("CARGO_PKG_VERSION"),
+            "build_id":commands::capabilities()["build_id"],
+            "implementation_scope":"unqualified development build"
+        })),
+        Command::Capabilities => single(commands::capabilities()),
+        Command::InspectDex(paths) => single(commands::inspect(InputKind::RawDex, &paths)?),
+        Command::InspectApk(paths) => single(commands::inspect(InputKind::Apk, &paths)?),
+        Command::Query(args) => query(*args),
+        Command::Serve(args) => serve(*args),
+    }
 }
 
 fn main() {
-    if let Err(error) = run() {
-        eprintln!(
-            "{}",
-            serde_json::to_string(&error).expect("error fields serialize as JSON")
-        );
-        std::process::exit(2);
-    }
+    let code = match run() {
+        Ok(code) => code,
+        Err(error) => {
+            eprintln!(
+                "{}",
+                serde_json::to_string(&error).expect("error fields serialize as JSON")
+            );
+            refusal_code(&error)
+        }
+    };
+    std::process::exit(code);
 }

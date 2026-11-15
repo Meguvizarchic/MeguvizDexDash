@@ -1,0 +1,97 @@
+{
+  "schema_version": "mdd.cli-cases.v1",
+  "note": "Frozen contract of the meguvizdexdash command line, checked against the real binary by conformance/cli/cli_cases.py. A case names its arguments and stdin and states exit code, what stdout holds and what stderr holds. Nothing here is inferred from the implementation: a change to an exit code, a stream or a status is a change to this file.",
+  "inputs": {
+    "dex": "tests/fixtures/definitions/generated/definitions-038.dex",
+    "broken_code": "tests/fixtures/instructions/generated/bad-reserved-opcode.dex",
+    "apk": "tests/fixtures/generated/multidex-stored.apk"
+  },
+  "exit_codes": {
+    "0": "complete success: the statement ran and every row was delivered",
+    "1": "the statement ended in a failure terminal on stdout: error, cancellation, quota, deadline or truncation",
+    "2": "refused before anything ran: usage, input or open error; stdout empty, stderr holds one JSON error object",
+    "3": "internal fault or lost worker",
+    "4": "the output could not be written (closed pipe)"
+  },
+  "stream": {
+    "protocol": "mdd.cli-stream.v1",
+    "kinds": {
+      "opened": "first line of query and serve: the dataset (snapshot, scope, dialect, layer issues)",
+      "batch": "rows of one statement: id, then the mdd.sdk-batch.v1 object; sequence from 0, first_row accumulating",
+      "terminal": "exactly one per statement: the mdd.result.v1 envelope; its status, error, truncated flag and emitted_rows are the statement's verdict",
+      "rejected": "serve only: a request line that could not be understood; nothing ran for it"
+    },
+    "empty_result_columns": "an empty result has no batch, so the terminal carries data.columns"
+  },
+  "unsupported": {
+    "formats": ["dexsql-table"],
+    "dialects": ["sqlite"],
+    "refused_with": "UNSUPPORTED_CAPABILITY for a named option the engine does not provide, INVALID_ARGUMENT for a value it does not know"
+  },
+  "cases": [
+    {"name": "version", "args": ["version"], "exit": 0, "stdout": {"json": ["product", "engine_version", "build_id"]}, "stderr": "empty"},
+    {"name": "version_flag", "args": ["--version"], "exit": 0, "stdout": {"json": ["product", "engine_version", "build_id"]}, "stderr": "empty"},
+    {"name": "capabilities", "args": ["capabilities"], "exit": 0, "stdout": {"json": ["schema_version", "profiles", "sql_dialects", "capabilities", "transports"], "schema": "contracts/capabilities.schema.json"}, "stderr": "empty"},
+    {"name": "inspect_dex", "args": ["inspect-dex", "{dex}"], "exit": 0, "stdout": {"json": ["schema_version", "operation_status", "data"]}, "stderr": "empty"},
+    {"name": "inspect_apk", "args": ["inspect-apk", "{apk}"], "exit": 0, "stdout": {"json": ["schema_version", "operation_status", "data"]}, "stderr": "empty"},
+    {"name": "unknown_command", "args": ["unknown-command"], "exit": 2, "stdout": "empty", "stderr": {"json_error": "INVALID_ARGUMENT"}},
+    {"name": "no_command", "args": [], "exit": 2, "stdout": "empty", "stderr": {"json_error": "INVALID_ARGUMENT"}},
+    {"name": "version_takes_no_arguments", "args": ["version", "extra"], "exit": 2, "stdout": "empty", "stderr": {"json_error": "INVALID_ARGUMENT"}},
+    {"name": "inspect_missing_file", "args": ["inspect-dex", "no-such-file.dex"], "exit": 2, "stdout": "empty", "stderr": {"json_error": "INVALID_INPUT"}},
+
+    {"name": "query_complete", "args": ["query", "--input", "{dex}", "--sql", "SELECT 1 AS one, 'x' AS s"], "exit": 0,
+     "stdout": {"jsonl": {"kinds": ["opened", "batch", "terminal"], "terminal": {"operation_status": "ok", "error_code": null, "truncated": false, "emitted_rows": "1", "complete": true}}}, "stderr": "empty"},
+    {"name": "query_empty_result", "args": ["query", "--input", "{dex}", "--dialect", "dexsql-0.1.0", "--sql", "SELECT type_idx FROM types WHERE type_idx < 0"], "exit": 0,
+     "stdout": {"jsonl": {"kinds": ["opened", "terminal"], "terminal": {"operation_status": "ok", "error_code": null, "truncated": false, "emitted_rows": "0", "complete": true, "columns": ["type_idx"]}}}, "stderr": "empty"},
+    {"name": "query_batches", "args": ["query", "--input", "{dex}", "--dialect", "dexsql-0.1.0", "--batch-rows", "2", "--sql", "SELECT type_idx FROM types ORDER BY type_idx"], "exit": 0,
+     "stdout": {"jsonl": {"first_kinds": ["opened", "batch", "batch"], "last_kind": "terminal", "terminal": {"operation_status": "ok", "error_code": null, "truncated": false, "complete": true}}}, "stderr": "empty"},
+    {"name": "query_from_stdin", "args": ["query", "--input", "{dex}", "--sql-file", "-"], "stdin": "SELECT 41 + 1 AS n", "exit": 0,
+     "stdout": {"jsonl": {"kinds": ["opened", "batch", "terminal"], "terminal": {"operation_status": "ok", "emitted_rows": "1"}}}, "stderr": "empty"},
+    {"name": "query_over_an_apk", "args": ["query", "--input", "{apk}", "--dialect", "dexsql-0.1.0", "--sql", "SELECT file_id,entry_name FROM dex_files ORDER BY file_id"], "exit": 0,
+     "stdout": {"jsonl": {"kinds": ["opened", "batch", "terminal"], "terminal": {"operation_status": "ok", "emitted_rows": "2"}}}, "stderr": "empty"},
+
+    {"name": "query_row_limit_truncates", "args": ["query", "--input", "{dex}", "--dialect", "dexsql-0.1.0", "--batch-rows", "1", "--max-rows", "2", "--sql", "SELECT type_idx FROM types ORDER BY type_idx"], "exit": 1,
+     "stdout": {"jsonl": {"kinds": ["opened", "batch", "batch", "terminal"], "terminal": {"operation_status": "error", "error_code": "QUOTA_EXCEEDED", "truncated": true, "emitted_rows": "2", "complete": true}}}, "stderr": "empty"},
+    {"name": "query_unknown_relation", "args": ["query", "--input", "{dex}", "--dialect", "dexsql-0.1.0", "--sql", "SELECT * FROM no_such_relation"], "exit": 1,
+     "stdout": {"jsonl": {"kinds": ["opened", "terminal"], "terminal": {"operation_status": "error", "error_code": "INVALID_ARGUMENT", "emitted_rows": "0"}}}, "stderr": "empty"},
+    {"name": "query_syntax_error", "args": ["query", "--input", "{dex}", "--sql", "SELEC 1"], "exit": 1,
+     "stdout": {"jsonl": {"kinds": ["opened", "terminal"], "terminal": {"operation_status": "error", "error_code": "INVALID_ARGUMENT", "emitted_rows": "0"}}}, "stderr": "empty"},
+    {"name": "query_deadline", "args": ["query", "--input", "{dex}", "--dialect", "dexsql-0.1.0", "--deadline-ms", "1", "--sql", "SELECT a.type_idx FROM types a, types b, types c, types d, types e"], "exit": 1,
+     "stdout": {"jsonl": {"kinds": ["opened", "terminal"], "terminal": {"operation_status": "error", "error_code": "DEADLINE_EXCEEDED", "emitted_rows": "0"}}}, "stderr": "empty"},
+    {"name": "query_missing_layer_refuses", "args": ["query", "--input", "{broken_code}", "--dialect", "dexsql-0.1.0", "--sql", "SELECT * FROM method_calls"], "exit": 1,
+     "stdout": {"jsonl": {"kinds": ["opened", "terminal"], "terminal": {"operation_status": "error", "error_code": "INCOMPLETE_FACTS", "emitted_rows": "0"}}}, "stderr": "empty"},
+    {"name": "query_intact_layer_still_answers", "args": ["query", "--input", "{broken_code}", "--dialect", "dexsql-0.1.0", "--sql", "SELECT file_id FROM dex_files ORDER BY file_id"], "exit": 0,
+     "stdout": {"jsonl": {"first_kinds": ["opened", "batch"], "last_kind": "terminal", "terminal": {"operation_status": "ok", "complete": true}}}, "stderr": "empty"},
+
+    {"name": "text_complete", "args": ["query", "--input", "{dex}", "--format", "text", "--sql", "SELECT 1 AS one, NULL AS gap"], "exit": 0,
+     "stdout": {"text_contains": ["| one | gap  |", "| 1   | NULL |"]}, "stderr": {"contains": "1 row(s), complete"}},
+    {"name": "text_failure_prints_no_table", "args": ["query", "--input", "{dex}", "--dialect", "dexsql-0.1.0", "--format", "text", "--max-rows", "1", "--sql", "SELECT type_idx FROM types ORDER BY type_idx"], "exit": 1,
+     "stdout": "empty", "stderr": {"json_error": "QUOTA_EXCEEDED"}},
+
+    {"name": "refuse_no_input", "args": ["query", "--sql", "SELECT 1"], "exit": 2, "stdout": "empty", "stderr": {"json_error": "INVALID_ARGUMENT"}},
+    {"name": "refuse_no_statement", "args": ["query", "--input", "{dex}"], "exit": 2, "stdout": "empty", "stderr": {"json_error": "INVALID_ARGUMENT"}},
+    {"name": "refuse_two_statement_sources", "args": ["query", "--input", "{dex}", "--sql", "SELECT 1", "--sql-file", "x"], "exit": 2, "stdout": "empty", "stderr": {"json_error": "INVALID_ARGUMENT"}},
+    {"name": "refuse_repeated_option", "args": ["query", "--input", "{dex}", "--sql", "SELECT 1", "--sql", "SELECT 2"], "exit": 2, "stdout": "empty", "stderr": {"json_error": "INVALID_ARGUMENT"}},
+    {"name": "refuse_unknown_option", "args": ["query", "--input", "{dex}", "--sql", "SELECT 1", "--bogus", "1"], "exit": 2, "stdout": "empty", "stderr": {"json_error": "INVALID_ARGUMENT"}},
+    {"name": "refuse_option_without_value", "args": ["query", "--input", "{dex}", "--sql", "SELECT 1", "--input"], "exit": 2, "stdout": "empty", "stderr": {"json_error": "INVALID_ARGUMENT"}},
+    {"name": "refuse_unknown_dialect", "args": ["query", "--input", "{dex}", "--sql", "SELECT 1", "--dialect", "sqlite"], "exit": 2, "stdout": "empty", "stderr": {"json_error": "INVALID_ARGUMENT"}},
+    {"name": "refuse_unavailable_format", "args": ["query", "--input", "{dex}", "--sql", "SELECT 1", "--format", "dexsql-table"], "exit": 2, "stdout": "empty", "stderr": {"json_error": "UNSUPPORTED_CAPABILITY"}},
+    {"name": "refuse_zero_batch_rows", "args": ["query", "--input", "{dex}", "--sql", "SELECT 1", "--batch-rows", "0"], "exit": 2, "stdout": "empty", "stderr": {"json_error": "INVALID_ARGUMENT"}},
+    {"name": "refuse_zero_deadline", "args": ["query", "--input", "{dex}", "--sql", "SELECT 1", "--deadline-ms", "0"], "exit": 2, "stdout": "empty", "stderr": {"json_error": "INVALID_ARGUMENT"}},
+    {"name": "refuse_negative_max_rows", "args": ["query", "--input", "{dex}", "--sql", "SELECT 1", "--max-rows", "-1"], "exit": 2, "stdout": "empty", "stderr": {"json_error": "INVALID_ARGUMENT"}},
+    {"name": "refuse_missing_input_file", "args": ["query", "--input", "no-such-file.dex", "--sql", "SELECT 1"], "exit": 2, "stdout": "empty", "stderr": {"json_error": "INVALID_INPUT"}},
+
+    {"name": "serve_two_requests_then_close", "args": ["serve", "--input", "{dex}", "--dialect", "dexsql-0.1.0"],
+     "stdin": "{\"id\":\"a\",\"sql\":\"SELECT type_idx FROM types ORDER BY type_idx\",\"batch_rows\":2}\n{\"id\":\"b\",\"sql\":\"SELECT 1 AS one\"}\n{\"op\":\"close\"}\n{\"id\":\"never\",\"sql\":\"SELECT 2\"}\n", "exit": 0,
+     "stdout": {"jsonl": {"terminal_ids": ["a", "b"], "terminal_each": {"operation_status": "ok", "complete": true}}}, "stderr": "empty"},
+    {"name": "serve_failure_does_not_end_the_session", "args": ["serve", "--input", "{dex}", "--dialect", "dexsql-0.1.0"],
+     "stdin": "{\"id\":\"bad\",\"sql\":\"SELECT * FROM no_such_relation\"}\n{\"id\":\"good\",\"sql\":\"SELECT 7 AS seven\"}\n", "exit": 0,
+     "stdout": {"jsonl": {"terminal_ids": ["bad", "good"], "terminal_statuses": ["error", "ok"]}}, "stderr": "empty"},
+    {"name": "serve_rejects_what_is_not_a_request", "args": ["serve", "--input", "{dex}"],
+     "stdin": "not json\n{\"id\":\"a\",\"sql\":\"SELECT 1\",\"surprise\":true}\n{\"sql\":\"SELECT 1\"}\n{\"id\":\"ok\",\"sql\":\"SELECT 1\"}\n", "exit": 0,
+     "stdout": {"jsonl": {"rejected": 3, "terminal_ids": ["ok"]}}, "stderr": "empty"},
+    {"name": "serve_end_of_input_ends_the_session", "args": ["serve", "--input", "{dex}"], "stdin": "", "exit": 0,
+     "stdout": {"jsonl": {"kinds": ["opened"]}}, "stderr": "empty"},
+    {"name": "serve_without_input_is_refused", "args": ["serve"], "exit": 2, "stdout": "empty", "stderr": {"json_error": "INVALID_ARGUMENT"}}
+  ]
+}
