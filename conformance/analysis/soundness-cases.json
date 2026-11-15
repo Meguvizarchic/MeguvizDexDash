@@ -1,0 +1,1812 @@
+{
+  "schema_version": "mdd.analysis-soundness-cases.v1",
+  "analysis_version": "mdd.analysis.v1",
+  "scope": "single-method-intraprocedural-v1",
+  "note": "Hand-written programs and hand-derived results for the CFG and register def-use analysis. A program is a list of ops; ['label', name] marks a position so nothing is written as an offset. Parameters are the last `ins` registers. Results are normalised: a block is named by its start label, an edge is [from, to, kind, certainty] with to being a block label or 'return' / 'exception_exit', a use is [instruction label, register, sorted reaching definitions, may_be_undefined]. A definition is 'label:vN' for an instruction, 'entry:vN' for a parameter and 'handler:label' for the exception delivered at a handler. Two independent implementations (the Rust analysis through the real DEX decoder, and conformance/analysis/oracle.py) must both reproduce every expectation.",
+  "cases": [
+    {
+      "name": "straight-line",
+      "property": "one block; each use reached by the one definition before it",
+      "registers": 6,
+      "ins": 1,
+      "outs": 0,
+      "types": 0,
+      "program": [
+        [
+          "label",
+          "a"
+        ],
+        [
+          "const/4",
+          0,
+          1
+        ],
+        [
+          "label",
+          "b"
+        ],
+        [
+          "add-int/lit8",
+          1,
+          0,
+          2
+        ],
+        [
+          "label",
+          "c"
+        ],
+        [
+          "return",
+          1
+        ]
+      ],
+      "tries": [],
+      "expect": {
+        "blocks": [
+          "a"
+        ],
+        "edges": [
+          [
+            "a",
+            "return",
+            "return",
+            "definite"
+          ]
+        ],
+        "unreachable": [],
+        "issues": [],
+        "uses": [
+          [
+            "b",
+            "v0",
+            [
+              "a:v0"
+            ],
+            false
+          ],
+          [
+            "c",
+            "v1",
+            [
+              "b:v1"
+            ],
+            false
+          ]
+        ]
+      }
+    },
+    {
+      "name": "diamond",
+      "property": "a join sees the definitions of both arms; a conditional's two edges are only possible",
+      "registers": 6,
+      "ins": 1,
+      "outs": 0,
+      "types": 0,
+      "program": [
+        [
+          "label",
+          "e"
+        ],
+        [
+          "const/4",
+          0,
+          1
+        ],
+        [
+          "label",
+          "t"
+        ],
+        [
+          "if-eqz",
+          0,
+          "other"
+        ],
+        [
+          "label",
+          "l"
+        ],
+        [
+          "add-int/lit8",
+          1,
+          0,
+          1
+        ],
+        [
+          "goto",
+          "join"
+        ],
+        [
+          "label",
+          "other"
+        ],
+        [
+          "const/4",
+          1,
+          7
+        ],
+        [
+          "label",
+          "join"
+        ],
+        [
+          "return",
+          1
+        ]
+      ],
+      "tries": [],
+      "expect": {
+        "blocks": [
+          "e",
+          "l",
+          "other",
+          "join"
+        ],
+        "edges": [
+          [
+            "e",
+            "other",
+            "branch",
+            "possible"
+          ],
+          [
+            "e",
+            "l",
+            "fallthrough",
+            "possible"
+          ],
+          [
+            "l",
+            "join",
+            "branch",
+            "definite"
+          ],
+          [
+            "other",
+            "join",
+            "fallthrough",
+            "definite"
+          ],
+          [
+            "join",
+            "return",
+            "return",
+            "definite"
+          ]
+        ],
+        "unreachable": [],
+        "issues": [],
+        "uses": [
+          [
+            "t",
+            "v0",
+            [
+              "e:v0"
+            ],
+            false
+          ],
+          [
+            "l",
+            "v0",
+            [
+              "e:v0"
+            ],
+            false
+          ],
+          [
+            "join",
+            "v1",
+            [
+              "l:v1",
+              "other:v1"
+            ],
+            false
+          ]
+        ]
+      }
+    },
+    {
+      "name": "loop",
+      "property": "a back edge makes the loop head see its own definition as well as the one before the loop",
+      "registers": 6,
+      "ins": 1,
+      "outs": 0,
+      "types": 0,
+      "program": [
+        [
+          "label",
+          "e"
+        ],
+        [
+          "const/4",
+          0,
+          0
+        ],
+        [
+          "label",
+          "head"
+        ],
+        [
+          "add-int/lit8",
+          0,
+          0,
+          1
+        ],
+        [
+          "label",
+          "cmp"
+        ],
+        [
+          "if-lt",
+          0,
+          5,
+          "head"
+        ],
+        [
+          "label",
+          "done"
+        ],
+        [
+          "return",
+          0
+        ]
+      ],
+      "tries": [],
+      "expect": {
+        "blocks": [
+          "e",
+          "head",
+          "done"
+        ],
+        "edges": [
+          [
+            "e",
+            "head",
+            "fallthrough",
+            "definite"
+          ],
+          [
+            "head",
+            "head",
+            "branch",
+            "possible"
+          ],
+          [
+            "head",
+            "done",
+            "fallthrough",
+            "possible"
+          ],
+          [
+            "done",
+            "return",
+            "return",
+            "definite"
+          ]
+        ],
+        "unreachable": [],
+        "issues": [],
+        "uses": [
+          [
+            "head",
+            "v0",
+            [
+              "e:v0",
+              "head:v0"
+            ],
+            false
+          ],
+          [
+            "cmp",
+            "v0",
+            [
+              "head:v0"
+            ],
+            false
+          ],
+          [
+            "cmp",
+            "v5",
+            [
+              "entry:v5"
+            ],
+            false
+          ],
+          [
+            "done",
+            "v0",
+            [
+              "head:v0"
+            ],
+            false
+          ]
+        ]
+      }
+    },
+    {
+      "name": "packed-switch",
+      "property": "one edge per case keyed by its value, plus the default fall-through; cases may share a join",
+      "registers": 6,
+      "ins": 1,
+      "outs": 0,
+      "types": 0,
+      "program": [
+        [
+          "label",
+          "e"
+        ],
+        [
+          "const/4",
+          0,
+          1
+        ],
+        [
+          "label",
+          "sw"
+        ],
+        [
+          "packed-switch",
+          0,
+          "pay"
+        ],
+        [
+          "label",
+          "d"
+        ],
+        [
+          "const/4",
+          1,
+          0
+        ],
+        [
+          "goto",
+          "end"
+        ],
+        [
+          "label",
+          "c0"
+        ],
+        [
+          "const/4",
+          1,
+          3
+        ],
+        [
+          "goto",
+          "end"
+        ],
+        [
+          "label",
+          "c1"
+        ],
+        [
+          "const/4",
+          1,
+          5
+        ],
+        [
+          "label",
+          "end"
+        ],
+        [
+          "return",
+          1
+        ],
+        [
+          "label",
+          "pay"
+        ],
+        [
+          "packed-payload",
+          "sw",
+          0,
+          [
+            "c0",
+            "c1"
+          ]
+        ]
+      ],
+      "tries": [],
+      "expect": {
+        "blocks": [
+          "e",
+          "d",
+          "c0",
+          "c1",
+          "end"
+        ],
+        "edges": [
+          [
+            "e",
+            "c0",
+            "switch:0",
+            "possible"
+          ],
+          [
+            "e",
+            "c1",
+            "switch:1",
+            "possible"
+          ],
+          [
+            "e",
+            "d",
+            "fallthrough",
+            "possible"
+          ],
+          [
+            "d",
+            "end",
+            "branch",
+            "definite"
+          ],
+          [
+            "c0",
+            "end",
+            "branch",
+            "definite"
+          ],
+          [
+            "c1",
+            "end",
+            "fallthrough",
+            "definite"
+          ],
+          [
+            "end",
+            "return",
+            "return",
+            "definite"
+          ]
+        ],
+        "unreachable": [],
+        "issues": [],
+        "uses": [
+          [
+            "sw",
+            "v0",
+            [
+              "e:v0"
+            ],
+            false
+          ],
+          [
+            "end",
+            "v1",
+            [
+              "c0:v1",
+              "c1:v1",
+              "d:v1"
+            ],
+            false
+          ]
+        ]
+      }
+    },
+    {
+      "name": "sparse-switch-and-dead-padding",
+      "property": "sparse keys label their edges; the dead alignment nop before the payload is unreachable and is not an issue",
+      "registers": 6,
+      "ins": 1,
+      "outs": 0,
+      "types": 0,
+      "program": [
+        [
+          "label",
+          "e"
+        ],
+        [
+          "const/4",
+          0,
+          0
+        ],
+        [
+          "label",
+          "sw"
+        ],
+        [
+          "sparse-switch",
+          0,
+          "pay"
+        ],
+        [
+          "label",
+          "d"
+        ],
+        [
+          "return-void"
+        ],
+        [
+          "label",
+          "a"
+        ],
+        [
+          "return-void"
+        ],
+        [
+          "label",
+          "b"
+        ],
+        [
+          "return-void"
+        ],
+        [
+          "label",
+          "pad"
+        ],
+        [
+          "nop"
+        ],
+        [
+          "label",
+          "pay"
+        ],
+        [
+          "sparse-payload",
+          "sw",
+          [
+            [
+              -5,
+              "a"
+            ],
+            [
+              100,
+              "b"
+            ]
+          ]
+        ]
+      ],
+      "tries": [],
+      "expect": {
+        "blocks": [
+          "e",
+          "d",
+          "a",
+          "b",
+          "pad"
+        ],
+        "edges": [
+          [
+            "e",
+            "a",
+            "switch:-5",
+            "possible"
+          ],
+          [
+            "e",
+            "b",
+            "switch:100",
+            "possible"
+          ],
+          [
+            "e",
+            "d",
+            "fallthrough",
+            "possible"
+          ],
+          [
+            "d",
+            "return",
+            "return",
+            "definite"
+          ],
+          [
+            "a",
+            "return",
+            "return",
+            "definite"
+          ],
+          [
+            "b",
+            "return",
+            "return",
+            "definite"
+          ]
+        ],
+        "unreachable": [
+          "pad"
+        ],
+        "issues": [],
+        "uses": [
+          [
+            "sw",
+            "v0",
+            [
+              "e:v0"
+            ],
+            false
+          ]
+        ]
+      }
+    },
+    {
+      "name": "try-catch-all",
+      "property": "a may-throw instruction in a try has an exception edge to the catch-all, and none out of the method",
+      "registers": 6,
+      "ins": 1,
+      "outs": 0,
+      "types": 0,
+      "program": [
+        [
+          "label",
+          "e"
+        ],
+        [
+          "const/4",
+          0,
+          4
+        ],
+        [
+          "label",
+          "ts"
+        ],
+        [
+          "div-int",
+          1,
+          0,
+          5
+        ],
+        [
+          "label",
+          "te"
+        ],
+        [
+          "return",
+          1
+        ],
+        [
+          "label",
+          "h"
+        ],
+        [
+          "move-exception",
+          2
+        ],
+        [
+          "label",
+          "hr"
+        ],
+        [
+          "return-object",
+          2
+        ]
+      ],
+      "tries": [
+        {
+          "from": "ts",
+          "to": "te",
+          "catches": [],
+          "catch_all": "h"
+        }
+      ],
+      "expect": {
+        "blocks": [
+          "e",
+          "ts",
+          "te",
+          "h"
+        ],
+        "edges": [
+          [
+            "e",
+            "ts",
+            "fallthrough",
+            "definite"
+          ],
+          [
+            "ts",
+            "te",
+            "fallthrough",
+            "definite"
+          ],
+          [
+            "ts",
+            "h",
+            "exception:any",
+            "possible"
+          ],
+          [
+            "te",
+            "return",
+            "return",
+            "definite"
+          ],
+          [
+            "h",
+            "return",
+            "return",
+            "definite"
+          ]
+        ],
+        "unreachable": [],
+        "issues": [],
+        "uses": [
+          [
+            "ts",
+            "v0",
+            [
+              "e:v0"
+            ],
+            false
+          ],
+          [
+            "ts",
+            "v5",
+            [
+              "entry:v5"
+            ],
+            false
+          ],
+          [
+            "te",
+            "v1",
+            [
+              "ts:v1"
+            ],
+            false
+          ],
+          [
+            "h",
+            "exception",
+            [
+              "handler:h"
+            ],
+            false
+          ],
+          [
+            "hr",
+            "v2",
+            [
+              "h:v2"
+            ],
+            false
+          ]
+        ]
+      }
+    },
+    {
+      "name": "handler-sees-the-state-before-the-throw",
+      "property": "the handler gets the registers as they were before the throwing instruction, not its own definition",
+      "registers": 6,
+      "ins": 1,
+      "outs": 0,
+      "types": 0,
+      "program": [
+        [
+          "label",
+          "e0"
+        ],
+        [
+          "const/4",
+          0,
+          3
+        ],
+        [
+          "label",
+          "e"
+        ],
+        [
+          "const/4",
+          1,
+          1
+        ],
+        [
+          "label",
+          "ts"
+        ],
+        [
+          "div-int",
+          1,
+          0,
+          5
+        ],
+        [
+          "label",
+          "te"
+        ],
+        [
+          "return",
+          1
+        ],
+        [
+          "label",
+          "h"
+        ],
+        [
+          "move-exception",
+          2
+        ],
+        [
+          "label",
+          "hu"
+        ],
+        [
+          "return",
+          1
+        ]
+      ],
+      "tries": [
+        {
+          "from": "ts",
+          "to": "te",
+          "catches": [],
+          "catch_all": "h"
+        }
+      ],
+      "expect": {
+        "blocks": [
+          "e0",
+          "ts",
+          "te",
+          "h"
+        ],
+        "edges": [
+          [
+            "e0",
+            "ts",
+            "fallthrough",
+            "definite"
+          ],
+          [
+            "ts",
+            "te",
+            "fallthrough",
+            "definite"
+          ],
+          [
+            "ts",
+            "h",
+            "exception:any",
+            "possible"
+          ],
+          [
+            "te",
+            "return",
+            "return",
+            "definite"
+          ],
+          [
+            "h",
+            "return",
+            "return",
+            "definite"
+          ]
+        ],
+        "unreachable": [],
+        "issues": [],
+        "uses": [
+          [
+            "ts",
+            "v0",
+            [
+              "e0:v0"
+            ],
+            false
+          ],
+          [
+            "ts",
+            "v5",
+            [
+              "entry:v5"
+            ],
+            false
+          ],
+          [
+            "te",
+            "v1",
+            [
+              "ts:v1"
+            ],
+            false
+          ],
+          [
+            "h",
+            "exception",
+            [
+              "handler:h"
+            ],
+            false
+          ],
+          [
+            "hu",
+            "v1",
+            [
+              "e:v1"
+            ],
+            false
+          ]
+        ]
+      }
+    },
+    {
+      "name": "typed-catch-and-exception-exit",
+      "property": "a typed catch without a catch-all may still leave the method; a may-throw instruction outside any try leaves it too",
+      "registers": 6,
+      "ins": 1,
+      "outs": 0,
+      "types": 4,
+      "program": [
+        [
+          "label",
+          "e"
+        ],
+        [
+          "const/4",
+          0,
+          1
+        ],
+        [
+          "label",
+          "al"
+        ],
+        [
+          "array-length",
+          1,
+          0
+        ],
+        [
+          "label",
+          "ts"
+        ],
+        [
+          "aget",
+          2,
+          0,
+          1
+        ],
+        [
+          "label",
+          "te"
+        ],
+        [
+          "return",
+          2
+        ],
+        [
+          "label",
+          "h"
+        ],
+        [
+          "move-exception",
+          3
+        ],
+        [
+          "label",
+          "hr"
+        ],
+        [
+          "return-object",
+          3
+        ]
+      ],
+      "tries": [
+        {
+          "from": "ts",
+          "to": "te",
+          "catches": [
+            [
+              2,
+              "h"
+            ]
+          ]
+        }
+      ],
+      "expect": {
+        "blocks": [
+          "e",
+          "ts",
+          "te",
+          "h"
+        ],
+        "edges": [
+          [
+            "e",
+            "ts",
+            "fallthrough",
+            "definite"
+          ],
+          [
+            "e",
+            "exception_exit",
+            "exception_exit",
+            "possible"
+          ],
+          [
+            "ts",
+            "te",
+            "fallthrough",
+            "definite"
+          ],
+          [
+            "ts",
+            "h",
+            "exception:2",
+            "possible"
+          ],
+          [
+            "ts",
+            "exception_exit",
+            "exception_exit",
+            "possible"
+          ],
+          [
+            "te",
+            "return",
+            "return",
+            "definite"
+          ],
+          [
+            "h",
+            "return",
+            "return",
+            "definite"
+          ]
+        ],
+        "unreachable": [],
+        "issues": [],
+        "uses": [
+          [
+            "al",
+            "v0",
+            [
+              "e:v0"
+            ],
+            false
+          ],
+          [
+            "ts",
+            "v0",
+            [
+              "e:v0"
+            ],
+            false
+          ],
+          [
+            "ts",
+            "v1",
+            [
+              "al:v1"
+            ],
+            false
+          ],
+          [
+            "te",
+            "v2",
+            [
+              "ts:v2"
+            ],
+            false
+          ],
+          [
+            "h",
+            "exception",
+            [
+              "handler:h"
+            ],
+            false
+          ],
+          [
+            "hr",
+            "v3",
+            [
+              "h:v3"
+            ],
+            false
+          ]
+        ]
+      }
+    },
+    {
+      "name": "unreachable-code-after-return",
+      "property": "code after a return is a block that is listed as unreachable, and its uses are not reported",
+      "registers": 6,
+      "ins": 1,
+      "outs": 0,
+      "types": 0,
+      "program": [
+        [
+          "label",
+          "e"
+        ],
+        [
+          "const/4",
+          0,
+          1
+        ],
+        [
+          "label",
+          "r"
+        ],
+        [
+          "return",
+          0
+        ],
+        [
+          "label",
+          "dead"
+        ],
+        [
+          "const/4",
+          1,
+          2
+        ],
+        [
+          "label",
+          "dead2"
+        ],
+        [
+          "return",
+          1
+        ]
+      ],
+      "tries": [],
+      "expect": {
+        "blocks": [
+          "e",
+          "dead"
+        ],
+        "edges": [
+          [
+            "e",
+            "return",
+            "return",
+            "definite"
+          ],
+          [
+            "dead",
+            "return",
+            "return",
+            "definite"
+          ]
+        ],
+        "unreachable": [
+          "dead"
+        ],
+        "issues": [],
+        "uses": [
+          [
+            "r",
+            "v0",
+            [
+              "e:v0"
+            ],
+            false
+          ]
+        ]
+      }
+    },
+    {
+      "name": "reachable-fallthrough-into-payload-data",
+      "property": "straight-line flow that runs into payload data is an issue, and no edge is invented",
+      "registers": 6,
+      "ins": 1,
+      "outs": 0,
+      "types": 0,
+      "program": [
+        [
+          "label",
+          "e"
+        ],
+        [
+          "const/4",
+          0,
+          1
+        ],
+        [
+          "nop"
+        ],
+        [
+          "label",
+          "pay"
+        ],
+        [
+          "packed-payload",
+          "e",
+          0,
+          []
+        ]
+      ],
+      "tries": [],
+      "expect": {
+        "blocks": [
+          "e"
+        ],
+        "edges": [],
+        "unreachable": [],
+        "issues": [
+          [
+            "fallthrough_into_data",
+            "pay"
+          ]
+        ],
+        "uses": []
+      }
+    },
+    {
+      "name": "fallthrough-past-the-end",
+      "property": "running off the end of the code is an issue",
+      "registers": 6,
+      "ins": 1,
+      "outs": 0,
+      "types": 0,
+      "program": [
+        [
+          "label",
+          "e"
+        ],
+        [
+          "const/4",
+          0,
+          1
+        ],
+        [
+          "label",
+          "end"
+        ]
+      ],
+      "tries": [],
+      "expect": {
+        "blocks": [
+          "e"
+        ],
+        "edges": [],
+        "unreachable": [],
+        "issues": [
+          [
+            "fallthrough_past_end",
+            "end"
+          ]
+        ],
+        "uses": []
+      }
+    },
+    {
+      "name": "wide-registers",
+      "property": "a wide value is two registers; overwriting one half redefines only that half",
+      "registers": 6,
+      "ins": 1,
+      "outs": 0,
+      "types": 0,
+      "program": [
+        [
+          "label",
+          "e"
+        ],
+        [
+          "const/4",
+          0,
+          1
+        ],
+        [
+          "label",
+          "w"
+        ],
+        [
+          "int-to-long",
+          2,
+          0
+        ],
+        [
+          "label",
+          "w2"
+        ],
+        [
+          "add-long",
+          2,
+          2,
+          2
+        ],
+        [
+          "label",
+          "k"
+        ],
+        [
+          "const/4",
+          3,
+          0
+        ],
+        [
+          "label",
+          "r"
+        ],
+        [
+          "return-wide",
+          2
+        ]
+      ],
+      "tries": [],
+      "expect": {
+        "blocks": [
+          "e"
+        ],
+        "edges": [
+          [
+            "e",
+            "return",
+            "return",
+            "definite"
+          ]
+        ],
+        "unreachable": [],
+        "issues": [],
+        "uses": [
+          [
+            "w",
+            "v0",
+            [
+              "e:v0"
+            ],
+            false
+          ],
+          [
+            "w2",
+            "v2",
+            [
+              "w:v2"
+            ],
+            false
+          ],
+          [
+            "w2",
+            "v3",
+            [
+              "w:v3"
+            ],
+            false
+          ],
+          [
+            "r",
+            "v2",
+            [
+              "w2:v2"
+            ],
+            false
+          ],
+          [
+            "r",
+            "v3",
+            [
+              "k:v3"
+            ],
+            false
+          ]
+        ]
+      }
+    },
+    {
+      "name": "two-address-form-reads-then-writes",
+      "property": "add-int/2addr reads its first operand before redefining it",
+      "registers": 6,
+      "ins": 1,
+      "outs": 0,
+      "types": 0,
+      "program": [
+        [
+          "label",
+          "e"
+        ],
+        [
+          "const/4",
+          0,
+          1
+        ],
+        [
+          "label",
+          "c"
+        ],
+        [
+          "const/4",
+          1,
+          2
+        ],
+        [
+          "label",
+          "a"
+        ],
+        [
+          "add-int/2addr",
+          0,
+          1
+        ],
+        [
+          "label",
+          "r"
+        ],
+        [
+          "return",
+          0
+        ]
+      ],
+      "tries": [],
+      "expect": {
+        "blocks": [
+          "e"
+        ],
+        "edges": [
+          [
+            "e",
+            "return",
+            "return",
+            "definite"
+          ]
+        ],
+        "unreachable": [],
+        "issues": [],
+        "uses": [
+          [
+            "a",
+            "v0",
+            [
+              "e:v0"
+            ],
+            false
+          ],
+          [
+            "a",
+            "v1",
+            [
+              "c:v1"
+            ],
+            false
+          ],
+          [
+            "r",
+            "v0",
+            [
+              "a:v0"
+            ],
+            false
+          ]
+        ]
+      }
+    },
+    {
+      "name": "maybe-undefined-use",
+      "property": "a use some path reaches with no definition is flagged, not dropped",
+      "registers": 6,
+      "ins": 1,
+      "outs": 0,
+      "types": 0,
+      "program": [
+        [
+          "label",
+          "e"
+        ],
+        [
+          "if-eqz",
+          5,
+          "skip"
+        ],
+        [
+          "label",
+          "d"
+        ],
+        [
+          "const/4",
+          0,
+          1
+        ],
+        [
+          "label",
+          "skip"
+        ],
+        [
+          "return",
+          0
+        ]
+      ],
+      "tries": [],
+      "expect": {
+        "blocks": [
+          "e",
+          "d",
+          "skip"
+        ],
+        "edges": [
+          [
+            "e",
+            "skip",
+            "branch",
+            "possible"
+          ],
+          [
+            "e",
+            "d",
+            "fallthrough",
+            "possible"
+          ],
+          [
+            "d",
+            "skip",
+            "fallthrough",
+            "definite"
+          ],
+          [
+            "skip",
+            "return",
+            "return",
+            "definite"
+          ]
+        ],
+        "unreachable": [],
+        "issues": [],
+        "uses": [
+          [
+            "e",
+            "v5",
+            [
+              "entry:v5"
+            ],
+            false
+          ],
+          [
+            "skip",
+            "v0",
+            [
+              "d:v0"
+            ],
+            true
+          ]
+        ]
+      }
+    },
+    {
+      "name": "invoke-then-move-result",
+      "property": "move-result reads the value the invoke left; the invoke reads its argument registers; an invoke outside any try may leave the method by exception",
+      "registers": 6,
+      "ins": 1,
+      "outs": 2,
+      "types": 0,
+      "methods": 1,
+      "program": [
+        [
+          "label",
+          "e"
+        ],
+        [
+          "const/4",
+          0,
+          1
+        ],
+        [
+          "label",
+          "i"
+        ],
+        [
+          "invoke-static",
+          [
+            0,
+            5
+          ],
+          0
+        ],
+        [
+          "label",
+          "r"
+        ],
+        [
+          "move-result",
+          1
+        ],
+        [
+          "label",
+          "u"
+        ],
+        [
+          "return",
+          1
+        ]
+      ],
+      "tries": [],
+      "expect": {
+        "blocks": [
+          "e"
+        ],
+        "edges": [
+          [
+            "e",
+            "return",
+            "return",
+            "definite"
+          ],
+          [
+            "e",
+            "exception_exit",
+            "exception_exit",
+            "possible"
+          ]
+        ],
+        "unreachable": [],
+        "issues": [],
+        "uses": [
+          [
+            "i",
+            "v0",
+            [
+              "e:v0"
+            ],
+            false
+          ],
+          [
+            "i",
+            "v5",
+            [
+              "entry:v5"
+            ],
+            false
+          ],
+          [
+            "r",
+            "result",
+            [
+              "i:result"
+            ],
+            false
+          ],
+          [
+            "u",
+            "v1",
+            [
+              "r:v1"
+            ],
+            false
+          ]
+        ]
+      }
+    },
+    {
+      "name": "result-flows-across-a-try-end",
+      "property": "the value an invoke left reaches a move-result that sits in the next block; the handler never sees it",
+      "registers": 6,
+      "ins": 1,
+      "outs": 2,
+      "types": 0,
+      "methods": 1,
+      "program": [
+        [
+          "label",
+          "e"
+        ],
+        [
+          "const/4",
+          0,
+          1
+        ],
+        [
+          "label",
+          "ts"
+        ],
+        [
+          "invoke-static",
+          [
+            0
+          ],
+          0
+        ],
+        [
+          "label",
+          "te"
+        ],
+        [
+          "move-result",
+          1
+        ],
+        [
+          "label",
+          "u"
+        ],
+        [
+          "return",
+          1
+        ],
+        [
+          "label",
+          "h"
+        ],
+        [
+          "move-exception",
+          2
+        ],
+        [
+          "label",
+          "hr"
+        ],
+        [
+          "return-object",
+          2
+        ]
+      ],
+      "tries": [
+        {
+          "from": "ts",
+          "to": "te",
+          "catches": [],
+          "catch_all": "h"
+        }
+      ],
+      "expect": {
+        "blocks": [
+          "e",
+          "ts",
+          "te",
+          "h"
+        ],
+        "edges": [
+          [
+            "e",
+            "ts",
+            "fallthrough",
+            "definite"
+          ],
+          [
+            "ts",
+            "te",
+            "fallthrough",
+            "definite"
+          ],
+          [
+            "ts",
+            "h",
+            "exception:any",
+            "possible"
+          ],
+          [
+            "te",
+            "return",
+            "return",
+            "definite"
+          ],
+          [
+            "h",
+            "return",
+            "return",
+            "definite"
+          ]
+        ],
+        "unreachable": [],
+        "issues": [],
+        "uses": [
+          [
+            "ts",
+            "v0",
+            [
+              "e:v0"
+            ],
+            false
+          ],
+          [
+            "te",
+            "result",
+            [
+              "ts:result"
+            ],
+            false
+          ],
+          [
+            "u",
+            "v1",
+            [
+              "te:v1"
+            ],
+            false
+          ],
+          [
+            "h",
+            "exception",
+            [
+              "handler:h"
+            ],
+            false
+          ],
+          [
+            "hr",
+            "v2",
+            [
+              "h:v2"
+            ],
+            false
+          ]
+        ]
+      }
+    }
+  ]
+}

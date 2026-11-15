@@ -1882,7 +1882,7 @@
       "id": "MDD-075",
       "phase": "M7",
       "title": "实现可选 CFG、def-use 与候选分析能力",
-      "status": "todo",
+      "status": "done",
       "depends_on": [
         "MDD-021",
         "MDD-023",
@@ -1912,6 +1912,23 @@
       "references": [
         "docs/02_ARCHITECTURE_AND_CONTRACTS.md",
         "docs/04_VALIDATION_AND_PERFORMANCE.md"
+      ],
+      "implementation_notes": "2026-11-15 closure within the declared scope (single-method, intraprocedural, registers only). crates/mdd-facts/src/analysis builds, over a decoded CodeItem: a CFG (branch, packed/sparse switch, payloads, try/catch with over-approximate exception edges marked Possible, unreachable blocks, fall-through into data or past the end as named issues, every block traceable to its DEX offset and source line); reaching-definitions def-use over registers plus Result and Exception pseudo-registers with may_be_undefined; call-site classification (named, dispatch-dependent, unknown with a reason) that never resolves a callee; and method-local reachability answering Yes(certain|maybe), No (only on a complete well-formed CFG) or Unknown(causes). Every result carries version mdd.analysis.v1, scope, assumptions and whether method names were consulted; an exhausted budget gives Stage::Incomplete, never partial facts. conformance/analysis/run_analysis_conformance.py maps the five acceptance clauses to named tests: 21 Rust tests, 16 hand-derived programs in conformance/analysis/soundness-cases.json agreed by an independent Python oracle (with its own negative controls), the opcode table checked against the AOSP list for all 256 opcodes, metamorphic tests (renaming, trampoline, dead tail), and real-code invariants over every DEX fixture. 15 mutants, all killed; the record is bound to a hash of sources, tests and fixtures. Review: 6 findings; one real unsound answer fixed (reachability could not re-enter the start block and so said No for a path through a loop), plus an adjacency index, the edge budget inside switch expansion, a call_names_checked flag, and a fixtures hash. Not fixed: at each throwing instruction the def-use pass merges the whole current state into the handler (correct, but quadratic in long try blocks). Residual, not claimed: no call graph or whole-program reachability, no constant propagation, no type or heap analysis, exception handler types never matched, reflection recognition exercised with hand-made method references because no fixture contains one, wide-pair pairing not validated, one Windows host, runner not wired into CI. Adds one dev-dependency (sha1, test-only, for the synthetic DEX builder). Admits no profile and adds no gate; a HostLab rule that needs this analysis needs its own required gate.",
+      "implementation_evidence": [
+        "artifacts/mdd-075/analysis-capability-qualification.json",
+        "artifacts/mdd-075/mutation/results.txt",
+        "artifacts/mdd-075/mutation/mutate_analysis.py",
+        "conformance/analysis/soundness-cases.json",
+        "conformance/analysis/oracle.py",
+        "conformance/analysis/test_oracle.py",
+        "conformance/analysis/run_analysis_conformance.py",
+        "crates/mdd-facts/src/analysis/mod.rs",
+        "crates/mdd-facts/src/analysis/opcodes.rs",
+        "crates/mdd-facts/src/analysis/cfg.rs",
+        "crates/mdd-facts/src/analysis/defuse.rs",
+        "crates/mdd-facts/src/analysis/calls.rs",
+        "crates/mdd-facts/src/analysis/reach.rs",
+        "crates/mdd-facts/src/analysis/tests.rs"
       ]
     },
     {

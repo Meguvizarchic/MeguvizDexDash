@@ -311,6 +311,23 @@
 
 **验证范围**：`mdd-worker` 与 `mdd-wire` 全部测试、fmt、clippy 通过；修复后 `wire_child` 在 12 路并行下连续 60 次无失败。**未验证**：远端 Windows runner 上的结果（修复尚未推送）；竞态本身在本机未复现，所以“不再有竞态”靠的是推理加稳定值断言，不是靠“跑了很多次没挂”。
 
+## 2026-11-15 MDD-075 可选 CFG、def-use 与候选分析（done，限声明范围）
+
+**结论**：`crates/mdd-facts/src/analysis/` 在**单方法、过程内、仅寄存器**的范围内提供 CFG、def-use、调用点分类和方法内可达性；五条验收都映射到具名测试，状态记为 done。它**不准入任何 profile、不新增 gate**；HostLab 规则若依赖它，必须先加对应的必需 gate。
+
+**提供的能力与精度**
+- **CFG**：分支、packed/sparse switch、payload、try/catch；异常边是**过近似**（try 内每条可能抛出的指令可进入该 try 的每个 handler，不匹配 handler 类型，标 Possible；没有 catch-all 则可离开方法）；不可达块、落入数据区或越过末尾记为命名 issue；每个块可回溯到 DEX 偏移和源码行。
+- **def-use**：寄存器的 reaching-definitions may 分析，外加 Result / Exception 伪寄存器；某路径上无定义则 `may_be_undefined`。字段、数组、堆不跟踪。
+- **调用点**：只分类、不解析被调方——命名方法、依赖分派、Unknown（带原因：多态、invoke-custom、反射、代码加载）。
+- **可达性**：Yes(certain|maybe)、No（仅当 CFG 完整且良构）、Unknown(原因)。空集合从不被当作“无路径”。
+- 每个结果带 `mdd.analysis.v1`、scope、假设、`call_names_checked`；预算耗尽是 `Stage::Incomplete`，不是部分事实。
+
+**证据**：21 项 Rust 测试；16 个手推程序（`conformance/analysis/soundness-cases.json`）与独立 Python oracle 一致（oracle 有自己的负向对照）；操作码表对 AOSP 的 256 个操作码逐一核对；变形测试（改名、跳板、死尾）；对所有 DEX fixture 的真实代码不变量。15 个变异全部被抓住，记录绑定到源码、测试和 fixture 的哈希（`artifacts/mdd-075/`）。
+
+**评审发现并修复**：可达性搜索无法重新进入起点块，对“经循环回到起点块再抛出”的路径误报 No（不安全的否定）——已修复并加变异体；邻接索引、switch 展开内的边预算、`call_names_checked`、fixture 哈希。**未改**：def-use 在每条可能抛出的指令处把整份状态并入 handler（结果正确，但长 try 块里是二次方）。
+
+**残余（不声称）**：无调用图和跨方法可达性；无常量传播、类型、堆分析；handler 类型不匹配；反射识别路径只用手造的方法引用练过（fixture 里没有）；宽寄存器配对未校验；只在一台 Windows 主机验证；运行器未接入 CI。新增一个仅测试用的 dev 依赖 `sha1`（合成 DEX 的校验和）。
+
 ## Checkout 与交付
 
 工程目录 D:\MeguvisDexDash（保留目录原拼写）。远端已迁移到 https://github.com/Meguvizarchic/MeguvizDexDash（**公开仓库**，旧地址 jichuo1/MeguvizDexDash 自动转发）；PR #1 已于 2026-11-04 合并，`main` 现为 a9aa1f0，其中 27ac27e 是由本分支 71dfce9 生成的「脱敏工程进度快照」，之后 8 个提交是修补与 README/图标。本地分支 codex/m2-facts-20261028 当前**没有远端分支**：2026-11-12 曾整体推送，随后发现仓库公开，已按用户决定删除远端分支（GitHub 上提交仍可按 SHA 读取）。重新推送前必须先决定公开范围，见下节。

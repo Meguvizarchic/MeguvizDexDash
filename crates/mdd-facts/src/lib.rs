@@ -1,4 +1,5 @@
 //! Snapshot-scoped exact facts. Metadata completion never implies complete audit facts.
+pub mod analysis;
 pub mod annotations;
 pub mod code;
 pub mod coverage;

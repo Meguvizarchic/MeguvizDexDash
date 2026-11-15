@@ -1,0 +1,245 @@
+{
+ "schema_version": "mdd.analysis-capability-qualification.v1",
+ "task": "MDD-075",
+ "kind": "development evidence for an optional analysis; admits no profile and adds no gate",
+ "analysis_version": "mdd.analysis.v1",
+ "scope": "single-method-intraprocedural-v1",
+ "capabilities": [
+  {
+   "name": "control_flow_graph",
+   "provided": true,
+   "precision": "exact for the decoded code: every branch, switch case, fall-through and return is drawn; anything that does not fit is an issue, not an edge"
+  },
+  {
+   "name": "exception_edges",
+   "provided": true,
+   "precision": "over-approximate: every may-throw instruction in a try may enter every handler of that try, and leaves the method when there is no catch-all; handler types are not matched, so these edges are 'possible'"
+  },
+  {
+   "name": "register_def_use",
+   "provided": true,
+   "precision": "a may-analysis over registers only: the reaching set is a superset of what can reach a use; fields, array elements and the heap are not tracked"
+  },
+  {
+   "name": "call_site_classification",
+   "provided": true,
+   "precision": "classification, never resolution: a site names a method, or is dispatch-dependent, or is unknown (polymorphic, custom bootstrap, reflection, code loading); callee sets are not computed"
+  },
+  {
+   "name": "method_local_reachability",
+   "provided": true,
+   "precision": "yes (certain or maybe), no (proven only on a complete, well-formed CFG) or unknown with causes"
+  },
+  {
+   "name": "constant_propagation",
+   "provided": false,
+   "reason": "not implemented"
+  },
+  {
+   "name": "interprocedural_call_graph",
+   "provided": false,
+   "reason": "calls are classified, not followed"
+  },
+  {
+   "name": "heap_field_and_array_analysis",
+   "provided": false,
+   "reason": "not implemented"
+  },
+  {
+   "name": "type_inference",
+   "provided": false,
+   "reason": "not implemented"
+  }
+ ],
+ "acceptance": [
+  {
+   "acceptance": "the CFG handles branches, switches, payloads, try/catch and unreachable or invalid ranges, and positions trace back to the DEX",
+   "tests": [
+    {
+     "test": "analysis::tests::every_hand_fixture_matches_its_hand_derived_expectation",
+     "outcome": "ok"
+    },
+    {
+     "test": "analysis::tests::the_opcode_table_agrees_with_aosp_for_all_256_opcodes",
+     "outcome": "ok"
+    },
+    {
+     "test": "analysis::tests::register_roles_follow_the_opcode_family_for_every_opcode",
+     "outcome": "ok"
+    },
+    {
+     "test": "analysis::tests::every_real_code_item_yields_a_consistent_cfg_and_chains",
+     "outcome": "ok"
+    },
+    {
+     "test": "analysis::tests::blocks_trace_back_to_dex_offsets_and_to_source_lines",
+     "outcome": "ok"
+    },
+    {
+     "test": "analysis::tests::an_exception_edge_is_only_usable_from_the_throwing_instruction_onward",
+     "outcome": "ok"
+    },
+    {
+     "test": "analysis::tests::no_path_is_refused_when_the_graph_left_something_out",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  },
+  {
+   "acceptance": "results carry the analysis version, assumptions, required scope and precision or coverage status, and an unknown target is never written as a definite call edge",
+   "tests": [
+    {
+     "test": "analysis::tests::a_result_carries_its_version_scope_assumptions_and_status",
+     "outcome": "ok"
+    },
+    {
+     "test": "analysis::tests::calls_are_classified_and_none_is_resolved_to_a_callee",
+     "outcome": "ok"
+    },
+    {
+     "test": "analysis::tests::hand_assembled_calls_are_classified_by_opcode_and_by_try_membership",
+     "outcome": "ok"
+    },
+    {
+     "test": "analysis::tests::reachability_says_yes_certainly_yes_maybe_and_a_proven_no",
+     "outcome": "ok"
+    },
+    {
+     "test": "analysis::tests::the_result_says_whether_method_names_were_consulted_for_calls",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  },
+  {
+   "acceptance": "reflection, dynamic loading and invoke-custom are explicitly unknown, and an empty set is never used to claim there is no path",
+   "tests": [
+    {
+     "test": "analysis::tests::reflection_and_loaders_hide_the_target_whatever_the_opcode_says",
+     "outcome": "ok"
+    },
+    {
+     "test": "analysis::tests::calls_are_classified_and_none_is_resolved_to_a_callee",
+     "outcome": "ok"
+    },
+    {
+     "test": "analysis::tests::no_path_is_refused_when_the_graph_left_something_out",
+     "outcome": "ok"
+    },
+    {
+     "test": "analysis::tests::an_offset_that_is_not_an_instruction_is_unknown_not_no",
+     "outcome": "ok"
+    },
+    {
+     "test": "analysis::tests::a_path_that_loops_back_through_the_start_block_is_found_not_denied",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  },
+  {
+   "acceptance": "the declared properties hold on independent hand fixtures and under metamorphic tests, and a budget interruption is marked incomplete",
+   "tests": [
+    {
+     "test": "analysis::tests::every_hand_fixture_matches_its_hand_derived_expectation",
+     "outcome": "ok"
+    },
+    {
+     "test": "oracle: every hand fixture agrees with an independent implementation",
+     "outcome": "ok"
+    },
+    {
+     "test": "oracle: damaged expectations are caught",
+     "outcome": "ok"
+    },
+    {
+     "test": "analysis::tests::renaming_registers_renames_the_chains_and_changes_nothing_else",
+     "outcome": "ok"
+    },
+    {
+     "test": "analysis::tests::a_leading_trampoline_adds_one_block_and_one_edge_and_changes_nothing_else",
+     "outcome": "ok"
+    },
+    {
+     "test": "analysis::tests::dead_code_appended_at_the_end_never_changes_what_the_reachable_part_says",
+     "outcome": "ok"
+    },
+    {
+     "test": "analysis::tests::a_budget_interruption_is_reported_and_leaves_no_partial_facts",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  },
+  {
+   "acceptance": "the ordinary core release does not wait for this optional capability",
+   "tests": [
+    {
+     "test": "analysis::tests::nothing_outside_the_analysis_module_depends_on_it",
+     "outcome": "ok"
+    }
+   ],
+   "all_passed": true
+  }
+ ],
+ "fixtures": {
+  "file": "conformance/analysis/soundness-cases.json",
+  "cases": 16,
+  "independent_oracle": "conformance/analysis/oracle.py",
+  "oracle_agreed": true
+ },
+ "tests": {
+  "rust": {
+   "exit_code": 0,
+   "passed": 21,
+   "failed": 0
+  },
+  "clippy_exit_code": 0,
+  "oracle_controls_exit_code": 0,
+  "log_sha256": {
+   "rust": "82b3f85601a2f8429187151983de70891d425d6e02ab6d55aa4b25e48f5bb96b",
+   "clippy": "52f15570f8b9d7832c6d597fb3a222ca47ddeae841153f28c4159e684e44bc8a",
+   "oracle": "3b6103199eec9b1ef777c12b96068d91deda74168d421f22432ec9f63bf7aefe",
+   "oracle_controls": "5f13e82b96892add71d1b30c607eeb946ca182c7d37f3a5d1c913b5d4120fa0b"
+  },
+  "raw_logs_kept_at": "artifacts/local/ (ignored; carries developer-machine output)"
+ },
+ "inputs_sha256": {
+  "crates/mdd-facts/src/analysis/mod.rs": "fb11134f61607aac87253c7c56757cb28630eb7170c51c856dc35f84b2a19f9f",
+  "crates/mdd-facts/src/analysis/cfg.rs": "eb1cc60bce317a51c8099e5ce10408c9094f99c93d2b3ebd1103a96a5bdb3df5",
+  "crates/mdd-facts/src/analysis/defuse.rs": "18e01895d4d400213e5d979abd02f37408d2c4708a9ee45e483d2a1a66a1c15f",
+  "crates/mdd-facts/src/analysis/reach.rs": "ed0613cec0960853ae4a188ad95a9c69f4447c7b8bc3bcb24cffd6e7999ebacf",
+  "crates/mdd-facts/src/analysis/calls.rs": "37c5d84b192f67391f285760972b1503c551bb86a8fd380b8704b035cb4d5d5d",
+  "crates/mdd-facts/src/analysis/opcodes.rs": "bc03ac2020bf6bde36b2841ec29c24b402549118d52246d5ebc268561ba89acc",
+  "crates/mdd-facts/src/analysis/tests.rs": "f8ee5e82e1951e50aa7cc70465a3e917d0245e4653e418922eb7476d69dc6268",
+  "conformance/analysis/soundness-cases.json": "44010c8eb1dc53ce71bda390db33005ca1ba6ec155ccc8cb57291d343771805c",
+  "conformance/analysis/oracle.py": "f577c834d22be8b2d8f09ba992022b9fe1be583db7aea87a918b92d363832cb9",
+  "artifacts/mdd-023/aosp-reference/dex_instruction_list.h": "6dec605fb0d44317eb8534fe7c186d6d0fdeb651375f618de5a929f76d60ef45"
+ },
+ "mutation_check": {
+  "file": "artifacts/mdd-075/mutation/results.txt",
+  "script": "artifacts/mdd-075/mutation/mutate_analysis.py",
+  "present": true,
+  "current": true,
+  "killed": 15,
+  "survived": [],
+  "errors": 0,
+  "restored_tree_passes": true
+ },
+ "if_a_rule_depends_on_this": "a HostLab rule that needs CFG, def-use or reachability would need its own required gate before the rule is enabled; this record is not that gate",
+ "residual": [
+  "single method only: no call is followed, so there is no whole-program reachability or call graph",
+  "exception edges are over-approximate by design; the handler type is never matched, so 'possible' exception edges can be infeasible",
+  "def-use covers registers only; values that travel through fields, arrays or the heap are invisible to it",
+  "register roles of opcodes the hand fixtures do not use are checked against opcode-name families and AOSP operand shapes, not against hand-derived programs",
+  "reflection and code-loading calls are recognised by name through an Environment built from the DEX's method references; the repository's fixtures contain none, so that path is exercised with hand-made references and a real invoke whose index is marked",
+  "wide register pairs are modelled as two registers and their pairing is not validated",
+  "no constant propagation, no type inference, no heap analysis",
+  "one Windows host; Linux is covered only by the repository CI",
+  "the runner and its --check are not wired into CI"
+ ],
+ "run": {
+  "started_utc": "2026-11-15T05:52:33.906114+00:00"
+ }
+}

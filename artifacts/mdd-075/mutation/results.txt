@@ -1,0 +1,17 @@
+KILLED   an uncaught exception no longer leaves the method
+KILLED   fall-through issues are kept for dead blocks
+KILLED   a try range no longer ends a block
+KILLED   packed switch keys are off by one
+KILLED   a handler gets no state from the throwing instruction
+KILLED   a wide operand is treated as one register
+KILLED   move-result does not read the invoke's result
+KILLED   the dataflow budget is not enforced
+KILLED   a use is recorded once per mention
+KILLED   no path is proven even when the graph is not well formed
+KILLED   an exception edge is usable from before its throwing instruction
+KILLED   the search cannot go round a loop back into the start block
+KILLED   every path is reported as certain
+KILLED   a virtual call is reported as the named method
+KILLED   div-int is taken not to throw
+restored tree passes the analysis tests and the oracle: True
+sources sha256: 7bdbed353a00e8d5d8b0a37469390e7fef3b50eb650f6b3296ca78c2c4ea291e
