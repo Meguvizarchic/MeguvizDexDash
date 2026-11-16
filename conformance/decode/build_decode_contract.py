@@ -143,6 +143,8 @@ CASES = [
     ("method-with-debug-info", "decode-class.dex", {"method": K + "->f(IJLjava/lang/String;)V"}),
     ("method-with-r8-debug-info", "decode-class.dex", {"method": K + "->r8()V"}),
     ("method-with-annotations", "decode-class.dex", {"method": K + "->g(I)V"}),
+    ("method-instance-with-named-and-annotated-parameters", "decode-class.dex", {"method": K + "->h(IJ)V"}),
+    ("class-summary-byte-budget", "decode-all.dex", {"class": T, "method_limit": 50, "max_bytes": 600}),
     ("annotation-values-of-every-kind", "annotations-038.dex", {"class": "Lfixture/A;", "mode": "smali", "max_lines": 1000, "method_limit": 1}),
 ]
 

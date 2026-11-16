@@ -1250,6 +1250,38 @@ fn a_byte_budget_on_a_class_page_is_one_budget_for_all_its_text() {
 }
 
 #[test]
+fn a_byte_budget_on_a_class_summary_counts_the_serialized_rows_and_ends_the_page_before_the_one_that_passes_it()
+ {
+    let mut server = Mcp::ready(&[]);
+    let id = open_decode(&mut server, &["decode-all.dex"]);
+    let (page, error) = server.tool(
+        "decode",
+        json!({"dataset_id":id,"class":"Ldecode/T;","method_limit":50,"max_bytes":600}),
+    );
+    assert!(!error, "{page}");
+    let rows = page["methods"].as_array().unwrap();
+    let bytes: usize = rows.iter().map(|row| row.to_string().len()).sum();
+    assert!(bytes <= 600, "{bytes} bytes of rows");
+    assert!(rows.len() > 1 && rows.len() < 50, "{} rows", rows.len());
+    assert_eq!(page["next_method_offset"].as_u64(), Some(rows.len() as u64));
+    // the next row would have passed the budget
+    let (more, _) = server.tool(
+        "decode",
+        json!({"dataset_id":id,"class":"Ldecode/T;","method_offset":rows.len(),"method_limit":1}),
+    );
+    let next_row = more["methods"][0].to_string().len();
+    assert!(bytes + next_row > 600, "{bytes} + {next_row}");
+    // a budget smaller than one row still shows that row, and the page advances
+    let (one, error) = server.tool(
+        "decode",
+        json!({"dataset_id":id,"class":"Ldecode/T;","max_bytes":1}),
+    );
+    assert!(!error, "{one}");
+    assert_eq!(one["methods"].as_array().unwrap().len(), 1);
+    assert_eq!(one["next_method_offset"], 1);
+}
+
+#[test]
 fn the_context_names_the_lines_of_the_full_text_and_pages_on_its_own() {
     let mut server = Mcp::ready(&[]);
     let id = open_decode(&mut server, &["decode-all.dex"]);
@@ -1374,7 +1406,7 @@ fn a_class_with_annotations_fields_and_debug_info_is_shown_with_all_of_them() {
         ".field static j_type:Ljava/lang/Class; = Ljava/lang/String;\n",
         ".field static k_null:Ljava/lang/Object; = null\n",
         ".field static z_none:I\n",
-        ".field private volatile transient n_annotated:Ljava/lang/String;\n    .annotation build Ldecode/Ann;\n        count = 0x7ft\n    .end annotation\n.end field\n",
+        ".field private volatile transient n_annotated:Ljava/lang/String;\n    .annotation build Ldecode/Ann;\n        count = 0x7ft\n        k = {}\n    .end annotation\n.end field\n",
     ] {
         assert!(text.contains(wanted), "{wanted:?} is not in {text}");
     }
@@ -1404,6 +1436,20 @@ fn a_class_with_annotations_fields_and_debug_info_is_shown_with_all_of_them() {
         f["omitted"],
         json!({"debug_events_not_at_an_instruction": 1, "positions_not_source_lines": 1})
     );
+    // an instance method: p0 is `this`, so the first parameter is p1 and the long that follows starts at p2
+    let h = by_name("h(IJ)V")["smali"].as_str().unwrap().to_owned();
+    assert!(
+        h.contains("    .param p1, \"x\"\n    .param p2, \"y\"\n        .annotation runtime Ldecode/Ann;\n        .end annotation\n    .end param\n"),
+        "{h}"
+    );
+    assert!(
+        h.contains("    .local p1, \"x\":I\n    .local p2, \"y\":J\n    .line 40\n    nop\n    .end local p1\n    return-void\n"),
+        "{h}"
+    );
+    assert!(
+        !h.contains("p0"),
+        "p0 is this and no parameter is called that: {h}"
+    );
     // the pc-to-pc pattern writes no line
     let r8 = by_name("r8()V");
     assert!(!r8["smali"].as_str().unwrap().contains(".line"));
@@ -1420,7 +1466,7 @@ fn a_class_with_annotations_fields_and_debug_info_is_shown_with_all_of_them() {
     assert!(!error, "{cut}");
     assert_eq!(cut["class"]["truncated"], true);
     assert_eq!(cut["class"]["end_line"], 5);
-    assert_eq!(cut["class"]["total_lines"], 31);
+    assert_eq!(cut["class"]["total_lines"], 32);
     // a later page of the methods does not repeat the class text
     let (later, _) = server.tool(
         "decode",

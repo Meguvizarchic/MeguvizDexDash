@@ -308,6 +308,28 @@ def check_class_pages(report: Report, client: McpClient, datasets: dict) -> None
         if set(rebuilt) != set(wanted) or any(rebuilt[i] != from_each[i] for i in wanted):
             bad.append("the pages and the continuations do not rebuild every method's text")
         report.add(f"max_bytes {budget} on a class page bounds its text, and cut methods continue on their own to the same text", not bad, json.dumps(bad[:3]))
+    # in summary mode there is no text: the budget counts the serialized bytes of the rows, and a page ends before the row that would pass it
+    def row_bytes(row: dict) -> int:
+        return len(json.dumps(row, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
+
+    bad = []
+    for budget in (200, 600, 3000):
+        pages = walk_class(client, dataset, descriptor, mode="summary", method_limit=50, max_bytes=budget)
+        seen = [m["method_idx"] for p in pages for m in p["methods"]]
+        if seen != wanted:
+            bad.append(f"budget {budget}: the pages do not list the class's methods once, in order")
+        for i, page in enumerate(pages):
+            total = sum(row_bytes(m) for m in page["methods"])
+            if total > budget and len(page["methods"]) > 1:
+                bad.append(f"page {i}: {total} serialized bytes of rows over a budget of {budget}")
+            if not page["methods"]:
+                bad.append(f"page {i}: empty")
+            if i < len(pages) - 1 and len(page["methods"]) == 50:
+                bad.append(f"page {i}: the budget did not end the page before the method limit did")
+        if budget <= 600 and len(pages) < 3:
+            bad.append(f"budget {budget}: {len(pages)} pages, a small budget should make many")
+    report.add("max_bytes on a class summary bounds the serialized bytes of its rows, ends the page before the row that would pass it, and the pages still list every method once",
+               not bad, json.dumps(bad[:3]))
     tiny = decode(client, dataset, **{"class": descriptor}, mode="smali", max_bytes=0)
     report.add("a byte budget that cannot hold one character is an error, not an empty page", tiny["_is_error"] and tiny["error"]["kind"] == "invalid_input", json.dumps(tiny.get("error")))
 

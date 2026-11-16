@@ -382,11 +382,22 @@ fn debug_line(
             Some(index) => format!(".source {}", context.string_literal(index)?),
             None => ".source null".to_owned(),
         },
-        _ => match event.source_line {
-            Some(line) if event.source_line_usable => format!(".line {}", line.0),
-            _ => return Ok(EventLine::NotASourceLine),
+        _ => match position_directive(event) {
+            Some(line) => line,
+            None => return Ok(EventLine::NotASourceLine),
         },
     }))
+}
+
+/// `.line N` for a position that is a source line; `None` for any other. The debug layer
+/// keeps `source_line` empty unless the position is usable, so the two tests agree on every
+/// event it makes; both are asked, because an event is a public value and a line the layer
+/// did not call usable is not written as one whatever else it carries.
+fn position_directive(event: &DebugEvent) -> Option<String> {
+    Some(match event.source_line {
+        Some(line) if event.source_line_usable => format!(".line {}", line.0),
+        _ => return None,
+    })
 }
 
 #[cfg(test)]
@@ -454,6 +465,24 @@ mod tests {
         assert_eq!(placed.len(), 3, "{placed:?}");
         assert_eq!(unplaced, 2, "one inside an instruction, one past the code");
         assert_eq!(not_lines, 1);
+    }
+
+    #[test]
+    fn only_a_position_the_debug_layer_calls_usable_is_written_as_a_line() {
+        use DebugAddressScope::InsideCodeUnits;
+        let usable = event(0x0e, 0, InsideCodeUnits, Some(10));
+        assert_eq!(position_directive(&usable), Some(".line 10".to_owned()));
+        // a line is present but the layer did not call the position usable: a pc surrogate, a
+        // position outside the code, a non-positive line; none of them is a source line
+        let mut surrogate = event(0x0e, 0, InsideCodeUnits, Some(10));
+        surrogate.source_line_usable = false;
+        surrogate.source_line_kind = SourceLineKind::PcSurrogate;
+        assert_eq!(position_directive(&surrogate), None);
+        let no_line = event(0x0e, 0, InsideCodeUnits, None);
+        assert_eq!(position_directive(&no_line), None);
+        let mut flagged_without_line = event(0x0e, 0, InsideCodeUnits, None);
+        flagged_without_line.source_line_usable = true;
+        assert_eq!(position_directive(&flagged_without_line), None);
     }
 
     #[test]

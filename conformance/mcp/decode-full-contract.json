@@ -1183,19 +1183,19 @@
      "class_def_idx": 1,
      "declaration": ".class public final Ldecode/K;",
      "descriptor": "Ldecode/K;",
-     "end_line": 31,
+     "end_line": 32,
      "file_id": 0,
      "instance_fields": 2,
      "interfaces": [
       "Ldecode/Marker;",
       "Ljava/lang/Runnable;"
      ],
-     "smali": ".class public final Ldecode/K;\n.super Ljava/lang/Object;\n.source \"K.java\"\n\n.implements Ldecode/Marker;\n.implements Ljava/lang/Runnable;\n\n.annotation runtime Ldecode/Ann;\n    count = 0x3\n    k = \"kk\"\n.end annotation\n\n.field public static final a_int:I = 0x1\n.field private static b_str:Ljava/lang/String; = \"s\\\"q\\n\"\n.field static c_long:J = -0x2L\n.field static d_double:D = 2.5\n.field static e_float:F = 0.1f\n.field static f_bool:Z = true\n.field static g_byte:B = -0x1t\n.field static h_short:S = -0x12cs\n.field static i_char:C = 'A'\n.field static j_type:Ljava/lang/Class; = Ljava/lang/String;\n.field static k_null:Ljava/lang/Object; = null\n.field static z_none:I\n\n.field public m_plain:I\n.field private volatile transient n_annotated:Ljava/lang/String;\n    .annotation build Ldecode/Ann;\n        count = 0x7ft\n    .end annotation\n.end field\n",
+     "smali": ".class public final Ldecode/K;\n.super Ljava/lang/Object;\n.source \"K.java\"\n\n.implements Ldecode/Marker;\n.implements Ljava/lang/Runnable;\n\n.annotation runtime Ldecode/Ann;\n    count = 0x3\n    k = \"kk\"\n.end annotation\n\n.field public static final a_int:I = 0x1\n.field private static b_str:Ljava/lang/String; = \"s\\\"q\\n\"\n.field static c_long:J = -0x2L\n.field static d_double:D = 2.5\n.field static e_float:F = 0.1f\n.field static f_bool:Z = true\n.field static g_byte:B = -0x1t\n.field static h_short:S = -0x12cs\n.field static i_char:C = 'A'\n.field static j_type:Ljava/lang/Class; = Ljava/lang/String;\n.field static k_null:Ljava/lang/Object; = null\n.field static z_none:I\n\n.field public m_plain:I\n.field private volatile transient n_annotated:Ljava/lang/String;\n    .annotation build Ldecode/Ann;\n        count = 0x7ft\n        k = {}\n    .end annotation\n.end field\n",
      "source_file": "K.java",
      "static_fields": 12,
      "superclass": "Ljava/lang/Object;",
-     "total_bytes": 840,
-     "total_lines": 31,
+     "total_bytes": 855,
+     "total_lines": 32,
      "truncated": false
     },
     "dataset_id": "DS",
@@ -1263,6 +1263,25 @@
       "try_count": 0
      },
      {
+      "access_flags": 1,
+      "code_units": 2,
+      "declaration": ".method public h(IJ)V",
+      "descriptor": "Ldecode/K;->h(IJ)V",
+      "end_line": 15,
+      "ends_mid_line": false,
+      "file_id": 0,
+      "method_idx": 3,
+      "next_offset": null,
+      "offset": 0,
+      "registers": 5,
+      "smali": ".method public h(IJ)V\n    .registers 5\n    .param p1, \"x\"\n    .param p2, \"y\"\n        .annotation runtime Ldecode/Ann;\n        .end annotation\n    .end param\n\n    .local p1, \"x\":I\n    .local p2, \"y\":J\n    .line 40\n    nop\n    .end local p1\n    return-void\n.end method\n",
+      "start_line": 0,
+      "starts_mid_line": false,
+      "total_bytes": 267,
+      "total_lines": 15,
+      "try_count": 0
+     },
+     {
       "access_flags": 9,
       "code_units": 3,
       "declaration": ".method public static r8()V",
@@ -1270,7 +1289,7 @@
       "end_line": 7,
       "ends_mid_line": false,
       "file_id": 0,
-      "method_idx": 3,
+      "method_idx": 4,
       "next_offset": null,
       "offset": 0,
       "omitted": {
@@ -1292,7 +1311,7 @@
       "end_line": 7,
       "ends_mid_line": false,
       "file_id": 0,
-      "method_idx": 4,
+      "method_idx": 5,
       "next_offset": null,
       "offset": 0,
       "registers": 1,
@@ -1307,7 +1326,7 @@
     "mode": "smali",
     "next_method_offset": null,
     "text_format": "mdd.smali.v1",
-    "total_methods": 5
+    "total_methods": 6
    },
    "request": {
     "class": "Ldecode/K;",
@@ -1367,7 +1386,7 @@
     "mode": "context",
     "next_method_offset": 1,
     "text_format": "mdd.smali-context.v1",
-    "total_methods": 5
+    "total_methods": 6
    },
    "request": {
     "class": "Ldecode/K;",
@@ -1409,7 +1428,7 @@
       "end_line": 2,
       "ends_mid_line": false,
       "file_id": 0,
-      "method_idx": 5,
+      "method_idx": 6,
       "next_offset": null,
       "offset": 0,
       "registers": null,
@@ -1488,7 +1507,7 @@
       "end_line": 7,
       "ends_mid_line": false,
       "file_id": 0,
-      "method_idx": 3,
+      "method_idx": 4,
       "next_offset": null,
       "offset": 0,
       "omitted": {
@@ -1547,6 +1566,104 @@
    },
    "request": {
     "method": "Ldecode/K;->g(I)V"
+   }
+  },
+  {
+   "fixture": "decode-class.dex",
+   "id": "method-instance-with-named-and-annotated-parameters",
+   "is_error": false,
+   "reply": {
+    "dataset_id": "DS",
+    "method_offset": 0,
+    "methods": [
+     {
+      "access_flags": 1,
+      "code_units": 2,
+      "declaration": ".method public h(IJ)V",
+      "descriptor": "Ldecode/K;->h(IJ)V",
+      "end_line": 15,
+      "ends_mid_line": false,
+      "file_id": 0,
+      "method_idx": 3,
+      "next_offset": null,
+      "offset": 0,
+      "registers": 5,
+      "smali": ".method public h(IJ)V\n    .registers 5\n    .param p1, \"x\"\n    .param p2, \"y\"\n        .annotation runtime Ldecode/Ann;\n        .end annotation\n    .end param\n\n    .local p1, \"x\":I\n    .local p2, \"y\":J\n    .line 40\n    nop\n    .end local p1\n    return-void\n.end method\n",
+      "start_line": 0,
+      "starts_mid_line": false,
+      "total_bytes": 267,
+      "total_lines": 15,
+      "try_count": 0
+     }
+    ],
+    "mode": "smali",
+    "next_method_offset": null,
+    "text_format": "mdd.smali.v1",
+    "total_methods": 1
+   },
+   "request": {
+    "method": "Ldecode/K;->h(IJ)V"
+   }
+  },
+  {
+   "fixture": "decode-all.dex",
+   "id": "class-summary-byte-budget",
+   "is_error": false,
+   "reply": {
+    "class": {
+     "access_flags": 1,
+     "class_def_idx": 0,
+     "descriptor": "Ldecode/T;",
+     "file_id": 0,
+     "instance_fields": 0,
+     "interfaces": [],
+     "source_file": null,
+     "static_fields": 0,
+     "superclass": "Ljava/lang/Object;"
+    },
+    "dataset_id": "DS",
+    "method_offset": 0,
+    "methods": [
+     {
+      "access_flags": 65544,
+      "code_units": 1,
+      "descriptor": "Ldecode/T;-><clinit>()V",
+      "file_id": 0,
+      "method_idx": 7,
+      "next_offset": null,
+      "registers": 1,
+      "try_count": 0
+     },
+     {
+      "access_flags": 65537,
+      "code_units": 4,
+      "descriptor": "Ldecode/T;-><init>()V",
+      "file_id": 0,
+      "method_idx": 8,
+      "next_offset": null,
+      "registers": 1,
+      "try_count": 0
+     },
+     {
+      "access_flags": 1025,
+      "code_units": null,
+      "descriptor": "Ldecode/T;->abstract_one(I)I",
+      "file_id": 0,
+      "method_idx": 9,
+      "next_offset": null,
+      "registers": null,
+      "try_count": null
+     }
+    ],
+    "mode": "summary",
+    "next_method_offset": 3,
+    "text_format": null,
+    "total_methods": 238
+   },
+   "request": {
+    "class": "Ldecode/T;",
+    "max_bytes": 600,
+    "method_limit": 50
    }
   },
   {
@@ -1664,11 +1781,11 @@
  "fixtures_sha256": {
   "annotations-038.dex": "65380a8b23601e17339379be211e417d8b4c8383b686b6d173f800656b985360",
   "decode-all.dex": "e8c3b982b4c2aeeed45c46e00fcc01d008f1fbe9547cf29cb6a1f2bf84de266b",
-  "decode-class.dex": "a2669980e5134ce507b659d5722576a6e716abe8693b1072b193a6432038266e",
+  "decode-class.dex": "74b844eecb49b9a75c86d6390b7ed3319f6e2a0109ad897fa9cc71feccaa4ea3",
   "decode-v035.dex": "67f13c5b15bd25c5c1256faebcb6e99f3ada6c5f094c391900685b582ec7eae1"
  },
  "hand_written_texts": {
-  "entries": 11,
+  "entries": 13,
   "file": "conformance/decode/hand-expected-class.txt"
  },
  "not_facts": [

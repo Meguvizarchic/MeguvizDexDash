@@ -144,7 +144,7 @@
    "equal": 252,
    "total": 252
   },
-  "recorded_utc": "2026-11-16T09:51:43Z",
+  "recorded_utc": "2026-11-16T14:35:13Z",
   "reference": {
    "name": "dexsql",
    "origin": "https://github.com/LSPosed/dexsql-release/releases/download/v0.1.0/dexsql-windows-amd64.exe",
@@ -374,31 +374,31 @@
    },
    {
     "equal": true,
-    "name": "decode-class.dex: 2 classes, 6 methods: the class texts equal the independent reader's"
+    "name": "decode-class.dex: 2 classes, 7 methods: the class texts equal the independent reader's"
    },
    {
     "equal": true,
-    "name": "decode-class.dex: 2 classes, 6 methods: the class context views equal the independent reader's"
+    "name": "decode-class.dex: 2 classes, 7 methods: the class context views equal the independent reader's"
    },
    {
     "equal": true,
-    "name": "decode-class.dex: 2 classes, 6 methods: the method texts (all pages) equal the independent reader's"
+    "name": "decode-class.dex: 2 classes, 7 methods: the method texts (all pages) equal the independent reader's"
    },
    {
     "equal": true,
-    "name": "decode-class.dex: 2 classes, 6 methods: access flags, registers, code units, tries and declaration equal the code item's"
+    "name": "decode-class.dex: 2 classes, 7 methods: access flags, registers, code units, tries and declaration equal the code item's"
    },
    {
     "equal": true,
-    "name": "decode-class.dex: 2 classes, 6 methods: every page number (byte offset, lines, mid-line flags, totals) equals the text's own"
+    "name": "decode-class.dex: 2 classes, 7 methods: every page number (byte offset, lines, mid-line flags, totals) equals the text's own"
    },
    {
     "equal": true,
-    "name": "decode-class.dex: 2 classes, 6 methods: the context views equal the independent reader's and name the full text's line count"
+    "name": "decode-class.dex: 2 classes, 7 methods: the context views equal the independent reader's and name the full text's line count"
    },
    {
     "equal": true,
-    "name": "decode-class.dex: 2 classes, 6 methods: `omitted` counts what the independent reader leaves out"
+    "name": "decode-class.dex: 2 classes, 7 methods: `omitted` counts what the independent reader leaves out"
    },
    {
     "equal": true,
@@ -430,7 +430,7 @@
    },
    {
     "equal": true,
-    "name": "the 11 hand-written class and method texts equal both the engine's and the independent reader's"
+    "name": "the 13 hand-written class and method texts equal both the engine's and the independent reader's"
    },
    {
     "equal": true,
@@ -467,6 +467,10 @@
    {
     "equal": true,
     "name": "max_bytes 20000 on a class page bounds its text, and cut methods continue on their own to the same text"
+   },
+   {
+    "equal": true,
+    "name": "max_bytes on a class summary bounds the serialized bytes of its rows, ends the page before the row that would pass it, and the pages still list every method once"
    },
    {
     "equal": true,
@@ -659,31 +663,31 @@
   ],
   "counts": {
    "classes": 5,
-   "method texts": 248
+   "method texts": 249
   },
   "failed": 0,
-  "passed": 89
+  "passed": 90
  },
  "inputs_sha256": {
-  "conformance/decode/a0-golden.json": "b1aadc174f97eea1490772a11d99b90362bb7ab52604d3dfaeffde811443f6e8",
+  "conformance/decode/a0-golden.json": "3395b655341781101e7838d8a9e255a94acf19ef634dbfcffdfabba8c9e64e57",
   "conformance/decode/a0_cases.py": "c0f96d4c370ab3b246312c84a3d52e408fb8e9a7324f932cb2f747d73a125a59",
   "conformance/decode/a0_replay.py": "57e987af455f15c584a2dd6c5e8c5832ab749d527a9a8941d617ef233458e426",
-  "conformance/decode/build_decode_contract.py": "671c0211969a867174bab21a9b1f6c67a97aac34a66389174f9a7809aa52d732",
-  "conformance/decode/generate_a0_golden.py": "dbbe762cb1851fe39521d147af315eefd0af2205d457b4ee2b6ce71e541218a0",
-  "conformance/decode/hand-expected-class.txt": "5baf10c48f67a23abab5f12de4c84b1fe1df76daf307c675a08b7661e49a4520",
+  "conformance/decode/build_decode_contract.py": "6fd58bf44304e94aa61d558d12f9e5e47f4fad4c9e10d12b81a366af68b30516",
+  "conformance/decode/generate_a0_golden.py": "f6818aa91b1ced6fe84aeb42599a6b51973b7d6aedbd6ec917acd150380f7870",
+  "conformance/decode/hand-expected-class.txt": "ad88ba4074ed251e188bef7d855bd96cb1658dfde4ec8b48b254cd714161e2fe",
   "conformance/decode/hand-expected.txt": "3dfad5ab67a2c9e86a60024d06a1284ab08002a1953c8cd39eb89e505af218e8",
   "conformance/decode/oracle.py": "45b3d4d051fbf0a931fe16544235b1585722eeac05d7562f3ce266bdd64ec835",
   "conformance/decode/oracle_class.py": "88be64424f4a95752f7db53bcae4ad4258d79322f0f3a5d1c72d4a0b459ebf27",
   "conformance/decode/run_decode_conformance.py": "f5a06e549155d4e49ce2095a73b696c487c86191c7d059135923114b43bbf1bc",
-  "conformance/decode/run_decode_full.py": "535c284cc6106641817accee97d70f2f8b8e433881788ebbf965eb369bd9f6d1",
+  "conformance/decode/run_decode_full.py": "0831fe4d8db3e14dc869c3cf76589f287db89a01a9b33c107bc7f3c653202064",
   "conformance/decode/test_a0_replay.py": "9ca5b8bb06b9252497e0aa54daea79dfafeb9377bf45e41a4ccca33e670d934d",
   "conformance/decode/test_decode_full.py": "6d98ec250ec95dc569609df4da387d9b338fa83517440da8af1e7a1bdecf97bd",
-  "conformance/mcp/decode-full-contract.json": "43c00a124846e1ae2061eef130ec822416b5e6fbeccf94cdb21a331938ec1e55",
-  "crates/mdd-cli/tests/mcp.rs": "84826374e4d4410eece0fc84df87c2fb6bfc74d0ee85db0ca60affbc18730c7b",
+  "conformance/mcp/decode-full-contract.json": "59994b22c931ad2b178d0baf858ddc5f217141fa732c9d707846b3b655f43095",
+  "crates/mdd-cli/tests/mcp.rs": "173236d88e4c3960f27ea97405dfb818395a8d354a5f234c3f29f9706d54e9bb",
   "crates/mdd-facts/src/smali/annotation.rs": "9902e1ff6f7595e3ac5d2f5e7ef265da9766ee8e19e019638bc7885ea30b0f4f",
   "crates/mdd-facts/src/smali/class.rs": "9ad0997cb60ad13759153c4ea31e6078639cbdee79dbe8c0ba43207c890aefec",
   "crates/mdd-facts/src/smali/context.rs": "3761d08135206afd1f18c84cd6dfcf686d0dfad2374cf1620f009326d9f7239c",
-  "crates/mdd-facts/src/smali/method.rs": "bb6ff0fd0b53b29a6e592dafdaf6f61c3381027b060a47469bded0713b1ecf90",
+  "crates/mdd-facts/src/smali/method.rs": "c9546d5bcb951554eb4047fc4a18e9fabb717394d52b8b6460b5359a5ba562ea",
   "crates/mdd-facts/src/smali/mod.rs": "8b5ff1c1a9faade99d562d8a29c60adc76d7a6279eaa556d246aaa6c07b7e3b0",
   "crates/mdd-facts/src/smali/value.rs": "08e32e7be68000bd9a78633c87364557dc6602ad638e13e7a9eb3e1565fee514",
   "crates/mdd-facts/src/smali_required/mod.rs": "d963e9d1474135931a08556943936eb86ad3d4bb2b47580916bfb0a645598f42",
@@ -692,12 +696,12 @@
   "crates/mdd-mcp/src/tool_schemas.json": "4f3fc454c010dbc6c000ea9a1528dd6e7acd4f011c10232548b881edb459b724",
   "crates/mdd-mcp/src/tools.rs": "8c7e860b6dc94f479daaddabb13f03e2ac494d6b0cf49f16ae67834ddf013743",
   "crates/mdd-service/src/dataset.rs": "d80cd616399f4fb2ba531db9fb20fbaa56ad2432517c0bdc7df6f7bfc45a9a53",
-  "crates/mdd-service/src/decode.rs": "f9b62251b685884c86f7f7c94253ba6f01f673e447621d67e3050a8a8be927db",
+  "crates/mdd-service/src/decode.rs": "d55939c12121f1720ca53d33f6e1d05c482e86fa33a663d7ddc8e1415dc52958",
   "tests/fixtures/annotations/generated/annotations-038.dex": "65380a8b23601e17339379be211e417d8b4c8383b686b6d173f800656b985360",
-  "tests/fixtures/decode/class-manifest.json": "ea71ee6917c46dc3ff8794248f43c16b2cfe8dcd89acfa5706737602393010bd",
+  "tests/fixtures/decode/class-manifest.json": "06c523253bd0f8e4eaf88e195d5dfc5ea7d191feafdeda3590d8d35958b487fd",
   "tests/fixtures/decode/generate.py": "8dd3ff79c7a24249a92ee1c0456f94bda8c92be89a452acd429035d7ac142a9b",
-  "tests/fixtures/decode/generate_class.py": "e129e5a855a2e4981761164245cd1b45989778cf86b53cd96ab8c5ece5522e41",
-  "tests/fixtures/decode/generated/decode-class.dex": "a2669980e5134ce507b659d5722576a6e716abe8693b1072b193a6432038266e",
+  "tests/fixtures/decode/generate_class.py": "f17257c6b69a69a866694a5b13bc1f01cc34ede6e5b7d6ce85f0a2febdec3006",
+  "tests/fixtures/decode/generated/decode-class.dex": "74b844eecb49b9a75c86d6390b7ed3319f6e2a0109ad897fa9cc71feccaa4ea3",
   "tests/fixtures/decode/manifest.json": "43e35c6889b508c11d6c808285fcdcadd6e636843aa2b32751631fdd9adc34cf"
  },
  "kind": "development evidence; admits no profile",
@@ -722,7 +726,7 @@
   "one Windows host; the mutation check is run on request in .github/workflows/mutation-decode.yml"
  ],
  "run": {
-  "started_utc": "2026-11-16T14:21:43Z"
+  "started_utc": "2026-11-16T14:56:26Z"
  },
  "schema_version": "mdd.smali-and-paging-conformance.v1",
  "task": "MDD-071",
@@ -735,22 +739,22 @@
   ],
   "fmt_exit_code": 0,
   "log_sha256": {
-   "clippy": "5545f072f897e5e20bba3f958f5079d40542808e0f5ede324dc86dc7bd6ff4d1",
+   "clippy": "ba39a27b1c229b16c91bd6b6315b952719c2b8609be2240e14e36daa09328316",
    "controls": [
-    "aa832ffd09f102297f4b21039437c25e809a1e17e302677445866aef29839028",
+    "64554e847d7a0cab85ab78642fa05672b4d55c6aeaaea0a9a5060113eeaebaf5",
     "6fb81a3bbae4c7a713cb7b362bed81ae3ab414e3bbd27075ec8d60c27fd6c00b"
    ],
    "rust": [
-    "d573f00b489cce1c05e80664553c6f833e5d863fb9a08ab6849dd41b00ea1330",
-    "9be40e4d3a695dc39ee6aca70703e2a8110a9a0f2ace4cbf41c270de76fe6192",
-    "d3db8c9ecc4e02fcf9886733b79ff570de9f67141e72f0e8d8118d355a8311f4"
+    "8eeff6c2d765019ea672dedde7b764c7d5ae6999ca53bdeba4db899f4fc25249",
+    "7b5e3f72204545de20010664b38117a3ca1355e89048e375c461ce2caffdb32c",
+    "9e9f0851269e783d50122e6051d76b25d1b473665c068cda89b7071dd3d962c1"
    ]
   },
   "raw_logs_kept_at": "artifacts/local/ (ignored; carries developer-machine output)",
   "rust": {
    "exit_code": 0,
    "failed": 0,
-   "passed": 106
+   "passed": 113
   }
  },
  "text_formats": {

@@ -9,7 +9,7 @@ bytes (conformance/decode/oracle.py), so every feature of the class-level text i
 * Ldecode/K; - public final (and ACC_SUPER), source file "K.java", two interfaces (one defined in
   the file, one not), class annotations, twelve static fields whose static-values array holds
   eleven values of every simple kind (the last field has none), two instance fields, one of them
-  annotated and volatile+transient, and four methods:
+  annotated and volatile+transient (its annotation has an empty array), and six methods:
     <init>()V                    a constructor with a debug program of one line
     f(IJLjava/lang/String;)V     parameter names (the second unnamed), every debug opcode, a
                                  position that is no source line, an event inside an instruction,
@@ -17,6 +17,8 @@ bytes (conformance/decode/oracle.py), so every feature of the class-level text i
     g(I)V                        a method annotation and a parameter annotation
     r8()V                        the pc-to-pc debug pattern R8 writes (no event is a source line)
     run()V                       an instance method with one line
+    h(IJ)V                       an instance method: named and annotated parameters whose registers
+                                 start after `this` (a long takes two), locals on parameter registers
 
 Written by hand, byte by byte, from the DEX format; it imports nothing from the engine and no
 reader of annotations or debug programs. Standard library only.
@@ -85,7 +87,7 @@ def shorty(ret: str, params) -> str:
 def build() -> bytes:
     # ---- the names -------------------------------------------------------------------------
     type_names = {"I", "J", "D", "F", "Z", "B", "S", "C", "V", OBJECT, STRING, KLASS, MARKER, ANN, RUNNABLE, CLASS}
-    protos = {("V", ()), ("V", ("I",)), ("V", ("I", "J", STRING))}
+    protos = {("V", ()), ("V", ("I",)), ("V", ("I", "J")), ("V", ("I", "J", STRING))}
     fields = [  # (class, name, type)
         (KLASS, "a_int", "I"), (KLASS, "b_str", STRING), (KLASS, "c_long", "J"), (KLASS, "d_double", "D"),
         (KLASS, "e_float", "F"), (KLASS, "f_bool", "Z"), (KLASS, "g_byte", "B"), (KLASS, "h_short", "S"),
@@ -94,7 +96,8 @@ def build() -> bytes:
     ]
     methods = [  # (class, name, ret, params)
         (KLASS, "<init>", "V", ()), (KLASS, "f", "V", ("I", "J", STRING)), (KLASS, "g", "V", ("I",)),
-        (KLASS, "r8", "V", ()), (KLASS, "run", "V", ()), (MARKER, "ping", "V", ()), (OBJECT, "<init>", "V", ()),
+        (KLASS, "r8", "V", ()), (KLASS, "run", "V", ()), (KLASS, "h", "V", ("I", "J")), (MARKER, "ping", "V", ()),
+        (OBJECT, "<init>", "V", ()),
     ]
     value_strings = ["s\"q\n", "K.java", "kk", "a", "b", "count", "k", "x", "y", "label", "TT;", "F.java"]
     strings = set(type_names) | {shorty(r, p) for r, p in protos} | {f[1] for f in fields} | {m[1] for m in methods}
@@ -131,9 +134,9 @@ def build() -> bytes:
         map_entries.append((kind, count, here()))
 
     # ---- type lists (interfaces and parameters) ----------------------------------------------
-    section(0x1001, 3)
+    section(0x1001, 4)
     param_lists = {}
-    for params in (("I",), ("I", "J", STRING)):
+    for params in (("I",), ("I", "J"), ("I", "J", STRING)):
         align()
         param_lists[params] = here()
         body.extend(struct.pack("<I", len(params)) + b"".join(struct.pack("<H", tid[p]) for p in params))
@@ -153,7 +156,7 @@ def build() -> bytes:
     string_value = lambda s: bytes([0x17, sid[s]])
     annotation_items = {
         "class": annotation(1, ANN, [("count", bytes([0x04, 3])), ("k", string_value("kk"))]),
-        "field": annotation(0, ANN, [("count", bytes([0x00, 0x7F]))]),
+        "field": annotation(0, ANN, [("count", bytes([0x00, 0x7F])), ("k", bytes([0x1C, 0]))]),
         "method": annotation(1, ANN, [("k", bytes([0x1C, 2]) + string_value("a") + string_value("b"))]),
         "param": annotation(1, ANN, []),
     }
@@ -168,18 +171,22 @@ def build() -> bytes:
         align()
         set_off[name] = here()
         body.extend(struct.pack("<II", 1, annotation_off[name]))
-    section(0x1002, 1)
+    section(0x1002, 2)
     ref_list = here()
     body.extend(struct.pack("<II", 1, set_off["param"]))
+    h_ref_list = here()
+    body.extend(struct.pack("<III", 2, 0, set_off["param"]))
     # the directory of K: class set, one annotated field, one annotated method, one annotated parameter list
     section(0x2006, 1)
     directory = here()
     n_annotated = fid[(KLASS, "n_annotated", STRING)]
     g_method = mid[(KLASS, "g", "V", ("I",))]
-    body.extend(struct.pack("<IIII", set_off["class"], 1, 1, 1))
+    h_method = mid[(KLASS, "h", "V", ("I", "J"))]
+    body.extend(struct.pack("<IIII", set_off["class"], 1, 1, 2))
     body.extend(struct.pack("<II", n_annotated, set_off["field"]))
     body.extend(struct.pack("<II", g_method, set_off["method"]))
     body.extend(struct.pack("<II", g_method, ref_list))
+    body.extend(struct.pack("<II", h_method, h_ref_list))
 
     # ---- static values ---------------------------------------------------------------------
     section(0x2005, 2)
@@ -202,7 +209,7 @@ def build() -> bytes:
     body.extend(uleb(len(k_values_list)) + b"".join(k_values_list))
 
     # ---- debug programs --------------------------------------------------------------------
-    section(0x2003, 4)
+    section(0x2003, 5)
     p1 = lambda index: uleb(index + 1)
     debug = {}
     # <init>: line 5 at address 0
@@ -233,9 +240,20 @@ def build() -> bytes:
     # run: line 30 at address 0
     run_debug = here()
     body.extend(uleb(30) + uleb(0) + bytes([0x0E, 0x00]))
+    # h: parameters x and y; locals on both parameter registers, a position, an end of one local
+    # (v1 is `this`, v2 the int, v3-v4 the long: registers 5, ins 4, so the first parameter register is 1)
+    h_debug = here()
+    program = bytearray()
+    program += uleb(40) + uleb(2) + p1(sid["x"]) + p1(sid["y"])
+    program += bytes([0x03, 2]) + p1(sid["x"]) + p1(tid["I"])             # start local v2 (p1) "x":I at 0
+    program += bytes([0x03, 3]) + p1(sid["y"]) + p1(tid["J"])             # start local v3 (p2) "y":J at 0
+    program += bytes([0x0E])                                              # position: line 40 at 0
+    program += bytes([0x01, 1]) + bytes([0x05, 2])                        # pc 1: end local v2 (p1)
+    program += bytes([0x00])
+    body.extend(program)
 
     # ---- code items ------------------------------------------------------------------------
-    section(0x2001, 5)
+    section(0x2001, 6)
     code_off = {}
 
     def code(name: str, registers: int, ins: int, outs: int, debug_off: int, units: list[int]) -> None:
@@ -257,6 +275,7 @@ def build() -> bytes:
     code("g", 1, 1, 0, 0, [0x000E])
     code("r8", 1, 0, 0, debug["r8"], [0x0000, 0x0000, 0x000E])
     code("run", 1, 1, 0, run_debug, [0x000E, 0x0000])
+    code("h", 5, 4, 0, h_debug, [0x0000, 0x000E])
     section(0x2000, 2)
     # ---- class data -----------------------------------------------------------------------
     marker_data = here()
@@ -269,7 +288,7 @@ def build() -> bytes:
     static_names = ["a_int", "b_str", "c_long", "d_double", "e_float", "f_bool", "g_byte", "h_short", "i_char", "j_type", "k_null", "z_none"]
     static_types = ["I", STRING, "J", "D", "F", "Z", "B", "S", "C", CLASS, OBJECT, "I"]
     static_flags = [0x19, 0x2 | 0x8, 0x8, 0x8, 0x8, 0x8, 0x8, 0x8, 0x8, 0x8, 0x8, 0x8]
-    body.extend(uleb(12) + uleb(2) + uleb(4) + uleb(1))
+    body.extend(uleb(12) + uleb(2) + uleb(4) + uleb(2))
     previous = 0
     for name, ty, flags in zip(static_names, static_types, static_flags):
         index = fid[(KLASS, name, ty)]
@@ -286,7 +305,10 @@ def build() -> bytes:
     for index, flags, name in sorted(direct):
         body.extend(uleb(index - previous) + uleb(flags) + uleb(code_off[name]))
         previous = index
-    body.extend(uleb(mid[(KLASS, "run", "V", ())]) + uleb(0x1) + uleb(code_off["run"]))
+    previous = 0
+    for index, flags, name in sorted([(mid[(KLASS, "run", "V", ())], 0x1, "run"), (mid[(KLASS, "h", "V", ("I", "J"))], 0x1, "h")]):
+        body.extend(uleb(index - previous) + uleb(flags) + uleb(code_off[name]))
+        previous = index
 
     # ---- strings ---------------------------------------------------------------------------
     section(0x2002, len(strings))
