@@ -34,6 +34,7 @@ jobs:
         env:
           RUST_BACKTRACE: '1'
         run: |
+          set +e +o pipefail
           exe=$(grep -o 'target/debug/deps/mcp-[0-9a-f]*' build.log | head -1)
           echo "binary: $exe"
           case "${{ matrix.mode }}" in
@@ -47,7 +48,7 @@ jobs:
             if kill -0 $pid 2>/dev/null; then
               echo "::error::HANG in iteration $i (${{ matrix.mode }})"
               echo "--- last output"; tail -60 run-$i.log
-              echo "--- processes"; ps -eo pid,ppid,stat,wchan:22,args --forest | grep -v " ps -eo" | head -80
+              echo "--- processes"; ps -o pid,ppid,stat,wchan:22,args -p "$(pgrep -d, -f 'meguvizdexdash|deps/mcp-')"
               for p in $(pgrep -f 'meguvizdexdash|deps/mcp-'); do
                 echo "=== pid $p: $(tr '\0' ' ' < /proc/$p/cmdline | cut -c1-160)"
                 echo "wchan: $(cat /proc/$p/wchan 2>/dev/null)"
