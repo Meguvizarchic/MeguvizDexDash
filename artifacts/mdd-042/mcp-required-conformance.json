@@ -824,14 +824,14 @@
   ],
   "log_sha256": {
    "rust": [
-    "aac151dcb24d473144ea2082cd70a525a0e7c16ff74d47ac4f688577807dec5c",
-    "7cc8e2fecd45bb4030ccfd8ab8930466f9e8132b263b1da62731dcdc29bf30e3",
-    "09d44983553a1fce2684ac2846701865bf5987aff8010ed3368712cf52f95dd7"
+    "7a88a5cf4c799c05f9ae2318df8b4ea130f50349d3ac5f8adc9491fb1dbbd315",
+    "ff8f41d51f37a2a269005f93d49c673ed541a02ae27678a393181db1c13ef94e",
+    "c6af657d2dfb7c4f62625f0f9dc26e21f59388d664a85933a425ecf351708b3d"
    ],
-   "clippy": "5d2635b24589f42e63fc66d30441fd5629c4bc1495e08d22d68ef643a2e10936",
+   "clippy": "37775b8138bdab4c126356d2e705e1bba4e5b5c4f2ebd58d4456e05bb7b1713b",
    "controls": [
     "2ae2691b3d3801ad0641d8313b60970e02727334cee88f780f22f77a9b498b9f",
-    "d4fd3dbfcd8fd16fd2599890d03186784e5e1b8bac74086d64ffb012e482dc8e"
+    "ba5866503782901ad7f0b7e2f408f8a4d82673dd0be6af045c0cd52a0a85b2cc"
    ]
   },
   "raw_logs_kept_at": "artifacts/local/ (ignored; carries developer-machine output)"
@@ -848,7 +848,7 @@
   "crates/mdd-service/src/manifest.rs": "54b533e54e9e0fc6770347ec62a819a35e09e2e6446eda831bd36e2f4a5ed061",
   "crates/mdd-facts/src/smali_required/mod.rs": "8f618539ad6c09a90e4c6bc8675187555898bedcf922d465457956449cf8efee",
   "crates/mdd-facts/src/smali_required/render.rs": "fefe2584db10a6af225325f812119205dc6af84ea8e5b7f445d87dfb7f6028c4",
-  "crates/mdd-facts/src/smali_required/tests.rs": "43bc7f45d53abac8f1064f4360c94327fcce10d963d42aedc4d375a79aebec74",
+  "crates/mdd-facts/src/smali_required/tests.rs": "81892e6beafbc695d77c9878fe6329aec4160ab0323d1d0dbda0b578d5712592",
   "conformance/mcp/mcp_client.py": "55c470322ba59f432edbb63603188170f47485d1854cc5e97abb792700bec611",
   "conformance/mcp/golden_replay.py": "3ccbb853796f0edec0d52efe2e5305e70f18e73131e2c5a4b208aa4fa17e795a",
   "conformance/mcp/test_golden_replay.py": "9413ec6ec059537cb7e5a0b25f650bd029ebcb7ca63f761e18352a00fe502496",
@@ -896,6 +896,6 @@
   "one Windows host; the MCP process tests run on Linux only in the repository CI"
  ],
  "run": {
-  "started_utc": "2026-11-16T05:46:40.721577+00:00"
+  "started_utc": "2026-11-16T06:12:41.979728+00:00"
  }
 }

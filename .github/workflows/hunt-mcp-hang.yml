@@ -1,0 +1,61 @@
+name: Hunt the MCP process-test hang
+# On Linux the MCP process tests (crates/mdd-cli/tests/mcp.rs) have hung three times: in the first
+# mutation run (3600 s), in an ordinary CI run (cancelled after 20 minutes) and in one mutant of the
+# second mutation run (15 minutes). They never hang on Windows. This runs the test binary over and
+# over under a watchdog; on a hang it prints what each process is waiting for and a backtrace of every
+# thread, and fails. Run it with:  gh workflow run hunt-mcp-hang.yml
+# Delete it when the hang is found and fixed.
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  hunt:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [parallel, serial, parallel2, serial2]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - name: Install fixed Rust toolchain
+        run: rustup toolchain install 1.99.0 --profile minimal
+      - name: Install gdb
+        run: sudo apt-get install -y gdb
+      - name: Fetch exact locked dependencies
+        run: cargo fetch --locked
+      - name: Build the test binary
+        run: cargo test --locked -p mdd-cli --test mcp --no-run 2>&1 | tee build.log
+      - name: Run it until it hangs
+        shell: bash
+        env:
+          RUST_BACKTRACE: '1'
+        run: |
+          exe=$(grep -o 'target/debug/deps/mcp-[0-9a-f]*' build.log | head -1)
+          echo "binary: $exe"
+          case "${{ matrix.mode }}" in
+            serial*) args="--test-threads=1 --nocapture" ;;
+            *) args="" ;;
+          esac
+          for i in $(seq 1 80); do
+            $exe $args > run-$i.log 2>&1 &
+            pid=$!
+            for s in $(seq 1 90); do kill -0 $pid 2>/dev/null || break; sleep 1; done
+            if kill -0 $pid 2>/dev/null; then
+              echo "::error::HANG in iteration $i (${{ matrix.mode }})"
+              echo "--- last output"; tail -60 run-$i.log
+              echo "--- processes"; ps -eLf --forest | head -120
+              for p in $(pgrep -f 'meguvizdexdash|deps/mcp-'); do
+                echo "=== pid $p: $(tr '\0' ' ' < /proc/$p/cmdline | cut -c1-160)"
+                echo "wchan: $(cat /proc/$p/wchan 2>/dev/null)"
+                for t in /proc/$p/task/*; do echo "  thread ${t##*/}: $(cat $t/wchan 2>/dev/null) $(cut -d' ' -f3 $t/stat)"; done
+                sudo gdb -p $p -batch -ex 'thread apply all bt 25' 2>&1 | grep -v '^\[New LWP\|^warning\|^Using host\|^\[Thread debugging' | head -150
+              done
+              exit 1
+            fi
+            wait $pid || { echo "::error::iteration $i failed"; tail -40 run-$i.log; exit 1; }
+          done
+          echo "80 iterations, no hang"

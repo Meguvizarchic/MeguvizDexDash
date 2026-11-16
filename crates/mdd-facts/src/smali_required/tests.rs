@@ -82,7 +82,10 @@ fn a_walk_by_any_budget_rebuilds_the_text_without_gaps_or_overlaps() {
         for max_lines in [1, 2, 1000] {
             let mut rebuilt = String::new();
             let mut offset = 0u64;
-            loop {
+            let mut ended = false;
+            // every page takes at least one byte, so a walk longer than the text never ends:
+            // a bounded loop fails such a pager instead of hanging the test run
+            for _ in 0..=text.len() {
                 let page = page_text(text, offset, max_lines, Some(budget)).unwrap();
                 assert!(page.text.len() as u64 <= budget);
                 assert_eq!(page.offset, offset);
@@ -96,9 +99,13 @@ fn a_walk_by_any_budget_rebuilds_the_text_without_gaps_or_overlaps() {
                         );
                         offset = next;
                     }
-                    None => break,
+                    None => {
+                        ended = true;
+                        break;
+                    }
                 }
             }
+            assert!(ended, "the walk did not end: {budget} {max_lines}");
             assert_eq!(rebuilt, text, "{budget} {max_lines}");
         }
     }
