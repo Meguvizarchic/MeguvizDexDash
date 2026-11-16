@@ -1,0 +1,182 @@
+### Hand-written expected texts for what a class has beyond its instructions (MDD-071).
+### Each entry is "### FIXTURE KIND DESCRIPTOR", then the exact text up to the next "### " line.
+### KIND is class, method, class-context or method-context. They were written from the format
+### specification in crates/mdd-facts/src/smali/mod.rs and the bytes written by
+### tests/fixtures/decode/generate_class.py; run_decode_full.py requires the engine and the
+### independent reader (oracle_class.py) to give exactly these texts.
+### decode-class.dex class Ldecode/K;
+.class public final Ldecode/K;
+.super Ljava/lang/Object;
+.source "K.java"
+
+.implements Ldecode/Marker;
+.implements Ljava/lang/Runnable;
+
+.annotation runtime Ldecode/Ann;
+    count = 0x3
+    k = "kk"
+.end annotation
+
+.field public static final a_int:I = 0x1
+.field private static b_str:Ljava/lang/String; = "s\"q\n"
+.field static c_long:J = -0x2L
+.field static d_double:D = 2.5
+.field static e_float:F = 0.1f
+.field static f_bool:Z = true
+.field static g_byte:B = -0x1t
+.field static h_short:S = -0x12cs
+.field static i_char:C = 'A'
+.field static j_type:Ljava/lang/Class; = Ljava/lang/String;
+.field static k_null:Ljava/lang/Object; = null
+.field static z_none:I
+
+.field public m_plain:I
+.field private volatile transient n_annotated:Ljava/lang/String;
+    .annotation build Ldecode/Ann;
+        count = 0x7ft
+    .end annotation
+.end field
+### decode-class.dex class-context Ldecode/K;
+# Original zero-based smali line numbers of the class text; fields and interfaces are listed with their lines.
+line 0: .class public final Ldecode/K;
+line 1: .super Ljava/lang/Object;
+line 2: .source "K.java"
+line 4: .implements Ldecode/Marker;
+line 5: .implements Ljava/lang/Runnable;
+line 12: .field public static final a_int:I = 0x1
+line 13: .field private static b_str:Ljava/lang/String; = "s\"q\n"
+line 14: .field static c_long:J = -0x2L
+line 15: .field static d_double:D = 2.5
+line 16: .field static e_float:F = 0.1f
+line 17: .field static f_bool:Z = true
+line 18: .field static g_byte:B = -0x1t
+line 19: .field static h_short:S = -0x12cs
+line 20: .field static i_char:C = 'A'
+line 21: .field static j_type:Ljava/lang/Class; = Ljava/lang/String;
+line 22: .field static k_null:Ljava/lang/Object; = null
+line 23: .field static z_none:I
+line 25: .field public m_plain:I
+line 26: .field private volatile transient n_annotated:Ljava/lang/String;
+### decode-class.dex class Ldecode/Marker;
+.class public interface abstract Ldecode/Marker;
+.super Ljava/lang/Object;
+
+.field public static final ID:I = 0x7
+### decode-class.dex method Ldecode/Marker;->ping()V
+.method public abstract ping()V
+.end method
+### decode-class.dex method Ldecode/K;-><init>()V
+.method public constructor <init>()V
+    .registers 1
+
+    .line 5
+    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
+    return-void
+.end method
+### decode-class.dex method Ldecode/K;->f(IJLjava/lang/String;)V
+.method public static f(IJLjava/lang/String;)V
+    .registers 6
+    .param p0, "count"
+    .param p3, "label"
+
+    .prologue
+    .line 10
+    .local v0, "x":I
+    const/4 v0, 0x1
+    .line 11
+    .local v1, "y":Ljava/lang/String;, "TT;"
+    const-string v1, "x"
+    .line 11
+    .end local v0
+    .restart local v0
+    invoke-static {p0}, Ldecode/K;->g(I)V
+    .line 10
+    nop
+    .epilogue
+    return-void
+    .end local v1
+.end method
+### decode-class.dex method-context Ldecode/K;->f(IJLjava/lang/String;)V
+# Original zero-based smali line numbers; labels retain method-relative code-unit offsets.
+line 0: .method public static f(IJLjava/lang/String;)V
+line 1:     .registers 6
+### decode-class.dex method Ldecode/K;->g(I)V
+.method public static g(I)V
+    .registers 1
+    .param p0
+        .annotation runtime Ldecode/Ann;
+        .end annotation
+    .end param
+    .annotation runtime Ldecode/Ann;
+        k = {
+            "a",
+            "b"
+        }
+    .end annotation
+
+    return-void
+.end method
+### decode-class.dex method Ldecode/K;->r8()V
+.method public static r8()V
+    .registers 1
+
+    nop
+    nop
+    return-void
+.end method
+### decode-class.dex method Ldecode/K;->run()V
+.method public run()V
+    .registers 1
+
+    .line 30
+    return-void
+    nop
+.end method
+### annotations-038.dex method Lfixture/A;->m(Ljava/util/List;I)Ljava/util/List;
+.method public static native m(Ljava/util/List;I)Ljava/util/List;
+    .param p0
+        .annotation runtime Lfixture/Values;
+            a_byte = -0x80t
+            b_short = -0x8000s
+            c_char = '\uffff'
+            d_int = -0x80000000
+            e_long = -0x8000000000000000L
+            f_float = 1.0f
+            g_double = 1.0
+            h_string = "hello"
+            i_type = Ljava/lang/String;
+            j_field = Lfixture/A;->f:Ljava/util/List;
+            k_method = Lfixture/A;->m(Ljava/util/List;I)Ljava/util/List;
+            l_enum = .enum Lfixture/Enum;->E:Lfixture/Enum;
+            m_method_type = (Ljava/util/List;I)Ljava/util/List;
+            n_method_handle = method_handle_0
+            o_array = {
+                "z",
+                "a",
+                "z"
+            }
+            p_annotation = .subannotation Lfixture/Nested;
+                value = 0x7
+            .end subannotation
+            q_null = null
+            r_boolean_false = false
+            s_boolean_true = true
+            t_nan_float = NaNf
+            u_nan_double = NaN
+            v_infinity_float = Infinityf
+            w_infinity_double = Infinity
+            x_negative_zero = -0.0f
+        .end annotation
+    .end param
+    .annotation system Ldalvik/annotation/Signature;
+        value = {
+            "(",
+            "Ljava/util/List<",
+            "Ljava/lang/String;",
+            ">;I)",
+            "Ljava/util/List<",
+            "Ljava/lang/String;",
+            ">;"
+        }
+    .end annotation
+.end method

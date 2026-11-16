@@ -167,6 +167,120 @@ class Canon(unittest.TestCase):
         self.assertNotEqual(replay.canon_smali(TRY_OURS), replay.canon_smali(other))
 
 
+EXTRAS = """.method public static f(IJ)V
+    .registers 5
+    .param p0, "count"
+    .param p1
+        .annotation runtime Lx/A;
+            k = {
+                "a"
+            }
+        .end annotation
+    .end param
+    .annotation runtime Lx/B;
+    .end annotation
+
+    :goto_0
+    .prologue
+    .line 10
+    .local v0, "x":I
+    const/4 v0, 0x1
+    .end local v0
+    goto :goto_0
+    .epilogue
+    return-void
+    .source "F.java"
+.end method
+"""
+PLAIN = """.method public static f(IJ)V
+    .registers 5
+
+    :goto_0
+    const/4 v0, 0x1
+    goto :goto_0
+    return-void
+.end method
+"""
+
+
+class Extras(unittest.TestCase):
+    def test_what_mdd_smali_adds_is_not_part_of_the_comparison(self):
+        self.assertEqual(replay.canon_smali(EXTRAS), replay.canon_smali(PLAIN))
+
+    def test_an_instruction_between_the_additions_is_still_compared(self):
+        self.assertNotEqual(replay.canon_smali(EXTRAS.replace("0x1", "0x2")), replay.canon_smali(PLAIN))
+        self.assertNotEqual(replay.canon_smali(EXTRAS.replace("    return-void\n", "")), replay.canon_smali(PLAIN))
+
+    def test_an_annotation_block_is_removed_whole_and_nothing_after_it(self):
+        kept = replay.without_extras(EXTRAS.splitlines())
+        self.assertIn("    return-void", kept)
+        self.assertNotIn("            k = {", kept)
+        self.assertNotIn("    .end param", kept)
+
+    def test_a_param_line_without_a_block_does_not_swallow_the_next_line(self):
+        text = [".method f(II)V", "    .registers 3", "    .param p0, \"a\"", "    nop", ".end method"]
+        self.assertEqual(replay.without_extras(text), [".method f(II)V", "    .registers 3", "    nop", ".end method"])
+
+
+CONTEXT_REFERENCE = """# Original zero-based smali line numbers; labels retain method-relative code-unit offsets.
+line 0: .method public static switch_packed()V
+line 1:     .registers 4
+line 5:     :label_0004
+line 7:     :label_0005
+line 9:     :payload_0006_0000
+line 11:         :label_0004
+line 12:         :label_0005
+line 13:         :label_0004
+"""
+CONTEXT_OURS = """# Original zero-based smali line numbers; labels retain method-relative code-unit offsets.
+line 0: .method public static switch_packed()V
+line 1:     .registers 4
+line 6:     :pswitch_4
+line 8:     :goto_5
+line 9:     :pswitch_5
+line 11:     :pswitch_data_6
+line 13:         :pswitch_4
+line 14:         :pswitch_5
+line 15:         :pswitch_4
+"""
+
+
+class Context(unittest.TestCase):
+    def test_two_writings_of_one_method_have_one_context(self):
+        self.assertEqual(replay.canon_context(CONTEXT_REFERENCE), replay.canon_context(CONTEXT_OURS))
+
+    def test_the_numbers_are_not_compared_because_they_count_each_engines_own_lines(self):
+        self.assertEqual(replay.canon_context(CONTEXT_OURS), replay.canon_context(CONTEXT_OURS.replace("line 6:", "line 60:")))
+
+    def test_a_label_at_another_address_is_found(self):
+        self.assertNotEqual(replay.canon_context(CONTEXT_REFERENCE), replay.canon_context(CONTEXT_OURS.replace(":goto_5", ":goto_6")))
+
+    def test_a_dropped_label_is_found(self):
+        self.assertNotEqual(replay.canon_context(CONTEXT_REFERENCE), replay.canon_context(CONTEXT_OURS.replace("line 6:     :pswitch_4\n", "")))
+
+    def test_a_changed_case_target_is_found(self):
+        self.assertNotEqual(replay.canon_context(CONTEXT_REFERENCE), replay.canon_context(CONTEXT_OURS.replace("line 14:         :pswitch_5", "line 14:         :pswitch_4")))
+
+    def test_a_changed_register_count_or_declaration_is_found(self):
+        self.assertNotEqual(replay.canon_context(CONTEXT_REFERENCE), replay.canon_context(CONTEXT_OURS.replace(".registers 4", ".registers 5")))
+        self.assertNotEqual(replay.canon_context(CONTEXT_REFERENCE), replay.canon_context(CONTEXT_OURS.replace("static ", "")))
+
+    def test_an_instruction_in_a_context_is_found(self):
+        self.assertNotEqual(replay.canon_context(CONTEXT_REFERENCE), replay.canon_context(CONTEXT_OURS + "line 16:     const/4 v0, 0x1\n"))
+
+    def test_a_context_answer_is_compared_in_the_comparison(self):
+        want = ok(smali=CONTEXT_REFERENCE, total_bytes=len(CONTEXT_REFERENCE), total_lines=9)
+        want["mode"] = "context"
+        mine = ok(smali=CONTEXT_OURS, total_bytes=len(CONTEXT_OURS), total_lines=10)
+        mine["mode"] = "context"
+        mine["text_format"] = "mdd.smali-context.v1"
+        mine["methods"][0]["source_total_lines"] = 17
+        self.assertEqual(replay.compare_case({"id": "x", "is_error": False, "reply": want}, answered(mine))[0], [])
+        mine["methods"][0]["smali"] = CONTEXT_OURS.replace(":goto_5", ":goto_6")
+        problems = replay.compare_case({"id": "x", "is_error": False, "reply": want}, answered(mine))[0]
+        self.assertTrue(problems and "the context says something else" in problems[0], problems)
+
+
 class Comparison(unittest.TestCase):
     def reference(self, body: dict, error: bool = False, case_id: str = "decode-text") -> dict:
         return {"id": case_id, "is_error": error, "reply": body}
@@ -272,8 +386,22 @@ class Golden(unittest.TestCase):
         self.assertTrue(set(replay.TIMING) <= ids)
         self.assertTrue(set(replay.LENIENT) <= ids)
         self.assertTrue(set(replay.TEXT_LENGTH) <= ids)
+        self.assertTrue(set(replay.BUDGET) <= ids)
+        # since MDD-071 the only mode left out is the xml mode of get_manifest
         for case_id in replay.NOT_IMPLEMENTED:
-            self.assertTrue(any(word in case_id for word in ("class", "context", "xml", "mode")), case_id)
+            self.assertIn("xml", case_id)
+
+    def test_the_class_and_context_answers_of_the_reference_are_in_it(self):
+        ids = {c["id"] for c in self.golden["cases"]}
+        for wanted in ("decode-select-class", "decode-select-class-context", "decode-class-two-files-ambiguous",
+                       "decode-class-method-offset-total", "decode-class-offset-nonzero-summary", "decode-text-switch-context"):
+            self.assertIn(wanted, ids)
+            self.assertNotIn(wanted, replay.NOT_IMPLEMENTED)
+
+    def test_every_method_has_its_context_answer_too(self):
+        for method in self.golden["methods"]:
+            self.assertIn("context", method)
+            self.assertEqual(method["context"]["is_error"], method["is_error"], method["descriptor"])
 
 
 if __name__ == "__main__":

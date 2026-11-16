@@ -11,6 +11,7 @@ pub mod pipeline;
 pub mod raw_fingerprints;
 pub mod references;
 pub mod session;
+pub mod smali;
 pub mod smali_required;
 pub mod surface;
 pub mod threads;

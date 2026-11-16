@@ -103,7 +103,8 @@ def main() -> int:
             for row in listing["statements"][0]["rows"]:
                 file_id, method_idx, descriptor = int(cell(row[0])), int(cell(row[1])), cell(row[2])
                 answer = ask(client, dataset, "decode", {"file_id": file_id, "method_idx": method_idx, "max_lines": 1000})
-                methods.append({"inputs": inputs, "file_id": file_id, "method_idx": method_idx, "descriptor": descriptor, **answer})
+                context = ask(client, dataset, "decode", {"file_id": file_id, "method_idx": method_idx, "mode": "context", "max_lines": 1000})
+                methods.append({"inputs": inputs, "file_id": file_id, "method_idx": method_idx, "descriptor": descriptor, **answer, "context": context})
         finally:
             client.close()
 

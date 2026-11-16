@@ -43,7 +43,17 @@ DECLARED = [
     ("MALFORMED CODE", "a method whose invoke names a different number of registers than its prototype takes is rendered as the bytes say (the invoke is visible and wrong); "
                        "the reference refuses the whole method (invalid_input, with the offset of the invoke). Showing the code of a damaged or obfuscated method is the more useful answer."),
     ("SUMMARY", "the summary mode here also names the method's `declaration`."),
-    ("NOT IMPLEMENTED", "decode of a class, the context mode and the xml mode of get_manifest (MDD-071, MDD-072) are refused as `not_implemented`; they are not compared."),
+    ("NOT IMPLEMENTED", "the xml mode of get_manifest (MDD-072) is refused as `not_implemented`; it is not compared."),
+    ("TEXT FORMAT", "every decode answer that shows text names the version of its text (`text_format`); a context row also gives `source_total_lines`, the line count of the full text its `line N:` numbers index."),
+    ("CLASS OBJECT", "a class page also carries `class`: the class's own facts (flags, superclass, source file, interfaces, field counts) and, in the text modes on the first page, its declaration, "
+                     "fields and annotations as a text; and a method row may carry `omitted`, what its text leaves out. The reference has neither."),
+    ("EXTRA DIRECTIVES", "the smali text here also carries annotation blocks, `.param` lines and debug directives (`.line`, `.local`, `.end local`, `.restart local`, `.prologue`, `.epilogue`, `.source`) that the reference never writes; "
+                         "canon_smali drops them before the texts are compared, so the instructions, operands, targets, payloads and exception tables are what is compared."),
+    ("CONTEXT", "the context view keeps the same kinds of lines as the reference's (method line, registers line, label lines, catch lines; checked against the reference for every method of the fixture). "
+                "Its `line N:` numbers count the lines of this server's own full text, so they are compared only through canon_context, which drops the numbers and merges the labels that name one address; "
+                "the labels themselves are named by baksmali's conventions here."),
+    ("CLASS PAGE BYTES", "in a class page `max_bytes` is one budget of UTF-8 bytes for the text of all its methods (the reference's counts the serialized answer, twice); "
+                         "a class page's answer is compared only where no budget is asked for."),
     ("OWN SCOPE", "list_tables names the 17 HostLab contract relations (as objects with name, kind and column_count) where the reference lists 56 names; "
                   "list_datasets reports this server's own limits."),
     ("ORDER OF CHECKS", "when a request is wrong in several ways, both engines refuse it, but the reference names the dataset first, then timeout_ms, max_bytes and the rest, "
@@ -59,10 +69,6 @@ KIND_ALIASES = {
 TEXT_FIELDS = ("smali", "total_bytes", "total_lines", "end_line", "start_line", "next_offset", "starts_mid_line", "ends_mid_line")
 
 NOT_IMPLEMENTED = {
-    **{i: "decode of a class (MDD-071)" for i in (
-        "decode-select-class", "decode-select-class-smali", "decode-select-class-summary", "decode-select-class-context",
-        "decode-select-class-page-2", "decode-select-class-offset-past", "decode-select-class-unknown")},
-    **{i: "the context mode (MDD-071)" for i in ("decode-arg-mode-context", "decode-text-switch-context", "decode-text-try-context", "decode-text-abstract-context")},
     **{i: "the xml mode of get_manifest (MDD-072)" for i in (
         "manifest-mode-xml", "manifest-xml-offset-10", "manifest-xml-offset-huge", "manifest-xml-offset-0-bytes-4096", "manifest-xml-limit",
         "manifest-no-manifest-xml", "manifest-combo-xml-limit-0", "manifest-combo-xml-max_bytes-0", "manifest-combo-xml-input_index-1",
@@ -70,7 +76,9 @@ NOT_IMPLEMENTED = {
 }
 TIMING = {"decode-arg-timeout_ms-1": "a 1 ms deadline"}
 # An offset the reference accepts because its text is 329 bytes long; this server's text is shorter.
-TEXT_LENGTH = {"decode-page-switch-offset-total"}
+TEXT_LENGTH = {"decode-page-switch-offset-total", "decode-method-context-offset-total", "decode-method-context-offset-past"}
+# A byte budget on a class page: the reference counts the serialized answer, this server the text of the page.
+BUDGET = {"decode-class-budget-smali-4096", "decode-class-budget-summary-4096"}
 # Arguments the reference refuses and this server serves.
 LENIENT = {"manifest-mode-null", "manifest-max_bytes-0", "manifest-max_bytes-10", "generic-query-max_bytes-0",
            "decode-combo-max_bytes-unknown-method", "manifest-combo-offset-past-max_bytes"}
@@ -111,11 +119,41 @@ def parameter_registers(declaration: str) -> int:
     return count
 
 
+DEBUG_DIRECTIVE = re.compile(r"^\s*\.(line|local|end local|restart local|prologue|epilogue|source)\b")
+
+
+def without_extras(lines: list[str]) -> list[str]:
+    """The lines of a method text that the reference also writes: annotation blocks, `.param` lines (with the annotation
+    block they may carry) and debug directives are this server's additions and are removed."""
+    kept: list[str] = []
+    i = 0
+    while i < len(lines):
+        word = lines[i].strip()
+        if word.startswith(".annotation "):
+            while i < len(lines) and lines[i].strip() != ".end annotation":
+                i += 1
+            i += 1
+        elif word.startswith(".param"):
+            block = i + 1 < len(lines) and lines[i + 1].strip().startswith(".annotation ")
+            i += 1
+            if block:
+                while i < len(lines) and lines[i].strip() != ".end param":
+                    i += 1
+                i += 1
+        elif DEBUG_DIRECTIVE.match(lines[i]):
+            i += 1
+        else:
+            kept.append(lines[i])
+            i += 1
+    return kept
+
+
 def canon_smali(text: str):
     """(instructions, exception table) with the writing conventions removed: labels become code addresses,
     p-registers v-registers, wide literals lose their L, apostrophes their backslash; label definitions
-    are dropped and `.catch` lines collected, because the two engines place them differently."""
-    lines = text.splitlines()
+    are dropped and `.catch` lines collected, because the two engines place them differently. The additions of
+    mdd.smali.v1 (annotations, parameter names, debug directives) are removed first."""
+    lines = without_extras(text.splitlines())
     declaration = lines[0] if lines else ""
     registers = None
     for line in lines[:3]:
@@ -147,6 +185,46 @@ def canon_smali(text: str):
             line = re.sub(r"(?<![\w$.:])p(\d+)\b", lambda mm: "v%d" % (first_parameter + int(mm.group(1))), line)
         instructions.append(line)
     return instructions, sorted(catches)
+
+
+CONTEXT_ENTRY = re.compile(r"^line (\d+): (.*)$")
+CONTEXT_HEADER = "# Original zero-based smali line numbers; labels retain method-relative code-unit offsets."
+
+
+def canon_context(text: str):
+    """The context view reduced to what it says: the method line, the register count, the addresses that carry a label
+    (labels that name one address are one), the addresses the cases of a switch name, and the exception table.
+    The numbers are dropped: they count the lines of each engine's own full text."""
+    lines = text.splitlines()
+    declaration = registers = None
+    labels: list[int] = []
+    cases: list[int] = []
+    catches = []
+    for raw in lines[1:]:
+        m = CONTEXT_ENTRY.match(raw)
+        if not m:
+            return ("malformed entry", raw)
+        original = m.group(2)
+        word = original.strip()
+        if word.startswith(".method"):
+            declaration = word
+        elif word.startswith(".registers"):
+            registers = word
+        elif word.startswith(".catch"):
+            c = CATCH.match(word)
+            if not c:
+                return ("malformed catch", raw)
+            kind, type_, a, b, handler = c.groups()
+            catches.append((kind, type_ or "", label_address(a[1:]), label_address(b[1:]), label_address(handler[1:])))
+        elif word.startswith(":"):
+            address = label_address(word[1:])
+            if original.startswith(" " * 8):
+                cases.append(address)  # a case of a switch table (it is indented a level deeper than a label definition)
+            elif not labels or labels[-1] != address:
+                labels.append(address)
+        else:
+            return ("an anchor line of another kind", raw)
+    return (lines[0] if lines else "", declaration, registers, labels, cases, sorted(catches))
 
 
 # ---- comparison -----------------------------------------------------------------------------------
@@ -190,15 +268,23 @@ def compare_ok_bodies(want: dict, got: dict) -> list[str]:
     if want.get("mode") == "summary":
         for m in got.get("methods", []):
             m.pop("declaration", None)
+    got.pop("text_format", None)
+    got.pop("class", None)
+    for m in got.get("methods", []):
+        m.pop("source_total_lines", None)
     if "methods" in want and "methods" in got and len(want["methods"]) == len(got["methods"]):
         for w, g in zip(want["methods"], got["methods"]):
             if "smali" not in w or "smali" not in g:
                 continue
             whole = w.get("offset") == 0 and w.get("next_offset") is None and g.get("offset") == 0 and g.get("next_offset") is None
             if whole:
-                canon_w, canon_g = canon_smali(w["smali"]), canon_smali(g["smali"])
+                reduce = canon_context if want.get("mode") == "context" else canon_smali
+                canon_w, canon_g = reduce(w["smali"]), reduce(g["smali"])
                 if canon_w != canon_g:
-                    problems.append("the text says something else: " + first_text_difference(canon_w, canon_g))
+                    if want.get("mode") == "context":
+                        problems.append(f"the context says something else: reference {canon_w} vs this server {canon_g}")
+                    else:
+                        problems.append("the text says something else: " + first_text_difference(canon_w, canon_g))
             if w["smali"] != g["smali"] or w.get("total_bytes") != g.get("total_bytes"):
                 for key in TEXT_FIELDS:
                     w.pop(key, None)
@@ -217,7 +303,16 @@ def compare_case(case: dict, ours: dict) -> tuple[list[str], str | None]:
     case_id = case.get("id", "")
     wrong_at_once = "-combo-" in case_id
     if case_id in TEXT_LENGTH:
-        return ([], "TEXT CONVENTIONS") if (ours.get("is_error") or "jsonrpc_error" in ours) else (["an offset that is past this server's text was answered"], None)
+        # the two texts have different lengths, so an offset that ends one of them is inside or past the other:
+        # this server either refuses it as a range error or serves the page that starts exactly there
+        if "jsonrpc_error" in ours:
+            return ["a JSON-RPC error where a range error or a page is expected"], None
+        if ours["is_error"]:
+            return ([], "TEXT CONVENTIONS") if kind_of(strip_envelope(ours["reply"])) == "invalid_range" else (["an offset past this server's text was not called a range error"], None)
+        page = (ours["reply"].get("methods") or [{}])[0]
+        return ([], "TEXT CONVENTIONS") if page.get("offset") == case["arguments"].get("offset") else (["the page does not start at the offset asked"], None)
+    if case_id in BUDGET:
+        return ([], "CLASS PAGE BYTES") if not (ours.get("is_error") or "jsonrpc_error" in ours) else (["a byte budget on a class page was refused"], None)
     if case_id in LENIENT:
         return ([], "LENIENT") if "jsonrpc_error" not in ours else (["a JSON-RPC error where a tool result is declared"], None)
     if case_id == "generic-list-unknown-field" and "reply" in ours:
@@ -337,6 +432,11 @@ def main() -> int:
         client, dataset = session[key]
         got = gen.ask(client, dataset, "decode", {"file_id": method["file_id"], "method_idx": method["method_idx"], "max_lines": 1000})
         problems, _ = compare_case(method, got)
+        # the context view of the same method, reduced the same way
+        got_context = gen.ask(client, dataset, "decode", {"file_id": method["file_id"], "method_idx": method["method_idx"],
+                                                          "mode": "context", "max_lines": 1000})
+        context_problems, _ = compare_case(method["context"], got_context)
+        problems += [f"context: {line}" for line in context_problems]
         methods_total += 1
         if not problems:
             methods_equal += 1

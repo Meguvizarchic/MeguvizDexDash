@@ -1,6 +1,8 @@
-use super::{Labels, MethodView, RenderedMethod, fault, hex_signed, push_string_literal};
+use super::{
+    Labels, MethodExtras, MethodView, RenderedMethod, fault, hex_signed, push_string_literal,
+};
 use mdd_dex::{
-    definitions::MethodBody,
+    definitions::{MethodBody, MethodReference},
     instructions::{
         CatchHandler, CodeItem, Instruction, Payload, PayloadData, ReferenceKind, ReferenceOperand,
         TryItem,
@@ -393,6 +395,13 @@ fn write_payload(
     Ok(())
 }
 
+fn push_lines(text: &mut String, lines: &[String]) {
+    for line in lines {
+        text.push_str(line);
+        text.push('\n');
+    }
+}
+
 fn too_large(limit: u64) -> MddError {
     MddError::new(
         ErrorCode::QuotaExceeded,
@@ -403,16 +412,10 @@ fn too_large(limit: u64) -> MddError {
     .detail("limit", limit.to_string())
 }
 
-/// Render one defined method. A method with a body must come with its code.
-pub fn render_method(view: &MethodView<'_>, limits: SmaliLimits) -> MddResult<RenderedMethod> {
-    let definition = view.definition;
-    let reference = view
-        .definitions
-        .method_references
-        .get(definition.method_idx as usize)
-        .ok_or_else(|| fault("a method definition has no method reference"))?;
+/// The `.method ...` line of a method, without its newline.
+pub fn method_declaration(reference: &MethodReference, access_flags: u32) -> String {
     let mut declaration = String::from(".method");
-    for word in access_flag_words(definition.access_flags) {
+    for word in access_flag_words(access_flags) {
         declaration.push(' ');
         declaration.push_str(word);
     }
@@ -423,6 +426,29 @@ pub fn render_method(view: &MethodView<'_>, limits: SmaliLimits) -> MddResult<Re
         reference.parameter_descriptors.concat(),
         reference.return_descriptor
     );
+    declaration
+}
+
+/// Render one defined method. A method with a body must come with its code.
+pub fn render_method(view: &MethodView<'_>, limits: SmaliLimits) -> MddResult<RenderedMethod> {
+    render_method_with(view, limits, &MethodExtras::default())
+}
+
+/// Render one defined method with the lines a caller adds (see [`MethodExtras`]). With no
+/// extras the text is exactly what [`render_method`] gives; a line the text has no place
+/// for is a fault, never a silent drop.
+pub fn render_method_with(
+    view: &MethodView<'_>,
+    limits: SmaliLimits,
+    extras: &MethodExtras,
+) -> MddResult<RenderedMethod> {
+    let definition = view.definition;
+    let reference = view
+        .definitions
+        .method_references
+        .get(definition.method_idx as usize)
+        .ok_or_else(|| fault("a method definition has no method reference"))?;
+    let declaration = method_declaration(reference, definition.access_flags);
     let mut text = String::new();
     text.push_str(&declaration);
     text.push('\n');
@@ -431,6 +457,12 @@ pub fn render_method(view: &MethodView<'_>, limits: SmaliLimits) -> MddResult<Re
         if has_body {
             return Err(fault("a method with a body was given no code"));
         }
+        if !extras.at_address.is_empty() {
+            return Err(fault(
+                "a method without code was given lines for a code address",
+            ));
+        }
+        push_lines(&mut text, &extras.header);
         text.push_str(".end method\n");
         return Ok(RenderedMethod {
             declaration,
@@ -449,7 +481,9 @@ pub fn render_method(view: &MethodView<'_>, limits: SmaliLimits) -> MddResult<Re
         code,
         first_parameter,
     };
-    let _ = write!(text, "    .registers {}\n\n", code.registers_size);
+    let _ = writeln!(text, "    .registers {}", code.registers_size);
+    push_lines(&mut text, &extras.header);
+    text.push('\n');
 
     let labels = collect_labels(code)?;
     let bytes = view.metadata.bytes();
@@ -457,6 +491,7 @@ pub fn render_method(view: &MethodView<'_>, limits: SmaliLimits) -> MddResult<Re
     let mut payloads = code.payloads.iter().peekable();
     let mut pending = labels.at.iter().peekable();
     let end_address = code.insns_size_code_units;
+    let mut placed = 0usize;
     loop {
         let next_instruction = instructions.peek().map(|i| i.code_unit_offset);
         let next_payload = payloads.peek().map(|p| p.code_unit_offset);
@@ -477,6 +512,12 @@ pub fn render_method(view: &MethodView<'_>, limits: SmaliLimits) -> MddResult<Re
             if item.start_code_unit + u32::from(item.code_unit_count) == address {
                 write_catches(&mut text, &context, item)?;
             }
+        }
+        if (next_instruction == Some(address) || address == end_address)
+            && let Some(lines) = extras.at_address.get(&address)
+        {
+            push_lines(&mut text, lines);
+            placed += 1;
         }
         if text.len() as u64 > limits.max_text_bytes {
             return Err(too_large(limits.max_text_bytes));
@@ -507,6 +548,11 @@ pub fn render_method(view: &MethodView<'_>, limits: SmaliLimits) -> MddResult<Re
     }
     if pending.next().is_some() {
         return Err(fault("a label points past the end of the code"));
+    }
+    if placed != extras.at_address.len() {
+        return Err(fault(
+            "lines were given for a code address that is not where an instruction starts or the code ends",
+        ));
     }
     text.push_str(".end method\n");
     if text.len() as u64 > limits.max_text_bytes {

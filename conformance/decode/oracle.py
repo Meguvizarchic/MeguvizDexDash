@@ -3,7 +3,7 @@
 
 It imports nothing from the engine and nothing from the fixture generator: it reads a DEX
 file with `struct`, decodes the Dalvik instruction formats itself and writes the text the
-spec in crates/mdd-facts/src/smali_required/mod.rs describes. Two programs written
+spec in crates/mdd-facts/src/smali/mod.rs (the complete format) and crates/mdd-facts/src/smali_required/mod.rs (the instructions) describes. Two programs written
 separately from one description agree only if the description is unambiguous; neither
 shows that the description is what any other tool prints (the one reference output on
 record is the frame of the first test case).
@@ -174,13 +174,17 @@ def literal_text(units):
     return "".join(out)
 
 
-def render(dex: Dex, index: int, access: int, code_off: int) -> str:
+def render(dex: Dex, index: int, access: int, code_off: int, extra=None) -> str:
+    """The text of one method. `extra` (oracle_class.Extras) adds the lines of the complete format; without it the text is
+    the instruction text of MDD-042."""
     owner, name, (ret, params) = dex.methods[index]
     words = [w for bit, w in FLAGS if access & bit]
     # ".method <flags> name(params)ret"; with no flags there is a single space
     prefix = ".method " + "".join(w + " " for w in words)
     out = ["%s%s(%s)%s" % (prefix, name, "".join(params), ret)]
     if not code_off:
+        if extra is not None:
+            out.extend(extra.header(None))
         out.append(".end method")
         return "\n".join(out) + "\n"
     d = dex.data
@@ -385,14 +389,20 @@ def render(dex: Dex, index: int, access: int, code_off: int) -> str:
     # ---- assemble the body ----
     body = []
     addresses = sorted(lines)
+    insn_starts = set(insn_at)
+    added = extra.at_address(code_off, size, insn_starts, first_param) if extra is not None else {}
     for address in addresses + [size]:
         for l in sorted(labels.get(address, ())):
             body.append("    :" + l)
         for entry in catches_at.get(address, ()):
             body.append("    " + entry)
+        if address in insn_starts or address == size:
+            body.extend(added.get(address, ()))
         if address in lines:
             body.extend(lines[address])
     out.append("    .registers %d" % registers)
+    if extra is not None:
+        out.extend(extra.header(first_param))
     out.append("")
     out.extend(body)
     out.append(".end method")

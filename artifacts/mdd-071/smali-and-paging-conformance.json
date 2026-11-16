@@ -1,0 +1,760 @@
+{
+ "a0_golden_replay": {
+  "cases_equal": 246,
+  "cases_equal_exactly": 116,
+  "cases_equal_with_a_declared_difference": {
+   "CLASS PAGE BYTES": 2,
+   "ERROR WORDING": 26,
+   "LENIENT": 15,
+   "MALFORMED ARGUMENTS": 53,
+   "ORDER OF CHECKS": 29,
+   "OWN SCOPE": 2,
+   "TEXT CONVENTIONS": 3
+  },
+  "cases_not_run": [
+   {
+    "id": "decode-arg-timeout_ms-1",
+    "reason": "a 1 ms deadline",
+    "refused_cleanly": null
+   },
+   {
+    "id": "manifest-mode-xml",
+    "reason": "the xml mode of get_manifest (MDD-072)",
+    "refused_cleanly": true
+   },
+   {
+    "id": "manifest-xml-offset-10",
+    "reason": "the xml mode of get_manifest (MDD-072)",
+    "refused_cleanly": true
+   },
+   {
+    "id": "manifest-xml-offset-huge",
+    "reason": "the xml mode of get_manifest (MDD-072)",
+    "refused_cleanly": true
+   },
+   {
+    "id": "manifest-xml-offset-0-bytes-4096",
+    "reason": "the xml mode of get_manifest (MDD-072)",
+    "refused_cleanly": true
+   },
+   {
+    "id": "manifest-xml-limit",
+    "reason": "the xml mode of get_manifest (MDD-072)",
+    "refused_cleanly": true
+   },
+   {
+    "id": "manifest-no-manifest-xml",
+    "reason": "the xml mode of get_manifest (MDD-072)",
+    "refused_cleanly": true
+   },
+   {
+    "id": "manifest-combo-xml-limit-0",
+    "reason": "the xml mode of get_manifest (MDD-072)",
+    "refused_cleanly": true
+   },
+   {
+    "id": "manifest-combo-xml-max_bytes-0",
+    "reason": "the xml mode of get_manifest (MDD-072)",
+    "refused_cleanly": true
+   },
+   {
+    "id": "manifest-combo-xml-input_index-1",
+    "reason": "the xml mode of get_manifest (MDD-072)",
+    "refused_cleanly": true
+   },
+   {
+    "id": "manifest-combo-xml-offset-past",
+    "reason": "the xml mode of get_manifest (MDD-072)",
+    "refused_cleanly": true
+   },
+   {
+    "id": "manifest-combo-xml-timeout-0",
+    "reason": "the xml mode of get_manifest (MDD-072)",
+    "refused_cleanly": true
+   }
+  ],
+  "cases_run": 246,
+  "declared_differences": [
+   {
+    "class": "ENVELOPE",
+    "why": "the `error` object of every tool error carries four fields of this engine (code, stage, retryable, details) beside the reference's"
+   },
+   {
+    "class": "TEXT CONVENTIONS",
+    "why": "the smali text follows baksmali's writing (p-registers for parameters, :cond_N/:goto_N/:try_start_N labels, .catch lines beside the code, an L on wide literals, a backslash before an apostrophe in strings); the reference writes v-registers, :label_XXXX, .catch lines at the end, no L, a bare apostrophe. The two texts are reduced to the same form (canon_smali) and must be equal: instructions, operands, literals, branch targets, payloads and exception tables. The numbers that depend on the length of the text (total_bytes, total_lines, start_line, end_line, next_offset, the mid-line flags) are compared only when the text is identical."
+   },
+   {
+    "class": "ERROR WORDING",
+    "why": "an error's `message` is this server's own words. Its `kind` (through KIND_ALIASES) and the file_id, method_idx and code_unit_offset it echoes are compared."
+   },
+   {
+    "class": "MALFORMED ARGUMENTS",
+    "why": "an argument of the wrong type, an unknown field, or a value outside its range (limit, max_lines, method_limit, timeout_ms) is a JSON-RPC invalid-params error here; the reference answers a tool result with isError (the serde message, or kind invalid_input)."
+   },
+   {
+    "class": "LENIENT",
+    "why": "the reference refuses max_bytes outside 4096..=131072 and timeout_ms outside 1..=60000, and `mode: null` for get_manifest; this server's max_bytes is a budget the answer must fit in (over it: quota_exceeded) and it takes `null` as the default."
+   },
+   {
+    "class": "MALFORMED CODE",
+    "why": "a method whose invoke names a different number of registers than its prototype takes is rendered as the bytes say (the invoke is visible and wrong); the reference refuses the whole method (invalid_input, with the offset of the invoke). Showing the code of a damaged or obfuscated method is the more useful answer."
+   },
+   {
+    "class": "SUMMARY",
+    "why": "the summary mode here also names the method's `declaration`."
+   },
+   {
+    "class": "NOT IMPLEMENTED",
+    "why": "the xml mode of get_manifest (MDD-072) is refused as `not_implemented`; it is not compared."
+   },
+   {
+    "class": "TEXT FORMAT",
+    "why": "every decode answer that shows text names the version of its text (`text_format`); a context row also gives `source_total_lines`, the line count of the full text its `line N:` numbers index."
+   },
+   {
+    "class": "CLASS OBJECT",
+    "why": "a class page also carries `class`: the class's own facts (flags, superclass, source file, interfaces, field counts) and, in the text modes on the first page, its declaration, fields and annotations as a text; and a method row may carry `omitted`, what its text leaves out. The reference has neither."
+   },
+   {
+    "class": "EXTRA DIRECTIVES",
+    "why": "the smali text here also carries annotation blocks, `.param` lines and debug directives (`.line`, `.local`, `.end local`, `.restart local`, `.prologue`, `.epilogue`, `.source`) that the reference never writes; canon_smali drops them before the texts are compared, so the instructions, operands, targets, payloads and exception tables are what is compared."
+   },
+   {
+    "class": "CONTEXT",
+    "why": "the context view keeps the same kinds of lines as the reference's (method line, registers line, label lines, catch lines; checked against the reference for every method of the fixture). Its `line N:` numbers count the lines of this server's own full text, so they are compared only through canon_context, which drops the numbers and merges the labels that name one address; the labels themselves are named by baksmali's conventions here."
+   },
+   {
+    "class": "CLASS PAGE BYTES",
+    "why": "in a class page `max_bytes` is one budget of UTF-8 bytes for the text of all its methods (the reference's counts the serialized answer, twice); a class page's answer is compared only where no budget is asked for."
+   },
+   {
+    "class": "OWN SCOPE",
+    "why": "list_tables names the 17 HostLab contract relations (as objects with name, kind and column_count) where the reference lists 56 names; list_datasets reports this server's own limits."
+   },
+   {
+    "class": "ORDER OF CHECKS",
+    "why": "when a request is wrong in several ways, both engines refuse it, but the reference names the dataset first, then timeout_ms, max_bytes and the rest, and this server checks the schema of the arguments before it looks for the dataset."
+   },
+   {
+    "class": "TIMING",
+    "why": "a 1 ms deadline: the reference ran out of time; whether this server does depends on the clock."
+   }
+  ],
+  "methods": {
+   "equal": 252,
+   "total": 252
+  },
+  "recorded_utc": "2026-11-16T09:51:43Z",
+  "reference": {
+   "name": "dexsql",
+   "origin": "https://github.com/LSPosed/dexsql-release/releases/download/v0.1.0/dexsql-windows-amd64.exe",
+   "platform": "windows_amd64",
+   "sha256": "f354ebcf715de9a66ef8ebe08b2b36807ab58e25cd5a1c0812e497fc1fcfc448",
+   "version": "0.1.0"
+  }
+ },
+ "acceptance": [
+  {
+   "acceptance": "class/method/annotation/debug/try-catch and payload representations have item-by-item golden and links back to the raw facts, not only a list of opcodes",
+   "not_proven": "the reader and the engine are two programs written from one specification; the specification's choices that the reference does not write (baksmali-style labels, .param, .local, .line, field and annotation layout) are not shown to be what the reference or any other tool prints",
+   "proofs": [
+    {
+     "check": "the engine's text equals the independent reader's for every method of four fixtures (annotation values of every kind, every debug opcode, try/catch, switch and array payloads, static values)",
+     "outcome": "ok"
+    },
+    {
+     "check": "the engine's class text equals the independent reader's for every class",
+     "outcome": "ok"
+    },
+    {
+     "check": "the hand-written class and method texts equal both",
+     "outcome": "ok"
+    },
+    {
+     "check": "access flags, registers, code units, tries and declaration equal the code item's",
+     "outcome": "ok"
+    },
+    {
+     "check": "the reference replay compares the class, context and method answers with the reference's own",
+     "outcome": "ok"
+    },
+    {
+     "check": "the annotation values of the annotation fixture are written as the format says",
+     "outcome": "ok"
+    },
+    {
+     "check": "a class with annotations, fields, static values and debug info is shown with all of them",
+     "outcome": "ok"
+    }
+   ],
+   "status": "partial"
+  },
+  {
+   "acceptance": "UTF-8 byte offset, max_lines, method_offset and context indexes follow their own units and never mix with DEX code units",
+   "not_proven": "",
+   "proofs": [
+    {
+     "check": "every page number (byte offset, lines, mid-line flags, totals) equals the text's own, for every method of four fixtures",
+     "outcome": "ok"
+    },
+    {
+     "check": "pages by max_lines and max_bytes rebuild the text, stay in their budgets and never cut a character",
+     "outcome": "ok"
+    },
+    {
+     "check": "next_offset counts UTF-8 bytes, not characters",
+     "outcome": "ok"
+    },
+    {
+     "check": "a class is listed by method_offset: every method once, in method_idx order, and the last page ends",
+     "outcome": "ok"
+    },
+    {
+     "check": "the context lines name the lines of the full text, and a context pages on its own offsets",
+     "outcome": "ok"
+    },
+    {
+     "check": "code_units, total_bytes and total_lines are three different numbers of one method",
+     "outcome": "ok"
+    }
+   ],
+   "status": "proven"
+  },
+  {
+   "acceptance": "methods without a body, invalid selectors, resource limits, truncation and continuation states are explicit and the last page terminates correctly",
+   "not_proven": "a statement cannot be stopped from outside, so a deadline closes the dataset (MDD-042 residual); the class text is one page and is not continued",
+   "proofs": [
+    {
+     "check": "a method without a body has null registers, code units and tries, and no registers line",
+     "outcome": "ok"
+    },
+    {
+     "check": "every refusal of the contract's table has its kind",
+     "outcome": "ok"
+    },
+    {
+     "check": "a result over the byte budget is refused whole",
+     "outcome": "ok"
+    },
+    {
+     "check": "the class text cut by max_lines says so",
+     "outcome": "ok"
+    },
+    {
+     "check": "max_bytes on a class page bounds its text and cut methods continue to the same text",
+     "outcome": "ok"
+    },
+    {
+     "check": "method_offset equal to the total is an empty last page, one past it a range error",
+     "outcome": "ok"
+    }
+   ],
+   "status": "partial"
+  },
+  {
+   "acceptance": "the output agrees with the raw bytes of the same snapshot, and a change of the text format is versioned separately",
+   "not_proven": "a text carries no hash of its own; its identity is the dataset's snapshot and its format id",
+   "proofs": [
+    {
+     "check": "text_format names mdd.smali.v1 / mdd.smali-context.v1, and is null for summary",
+     "outcome": "ok"
+    },
+    {
+     "check": "decode-full-contract.json records the server's answers and is current",
+     "outcome": "ok"
+    },
+    {
+     "check": "a dataset decodes from its snapshot after the source is gone",
+     "outcome": "ok"
+    }
+   ],
+   "status": "partial"
+  },
+  {
+   "acceptance": "Smali text does not replace the raw code fingerprint; no decompilation or runtime target inference is presented as fact",
+   "not_proven": "the HostLab method fingerprint is taken in the adapter from the raw bytes (MDD-050); this task does not touch it",
+   "proofs": [
+    {
+     "check": "the contract lists what a text is not",
+     "outcome": "ok"
+    },
+    {
+     "check": "a debug position that is not a source line is not written as .line, and omitted counts it",
+     "outcome": "ok"
+    }
+   ],
+   "status": "partial"
+  }
+ ],
+ "contract": "conformance/mcp/decode-full-contract.json",
+ "contract_current": true,
+ "decode_conformance_042": {
+  "exit_code": 0,
+  "summary": [
+   "checks=50 passed=50 failed=0 equal=True"
+  ]
+ },
+ "fixtures_current": [
+  true,
+  true
+ ],
+ "full_decode_conformance": {
+  "checks": [
+   {
+    "equal": true,
+    "name": "decode-all.dex opens with every layer built"
+   },
+   {
+    "equal": true,
+    "name": "decode-v035.dex opens with every layer built"
+   },
+   {
+    "equal": true,
+    "name": "decode-class.dex opens with every layer built"
+   },
+   {
+    "equal": true,
+    "name": "annotations-038.dex opens with every layer built"
+   },
+   {
+    "equal": true,
+    "name": "decode-all.dex: 1 classes, 238 methods: the class texts equal the independent reader's"
+   },
+   {
+    "equal": true,
+    "name": "decode-all.dex: 1 classes, 238 methods: the class context views equal the independent reader's"
+   },
+   {
+    "equal": true,
+    "name": "decode-all.dex: 1 classes, 238 methods: the method texts (all pages) equal the independent reader's"
+   },
+   {
+    "equal": true,
+    "name": "decode-all.dex: 1 classes, 238 methods: access flags, registers, code units, tries and declaration equal the code item's"
+   },
+   {
+    "equal": true,
+    "name": "decode-all.dex: 1 classes, 238 methods: every page number (byte offset, lines, mid-line flags, totals) equals the text's own"
+   },
+   {
+    "equal": true,
+    "name": "decode-all.dex: 1 classes, 238 methods: the context views equal the independent reader's and name the full text's line count"
+   },
+   {
+    "equal": true,
+    "name": "decode-all.dex: 1 classes, 238 methods: `omitted` counts what the independent reader leaves out"
+   },
+   {
+    "equal": true,
+    "name": "decode-v035.dex: 1 classes, 2 methods: the class texts equal the independent reader's"
+   },
+   {
+    "equal": true,
+    "name": "decode-v035.dex: 1 classes, 2 methods: the class context views equal the independent reader's"
+   },
+   {
+    "equal": true,
+    "name": "decode-v035.dex: 1 classes, 2 methods: the method texts (all pages) equal the independent reader's"
+   },
+   {
+    "equal": true,
+    "name": "decode-v035.dex: 1 classes, 2 methods: access flags, registers, code units, tries and declaration equal the code item's"
+   },
+   {
+    "equal": true,
+    "name": "decode-v035.dex: 1 classes, 2 methods: every page number (byte offset, lines, mid-line flags, totals) equals the text's own"
+   },
+   {
+    "equal": true,
+    "name": "decode-v035.dex: 1 classes, 2 methods: the context views equal the independent reader's and name the full text's line count"
+   },
+   {
+    "equal": true,
+    "name": "decode-v035.dex: 1 classes, 2 methods: `omitted` counts what the independent reader leaves out"
+   },
+   {
+    "equal": true,
+    "name": "decode-class.dex: 2 classes, 6 methods: the class texts equal the independent reader's"
+   },
+   {
+    "equal": true,
+    "name": "decode-class.dex: 2 classes, 6 methods: the class context views equal the independent reader's"
+   },
+   {
+    "equal": true,
+    "name": "decode-class.dex: 2 classes, 6 methods: the method texts (all pages) equal the independent reader's"
+   },
+   {
+    "equal": true,
+    "name": "decode-class.dex: 2 classes, 6 methods: access flags, registers, code units, tries and declaration equal the code item's"
+   },
+   {
+    "equal": true,
+    "name": "decode-class.dex: 2 classes, 6 methods: every page number (byte offset, lines, mid-line flags, totals) equals the text's own"
+   },
+   {
+    "equal": true,
+    "name": "decode-class.dex: 2 classes, 6 methods: the context views equal the independent reader's and name the full text's line count"
+   },
+   {
+    "equal": true,
+    "name": "decode-class.dex: 2 classes, 6 methods: `omitted` counts what the independent reader leaves out"
+   },
+   {
+    "equal": true,
+    "name": "annotations-038.dex: 1 classes, 2 methods: the class texts equal the independent reader's"
+   },
+   {
+    "equal": true,
+    "name": "annotations-038.dex: 1 classes, 2 methods: the class context views equal the independent reader's"
+   },
+   {
+    "equal": true,
+    "name": "annotations-038.dex: 1 classes, 2 methods: the method texts (all pages) equal the independent reader's"
+   },
+   {
+    "equal": true,
+    "name": "annotations-038.dex: 1 classes, 2 methods: access flags, registers, code units, tries and declaration equal the code item's"
+   },
+   {
+    "equal": true,
+    "name": "annotations-038.dex: 1 classes, 2 methods: every page number (byte offset, lines, mid-line flags, totals) equals the text's own"
+   },
+   {
+    "equal": true,
+    "name": "annotations-038.dex: 1 classes, 2 methods: the context views equal the independent reader's and name the full text's line count"
+   },
+   {
+    "equal": true,
+    "name": "annotations-038.dex: 1 classes, 2 methods: `omitted` counts what the independent reader leaves out"
+   },
+   {
+    "equal": true,
+    "name": "the 11 hand-written class and method texts equal both the engine's and the independent reader's"
+   },
+   {
+    "equal": true,
+    "name": "a class is listed in summary mode by method_offset: every method once, in method_idx order, the last page ends"
+   },
+   {
+    "equal": true,
+    "name": "a class is listed in smali mode by method_offset: every method once, in method_idx order, the last page ends"
+   },
+   {
+    "equal": true,
+    "name": "a class is listed in context mode by method_offset: every method once, in method_idx order, the last page ends"
+   },
+   {
+    "equal": true,
+    "name": "method_offset equal to total_methods is an empty last page"
+   },
+   {
+    "equal": true,
+    "name": "method_offset past total_methods is an invalid_range error"
+   },
+   {
+    "equal": true,
+    "name": "max_bytes 80 on a class page bounds its text, and cut methods continue on their own to the same text"
+   },
+   {
+    "equal": true,
+    "name": "max_bytes 300 on a class page bounds its text, and cut methods continue on their own to the same text"
+   },
+   {
+    "equal": true,
+    "name": "max_bytes 1200 on a class page bounds its text, and cut methods continue on their own to the same text"
+   },
+   {
+    "equal": true,
+    "name": "max_bytes 20000 on a class page bounds its text, and cut methods continue on their own to the same text"
+   },
+   {
+    "equal": true,
+    "name": "a byte budget that cannot hold one character is an error, not an empty page"
+   },
+   {
+    "equal": true,
+    "name": "the class text cut by max_lines says so and is the first lines of the whole"
+   },
+   {
+    "equal": true,
+    "name": "a later page of a class does not repeat the class text"
+   },
+   {
+    "equal": true,
+    "name": "the class object's facts are the class definition's"
+   },
+   {
+    "equal": true,
+    "name": "pages by max_lines and max_bytes (in smali and context, over a name with non-ASCII characters) rebuild the text, stay in their budgets, and have the numbers of the text"
+   },
+   {
+    "equal": true,
+    "name": "next_offset counts UTF-8 bytes, not characters or code units"
+   },
+   {
+    "equal": true,
+    "name": "an offset inside a character is refused as a range error"
+   },
+   {
+    "equal": true,
+    "name": "code_units, total_bytes and total_lines are three different numbers of one method"
+   },
+   {
+    "equal": true,
+    "name": "a method without a body has null registers, code units and tries, no registers line, and still ends its block"
+   },
+   {
+    "equal": true,
+    "name": "a method with a body of one instruction is not mistaken for one without"
+   },
+   {
+    "equal": true,
+    "name": "the context of a method without a body is its header and its method line"
+   },
+   {
+    "equal": true,
+    "name": "the summary has the numbers, the declaration and no text, and names no text format"
+   },
+   {
+    "equal": true,
+    "name": "no selector is refused as invalid_argument"
+   },
+   {
+    "equal": true,
+    "name": "a method and a class is refused as invalid_argument"
+   },
+   {
+    "equal": true,
+    "name": "method_idx without file_id is refused as invalid_argument"
+   },
+   {
+    "equal": true,
+    "name": "an empty class is refused as invalid_argument"
+   },
+   {
+    "equal": true,
+    "name": "an empty method is refused as invalid_argument"
+   },
+   {
+    "equal": true,
+    "name": "a class nobody defines is refused as not_found"
+   },
+   {
+    "equal": true,
+    "name": "a class that is only referred to is refused as not_found"
+   },
+   {
+    "equal": true,
+    "name": "a class with a file_id that is not in the dataset is refused as not_found"
+   },
+   {
+    "equal": true,
+    "name": "a class defined in two files, without file_id is refused as ambiguous"
+   },
+   {
+    "equal": true,
+    "name": "a class with an offset is refused as invalid_argument"
+   },
+   {
+    "equal": true,
+    "name": "a class in summary mode with an offset is refused as invalid_argument"
+   },
+   {
+    "equal": true,
+    "name": "method_offset past the methods is refused as invalid_range"
+   },
+   {
+    "equal": true,
+    "name": "a method with method_offset is refused as invalid_argument"
+   },
+   {
+    "equal": true,
+    "name": "a method in summary mode with an offset is refused as invalid_argument"
+   },
+   {
+    "equal": true,
+    "name": "an offset past the end of a text is refused as invalid_range"
+   },
+   {
+    "equal": true,
+    "name": "an offset past the end of a context is refused as invalid_range"
+   },
+   {
+    "equal": true,
+    "name": "a method only referred to is refused as not_found"
+   },
+   {
+    "equal": true,
+    "name": "a method_idx that is no method of the file is refused as not_found"
+   },
+   {
+    "equal": true,
+    "name": "max_lines 0 is a protocol error"
+   },
+   {
+    "equal": true,
+    "name": "max_lines 1001 is a protocol error"
+   },
+   {
+    "equal": true,
+    "name": "method_limit 0 is a protocol error"
+   },
+   {
+    "equal": true,
+    "name": "method_limit 51 is a protocol error"
+   },
+   {
+    "equal": true,
+    "name": "an unknown mode is a protocol error"
+   },
+   {
+    "equal": true,
+    "name": "an unknown argument is a protocol error"
+   },
+   {
+    "equal": true,
+    "name": "a negative method_offset is a protocol error"
+   },
+   {
+    "equal": true,
+    "name": "a negative offset is a protocol error"
+   },
+   {
+    "equal": true,
+    "name": "with the references layer not built, a method still shows its text and its annotation layer is not reported missing"
+   },
+   {
+    "equal": true,
+    "name": "a result over the byte budget is refused whole (quota_exceeded, with the budget, the limit and what was observed)"
+   },
+   {
+    "equal": true,
+    "name": "a class summary renders no text, so the 200,000-instruction method costs it nothing"
+   },
+   {
+    "equal": true,
+    "name": "a class page in smali mode that outlives its deadline says so and that the dataset was closed"
+   },
+   {
+    "equal": true,
+    "name": "the dataset closed by a class page in smali mode is refused as unknown_dataset"
+   },
+   {
+    "equal": true,
+    "name": "a class page in context mode that outlives its deadline says so and that the dataset was closed"
+   },
+   {
+    "equal": true,
+    "name": "the dataset closed by a class page in context mode is refused as unknown_dataset"
+   },
+   {
+    "equal": true,
+    "name": "the other dataset still lists its class"
+   },
+   {
+    "equal": true,
+    "name": "the same class decodes within the default deadline, so the deadline above was the cause"
+   }
+  ],
+  "counts": {
+   "classes": 5,
+   "method texts": 248
+  },
+  "failed": 0,
+  "passed": 89
+ },
+ "inputs_sha256": {
+  "conformance/decode/a0-golden.json": "b1aadc174f97eea1490772a11d99b90362bb7ab52604d3dfaeffde811443f6e8",
+  "conformance/decode/a0_cases.py": "c0f96d4c370ab3b246312c84a3d52e408fb8e9a7324f932cb2f747d73a125a59",
+  "conformance/decode/a0_replay.py": "57e987af455f15c584a2dd6c5e8c5832ab749d527a9a8941d617ef233458e426",
+  "conformance/decode/build_decode_contract.py": "671c0211969a867174bab21a9b1f6c67a97aac34a66389174f9a7809aa52d732",
+  "conformance/decode/generate_a0_golden.py": "dbbe762cb1851fe39521d147af315eefd0af2205d457b4ee2b6ce71e541218a0",
+  "conformance/decode/hand-expected-class.txt": "5baf10c48f67a23abab5f12de4c84b1fe1df76daf307c675a08b7661e49a4520",
+  "conformance/decode/hand-expected.txt": "3dfad5ab67a2c9e86a60024d06a1284ab08002a1953c8cd39eb89e505af218e8",
+  "conformance/decode/oracle.py": "45b3d4d051fbf0a931fe16544235b1585722eeac05d7562f3ce266bdd64ec835",
+  "conformance/decode/oracle_class.py": "88be64424f4a95752f7db53bcae4ad4258d79322f0f3a5d1c72d4a0b459ebf27",
+  "conformance/decode/run_decode_conformance.py": "f5a06e549155d4e49ce2095a73b696c487c86191c7d059135923114b43bbf1bc",
+  "conformance/decode/run_decode_full.py": "535c284cc6106641817accee97d70f2f8b8e433881788ebbf965eb369bd9f6d1",
+  "conformance/decode/test_a0_replay.py": "9ca5b8bb06b9252497e0aa54daea79dfafeb9377bf45e41a4ccca33e670d934d",
+  "conformance/decode/test_decode_full.py": "6d98ec250ec95dc569609df4da387d9b338fa83517440da8af1e7a1bdecf97bd",
+  "conformance/mcp/decode-full-contract.json": "43c00a124846e1ae2061eef130ec822416b5e6fbeccf94cdb21a331938ec1e55",
+  "crates/mdd-cli/tests/mcp.rs": "84826374e4d4410eece0fc84df87c2fb6bfc74d0ee85db0ca60affbc18730c7b",
+  "crates/mdd-facts/src/smali/annotation.rs": "9902e1ff6f7595e3ac5d2f5e7ef265da9766ee8e19e019638bc7885ea30b0f4f",
+  "crates/mdd-facts/src/smali/class.rs": "9ad0997cb60ad13759153c4ea31e6078639cbdee79dbe8c0ba43207c890aefec",
+  "crates/mdd-facts/src/smali/context.rs": "3761d08135206afd1f18c84cd6dfcf686d0dfad2374cf1620f009326d9f7239c",
+  "crates/mdd-facts/src/smali/method.rs": "bb6ff0fd0b53b29a6e592dafdaf6f61c3381027b060a47469bded0713b1ecf90",
+  "crates/mdd-facts/src/smali/mod.rs": "8b5ff1c1a9faade99d562d8a29c60adc76d7a6279eaa556d246aaa6c07b7e3b0",
+  "crates/mdd-facts/src/smali/value.rs": "08e32e7be68000bd9a78633c87364557dc6602ad638e13e7a9eb3e1565fee514",
+  "crates/mdd-facts/src/smali_required/mod.rs": "d963e9d1474135931a08556943936eb86ad3d4bb2b47580916bfb0a645598f42",
+  "crates/mdd-facts/src/smali_required/render.rs": "bc25c553212c0ae23d003195f753dcd21626aec5399832a922c5802694a43264",
+  "crates/mdd-facts/src/smali_required/tests.rs": "81892e6beafbc695d77c9878fe6329aec4160ab0323d1d0dbda0b578d5712592",
+  "crates/mdd-mcp/src/tool_schemas.json": "4f3fc454c010dbc6c000ea9a1528dd6e7acd4f011c10232548b881edb459b724",
+  "crates/mdd-mcp/src/tools.rs": "8c7e860b6dc94f479daaddabb13f03e2ac494d6b0cf49f16ae67834ddf013743",
+  "crates/mdd-service/src/dataset.rs": "d80cd616399f4fb2ba531db9fb20fbaa56ad2432517c0bdc7df6f7bfc45a9a53",
+  "crates/mdd-service/src/decode.rs": "f9b62251b685884c86f7f7c94253ba6f01f673e447621d67e3050a8a8be927db",
+  "tests/fixtures/annotations/generated/annotations-038.dex": "65380a8b23601e17339379be211e417d8b4c8383b686b6d173f800656b985360",
+  "tests/fixtures/decode/class-manifest.json": "ea71ee6917c46dc3ff8794248f43c16b2cfe8dcd89acfa5706737602393010bd",
+  "tests/fixtures/decode/generate.py": "8dd3ff79c7a24249a92ee1c0456f94bda8c92be89a452acd429035d7ac142a9b",
+  "tests/fixtures/decode/generate_class.py": "e129e5a855a2e4981761164245cd1b45989778cf86b53cd96ab8c5ece5522e41",
+  "tests/fixtures/decode/generated/decode-class.dex": "a2669980e5134ce507b659d5722576a6e716abe8693b1072b193a6432038266e",
+  "tests/fixtures/decode/manifest.json": "43e35c6889b508c11d6c808285fcdcadd6e636843aa2b32751631fdd9adc34cf"
+ },
+ "kind": "development evidence; admits no profile",
+ "mutation_check": {
+  "current": false,
+  "file": "artifacts/mdd-071/mutation/results.txt",
+  "present": false,
+  "script": "artifacts/mdd-071/mutation/mutate_decode.py",
+  "status": "not run yet: it runs in .github/workflows/mutation-decode.yml on request; no result is claimed"
+ },
+ "residual": [
+  "the reference writes no annotation, parameter name, debug directive, class header or field line: those parts of mdd.smali.v1 have no reference output to equal; they are checked against an independent reader of the bytes and hand-written texts, and the reference replay removes them (EXTRA DIRECTIVES) before it compares instructions",
+  "the context view keeps the lines the reference's keeps (checked against its answers for all 240 defined methods of the fixtures); its labels are baksmali-named, so its numbers differ and are compared after reduction",
+  "max_bytes on a class page is one budget for the text of the page here; the reference counts the serialized answer (twice) and accepts only 4096..131072",
+  "the class text is a single page of max_lines lines (the class selector refuses offset): a class with more lines than that shows `truncated` and the rest is in the SQL relations",
+  "a parameter's annotations are placed only when the method's slots are as many as its prototype's parameters; otherwise they are counted in omitted",
+  "debug events at no instruction start or past the code, and positions that are no source line, are not written and are counted in omitted",
+  "a method handle in an annotation value is shown as method_handle_<index>; the float text keeps no NaN payload",
+  "the pc-to-pc recognition is the debug layer's (MDD-023): it describes the encoding, not the producer",
+  "the XML mode of get_manifest is MDD-072 and is still refused as not_implemented",
+  "smali_required (MDD-042) and smali (MDD-071) are two directories on purpose: the first is named by MDD-042's record; merging them re-cuts that record",
+  "one Windows host; the mutation check is run on request in .github/workflows/mutation-decode.yml"
+ ],
+ "run": {
+  "started_utc": "2026-11-16T14:21:43Z"
+ },
+ "schema_version": "mdd.smali-and-paging-conformance.v1",
+ "task": "MDD-071",
+ "tests": {
+  "build_exit_code": 0,
+  "clippy_exit_code": 0,
+  "controls_exit_codes": [
+   0,
+   0
+  ],
+  "fmt_exit_code": 0,
+  "log_sha256": {
+   "clippy": "5545f072f897e5e20bba3f958f5079d40542808e0f5ede324dc86dc7bd6ff4d1",
+   "controls": [
+    "aa832ffd09f102297f4b21039437c25e809a1e17e302677445866aef29839028",
+    "6fb81a3bbae4c7a713cb7b362bed81ae3ab414e3bbd27075ec8d60c27fd6c00b"
+   ],
+   "rust": [
+    "d573f00b489cce1c05e80664553c6f833e5d863fb9a08ab6849dd41b00ea1330",
+    "9be40e4d3a695dc39ee6aca70703e2a8110a9a0f2ace4cbf41c270de76fe6192",
+    "d3db8c9ecc4e02fcf9886733b79ff570de9f67141e72f0e8d8118d355a8311f4"
+   ]
+  },
+  "raw_logs_kept_at": "artifacts/local/ (ignored; carries developer-machine output)",
+  "rust": {
+   "exit_code": 0,
+   "failed": 0,
+   "passed": 106
+  }
+ },
+ "text_formats": {
+  "context": "mdd.smali-context.v1",
+  "smali": "mdd.smali.v1"
+ }
+}
