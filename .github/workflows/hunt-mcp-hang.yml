@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        mode: [parallel, serial, parallel2, serial2]
+        mode: [parallel, parallel2, parallel3, parallel4]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -47,10 +47,11 @@ jobs:
             if kill -0 $pid 2>/dev/null; then
               echo "::error::HANG in iteration $i (${{ matrix.mode }})"
               echo "--- last output"; tail -60 run-$i.log
-              echo "--- processes"; ps -eLf --forest | head -120
+              echo "--- processes"; ps -eo pid,ppid,stat,wchan:22,args --forest | grep -v " ps -eo" | head -80
               for p in $(pgrep -f 'meguvizdexdash|deps/mcp-'); do
                 echo "=== pid $p: $(tr '\0' ' ' < /proc/$p/cmdline | cut -c1-160)"
                 echo "wchan: $(cat /proc/$p/wchan 2>/dev/null)"
+                echo "fds:"; ls -l /proc/$p/fd 2>&1 | sed 's/^.*[0-9] //' | head -40
                 for t in /proc/$p/task/*; do echo "  thread ${t##*/}: $(cat $t/wchan 2>/dev/null) $(cut -d' ' -f3 $t/stat)"; done
                 sudo gdb -p $p -batch -ex 'thread apply all bt 25' 2>&1 | grep -v '^\[New LWP\|^warning\|^Using host\|^\[Thread debugging' | head -150
               done
