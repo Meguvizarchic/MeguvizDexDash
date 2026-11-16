@@ -14,7 +14,7 @@ replay scripts, fixtures and recordings they read, so a recorded result can be t
 stale one.
 
 Usage:
-  mutate_mcp.py                     every mutant, then the clean-tree check (about an hour of builds)
+  mutate_mcp.py                     every mutant, then the clean-tree check (about an hour on one machine; four minutes in four parts on Actions)
   mutate_mcp.py --part K/N          the mutants whose position is K-1 modulo N (run N of them in parallel)
   mutate_mcp.py --clean-only        only the clean-tree check and the hash
   mutate_mcp.py --assemble FILE...  merge the outputs of the parts and the clean-tree check into one

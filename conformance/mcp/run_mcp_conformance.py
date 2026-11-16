@@ -81,7 +81,7 @@ ACCEPTANCE = [
     {"acceptance": "the five HostLab tools open_dataset/query/decode/get_manifest/close_dataset answer request by request like the reference, and the three discovery tools carry the real schema",
      "proven": [SCHEMAS, QUERY, REFUSALS, LIFECYCLE, MANIFEST_REPLAY, A0_REPLAY, CONTROLS],
      "not_proven": [
-         "equivalence is of content and of the fields a client reads, not of every byte: the declared differences (a0_golden_replay.declared_differences) are this server's choices, among them the writing of the smali text, the words of error messages, arguments outside the reference's ranges, and the order in which several mistakes in one request are named; the acceptance asks for answers 'like the reference', and whether that allows them is for the product owner to say",
+         "equivalence is of content and of the fields a client reads, not of every byte: the declared differences (a0_golden_replay.declared_differences) are this server's choices, among them the writing of the smali text, the words of error messages, arguments outside the reference's ranges, and the order in which several mistakes in one request are named; the acceptance asks for answers 'like the reference'; the product owner accepted content and field equivalence with these differences on 2026-11-16 (\"我觉得042可以算是过了\", after saying that exact equality with dexsql is not required)",
          "decode of a class, the context mode and the xml mode of get_manifest are not implemented (MDD-071, MDD-072); the reference's answers to them are frozen in the golden for those tasks",
          "get_manifest: values of float, dimension, fraction, color and null types are refused; the one manifest of the golden carries none",
          "query: integer type tags for negative numbers and booleans, column data_type (sqlite_dynamic in the reference) and optimizer diagnostics are not equal; they are listed as declared differences",
@@ -191,7 +191,7 @@ def schema_differences(binary: Path) -> list[str]:
 
 def mutation_summary() -> dict:
     """The mutation result, if one is committed. It is produced by .github/workflows/mutation-mcp.yml
-    (about an hour of builds), not on a developer machine; until its results.txt is committed the
+    (about four minutes there, in four parts; about an hour if one machine runs all of it), not on a developer machine; until its results.txt is committed the
     record says so instead of claiming a result."""
     path = ROOT / MUTATION
     if not path.is_file():
@@ -288,7 +288,7 @@ def main() -> int:
     record = {
         "schema_version": "mdd.mcp-required-conformance.v2",
         "task": "MDD-042",
-        "status": "partial: content and the fields a client reads equal the reference's (its binary was obtained on 2026-11-16 and its answers frozen); the declared differences and what is not implemented are listed",
+        "status": "accepted by the product owner on 2026-11-16: content and the fields a client reads equal the reference's (its binary was obtained that day and its answers frozen), with the declared differences; decode of a class, the context mode and the manifest xml mode are MDD-071 and MDD-072",
         "kind": "development evidence; admits no profile",
         "capabilities": CAPABILITIES,
         "acceptance": rows,

@@ -1,0 +1,100 @@
+{
+  "schema": "mdd.hostlab-required-tools.v1",
+  "task": "MDD-042",
+  "about": "The MCP requests that HostLab sends to its dexsql backend and what it reads from the answers, taken from the frozen HostLab source (conformance/corpus/hostlab/source-8782f43/analysis_batch.py). check_hostlab_required_tools.py puts exactly these requests to the server and checks that every argument is in the published schema and every field HostLab reads is in the answer. A field that HostLab reads is a promise; one that it does not read may differ (see the declared differences of conformance/decode/a0_replay.py).",
+  "source": {
+    "repository": "jichuo1/innocent-lab-host-analysis",
+    "snapshot": "conformance/corpus/hostlab/source-8782f43/analysis_batch.py",
+    "backend": "dexsql"
+  },
+  "fixtures": {
+    "dex": "tests/fixtures/decode/generated/decode-all.dex",
+    "apk": "tests/fixtures/decode/generated/manifest-small.apk"
+  },
+  "calls": [
+    {
+      "id": "open",
+      "tool": "open_dataset",
+      "where": "analysis_batch.py:132",
+      "fixture": "dex",
+      "arguments": {"inputs": ["@dex"]},
+      "reads": ["dataset_id", "has_dex", "diagnostics"],
+      "reads_optional": ["cache"],
+      "note": "has_dex false makes HostLab refuse the input; diagnostics are passed on as source_diagnostics"
+    },
+    {
+      "id": "query-identity",
+      "tool": "query",
+      "where": "analysis_batch.py:154",
+      "fixture": "dex",
+      "arguments": {"sql": ["SELECT file_id,entry_name FROM dex_files ORDER BY file_id"], "limit": 1000, "offset": 0, "timing": true},
+      "reads": ["statements[0].columns[].name", "statements[0].rows[][].value", "statements[0].truncated", "statements[0].next_offset"],
+      "note": "builds the file_id -> DEX entry map; a partial answer is an error for HostLab"
+    },
+    {
+      "id": "query-methods",
+      "tool": "query",
+      "where": "analysis_batch.py:154",
+      "fixture": "dex",
+      "arguments": {"sql": ["SELECT file_id,descriptor FROM methods ORDER BY file_id,method_idx"], "limit": 200, "offset": 0, "timing": true},
+      "reads": ["statements[0].columns[].name", "statements[0].rows[][].value", "statements[0].truncated", "statements[0].next_offset"],
+      "expect_columns": ["file_id", "descriptor"]
+    },
+    {
+      "id": "decode-method",
+      "tool": "decode",
+      "where": "analysis_batch.py:233-236",
+      "fixture": "dex",
+      "arguments": {"method": "Ldecode/T;->switch_packed()V", "max_lines": 1000},
+      "reads": ["methods[0].smali", "methods[0].next_offset", "methods[0].file_id", "methods[0].method_idx", "methods[0].code_units"],
+      "note": "HostLab joins pages until next_offset is null or 64000 bytes are reached"
+    },
+    {
+      "id": "decode-method-in-file",
+      "tool": "decode",
+      "where": "analysis_batch.py:234-236",
+      "fixture": "dex",
+      "arguments": {"method": "Ldecode/T;->switch_packed()V", "file_id": 0, "max_lines": 1000},
+      "reads": ["methods[0].smali", "methods[0].next_offset", "methods[0].file_id", "methods[0].method_idx", "methods[0].code_units"]
+    },
+    {
+      "id": "decode-continuation",
+      "tool": "decode",
+      "where": "analysis_batch.py:241",
+      "fixture": "dex",
+      "arguments": {"method": "Ldecode/T;->switch_packed()V", "max_lines": 3, "offset": 0},
+      "follow_next_offset": true,
+      "reads": ["methods[0].smali", "methods[0].next_offset"],
+      "note": "the continuation must make progress (next_offset above the offset) and end with null; the joined pages equal the one page of max_lines 1000"
+    },
+    {
+      "id": "manifest",
+      "tool": "get_manifest",
+      "where": "analysis_batch.py:257",
+      "fixture": "apk",
+      "arguments": {},
+      "reads": ["next_offset", "manifest", "application", "permissions", "component_counts"],
+      "note": "HostLab keeps the answer as the manifest section of its report and marks it partial when next_offset is not null"
+    },
+    {
+      "id": "close",
+      "tool": "close_dataset",
+      "where": "analysis_batch.py:377",
+      "fixture": "dex",
+      "arguments": {},
+      "reads": ["closed"]
+    }
+  ],
+  "errors_read": [
+    {"where": "analysis_batch.py:125", "field": "error.dataset_closed", "meaning": "the dataset is gone; the batch stops using it"},
+    {"where": "analysis_batch.py:186,369", "field": "error.kind", "values": ["invalid_query", "invalid_input", "impl_defined", "output_too_large"], "meaning": "a rejected read-only statement does not invalidate the dataset"}
+  ],
+  "discovery": {
+    "tools_list": "the eight registered tools carry the reference's published schemas (run_mcp_conformance.py: schemas)",
+    "not_registered": ["get_manifest_components", "list_resource_files", "read_resource", "query_resources"],
+    "why": "MDD-072; a tool that is not implemented is not listed"
+  },
+  "not_used_by_hostlab_but_provided": ["list_datasets", "list_tables", "describe_table"],
+  "not_called_in_the_dexsql_backend": ["find_refs", "apk_info"],
+  "not_called_note": "find_refs and apk_info belong to HostLab's sqlite backend and are not part of the native MCP surface"
+}

@@ -353,9 +353,9 @@
 
 **限制**：一次一条语句（无脚本拆分、参数、typed IR、分页）；整个结果算完才发出第一批；B0 没有导入 HostLab 自己的模块，所以不证明 HostLab 规则原样可跑（MDD-050），其计时只是单机、非独占窗口、无 A0 对照的流水线完整性检查；两个私有 APK 不可得；只在一台 Windows 主机验证；冻结用例与 B0 校验已加入 CI 工作流但尚未在 CI 上运行。
 
-## 2026-11-15 MDD-042 原生 MCP 必需工具（部分完成，保持 in_progress）
+## 2026-11-15 MDD-042 原生 MCP 必需工具（完成）
 
-**结论**：`meguvizdexdash mcp` 提供八个工具（`open_dataset`、`list_datasets`、`close_dataset`、`list_tables`、`describe_table`、`query`、`decode`、`get_manifest`）。2026-11-16 起 **参考引擎的二进制已到手并冻结了它的答案**，对照结果：内容与客户端读取的字段相等，写法与措辞上有**声明过的差异**。MDD-042 **不标 done**：验收第 1 条写的是“逐请求等价”，你说过不需要完全一样，但验收文字没有改，我按 partial 报告；另有 decode 的 class/context 与 manifest 的 xml 模式未实现（MDD-071/072），以及变异检查在源码变动后还没重跑。
+**结论**：`meguvizdexdash mcp` 提供八个工具（`open_dataset`、`list_datasets`、`close_dataset`、`list_tables`、`describe_table`、`query`、`decode`、`get_manifest`）。2026-11-16 参考引擎的二进制到手并冻结了它的答案：内容与客户端读取的字段相等，写法与措辞上有**声明过的差异**。验收第 1 条写的是“逐请求等价”；你说不需要完全一样、并说“042 可以算是过了”，所以按**产品负责人接受**的口径标 `done`：内容与字段等价，差异逐条声明，不是逐字节相等。decode 的 class/context、manifest 的 xml 与资源工具属于 MDD-071/072，**不因 042 完成而算完成**。
 
 **参考二进制的来源与校验**：`LSPosed/dexsql-release` v0.1.0 的 `dexsql-windows-amd64.exe`，21,365,760 字节，sha256 `f354ebcf…c448`，与仓库一直固定的 A0 摘要逐字相同；经你同意下载到被忽略的 `artifacts/local/`，不入库。此前“不在本机”的原因：脚本里写死的路径 `D:\Bilibili_Innocent_Lab\tools\hostlab\vendor\dexsql\0.1.0\` 现在不存在。许可证（DexSQL Binary License 1.0）允许任何用途的使用。
 
@@ -363,19 +363,20 @@
 - `conformance/decode/generate_a0_golden.py` 用该二进制把 207 条请求（参数校验、选择器、文本、分页、多处出错时先报哪个、其他工具的参数、get_manifest）和 252 个方法的 decode 答案冻结进 `a0-golden.json`；`a0_replay.py` 无需二进制即可回放并比较，已接入 CI 与变异检查。
 - 结果：184 条请求里 184 条相等（65 条逐字相等，119 条带声明的差异），23 条未运行（未实现的模式）；252/252 个方法的指令、操作数、字面量、分支目标、switch 分支和异常表在“同一形式”下完全一致。事实字段（寄存器数、代码单元数、访问标志、try 数）两边相等。
 - 比较函数自带负向对照（`test_a0_replay.py`，31 项）；对照发现过一处漏洞——第一版把 switch 的 case 目标当作标签定义丢掉，改一个 case 也查不出来，已补。
+- 任务声明的输出 `conformance/mcp/hostlab-required-tools.json` 此前没有产出（`check_progress.py` 在标 done 时发现）。现在它列出 HostLab dexsql 后端实际发送的 8 个调用（来自冻结的 HostLab 源码，含参数与读取的字段）；`check_hostlab_required_tools.py` 把这些请求原样发给服务（53 项：schema、应答、字段、续页、HostLab 据以分支的两种错误），`test_hostlab_required_tools.py` 的 7 项对照故意损坏清单来证明检查会失败（其中一项发现协议错误会让检查崩溃而不是记失败，已改）。已接入 CI。
 
-**发现并改正的偏差**（对客户端有实际影响的）：错误 kind 改为 `invalid_range`（偏移越界、权限偏移越界）、`invalid_input`（字节预算容不下任何字符）、`not_archive`、`unknown_table`；`not_found` 回显 `file_id`/`method_idx`；空描述符是参数错误而不是“找不到”；摘要模式带 `next_offset: null`；`list_datasets`/`list_tables` 忽略多余字段。HostLab 实际读的是 `smali`、`next_offset`、`file_id`、`method_idx`、`code_units`、`error.kind`（query 的 `invalid_input`）、`dataset_closed`，不读标签文本。
+**发现并改正的偏差**（对客户端有实际影响的）：错误 kind 改为 `invalid_range`、`invalid_input`、`not_archive`、`unknown_table`；`not_found` 回显 `file_id`/`method_idx`；空描述符是参数错误而不是“找不到”；摘要模式带 `next_offset: null`；`list_datasets`/`list_tables` 忽略多余字段。HostLab 实际读的是 `smali`、`next_offset`、`file_id`、`method_idx`、`code_units`、`error.kind`（query 的 `invalid_input`）、`dataset_closed`，不读标签文本。
 
 **保留并声明的差异**（逐条理由在记录的 `a0_golden_replay.declared_differences`）
-- **文本写法**：我们用 baksmali 的写法（参数用 `p0`、`:cond_N`/`:goto_N`/`:try_start_N` 标签、`.catch` 紧挨代码、宽字面量带 `L`、字符串里转义撇号）；参考写 `v0`、`:label_XXXX`、`.catch` 全放末尾、不带 `L`、撇号不转义。我们的更接近真实 smali、更好读，且 `L` 缺失会让汇编器歧义。
+- **文本写法**：我们用 baksmali 的写法（参数用 `p0`、`:cond_N`/`:goto_N`/`:try_start_N` 标签、`.catch` 紧挨代码、宽字面量带 `L`、字符串里转义撇号）；参考写 `v0`、`:label_XXXX`、`.catch` 全放末尾、不带 `L`、撇号不转义。我们的更接近真实 smali、更好读。
 - **错误措辞**、**参数范围**（参考拒绝 `max_bytes` 不在 4096..131072、`timeout_ms` 不在 1..60000；我们的 `max_bytes` 是答案必须装得下的预算）、**参数类型错误**（参考是 `isError` 工具结果，我们是 JSON-RPC invalid-params）、**多处出错时先报哪个**、**list_tables 的范围**（17 个契约关系，对象形式）。
-- **畸形 invoke**（权衡后的取舍）：方法里某个 invoke 的寄存器个数与原型不符时，参考整个方法拒绝（`invalid_input`，给出偏移），我们按字节原样渲染，错误一眼可见。对混淆或损坏的样本，展示代码比整体拒绝更有用。
+- **畸形 invoke**（权衡后的取舍）：方法里某个 invoke 的寄存器个数与原型不符时，参考整个方法拒绝，我们按字节原样渲染，错误一眼可见。对混淆或损坏的样本，展示代码比整体拒绝更有用。
 
-**decode 与 Smali 渲染器**：引擎文本仍与独立 Python 渲染器（只读 DEX 字节）及手写文本逐字相等（baksmali 写法）；独立渲染器检验写法无歧义，参考的黄金检验内容与参考相同。分页按 UTF-8 字节 offset，行数、mid-line 标记各自独立；页的边界跟随我们自己的文本，因此与参考比较的是页内容与字段，不是页在哪里结束。
+**decode 与 Smali 渲染器**：引擎文本仍与独立 Python 渲染器（只读 DEX 字节）及手写文本逐字相等（baksmali 写法）；参考的黄金检验内容与参考相同。分页按 UTF-8 字节 offset，行数、mid-line 标记各自独立；页的边界跟随我们自己的文本，因此与参考比较的是页内容与字段，不是页在哪里结束。
 
-**限制与未提供**：`decode` 的 class 选择与 `context` 模式（MDD-071）、`get_manifest` 的 `xml` 模式（MDD-072）按“未实现”拒绝（参考的答案已冻结在黄金里，供这两个任务使用）；`get_manifest` 对 float/dimension/fraction/color/null 类型的属性值和非 android 命名空间的属性明确拒绝（黄金的清单里没有它们）；`list_tables` 只列 17 个契约关系；列 `data_type` 由返回值推断；`diagnostics` 不含参考的优化器提示；语句无法从外部停止，超时会关闭该数据集；只在一台 Windows 主机验证（Linux 由 CI 验证）。
+**限制与未提供**：`decode` 的 class 选择与 `context` 模式（MDD-071）、`get_manifest` 的 `xml` 模式与资源工具（MDD-072）按“未实现”拒绝（参考的答案已冻结在黄金里，供这两个任务使用）；`get_manifest` 对 float/dimension/fraction/color/null 类型的属性值和非 android 命名空间的属性明确拒绝；`list_tables` 只列 17 个契约关系；列 `data_type` 由返回值推断；`diagnostics` 不含参考的优化器提示；语句无法从外部停止，超时会关闭该数据集；只在一台 Windows 主机验证（Linux 由 CI 验证，已通过）。
 
-**验证**：77 项 Rust 测试通过。**变异检查**：2026-11-16 在 Actions 上（run 43820360601）52 个变异全部被抓住，那是参考回放加入之前的源码，结果文件改名为 `results-before-reference.txt`；现在有 57 个变异（新增：摘要的 `next_offset`、回显请求、空描述符、范围错误 kind、无参数工具），源码哈希已变，**57 个的结果还没有**，由 `mutation-mcp.yml` 重跑后提交，不声称。
+**验证**：77 项 Rust 测试通过；CI 在 Ubuntu 与 Windows 上通过。**变异检查**：57 个全部被抓住（Actions，2026-11-16，run 43837587308，提交 7beaa29；4 组并行加一个干净树作业，约 4 分钟）；参考回放加入之前的 52 个（run 43820360601）保留为 `results-before-reference.txt`。**此前我把这个检查说成“约一小时”是错的**：一小时是在一台机器上串行跑的时间，在 Actions 上并行只要几分钟。
 
 ## Checkout 与交付
 

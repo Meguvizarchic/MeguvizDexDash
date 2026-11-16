@@ -15,8 +15,8 @@ ABI itself is in-process and has no worker to lose, so the case is proven on the
 transport, with the real binary killed mid-stream and a stand-in worker that fails in each
 way a worker should not.
 
-The mutation check of this task runs in .github/workflows/mutation-abi.yml (about an hour of
-Rust builds is not run on a developer machine). Until its results.txt is committed the
+The mutation check of this task runs in .github/workflows/mutation-abi.yml (about nine minutes
+there; it rebuilds the Rust library for every fault, so it is not run on a developer machine). Until its results.txt is committed the
 record says the check has not run, and claims nothing.
 
 --check runs nothing: it verifies that the committed record still matches its inputs.

@@ -435,9 +435,9 @@
   },
   "boundaries_exit_code": 0,
   "log_sha256": {
-   "build": "88de06f2c60cdba47ce7b47e72f4d583b9aebfcf060549890cb2a9364459eb4f",
-   "rust": "e3f63624921f013398bd51142cf7c4999a6a54b524438912615e809952e598a6",
-   "python": "83c535dfd36a4b6641f8d253bde6480bdbff32f08647c53eecd6341de87c3181",
+   "build": "4c4a9954aa125c60b52867a09e96466d5908a28e51831b2ccb36b6c5640eb162",
+   "rust": "f749d0b099a04698cfeffbdbbc7569e9c559cee79ab706dba9c71f72580aa953",
+   "python": "9ef351714760e8c450677d0b0422658037f913f77192461764d2a9ad65978c42",
    "boundaries": "04fe3290ac90f82cfc723c1ef0fc42cefb71fad59e8fb8ce163d8bf55b2049c9"
   },
   "raw_logs_kept_at": "artifacts/local/ (ignored; carries developer-machine output)"
@@ -468,7 +468,7 @@
   "the mutation check has no result yet (it runs in a GitHub workflow); the conformance runner and its --check are not wired into CI"
  ],
  "run": {
-  "started_utc": "2026-11-16T08:01:27.527267+00:00",
+  "started_utc": "2026-11-16T09:21:14.685731+00:00",
   "profile": "native-unqualified (never admitted)"
  }
 }

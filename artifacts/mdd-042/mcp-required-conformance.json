@@ -1,7 +1,7 @@
 {
  "schema_version": "mdd.mcp-required-conformance.v2",
  "task": "MDD-042",
- "status": "partial: content and the fields a client reads equal the reference's (its binary was obtained on 2026-11-16 and its answers frozen); the declared differences and what is not implemented are listed",
+ "status": "accepted by the product owner on 2026-11-16: content and the fields a client reads equal the reference's (its binary was obtained that day and its answers frozen), with the declared differences; decode of a class, the context mode and the manifest xml mode are MDD-071 and MDD-072",
  "kind": "development evidence; admits no profile",
  "capabilities": [
   {
@@ -109,7 +109,7 @@
     }
    ],
    "not_proven": [
-    "equivalence is of content and of the fields a client reads, not of every byte: the declared differences (a0_golden_replay.declared_differences) are this server's choices, among them the writing of the smali text, the words of error messages, arguments outside the reference's ranges, and the order in which several mistakes in one request are named; the acceptance asks for answers 'like the reference', and whether that allows them is for the product owner to say",
+    "equivalence is of content and of the fields a client reads, not of every byte: the declared differences (a0_golden_replay.declared_differences) are this server's choices, among them the writing of the smali text, the words of error messages, arguments outside the reference's ranges, and the order in which several mistakes in one request are named; the acceptance asks for answers 'like the reference'; the product owner accepted content and field equivalence with these differences on 2026-11-16 (\"我觉得042可以算是过了\", after saying that exact equality with dexsql is not required)",
     "decode of a class, the context mode and the xml mode of get_manifest are not implemented (MDD-071, MDD-072); the reference's answers to them are frozen in the golden for those tasks",
     "get_manifest: values of float, dimension, fraction, color and null types are refused; the one manifest of the golden carries none",
     "query: integer type tags for negative numbers and booleans, column data_type (sqlite_dynamic in the reference) and optimizer diagnostics are not equal; they are listed as declared differences",
@@ -1025,14 +1025,14 @@
   ],
   "log_sha256": {
    "rust": [
-    "e006416230f96705455a4c08cb4c866ecd1ff96d33d3870a25945d559a577056",
-    "dd6d6e44c18b1858eb90e421f89b8d3e05e8036c0ba0e630f186269acaf574a9",
-    "09b9732086fc98f4cb44bc059c16608236fb8062f5fcc1f2d786dd1f8ea1d864"
+    "1886c0cb9cb92bf1c892c502ac07ec355939375c9485c536b0d99c11f08d7a45",
+    "a49e1dfc8ad53eef34c4668d86d30c8f8b9a0ab80e2f9580763cecf99bdfd2c8",
+    "89a4c007c8ac888772ece80460d1ef7e4063a1a9fdf49aa1d20e9cd4c577ab3f"
    ],
-   "clippy": "d41fa8d97901eaf944119c1e20b277325df59dd622133da265f4b98cc36d175f",
+   "clippy": "add59096252b8b8c36725244bc1410450001e3e832505437cce853ac3514bee1",
    "controls": [
     "2ae2691b3d3801ad0641d8313b60970e02727334cee88f780f22f77a9b498b9f",
-    "9819997d33c40b82718736ee0f715a0c81a735a22d7f91c178e9a32e2aec0a73",
+    "59323237cc44fb5b9e0a15f5cfc04b23fb6490fd0a93525b8a1ba35e34c88fd9",
     "fcaad54608aeaa9bdad1daf81c09a831f7f3300905dbe0be7f8614410a7e5285"
    ]
   },
@@ -1058,7 +1058,7 @@
   "conformance/mcp/manifest_replay.py": "145150259f2b50877fcf08b5f1f3a096e66c06fb2d1d03c35291e44b2304f0e9",
   "conformance/mcp/test_replays.py": "98c05c58ad78b1f8b34f22bf8748273da317a15b215cf6fb8a4aea61d8ff50b4",
   "conformance/mcp/tiny_dex.py": "e051c06d951b5973a8ef6972139fb977e58fbb44fa1f2ff0cd2663070a95e8f5",
-  "conformance/mcp/run_mcp_conformance.py": "ffd3a012cdf09251bbf2c0b642c66b39ee72b86b8b5ccf5c3653bfda3fd1e138",
+  "conformance/mcp/run_mcp_conformance.py": "757ec1458346171ec15f1d149a7a06f555b99505c1320f39123ae513b4a2f6b6",
   "conformance/decode/oracle.py": "fd59e719043bb50a227c7cf41bd171b3c4313c81705b5f59320ff7612b4babba",
   "conformance/decode/run_decode_conformance.py": "9a104e046ca588b321db97a628090b3dead1cd7b15e4f44482d6dd74c6e784e6",
   "conformance/decode/hand-expected.txt": "3dfad5ab67a2c9e86a60024d06a1284ab08002a1953c8cd39eb89e505af218e8",
@@ -1077,12 +1077,15 @@
  },
  "mutation_check": {
   "file": "artifacts/mdd-042/mutation/results.txt",
-  "present": false,
-  "current": false,
-  "status": "not run yet: it runs in .github/workflows/mutation-mcp.yml on request; no result is claimed",
   "script": "artifacts/mdd-042/mutation/mutate_mcp.py",
-  "mutants": 57,
-  "earlier_result": "artifacts/mdd-042/mutation/results-before-reference.txt (52 mutants, Actions run 43820360601 on fbbd3b4, all killed, before the reference replay and 5 more mutants); artifacts/mdd-042/mutation/results-first-slice.txt (17 mutants, the first slice, 2e38019)"
+  "present": true,
+  "current": true,
+  "killed": 57,
+  "survived": [],
+  "errors": 0,
+  "skipped": 0,
+  "restored_tree_passes": true,
+  "public_apk_was_present": false
  },
  "residual": [
   "the reference's executable is not kept in the repository (a closed-source binary, https://github.com/LSPosed/dexsql-release v0.1.0); conformance/decode/generate_a0_golden.py freezes its answers from a copy whose sha256 it checks, and the replay needs no binary",
@@ -1104,6 +1107,6 @@
   "one Windows host; the MCP process tests run on Linux only in the repository CI"
  ],
  "run": {
-  "started_utc": "2026-11-16T09:07:58.556907+00:00"
+  "started_utc": "2026-11-16T09:21:31.779893+00:00"
  }
 }

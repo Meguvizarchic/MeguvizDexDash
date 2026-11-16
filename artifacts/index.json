@@ -54409,13 +54409,28 @@
     },
     {
       "path": "artifacts/mdd-042/mcp-required-conformance.json",
-      "bytes": 40846,
-      "sha256": "ead941e45879665f6803534b7b90d0161c5c174bb4d255d0faae1ec509f8ed72"
+      "bytes": 40789,
+      "sha256": "871b6f400a938a3549db549987c91a42a6e096d571dc677e61e9152db1c2ea51"
     },
     {
       "path": "artifacts/mdd-042/mutation/mutate_mcp.py",
-      "bytes": 24988,
-      "sha256": "d44691ade55692157229968de595a3bb29309ed16ef9f9b5559ca665c2a062e3"
+      "bytes": 25032,
+      "sha256": "2d8c323770650309ca40c5d05cb0dba38168c97998131ff24c0e4a76dbae9157"
+    },
+    {
+      "path": "artifacts/mdd-042/mutation/results-before-reference.txt",
+      "bytes": 3195,
+      "sha256": "ab110482c089d4be1df21a0fedb949e65cda39dc80fd564c59b2f0ead2d6c10c"
+    },
+    {
+      "path": "artifacts/mdd-042/mutation/results-first-slice.txt",
+      "bytes": 1122,
+      "sha256": "b022c25777b199fa38b74a2e371e6f6b47f362da8976136a2d6d561e30d22051"
+    },
+    {
+      "path": "artifacts/mdd-042/mutation/results.txt",
+      "bytes": 3530,
+      "sha256": "de627798b1df3f89518ae52f775e8684c8fe6aa978627f39340639fdea0061fa"
     },
     {
       "path": "artifacts/mdd-043/mutation/mutate_abi.py",
@@ -54435,7 +54450,7 @@
     {
       "path": "artifacts/mdd-043/sdk-and-abi-conformance.json",
       "bytes": 14113,
-      "sha256": "b5915bb20526d07492e3a5757038aa3da46848e425f0d3ba7428f96f1a2fec3c"
+      "sha256": "5f2b2dd5a5f41f173eef94896d3d69917499571a50d2916168383064d6a519b8"
     },
     {
       "path": "artifacts/mdd-051/skeleton-20261110/newpipe.err",
