@@ -1,7 +1,7 @@
 {
  "schema_version": "mdd.mcp-required-conformance.v2",
  "task": "MDD-042",
- "status": "partial: every request that was recorded is equal to the reference's; what nobody recorded is this server's own and is listed",
+ "status": "partial: content and the fields a client reads equal the reference's (its binary was obtained on 2026-11-16 and its answers frozen); the declared differences and what is not implemented are listed",
  "kind": "development evidence; admits no profile",
  "capabilities": [
   {
@@ -100,14 +100,18 @@
      "outcome": "ok"
     },
     {
-     "check": "negative controls: damaged recordings, hand texts and renderers are caught",
+     "check": "the reference binary's own answers (dexsql 0.1.0, sha256 f354ebcf...c448, frozen in conformance/decode/a0-golden.json): every request answers equally or with a declared difference, and every method of the fixtures decodes to the same instructions",
+     "outcome": "ok"
+    },
+    {
+     "check": "negative controls: damaged recordings, hand texts, renderers and the replay's own comparison are caught",
      "outcome": "ok"
     }
    ],
    "not_proven": [
-    "the reference's executable is not available: every comparison is with what was recorded; a request nobody recorded is not compared",
-    "decode: only the default smali mode of one four-instruction method, by descriptor and by file_id+method_idx, the ambiguous error, and a deleted source are recorded; the text of every other instruction, the paging of a long method (offset, max_bytes, mid-line flags) and the summary mode are this server's own",
-    "get_manifest: the summary of one public APK is recorded; the xml mode is not provided; values of float, dimension, fraction, color and null types are refused because no recording shows how the reference writes them",
+    "equivalence is of content and of the fields a client reads, not of every byte: the declared differences (a0_golden_replay.declared_differences) are this server's choices, among them the writing of the smali text, the words of error messages, arguments outside the reference's ranges, and the order in which several mistakes in one request are named; the acceptance asks for answers 'like the reference', and whether that allows them is for the product owner to say",
+    "decode of a class, the context mode and the xml mode of get_manifest are not implemented (MDD-071, MDD-072); the reference's answers to them are frozen in the golden for those tasks",
+    "get_manifest: values of float, dimension, fraction, color and null types are refused; the one manifest of the golden carries none",
     "query: integer type tags for negative numbers and booleans, column data_type (sqlite_dynamic in the reference) and optimizer diagnostics are not equal; they are listed as declared differences",
     "server_busy cannot arise (one request at a time); the path-plus-symlink identity case needs a link this account could not make"
    ],
@@ -121,7 +125,11 @@
      "outcome": "ok"
     },
     {
-     "check": "negative controls: damaged recordings, hand texts and renderers are caught",
+     "check": "the reference binary's own answers (dexsql 0.1.0, sha256 f354ebcf...c448, frozen in conformance/decode/a0-golden.json): every request answers equally or with a declared difference, and every method of the fixtures decodes to the same instructions",
+     "outcome": "ok"
+    },
+    {
+     "check": "negative controls: damaged recordings, hand texts, renderers and the replay's own comparison are caught",
      "outcome": "ok"
     }
    ],
@@ -143,6 +151,10 @@
      "outcome": "ok"
     },
     {
+     "check": "the reference binary's own answers (dexsql 0.1.0, sha256 f354ebcf...c448, frozen in conformance/decode/a0-golden.json): every request answers equally or with a declared difference, and every method of the fixtures decodes to the same instructions",
+     "outcome": "ok"
+    },
+    {
      "check": "decode_pages_by_utf8_byte_offset_and_lines_apart",
      "outcome": "ok"
     },
@@ -152,7 +164,7 @@
     }
    ],
    "not_proven": [
-    "the reference's own behaviour at a page cut inside a line or past the end is not recorded; the manifest xml mode (UTF-8 byte offsets) is not provided (MDD-072)"
+    "the page boundaries of a smali text follow this server's text, which is written differently from the reference's, so a page is compared with the reference's for its content and its fields, not for where it ends; the manifest xml mode (UTF-8 byte offsets) is not provided (MDD-072)"
    ],
    "status": "partial"
   },
@@ -810,6 +822,194 @@
   "not_run": 0,
   "public_apk_present": true
  },
+ "a0_golden_replay": {
+  "reference": {
+   "name": "dexsql",
+   "origin": "https://github.com/LSPosed/dexsql-release/releases/download/v0.1.0/dexsql-windows-amd64.exe",
+   "platform": "windows_amd64",
+   "sha256": "f354ebcf715de9a66ef8ebe08b2b36807ab58e25cd5a1c0812e497fc1fcfc448",
+   "version": "0.1.0"
+  },
+  "recorded_utc": "2026-11-16T08:53:50Z",
+  "cases_run": 184,
+  "cases_equal": 184,
+  "cases_equal_exactly": 65,
+  "cases_equal_with_a_declared_difference": {
+   "ERROR WORDING": 22,
+   "LENIENT": 15,
+   "MALFORMED ARGUMENTS": 50,
+   "ORDER OF CHECKS": 29,
+   "OWN SCOPE": 2,
+   "TEXT CONVENTIONS": 1
+  },
+  "cases_not_run": [
+   {
+    "id": "decode-arg-timeout_ms-1",
+    "reason": "a 1 ms deadline",
+    "refused_cleanly": null
+   },
+   {
+    "id": "decode-arg-mode-context",
+    "reason": "the context mode (MDD-071)",
+    "refused_cleanly": true
+   },
+   {
+    "id": "decode-select-class",
+    "reason": "decode of a class (MDD-071)",
+    "refused_cleanly": true
+   },
+   {
+    "id": "decode-select-class-unknown",
+    "reason": "decode of a class (MDD-071)",
+    "refused_cleanly": true
+   },
+   {
+    "id": "decode-select-class-smali",
+    "reason": "decode of a class (MDD-071)",
+    "refused_cleanly": true
+   },
+   {
+    "id": "decode-select-class-summary",
+    "reason": "decode of a class (MDD-071)",
+    "refused_cleanly": true
+   },
+   {
+    "id": "decode-select-class-context",
+    "reason": "decode of a class (MDD-071)",
+    "refused_cleanly": true
+   },
+   {
+    "id": "decode-select-class-page-2",
+    "reason": "decode of a class (MDD-071)",
+    "refused_cleanly": true
+   },
+   {
+    "id": "decode-select-class-offset-past",
+    "reason": "decode of a class (MDD-071)",
+    "refused_cleanly": true
+   },
+   {
+    "id": "decode-text-switch-context",
+    "reason": "the context mode (MDD-071)",
+    "refused_cleanly": true
+   },
+   {
+    "id": "decode-text-try-context",
+    "reason": "the context mode (MDD-071)",
+    "refused_cleanly": true
+   },
+   {
+    "id": "decode-text-abstract-context",
+    "reason": "the context mode (MDD-071)",
+    "refused_cleanly": true
+   },
+   {
+    "id": "manifest-mode-xml",
+    "reason": "the xml mode of get_manifest (MDD-072)",
+    "refused_cleanly": true
+   },
+   {
+    "id": "manifest-xml-offset-10",
+    "reason": "the xml mode of get_manifest (MDD-072)",
+    "refused_cleanly": true
+   },
+   {
+    "id": "manifest-xml-offset-huge",
+    "reason": "the xml mode of get_manifest (MDD-072)",
+    "refused_cleanly": true
+   },
+   {
+    "id": "manifest-xml-offset-0-bytes-4096",
+    "reason": "the xml mode of get_manifest (MDD-072)",
+    "refused_cleanly": true
+   },
+   {
+    "id": "manifest-xml-limit",
+    "reason": "the xml mode of get_manifest (MDD-072)",
+    "refused_cleanly": true
+   },
+   {
+    "id": "manifest-no-manifest-xml",
+    "reason": "the xml mode of get_manifest (MDD-072)",
+    "refused_cleanly": true
+   },
+   {
+    "id": "manifest-combo-xml-limit-0",
+    "reason": "the xml mode of get_manifest (MDD-072)",
+    "refused_cleanly": true
+   },
+   {
+    "id": "manifest-combo-xml-max_bytes-0",
+    "reason": "the xml mode of get_manifest (MDD-072)",
+    "refused_cleanly": true
+   },
+   {
+    "id": "manifest-combo-xml-input_index-1",
+    "reason": "the xml mode of get_manifest (MDD-072)",
+    "refused_cleanly": true
+   },
+   {
+    "id": "manifest-combo-xml-offset-past",
+    "reason": "the xml mode of get_manifest (MDD-072)",
+    "refused_cleanly": true
+   },
+   {
+    "id": "manifest-combo-xml-timeout-0",
+    "reason": "the xml mode of get_manifest (MDD-072)",
+    "refused_cleanly": true
+   }
+  ],
+  "methods": {
+   "total": 252,
+   "equal": 252
+  },
+  "declared_differences": [
+   {
+    "class": "ENVELOPE",
+    "why": "the `error` object of every tool error carries four fields of this engine (code, stage, retryable, details) beside the reference's"
+   },
+   {
+    "class": "TEXT CONVENTIONS",
+    "why": "the smali text follows baksmali's writing (p-registers for parameters, :cond_N/:goto_N/:try_start_N labels, .catch lines beside the code, an L on wide literals, a backslash before an apostrophe in strings); the reference writes v-registers, :label_XXXX, .catch lines at the end, no L, a bare apostrophe. The two texts are reduced to the same form (canon_smali) and must be equal: instructions, operands, literals, branch targets, payloads and exception tables. The numbers that depend on the length of the text (total_bytes, total_lines, start_line, end_line, next_offset, the mid-line flags) are compared only when the text is identical."
+   },
+   {
+    "class": "ERROR WORDING",
+    "why": "an error's `message` is this server's own words. Its `kind` (through KIND_ALIASES) and the file_id, method_idx and code_unit_offset it echoes are compared."
+   },
+   {
+    "class": "MALFORMED ARGUMENTS",
+    "why": "an argument of the wrong type, an unknown field, or a value outside its range (limit, max_lines, method_limit, timeout_ms) is a JSON-RPC invalid-params error here; the reference answers a tool result with isError (the serde message, or kind invalid_input)."
+   },
+   {
+    "class": "LENIENT",
+    "why": "the reference refuses max_bytes outside 4096..=131072 and timeout_ms outside 1..=60000, and `mode: null` for get_manifest; this server's max_bytes is a budget the answer must fit in (over it: quota_exceeded) and it takes `null` as the default."
+   },
+   {
+    "class": "MALFORMED CODE",
+    "why": "a method whose invoke names a different number of registers than its prototype takes is rendered as the bytes say (the invoke is visible and wrong); the reference refuses the whole method (invalid_input, with the offset of the invoke). Showing the code of a damaged or obfuscated method is the more useful answer."
+   },
+   {
+    "class": "SUMMARY",
+    "why": "the summary mode here also names the method's `declaration`."
+   },
+   {
+    "class": "NOT IMPLEMENTED",
+    "why": "decode of a class, the context mode and the xml mode of get_manifest (MDD-071, MDD-072) are refused as `not_implemented`; they are not compared."
+   },
+   {
+    "class": "OWN SCOPE",
+    "why": "list_tables names the 17 HostLab contract relations (as objects with name, kind and column_count) where the reference lists 56 names; list_datasets reports this server's own limits."
+   },
+   {
+    "class": "ORDER OF CHECKS",
+    "why": "when a request is wrong in several ways, both engines refuse it, but the reference names the dataset first, then timeout_ms, max_bytes and the rest, and this server checks the schema of the arguments before it looks for the dataset."
+   },
+   {
+    "class": "TIMING",
+    "why": "a 1 ms deadline: the reference ran out of time; whether this server does depends on the clock."
+   }
+  ]
+ },
  "tests": {
   "rust": {
    "exit_code": 0,
@@ -820,29 +1020,31 @@
   "build_exit_code": 0,
   "controls_exit_codes": [
    0,
+   0,
    0
   ],
   "log_sha256": {
    "rust": [
-    "d7d0a7fe927e5d5885d29e791be8ade114946e48049bfe762f192f7b5fa43984",
-    "b75106d2e2f563921d059f32f2f9227472934d9539fc828e5b6319a845f1e5d2",
-    "e9d618400253c8efcbc14ae910ae9f5dc0c704e65de1e1fd26f738d5f8960a1c"
+    "e006416230f96705455a4c08cb4c866ecd1ff96d33d3870a25945d559a577056",
+    "dd6d6e44c18b1858eb90e421f89b8d3e05e8036c0ba0e630f186269acaf574a9",
+    "09b9732086fc98f4cb44bc059c16608236fb8062f5fcc1f2d786dd1f8ea1d864"
    ],
-   "clippy": "1c59da4a74835368fef545abf81ca6b1b086573b364647dc494f5c7a1e6300ed",
+   "clippy": "d41fa8d97901eaf944119c1e20b277325df59dd622133da265f4b98cc36d175f",
    "controls": [
     "2ae2691b3d3801ad0641d8313b60970e02727334cee88f780f22f77a9b498b9f",
-    "76523044fbeb6733afb4ccf0edb54d8c7d7d664f4fc2b6688c256ddf24347069"
+    "9819997d33c40b82718736ee0f715a0c81a735a22d7f91c178e9a32e2aec0a73",
+    "fcaad54608aeaa9bdad1daf81c09a831f7f3300905dbe0be7f8614410a7e5285"
    ]
   },
   "raw_logs_kept_at": "artifacts/local/ (ignored; carries developer-machine output)"
  },
  "inputs_sha256": {
-  "crates/mdd-mcp/src/tools.rs": "5f8a1b9ed36668564da6a480356455b452aee4a35e400db1f1247c37d7571372",
+  "crates/mdd-mcp/src/tools.rs": "8737de246be7f435b7896d70b07eb126436785fc9ef92f2578838ce86dbb5963",
   "crates/mdd-mcp/src/server.rs": "92d533d0184883d63a52753af925d8fdeebb0d511af09057cd824860ef71668b",
   "crates/mdd-mcp/src/protocol.rs": "dcc1508b6f61ffa6632f27954b0aaa6801367dd543fff7648a0d4862bdcda020",
   "crates/mdd-mcp/src/lib.rs": "04c090fad25cd89003d79350892283c307366246c8c3ac41b454656813dc9879",
   "crates/mdd-mcp/src/tool_schemas.json": "4f3fc454c010dbc6c000ea9a1528dd6e7acd4f011c10232548b881edb459b724",
-  "crates/mdd-cli/tests/mcp.rs": "bef3f7e369e737c1c8eb2c540f0305593d8a051dba0091d9f74217bac1d65461",
+  "crates/mdd-cli/tests/mcp.rs": "fcdaf12cd0daaf79a1a73096135fc08552e0200c319949b2a4f0b582f1be5dc8",
   "crates/mdd-service/src/decode.rs": "f204b6248c2cc7539cec5e54df27fe4ee4a08ee935f122572bff31919dd0d45c",
   "crates/mdd-service/src/dataset.rs": "1550b191e4acf65de6fb49ee847c6745c7b00f2fa2d08c557eab230b7df97f43",
   "crates/mdd-service/src/manifest.rs": "54b533e54e9e0fc6770347ec62a819a35e09e2e6446eda831bd36e2f4a5ed061",
@@ -856,10 +1058,15 @@
   "conformance/mcp/manifest_replay.py": "145150259f2b50877fcf08b5f1f3a096e66c06fb2d1d03c35291e44b2304f0e9",
   "conformance/mcp/test_replays.py": "98c05c58ad78b1f8b34f22bf8748273da317a15b215cf6fb8a4aea61d8ff50b4",
   "conformance/mcp/tiny_dex.py": "e051c06d951b5973a8ef6972139fb977e58fbb44fa1f2ff0cd2663070a95e8f5",
-  "conformance/mcp/run_mcp_conformance.py": "d0dd324f086e8022ac96bac2a99e69dd9f0970c28c5a8484449f50244d43950e",
+  "conformance/mcp/run_mcp_conformance.py": "ffd3a012cdf09251bbf2c0b642c66b39ee72b86b8b5ccf5c3653bfda3fd1e138",
   "conformance/decode/oracle.py": "fd59e719043bb50a227c7cf41bd171b3c4313c81705b5f59320ff7612b4babba",
-  "conformance/decode/run_decode_conformance.py": "92bb0d50449787641af8a283ac7d002a8af900e0c29b6ee9e0189c62e95ad235",
+  "conformance/decode/run_decode_conformance.py": "9a104e046ca588b321db97a628090b3dead1cd7b15e4f44482d6dd74c6e784e6",
   "conformance/decode/hand-expected.txt": "3dfad5ab67a2c9e86a60024d06a1284ab08002a1953c8cd39eb89e505af218e8",
+  "conformance/decode/a0_cases.py": "940e552451194ecd1b1a9dbcdf19635445deab581f2ecdf6305364f663b3b39d",
+  "conformance/decode/a0_replay.py": "9704115e274af5308b58db023c2ab2a2e1eb850750edd0d7c6396f6810c61ae4",
+  "conformance/decode/test_a0_replay.py": "e47af03e38faab80cf6e59698ab1ff945020cd74346534148454f2d54b21d0e5",
+  "conformance/decode/generate_a0_golden.py": "a6eac3d9ff509465124459e625850f14e15ddda1bd0f9e795e218f0f743dd9cd",
+  "conformance/decode/a0-golden.json": "2b4aad1ded11f0bbe849669798cdfd663aeb67271826c7c94c21acb5412c67ba",
   "tests/fixtures/decode/generate.py": "8dd3ff79c7a24249a92ee1c0456f94bda8c92be89a452acd429035d7ac142a9b",
   "tests/fixtures/decode/manifest.json": "43e35c6889b508c11d6c808285fcdcadd6e636843aa2b32751631fdd9adc34cf",
   "conformance/corpus/hostlab/required-variants.json": "134a2a389ba16369dc454a600a0a524e882078cd804506158aed8076a2aa24c2",
@@ -870,22 +1077,20 @@
  },
  "mutation_check": {
   "file": "artifacts/mdd-042/mutation/results.txt",
+  "present": false,
+  "current": false,
+  "status": "not run yet: it runs in .github/workflows/mutation-mcp.yml on request; no result is claimed",
   "script": "artifacts/mdd-042/mutation/mutate_mcp.py",
-  "present": true,
-  "current": true,
-  "killed": 52,
-  "survived": [],
-  "errors": 0,
-  "skipped": 0,
-  "restored_tree_passes": true,
-  "public_apk_was_present": false
+  "mutants": 57,
+  "earlier_result": "artifacts/mdd-042/mutation/results-before-reference.txt (52 mutants, Actions run 43820360601 on fbbd3b4, all killed, before the reference replay and 5 more mutants); artifacts/mdd-042/mutation/results-first-slice.txt (17 mutants, the first slice, 2e38019)"
  },
  "residual": [
-  "the reference engine's executable is not on this machine; no request outside the recordings was compared with it",
-  "decode text beyond the recorded method follows baksmali's default conventions (pN parameter registers, hex-address labels, .catch after the try_end label, no debug or annotation directives); it is checked against an independent renderer and hand-written texts written from the same description, which shows the description is unambiguous, not that it is what the reference prints",
-  "decode paging (offset, max_bytes, mid-line flags, summary mode) and the context mode, class selection and manifest xml mode: unrecorded; the last three are refused as not implemented",
-  "get_manifest refuses attribute values of float, dimension, fraction, color, null and unknown types, and attributes in namespaces other than android; the recording shows neither",
-  "get_manifest page size defaults to 200 rows; the reference's default is unrecorded",
+  "the reference's executable is not kept in the repository (a closed-source binary, https://github.com/LSPosed/dexsql-release v0.1.0); conformance/decode/generate_a0_golden.py freezes its answers from a copy whose sha256 it checks, and the replay needs no binary",
+  "decode text follows baksmali's writing (pN parameter registers, :cond_N/:goto_N labels, .catch lines beside the code, L on wide literals, escaped apostrophes) where the reference writes vN registers, :label_XXXX, .catch lines at the end, no L and a bare apostrophe; the two texts are compared after both are reduced to the same form, so instructions, operands, literals, targets, switch cases and exception tables are equal, but the byte offsets and line numbers of a page differ",
+  "a method whose invoke names a different number of registers than its prototype takes is rendered as written; the reference refuses it (invalid_input at the invoke's offset)",
+  "arguments outside the reference's ranges (max_bytes outside 4096..=131072, timeout_ms outside 1..=60000) are served here; wrong types, unknown fields and limits outside their range are JSON-RPC invalid-params errors here and tool results with isError in the reference",
+  "get_manifest refuses attribute values of float, dimension, fraction, color, null and unknown types, and attributes in namespaces other than android; the golden's manifest shows neither",
+  "get_manifest page size defaults to 200 rows, the reference's limit maximum (equal in the golden)",
   "when a manifest has several <application> or <uses-sdk> elements the summary shows the first; the reference's choice is unrecorded",
   "an activity-alias is counted under its own name in component_counts; the recording has no alias",
   "the NewPipe manifest replay needs a local public APK (ignored input); without it the check is reported as not run, as in CI",
@@ -899,6 +1104,6 @@
   "one Windows host; the MCP process tests run on Linux only in the repository CI"
  ],
  "run": {
-  "started_utc": "2026-11-16T07:24:05.002271+00:00"
+  "started_utc": "2026-11-16T09:07:58.556907+00:00"
  }
 }

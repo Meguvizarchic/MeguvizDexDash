@@ -51,6 +51,8 @@ SOURCES = [
     "conformance/mcp/lifecycle_replay.py", "conformance/mcp/manifest_replay.py", "conformance/mcp/test_replays.py",
     "conformance/mcp/tiny_dex.py", "conformance/mcp/run_mcp_conformance.py",
     "conformance/decode/oracle.py", "conformance/decode/run_decode_conformance.py", "conformance/decode/hand-expected.txt",
+    "conformance/decode/a0_cases.py", "conformance/decode/a0_replay.py", "conformance/decode/test_a0_replay.py",
+    "conformance/decode/generate_a0_golden.py", "conformance/decode/a0-golden.json",
     "tests/fixtures/decode/generate.py", "tests/fixtures/decode/manifest.json",
     "conformance/corpus/hostlab/required-variants.json",
     "conformance/corpus/hostlab/expected-results/hostlab-a0-golden.json", MANIFEST,
@@ -71,25 +73,27 @@ REFUSALS = "A0 replay: every recorded refusal is refused, at the same statement 
 LIFECYCLE = "recorded sessions: open, list, close, errors, TEMP, deadline, identity and the recorded decode answers equal the reference's"
 DECODE = "decode conformance: the engine's text equals an independent renderer and hand-written texts for every method of the fixtures"
 MANIFEST_REPLAY = "recorded NewPipe get_manifest summary: all six pages equal the reference's"
-CONTROLS = "negative controls: damaged recordings, hand texts and renderers are caught"
+A0_REPLAY = ("the reference binary's own answers (dexsql 0.1.0, sha256 f354ebcf...c448, frozen in conformance/decode/a0-golden.json): every request answers equally "
+             "or with a declared difference, and every method of the fixtures decodes to the same instructions")
+CONTROLS = "negative controls: damaged recordings, hand texts, renderers and the replay's own comparison are caught"
 
 ACCEPTANCE = [
     {"acceptance": "the five HostLab tools open_dataset/query/decode/get_manifest/close_dataset answer request by request like the reference, and the three discovery tools carry the real schema",
-     "proven": [SCHEMAS, QUERY, REFUSALS, LIFECYCLE, MANIFEST_REPLAY, CONTROLS],
+     "proven": [SCHEMAS, QUERY, REFUSALS, LIFECYCLE, MANIFEST_REPLAY, A0_REPLAY, CONTROLS],
      "not_proven": [
-         "the reference's executable is not available: every comparison is with what was recorded; a request nobody recorded is not compared",
-         "decode: only the default smali mode of one four-instruction method, by descriptor and by file_id+method_idx, the ambiguous error, and a deleted source are recorded; the text of every other instruction, the paging of a long method (offset, max_bytes, mid-line flags) and the summary mode are this server's own",
-         "get_manifest: the summary of one public APK is recorded; the xml mode is not provided; values of float, dimension, fraction, color and null types are refused because no recording shows how the reference writes them",
+         "equivalence is of content and of the fields a client reads, not of every byte: the declared differences (a0_golden_replay.declared_differences) are this server's choices, among them the writing of the smali text, the words of error messages, arguments outside the reference's ranges, and the order in which several mistakes in one request are named; the acceptance asks for answers 'like the reference', and whether that allows them is for the product owner to say",
+         "decode of a class, the context mode and the xml mode of get_manifest are not implemented (MDD-071, MDD-072); the reference's answers to them are frozen in the golden for those tasks",
+         "get_manifest: values of float, dimension, fraction, color and null types are refused; the one manifest of the golden carries none",
          "query: integer type tags for negative numbers and booleans, column data_type (sqlite_dynamic in the reference) and optimizer diagnostics are not equal; they are listed as declared differences",
          "server_busy cannot arise (one request at a time); the path-plus-symlink identity case needs a link this account could not make"]},
     {"acceptance": "decode produces the instructions, method context and declarations production uses, never placeholder text or opcodes alone",
-     "proven": [DECODE, CONTROLS],
+     "proven": [DECODE, A0_REPLAY, CONTROLS],
      "not_proven": ["no fixture holds invoke-custom, const-method-handle or const-method-type (call-site and method-handle tables are not built); their operands print as call_site_N / method_handle_N",
                     "debug info and annotations are not shown (the reference points to SQL tables for them); the class selection and the context mode are refused as not implemented (MDD-071)"]},
     {"acceptance": "Smali and Manifest paging keep their own units (UTF-8 byte offsets, line counts, permission rows) and do not mix with DEX byte offsets",
-     "proven": [DECODE, MANIFEST_REPLAY, "decode_pages_by_utf8_byte_offset_and_lines_apart",
+     "proven": [DECODE, MANIFEST_REPLAY, A0_REPLAY, "decode_pages_by_utf8_byte_offset_and_lines_apart",
                 "permissions_page_by_rows_and_the_rest_of_the_summary_repeats_unchanged"],
-     "not_proven": ["the reference's own behaviour at a page cut inside a line or past the end is not recorded; the manifest xml mode (UTF-8 byte offsets) is not provided (MDD-072)"]},
+     "not_proven": ["the page boundaries of a smali text follow this server's text, which is written differently from the reference's, so a page is compared with the reference's for its content and its fields, not for where it ends; the manifest xml mode (UTF-8 byte offsets) is not provided (MDD-072)"]},
     {"acceptance": "tool ownership, quotas, closing, errors and source identity are checked through real MCP JSON-RPC",
      "proven": ["the_session_must_be_initialized_before_tools_and_may_be_initialized_once",
                 "only_protocol_messages_reach_stdout_and_bad_lines_do_not_end_the_session",
@@ -197,10 +201,8 @@ def mutation_summary() -> dict:
         return {"file": MUTATION, "present": False, "current": False,
                 "status": "not run yet: it runs in .github/workflows/mutation-mcp.yml on request; no result is claimed",
                 "script": "artifacts/mdd-042/mutation/mutate_mcp.py", "mutants": len(module.MUTANTS),
-                "earlier_result": "artifacts/mdd-042/mutation/results-first-slice.txt (17 mutants, the first slice, 2e38019); "
-                                 "a first run of the 52 on Actions (2026-11-15, run 43704479769) ended at mutant 38 when the script's own 3600 s command limit "
-                                 "expired in the process tests: 36 of 37 verdicts were KILLED and one survived (a decode deadline), which a new decode "
-                                 "deadline check now kills; the hang was not located"}
+                "earlier_result": "artifacts/mdd-042/mutation/results-before-reference.txt (52 mutants, Actions run 43820360601 on fbbd3b4, all killed, before the reference replay and 5 more mutants); "
+                                  "artifacts/mdd-042/mutation/results-first-slice.txt (17 mutants, the first slice, 2e38019)"}
     lines = path.read_text(encoding="utf-8").splitlines()
     recorded = [line.split(":", 1)[1].strip() for line in lines if line.startswith("sources sha256:")]
     return {
@@ -253,8 +255,12 @@ def main() -> int:
     lifecycle = lifecycle_replay.run(DEFAULT_BINARY) if built else None
     decode = decode_conformance.run(DEFAULT_BINARY) if built else None
     manifest = manifest_replay.run(DEFAULT_BINARY) if built else None
+    a0_report_path = raw / "a0-replay.json"
+    a0_run = run([sys.executable, "-I", "conformance/decode/a0_replay.py", "--out", str(a0_report_path)], raw, "a0-replay") if built else None
+    a0_report = json.loads(a0_report_path.read_text(encoding="utf-8")) if a0_run and a0_report_path.is_file() else None
     controls = [run([sys.executable, "-I", "conformance/mcp/test_golden_replay.py"], raw, "controls-golden"),
-                run([sys.executable, "-I", "conformance/mcp/test_replays.py"], raw, "controls-replays")]
+                run([sys.executable, "-I", "conformance/mcp/test_replays.py"], raw, "controls-replays"),
+                run([sys.executable, "-I", "conformance/decode/test_a0_replay.py"], raw, "controls-a0-replay")]
     controls_ok = all(c["exit_code"] == 0 for c in controls)
     manifest_ran = bool(manifest) and manifest["not_run"] == 0
 
@@ -265,6 +271,8 @@ def main() -> int:
         LIFECYCLE: "ok" if lifecycle and lifecycle["equal"] and lifecycle["passed"] > 0 else "failed",
         DECODE: "ok" if decode and decode["equal"] and decode["passed"] > 0 else "failed",
         MANIFEST_REPLAY: ("ok" if manifest and manifest["equal"] and manifest_ran else "not_run" if manifest and manifest["equal"] else "failed"),
+        A0_REPLAY: ("ok" if a0_run and a0_run["exit_code"] == 0 and a0_report and a0_report["cases_equal"] == a0_report["cases_run"] > 0
+                    and a0_report["methods"]["equal"] == a0_report["methods"]["total"] > 0 else "failed"),
         CONTROLS: "ok" if controls_ok else "failed",
     }
     results = rust_results(rust_text)
@@ -280,7 +288,7 @@ def main() -> int:
     record = {
         "schema_version": "mdd.mcp-required-conformance.v2",
         "task": "MDD-042",
-        "status": "partial: every request that was recorded is equal to the reference's; what nobody recorded is this server's own and is listed",
+        "status": "partial: content and the fields a client reads equal the reference's (its binary was obtained on 2026-11-16 and its answers frozen); the declared differences and what is not implemented are listed",
         "kind": "development evidence; admits no profile",
         "capabilities": CAPABILITIES,
         "acceptance": rows,
@@ -292,6 +300,14 @@ def main() -> int:
                                                        declared_differences=lifecycle["declared_differences"]),
         "decode_conformance": decode and brief(decode),
         "manifest_replay": manifest and dict(brief(manifest), public_apk_present=manifest_ran),
+        "a0_golden_replay": a0_report and {
+            "reference": a0_report["reference"], "recorded_utc": a0_report["recorded_utc"],
+            "cases_run": a0_report["cases_run"], "cases_equal": a0_report["cases_equal"],
+            "cases_equal_exactly": a0_report["cases_equal_exactly"],
+            "cases_equal_with_a_declared_difference": a0_report["cases_equal_with_a_declared_difference"],
+            "cases_not_run": a0_report["cases_not_run"], "methods": {k: a0_report["methods"][k] for k in ("total", "equal")},
+            "declared_differences": a0_report["declared_differences"],
+        },
         "tests": {
             "rust": {"exit_code": rust_exit, "passed": sum(int(t[1]) for t in totals), "failed": sum(int(t[2]) for t in totals)},
             "clippy_exit_code": clippy["exit_code"], "build_exit_code": build["exit_code"],
@@ -303,11 +319,12 @@ def main() -> int:
         "inputs_sha256": {path: sha256(path) for path in SOURCES},
         "mutation_check": mutation,
         "residual": [
-            "the reference engine's executable is not on this machine; no request outside the recordings was compared with it",
-            "decode text beyond the recorded method follows baksmali's default conventions (pN parameter registers, hex-address labels, .catch after the try_end label, no debug or annotation directives); it is checked against an independent renderer and hand-written texts written from the same description, which shows the description is unambiguous, not that it is what the reference prints",
-            "decode paging (offset, max_bytes, mid-line flags, summary mode) and the context mode, class selection and manifest xml mode: unrecorded; the last three are refused as not implemented",
-            "get_manifest refuses attribute values of float, dimension, fraction, color, null and unknown types, and attributes in namespaces other than android; the recording shows neither",
-            "get_manifest page size defaults to 200 rows; the reference's default is unrecorded",
+            "the reference's executable is not kept in the repository (a closed-source binary, https://github.com/LSPosed/dexsql-release v0.1.0); conformance/decode/generate_a0_golden.py freezes its answers from a copy whose sha256 it checks, and the replay needs no binary",
+            "decode text follows baksmali's writing (pN parameter registers, :cond_N/:goto_N labels, .catch lines beside the code, L on wide literals, escaped apostrophes) where the reference writes vN registers, :label_XXXX, .catch lines at the end, no L and a bare apostrophe; the two texts are compared after both are reduced to the same form, so instructions, operands, literals, targets, switch cases and exception tables are equal, but the byte offsets and line numbers of a page differ",
+            "a method whose invoke names a different number of registers than its prototype takes is rendered as written; the reference refuses it (invalid_input at the invoke's offset)",
+            "arguments outside the reference's ranges (max_bytes outside 4096..=131072, timeout_ms outside 1..=60000) are served here; wrong types, unknown fields and limits outside their range are JSON-RPC invalid-params errors here and tool results with isError in the reference",
+            "get_manifest refuses attribute values of float, dimension, fraction, color, null and unknown types, and attributes in namespaces other than android; the golden's manifest shows neither",
+            "get_manifest page size defaults to 200 rows, the reference's limit maximum (equal in the golden)",
             "when a manifest has several <application> or <uses-sdk> elements the summary shows the first; the reference's choice is unrecorded",
             "an activity-alias is counted under its own name in component_counts; the recording has no alias",
             "the NewPipe manifest replay needs a local public APK (ignored input); without it the check is reported as not run, as in CI",
@@ -331,6 +348,9 @@ def main() -> int:
     print(f"schemas: {problems or 'equal to the reference'}   controls exit={[c['exit_code'] for c in controls]}")
     if query:
         print(f"query replay: cases={query['cases']} pages={query['pages']} rows={query['rows']} walks={query['walks']} equal={query['equal']}")
+    if a0_report:
+        print(f"a0 replay: cases {a0_report['cases_equal']}/{a0_report['cases_run']} equal ({a0_report['cases_equal_exactly']} exactly), "
+              f"{len(a0_report['cases_not_run'])} not run; methods {a0_report['methods']['equal']}/{a0_report['methods']['total']} equal")
     for label, result in (("sessions", lifecycle), ("decode", decode), ("manifest", manifest)):
         if result:
             print(f"{label}: checks={len(result['checks'])} passed={result['passed']} failed={result['failed']} equal={result['equal']}")
@@ -342,7 +362,7 @@ def main() -> int:
     print(f"mutation: present={mutation['present']} killed={mutation.get('killed')} survived={mutation.get('survived')} current={mutation['current']}")
     ok = (rust_exit == 0 and clippy["exit_code"] == 0 and built and not problems and query and query["equal"]
           and lifecycle and lifecycle["equal"] and decode and decode["equal"] and manifest and manifest["equal"]
-          and controls_ok and (not mutation["present"] or (mutation["current"] and not mutation.get("survived")
+          and extra[A0_REPLAY] == "ok" and controls_ok and (not mutation["present"] or (mutation["current"] and not mutation.get("survived")
                                                            and not mutation.get("errors") and not mutation.get("skipped"))))
     return 0 if ok else 1
 

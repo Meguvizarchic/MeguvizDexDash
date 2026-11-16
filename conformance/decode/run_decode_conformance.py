@@ -198,11 +198,11 @@ def check_paging(report: Report, client: McpClient, dataset: str) -> None:
                    ok and "".join(pieces) == text, "".join(pieces))
     at_char = text.encode("utf-8").index(name.encode("utf-8"))
     inside = client.call("decode", dataset_id=dataset, method=descriptor, file_id=0, offset=at_char + 1)
-    report.add("an offset inside a character is refused", inside["_is_error"] and inside["error"]["kind"] == "invalid_offset",
+    report.add("an offset inside a character is refused", inside["_is_error"] and inside["error"]["kind"] == "invalid_range",
                json.dumps(inside.get("error")))
     total = len(text.encode("utf-8"))
     past = client.call("decode", dataset_id=dataset, method=descriptor, file_id=0, offset=total + 1)
-    report.add("an offset past the end is refused", past["_is_error"] and past["error"]["kind"] == "invalid_offset",
+    report.add("an offset past the end is refused", past["_is_error"] and past["error"]["kind"] == "invalid_range",
                json.dumps(past.get("error")))
     end = client.call("decode", dataset_id=dataset, method=descriptor, file_id=0, offset=total)
     m = end["methods"][0] if not end["_is_error"] else {}
@@ -264,7 +264,7 @@ def check_selection_and_errors(report: Report, client: McpClient, dataset: str) 
     report.add("the summary mode answers the method's numbers and no text",
                summary.get("mode") == "summary" and method.get("smali") is None and method.get("registers") == facts["registers"]
                and method.get("code_units") == facts["code_units"] and method.get("try_count") == facts["try_count"]
-               and method.get("declaration") == ".method public static only_here()V" and "next_offset" not in method,
+               and method.get("declaration") == ".method public static only_here()V" and method.get("next_offset", 0) is None,
                json.dumps(summary)[:300])
     from mcp_client import McpError
     for label, arguments in {"max_lines 0": {"max_lines": 0}, "max_lines 1001": {"max_lines": 1001},

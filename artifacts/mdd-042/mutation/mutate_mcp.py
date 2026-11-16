@@ -54,10 +54,12 @@ REPLAYS = [
     ("lifecycle", [PY, "-I", "conformance/mcp/lifecycle_replay.py"]),
     ("decode", [PY, "-I", "conformance/decode/run_decode_conformance.py"]),
     ("manifest", [PY, "-I", "conformance/mcp/manifest_replay.py"]),
+    ("reference answers", [PY, "-I", "conformance/decode/a0_replay.py"]),
 ]
 CONTROLS = [
     [PY, "-I", "conformance/mcp/test_golden_replay.py"],
     [PY, "-I", "conformance/mcp/test_replays.py"],
+    [PY, "-I", "conformance/decode/test_a0_replay.py"],
 ]
 
 MCP = "crates/mdd-mcp/src/"
@@ -74,6 +76,8 @@ SOURCES = [
     "conformance/mcp/lifecycle_replay.py", "conformance/mcp/manifest_replay.py", "conformance/mcp/test_replays.py",
     "conformance/mcp/tiny_dex.py", "conformance/decode/oracle.py", "conformance/decode/run_decode_conformance.py",
     "conformance/decode/hand-expected.txt", "tests/fixtures/decode/generate.py", "tests/fixtures/decode/manifest.json",
+    "conformance/decode/a0_cases.py", "conformance/decode/a0_replay.py", "conformance/decode/test_a0_replay.py",
+    "conformance/decode/a0-golden.json",
     "conformance/corpus/hostlab/required-variants.json",
     "conformance/corpus/hostlab/expected-results/hostlab-a0-golden.json",
     "conformance/manifests/tools-and-options.json", "conformance/dex/instruction-matrix.json",
@@ -166,6 +170,27 @@ MUTANTS = [
      [("            && (cached_file, cached_idx) == (located.file_id, located.method_idx)", "            && true")]),
     ("the code layer is lost when another layer fails", DATASET,
      [("                let kept_code = code.as_ref().ok().cloned();", "                let kept_code: Option<Arc<CodeFacts>> = None;")]),
+    # ---- decode and get_manifest: what a client reads when a request fails or has no text
+    ("a summary has no next_offset", TOOLS,
+     [('            fields.insert("next_offset".to_owned(), Value::Null);', '            let _ = &fields;')]),
+    ("a method that is not found does not echo the request", TOOLS,
+     [('''"not_found");
+            if let Some(file_id) = args.file_id {''', '''"not_found");
+            if let Some(file_id) = args.file_id.filter(|_| false) {''')]),
+    ("an empty descriptor is looked up instead of refused", TOOLS,
+     [('    if args.method.as_deref() == Some("") {', '    if false {')]),
+    ("an offset past the text is not called a range error", TOOLS,
+     [('''                    "invalid_range"
+                } else {
+                    "invalid_input"''', '''                    "invalid_offset"
+                } else {
+                    "invalid_input"''')]),
+    ("a tool without arguments refuses the extra ones", TOOLS,
+     [('''/// The tools that take no arguments ignore any that are sent, as the reference does.
+#[derive(Deserialize)]
+struct NoArgs {}''', '''#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NoArgs {}''')]),
     ("a decode deadline leaves the dataset open", TOOLS,
      [('''        Outcome::TimedOut => {
             registry.close(&id);

@@ -54409,13 +54409,13 @@
     },
     {
       "path": "artifacts/mdd-042/mcp-required-conformance.json",
-      "bytes": 31444,
-      "sha256": "04db0fdb2ad921041364493104abbd762a460a451ac38a72f2b66490a6cf2f6b"
+      "bytes": 40846,
+      "sha256": "ead941e45879665f6803534b7b90d0161c5c174bb4d255d0faae1ec509f8ed72"
     },
     {
       "path": "artifacts/mdd-042/mutation/mutate_mcp.py",
-      "bytes": 23508,
-      "sha256": "50af7d86fb4728330392afdc84dee4fcca8672f623166dc3a14bf2ad56f9af10"
+      "bytes": 24988,
+      "sha256": "d44691ade55692157229968de595a3bb29309ed16ef9f9b5559ca665c2a062e3"
     },
     {
       "path": "artifacts/mdd-043/mutation/mutate_abi.py",

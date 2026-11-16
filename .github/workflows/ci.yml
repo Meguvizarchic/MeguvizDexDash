@@ -78,6 +78,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python conformance/mcp/manifest_replay.py --binary $binary
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python conformance/decode/a0_replay.py --binary $binary
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python conformance/decode/test_a0_replay.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python conformance/mcp/test_replays.py
       - name: Run actual dependency and SQL probes
         run: python tools/record_command.py --output artifacts/ci/probe -- cargo run --locked -p mdd-build-probe

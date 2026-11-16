@@ -281,7 +281,6 @@ fn arguments_that_break_the_published_schema_are_protocol_errors() {
         ("open_dataset", json!({"inputs":"x"})),
         ("close_dataset", json!({})),
         ("describe_table", json!({"name":5})),
-        ("list_tables", json!({"extra":1})),
         ("query", json!({"dataset_id":id,"sql":[]})),
         (
             "query",
@@ -315,6 +314,11 @@ fn arguments_that_break_the_published_schema_are_protocol_errors() {
             -32602,
             "{name} {arguments}"
         );
+    }
+    // A tool that takes no arguments ignores what is added to it, as the reference does.
+    for name in ["list_tables", "list_datasets"] {
+        let (reply, error) = server.tool(name, json!({"extra":1}));
+        assert!(!error, "{name}: {reply}");
     }
     let reply = server.request("tools/call", json!({"name":"query","arguments":[1]}));
     assert_eq!(reply["error"]["code"], -32602);
@@ -945,7 +949,7 @@ fn decode_refuses_what_it_cannot_show_and_says_why() {
         ),
         (
             json!({"method":"Ldecode/T;->op_00()V","offset":10_000}),
-            "invalid_offset",
+            "invalid_range",
         ),
     ];
     for (mut arguments, kind) in cases {
@@ -955,6 +959,25 @@ fn decode_refuses_what_it_cannot_show_and_says_why() {
         assert_eq!(reply["error"]["kind"], kind, "{arguments} {reply}");
         assert_eq!(reply["dataset_id"], id);
     }
+    // The request is echoed in the error, so a client can tell which of its requests was not found.
+    let (missing, error) = server.tool(
+        "decode",
+        json!({"dataset_id":id,"file_id":7,"method_idx":12345}),
+    );
+    assert!(error);
+    assert_eq!(missing["error"]["file_id"], 7, "{missing}");
+    assert_eq!(missing["error"]["method_idx"], 12345, "{missing}");
+    // An empty descriptor is a bad argument, not a method that is missing.
+    let (empty, error) = server.tool("decode", json!({"dataset_id":id,"method":""}));
+    assert!(error);
+    assert_eq!(empty["error"]["kind"], "invalid_argument", "{empty}");
+    assert!(
+        empty["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("empty"),
+        "{empty}"
+    );
     for arguments in [
         json!({"dataset_id":id,"method":"Ldecode/T;->op_00()V","max_lines":0}),
         json!({"dataset_id":id,"method":"Ldecode/T;->op_00()V","max_lines":1001}),
@@ -994,7 +1017,8 @@ fn decode_summary_has_the_numbers_and_no_text() {
     );
     assert_eq!(method["code_units"], 14);
     assert!(method.get("smali").is_none() || method["smali"].is_null());
-    assert!(method.get("next_offset").is_none());
+    // The summary has no text to continue; the key is there and empty, as in the smali mode.
+    assert_eq!(method["next_offset"], Value::Null);
 }
 
 #[test]
@@ -1140,7 +1164,7 @@ fn permissions_page_by_rows_and_the_rest_of_the_summary_repeats_unchanged() {
     assert!(end["next_offset"].is_null());
     let (past, error) = server.tool("get_manifest", json!({"dataset_id":id,"offset":4}));
     assert!(error);
-    assert_eq!(past["error"]["kind"], "invalid_offset");
+    assert_eq!(past["error"]["kind"], "invalid_range");
 }
 
 #[test]
@@ -1170,7 +1194,7 @@ fn the_manifest_tool_says_why_it_cannot_answer() {
         let (reply, error) =
             server.tool("get_manifest", json!({"dataset_id":id,"input_index":wrong}));
         assert!(error, "input {wrong} is not an archive");
-        assert_eq!(reply["error"]["kind"], "invalid_argument");
+        assert_eq!(reply["error"]["kind"], "not_archive");
     }
 
     let (plain, _) = server.tool(
@@ -1179,7 +1203,7 @@ fn the_manifest_tool_says_why_it_cannot_answer() {
     );
     let (reply, error) = server.tool("get_manifest", json!({"dataset_id":plain["dataset_id"]}));
     assert!(error);
-    assert_eq!(reply["error"]["kind"], "invalid_argument");
+    assert_eq!(reply["error"]["kind"], "not_archive");
 
     let (bare, _) = server.tool(
         "open_dataset",

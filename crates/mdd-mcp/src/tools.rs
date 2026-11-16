@@ -352,8 +352,8 @@ struct DescribeArgs {
     name: String,
 }
 
+/// The tools that take no arguments ignore any that are sent, as the reference does.
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 struct NoArgs {}
 
 #[derive(Deserialize)]
@@ -691,6 +691,9 @@ fn decode_method(registry: &mut Registry, args: DecodeArgs) -> Result<Value, Fai
     if args.method_idx.is_some() && args.file_id.is_none() {
         return Err(refuse_here(ErrorCode::InvalidArgument, "method_idx needs file_id").into());
     }
+    if args.method.as_deref() == Some("") {
+        return Err(refuse_here(ErrorCode::InvalidArgument, "descriptor must not be empty").into());
+    }
     if mode == "summary" && args.offset != 0 {
         return Err(refuse_here(
             ErrorCode::InvalidArgument,
@@ -757,9 +760,16 @@ fn decode_method(registry: &mut Registry, args: DecodeArgs) -> Result<Value, Fai
     let decoded = match result {
         Ok(decoded) => decoded,
         Err(decode::Failure::NotFound { what }) => {
-            return Err(
-                with_kind(refuse_here(ErrorCode::InvalidArgument, &what), "not_found").into(),
-            );
+            // The request is echoed the way the reference does, so a client can tell which of
+            // its requests was not found.
+            let mut error = with_kind(refuse_here(ErrorCode::InvalidArgument, &what), "not_found");
+            if let Some(file_id) = args.file_id {
+                error = error.detail("file_id", file_id.to_string());
+            }
+            if let Some(method_idx) = args.method_idx {
+                error = error.detail("method_idx", method_idx.to_string());
+            }
+            return Err(error.into());
         }
         Err(decode::Failure::Ambiguous { file_ids }) => {
             return Err(with_kind(
@@ -802,9 +812,25 @@ fn decode_method(registry: &mut Registry, args: DecodeArgs) -> Result<Value, Fai
         "registers": rendered.registers,
         "try_count": rendered.try_count,
     });
+    if mode == "summary" {
+        // The summary has no text to continue, but a client that follows `next_offset`
+        // finds the key in every mode.
+        if let Value::Object(fields) = &mut method {
+            fields.insert("next_offset".to_owned(), Value::Null);
+        }
+    }
     if mode == "smali" {
-        let page = page_text(&rendered.text, args.offset, max_lines, args.max_bytes)
-            .map_err(|error| with_kind(decode_error(error, &id), "invalid_offset"))?;
+        let page =
+            page_text(&rendered.text, args.offset, max_lines, args.max_bytes).map_err(|error| {
+                // Where the page cannot start is a range problem; a byte budget no character
+                // fits in is a problem with the argument.
+                let kind = if error.message.starts_with("OFFSET_") {
+                    "invalid_range"
+                } else {
+                    "invalid_input"
+                };
+                with_kind(decode_error(error, &id), kind)
+            })?;
         let Value::Object(fields) = &mut method else {
             unreachable!("a json object");
         };
@@ -907,7 +933,7 @@ fn get_manifest(registry: &mut Registry, args: ManifestArgs) -> Result<Value, Fa
             return Err(wrong(
                 ErrorCode::InvalidArgument,
                 "this dataset has no archive input, so it has no manifest",
-                "invalid_argument",
+                "not_archive",
             ));
         }
         (None, _) => {
@@ -925,11 +951,7 @@ fn get_manifest(registry: &mut Registry, args: ManifestArgs) -> Result<Value, Fa
     let summary = match with_deadline(ms, work) {
         Outcome::Done(Ok(summary)) => summary,
         Outcome::Done(Err(ManifestFailure::NoSuchInput(message))) => {
-            return Err(wrong(
-                ErrorCode::InvalidArgument,
-                &message,
-                "invalid_argument",
-            ));
+            return Err(wrong(ErrorCode::InvalidArgument, &message, "not_archive"));
         }
         Outcome::Done(Err(ManifestFailure::Missing(message))) => {
             return Err(wrong(ErrorCode::InvalidInput, &message, "not_found"));
@@ -964,7 +986,7 @@ fn get_manifest(registry: &mut Registry, args: ManifestArgs) -> Result<Value, Fa
         return Err(wrong(
             ErrorCode::InvalidArgument,
             "offset is past the last permission row",
-            "invalid_offset",
+            "invalid_range",
         ));
     }
     let end = total.min(args.offset.saturating_add(limit));
@@ -1032,10 +1054,11 @@ fn describe_table(args: DescribeArgs) -> Result<Value, Failure> {
         .copied()
         .find(|relation| relation.name().eq_ignore_ascii_case(&args.name))
         .ok_or_else(|| {
-            Failure::Execution(
+            Failure::Execution(with_kind(
                 refuse(ErrorCode::InvalidArgument, "UNKNOWN_TABLE")
                     .detail("name", args.name.clone()),
-            )
+                "unknown_table",
+            ))
         })?;
     let columns: Vec<Value> = relation
         .columns()

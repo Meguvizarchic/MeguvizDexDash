@@ -355,26 +355,27 @@
 
 ## 2026-11-15 MDD-042 原生 MCP 必需工具（部分完成，保持 in_progress）
 
-**结论**：`meguvizdexdash mcp` 现在提供八个工具：`open_dataset`、`list_datasets`、`close_dataset`、`list_tables`、`describe_table`、`query`、`decode`、`get_manifest`。**逐请求等价只对录制过的请求成立**；参考引擎的可执行文件不在本机，没录制过的请求只能写成“本服务自己的行为”。所以 MDD-042 **不标 done**。
+**结论**：`meguvizdexdash mcp` 提供八个工具（`open_dataset`、`list_datasets`、`close_dataset`、`list_tables`、`describe_table`、`query`、`decode`、`get_manifest`）。2026-11-16 起 **参考引擎的二进制已到手并冻结了它的答案**，对照结果：内容与客户端读取的字段相等，写法与措辞上有**声明过的差异**。MDD-042 **不标 done**：验收第 1 条写的是“逐请求等价”，你说过不需要完全一样，但验收文字没有改，我按 partial 报告；另有 decode 的 class/context 与 manifest 的 xml 模式未实现（MDD-071/072），以及变异检查在源码变动后还没重跑。
 
-**这轮发现并改正的偏差（已推送的第一版切片有的）**：仓库里 `evidence/compatibility/0.1.0/mcp-records.json` 有 195 条参考引擎的真实 MCP 消息，我此前误判为“没有录制”。对照后发现第一版与参考在 HostLab 读取的地方不同：`open_dataset` 缺 `has_dex`（HostLab 会拒绝该数据集）、`query` 拒绝 `timing:true`（HostLab 每条 SQL 都带）、错误对象形状不同（HostLab 读 `error.dataset_closed`）、重复关闭返回成功（参考返回 `unknown_dataset`）、`list_datasets` 字段不同、整数标签不同。均已改正并回放验证。
+**参考二进制的来源与校验**：`LSPosed/dexsql-release` v0.1.0 的 `dexsql-windows-amd64.exe`，21,365,760 字节，sha256 `f354ebcf…c448`，与仓库一直固定的 A0 摘要逐字相同；经你同意下载到被忽略的 `artifacts/local/`，不入库。此前“不在本机”的原因：脚本里写死的路径 `D:\Bilibili_Innocent_Lab\tools\hostlab\vendor\dexsql\0.1.0\` 现在不存在。许可证（DexSQL Binary License 1.0）允许任何用途的使用。
 
-**与参考比对过的内容**（经真实服务回放）
-- `query`：冻结的 77 个用例、145 页、1,149 行、9 次续页，10 个被拒请求同样被拒。
-- 录制会话：`open_dataset`/`list_datasets`/`close_dataset`、错误（`unknown_dataset`、`session_quota_exceeded`、`invalid_query`、`timeout` 及其措辞）、TEMP 定义依赖、超时关闭数据集、重复输入的身份、含单元格类型的计数查询，以及录制过的 `decode` 应答（默认 smali，按描述符与按 `file_id`+`method_idx`，`ambiguous` 错误，源文件删除后）——53 项相等，2 项未运行（`server_busy` 在逐个处理请求的设计下不会出现；符号链接需要本机权限）。
-- `get_manifest`：NewPipe 0.28.6 的 6 页摘要逐页相等；`open_dataset` 对该 APK 的 `archive_inputs`/`has_dex`/`input_bytes` 也与录制一致。
+**这轮做了什么**
+- `conformance/decode/generate_a0_golden.py` 用该二进制把 207 条请求（参数校验、选择器、文本、分页、多处出错时先报哪个、其他工具的参数、get_manifest）和 252 个方法的 decode 答案冻结进 `a0-golden.json`；`a0_replay.py` 无需二进制即可回放并比较，已接入 CI 与变异检查。
+- 结果：184 条请求里 184 条相等（65 条逐字相等，119 条带声明的差异），23 条未运行（未实现的模式）；252/252 个方法的指令、操作数、字面量、分支目标、switch 分支和异常表在“同一形式”下完全一致。事实字段（寄存器数、代码单元数、访问标志、try 数）两边相等。
+- 比较函数自带负向对照（`test_a0_replay.py`，31 项）；对照发现过一处漏洞——第一版把 switch 的 case 目标当作标签定义丢掉，改一个 case 也查不出来，已补。
 
-**decode 与 Smali 渲染器**（`crates/mdd-facts/src/smali_required`、`crates/mdd-service/src/decode.rs`）
-- 引擎文本与独立 Python 渲染器（只读 DEX 字节）逐字相等，覆盖夹具里全部 238 个方法（每个能给出合法操作数的操作码、packed/sparse switch、1/2/4/8 字节数组 payload、try/catch/catchall、`pN` 参数寄存器、字符串转义、非 ASCII 方法名、abstract/native）；另有 68 条手写期望文本同时与引擎和独立渲染器相等。
-- 分页：UTF-8 字节 offset、行数、`starts_mid_line`/`ends_mid_line` 各自独立计数；按字节切分永不落在字符中间；offset 在字符内/越界被拒。
-- **没有参考输出可证的部分**：录制只给出一个四条指令方法的文本。其余指令的写法（`pN` 寄存器、十六进制地址标签、`.catch` 位置、字面量后缀）取 baksmali 默认约定，是本服务的选择；独立渲染器与手写文本说明这套描述无歧义，**不说明参考引擎也这样打印**。
-- 修了一个会让 decode 大面积失效的设计：代码层现在单独保留，引用层或注解层校验失败（例如某个 invoke 的实参字数与原型不符）不再让该 DEX 的所有方法体都无法反汇编。
+**发现并改正的偏差**（对客户端有实际影响的）：错误 kind 改为 `invalid_range`（偏移越界、权限偏移越界）、`invalid_input`（字节预算容不下任何字符）、`not_archive`、`unknown_table`；`not_found` 回显 `file_id`/`method_idx`；空描述符是参数错误而不是“找不到”；摘要模式带 `next_offset: null`；`list_datasets`/`list_tables` 忽略多余字段。HostLab 实际读的是 `smali`、`next_offset`、`file_id`、`method_idx`、`code_units`、`error.kind`（query 的 `invalid_input`）、`dataset_closed`，不读标签文本。
 
-**限制与未提供**：`decode` 的 class 选择与 `context` 模式（MDD-071）、`get_manifest` 的 `xml` 模式（MDD-072）按“未实现”拒绝；`get_manifest` 对 float/dimension/fraction/color/null 类型的属性值和非 android 命名空间的属性明确拒绝（录制里没有它们的写法）；页大小默认 200 行（参考的默认未录制）；`list_tables` 仍只列 17 个契约关系；列 `data_type` 由返回值推断（参考对 TEMP/表达式列写 `sqlite_dynamic`）；`diagnostics` 不含参考的优化器提示；源文件被改动后，参考拒绝 decode 但继续回答 SQL，本服务对二者读同一个快照；语句无法从外部停止，超时会关闭该数据集；只在一台 Windows 主机验证（Linux 由 CI 的新增步骤验证）。
+**保留并声明的差异**（逐条理由在记录的 `a0_golden_replay.declared_differences`）
+- **文本写法**：我们用 baksmali 的写法（参数用 `p0`、`:cond_N`/`:goto_N`/`:try_start_N` 标签、`.catch` 紧挨代码、宽字面量带 `L`、字符串里转义撇号）；参考写 `v0`、`:label_XXXX`、`.catch` 全放末尾、不带 `L`、撇号不转义。我们的更接近真实 smali、更好读，且 `L` 缺失会让汇编器歧义。
+- **错误措辞**、**参数范围**（参考拒绝 `max_bytes` 不在 4096..131072、`timeout_ms` 不在 1..60000；我们的 `max_bytes` 是答案必须装得下的预算）、**参数类型错误**（参考是 `isError` 工具结果，我们是 JSON-RPC invalid-params）、**多处出错时先报哪个**、**list_tables 的范围**（17 个契约关系，对象形式）。
+- **畸形 invoke**（权衡后的取舍）：方法里某个 invoke 的寄存器个数与原型不符时，参考整个方法拒绝（`invalid_input`，给出偏移），我们按字节原样渲染，错误一眼可见。对混淆或损坏的样本，展示代码比整体拒绝更有用。
 
-**验证**：77 项 Rust 测试通过；回放与独立渲染器各有负向对照（损坏录制、手写文本、渲染器均被发现）。**变异检查**（GitHub 工作流 `mutation-mcp.yml`，2026-11-16，run 43820360601；4 组并行、一个干净树作业、一个汇总）：52 个变异**全部被抓住**，无幸存、无超时，结果文件里的源码哈希与当前检出一致，已作为 `artifacts/mdd-042/mutation/results.txt` 提交；公开 APK 在该次运行里不存在，所以 `get_manifest` 的 NewPipe 回放没有参与变异判定（manifest 变异靠合成 APK 与单元测试抓住）。第一版切片的 17 变异结果保留为 `results-first-slice.txt`。
+**decode 与 Smali 渲染器**：引擎文本仍与独立 Python 渲染器（只读 DEX 字节）及手写文本逐字相等（baksmali 写法）；独立渲染器检验写法无歧义，参考的黄金检验内容与参考相同。分页按 UTF-8 字节 offset，行数、mid-line 标记各自独立；页的边界跟随我们自己的文本，因此与参考比较的是页内容与字段，不是页在哪里结束。
 
-**第一次运行为什么超时（已定位并修复）**：2026-11-15 的 run 43704479769 停在第 38 个变异，脚本自己的 3600 秒单命令限制在进程测试里到期。根因是测试自身的竞态而不是服务的缺陷：并行测试线程里，另一个线程 fork 时短暂复制了“已关闭管道”的读端，于是测试里对该管道写的那一次没有得到 EPIPE，服务没退出，测试永远等。用 gdb 与文件描述符证据在 Linux 上证实；`crates/mdd-cli/tests/mcp.rs` 改为反复 ping 直到服务退出（有上界），在 Linux 上 4×80 次运行全部通过。脚本现在给每条命令设限、超时杀进程树并记 TIMEOUT，所以同类问题只会变成一条 TIMEOUT 而不是拖满作业。
+**限制与未提供**：`decode` 的 class 选择与 `context` 模式（MDD-071）、`get_manifest` 的 `xml` 模式（MDD-072）按“未实现”拒绝（参考的答案已冻结在黄金里，供这两个任务使用）；`get_manifest` 对 float/dimension/fraction/color/null 类型的属性值和非 android 命名空间的属性明确拒绝（黄金的清单里没有它们）；`list_tables` 只列 17 个契约关系；列 `data_type` 由返回值推断；`diagnostics` 不含参考的优化器提示；语句无法从外部停止，超时会关闭该数据集；只在一台 Windows 主机验证（Linux 由 CI 验证）。
+
+**验证**：77 项 Rust 测试通过。**变异检查**：2026-11-16 在 Actions 上（run 43820360601）52 个变异全部被抓住，那是参考回放加入之前的源码，结果文件改名为 `results-before-reference.txt`；现在有 57 个变异（新增：摘要的 `next_offset`、回显请求、空描述符、范围错误 kind、无参数工具），源码哈希已变，**57 个的结果还没有**，由 `mutation-mcp.yml` 重跑后提交，不声称。
 
 ## Checkout 与交付
 
