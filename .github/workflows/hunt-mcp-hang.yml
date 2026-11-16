@@ -24,7 +24,7 @@ jobs:
       - name: Install fixed Rust toolchain
         run: rustup toolchain install 1.99.0 --profile minimal
       - name: Install gdb
-        run: sudo apt-get install -y gdb
+        run: sudo apt-get update -q && sudo apt-get install -y --no-install-recommends gdb
       - name: Fetch exact locked dependencies
         run: cargo fetch --locked
       - name: Build the test binary
