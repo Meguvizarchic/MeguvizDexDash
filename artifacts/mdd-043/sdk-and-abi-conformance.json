@@ -435,9 +435,9 @@
   },
   "boundaries_exit_code": 0,
   "log_sha256": {
-   "build": "762545efb2c68eb47ec91ce4bd79432e01f0b263c10ab875824e47b0d22a0126",
-   "rust": "c03d22c3332b315b68877c0003f8ee3face20a94caa3ec931cfa700cd784aa0b",
-   "python": "56e90bd981c191deb2e705064deb9952e95350732f460c19e5b9bb1fc06bf8c3",
+   "build": "88de06f2c60cdba47ce7b47e72f4d583b9aebfcf060549890cb2a9364459eb4f",
+   "rust": "e3f63624921f013398bd51142cf7c4999a6a54b524438912615e809952e598a6",
+   "python": "83c535dfd36a4b6641f8d253bde6480bdbff32f08647c53eecd6341de87c3181",
    "boundaries": "04fe3290ac90f82cfc723c1ef0fc42cefb71fad59e8fb8ce163d8bf55b2049c9"
   },
   "raw_logs_kept_at": "artifacts/local/ (ignored; carries developer-machine output)"
@@ -449,11 +449,13 @@
  },
  "mutation_check": {
   "file": "artifacts/mdd-043/mutation/results.txt",
-  "present": false,
-  "current": false,
-  "status": "not run yet: it runs in .github/workflows/mutation-abi.yml on request; no result is claimed",
   "script": "artifacts/mdd-043/mutation/mutate_abi.py",
-  "earlier_result": "artifacts/mdd-043/mutation/results-before-worker.txt (16 Rust and 5 Python faults, before the worker transport)"
+  "present": true,
+  "current": true,
+  "killed": 32,
+  "survived": [],
+  "errors": 0,
+  "restored_tree_passes": true
  },
  "residual": [
   "a worker cannot be told to stop one statement: cancelling a query, or abandoning it half way, ends the worker",
@@ -466,7 +468,7 @@
   "the mutation check has no result yet (it runs in a GitHub workflow); the conformance runner and its --check are not wired into CI"
  ],
  "run": {
-  "started_utc": "2026-11-16T07:27:51.256489+00:00",
+  "started_utc": "2026-11-16T08:01:27.527267+00:00",
   "profile": "native-unqualified (never admitted)"
  }
 }

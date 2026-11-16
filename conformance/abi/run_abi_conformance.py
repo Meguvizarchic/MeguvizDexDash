@@ -221,7 +221,7 @@ def mutation_summary() -> dict:
         return {"file": MUTATION, "present": False, "current": False,
                 "status": "not run yet: it runs in .github/workflows/mutation-abi.yml on request; no result is claimed",
                 "script": "artifacts/mdd-043/mutation/mutate_abi.py",
-                "earlier_result": "artifacts/mdd-043/mutation/results-before-worker.txt (16 Rust and 5 Python faults, before the worker transport)"}
+                "earlier_result": "artifacts/mdd-043/mutation/results-before-worker.txt (11 Rust and 5 Python faults, before the worker transport)"}
     lines = path.read_text(encoding="utf-8").splitlines()
     recorded = [line.split(":", 1)[1].strip() for line in lines if line.startswith("tests sha256:")]
     return {

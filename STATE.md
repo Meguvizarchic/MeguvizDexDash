@@ -281,9 +281,9 @@
 
 **残余**：method_definitions、code、reference、annotation 关系没有经 typed IR 比较（只经 SQL 路径对 A0）；取消组合用的是调用前已取消的控制，不是运行中竞态；只在一台 Windows 主机上跑，Linux 只靠仓库 CI；运行器与 `--check` 尚未接入 CI；Q16 无标注语料。
 
-## 2026-11-15 MDD-043 稳定 C ABI 与 Python SDK（进行中，只差变异检查结果）
+## 2026-11-15 MDD-043 稳定 C ABI 与 Python SDK（完成）
 
-**结论**：产出清单（`python/`、`crates/mdd-ffi/`、`include/mdd.h`、`conformance/abi/ownership-cases.json`、`artifacts/mdd-043/sdk-and-abi-conformance.json`）都已落地并有证据，验收各条都有命名测试证明；2026-11-16 起 **"worker lost" 也已证明**：你选择“在 SDK 里做 worker 传输”，`python/mdd/worker.py` 把 `meguvizdexdash serve` 当作 worker 进程，用与进程内库相同的 `Batch`/`Result` 类型。**MDD-043 仍保持 in_progress**：变异检查还没有结果（它要重复构建 Rust，不在开发机上跑，改由工作流 `mutation-abi.yml` 运行），结果提交后再标 done。
+**结论**：产出清单（`python/`、`crates/mdd-ffi/`、`include/mdd.h`、`conformance/abi/ownership-cases.json`、`artifacts/mdd-043/sdk-and-abi-conformance.json`）都已落地并有证据，验收各条都有命名测试证明；2026-11-16 起 **"worker lost" 也已证明**：你选择“在 SDK 里做 worker 传输”，`python/mdd/worker.py` 把 `meguvizdexdash serve` 当作 worker 进程，用与进程内库相同的 `Batch`/`Result` 类型。变异检查已在 Actions 上跑完，全部被抓住，MDD-043 标 done。
 
 **设计要点（进程内 ABI）**
 - **句柄不是地址**：`kind(8) | generation(32) | index(24)` 的 64 位值，每次使用都查表。伪造、过期、已释放、种类错用都返回 `INVALID_HANDLE`，不碰内存；槽位复用时代数递增，旧值够不到新对象。
@@ -300,7 +300,7 @@
 - **有界清理，各路径相同**：关闭 stdin、杀进程树、两个读线程各自关闭自己的管道并被 join、等到进程退出。`close()`、因异常离开 `with`、中途放弃或取消的查询、被丢弃的对象（finalizer 兜底）走同一个清理；不听 close 的 worker 在宽限期后被杀。
 - **限制**：worker 无法被告知停止一条语句，所以取消与放弃都会结束 worker；一个 worker 同时只答一条查询（第二条得 `Busy`）；若管道被 worker 之外的东西占着，读线程是 daemon、被丢下并记在 `Worker.abandoned_threads`，不会无限等。
 
-**证据**（`artifacts/mdd-043/sdk-and-abi-conformance.json`）：Rust 24 项、Python 61 项（其中 40 项是 worker 的：真实二进制被杀在流中间，以及“干净退出但没应答、半行、乱码、挂起”的替身 worker）、经原始 ABI 的 14 个数据驱动所有权用例、依赖边界检查。Python 测试现在也在仓库 CI 的 Windows 与 Linux 任务里运行。变异检查还没有结果；此前的 16 个 Rust 与 5 个 Python 变异（worker 传输之前）保留为 `results-before-worker.txt`。
+**证据**（`artifacts/mdd-043/sdk-and-abi-conformance.json`）：Rust 24 项、Python 61 项（其中 40 项是 worker 的：真实二进制被杀在流中间，以及“干净退出但没应答、半行、乱码、挂起”的替身 worker）、经原始 ABI 的 14 个数据驱动所有权用例、依赖边界检查。Python 测试现在也在仓库 CI 的 Windows 与 Linux 任务里运行。变异：32 个（Rust ABI 11 个、Python SDK 与 worker 传输 21 个）全部被抓住，无幸存、无超时（Actions 工作流 mutation-abi.yml，2026-11-16，run 43825936253，提交 48b629c；结果文件里的测试哈希与当前检出一致，存为 artifacts/mdd-043/mutation/results.txt；worker 传输之前的 11 个 Rust 与 5 个 Python 变异保留为 results-before-worker.txt）。
 
 **这轮顺带发现并修了**：worker 读线程若在别的线程关闭缓冲流时阻塞，会让 `close()` 与解释器退出无界地等——改为只有读线程自己关闭它的管道。
 

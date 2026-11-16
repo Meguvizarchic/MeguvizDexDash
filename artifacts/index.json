@@ -54423,9 +54423,19 @@
       "sha256": "4db8ef292625bfd9ffa90327420330aa546953611693c479b0d77051b56a2df1"
     },
     {
+      "path": "artifacts/mdd-043/mutation/results-before-worker.txt",
+      "bytes": 1094,
+      "sha256": "f61cdf16c5ad0874afb1d1a9350d45b8bbf30ba343344d6191ba5081eed0fef4"
+    },
+    {
+      "path": "artifacts/mdd-043/mutation/results.txt",
+      "bytes": 1904,
+      "sha256": "d8fe98b53c5024843c1357162dd50297374cd86878e5b9f493c695a618dde978"
+    },
+    {
       "path": "artifacts/mdd-043/sdk-and-abi-conformance.json",
-      "bytes": 14276,
-      "sha256": "2be143a03b7180b1caa2fe19e9fe25e6ba69b2336d8fdd3c4fc54f1426c23fb5"
+      "bytes": 14113,
+      "sha256": "b5915bb20526d07492e3a5757038aa3da46848e425f0d3ba7428f96f1a2fec3c"
     },
     {
       "path": "artifacts/mdd-051/skeleton-20261110/newpipe.err",

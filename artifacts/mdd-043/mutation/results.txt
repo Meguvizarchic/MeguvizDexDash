@@ -1,0 +1,34 @@
+KILLED   a stale handle is accepted when its slot was reused (generation unchecked)
+KILLED   the caller can release the reference an event owns (no pinning)
+KILLED   release does not check the handle kind
+KILLED   acknowledge no longer reaches the core
+KILLED   an outstanding batch no longer blocks the next one
+KILLED   a second consumer is reported as CLOSED instead of BUSY
+KILLED   a query cancelled before it ran ends as INVALID_ARGUMENT, not CANCELLED
+KILLED   a failure terminal downgrades the facts coverage
+KILLED   cancel no longer stops the running statement
+KILLED   a Rust panic is no longer contained at the boundary
+KILLED   text with an unpaired surrogate is made lossy
+KILLED   a closed object no longer refuses use
+KILLED   a cancelled or failed terminal counts as a complete result
+KILLED   batches are not acknowledged
+KILLED   64-bit integers are decoded through a float
+KILLED   unpaired surrogates are dropped when text is decoded
+KILLED   a worker whose output ends is not reported as lost
+KILLED   a line cut short is skipped instead of reported
+KILLED   a silent worker is never ended at the caller's deadline
+KILLED   batches out of order are accepted
+KILLED   an answer for another request is accepted
+KILLED   a line over the limit is not refused
+KILLED   delivered rows are not counted in the loss report
+KILLED   a refusal to start is reported as a loss
+KILLED   a failure terminal is not raised
+KILLED   an incomplete result is returned
+KILLED   a second query is accepted while one is open
+KILLED   an abandoned query leaves the worker running out of step
+KILLED   cancel does not end the worker
+KILLED   a worker that outstays its grace period is not killed
+KILLED   a dropped worker is not reaped
+KILLED   a worker's output pipes are never closed
+restored tree passes every test set: True
+tests sha256: 7e82146407c1e54fc354dff94d6042bc2c8433f38f14b50edd339492cc48bcc7
