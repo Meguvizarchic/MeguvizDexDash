@@ -1,0 +1,1291 @@
+{
+  "about": "How HostLab selects between sqlite, dexsql and meguvizdexdash, what a plan and a report say about the engine, and where fallback is and is not allowed. Produced by integrations/hostlab/make_provider_selection.py; do not edit by hand.",
+  "engine_cache_variable": {
+    "files_matching": [],
+    "pattern": "MDD_CACHE_DIR",
+    "searched": "crates/**/*.rs"
+  },
+  "engine_identity_source": {
+    "kind": "stand-in",
+    "note": "hostlab_test_support.FakeEngine answers version/capabilities/mcp, pinned and probed through install_meguvizdexdash.py. The identities below are fixtures, not a real build; test_live_engine.py runs the same code against the real binary.",
+    "platform": "fixture/platform"
+  },
+  "fallback_policy": {
+    "decisions": [
+      {
+        "auto_task": "fallback",
+        "code": "UNAVAILABLE_BACKEND",
+        "forced_task": "fail",
+        "request_forbids": "fail",
+        "rows_already_admitted": "fail"
+      },
+      {
+        "auto_task": "fallback",
+        "code": "UNSUPPORTED_CAPABILITY",
+        "forced_task": "fail",
+        "request_forbids": "fail",
+        "rows_already_admitted": "fail"
+      },
+      {
+        "auto_task": "fallback",
+        "code": "UNSUPPORTED_QUERY",
+        "forced_task": "fail",
+        "request_forbids": "fail",
+        "rows_already_admitted": "fail"
+      },
+      {
+        "auto_task": "fail",
+        "code": "INVALID_ARGUMENT",
+        "forced_task": "fail",
+        "request_forbids": "fail",
+        "rows_already_admitted": "fail"
+      },
+      {
+        "auto_task": "fail",
+        "code": "INVALID_INPUT",
+        "forced_task": "fail",
+        "request_forbids": "fail",
+        "rows_already_admitted": "fail"
+      },
+      {
+        "auto_task": "fail",
+        "code": "PARTIAL_INPUT",
+        "forced_task": "fail",
+        "request_forbids": "fail",
+        "rows_already_admitted": "fail"
+      },
+      {
+        "auto_task": "fail",
+        "code": "INCOMPLETE_FACTS",
+        "forced_task": "fail",
+        "request_forbids": "fail",
+        "rows_already_admitted": "fail"
+      },
+      {
+        "auto_task": "fail",
+        "code": "SOURCE_CHANGED",
+        "forced_task": "fail",
+        "request_forbids": "fail",
+        "rows_already_admitted": "fail"
+      },
+      {
+        "auto_task": "fail",
+        "code": "AMBIGUOUS_ENTITY",
+        "forced_task": "fail",
+        "request_forbids": "fail",
+        "rows_already_admitted": "fail"
+      },
+      {
+        "auto_task": "fail",
+        "code": "STALE_CACHE",
+        "forced_task": "fail",
+        "request_forbids": "fail",
+        "rows_already_admitted": "fail"
+      },
+      {
+        "auto_task": "fail",
+        "code": "CACHE_CORRUPT",
+        "forced_task": "fail",
+        "request_forbids": "fail",
+        "rows_already_admitted": "fail"
+      },
+      {
+        "auto_task": "fail",
+        "code": "QUOTA_EXCEEDED",
+        "forced_task": "fail",
+        "request_forbids": "fail",
+        "rows_already_admitted": "fail"
+      },
+      {
+        "auto_task": "fail",
+        "code": "DEADLINE_EXCEEDED",
+        "forced_task": "fail",
+        "request_forbids": "fail",
+        "rows_already_admitted": "fail"
+      },
+      {
+        "auto_task": "fail",
+        "code": "CANCELLED",
+        "forced_task": "fail",
+        "request_forbids": "fail",
+        "rows_already_admitted": "fail"
+      },
+      {
+        "auto_task": "fail",
+        "code": "SNAPSHOT_CLOSED",
+        "forced_task": "fail",
+        "request_forbids": "fail",
+        "rows_already_admitted": "fail"
+      },
+      {
+        "auto_task": "fail",
+        "code": "INVALID_CURSOR",
+        "forced_task": "fail",
+        "request_forbids": "fail",
+        "rows_already_admitted": "fail"
+      },
+      {
+        "auto_task": "fail",
+        "code": "INTERNAL_FAULT",
+        "forced_task": "fail",
+        "request_forbids": "fail",
+        "rows_already_admitted": "fail"
+      },
+      {
+        "auto_task": "fail",
+        "code": "WORKER_LOST",
+        "forced_task": "fail",
+        "request_forbids": "fail",
+        "rows_already_admitted": "fail"
+      },
+      {
+        "auto_task": "fail",
+        "code": "UNCLASSIFIED (any other exception)",
+        "forced_task": "fail",
+        "request_forbids": "fail",
+        "rows_already_admitted": "fail"
+      }
+    ],
+    "eligible_codes": [
+      "UNAVAILABLE_BACKEND",
+      "UNSUPPORTED_CAPABILITY",
+      "UNSUPPORTED_QUERY"
+    ],
+    "engine_codes": [
+      "UNAVAILABLE_BACKEND",
+      "UNSUPPORTED_CAPABILITY",
+      "UNSUPPORTED_QUERY",
+      "INVALID_ARGUMENT",
+      "INVALID_INPUT",
+      "PARTIAL_INPUT",
+      "INCOMPLETE_FACTS",
+      "SOURCE_CHANGED",
+      "AMBIGUOUS_ENTITY",
+      "STALE_CACHE",
+      "CACHE_CORRUPT",
+      "QUOTA_EXCEEDED",
+      "DEADLINE_EXCEEDED",
+      "CANCELLED",
+      "SNAPSHOT_CLOSED",
+      "INVALID_CURSOR",
+      "INTERNAL_FAULT",
+      "WORKER_LOST"
+    ],
+    "rule": "a task that `auto` gave the engine may move to dexsql only for an eligible code, only if the operator enabled that code, the request did not forbid it, the task had produced no rows, and dexsql is available; every other exception reaches HostLab unchanged with its decision attached"
+  },
+  "generated_by": {
+    "check": "... --check",
+    "command": "python -I integrations/hostlab/make_provider_selection.py",
+    "deterministic": true,
+    "script": "integrations/hostlab/make_provider_selection.py"
+  },
+  "inputs": {
+    "files": [
+      {
+        "bytes": 39072,
+        "path": "integrations/hostlab/provider.py",
+        "sha256": "f66f5f0c55b6e69d579b2df406e4b2041e8f37da592f8b5c72c5d508284c03a7"
+      },
+      {
+        "bytes": 24172,
+        "path": "integrations/hostlab/install_meguvizdexdash.py",
+        "sha256": "532039ee50755be248be8b50a5ed560d21287a0b78da1f475a42186dc4c9a77e"
+      },
+      {
+        "bytes": 3692,
+        "path": "integrations/hostlab/config-schema.json",
+        "sha256": "8cfcde06e259a78f9b23aa2c954e9a3db0a1d9627ee2fc496432789ebbc1fe89"
+      },
+      {
+        "bytes": 9806,
+        "path": "integrations/hostlab/hostlab_test_support.py",
+        "sha256": "a094dddee39ca5bcbad239335e36e4bed90d54c74fd3ce0ca716d9151d54fef1"
+      },
+      {
+        "bytes": 16340,
+        "path": "integrations/hostlab/make_provider_selection.py",
+        "sha256": "d256ef15cde4328f3c5c84094693cae0b3f39079761d08647b63b0ede9799f31"
+      },
+      {
+        "bytes": 5416,
+        "path": "conformance/corpus/hostlab/source-8782f43/manifest.json",
+        "sha256": "a895c45417410e917c49cb86d498b581148d61e11e6815fb80dc5816d92535bb"
+      },
+      {
+        "bytes": 10947,
+        "path": "conformance/corpus/hostlab/source-8782f43/analysis_plan.py",
+        "sha256": "acc007958419d233bf0be6271e288c10588df2984701f5f6abf585a895ad07cb"
+      },
+      {
+        "bytes": 23159,
+        "path": "conformance/corpus/hostlab/source-8782f43/analysis_batch.py",
+        "sha256": "8f40845d1328cae8a06dd29830c5e636d962da3cc72194e16904f6fb23030a64"
+      },
+      {
+        "bytes": 4421,
+        "path": "conformance/corpus/hostlab/source-8782f43/install_dexsql.py",
+        "sha256": "2c223b638023b325a782771e4751a6371c393cb46750d253695e4b7e7727f1ca"
+      },
+      {
+        "bytes": 5099,
+        "path": "conformance/mcp/hostlab-required-tools.json",
+        "sha256": "f7299b4524f63245e1d978b96607b24d626a663c6dc918113bfca60bf28126ca"
+      }
+    ]
+  },
+  "legacy_equivalence": {
+    "combinations": 80,
+    "covers": "configs with native_engine=dexsql x dexsql_available x sqlite_cache_hit; refused requests must be refused with the same message",
+    "identical": 80,
+    "oracle": "conformance/corpus/hostlab/source-8782f43/analysis_plan.py",
+    "requests": 10
+  },
+  "namespaces": {
+    "cache_dir_overrides": {
+      "HostLab's state directory": "refused",
+      "inside the old reports": "refused",
+      "the completion cache of HostLab": "refused",
+      "the old query cache": "refused"
+    },
+    "disjoint": true,
+    "engine_dir_from": "build_id + binary_sha256",
+    "layout": {
+      "cache": "mdd-engine/cache/eng-1e0d9a77aaab03fa",
+      "completion": "mdd-engine/completion/eng-1e0d9a77aaab03fa",
+      "reports": "mdd-engine/reports/eng-1e0d9a77aaab03fa",
+      "root": "mdd-engine"
+    },
+    "legacy_paths_never_written": {
+      "analysis-schedule": "analysis-schedule",
+      "artifact-cache": "artifact-cache",
+      "dexq-cache": "dexq-cache",
+      "remote-job-map": "remote-job-map",
+      "remote-output": "remote-output",
+      "remote-requests": "remote-requests",
+      "remote-results": "remote-results",
+      "reports": "reports",
+      "samples": "samples",
+      "source-snapshots": "source-snapshots",
+      "version-matrices": "version-matrices"
+    },
+    "mdd_cache_dir_is": "layout.cache"
+  },
+  "not_proven": [
+    "that HostLab, patched to call provider.py, runs a whole analysis on the new engine: the HostLab repository is not part of this one and no patch was applied or run",
+    "that the engine uses MDD_CACHE_DIR: files_matching lists every file under crates/ that mentions it",
+    "that any profile of the engine is admitted: every build seen so far reports admitted=false, and the default policy refuses it",
+    "any remote dispatch, GitHub Actions run or source-snapshot behaviour: the provider adds no field to a dispatch and was not run against one",
+    "performance: nothing here is timed"
+  ],
+  "scenarios": [
+    {
+      "description": "no engine setting: an auto request is planned exactly as HostLab always did",
+      "engine": "available",
+      "fallback": {
+        "on": [],
+        "to": "none"
+      },
+      "id": "legacy-default-auto",
+      "identical_to_frozen_planner": true,
+      "native_engine": "dexsql",
+      "outcome": "plan",
+      "plan": {
+        "dataset_opens": 2,
+        "groups": [
+          {
+            "backend": "sqlite",
+            "task_ids": [
+              "rs"
+            ]
+          },
+          {
+            "backend": "dexsql",
+            "task_ids": [
+              "q",
+              "l",
+              "d"
+            ]
+          }
+        ],
+        "provider": null,
+        "request_sha256": "95dcbc9a02ace9e539a9d75396e04bd80877228607469ba41663277e1af1a6d8",
+        "tasks": [
+          {
+            "backend": "dexsql",
+            "fallback_from": null,
+            "id": "q",
+            "reason": "explicit_sql_dialect"
+          },
+          {
+            "backend": "dexsql",
+            "fallback_from": null,
+            "id": "l",
+            "reason": "reuse_native_references_and_preparation"
+          },
+          {
+            "backend": "dexsql",
+            "fallback_from": null,
+            "id": "d",
+            "reason": "reuse_native_references_and_preparation"
+          },
+          {
+            "backend": "sqlite",
+            "fallback_from": null,
+            "id": "rs",
+            "reason": "preserve_reference_offsets_and_opcodes"
+          }
+        ]
+      },
+      "profile_policy": "require_admitted",
+      "request": {
+        "backend": "auto",
+        "schema": 1,
+        "tasks": [
+          {
+            "dialect": "dexsql",
+            "id": "q",
+            "operation": "query",
+            "sql": "SELECT file_id FROM dex_files ORDER BY file_id"
+          },
+          {
+            "id": "l",
+            "kind": "class",
+            "name": "Lfoo;",
+            "operation": "locate"
+          },
+          {
+            "id": "d",
+            "method": "Lfoo;->bar()V",
+            "operation": "decode"
+          },
+          {
+            "detail": "sites",
+            "id": "rs",
+            "kind": "string",
+            "operation": "refs",
+            "target": "x"
+          }
+        ]
+      }
+    },
+    {
+      "description": "backend dexsql is DexSQL even when the engine is routed and available",
+      "engine": "available",
+      "fallback": {
+        "on": [],
+        "to": "none"
+      },
+      "id": "legacy-dexsql-not-moved",
+      "identical_to_frozen_planner": true,
+      "native_engine": "meguvizdexdash",
+      "outcome": "plan",
+      "plan": {
+        "dataset_opens": 1,
+        "groups": [
+          {
+            "backend": "dexsql",
+            "task_ids": [
+              "q",
+              "l",
+              "d"
+            ]
+          }
+        ],
+        "provider": null,
+        "request_sha256": "a2ee92f99cbac2bb4f7a6d031461cb4c143e7c06c2941bea2e392b0ae1476960",
+        "tasks": [
+          {
+            "backend": "dexsql",
+            "fallback_from": null,
+            "id": "q",
+            "reason": "explicit_sql_dialect"
+          },
+          {
+            "backend": "dexsql",
+            "fallback_from": null,
+            "id": "l",
+            "reason": "explicit_backend"
+          },
+          {
+            "backend": "dexsql",
+            "fallback_from": null,
+            "id": "d",
+            "reason": "explicit_backend"
+          }
+        ]
+      },
+      "profile_policy": "allow_unadmitted",
+      "request": {
+        "backend": "dexsql",
+        "schema": 1,
+        "tasks": [
+          {
+            "dialect": "dexsql",
+            "id": "q",
+            "operation": "query",
+            "sql": "SELECT file_id FROM dex_files ORDER BY file_id"
+          },
+          {
+            "id": "l",
+            "kind": "class",
+            "name": "Lfoo;",
+            "operation": "locate"
+          },
+          {
+            "id": "d",
+            "method": "Lfoo;->bar()V",
+            "operation": "decode"
+          }
+        ]
+      }
+    },
+    {
+      "description": "backend sqlite stays sqlite",
+      "engine": "available",
+      "fallback": {
+        "on": [],
+        "to": "none"
+      },
+      "id": "legacy-sqlite-not-moved",
+      "identical_to_frozen_planner": true,
+      "native_engine": "meguvizdexdash",
+      "outcome": "plan",
+      "plan": {
+        "dataset_opens": 1,
+        "groups": [
+          {
+            "backend": "sqlite",
+            "task_ids": [
+              "l"
+            ]
+          }
+        ],
+        "provider": null,
+        "request_sha256": "f38d33a86ee654dd485823a0ef0d0506047702f893bfe5412303408b16fc61b1",
+        "tasks": [
+          {
+            "backend": "sqlite",
+            "fallback_from": null,
+            "id": "l",
+            "reason": "explicit_backend"
+          }
+        ]
+      },
+      "profile_policy": "allow_unadmitted",
+      "request": {
+        "backend": "sqlite",
+        "schema": 1,
+        "tasks": [
+          {
+            "id": "l",
+            "kind": "class",
+            "name": "Lfoo;",
+            "operation": "locate"
+          }
+        ]
+      }
+    },
+    {
+      "description": "backend dexsql with the engine unusable is still DexSQL, not a fallback",
+      "engine": "bad_sha",
+      "fallback": {
+        "on": [
+          "UNAVAILABLE_BACKEND",
+          "UNSUPPORTED_CAPABILITY",
+          "UNSUPPORTED_QUERY"
+        ],
+        "to": "dexsql"
+      },
+      "id": "legacy-dexsql-engine-unavailable",
+      "identical_to_frozen_planner": true,
+      "native_engine": "meguvizdexdash",
+      "outcome": "plan",
+      "plan": {
+        "dataset_opens": 1,
+        "groups": [
+          {
+            "backend": "dexsql",
+            "task_ids": [
+              "q"
+            ]
+          }
+        ],
+        "provider": null,
+        "request_sha256": "b5a9a5cc2f99126f155ce9162e653896b4c4579c95a4079fce2f66188337c03a",
+        "tasks": [
+          {
+            "backend": "dexsql",
+            "fallback_from": null,
+            "id": "q",
+            "reason": "explicit_sql_dialect"
+          }
+        ]
+      },
+      "profile_policy": "allow_unadmitted",
+      "request": {
+        "backend": "dexsql",
+        "schema": 1,
+        "tasks": [
+          {
+            "dialect": "dexsql",
+            "id": "q",
+            "operation": "query",
+            "sql": "SELECT file_id FROM dex_files ORDER BY file_id"
+          }
+        ]
+      }
+    },
+    {
+      "description": "native_engine=meguvizdexdash: the work DexSQL would get goes to the engine; sqlite-only work stays",
+      "engine": "available",
+      "fallback": {
+        "on": [],
+        "to": "none"
+      },
+      "id": "auto-routed-to-engine",
+      "native_engine": "meguvizdexdash",
+      "outcome": "plan",
+      "plan": {
+        "dataset_opens": 2,
+        "groups": [
+          {
+            "backend": "sqlite",
+            "task_ids": [
+              "rs"
+            ]
+          },
+          {
+            "backend": "meguvizdexdash",
+            "task_ids": [
+              "q",
+              "l",
+              "d",
+              "i"
+            ]
+          }
+        ],
+        "provider": {
+          "config_digest": "99a33b11dffb10b70b1dab6a24a495e51638a653b053b137062b3a9456f77717",
+          "engine": {
+            "backend": "meguvizdexdash",
+            "binary_sha256": "8a09d7aeab768babf3f2d8beecbcc56a48fa1bb633bcd8e5251e1c1225886749",
+            "build_id": "source-sha256:abababababababababababababababababababababababababababababababab",
+            "config_digest": "99a33b11dffb10b70b1dab6a24a495e51638a653b053b137062b3a9456f77717",
+            "dialect": {
+              "engine": "dexsql-0.1.0",
+              "hostlab": "dexsql",
+              "revision": "0.1.0"
+            },
+            "engine_version": "0.1.0-test",
+            "implementation_scope": "unqualified development build",
+            "mcp_tools_sha256": "1564494fe419a04972f680c73c06e39d9632bf4feace320328d9daaa652b17cb",
+            "platform": "fixture/platform",
+            "product": "MeguvizDexDash",
+            "profile": {
+              "admitted": false,
+              "conformance_manifest_sha256": null,
+              "name": "mdd-native-v1",
+              "policy": "allow_unadmitted"
+            }
+          },
+          "fallbacks": [],
+          "native_engine": "meguvizdexdash",
+          "negotiation": {
+            "fallback": "configured"
+          },
+          "selection": "configured"
+        },
+        "request_sha256": "043642b41a085cdf8356212bd6a042c9ac3c89c358cca0220dbaeb5e7e1cad26",
+        "tasks": [
+          {
+            "backend": "meguvizdexdash",
+            "fallback_from": null,
+            "forced": false,
+            "id": "q",
+            "reason": "explicit_sql_dialect"
+          },
+          {
+            "backend": "meguvizdexdash",
+            "fallback_from": null,
+            "forced": false,
+            "id": "l",
+            "reason": "reuse_native_references_and_preparation"
+          },
+          {
+            "backend": "meguvizdexdash",
+            "fallback_from": null,
+            "forced": false,
+            "id": "d",
+            "reason": "reuse_native_references_and_preparation"
+          },
+          {
+            "backend": "meguvizdexdash",
+            "fallback_from": null,
+            "forced": false,
+            "id": "i",
+            "reason": "reuse_native_references_and_preparation"
+          },
+          {
+            "backend": "sqlite",
+            "fallback_from": null,
+            "id": "rs",
+            "reason": "preserve_reference_offsets_and_opcodes"
+          }
+        ]
+      },
+      "profile_policy": "allow_unadmitted",
+      "request": {
+        "backend": "auto",
+        "schema": 1,
+        "tasks": [
+          {
+            "dialect": "dexsql",
+            "id": "q",
+            "operation": "query",
+            "sql": "SELECT file_id FROM dex_files ORDER BY file_id"
+          },
+          {
+            "id": "l",
+            "kind": "class",
+            "name": "Lfoo;",
+            "operation": "locate"
+          },
+          {
+            "id": "d",
+            "method": "Lfoo;->bar()V",
+            "operation": "decode"
+          },
+          {
+            "id": "i",
+            "operation": "info"
+          },
+          {
+            "detail": "sites",
+            "id": "rs",
+            "kind": "string",
+            "operation": "refs",
+            "target": "x"
+          }
+        ]
+      }
+    },
+    {
+      "description": "the default policy refuses a profile that is not admitted",
+      "engine": "available",
+      "error": {
+        "code": "UNAVAILABLE_BACKEND",
+        "message": "backend meguvizdexdash cannot serve task 'q' (profile_not_admitted) and no fallback is permitted for UNAVAILABLE_BACKEND",
+        "reason": "profile_not_admitted",
+        "type": "ProviderUnavailable"
+      },
+      "fallback": {
+        "on": [],
+        "to": "none"
+      },
+      "id": "auto-routed-profile-not-admitted",
+      "native_engine": "meguvizdexdash",
+      "outcome": "refused",
+      "profile_policy": "require_admitted",
+      "request": {
+        "backend": "auto",
+        "schema": 1,
+        "tasks": [
+          {
+            "dialect": "dexsql",
+            "id": "q",
+            "operation": "query",
+            "sql": "SELECT file_id FROM dex_files ORDER BY file_id"
+          }
+        ]
+      }
+    },
+    {
+      "description": "an admitted profile is recorded as admitted",
+      "engine": "admitted",
+      "fallback": {
+        "on": [],
+        "to": "none"
+      },
+      "id": "auto-routed-profile-admitted",
+      "native_engine": "meguvizdexdash",
+      "outcome": "plan",
+      "plan": {
+        "dataset_opens": 1,
+        "groups": [
+          {
+            "backend": "meguvizdexdash",
+            "task_ids": [
+              "q"
+            ]
+          }
+        ],
+        "provider": {
+          "config_digest": "4f1c9fba97b1833fd7f48fd021255d4863042b3a34d6d12de0a6857d05de2b97",
+          "engine": {
+            "backend": "meguvizdexdash",
+            "binary_sha256": "8a09d7aeab768babf3f2d8beecbcc56a48fa1bb633bcd8e5251e1c1225886749",
+            "build_id": "source-sha256:abababababababababababababababababababababababababababababababab",
+            "config_digest": "4f1c9fba97b1833fd7f48fd021255d4863042b3a34d6d12de0a6857d05de2b97",
+            "dialect": {
+              "engine": "dexsql-0.1.0",
+              "hostlab": "dexsql",
+              "revision": "0.1.0"
+            },
+            "engine_version": "0.1.0-test",
+            "implementation_scope": "unqualified development build",
+            "mcp_tools_sha256": "1564494fe419a04972f680c73c06e39d9632bf4feace320328d9daaa652b17cb",
+            "platform": "fixture/platform",
+            "product": "MeguvizDexDash",
+            "profile": {
+              "admitted": true,
+              "conformance_manifest_sha256": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+              "name": "mdd-native-v1",
+              "policy": "require_admitted"
+            }
+          },
+          "fallbacks": [],
+          "native_engine": "meguvizdexdash",
+          "negotiation": {
+            "fallback": "configured"
+          },
+          "selection": "configured"
+        },
+        "request_sha256": "e2c3c864c9a44cdad4f2c722e4e462c7c1f3322d37d9ad2ef23a9187ef0a0126",
+        "tasks": [
+          {
+            "backend": "meguvizdexdash",
+            "fallback_from": null,
+            "forced": false,
+            "id": "q",
+            "reason": "explicit_sql_dialect"
+          }
+        ]
+      },
+      "profile_policy": "require_admitted",
+      "request": {
+        "backend": "auto",
+        "schema": 1,
+        "tasks": [
+          {
+            "dialect": "dexsql",
+            "id": "q",
+            "operation": "query",
+            "sql": "SELECT file_id FROM dex_files ORDER BY file_id"
+          }
+        ]
+      }
+    },
+    {
+      "description": "backend meguvizdexdash is served by the engine and has its own request identity",
+      "engine": "available",
+      "fallback": {
+        "on": [],
+        "to": "none"
+      },
+      "id": "forced-engine",
+      "native_engine": "meguvizdexdash",
+      "outcome": "plan",
+      "plan": {
+        "dataset_opens": 1,
+        "groups": [
+          {
+            "backend": "meguvizdexdash",
+            "task_ids": [
+              "q",
+              "l",
+              "d",
+              "i"
+            ]
+          }
+        ],
+        "provider": {
+          "config_digest": "99a33b11dffb10b70b1dab6a24a495e51638a653b053b137062b3a9456f77717",
+          "engine": {
+            "backend": "meguvizdexdash",
+            "binary_sha256": "8a09d7aeab768babf3f2d8beecbcc56a48fa1bb633bcd8e5251e1c1225886749",
+            "build_id": "source-sha256:abababababababababababababababababababababababababababababababab",
+            "config_digest": "99a33b11dffb10b70b1dab6a24a495e51638a653b053b137062b3a9456f77717",
+            "dialect": {
+              "engine": "dexsql-0.1.0",
+              "hostlab": "dexsql",
+              "revision": "0.1.0"
+            },
+            "engine_version": "0.1.0-test",
+            "implementation_scope": "unqualified development build",
+            "mcp_tools_sha256": "1564494fe419a04972f680c73c06e39d9632bf4feace320328d9daaa652b17cb",
+            "platform": "fixture/platform",
+            "product": "MeguvizDexDash",
+            "profile": {
+              "admitted": false,
+              "conformance_manifest_sha256": null,
+              "name": "mdd-native-v1",
+              "policy": "allow_unadmitted"
+            }
+          },
+          "fallbacks": [],
+          "native_engine": "meguvizdexdash",
+          "negotiation": {
+            "fallback": "configured"
+          },
+          "selection": "forced"
+        },
+        "request_sha256": "18d4f820689681c6c70f947e3d00473bdde3b0f0a7fd89e496267348dcc4d3d0",
+        "tasks": [
+          {
+            "backend": "meguvizdexdash",
+            "fallback_from": null,
+            "forced": true,
+            "id": "q",
+            "reason": "explicit_sql_dialect"
+          },
+          {
+            "backend": "meguvizdexdash",
+            "fallback_from": null,
+            "forced": true,
+            "id": "l",
+            "reason": "explicit_backend"
+          },
+          {
+            "backend": "meguvizdexdash",
+            "fallback_from": null,
+            "forced": true,
+            "id": "d",
+            "reason": "explicit_backend"
+          },
+          {
+            "backend": "meguvizdexdash",
+            "fallback_from": null,
+            "forced": true,
+            "id": "i",
+            "reason": "explicit_backend"
+          }
+        ]
+      },
+      "profile_policy": "allow_unadmitted",
+      "request": {
+        "backend": "meguvizdexdash",
+        "schema": 1,
+        "tasks": [
+          {
+            "dialect": "dexsql",
+            "id": "q",
+            "operation": "query",
+            "sql": "SELECT file_id FROM dex_files ORDER BY file_id"
+          },
+          {
+            "id": "l",
+            "kind": "class",
+            "name": "Lfoo;",
+            "operation": "locate"
+          },
+          {
+            "id": "d",
+            "method": "Lfoo;->bar()V",
+            "operation": "decode"
+          },
+          {
+            "id": "i",
+            "operation": "info"
+          }
+        ]
+      }
+    },
+    {
+      "description": "the rollback value refuses a request for the engine; nothing is substituted",
+      "engine": "available",
+      "error": {
+        "code": "UNAVAILABLE_BACKEND",
+        "message": "backend meguvizdexdash is switched off (native_engine is dexsql); nothing is substituted for it",
+        "reason": null,
+        "type": "ProviderDisabled"
+      },
+      "fallback": {
+        "on": [],
+        "to": "none"
+      },
+      "id": "forced-engine-switched-off",
+      "native_engine": "dexsql",
+      "outcome": "refused",
+      "profile_policy": "require_admitted",
+      "request": {
+        "backend": "meguvizdexdash",
+        "schema": 1,
+        "tasks": [
+          {
+            "dialect": "dexsql",
+            "id": "q",
+            "operation": "query",
+            "sql": "SELECT file_id FROM dex_files ORDER BY file_id"
+          }
+        ]
+      }
+    },
+    {
+      "description": "a bad SHA makes the engine unusable; a configured fallback does not serve a forced request",
+      "engine": "bad_sha",
+      "error": {
+        "code": "UNAVAILABLE_BACKEND",
+        "message": "backend meguvizdexdash cannot serve task 'q': digest_mismatch",
+        "reason": "digest_mismatch",
+        "type": "ProviderUnavailable"
+      },
+      "fallback": {
+        "on": [
+          "UNAVAILABLE_BACKEND",
+          "UNSUPPORTED_CAPABILITY",
+          "UNSUPPORTED_QUERY"
+        ],
+        "to": "dexsql"
+      },
+      "id": "forced-engine-bad-sha",
+      "native_engine": "meguvizdexdash",
+      "outcome": "refused",
+      "profile_policy": "allow_unadmitted",
+      "request": {
+        "backend": "meguvizdexdash",
+        "schema": 1,
+        "tasks": [
+          {
+            "dialect": "dexsql",
+            "id": "q",
+            "operation": "query",
+            "sql": "SELECT file_id FROM dex_files ORDER BY file_id"
+          }
+        ]
+      }
+    },
+    {
+      "description": "without a configured fallback an unusable engine fails the plan",
+      "engine": "bad_sha",
+      "error": {
+        "code": "UNAVAILABLE_BACKEND",
+        "message": "backend meguvizdexdash cannot serve task 'q' (digest_mismatch) and no fallback is permitted for UNAVAILABLE_BACKEND",
+        "reason": "digest_mismatch",
+        "type": "ProviderUnavailable"
+      },
+      "fallback": {
+        "on": [],
+        "to": "none"
+      },
+      "id": "auto-bad-sha-no-fallback",
+      "native_engine": "meguvizdexdash",
+      "outcome": "refused",
+      "profile_policy": "allow_unadmitted",
+      "request": {
+        "backend": "auto",
+        "schema": 1,
+        "tasks": [
+          {
+            "dialect": "dexsql",
+            "id": "q",
+            "operation": "query",
+            "sql": "SELECT file_id FROM dex_files ORDER BY file_id"
+          },
+          {
+            "id": "l",
+            "kind": "class",
+            "name": "Lfoo;",
+            "operation": "locate"
+          }
+        ]
+      }
+    },
+    {
+      "description": "with the fallback configured the move to dexsql is explicit and recorded",
+      "engine": "bad_sha",
+      "fallback": {
+        "on": [
+          "UNAVAILABLE_BACKEND",
+          "UNSUPPORTED_CAPABILITY",
+          "UNSUPPORTED_QUERY"
+        ],
+        "to": "dexsql"
+      },
+      "id": "auto-bad-sha-explicit-fallback",
+      "native_engine": "meguvizdexdash",
+      "outcome": "plan",
+      "plan": {
+        "dataset_opens": 1,
+        "groups": [
+          {
+            "backend": "dexsql",
+            "task_ids": [
+              "q",
+              "l"
+            ]
+          }
+        ],
+        "provider": {
+          "config_digest": "84934f14b4eb150a6d721e755c8ef283b4fb62995ed46e839a10c943f9e9dd0e",
+          "engine": null,
+          "fallbacks": [
+            {
+              "code": "UNAVAILABLE_BACKEND",
+              "from": "meguvizdexdash",
+              "reason": "digest_mismatch",
+              "scope": "plan",
+              "task": "q",
+              "to": "dexsql"
+            },
+            {
+              "code": "UNAVAILABLE_BACKEND",
+              "from": "meguvizdexdash",
+              "reason": "digest_mismatch",
+              "scope": "plan",
+              "task": "l",
+              "to": "dexsql"
+            }
+          ],
+          "native_engine": "meguvizdexdash",
+          "negotiation": {
+            "fallback": "configured"
+          },
+          "selection": "configured"
+        },
+        "request_sha256": "b2f4a8e22f91b8935f10d43b268d4ce48158168913fc2ca02d5f12e9adfc5643",
+        "tasks": [
+          {
+            "backend": "dexsql",
+            "fallback_from": "meguvizdexdash",
+            "forced": false,
+            "id": "q",
+            "reason": "unavailable_backend_fallback_to_dexsql"
+          },
+          {
+            "backend": "dexsql",
+            "fallback_from": "meguvizdexdash",
+            "forced": false,
+            "id": "l",
+            "reason": "unavailable_backend_fallback_to_dexsql"
+          }
+        ]
+      },
+      "profile_policy": "allow_unadmitted",
+      "request": {
+        "backend": "auto",
+        "schema": 1,
+        "tasks": [
+          {
+            "dialect": "dexsql",
+            "id": "q",
+            "operation": "query",
+            "sql": "SELECT file_id FROM dex_files ORDER BY file_id"
+          },
+          {
+            "id": "l",
+            "kind": "class",
+            "name": "Lfoo;",
+            "operation": "locate"
+          }
+        ]
+      }
+    },
+    {
+      "description": "a request can forbid the fallback",
+      "engine": "bad_sha",
+      "error": {
+        "code": "UNAVAILABLE_BACKEND",
+        "message": "backend meguvizdexdash cannot serve task 'q': digest_mismatch",
+        "reason": "digest_mismatch",
+        "type": "ProviderUnavailable"
+      },
+      "fallback": {
+        "on": [
+          "UNAVAILABLE_BACKEND",
+          "UNSUPPORTED_CAPABILITY",
+          "UNSUPPORTED_QUERY"
+        ],
+        "to": "dexsql"
+      },
+      "id": "auto-bad-sha-fallback-forbidden",
+      "native_engine": "meguvizdexdash",
+      "outcome": "refused",
+      "profile_policy": "allow_unadmitted",
+      "request": {
+        "backend": "auto",
+        "negotiation": {
+          "fallback": "forbid"
+        },
+        "schema": 1,
+        "tasks": [
+          {
+            "dialect": "dexsql",
+            "id": "q",
+            "operation": "query",
+            "sql": "SELECT file_id FROM dex_files ORDER BY file_id"
+          }
+        ]
+      }
+    },
+    {
+      "description": "a tool the engine lacks is visible in the plan; only that task falls back",
+      "engine": "no_decode_tool",
+      "fallback": {
+        "on": [
+          "UNAVAILABLE_BACKEND",
+          "UNSUPPORTED_CAPABILITY",
+          "UNSUPPORTED_QUERY"
+        ],
+        "to": "dexsql"
+      },
+      "id": "auto-missing-tool-fallback-only-that-task",
+      "native_engine": "meguvizdexdash",
+      "outcome": "plan",
+      "plan": {
+        "dataset_opens": 2,
+        "groups": [
+          {
+            "backend": "dexsql",
+            "task_ids": [
+              "d"
+            ]
+          },
+          {
+            "backend": "meguvizdexdash",
+            "task_ids": [
+              "q"
+            ]
+          }
+        ],
+        "provider": {
+          "config_digest": "84934f14b4eb150a6d721e755c8ef283b4fb62995ed46e839a10c943f9e9dd0e",
+          "engine": {
+            "backend": "meguvizdexdash",
+            "binary_sha256": "8a09d7aeab768babf3f2d8beecbcc56a48fa1bb633bcd8e5251e1c1225886749",
+            "build_id": "source-sha256:abababababababababababababababababababababababababababababababab",
+            "config_digest": "84934f14b4eb150a6d721e755c8ef283b4fb62995ed46e839a10c943f9e9dd0e",
+            "dialect": {
+              "engine": "dexsql-0.1.0",
+              "hostlab": "dexsql",
+              "revision": "0.1.0"
+            },
+            "engine_version": "0.1.0-test",
+            "implementation_scope": "unqualified development build",
+            "mcp_tools_sha256": "e61454507eb1b0689a92f1d1bc0f35771512028b72a538688efc938ec55fd348",
+            "platform": "fixture/platform",
+            "product": "MeguvizDexDash",
+            "profile": {
+              "admitted": false,
+              "conformance_manifest_sha256": null,
+              "name": "mdd-native-v1",
+              "policy": "allow_unadmitted"
+            }
+          },
+          "fallbacks": [
+            {
+              "code": "UNSUPPORTED_CAPABILITY",
+              "from": "meguvizdexdash",
+              "reason": "tool_not_offered:decode",
+              "scope": "plan",
+              "task": "d",
+              "to": "dexsql"
+            }
+          ],
+          "native_engine": "meguvizdexdash",
+          "negotiation": {
+            "fallback": "configured"
+          },
+          "selection": "configured"
+        },
+        "request_sha256": "3956af1c70db5b3c72e6b4a8f1a56cd92804037a9056c2338d6c2edf78c3939c",
+        "tasks": [
+          {
+            "backend": "meguvizdexdash",
+            "fallback_from": null,
+            "forced": false,
+            "id": "q",
+            "reason": "explicit_sql_dialect"
+          },
+          {
+            "backend": "dexsql",
+            "fallback_from": "meguvizdexdash",
+            "forced": false,
+            "id": "d",
+            "reason": "unsupported_capability_fallback_to_dexsql"
+          }
+        ]
+      },
+      "profile_policy": "allow_unadmitted",
+      "request": {
+        "backend": "auto",
+        "schema": 1,
+        "tasks": [
+          {
+            "dialect": "dexsql",
+            "id": "q",
+            "operation": "query",
+            "sql": "SELECT file_id FROM dex_files ORDER BY file_id"
+          },
+          {
+            "id": "d",
+            "method": "Lfoo;->bar()V",
+            "operation": "decode"
+          }
+        ]
+      }
+    },
+    {
+      "description": "SQLite-dialect SQL cannot be served by the engine and the plan says so",
+      "engine": "available",
+      "error": {
+        "code": "UNSUPPORTED_CAPABILITY",
+        "message": "backend meguvizdexdash cannot serve this request: explicit SQL dialect cannot be changed by backend selection",
+        "reason": "request_not_servable",
+        "type": "ProviderUnsupported"
+      },
+      "fallback": {
+        "on": [],
+        "to": "none"
+      },
+      "id": "forced-engine-sqlite-dialect",
+      "native_engine": "meguvizdexdash",
+      "outcome": "refused",
+      "profile_policy": "allow_unadmitted",
+      "request": {
+        "backend": "meguvizdexdash",
+        "schema": 1,
+        "tasks": [
+          {
+            "dialect": "sqlite",
+            "id": "sq",
+            "operation": "query",
+            "sql": "SELECT 1"
+          }
+        ]
+      }
+    },
+    {
+      "description": "legacy reference sites are not provided by the engine; the plan says so",
+      "engine": "available",
+      "error": {
+        "code": "UNSUPPORTED_CAPABILITY",
+        "message": "backend meguvizdexdash cannot serve this request: DexSQL cannot supply legacy offset/op reference sites",
+        "reason": "request_not_servable",
+        "type": "ProviderUnsupported"
+      },
+      "fallback": {
+        "on": [],
+        "to": "none"
+      },
+      "id": "forced-engine-reference-sites",
+      "native_engine": "meguvizdexdash",
+      "outcome": "refused",
+      "profile_policy": "allow_unadmitted",
+      "request": {
+        "backend": "meguvizdexdash",
+        "schema": 1,
+        "tasks": [
+          {
+            "detail": "sites",
+            "id": "rs",
+            "kind": "string",
+            "operation": "refs",
+            "target": "x"
+          }
+        ]
+      }
+    }
+  ],
+  "schema": "mdd.hostlab-provider-selection.v1",
+  "task": "MDD-050"
+}

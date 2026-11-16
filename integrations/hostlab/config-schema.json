@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:meguvizdexdash:hostlab-provider-config:v1",
+  "title": "HostLab provider selection for MeguvizDexDash",
+  "description": "Which engine HostLab's `auto` work goes to, and how the MeguvizDexDash engine is used. The only thing that routes work to the new engine is native_engine; its value `dexsql` is the rollback value and the default. A request that names `sqlite` or `dexsql` is never moved by this file. provider.py parse_config enforces exactly this schema; the tests run both over the same documents.",
+  "type": "object",
+  "required": ["schema"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {"const": "mdd.hostlab-provider-config.v1"},
+    "native_engine": {
+      "enum": ["dexsql", "meguvizdexdash"],
+      "default": "dexsql",
+      "description": "The engine for work that HostLab's planner would give to DexSQL when the request says `auto`. `dexsql` restores the original backend and switches the new one off: a request that names meguvizdexdash is then refused, not served by another backend."
+    },
+    "meguvizdexdash": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "manifest": {"type": ["string", "null"], "minLength": 1, "maxLength": 4096, "default": null,
+                     "description": "The pinned engine manifest (install_meguvizdexdash.py pin). null: HOSTLAB_MEGUVIZDEXDASH_MANIFEST, else vendor/meguvizdexdash/manifest.json."},
+        "dialect": {"enum": ["dexsql-0.1.0", "dexsql-0.1.1"], "default": "dexsql-0.1.0",
+                    "description": "The engine's SQL dialect for HostLab's `dexsql` queries. The engine must list it with the hostlab-contract-relations feature."},
+        "profile": {"type": "string", "minLength": 1, "maxLength": 4096, "default": "mdd-native-v1",
+                    "description": "The profile that must be listed by the engine's capabilities and that reports name."},
+        "profile_policy": {"enum": ["require_admitted", "allow_unadmitted"], "default": "require_admitted",
+                           "description": "require_admitted: a profile that is not admitted makes the engine unavailable. allow_unadmitted: use it, and every report still says admitted=false."},
+        "cache_dir": {"type": ["string", "null"], "minLength": 1, "maxLength": 4096, "default": null,
+                      "description": "Base of MDD_CACHE_DIR, relative to HostLab's state directory. null: <state>/mdd-engine/cache. A path that is, contains or lies inside any DexSQL or HostLab cache, report or completion directory is refused."},
+        "max_datasets": {"type": "integer", "minimum": 1, "maximum": 16, "default": 1,
+                         "description": "--max-datasets of `meguvizdexdash mcp`."},
+        "fallback": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "to": {"enum": ["none", "dexsql"], "default": "none"},
+            "on": {"type": "array", "uniqueItems": true,
+                   "items": {"enum": ["UNAVAILABLE_BACKEND", "UNSUPPORTED_CAPABILITY", "UNSUPPORTED_QUERY"]},
+                   "default": []}
+          },
+          "oneOf": [
+            {"properties": {"to": {"const": "none"}, "on": {"maxItems": 0}}},
+            {"required": ["to", "on"], "properties": {"to": {"const": "dexsql"}, "on": {"minItems": 1}}}
+          ],
+          "description": "Explicit, recorded fallback of tasks that `auto` gave the engine, and only for these three codes. No other code can be listed. A request with negotiation.fallback=forbid, or one that names the engine, never falls back."
+        }
+      }
+    }
+  }
+}

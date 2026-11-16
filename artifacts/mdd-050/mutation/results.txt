@@ -1,0 +1,34 @@
+ 1 killed: a fallback for INTERNAL_FAULT
+ 2 killed: a forced task may fall back
+ 3 killed: an explicit dexsql request is routed to the engine
+ 4 killed: the eligibility test is gone
+ 5 killed: rows already admitted do not stop a fallback
+ 6 killed: a request cannot forbid the fallback
+ 7 killed: cancellation is caught
+ 8 killed: a failure becomes an empty result
+ 9 killed: an unadmitted profile is accepted
+10 killed: a missing tool is not noticed
+11 killed: a forced engine request shares DexSQL's identity
+12 killed: a cache base that holds DexSQL's directories is allowed
+13 killed: publishing overwrites
+14 killed: DexSQL's cache variables reach the engine
+15 killed: a changed source still completes
+16 killed: the engine can be reported as DexSQL
+17 killed: unknown coverage counts as complete
+18 killed: a checkpoint of another build is resumed
+19 killed: the engine gets DexSQL's --threads
+20 killed: a namespace of another build is taken over
+21 killed: the input gate ignores the roots
+22 killed: the DEX inventory is not compared
+23 killed: the fallback evidence is dropped
+24 killed: the rollback value still serves the engine
+25 killed: a fallback is taken without the config's say-so
+26 killed: any digest is accepted
+27 killed: the legacy install directory is allowed
+28 killed: install overwrites
+29 killed: the deep tools check is gone
+30 killed: the identity of the build is not compared
+31 killed: credentials reach the engine
+32 killed: a conflicting pin is accepted
+33 killed: an admitted profile needs no conformance digest
+survivors: []

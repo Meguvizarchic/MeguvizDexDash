@@ -86,6 +86,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python conformance/mcp/test_hostlab_required_tools.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -I -m unittest discover -s integrations/hostlab -p "test_*.py"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -I integrations/hostlab/make_provider_selection.py --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python conformance/mcp/test_replays.py
       - name: Run actual dependency and SQL probes
         run: python tools/record_command.py --output artifacts/ci/probe -- cargo run --locked -p mdd-build-probe

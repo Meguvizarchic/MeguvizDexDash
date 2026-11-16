@@ -20,3 +20,6 @@
 /artifacts/**/*.dll
 /artifacts/**/*.pdb
 /artifacts/mdd-025/raw-fingerprints/legacy-class-recipes/reference-stdout.txt
+
+# Engine binaries and manifests installed by integrations/hostlab/install_meguvizdexdash.py
+/integrations/hostlab/vendor/
