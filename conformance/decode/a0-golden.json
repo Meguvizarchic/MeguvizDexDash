@@ -8049,7 +8049,7 @@
    "inputs": [],
    "is_error": true,
    "reply": {
-    "raw_text": "failed to deserialize parameters: invalid type: string \"D:\\\\DevArea\\\\MeguvisDexDash\\\\.claude\\\\worktrees\\\\heuristic-shtern-042945\\\\tests\\\\fixtures\\\\decode\\\\generated\\\\decode-all.dex\", expected a sequence"
+    "raw_text": "failed to deserialize parameters: invalid type: string \"<fixtures>\\\\decode-all.dex\", expected a sequence"
    },
    "tool": "open_dataset"
   },
@@ -25643,7 +25643,7 @@
    }
   }
  ],
- "recorded_utc": "2026-11-16T09:51:43Z",
+ "recorded_utc": "2026-11-16T14:35:13Z",
  "reference": {
   "name": "dexsql",
   "origin": "https://github.com/LSPosed/dexsql-release/releases/download/v0.1.0/dexsql-windows-amd64.exe",

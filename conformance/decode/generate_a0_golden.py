@@ -41,7 +41,8 @@ def ask(client: McpClient, dataset: str | None, tool: str, arguments: dict) -> d
     result = response["result"]
     structured = result.get("structuredContent")
     if structured is None:
-        body = {"raw_text": result["content"][0]["text"]}
+        # the message of a rejected argument may quote what was sent, which holds the fixtures' directory
+        body = a0_cases.normalize({"raw_text": result["content"][0]["text"]}, dataset)
         if set(result) - {"content", "isError"}:
             raise RuntimeError("an unexpected result shape: " + json.dumps(result)[:200])
     else:
