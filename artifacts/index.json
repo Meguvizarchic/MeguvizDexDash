@@ -54410,7 +54410,7 @@
     {
       "path": "artifacts/mdd-042/mcp-required-conformance.json",
       "bytes": 31845,
-      "sha256": "bce3611f86d2320ba4ed71e03e2ea6af5ce01c6d1099853e2702203b982e9eda"
+      "sha256": "2b42952bc5fad0141616d3bce3491770bc56f4b69f6a06d46bc9d571e9692dc6"
     },
     {
       "path": "artifacts/mdd-042/mutation/mutate_mcp.py",

@@ -824,14 +824,14 @@
   ],
   "log_sha256": {
    "rust": [
-    "7a88a5cf4c799c05f9ae2318df8b4ea130f50349d3ac5f8adc9491fb1dbbd315",
-    "ff8f41d51f37a2a269005f93d49c673ed541a02ae27678a393181db1c13ef94e",
-    "c6af657d2dfb7c4f62625f0f9dc26e21f59388d664a85933a425ecf351708b3d"
+    "c7d84174b9e581da7e7f9c24acaa1711b94b6f25f334ebafe1acd4dacf5d4dbd",
+    "e3f3d68e5fe44d3866a8851df3e1888397453aee40c1bea75149413b85fed87f",
+    "76cbf5371090718e7bc1fdd1c61268f071d55cf4ea8d9ad23b532ec06ac2cdfb"
    ],
-   "clippy": "37775b8138bdab4c126356d2e705e1bba4e5b5c4f2ebd58d4456e05bb7b1713b",
+   "clippy": "5c57d0a59556eae1174c22cce8843d1bbee349ef84304e38e76dc0548fe60afb",
    "controls": [
     "2ae2691b3d3801ad0641d8313b60970e02727334cee88f780f22f77a9b498b9f",
-    "ba5866503782901ad7f0b7e2f408f8a4d82673dd0be6af045c0cd52a0a85b2cc"
+    "36da854c7401f267f0759c9601e7e497929fd4f8f50eb3fc6da8b118446caa7f"
    ]
   },
   "raw_logs_kept_at": "artifacts/local/ (ignored; carries developer-machine output)"
@@ -842,7 +842,7 @@
   "crates/mdd-mcp/src/protocol.rs": "dcc1508b6f61ffa6632f27954b0aaa6801367dd543fff7648a0d4862bdcda020",
   "crates/mdd-mcp/src/lib.rs": "04c090fad25cd89003d79350892283c307366246c8c3ac41b454656813dc9879",
   "crates/mdd-mcp/src/tool_schemas.json": "4f3fc454c010dbc6c000ea9a1528dd6e7acd4f011c10232548b881edb459b724",
-  "crates/mdd-cli/tests/mcp.rs": "124ac6b08d3fd00fba03b6d22559caa5a08fbfd300a72b7ebeaeab530ebcd775",
+  "crates/mdd-cli/tests/mcp.rs": "bef3f7e369e737c1c8eb2c540f0305593d8a051dba0091d9f74217bac1d65461",
   "crates/mdd-service/src/decode.rs": "f204b6248c2cc7539cec5e54df27fe4ee4a08ee935f122572bff31919dd0d45c",
   "crates/mdd-service/src/dataset.rs": "1550b191e4acf65de6fb49ee847c6745c7b00f2fa2d08c557eab230b7df97f43",
   "crates/mdd-service/src/manifest.rs": "54b533e54e9e0fc6770347ec62a819a35e09e2e6446eda831bd36e2f4a5ed061",
@@ -856,7 +856,7 @@
   "conformance/mcp/manifest_replay.py": "145150259f2b50877fcf08b5f1f3a096e66c06fb2d1d03c35291e44b2304f0e9",
   "conformance/mcp/test_replays.py": "98c05c58ad78b1f8b34f22bf8748273da317a15b215cf6fb8a4aea61d8ff50b4",
   "conformance/mcp/tiny_dex.py": "e051c06d951b5973a8ef6972139fb977e58fbb44fa1f2ff0cd2663070a95e8f5",
-  "conformance/mcp/run_mcp_conformance.py": "9d6516887e3dcb2b9791440826cbae91be8f235f003ca115768f43116093ee31",
+  "conformance/mcp/run_mcp_conformance.py": "d0dd324f086e8022ac96bac2a99e69dd9f0970c28c5a8484449f50244d43950e",
   "conformance/decode/oracle.py": "fd59e719043bb50a227c7cf41bd171b3c4313c81705b5f59320ff7612b4babba",
   "conformance/decode/run_decode_conformance.py": "92bb0d50449787641af8a283ac7d002a8af900e0c29b6ee9e0189c62e95ad235",
   "conformance/decode/hand-expected.txt": "3dfad5ab67a2c9e86a60024d06a1284ab08002a1953c8cd39eb89e505af218e8",
@@ -896,6 +896,6 @@
   "one Windows host; the MCP process tests run on Linux only in the repository CI"
  ],
  "run": {
-  "started_utc": "2026-11-16T06:12:41.979728+00:00"
+  "started_utc": "2026-11-16T06:48:48.224968+00:00"
  }
 }

@@ -1252,8 +1252,27 @@ fn a_closed_stdin_is_a_clean_end_and_a_closed_stdout_is_exit_four() {
         ),
     );
     drop(stdout);
-    server.send(&json!({"jsonrpc":"2.0","id":1,"method":"ping"}));
-    let status = server.child.wait().unwrap();
+    // The server learns that nobody reads its stdout only when a write fails, and a write fails
+    // only once every copy of the read end is closed. Tests run in parallel threads of one process,
+    // and a thread that forks to start its own server holds a copy of this pipe until its exec: a
+    // ping that lands in that window is written without error, the server goes back to reading
+    // stdin, and a single ping then waits for ever (seen on Linux, a few runs in a hundred). So
+    // ping until the server exits, within a bound.
+    let ping = format!("{}\n", json!({"jsonrpc":"2.0","id":1,"method":"ping"}));
+    let mut status = None;
+    for _ in 0..200 {
+        if let Some(stdin) = server.stdin.as_mut() {
+            let _ = stdin.write_all(ping.as_bytes());
+            let _ = stdin.flush();
+        }
+        if let Some(done) = server.child.try_wait().unwrap() {
+            status = Some(done);
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    let _ = server.child.kill();
+    let status = status.expect("the server did not exit after its stdout was closed");
     assert_eq!(status.code(), Some(4));
 }
 

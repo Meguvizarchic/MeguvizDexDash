@@ -334,6 +334,9 @@ def main() -> int:
     for label, result in (("sessions", lifecycle), ("decode", decode), ("manifest", manifest)):
         if result:
             print(f"{label}: checks={len(result['checks'])} passed={result['passed']} failed={result['failed']} equal={result['equal']}")
+            for check in result["checks"]:
+                if check["equal"] is False:
+                    print("  FAIL", check["name"], "|", str(check.get("detail", ""))[:600])
     for row in rows:
         print(f"{row['status']:12}{row['acceptance'][:96]}")
     print(f"mutation: present={mutation['present']} killed={mutation.get('killed')} survived={mutation.get('survived')} current={mutation['current']}")
