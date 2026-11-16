@@ -1,0 +1,59 @@
+name: ABI and SDK mutation check
+# The MDD-043 mutation check applies small faults to the C ABI (Rust) and to the Python SDK,
+# including its worker transport, one at a time, and requires the Rust tests, the Python tests or the
+# ownership cases to catch each. Every Rust mutant rebuilds the library, so it runs here, on request,
+# not on a developer machine and not on every push.
+#
+# Run it with:  gh workflow run mutation-abi.yml
+# The result is the artifact `mutation-abi-results`; commit its contents as
+# artifacts/mdd-043/mutation/results.txt without other changes. It is current for the commit it ran
+# on and for every later commit that leaves the files it hashes unchanged.
+#
+# Every command inside has a time limit (15 minutes); one that outlives it is ended with the processes
+# it started and the mutant gets the verdict TIMEOUT.
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  mutation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12.10'
+      - name: Install fixed validation environment
+        run: python -m pip install -r requirements-dev.lock
+      - name: Install fixed Rust toolchain
+        run: rustup toolchain install 1.99.0 --profile minimal --component rustfmt --component clippy
+      - name: Fetch exact locked dependencies
+        run: cargo fetch --locked
+      - name: Run the mutation check
+        id: mutate
+        continue-on-error: true
+        shell: bash
+        run: python -I artifacts/mdd-043/mutation/mutate_abi.py | tee mutation-results.txt
+      - name: Summarize
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '### ABI and SDK mutation check'
+            echo
+            echo "exit status of the check: ${{ steps.mutate.outcome }}"
+            echo '```'
+            cat mutation-results.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: mutation-abi-results
+          path: mutation-results.txt
+      - name: Fail when the check failed
+        if: steps.mutate.outcome != 'success'
+        run: exit 1

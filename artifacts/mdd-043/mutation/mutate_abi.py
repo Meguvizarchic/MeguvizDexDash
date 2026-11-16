@@ -9,11 +9,18 @@ memory and written back in a finally block. Rust mutants run first; the library 
 rebuilt from clean sources before the Python mutants, which run against that library.
 The last line carries the hash of every test source, so a recorded result can be told
 from a stale one.
+
+Every command has a time limit and is ended, with the processes it started, when it passes
+it; the mutant then gets the verdict TIMEOUT, which is neither a kill nor a survivor. The
+check takes a while (a Rust build per Rust mutant), so it runs in a GitHub workflow
+(.github/workflows/mutation-abi.yml), not on a developer machine.
 """
 from __future__ import annotations
 
 import ast
 import hashlib
+import os
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -22,12 +29,17 @@ ROOT = Path(__file__).resolve().parents[3]
 RUST = ["cargo", "test", "--offline", "--locked", "-p", "mdd-ffi"]
 PYTHON = [sys.executable, "-I", "-m", "unittest", "discover", "-s", "python/tests", "-t", "python"]
 OWNERSHIP = [sys.executable, "-I", "conformance/abi/ownership_cases.py"]
-BUILD = ["cargo", "build", "--offline", "--locked", "-p", "mdd-ffi"]
+# the library, and the worker binary that the SDK's worker transport starts
+BUILD = ["cargo", "build", "--offline", "--locked", "-p", "mdd-ffi", "-p", "mdd-cli"]
+LIMIT = 900
+TIMEOUT = -9999
 
 # The tests and the sources they test: a change to either makes the record stale.
 TEST_SOURCES = [
     "crates/mdd-ffi/tests/abi_contract.rs",
     "python/tests/test_sdk.py",
+    "python/tests/test_worker.py",
+    "python/tests/stub_worker.py",
     "conformance/abi/ownership-cases.json",
     "conformance/abi/ownership_cases.py",
     "include/mdd.h",
@@ -40,6 +52,7 @@ TEST_SOURCES = [
     "python/mdd/_ffi.py",
     "python/mdd/core.py",
     "python/mdd/errors.py",
+    "python/mdd/worker.py",
 ]
 
 HANDLE = "crates/mdd-ffi/src/handle.rs"
@@ -48,6 +61,7 @@ ABI = "crates/mdd-ffi/src/abi.rs"
 CODEC = "crates/mdd-ffi/src/codec.rs"
 CORE = "python/mdd/core.py"
 CELLS = "python/mdd/_cells.py"
+WORKER = "python/mdd/worker.py"
 
 # (name, expected, command(s), file, [(old, new)])
 RUST_MUTANTS = [
@@ -96,9 +110,64 @@ PYTHON_MUTANTS = [
 ]
 
 
+PYTHON_MUTANTS += [
+    ("a worker whose output ends is not reported as lost", "killed", [PYTHON], WORKER,
+     [(r"""raise self._lost("its output ended before the answer did", during=during)""",
+       r"""raise errors.Closed("ended", code="SNAPSHOT_CLOSED", stage="sdk.worker")""")]),
+    ("a line cut short is skipped instead of reported", "killed", [PYTHON], WORKER,
+     [(r"""raise self._lost("its output stopped in the middle of a line", during=during, partial=data)""", "continue")]),
+    ("a silent worker is never ended at the caller's deadline", "killed", [PYTHON], WORKER,
+     [("                if deadline is not None and time.monotonic() >= deadline:", "                if False:")]),
+    ("batches out of order are accepted", "killed", [PYTHON], WORKER,
+     [("                if sequence != next_sequence or first_row != next_row:", "                if False:")]),
+    ("an answer for another request is accepted", "killed", [PYTHON], WORKER,
+     [("                if message.get(\"id\") != self.id:", "                if False:")]),
+    ("a line over the limit is not refused", "killed", [PYTHON], WORKER,
+     [(r"""            if len(line) > limit and not line.endswith(b"\n"):""", "            if False:")]),
+    ("delivered rows are not counted in the loss report", "killed", [PYTHON], WORKER,
+     [("                worker._delivered[\"rows\"] += len(rows)", "                worker._delivered[\"rows\"] += 0")]),
+    ("a refusal to start is reported as a loss", "killed", [PYTHON], WORKER,
+     [("        if exit_code not in (1, 2):", "        if True:")]),
+    ("a failure terminal is not raised", "killed", [PYTHON], WORKER,
+     [("        if terminal is not None and terminal.get(\"operation_status\") != \"ok\":", "        if False:")]),
+    ("an incomplete result is returned", "killed", [PYTHON], WORKER,
+     [("        if not result.is_complete:", "        if False:")]),
+    ("a second query is accepted while one is open", "killed", [PYTHON], WORKER,
+     [("        if not self._busy.acquire(blocking=False):", "        if False:")]),
+    ("an abandoned query leaves the worker running out of step", "killed", [PYTHON], WORKER,
+     [("        if not ended and worker._dead is None and not worker._closing:", "        if False:")]),
+    ("cancel does not end the worker", "killed", [PYTHON], WORKER,
+     [("        if worker._dead is None and not worker._closing:\n            worker._die(errors.Cancelled(\"the query was cancelled", "        if False:\n            worker._die(errors.Cancelled(\"the query was cancelled")]),
+    ("a worker that outstays its grace period is not killed", "killed", [PYTHON], WORKER,
+     [("    if process.poll() is not None:\n        return\n", "    return\n")]),
+    ("a dropped worker is not reaped", "killed", [PYTHON], WORKER,
+     [("        self._finalizer = weakref.finalize(self, _reap, self._process, self._stop, grace)", "        self._finalizer = weakref.finalize(self, lambda: None)")]),
+    ("a worker's output pipes are never closed", "killed", [PYTHON], WORKER,
+     [("        if stream is not None:\n            stream.close()", "        if False:\n            stream.close()")]),
+]
+
+
 def run(command: list[str]) -> int:
-    done = subprocess.run(command, cwd=ROOT, capture_output=True, timeout=1800, check=False)
-    return done.returncode
+    """The exit code, or TIMEOUT after LIMIT seconds (the command and what it started are ended)."""
+    process = subprocess.Popen(command, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                               start_new_session=(os.name != "nt"))
+    try:
+        process.communicate(timeout=LIMIT)
+    except subprocess.TimeoutExpired:
+        if os.name == "nt":
+            subprocess.run(["taskkill", "/F", "/T", "/PID", str(process.pid)], capture_output=True, check=False)
+        else:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        try:
+            process.communicate(timeout=30)
+        except subprocess.TimeoutExpired:
+            pass
+        print("# TIMEOUT:", " ".join(command), file=sys.stderr, flush=True)
+        return TIMEOUT
+    return process.returncode
 
 
 def tests_sha256() -> str:
@@ -129,26 +198,39 @@ def one(name: str, expected: str, commands: list[list[str]], relative: str, edit
                 builds = False
         else:
             builds = run([*RUST, "--no-run"]) == 0
-        failed = builds and any(run(command) != 0 for command in commands)
+        codes = []
+        for command in commands:
+            if not builds:
+                break
+            codes.append(run(command))
+            if codes[-1] != 0:
+                break
+        timed_out = TIMEOUT in codes
+        failed = builds and any(code != 0 for code in codes)
     finally:
         path.write_bytes(original)
     if path.read_bytes() != original:
         print(f"RESTORE FAILED for {relative}")
         raise SystemExit(2)
-    verdict = "ERROR" if not builds else "KILLED" if failed else "SURVIVED"
+    verdict = "ERROR" if not builds else "TIMEOUT" if timed_out else "KILLED" if failed else "SURVIVED"
     unexpected = verdict.lower() != expected
-    print(f"{verdict:9}{name}" + (f"  (UNEXPECTED, wanted {expected})" if unexpected else ""))
+    print(f"{verdict:9}{name}" + (f"  (UNEXPECTED, wanted {expected})" if unexpected else ""), flush=True)
     return not unexpected
 
 
 def main() -> int:
+    flags = set(sys.argv[1:])
     ok = True
-    for mutant in RUST_MUTANTS:
-        ok = one(*mutant) and ok
+    if "--python-only" not in flags:
+        for mutant in RUST_MUTANTS:
+            ok = one(*mutant) and ok
     # The library on disk must come from clean sources before the Python mutants.
     clean = run(BUILD) == 0
-    for mutant in PYTHON_MUTANTS:
-        ok = one(*mutant) and ok
+    if "--rust-only" not in flags:
+        for mutant in PYTHON_MUTANTS:
+            ok = one(*mutant) and ok
+    if flags:
+        return 0 if ok and clean else 1
     clean = clean and run(BUILD) == 0 and run(RUST) == 0 and run(PYTHON) == 0 and run(OWNERSHIP) == 0
     print("restored tree passes every test set:", clean)
     print("tests sha256:", tests_sha256())

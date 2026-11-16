@@ -44,6 +44,15 @@ class AbiMismatch(MddError): status = 12
 class InternalFault(MddError): status = 13
 
 
+class WorkerLost(MddError):
+    """The worker process went away before a request's answer was complete. Raised by
+    `mdd.worker.Worker`, never by the in-process library; carries no ABI status."""
+
+
+class WorkerProtocol(MddError):
+    """The worker sent something that is not the line protocol. It is ended."""
+
+
 _BY_STATUS = {cls.status: cls for cls in (
     InvalidArgument, InvalidHandle, Closed, Busy, OutstandingBatch, Cancelled,
     DeadlineExceeded, QuotaExceeded, Unsupported, IncompleteFacts, InvalidInput,
@@ -58,6 +67,7 @@ _BY_CODE = {
     "UNSUPPORTED_CAPABILITY": Unsupported, "UNSUPPORTED_QUERY": Unsupported,
     "INCOMPLETE_FACTS": IncompleteFacts,
     "INVALID_INPUT": InvalidInput, "PARTIAL_INPUT": InvalidInput, "SOURCE_CHANGED": InvalidInput,
+    "WORKER_LOST": WorkerLost,
 }
 
 

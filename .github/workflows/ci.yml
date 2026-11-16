@@ -52,6 +52,11 @@ jobs:
         run: python tools/record_command.py --output artifacts/ci/test -- cargo test --locked --workspace
       - name: Build actual CLI
         run: python tools/record_command.py --output artifacts/ci/build -- cargo build --locked -p mdd-cli
+      - name: Python SDK tests (library and worker transport)
+        run: |
+          cargo build --locked -p mdd-ffi -p mdd-cli
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -I -m unittest discover -s python/tests -t python
       - name: Check actual CLI contracts and inspection
         run: |
           $binary = if ($IsWindows) { 'target/debug/meguvizdexdash.exe' } else { 'target/debug/meguvizdexdash' }

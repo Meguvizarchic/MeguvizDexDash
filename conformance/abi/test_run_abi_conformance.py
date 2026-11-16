@@ -79,8 +79,23 @@ class Acceptance(unittest.TestCase):
         self.assertFalse(rows[1]["all_passed"])
         self.assertFalse(rows[4]["all_passed"])
 
-    def test_the_worker_lost_clause_stays_declared_open(self):
-        self.assertTrue(any(c["case"] == "worker lost" and c["status"] == "open" for c in runner.OPEN_CLAUSES))
+    def test_nothing_is_declared_open_and_the_worker_lost_case_has_its_named_tests(self):
+        self.assertEqual(runner.OPEN_CLAUSES, [])
+        names = [name for statement, tests in runner.ACCEPTANCE if "worker" in statement or "abnormal" in statement
+                 for name in tests]
+        for needed in ("test_a_worker_killed_mid_stream_raises_worker_lost_after_the_batches_it_delivered",
+                       "test_a_worker_that_exits_cleanly_without_a_terminal_is_still_lost",
+                       "test_a_line_cut_short_is_a_loss_not_a_short_result",
+                       "test_a_silent_worker_is_ended_at_the_callers_deadline",
+                       "test_dropping_a_worker_without_closing_it_reaps_its_process"):
+            self.assertIn(needed, names)
+
+    def test_a_worker_lost_test_that_did_not_run_unproves_the_clause(self):
+        results, extra = everything()
+        del results["test_a_worker_killed_mid_stream_raises_worker_lost_after_the_batches_it_delivered"]
+        rows = runner.acceptance_rows(results, extra)
+        self.assertFalse(rows[3]["all_passed"])
+        self.assertEqual([r["all_passed"] for r in rows].count(False), 1)
 
 
 class Currency(unittest.TestCase):
@@ -89,6 +104,9 @@ class Currency(unittest.TestCase):
         self.assertIn("crates/mdd-ffi/src/engine.rs", covered)
         self.assertIn("python/mdd/core.py", covered)
         self.assertIn("python/tests/test_sdk.py", covered)
+        self.assertIn("python/mdd/worker.py", covered)
+        self.assertIn("python/tests/test_worker.py", covered)
+        self.assertIn("python/tests/stub_worker.py", covered)
         self.assertIn("include/mdd.h", covered)
 
     def test_every_covered_source_exists(self):

@@ -824,14 +824,14 @@
   ],
   "log_sha256": {
    "rust": [
-    "c7d84174b9e581da7e7f9c24acaa1711b94b6f25f334ebafe1acd4dacf5d4dbd",
-    "e3f3d68e5fe44d3866a8851df3e1888397453aee40c1bea75149413b85fed87f",
-    "76cbf5371090718e7bc1fdd1c61268f071d55cf4ea8d9ad23b532ec06ac2cdfb"
+    "d7d0a7fe927e5d5885d29e791be8ade114946e48049bfe762f192f7b5fa43984",
+    "b75106d2e2f563921d059f32f2f9227472934d9539fc828e5b6319a845f1e5d2",
+    "e9d618400253c8efcbc14ae910ae9f5dc0c704e65de1e1fd26f738d5f8960a1c"
    ],
-   "clippy": "5c57d0a59556eae1174c22cce8843d1bbee349ef84304e38e76dc0548fe60afb",
+   "clippy": "1c59da4a74835368fef545abf81ca6b1b086573b364647dc494f5c7a1e6300ed",
    "controls": [
     "2ae2691b3d3801ad0641d8313b60970e02727334cee88f780f22f77a9b498b9f",
-    "36da854c7401f267f0759c9601e7e497929fd4f8f50eb3fc6da8b118446caa7f"
+    "76523044fbeb6733afb4ccf0edb54d8c7d7d664f4fc2b6688c256ddf24347069"
    ]
   },
   "raw_logs_kept_at": "artifacts/local/ (ignored; carries developer-machine output)"
@@ -870,12 +870,15 @@
  },
  "mutation_check": {
   "file": "artifacts/mdd-042/mutation/results.txt",
-  "present": false,
-  "current": false,
-  "status": "not run yet: it runs in .github/workflows/mutation-mcp.yml on request; no result is claimed",
   "script": "artifacts/mdd-042/mutation/mutate_mcp.py",
-  "mutants": 52,
-  "earlier_result": "artifacts/mdd-042/mutation/results-first-slice.txt (17 mutants, the first slice, 2e38019); a first run of the 52 on Actions (2026-11-15, run 43704479769) ended at mutant 38 when the script's own 3600 s command limit expired in the process tests: 36 of 37 verdicts were KILLED and one survived (a decode deadline), which a new decode deadline check now kills; the hang was not located"
+  "present": true,
+  "current": true,
+  "killed": 52,
+  "survived": [],
+  "errors": 0,
+  "skipped": 0,
+  "restored_tree_passes": true,
+  "public_apk_was_present": false
  },
  "residual": [
   "the reference engine's executable is not on this machine; no request outside the recordings was compared with it",
@@ -896,6 +899,6 @@
   "one Windows host; the MCP process tests run on Linux only in the repository CI"
  ],
  "run": {
-  "started_utc": "2026-11-16T06:48:48.224968+00:00"
+  "started_utc": "2026-11-16T07:24:05.002271+00:00"
  }
 }

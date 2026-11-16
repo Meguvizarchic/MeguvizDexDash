@@ -8,11 +8,12 @@ from ._cells import DexMutf8
 from ._ffi import ABI_MAJOR, ABI_MINOR, Library, library, load
 from .core import Batch, Input, Query, Result, Session, Snapshot, is_complete, open_snapshot
 from .errors import MddError
+from .worker import Worker, WorkerQuery, find_worker
 
 __all__ = [
     "ABI_MAJOR", "ABI_MINOR", "Batch", "DexMutf8", "Input", "Library", "MddError", "Query",
-    "Result", "Session", "Snapshot", "capabilities", "errors", "is_complete", "library",
-    "live_handles", "load", "open_snapshot",
+    "Result", "Session", "Snapshot", "Worker", "WorkerQuery", "capabilities", "errors", "find_worker",
+    "is_complete", "library", "live_handles", "load", "open_snapshot",
 ]
 
 

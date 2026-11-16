@@ -281,23 +281,30 @@
 
 **残余**：method_definitions、code、reference、annotation 关系没有经 typed IR 比较（只经 SQL 路径对 A0）；取消组合用的是调用前已取消的控制，不是运行中竞态；只在一台 Windows 主机上跑，Linux 只靠仓库 CI；运行器与 `--check` 尚未接入 CI；Q16 无标注语料。
 
-## 2026-11-15 MDD-043 稳定 C ABI 与 Python SDK（进行中，一处条款未关闭）
+## 2026-11-15 MDD-043 稳定 C ABI 与 Python SDK（进行中，只差变异检查结果）
 
-**结论**：产出清单（`python/`、`crates/mdd-ffi/`、`include/mdd.h`、`conformance/abi/ownership-cases.json`、`artifacts/mdd-043/sdk-and-abi-conformance.json`）都已落地并有证据，**除验收第 4 条里的 "worker lost" 外全部证明**，所以 MDD-043 **保持 in_progress，不标 done**。原因：进程内 ABI 没有可丢失的 worker，Python SDK 没有 worker 传输，仓库里也没有生产 worker；把该情形记为“不适用”就是缩小原验收，这由你决定，**2026-11-15 已决定：保持 in_progress**，待 SDK 有 worker 传输后再关闭该条款。进程内的对应情形（句柄在运行中的查询下被释放、会话在查询下被关闭、被捕获的 panic）已证明。
+**结论**：产出清单（`python/`、`crates/mdd-ffi/`、`include/mdd.h`、`conformance/abi/ownership-cases.json`、`artifacts/mdd-043/sdk-and-abi-conformance.json`）都已落地并有证据，验收各条都有命名测试证明；2026-11-16 起 **"worker lost" 也已证明**：你选择“在 SDK 里做 worker 传输”，`python/mdd/worker.py` 把 `meguvizdexdash serve` 当作 worker 进程，用与进程内库相同的 `Batch`/`Result` 类型。**MDD-043 仍保持 in_progress**：变异检查还没有结果（它要重复构建 Rust，不在开发机上跑，改由工作流 `mutation-abi.yml` 运行），结果提交后再标 done。
 
-**设计要点**
+**设计要点（进程内 ABI）**
 - **句柄不是地址**：`kind(8) | generation(32) | index(24)` 的 64 位值，每次使用都查表。伪造、过期、已释放、种类错用都返回 `INVALID_HANDLE`，不碰内存；槽位复用时代数递增，旧值够不到新对象。
-- **所有权**：视图带长度、借自所属对象；事件拥有其批的引用并“钉住”，调用者只能释放自己 retain 过的那份（评审发现并修复了可释放借用句柄的缺陷）；close 与 release 分开，close 幂等。
-- **批的确认与背压**：每个批必须 `ack` 且所有引用释放后才产生下一个；释放而未确认则流以失败终态结束，不会悄悄成功。终态才是查询的结论，调用成功不等于查询成功。
-- **panic 与并发**：panic 在边界被捕获并报 `INTERNAL_FAULT`，对象中毒、下次使用失败；每个查询一个消费者（第二个得到 `BUSY`，不等待）；取消可在任意线程。
-- **复用核心**：包的是 `mdd-session::Lifecycle`（快照/会话、查询启停、拥有的批），覆盖从事实推导而不是调用方给定。
+- **所有权**：视图带长度、借自所属对象；事件拥有其批的引用并“钉住”，调用者只能释放自己 retain 过的那份；close 与 release 分开，close 幂等。
+- **批的确认与背压**：每个批必须 `ack` 且所有引用释放后才产生下一个；释放而未确认则流以失败终态结束，不会悄悄成功。
+- **panic 与并发**：panic 在边界被捕获并报 `INTERNAL_FAULT`，对象中毒；每个查询一个消费者（第二个得到 `BUSY`）；取消可在任意线程。
 - **Python**：只用标准库 `ctypes`。NULL 是 `None`，64 位整数是精确 `int`，孤立代理文本还原为带代理码点的 `str`，原始 MUTF-8 保留字节与单元数；失败、取消、被截断的查询抛异常，从不返回更短的列表。
 
-**证据**（`artifacts/mdd-043/sdk-and-abi-conformance.json`）：Rust 24 项、Python 21 项、经原始 ABI 的 14 个数据驱动所有权用例、依赖边界检查；16 个变异全部被抓住（`artifacts/mdd-043/mutation/`，结果与被测源码、测试的哈希绑定）。
+**Worker 传输（`python/mdd/worker.py`）**
+- 一个 `Worker` 是一个 `meguvizdexdash serve` 子进程（行协议 `mdd.cli-stream.v1`，批 `mdd.sdk-batch.v1`）；同一引擎、同样的批与终态，但在会死的进程里。
+- **worker 丢失不被编成成功**：终态之前 worker 走了（被杀、崩溃、干净退出但没给终态、输出断在半行）一律抛 `WorkerLost`（code `WORKER_LOST`，带退出码、stderr 尾部、已交付的批数与行数）；已交付的批保持已交付，`collect`/`execute` 从不返回更短的结果。退出码 0 也不是应答。
+- **拒绝不是丢失**：启动时 worker 说“不”（比如输入不存在）抛引擎自己的错误（`INVALID_INPUT`），不是 `WorkerLost`。
+- **协议违例与超时**：不是 JSON、别的请求的应答、批乱序、超长行、不会说协议的对端，都抛 `WorkerProtocol` 并结束 worker；调用方设的时限到了抛 `DeadlineExceeded` 并结束 worker。
+- **有界清理，各路径相同**：关闭 stdin、杀进程树、两个读线程各自关闭自己的管道并被 join、等到进程退出。`close()`、因异常离开 `with`、中途放弃或取消的查询、被丢弃的对象（finalizer 兜底）走同一个清理；不听 close 的 worker 在宽限期后被杀。
+- **限制**：worker 无法被告知停止一条语句，所以取消与放弃都会结束 worker；一个 worker 同时只答一条查询（第二条得 `Busy`）；若管道被 worker 之外的东西占着，读线程是 daemon、被丢下并记在 `Worker.abandoned_threads`，不会无限等。
 
-**测试发现并修复的缺陷**：(1) 在第一次 `next` 前取消的查询以 `INVALID_ARGUMENT` 而不是 `CANCELLED` 结束；(2) 我写得过宽的错误改写把“取消没能打断语句、语句后来因配额失败”也报成 CANCELLED，变异检查暴露后收窄；(3) 评审：借用的批句柄可被调用者释放、失败后查询可被重启、关闭与启动的竞态、变异记录没绑定被测源码。
+**证据**（`artifacts/mdd-043/sdk-and-abi-conformance.json`）：Rust 24 项、Python 61 项（其中 40 项是 worker 的：真实二进制被杀在流中间，以及“干净退出但没应答、半行、乱码、挂起”的替身 worker）、经原始 ABI 的 14 个数据驱动所有权用例、依赖边界检查。Python 测试现在也在仓库 CI 的 Windows 与 Linux 任务里运行。变异检查还没有结果；此前的 16 个 Rust 与 5 个 Python 变异（worker 传输之前）保留为 `results-before-worker.txt`。
 
-**限制（不是缺陷，已逐项拒绝并写入能力清单）**：只有 SQL，没有 typed IR 与查询参数；只有 metadata 与 structure 两层，没有 code、reference、annotation；结果在第一个批发出前整体算完，峰值内存是整个结果（`SqlResult` 的行被有意封死，避免拷贝要改 `mdd-sql`）；批是 JSON，没有列式编码；进程级会话与查询上限固定；只在一台 Windows 主机验证，CI 尚未运行 Python 测试与本运行器。
+**这轮顺带发现并修了**：worker 读线程若在别的线程关闭缓冲流时阻塞，会让 `close()` 与解释器退出无界地等——改为只有读线程自己关闭它的管道。
+
+**限制（不是缺陷，已逐项拒绝并写入能力清单）**：只有 SQL，没有 typed IR 与查询参数；只有 metadata 与 structure 两层，没有 code、reference、annotation；结果在第一个批发出前整体算完，峰值内存是整个结果；批是 JSON，没有列式编码；进程级会话与查询上限固定。
 
 ## 2026-11-15 远端 CI：wire_child 的队列峰值断言有竞态，且从未被变异验证
 
@@ -365,7 +372,9 @@
 
 **限制与未提供**：`decode` 的 class 选择与 `context` 模式（MDD-071）、`get_manifest` 的 `xml` 模式（MDD-072）按“未实现”拒绝；`get_manifest` 对 float/dimension/fraction/color/null 类型的属性值和非 android 命名空间的属性明确拒绝（录制里没有它们的写法）；页大小默认 200 行（参考的默认未录制）；`list_tables` 仍只列 17 个契约关系；列 `data_type` 由返回值推断（参考对 TEMP/表达式列写 `sqlite_dynamic`）；`diagnostics` 不含参考的优化器提示；源文件被改动后，参考拒绝 decode 但继续回答 SQL，本服务对二者读同一个快照；语句无法从外部停止，超时会关闭该数据集；只在一台 Windows 主机验证（Linux 由 CI 的新增步骤验证）。
 
-**验证**：77 项 Rust 测试通过；回放与独立渲染器各有负向对照（损坏录制、手写文本、渲染器均被发现）。**变异检查还没有完整结果，不声称**：52 个变异要重复构建约一小时，不在开发机上跑，改由 GitHub 工作流 `mutation-mcp.yml` 按需运行（`gh workflow run mutation-mcp.yml`；分 4 组并行、一个干净树作业、一个汇总），结果的 `results.txt` 事后另行提交；第一版切片的 17 变异结果保留为 `results-first-slice.txt`。2026-11-15 的第一次运行（run 43704479769）停在第 38 个变异：脚本自己的 3600 秒单命令限制在进程测试里到期（不是作业超时）；前 37 个里 36 个被抓住，1 个幸存（decode 超时），已补 decode 超时检查来抓它；Linux 上那次进程测试为什么卡住没有定位，脚本现在给每条命令设限、超时杀进程树并记 TIMEOUT。
+**验证**：77 项 Rust 测试通过；回放与独立渲染器各有负向对照（损坏录制、手写文本、渲染器均被发现）。**变异检查**（GitHub 工作流 `mutation-mcp.yml`，2026-11-16，run 43820360601；4 组并行、一个干净树作业、一个汇总）：52 个变异**全部被抓住**，无幸存、无超时，结果文件里的源码哈希与当前检出一致，已作为 `artifacts/mdd-042/mutation/results.txt` 提交；公开 APK 在该次运行里不存在，所以 `get_manifest` 的 NewPipe 回放没有参与变异判定（manifest 变异靠合成 APK 与单元测试抓住）。第一版切片的 17 变异结果保留为 `results-first-slice.txt`。
+
+**第一次运行为什么超时（已定位并修复）**：2026-11-15 的 run 43704479769 停在第 38 个变异，脚本自己的 3600 秒单命令限制在进程测试里到期。根因是测试自身的竞态而不是服务的缺陷：并行测试线程里，另一个线程 fork 时短暂复制了“已关闭管道”的读端，于是测试里对该管道写的那一次没有得到 EPIPE，服务没退出，测试永远等。用 gdb 与文件描述符证据在 Linux 上证实；`crates/mdd-cli/tests/mcp.rs` 改为反复 ping 直到服务退出（有上界），在 Linux 上 4×80 次运行全部通过。脚本现在给每条命令设限、超时杀进程树并记 TIMEOUT，所以同类问题只会变成一条 TIMEOUT 而不是拖满作业。
 
 ## Checkout 与交付
 
