@@ -378,6 +378,20 @@
 
 **验证**：77 项 Rust 测试通过；CI 在 Ubuntu 与 Windows 上通过。**变异检查**：57 个全部被抓住（Actions，2026-11-16，run 43837587308，提交 7beaa29；4 组并行加一个干净树作业，约 4 分钟）；参考回放加入之前的 52 个（run 43820360601）保留为 `results-before-reference.txt`。**此前我把这个检查说成“约一小时”是错的**：一小时是在一台机器上串行跑的时间，在 Actions 上并行只要几分钟。
 
+## 2026-11-16 MDD-050 HostLab 后端选择、安装与契约适配层（完成）与 MDD-071 完整 Smali/decode（待变异收口）
+
+**合入**：两个子会话各自在独立 worktree 完成，主会话检查后合入 main（050 快进，071 合并提交 `9208c06`），再加一次修正（`852060f`）。合入后在合并树上重跑：fmt、clippy、Rust 106 项、18 项 Python 检查（含两个任务各自的全部检查、SDK 61 项、HostLab 集成 99 项）全部通过；远端 CI（run 43887684282）在 Ubuntu 与 Windows 都通过。
+
+**MDD-050（done）**：`integrations/hostlab/` 的 `provider.py`、`install_meguvizdexdash.py`、`config-schema.json` 和 `artifacts/mdd-050/provider-selection.json` 已落地，验收五条各有命名测试。新增 `meguvizdexdash` 作为第三个后端：写 `sqlite`/`dexsql` 的请求与冻结的规划器逐项相同（80/80 组合），任何配置都不会把它们挪到新引擎；写 `meguvizdexdash` 的请求只由新引擎服务或被拒绝；`auto` 看 `native_engine`（默认 `dexsql`，即回滚值）。安装器没有下载代码：本地构建按钉死的摘要核验，摘要对上才会运行。引擎有独立的缓存、报告、完成记录目录，与 DexSQL/HostLab 的互不重叠；fallback 只对 `UNAVAILABLE_BACKEND`/`UNSUPPORTED_CAPABILITY`/`UNSUPPORTED_QUERY`，且只回 `dexsql`。验证：99 个 unittest（其中 9 个跑真引擎）、变异检查 33/33 被抓住（纯 Python，子会话与主会话各在本机跑过一次）。真引擎查到的事实：没有全局 `--threads`；坏 DEX 成员让 `open_dataset` 整体 `INVALID_INPUT`；`typeof`/`replace` 是 `UNSUPPORTED_QUERY`；`crates/` 里没有任何文件读 `MDD_CACHE_DIR`；所有 profile `admitted=false`，默认策略因此视引擎为不可用。**未做**：没有改动或运行 HostLab 本体，远端 dispatch/source snapshot 未碰；HL-05 的 SourceSet 适配器、epoch、lease、配额、quarantine 未做；coverage 映射暂无调用方；审计日志只在内存；安装器的下载来源待定（目前没有发布版本）。
+
+**MDD-071（in_progress）**：decode 现支持类选择（`file_id` 消歧）、summary/smali/context 三模式、`method_offset`/`method_limit` 分页（默认 20，最大 50，末页 `next_method_offset` 为 null）、完整 Smali（注解块、`.param`、`.line/.local/.end local/.restart local/.prologue/.epilogue/.source`、静态字段初值、类头），文本格式独立版本化（`mdd.smali.v1` / `mdd.smali-context.v1`，答案键 `text_format`）；文本省略的内容写进行级 `omitted`。发布的 schema 没变。`smali_required/` 保持原位（MDD-042 的记录点名它），新增 `smali/` 只通过 `MethodExtras` 钩子接入。验证：独立 Python 读取器与引擎对 4 个夹具的 5 个类、248 个方法逐页相等；参考回放 246/246 相等（116 条逐字，130 条带声明差异，12 条未运行：11 条是 MDD-072 的 xml 模式，1 条是 1 ms 超时）、252/252 方法相等（含 context 逐方法）；89 项完整检查；106 项 Rust 测试。参考引擎不输出注解、debug 指令、字段和类头，这一部分只有独立读取器与手写文本，没有第三方 oracle。
+- **变异检查没过**：`mutation-decode.yml`（run 43887728124，主分支 `852060f`）67 个里 61 个被抓住，**6 个存活**：写了不是源码行的 position；接受了不是指令地址的行；空数组没写成花括号；实例方法的第一个参数写成 `p0`；类摘要用错了文本预算的单位；参数寄存器从错误的第一个参数起算。已让 071 子会话补夹具与断言（或证明等价），结果出来前不标 done。
+- **限制**：类文本是单页，不能续页（余下部分走 SQL 表）；类页 `max_bytes` 是整页文本的 UTF-8 字节预算，不是参考的序列化预算；只在 Windows 本机验证（Linux 由 CI 验证，已通过）。
+
+**一个泄漏与修正**：被拒绝参数的报错文字会引用发送的输入路径，黄金里 `raw_text` 留下了夹具目录（`7beaa29` 起是 `D:\DevArea\MeguvisDexDash\…`，071 分支重生成后含会话 worktree 名）。生成器现在对 `raw_text` 同样归一化为 `<fixtures>`，黄金已用参考二进制重新生成（`852060f`），当前树里不再有本机路径；`7beaa29` 到 `9208c06` 的历史里还有，是工作区路径不含用户名，没有改写历史。
+
+**MDD-042 的记录与本次合入**：071 改动了 042 记录所跟踪的源文件（`tools.rs`、`mcp.rs` 等），所以 `run_mcp_conformance.py --check` 现在会报 stale，042 的变异结果对应的是 `6abfef5` 的源码。042 的 3 个变异锚点因 071 的改动失效（空描述符、范围错误的 kind、decode 超时关闭数据集），已修复并在本机确认被抓住。071 收口后统一重跑 042 的 runner 与 `mutation-mcp.yml` 并更新记录；在那之前 042 的记录是 `6abfef5` 时点的快照。
+
 ## Checkout 与交付
 
 工程目录 D:\MeguvisDexDash（保留目录原拼写）。远端已迁移到 https://github.com/Meguvizarchic/MeguvizDexDash（**公开仓库**，旧地址 jichuo1/MeguvizDexDash 自动转发）；PR #1 已于 2026-11-04 合并，`main` 现为 a9aa1f0，其中 27ac27e 是由本分支 71dfce9 生成的「脱敏工程进度快照」，之后 8 个提交是修补与 README/图标。本地分支 codex/m2-facts-20261028 当前**没有远端分支**：2026-11-12 曾整体推送，随后发现仓库公开，已按用户决定删除远端分支（GitHub 上提交仍可按 SHA 读取）。重新推送前必须先决定公开范围，见下节。

@@ -178,13 +178,13 @@ MUTANTS = [
             if let Some(file_id) = args.file_id {''', '''"not_found");
             if let Some(file_id) = args.file_id.filter(|_| false) {''')]),
     ("an empty descriptor is looked up instead of refused", TOOLS,
-     [('    if args.method.as_deref() == Some("") {', '    if false {')]),
+     [('    if args.method.as_deref() == Some("") || args.class.as_deref() == Some("") {', '    if false {')]),
     ("an offset past the text is not called a range error", TOOLS,
-     [('''                    "invalid_range"
-                } else {
-                    "invalid_input"''', '''                    "invalid_offset"
-                } else {
-                    "invalid_input"''')]),
+     [('''        "invalid_range"
+    } else {
+        "invalid_input"''', '''        "invalid_offset"
+    } else {
+        "invalid_input"''')]),
     ("a tool without arguments refuses the extra ones", TOOLS,
      [('''/// The tools that take no arguments ignore any that are sent, as the reference does.
 #[derive(Deserialize)]
@@ -192,32 +192,16 @@ struct NoArgs {}''', '''#[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct NoArgs {}''')]),
     ("a decode deadline leaves the dataset open", TOOLS,
-     [('''        Outcome::TimedOut => {
-            registry.close(&id);
-            return Err(refuse(
-                ErrorCode::DeadlineExceeded,
-                "running computation was terminated and this dataset was closed; call open_dataset to use it again",
-            )
-            .detail("deadline_ms", ms.to_string())
-            .detail("mcp.dataset_id", id.as_str())
-            .detail("mcp.dataset_closed", "true")
-            .into());
-        }
-        Outcome::Panicked => {
-            registry.close(&id);
-            return Err(panicked("decode")''', '''        Outcome::TimedOut => {
-            return Err(refuse(
-                ErrorCode::DeadlineExceeded,
-                "running computation was terminated and this dataset was closed; call open_dataset to use it again",
-            )
-            .detail("deadline_ms", ms.to_string())
-            .detail("mcp.dataset_id", id.as_str())
-            .detail("mcp.dataset_closed", "true")
-            .into());
-        }
-        Outcome::Panicked => {
-            registry.close(&id);
-            return Err(panicked("decode")''')]),
+     [('''        )?))
+    };
+    let result = match with_deadline(ms, work) {
+        Outcome::Done(result) => result,
+        Outcome::TimedOut => {
+            registry.close(&id);''', '''        )?))
+    };
+    let result = match with_deadline(ms, work) {
+        Outcome::Done(result) => result,
+        Outcome::TimedOut => {''')]),
     # ---- decode: the renderer
     ("parameter registers print as locals", RENDER, [("        if number >= self.first_parameter {", "        if false && number >= self.first_parameter {")]),
     ("a negative literal loses its sign", PAGES, [('        format!("-0x{:x}", value.unsigned_abs())', '        format!("0x{:x}", value.unsigned_abs())')]),
