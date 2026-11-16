@@ -40,6 +40,7 @@ DECLARED_DIFFERENCES = [
     "A recursive CTE is the reference's way to run long; this server's SQL does not offer it, so the deadline is exercised with a cross join.",
     "Dataset identifiers are opaque here (dataset-<hex>); the reference counts dataset-1, dataset-2.",
     "limits values (max_datasets, max_output_bytes, timeout_ms, ...) are each server's own configuration; only their names are compared.",
+    "Since MDD-071 a decode answer also names the version of the text it shows (`text_format`); a class page also has a `class` object, and a text row may have `omitted` and `source_total_lines`. The reference has none of them; they are removed before the answers are compared.",
 ]
 
 
@@ -95,7 +96,18 @@ def tool_error(reply: dict) -> dict:
     return {k: v for k, v in reply.items() if k != "_is_error"}
 
 
-without_flag = tool_error
+# What a decode answer carries beyond the reference's since MDD-071: the version of the text it shows, the class object of a
+# class page, and the notes of what a text leaves out (see DECLARED_DIFFERENCES).
+DECODE_EXTRAS = {"text_format", "class"}
+ROW_EXTRAS = {"omitted", "source_total_lines"}
+
+
+def without_flag(reply: dict) -> dict:
+    """A tool answer as the reference's would be: no is-error flag and, for a decode, none of what MDD-071 adds."""
+    kept = {k: v for k, v in tool_error(reply).items() if k not in DECODE_EXTRAS}
+    if isinstance(kept.get("methods"), list):
+        kept["methods"] = [{k: v for k, v in row.items() if k not in ROW_EXTRAS} for row in kept["methods"]]
+    return kept
 
 
 def statement_view(statement: dict) -> dict:

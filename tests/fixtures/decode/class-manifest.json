@@ -1,0 +1,11 @@
+{
+ "files": {
+  "decode-class.dex": {
+   "bytes": 1664,
+   "sha256": "a2669980e5134ce507b659d5722576a6e716abe8693b1072b193a6432038266e"
+  }
+ },
+ "generator": "tests/fixtures/decode/generate_class.py",
+ "note": "a synthetic class with annotations, fields, static values and debug programs; written byte by byte",
+ "schema_version": "mdd.decode-class-fixture.v1"
+}

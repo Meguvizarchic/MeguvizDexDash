@@ -942,10 +942,13 @@ fn decode_refuses_what_it_cannot_show_and_says_why() {
             "invalid_argument",
         ),
         (json!({"method_idx":0}), "invalid_argument"),
-        (json!({"class":"Ldecode/T;"}), "not_implemented"),
+        (json!({"class":"Lnope/Nope;"}), "not_found"),
+        (json!({"class":"Ldecode/Other;"}), "not_found"),
+        (json!({"class":""}), "invalid_argument"),
+        (json!({"class":"Ldecode/T;","offset":5}), "invalid_argument"),
         (
-            json!({"method":"Ldecode/T;->op_00()V","mode":"context"}),
-            "not_implemented",
+            json!({"class":"Ldecode/T;","mode":"context","method_offset":239}),
+            "invalid_range",
         ),
         (
             json!({"method":"Ldecode/T;->op_00()V","offset":10_000}),
@@ -1019,6 +1022,465 @@ fn decode_summary_has_the_numbers_and_no_text() {
     assert!(method.get("smali").is_none() || method["smali"].is_null());
     // The summary has no text to continue; the key is there and empty, as in the smali mode.
     assert_eq!(method["next_offset"], Value::Null);
+}
+
+fn class_fixture(name: &str) -> String {
+    fixture(&format!("tests/fixtures/{name}"))
+}
+
+/// Every page of a class, by `next_method_offset`, until it is null.
+fn class_walk(server: &mut Mcp, id: &str, extra: Value, limit: u64) -> Vec<Value> {
+    let mut pages = Vec::new();
+    let mut offset = 0u64;
+    // 238 methods at a limit of at least 1: a pager that does not end is a failure, not a hang
+    for _ in 0..300 {
+        let mut arguments = json!({"dataset_id":id,"class":"Ldecode/T;","method_offset":offset,"method_limit":limit});
+        for (key, value) in extra.as_object().unwrap() {
+            arguments[key] = value.clone();
+        }
+        let (reply, error) = server.tool("decode", arguments);
+        assert!(!error, "{reply}");
+        let next = reply["next_method_offset"].as_u64();
+        pages.push(reply);
+        match next {
+            Some(next) => {
+                assert!(next > offset, "a page that does not advance");
+                offset = next;
+            }
+            None => return pages,
+        }
+    }
+    panic!("the class walk did not end");
+}
+
+#[test]
+fn a_class_is_listed_by_method_idx_in_pages_that_end() {
+    let mut server = Mcp::ready(&[]);
+    let id = open_decode(&mut server, &["decode-all.dex"]);
+    // the default is a summary of 20 methods
+    let (first, error) = server.tool("decode", json!({"dataset_id":id,"class":"Ldecode/T;"}));
+    assert!(!error, "{first}");
+    assert_eq!(first["mode"], "summary");
+    assert_eq!(first["methods"].as_array().unwrap().len(), 20);
+    assert_eq!(
+        (
+            first["method_offset"].as_u64(),
+            first["next_method_offset"].as_u64(),
+            first["total_methods"].as_u64()
+        ),
+        (Some(0), Some(20), Some(238))
+    );
+    assert!(first["text_format"].is_null());
+    for method in first["methods"].as_array().unwrap() {
+        assert!(method["next_offset"].is_null());
+        assert!(method.get("smali").is_none());
+    }
+    // every page, at several limits: the methods are all there, once, in method_idx order
+    for limit in [1u64, 7, 20, 50] {
+        let pages = class_walk(&mut server, &id, json!({}), limit);
+        let mut seen = Vec::new();
+        for page in &pages {
+            assert_eq!(page["total_methods"], 238);
+            for method in page["methods"].as_array().unwrap() {
+                seen.push(method["method_idx"].as_u64().unwrap());
+            }
+        }
+        assert_eq!(seen.len(), 238, "limit {limit}");
+        assert!(
+            seen.windows(2).all(|pair| pair[0] < pair[1]),
+            "limit {limit}: not in method_idx order"
+        );
+        assert_eq!(pages.last().unwrap()["next_method_offset"], Value::Null);
+        assert_eq!(pages.len() as u64, 238u64.div_ceil(limit), "limit {limit}");
+    }
+    // the end: an offset equal to the total is an empty last page, one past it is a range error
+    let (end, error) = server.tool(
+        "decode",
+        json!({"dataset_id":id,"class":"Ldecode/T;","method_offset":238}),
+    );
+    assert!(!error, "{end}");
+    assert_eq!(end["methods"].as_array().unwrap().len(), 0);
+    assert_eq!(end["next_method_offset"], Value::Null);
+    let (past, error) = server.tool(
+        "decode",
+        json!({"dataset_id":id,"class":"Ldecode/T;","method_offset":239}),
+    );
+    assert!(error);
+    assert_eq!(past["error"]["kind"], "invalid_range");
+}
+
+#[test]
+fn a_class_that_two_dex_files_define_needs_the_file_id() {
+    let mut server = Mcp::ready(&[]);
+    let id = open_decode(&mut server, &["decode-all.dex", "decode-v035.dex"]);
+    let (both, error) = server.tool("decode", json!({"dataset_id":id,"class":"Ldecode/T;"}));
+    assert!(error);
+    assert_eq!(both["error"]["kind"], "ambiguous");
+    assert_eq!(
+        both["error"]["message"],
+        "class occurs in multiple DEX files; supply file_id from {0, 1}"
+    );
+    for (file_id, total) in [(0u64, 238u64), (1, 2)] {
+        let (one, error) = server.tool(
+            "decode",
+            json!({"dataset_id":id,"class":"Ldecode/T;","file_id":file_id}),
+        );
+        assert!(!error, "{one}");
+        assert_eq!(one["total_methods"], total);
+        assert!(
+            one["methods"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|m| m["file_id"] == file_id)
+        );
+    }
+    let (missing, error) = server.tool(
+        "decode",
+        json!({"dataset_id":id,"class":"Ldecode/T;","file_id":9}),
+    );
+    assert!(error);
+    assert_eq!(missing["error"]["kind"], "not_found");
+    assert_eq!(missing["error"]["file_id"], 9);
+}
+
+#[test]
+fn the_text_of_a_class_page_continues_on_its_method_never_on_the_class() {
+    let mut server = Mcp::ready(&[]);
+    let id = open_decode(&mut server, &["decode-all.dex"]);
+    let (page, error) = server.tool(
+        "decode",
+        json!({"dataset_id":id,"class":"Ldecode/T;","mode":"smali","method_offset":11,"method_limit":1,"max_lines":10}),
+    );
+    assert!(!error, "{page}");
+    let long = &page["methods"][0];
+    assert_eq!(long["descriptor"], "Ldecode/T;->long_body()V");
+    assert_eq!(long["end_line"], 10);
+    let next = long["next_offset"]
+        .as_u64()
+        .expect("the method has more text");
+    assert!(page["next_method_offset"].as_u64() == Some(12), "{page}");
+    // a class selector with an offset is refused: the offset belongs to a method
+    let (refused, error) = server.tool(
+        "decode",
+        json!({"dataset_id":id,"class":"Ldecode/T;","mode":"smali","offset":next}),
+    );
+    assert!(error);
+    assert_eq!(refused["error"]["kind"], "invalid_argument");
+    assert!(
+        refused["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("file_id and method_idx")
+    );
+    // the same offset on the method itself continues the text exactly where the class page stopped
+    let mut whole = long["smali"].as_str().unwrap().to_owned();
+    let mut offset = next;
+    let mut first_rest = None;
+    for _ in 0..10 {
+        let (rest, error) = server.tool(
+            "decode",
+            json!({"dataset_id":id,"file_id":long["file_id"],"method_idx":long["method_idx"],"offset":offset,"max_lines":1000}),
+        );
+        assert!(!error, "{rest}");
+        let row = &rest["methods"][0];
+        first_rest.get_or_insert_with(|| row["start_line"].clone());
+        whole.push_str(row["smali"].as_str().unwrap());
+        match row["next_offset"].as_u64() {
+            Some(more) => offset = more,
+            None => break,
+        }
+    }
+    let mut single_text = String::new();
+    let mut offset = 0u64;
+    for _ in 0..10 {
+        let (single, error) = server.tool(
+            "decode",
+            json!({"dataset_id":id,"method":"Ldecode/T;->long_body()V","offset":offset,"max_lines":1000}),
+        );
+        assert!(!error);
+        single_text.push_str(single["methods"][0]["smali"].as_str().unwrap());
+        match single["methods"][0]["next_offset"].as_u64() {
+            Some(more) => offset = more,
+            None => break,
+        }
+    }
+    assert_eq!(whole, single_text);
+    assert_eq!(
+        first_rest.unwrap(),
+        10,
+        "lines are counted in the whole text"
+    );
+}
+
+#[test]
+fn a_byte_budget_on_a_class_page_is_one_budget_for_all_its_text() {
+    let mut server = Mcp::ready(&[]);
+    let id = open_decode(&mut server, &["decode-all.dex"]);
+    let (page, error) = server.tool(
+        "decode",
+        json!({"dataset_id":id,"class":"Ldecode/T;","mode":"smali","method_offset":8,"method_limit":50,"max_lines":1000,"max_bytes":900}),
+    );
+    assert!(!error, "{page}");
+    let methods = page["methods"].as_array().unwrap();
+    let bytes: usize = methods
+        .iter()
+        .map(|m| m["smali"].as_str().unwrap().len())
+        .sum();
+    assert!(bytes <= 900, "{bytes}");
+    assert!(methods.len() >= 2 && methods.len() < 50);
+    // the method the budget ended in is cut and says where it goes on; the others are whole
+    let (last, rest) = methods.split_last().unwrap();
+    assert!(rest.iter().all(|m| m["next_offset"].is_null()));
+    assert!(
+        last["next_offset"].as_u64().is_some() || bytes + 1 > 900 - 4,
+        "{last}"
+    );
+    assert_eq!(
+        page["next_method_offset"].as_u64(),
+        Some(8 + methods.len() as u64),
+        "the cut method counts as shown; the rest is the next page"
+    );
+    // a budget no character of the first method fits in is an error, not an empty page
+    let (none, error) = server.tool(
+        "decode",
+        json!({"dataset_id":id,"class":"Ldecode/T;","mode":"smali","max_bytes":0}),
+    );
+    assert!(error, "{none}");
+}
+
+#[test]
+fn the_context_names_the_lines_of_the_full_text_and_pages_on_its_own() {
+    let mut server = Mcp::ready(&[]);
+    let id = open_decode(&mut server, &["decode-all.dex"]);
+    for descriptor in [
+        "Ldecode/T;->switch_packed()V",
+        "Ldecode/T;->try_catch()V",
+        "Ldecode/T;->branches()V",
+        "Ldecode/T;->abstract_one(I)I",
+    ] {
+        let (full, error) = server.tool(
+            "decode",
+            json!({"dataset_id":id,"method":descriptor,"max_lines":1000}),
+        );
+        assert!(!error, "{full}");
+        let full_text = full["methods"][0]["smali"].as_str().unwrap();
+        let full_lines: Vec<&str> = full_text.split_terminator('\n').collect();
+        let (view, error) = server.tool(
+            "decode",
+            json!({"dataset_id":id,"method":descriptor,"mode":"context","max_lines":1000}),
+        );
+        assert!(!error, "{view}");
+        assert_eq!(view["mode"], "context");
+        assert_eq!(view["text_format"], "mdd.smali-context.v1");
+        let row = &view["methods"][0];
+        // the numbers count lines of the full text: the full text's line count is named, apart
+        assert_eq!(row["source_total_lines"], full_lines.len());
+        let text = row["smali"].as_str().unwrap();
+        let mut lines = text.split_terminator('\n');
+        assert_eq!(
+            lines.next().unwrap(),
+            "# Original zero-based smali line numbers; labels retain method-relative code-unit offsets."
+        );
+        let mut count = 0;
+        for entry in lines {
+            let (number, line) = entry
+                .strip_prefix("line ")
+                .and_then(|rest| rest.split_once(": "))
+                .unwrap_or_else(|| panic!("{entry}"));
+            let number: usize = number.parse().unwrap();
+            assert_eq!(full_lines[number], line, "{descriptor} line {number}");
+            let word = line.trim_start();
+            assert!(
+                word.starts_with(':')
+                    || [".method", ".registers", ".catch"]
+                        .iter()
+                        .any(|w| word.starts_with(w)),
+                "{entry}"
+            );
+            count += 1;
+        }
+        assert!(count >= 1);
+        // the view has its own bytes and lines
+        assert_eq!(row["total_bytes"], text.len());
+        assert_eq!(row["total_lines"], count + 1);
+        assert_ne!(row["total_bytes"], full["methods"][0]["total_bytes"]);
+    }
+    // an offset into the view is an offset into the view: it does not continue the full text
+    let (view, _) = server.tool(
+        "decode",
+        json!({"dataset_id":id,"method":"Ldecode/T;->switch_packed()V","mode":"context","max_lines":1}),
+    );
+    let next = view["methods"][0]["next_offset"].as_u64().unwrap();
+    let (second, error) = server.tool(
+        "decode",
+        json!({"dataset_id":id,"method":"Ldecode/T;->switch_packed()V","mode":"context","offset":next,"max_lines":1}),
+    );
+    assert!(!error, "{second}");
+    assert!(
+        second["methods"][0]["smali"]
+            .as_str()
+            .unwrap()
+            .starts_with("line 0: .method")
+    );
+    assert_eq!(second["methods"][0]["start_line"], 1);
+}
+
+#[test]
+fn a_class_with_annotations_fields_and_debug_info_is_shown_with_all_of_them() {
+    let mut server = Mcp::ready(&[]);
+    let (opened, error) = server.tool(
+        "open_dataset",
+        json!({"inputs":[decode_fixture("decode-class.dex")]}),
+    );
+    assert!(!error, "{opened}");
+    assert_eq!(opened["diagnostics"], json!([]));
+    let id = opened["dataset_id"].as_str().unwrap();
+    let (class, error) = server.tool(
+        "decode",
+        json!({"dataset_id":id,"class":"Ldecode/K;","mode":"smali","max_lines":1000}),
+    );
+    assert!(!error, "{class}");
+    assert_eq!(class["text_format"], "mdd.smali.v1");
+    let header = &class["class"];
+    assert_eq!(header["declaration"], ".class public final Ldecode/K;");
+    assert_eq!(header["superclass"], "Ljava/lang/Object;");
+    assert_eq!(header["source_file"], "K.java");
+    assert_eq!(
+        header["interfaces"],
+        json!(["Ldecode/Marker;", "Ljava/lang/Runnable;"])
+    );
+    assert_eq!(
+        (
+            header["static_fields"].as_u64(),
+            header["instance_fields"].as_u64()
+        ),
+        (Some(12), Some(2))
+    );
+    assert_eq!(header["truncated"], false);
+    let text = header["smali"].as_str().unwrap();
+    for wanted in [
+        ".source \"K.java\"\n",
+        ".implements Ldecode/Marker;\n.implements Ljava/lang/Runnable;\n",
+        ".annotation runtime Ldecode/Ann;\n    count = 0x3\n    k = \"kk\"\n.end annotation\n",
+        ".field public static final a_int:I = 0x1\n",
+        ".field private static b_str:Ljava/lang/String; = \"s\\\"q\\n\"\n",
+        ".field static c_long:J = -0x2L\n",
+        ".field static d_double:D = 2.5\n",
+        ".field static e_float:F = 0.1f\n",
+        ".field static g_byte:B = -0x1t\n",
+        ".field static h_short:S = -0x12cs\n",
+        ".field static i_char:C = 'A'\n",
+        ".field static j_type:Ljava/lang/Class; = Ljava/lang/String;\n",
+        ".field static k_null:Ljava/lang/Object; = null\n",
+        ".field static z_none:I\n",
+        ".field private volatile transient n_annotated:Ljava/lang/String;\n    .annotation build Ldecode/Ann;\n        count = 0x7ft\n    .end annotation\n.end field\n",
+    ] {
+        assert!(text.contains(wanted), "{wanted:?} is not in {text}");
+    }
+    assert_eq!(header["total_bytes"], text.len());
+    // the methods of the class, in method_idx order, with what their facts say
+    let by_name = |name: &str| {
+        class["methods"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|m| m["descriptor"] == format!("Ldecode/K;->{name}"))
+            .unwrap_or_else(|| panic!("{name}: {class}"))
+    };
+    let f = by_name("f(IJLjava/lang/String;)V");
+    let f_text = f["smali"].as_str().unwrap();
+    for wanted in [
+        "    .param p0, \"count\"\n    .param p3, \"label\"\n",
+        "    .prologue\n    .line 10\n    .local v0, \"x\":I\n    const/4 v0, 0x1\n",
+        "    .local v1, \"y\":Ljava/lang/String;, \"TT;\"\n",
+        "    .end local v0\n    .restart local v0\n    invoke-static {p0}, Ldecode/K;->g(I)V\n",
+        "    .epilogue\n    return-void\n    .end local v1\n.end method\n",
+    ] {
+        assert!(f_text.contains(wanted), "{wanted:?} is not in {f_text}");
+    }
+    // two events the text cannot place and one position that is no source line are counted
+    assert_eq!(
+        f["omitted"],
+        json!({"debug_events_not_at_an_instruction": 1, "positions_not_source_lines": 1})
+    );
+    // the pc-to-pc pattern writes no line
+    let r8 = by_name("r8()V");
+    assert!(!r8["smali"].as_str().unwrap().contains(".line"));
+    assert_eq!(r8["omitted"], json!({"positions_not_source_lines": 3}));
+    // a method annotation and a parameter annotation
+    let g = by_name("g(I)V")["smali"].as_str().unwrap().to_owned();
+    assert!(g.contains("    .param p0\n        .annotation runtime Ldecode/Ann;\n        .end annotation\n    .end param\n"), "{g}");
+    assert!(g.contains("    .annotation runtime Ldecode/Ann;\n        k = {\n            \"a\",\n            \"b\"\n        }\n    .end annotation\n"), "{g}");
+    // the class text is one page: small max_lines says it is cut
+    let (cut, error) = server.tool(
+        "decode",
+        json!({"dataset_id":id,"class":"Ldecode/K;","mode":"smali","max_lines":5,"method_limit":1}),
+    );
+    assert!(!error, "{cut}");
+    assert_eq!(cut["class"]["truncated"], true);
+    assert_eq!(cut["class"]["end_line"], 5);
+    assert_eq!(cut["class"]["total_lines"], 31);
+    // a later page of the methods does not repeat the class text
+    let (later, _) = server.tool(
+        "decode",
+        json!({"dataset_id":id,"class":"Ldecode/K;","mode":"smali","method_offset":1}),
+    );
+    assert!(later["class"].get("smali").is_none());
+    assert_eq!(later["class"]["descriptor"], "Ldecode/K;");
+    // the summary mode has the class's facts and no text
+    let (summary, _) = server.tool("decode", json!({"dataset_id":id,"class":"Ldecode/K;"}));
+    assert!(summary["class"].get("smali").is_none());
+    assert!(summary["text_format"].is_null());
+}
+
+#[test]
+fn every_kind_of_annotation_value_is_written_as_the_format_says() {
+    let mut server = Mcp::ready(&[]);
+    let (opened, error) = server.tool(
+        "open_dataset",
+        json!({"inputs":[class_fixture("annotations/generated/annotations-038.dex")]}),
+    );
+    assert!(!error, "{opened}");
+    let id = opened["dataset_id"].as_str().unwrap();
+    let (class, error) = server.tool(
+        "decode",
+        json!({"dataset_id":id,"class":"Lfixture/A;","mode":"smali","max_lines":1000}),
+    );
+    assert!(!error, "{class}");
+    let text = class["class"]["smali"].as_str().unwrap();
+    for wanted in [
+        "    a_byte = -0x80t\n",
+        "    b_short = -0x8000s\n",
+        "    c_char = '\\uffff'\n",
+        "    d_int = -0x80000000\n",
+        "    e_long = -0x8000000000000000L\n",
+        "    f_float = 1.0f\n",
+        "    g_double = 1.0\n",
+        "    h_string = \"hello\"\n",
+        "    i_type = Ljava/lang/String;\n",
+        "    j_field = Lfixture/A;->f:Ljava/util/List;\n",
+        "    k_method = Lfixture/A;->m(Ljava/util/List;I)Ljava/util/List;\n",
+        "    l_enum = .enum Lfixture/Enum;->E:Lfixture/Enum;\n",
+        "    m_method_type = (Ljava/util/List;I)Ljava/util/List;\n",
+        "    n_method_handle = method_handle_0\n",
+        "    o_array = {\n        \"z\",\n        \"a\",\n        \"z\"\n    }\n",
+        "    p_annotation = .subannotation Lfixture/Nested;\n        value = 0x7\n    .end subannotation\n",
+        "    q_null = null\n",
+        "    r_boolean_false = false\n    s_boolean_true = true\n",
+        "    t_nan_float = NaNf\n    u_nan_double = NaN\n    v_infinity_float = Infinityf\n    w_infinity_double = Infinity\n    x_negative_zero = -0.0f\n",
+    ] {
+        assert!(text.contains(wanted), "{wanted:?} is not in {text}");
+    }
+    // the same annotations belong to the parameter whose slot holds them, and the empty slot writes nothing
+    let m = &class["methods"][0];
+    assert_eq!(
+        m["descriptor"],
+        "Lfixture/A;->m(Ljava/util/List;I)Ljava/util/List;"
+    );
+    let m_text = m["smali"].as_str().unwrap();
+    assert!(m_text.contains("    .param p0\n        .annotation runtime Lfixture/Values;\n"));
+    assert!(!m_text.contains(".param p1"), "{m_text}");
 }
 
 #[test]

@@ -82,6 +82,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python conformance/decode/test_a0_replay.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python tests/fixtures/decode/generate_class.py --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python conformance/decode/run_decode_full.py --binary $binary
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python conformance/decode/build_decode_contract.py --binary $binary --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python conformance/decode/test_decode_full.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python conformance/mcp/check_hostlab_required_tools.py --binary $binary
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python conformance/mcp/test_hostlab_required_tools.py

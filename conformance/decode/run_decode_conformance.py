@@ -253,11 +253,17 @@ def check_selection_and_errors(report: Report, client: McpClient, dataset: str) 
         got = client.call("decode", dataset_id=dataset, **arguments)
         report.add(f"{label} is refused as an invalid argument", got["_is_error"] and got["error"]["kind"] == "invalid_argument",
                    json.dumps(got.get("error")))
-    for label, arguments in {"a class": {"class": "Ldecode/T;"},
-                             "the context mode": {"method": "Ldecode/T;->only_here()V", "mode": "context"}}.items():
-        got = client.call("decode", dataset_id=dataset, **arguments)
-        report.add(f"{label} is refused as not implemented, not answered with a stand-in",
-                   got["_is_error"] and got["error"]["kind"] == "not_implemented", json.dumps(got.get("error")))
+    # MDD-071 answers a class and the context mode; their contract is checked by run_decode_full.py
+    got = client.call("decode", dataset_id=dataset, **{"class": "Ldecode/T;"})
+    report.add("a class defined in two DEX files is ambiguous until file_id says which",
+               got["_is_error"] and got["error"]["kind"] == "ambiguous", json.dumps(got.get("error")))
+    got = client.call("decode", dataset_id=dataset, **{"class": "Ldecode/T;", "file_id": 1})
+    report.add("a class with its file_id is listed", not got["_is_error"] and got["mode"] == "summary" and got["total_methods"] == 2,
+               json.dumps(got)[:200])
+    got = client.call("decode", dataset_id=dataset, method="Ldecode/T;->only_here()V", mode="context")
+    report.add("the context mode shows the anchor lines of a method",
+               not got["_is_error"] and got["mode"] == "context" and got["methods"][0]["smali"].startswith("# Original zero-based"),
+               json.dumps(got)[:200])
     summary = client.call("decode", dataset_id=dataset, method="Ldecode/T;->only_here()V", mode="summary")
     method = summary["methods"][0] if not summary["_is_error"] else {}
     facts = oracle.facts_of(OLD.read_bytes())["Ldecode/T;->only_here()V"]

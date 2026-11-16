@@ -94,6 +94,7 @@ def decode_cases() -> list[dict]:
                           resolve={"descriptor": descriptor, "into": "method_idx"}))
         cases.append(case(f"decode-text-{label}-context", DEX, "decode", {"method": descriptor, "mode": "context"}))
         cases.append(case(f"decode-text-{label}-summary", DEX, "decode", {"method": descriptor, "mode": "summary"}))
+    cases += class_cases()
     for offset in (0, 1, 2, 10, 30, 100):
         cases.append(case(f"decode-page-switch-offset-{offset}", DEX, "decode", {"method": SWITCH, "offset": offset, "max_lines": 2}))
     cases += [
@@ -103,6 +104,72 @@ def decode_cases() -> list[dict]:
         case("decode-page-switch-lines-3-offset-after-first", DEX, "decode", {"method": SWITCH, "offset": 36, "max_lines": 3}),
         case("decode-page-switch-bytes-4096", DEX, "decode", {"method": SWITCH, "max_bytes": 4096, "max_lines": 1}),
     ]
+    return cases
+
+
+def class_cases() -> list[dict]:
+    """A class selection, its pages of methods and of text (MDD-071). decode-all.dex defines Ldecode/T; with 238 methods;
+    decode-v035.dex defines a class of the same name with two. The last method of T (position 237) has a non-ASCII name."""
+    cases = []
+    for name, arguments, inputs in [
+        ("two-files-ambiguous", {"class": T}, DEX_TWO),
+        ("two-files-file-id-1", {"class": T, "file_id": 1}, DEX_TWO),
+        ("two-files-file-id-0-limit-1", {"class": T, "file_id": 0, "method_limit": 1}, DEX_TWO),
+        ("bad-file-id", {"class": T, "file_id": 9}, DEX_TWO),
+        ("unknown-class-with-file-id", {"class": "Lnope/N;", "file_id": 0}, DEX_TWO),
+        ("referenced-only", {"class": "Ljava/lang/Object;"}, DEX),
+        ("referenced-only-other", {"class": "Ldecode/Other;"}, DEX),
+        ("not-a-descriptor", {"class": "decode.T"}, DEX),
+        ("without-semicolon", {"class": "Ldecode/T"}, DEX),
+        ("empty", {"class": ""}, DEX),
+        ("method-offset-total", {"class": T, "method_offset": 238}, DEX),
+        ("method-offset-total-plus-1", {"class": T, "method_offset": 239}, DEX),
+        ("method-offset-last", {"class": T, "method_offset": 237}, DEX),
+        ("last-page-limit-50", {"class": T, "method_offset": 236, "method_limit": 50}, DEX),
+        ("method-limit-1", {"class": T, "method_limit": 1}, DEX),
+        ("method-limit-50", {"class": T, "method_limit": 50}, DEX),
+        ("method-limit-0", {"class": T, "method_limit": 0}, DEX),
+        ("method-limit-51", {"class": T, "method_limit": 51}, DEX),
+        ("offset-nonzero-summary", {"class": T, "offset": 5}, DEX),
+        ("offset-nonzero-smali", {"class": T, "mode": "smali", "method_limit": 3, "offset": 10}, DEX),
+        ("offset-nonzero-context", {"class": T, "mode": "context", "offset": 10}, DEX),
+        ("smali-max_lines-2", {"class": T, "mode": "smali", "method_limit": 2, "max_lines": 2}, DEX),
+        ("smali-method-offset-2-limit-2", {"class": T, "mode": "smali", "method_offset": 2, "method_limit": 2, "max_lines": 1}, DEX),
+        ("smali-abstract-and-native", {"class": T, "mode": "smali", "method_offset": 2, "method_limit": 1}, DEX),
+        ("smali-last-page", {"class": T, "mode": "smali", "method_offset": 230, "method_limit": 50}, DEX),
+        ("smali-try-methods", {"class": T, "mode": "smali", "method_offset": 234, "method_limit": 3}, DEX),
+        ("context-max_lines-2", {"class": T, "mode": "context", "method_limit": 2, "max_lines": 2}, DEX),
+        ("context-last-page", {"class": T, "mode": "context", "method_offset": 230, "method_limit": 50}, DEX),
+        ("context-try-methods", {"class": T, "mode": "context", "method_offset": 234, "method_limit": 3}, DEX),
+        ("context-switch-methods", {"class": T, "mode": "context", "method_offset": 232, "method_limit": 4}, DEX),
+        ("summary-two-files-file-id-1", {"class": T, "file_id": 1, "mode": "summary"}, DEX_TWO),
+        ("summary-max_lines-1", {"class": T, "mode": "summary", "max_lines": 1}, DEX),
+        ("mode-bad", {"class": T, "mode": "components"}, DEX),
+        ("and-method", {"class": T, "method": SWITCH, "mode": "context"}, DEX),
+        ("and-method-idx", {"class": T, "method_idx": 7, "file_id": 0}, DEX),
+        # a byte budget: the reference counts the serialized answer, this server the text; the answers are not compared
+        ("budget-smali-4096", {"class": T, "mode": "smali", "method_offset": 8, "method_limit": 50, "max_bytes": 4096, "max_lines": 1000}, DEX),
+        ("budget-summary-4096", {"class": T, "mode": "summary", "method_limit": 50, "max_bytes": 4096}, DEX),
+    ]:
+        cases.append(case("decode-class-" + name, inputs, "decode", arguments))
+    # the context mode of single methods, with the other arguments that act on text
+    for name, arguments in [
+        ("context-offset-header", {"method": SWITCH, "mode": "context", "offset": 92}),
+        ("context-offset-mid-line", {"method": SWITCH, "mode": "context", "offset": 100, "max_lines": 2}),
+        ("context-max_lines-2", {"method": SWITCH, "mode": "context", "max_lines": 2}),
+        ("context-max_lines-2-next", {"method": SWITCH, "mode": "context", "max_lines": 2, "offset": 163}),
+        ("context-offset-total", {"method": SWITCH, "mode": "context", "offset": 329}),
+        ("context-offset-past", {"method": SWITCH, "mode": "context", "offset": 330}),
+        ("context-max_bytes-4096", {"method": TRY, "mode": "context", "max_bytes": 4096, "max_lines": 3}),
+        ("context-by-index", {"file_id": 0, "method_idx": 240, "mode": "context"}),
+        ("context-file-id", {"method": SWITCH, "mode": "context", "file_id": 0}),
+        ("context-file-id-wrong", {"method": SWITCH, "mode": "context", "file_id": 1}),
+        ("summary-by-index", {"file_id": 0, "method_idx": 240, "mode": "summary"}),
+        ("summary-referenced-only", {"file_id": 0, "method_idx": 0, "mode": "summary"}),
+        ("smali-method-offset-0", {"method": SWITCH, "method_offset": 0}),
+        ("smali-method-limit-5", {"method": SWITCH, "method_limit": 5}),
+    ]:
+        cases.append(case("decode-method-" + name, DEX, "decode", arguments))
     return cases
 
 
@@ -244,7 +311,9 @@ def normalize(body, dataset: str | None):
     text = json.dumps(body, ensure_ascii=False)
     if dataset:
         text = text.replace(json.dumps(dataset)[1:-1], "DS")
-    text = text.replace(json.dumps(str(FIXTURES))[1:-1], "<fixtures>")
+    escaped = json.dumps(str(FIXTURES))[1:-1]
+    # an error message that quotes the path has it escaped once already: twice in the JSON text
+    text = text.replace(json.dumps(escaped)[1:-1], "<fixtures>").replace(escaped, "<fixtures>")
 
     def drop(node):
         if isinstance(node, dict):

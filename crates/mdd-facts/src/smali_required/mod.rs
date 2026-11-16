@@ -27,8 +27,10 @@
 //! reference output says otherwise: parameter registers print as `pN`, labels are
 //! `:goto_<hex address>`, `:cond_`, `:pswitch_`, `:pswitch_data_`, `:sswitch_`,
 //! `:sswitch_data_`, `:array_`, `:try_start_`, `:try_end_`, `:catch_`, `:catchall_`,
-//! each directive on its own line, and no debug or annotation directives (the reference
-//! documents SQL tables for those). This comment is the specification; the independent
+//! each directive on its own line. This module writes the *instructions* of a method: the
+//! annotations, parameter names and debug directives of the complete format (`mdd.smali.v1`)
+//! are added by `crate::smali` through [`MethodExtras`], and the reference's SQL tables remain
+//! where those facts are queried. This comment is the specification of the instruction text; the independent
 //! renderer in `conformance/decode/oracle.py` and the hand-written texts in
 //! `conformance/decode/hand-expected.txt` were written from it, not from this code.
 use crate::metadata::MetadataFacts;
@@ -42,7 +44,9 @@ use std::fmt::Write as _;
 
 mod render;
 
-pub use render::{SmaliLimits, access_flag_words, render_method};
+pub use render::{
+    SmaliLimits, access_flag_words, method_declaration, render_method, render_method_with,
+};
 
 /// What a method is, for rendering: its definition, its code if it has any, and the
 /// pools that name what the instructions refer to.
@@ -51,6 +55,22 @@ pub struct MethodView<'a> {
     pub definitions: &'a DexDefinitions,
     pub definition: &'a MethodDefinition,
     pub code: Option<&'a CodeItem>,
+}
+
+/// Lines a caller adds to the text of a method: the annotations, parameter names and debug
+/// directives of the complete format (`crate::smali`). This module places them and does not
+/// look inside them, so the instruction text is the same with or without them.
+///
+/// Every line is complete: indented, without its newline.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct MethodExtras {
+    /// After `.registers N` (after the `.method` line when the method has no code), before
+    /// the blank line that precedes the first instruction.
+    pub header: Vec<String>,
+    /// Before the instruction that starts at the code-unit address (after the labels and
+    /// `.catch` lines of that address). The key `insns_size` places lines after the last
+    /// instruction. An address where no instruction starts is refused.
+    pub at_address: BTreeMap<u32, Vec<String>>,
 }
 
 /// One method, rendered.

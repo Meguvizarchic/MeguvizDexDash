@@ -277,6 +277,11 @@ impl Dataset {
                 )
                 .map(Arc::new);
                 let kept_code = code.as_ref().ok().cloned();
+                // The annotation layer does not read the code or the references, so a fault in
+                // those must not take annotations (and static values) away from `decode`.
+                let annotation_layer =
+                    AnnotationFacts::build((*definitions).clone(), AnnotationLimits::default())
+                        .map(Arc::new);
                 let upper = || -> MddResult<_> {
                     let code = Arc::clone(code.as_ref().map_err(Clone::clone)?);
                     let references = Arc::new(ReferenceFacts::build_arc(
@@ -284,22 +289,24 @@ impl Dataset {
                         Arc::clone(&code),
                         ReferenceLimits::default(),
                     )?);
-                    let annotations = Arc::new(AnnotationFacts::build(
-                        (*definitions).clone(),
-                        AnnotationLimits::default(),
-                    )?);
+                    let annotations = Arc::clone(annotation_layer.as_ref().map_err(Clone::clone)?);
                     Ok((code, references, annotations))
                 };
                 let file_id = u32::try_from(facts.len()).map_err(|_| {
                     MddError::new(ErrorCode::QuotaExceeded, "service", "too many DEX files")
                 })?;
+                let upper_result = upper();
+                // The annotation layer is kept beside the code: a text shows annotations when
+                // it is built and says so when it is not.
+                let kept_annotations = annotation_layer.as_ref().ok().map(Arc::clone);
                 occurrences.push(Occurrence {
                     file_id,
                     metadata: Arc::clone(&metadata),
                     definitions: Arc::clone(&definitions),
                     code: kept_code,
+                    annotations: kept_annotations,
                 });
-                match upper() {
+                match upper_result {
                     Ok((code, references, annotations)) => {
                         facts.push(HostLabOccurrenceFacts::complete(
                             metadata,

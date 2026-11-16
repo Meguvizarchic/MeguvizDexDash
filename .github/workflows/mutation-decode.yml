@@ -1,0 +1,132 @@
+name: Decode mutation check
+# The MDD-071 mutation check applies small faults to the complete decode (the context view, the value and
+# annotation writers, the method and class text, the service and the tool), one at a time, and requires the unit
+# tests, the process tests, the replays or the controls to catch each. It uses the machinery of the MDD-042 check
+# (artifacts/mdd-042/mutation/mutate_mcp.py) with this task's mutants, and rebuilds and reruns the suites for every
+# fault, so it is split into four parts that run in parallel, plus a job for the unmutated tree, plus a job that
+# merges them. It runs here, on request, not on a developer machine and not on every push.
+#
+# Run it with:  gh workflow run mutation-decode.yml           (add  -f diagnose=true  to run the Rust suites one
+# test at a time with their output shown, which names a test that hangs)
+# The result is the artifact `mutation-decode-results`; commit its results.txt as
+# artifacts/mdd-071/mutation/results.txt without other changes. It is current for the commit it ran on and for every
+# later commit that leaves the files it hashes unchanged.
+on:
+  workflow_dispatch:
+    inputs:
+      diagnose:
+        description: Run the Rust suites one test at a time with their output shown
+        type: boolean
+        default: false
+permissions:
+  contents: read
+env:
+  MUTATION_DIAGNOSE: ${{ inputs.diagnose && '1' || '0' }}
+jobs:
+  parts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12.10'
+      - name: Install fixed validation environment
+        run: python -m pip install -r requirements-dev.lock
+      - name: Install fixed Rust toolchain
+        run: rustup toolchain install 1.99.0 --profile minimal --component rustfmt --component clippy
+      - name: Fetch exact locked dependencies
+        run: cargo fetch --locked
+      - name: Build actual CLI
+        run: cargo build --locked -p mdd-cli
+      - name: Run this part of the mutation check
+        id: mutate
+        continue-on-error: true
+        shell: bash
+        run: python -I artifacts/mdd-071/mutation/mutate_decode.py --part ${{ matrix.part }}/4 | tee part-${{ matrix.part }}.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: mutation-decode-part-${{ matrix.part }}
+          path: part-${{ matrix.part }}.txt
+      - name: Fail when the part failed
+        if: steps.mutate.outcome != 'success'
+        run: exit 1
+  clean:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12.10'
+      - name: Install fixed validation environment
+        run: python -m pip install -r requirements-dev.lock
+      - name: Install fixed Rust toolchain
+        run: rustup toolchain install 1.99.0 --profile minimal --component rustfmt --component clippy
+      - name: Fetch exact locked dependencies
+        run: cargo fetch --locked
+      - name: Build actual CLI
+        run: cargo build --locked -p mdd-cli
+      - name: Run the unmutated tree through every suite and control
+        id: clean
+        continue-on-error: true
+        shell: bash
+        run: python -I artifacts/mdd-071/mutation/mutate_decode.py --clean-only | tee clean.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: mutation-decode-clean
+          path: clean.txt
+      - name: Fail when the clean tree failed
+        if: steps.clean.outcome != 'success'
+        run: exit 1
+  merge:
+    needs: [parts, clean]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12.10'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: mutation-decode-*
+          merge-multiple: true
+      - name: Merge in mutant order
+        id: merge
+        continue-on-error: true
+        shell: bash
+        run: python -I artifacts/mdd-071/mutation/mutate_decode.py --assemble part-1.txt part-2.txt part-3.txt part-4.txt clean.txt | tee mutation-results.txt
+      - name: Summarize
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '### Decode mutation check'
+            echo
+            echo "merge: ${{ steps.merge.outcome }}; parts: ${{ needs.parts.result }}; clean tree: ${{ needs.clean.result }}"
+            echo '```'
+            cat mutation-results.txt || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: mutation-decode-results
+          path: mutation-results.txt
+      - name: Fail unless every mutant was killed and the clean tree passed
+        if: steps.merge.outcome != 'success' || needs.parts.result != 'success' || needs.clean.result != 'success'
+        run: exit 1
