@@ -365,7 +365,7 @@
 
 **限制与未提供**：`decode` 的 class 选择与 `context` 模式（MDD-071）、`get_manifest` 的 `xml` 模式（MDD-072）按“未实现”拒绝；`get_manifest` 对 float/dimension/fraction/color/null 类型的属性值和非 android 命名空间的属性明确拒绝（录制里没有它们的写法）；页大小默认 200 行（参考的默认未录制）；`list_tables` 仍只列 17 个契约关系；列 `data_type` 由返回值推断（参考对 TEMP/表达式列写 `sqlite_dynamic`）；`diagnostics` 不含参考的优化器提示；源文件被改动后，参考拒绝 decode 但继续回答 SQL，本服务对二者读同一个快照；语句无法从外部停止，超时会关闭该数据集；只在一台 Windows 主机验证（Linux 由 CI 的新增步骤验证）。
 
-**验证**：77 项 Rust 测试通过；回放与独立渲染器各有负向对照（损坏录制、手写文本、渲染器均被发现）。**变异检查还没跑，不声称结果**：52 个变异要重复构建约一小时，不在开发机上跑，改由 GitHub 工作流 `mutation-mcp.yml` 按需运行（`gh workflow run mutation-mcp.yml`），结果的 `results.txt` 事后另行提交；第一版切片的 17 变异结果保留为 `results-first-slice.txt`。
+**验证**：77 项 Rust 测试通过；回放与独立渲染器各有负向对照（损坏录制、手写文本、渲染器均被发现）。**变异检查还没有完整结果，不声称**：52 个变异要重复构建约一小时，不在开发机上跑，改由 GitHub 工作流 `mutation-mcp.yml` 按需运行（`gh workflow run mutation-mcp.yml`；分 4 组并行、一个干净树作业、一个汇总），结果的 `results.txt` 事后另行提交；第一版切片的 17 变异结果保留为 `results-first-slice.txt`。2026-11-15 的第一次运行（run 43704479769）停在第 38 个变异：脚本自己的 3600 秒单命令限制在进程测试里到期（不是作业超时）；前 37 个里 36 个被抓住，1 个幸存（decode 超时），已补 decode 超时检查来抓它；Linux 上那次进程测试为什么卡住没有定位，脚本现在给每条命令设限、超时杀进程树并记 TIMEOUT。
 
 ## Checkout 与交付
 

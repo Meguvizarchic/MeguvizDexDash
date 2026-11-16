@@ -12,11 +12,25 @@ an ERROR, not a kill, and the line says which suite killed it. The original byte
 memory and written back in a finally block. The last lines carry a hash of the sources, tests,
 replay scripts, fixtures and recordings they read, so a recorded result can be told from a
 stale one.
+
+Usage:
+  mutate_mcp.py                     every mutant, then the clean-tree check (about an hour of builds)
+  mutate_mcp.py --part K/N          the mutants whose position is K-1 modulo N (run N of them in parallel)
+  mutate_mcp.py --clean-only        only the clean-tree check and the hash
+  mutate_mcp.py --assemble FILE...  merge the outputs of the parts and the clean-tree check into one
+                                    result in mutant order, and fail unless every mutant appears once
+  mutate_mcp.py NAME...             only the mutants whose name contains one of the words
+
+Every command has its own time limit. A command that outlives it is killed together with the
+processes it started and the mutant gets the verdict TIMEOUT (with the tail of the command's
+output on stderr); that is neither a kill nor a survivor, and the check fails. MUTATION_DIAGNOSE=1
+runs the Rust suites one test at a time with their output shown, so a hang names its test.
 """
 from __future__ import annotations
 
 import hashlib
 import os
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -24,10 +38,16 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 PYTHON = ROOT / ".venv" / ("Scripts" if os.name == "nt" else "bin") / ("python.exe" if os.name == "nt" else "python")
 PY = str(PYTHON if PYTHON.exists() else sys.executable)
+DIAGNOSE = os.environ.get("MUTATION_DIAGNOSE") == "1"
 CARGO = ["cargo", "test", "--offline", "--locked"]
-UNIT_MCP = [*CARGO, "-p", "mdd-mcp", "-p", "mdd-service", "--lib"]
-UNIT_SMALI = [*CARGO, "-p", "mdd-facts", "--lib", "smali_required"]
-PROCESS = [*CARGO, "-p", "mdd-cli", "--test", "mcp"]
+# one test at a time, output shown: the last "test x ..." line without a result names a hang
+TAIL = ["--", "--test-threads=1", "--nocapture"] if DIAGNOSE else []
+UNIT_MCP = [*CARGO, "-p", "mdd-mcp", "-p", "mdd-service", "--lib", *TAIL]
+UNIT_SMALI = [*CARGO, "-p", "mdd-facts", "--lib", "smali_required", *TAIL]
+PROCESS = [*CARGO, "-p", "mdd-cli", "--test", "mcp", *TAIL]
+# minutes a command may take; the whole process suite takes seconds and a replay under a minute
+LIMITS = {"cargo": 15 * 60, "python": 10 * 60}
+TIMEOUT = -9999
 BUILD = ["cargo", "build", "--offline", "--locked", "-p", "mdd-cli"]
 REPLAYS = [
     ("golden", [PY, "-I", "conformance/mcp/golden_replay.py"]),
@@ -230,24 +250,68 @@ def sources_sha256() -> str:
     return digest.hexdigest()
 
 
+LAST_OUTPUT = ""
+
+
+def kill_tree(process: subprocess.Popen) -> None:
+    """End the command and everything it started: a hung test leaves its server behind."""
+    if os.name == "nt":
+        subprocess.run(["taskkill", "/F", "/T", "/PID", str(process.pid)], capture_output=True, check=False)
+    else:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+
+
 def run(command: list[str]) -> int:
-    return subprocess.run(command, cwd=ROOT, capture_output=True, timeout=3600, check=False).returncode
+    """The exit code, or TIMEOUT. The output of the last command is kept in LAST_OUTPUT."""
+    global LAST_OUTPUT
+    limit = LIMITS["cargo" if command[0] == "cargo" else "python"]
+    process = subprocess.Popen(command, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                               start_new_session=(os.name != "nt"))
+    try:
+        output, _ = process.communicate(timeout=limit)
+    except subprocess.TimeoutExpired:
+        kill_tree(process)
+        try:
+            output, _ = process.communicate(timeout=30)
+        except subprocess.TimeoutExpired:
+            output = b""
+        LAST_OUTPUT = output.decode("utf-8", "replace")
+        print(f"# TIMEOUT after {limit} s: {' '.join(command)}", file=sys.stderr, flush=True)
+        print(LAST_OUTPUT[-4000:], file=sys.stderr, flush=True)
+        return TIMEOUT
+    LAST_OUTPUT = output.decode("utf-8", "replace")
+    return process.returncode
 
 
 def suite_verdict() -> tuple[str, bool]:
-    """(the suite that failed or 'none', whether it builds)"""
-    unit = [UNIT_MCP, UNIT_SMALI]
-    if any(run([*c, "--no-run"]) != 0 for c in [UNIT_MCP, UNIT_SMALI, PROCESS]):
-        return "none", False
+    """(the suite that failed, or 'none'; whether it builds). A suite that timed out is 'TIMEOUT: <name>'."""
+    for command in (UNIT_MCP, UNIT_SMALI, PROCESS):
+        head = command[:command.index("--")] if "--" in command else command
+        code = run([*head, "--no-run"])
+        if code == TIMEOUT:
+            return "TIMEOUT: build", True
+        if code != 0:
+            return "none", False
     for name, command in (("unit", UNIT_MCP), ("smali", UNIT_SMALI), ("process", PROCESS)):
-        if run(command) != 0:
+        code = run(command)
+        if code == TIMEOUT:
+            return f"TIMEOUT: {name}", True
+        if code != 0:
             return name, True
-    if run(BUILD) != 0:
+    code = run(BUILD)
+    if code == TIMEOUT:
+        return "TIMEOUT: binary build", True
+    if code != 0:
         return "none", False
     for name, command in REPLAYS:
-        if run(command) != 0:
+        code = run(command)
+        if code == TIMEOUT:
+            return f"TIMEOUT: {name} replay", True
+        if code != 0:
             return name + " replay", True
-    del unit
     return "none", True
 
 
@@ -270,25 +334,84 @@ def one(name: str, relative: str, edits: list[tuple[str, str]]) -> bool:
     if path.read_bytes() != original:
         print(f"RESTORE FAILED for {relative}")
         raise SystemExit(2)
+    if killer.startswith("TIMEOUT"):
+        print(f"TIMEOUT  {name} [{killer[len('TIMEOUT: '):]}]", flush=True)
+        return False
     verdict = "ERROR" if not builds else "KILLED" if killer != "none" else "SURVIVED"
     suffix = f" [{killer}]" if verdict == "KILLED" else ""
     print(f"{verdict:9}{name}{suffix}", flush=True)
     return verdict == "KILLED"
 
 
-def main() -> int:
-    only = sys.argv[1:]
-    ok = True
-    for name, relative, edits in MUTANTS:
-        if only and not any(part in name for part in only):
-            continue
-        ok = one(name, relative, edits) and ok
-    clean = all(run(c) == 0 for c in (UNIT_MCP, UNIT_SMALI, PROCESS, BUILD, *[c for _n, c in REPLAYS], *CONTROLS))
+def clean_tree() -> bool:
+    """The unmutated tree passes every suite and the negative controls; prints the lines the result carries."""
+    commands = (UNIT_MCP, UNIT_SMALI, PROCESS, BUILD, *[c for _n, c in REPLAYS], *CONTROLS)
+    clean = True
+    for command in commands:
+        code = run(command)
+        if code != 0:
+            clean = False
+            print("# the clean tree failed:", " ".join(command), "->", "TIMEOUT" if code == TIMEOUT else code, flush=True)
+            print(LAST_OUTPUT[-2000:], file=sys.stderr, flush=True)
     print("restored tree passes the unit and process tests, the replays and their controls:", clean)
     apk = (ROOT / "artifacts/local/inputs/NewPipe_v0.28.6.apk").exists()
     print("public APK present for the manifest replay:", apk)
     print("sources sha256:", sources_sha256())
-    return 0 if ok and clean else 1
+    return clean
+
+
+VERDICTS = ("KILLED", "SURVIVED", "ERROR", "SKIPPED", "TIMEOUT")
+
+
+def assemble(files: list[str]) -> int:
+    """Merge part outputs (mutants) and the clean-tree output into one result, in mutant order."""
+    by_name: dict[str, list[str]] = {}
+    tail: list[str] = []
+    for file in files:
+        for line in Path(file).read_text(encoding="utf-8").splitlines():
+            word = line.split(" ", 1)[0]
+            if word in VERDICTS:
+                known = [name for name, _r, _e in MUTANTS if line[len(word):].strip().startswith(name)]
+                if known:
+                    by_name.setdefault(max(known, key=len), []).append(line)
+            elif line.startswith(("restored tree", "public APK", "sources sha256")):
+                tail.append(line)
+    problems = [name for name, _r, _e in MUTANTS if len(by_name.get(name, [])) != 1]
+    for name in problems:
+        print(f"# {name}: {len(by_name.get(name, []))} verdicts", file=sys.stderr)
+    for name, _r, _e in MUTANTS:
+        for line in by_name.get(name, [])[:1]:
+            print(line)
+    for line in tail:
+        print(line)
+    hashes = {line for line in tail if line.startswith("sources sha256")}
+    if len(hashes) != 1 or any(h != "sources sha256: " + sources_sha256() for h in hashes):
+        print("# the parts do not agree with this checkout's sources", file=sys.stderr)
+        return 1
+    return 1 if problems else 0
+
+
+def main() -> int:
+    args = sys.argv[1:]
+    if args[:1] == ["--assemble"]:
+        return assemble(args[1:])
+    if args[:1] == ["--clean-only"]:
+        return 0 if clean_tree() else 1
+    part = None
+    if args[:1] == ["--part"]:
+        k, n = (int(x) for x in args[1].split("/"))
+        assert 1 <= k <= n
+        part, args = (k, n), args[2:]
+    ok = True
+    for position, (name, relative, edits) in enumerate(MUTANTS):
+        if part and position % part[1] != part[0] - 1:
+            continue
+        if args and not any(word in name for word in args):
+            continue
+        ok = one(name, relative, edits) and ok
+    if part or args:
+        return 0 if ok else 1
+    return 0 if clean_tree() and ok else 1
 
 
 if __name__ == "__main__":

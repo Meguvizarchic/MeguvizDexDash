@@ -730,11 +730,31 @@
     "equal": true
    },
    {
+    "name": "a decode that outlives its deadline says so and that the dataset was closed",
+    "equal": true
+   },
+   {
+    "name": "the dataset closed by a decode deadline is gone and the other one is not",
+    "equal": true
+   },
+   {
+    "name": "a request that names the closed dataset is refused as unknown_dataset",
+    "equal": true
+   },
+   {
+    "name": "the other dataset still decodes",
+    "equal": true
+   },
+   {
+    "name": "the same method decodes within the default deadline, so the deadline above was the cause",
+    "equal": true
+   },
+   {
     "name": "the server exits cleanly",
     "equal": true
    }
   ],
-  "passed": 44,
+  "passed": 49,
   "failed": 0,
   "not_run": 0
  },
@@ -804,14 +824,14 @@
   ],
   "log_sha256": {
    "rust": [
-    "51f0c0d2d8ad16863f9b845ffb4357289b5d53acafb0c2f04c9206d785b96b82",
-    "636eb8812244b206edeef0b797b6f35a8ad568077021623fbe604e401f2584bc",
-    "274f643d0ffa20d146e5d450c499d8d9de50d462b3cf17c6468eb8550f188cab"
+    "aac151dcb24d473144ea2082cd70a525a0e7c16ff74d47ac4f688577807dec5c",
+    "7cc8e2fecd45bb4030ccfd8ab8930466f9e8132b263b1da62731dcdc29bf30e3",
+    "09d44983553a1fce2684ac2846701865bf5987aff8010ed3368712cf52f95dd7"
    ],
-   "clippy": "f3f54f7f9be73f43a9fa6d706f8e26c15f224737b358c6fe3aa03e185d3bf0ae",
+   "clippy": "5d2635b24589f42e63fc66d30441fd5629c4bc1495e08d22d68ef643a2e10936",
    "controls": [
     "2ae2691b3d3801ad0641d8313b60970e02727334cee88f780f22f77a9b498b9f",
-    "9bbcf613c3342dc0d98fa672f988e182ae1383c031707ba204512ab7dea4a857"
+    "d4fd3dbfcd8fd16fd2599890d03186784e5e1b8bac74086d64ffb012e482dc8e"
    ]
   },
   "raw_logs_kept_at": "artifacts/local/ (ignored; carries developer-machine output)"
@@ -836,9 +856,9 @@
   "conformance/mcp/manifest_replay.py": "145150259f2b50877fcf08b5f1f3a096e66c06fb2d1d03c35291e44b2304f0e9",
   "conformance/mcp/test_replays.py": "98c05c58ad78b1f8b34f22bf8748273da317a15b215cf6fb8a4aea61d8ff50b4",
   "conformance/mcp/tiny_dex.py": "e051c06d951b5973a8ef6972139fb977e58fbb44fa1f2ff0cd2663070a95e8f5",
-  "conformance/mcp/run_mcp_conformance.py": "86a283312ee56b1ba0ee4d8f766fc74f2e170c8f30916aa5ce69d0a2d1b07eb6",
+  "conformance/mcp/run_mcp_conformance.py": "9d6516887e3dcb2b9791440826cbae91be8f235f003ca115768f43116093ee31",
   "conformance/decode/oracle.py": "fd59e719043bb50a227c7cf41bd171b3c4313c81705b5f59320ff7612b4babba",
-  "conformance/decode/run_decode_conformance.py": "460a7754742dd9595f72f967ea1cce33ae03849898bd0817e999745c63deb9bc",
+  "conformance/decode/run_decode_conformance.py": "92bb0d50449787641af8a283ac7d002a8af900e0c29b6ee9e0189c62e95ad235",
   "conformance/decode/hand-expected.txt": "3dfad5ab67a2c9e86a60024d06a1284ab08002a1953c8cd39eb89e505af218e8",
   "tests/fixtures/decode/generate.py": "8dd3ff79c7a24249a92ee1c0456f94bda8c92be89a452acd429035d7ac142a9b",
   "tests/fixtures/decode/manifest.json": "43e35c6889b508c11d6c808285fcdcadd6e636843aa2b32751631fdd9adc34cf",
@@ -855,7 +875,7 @@
   "status": "not run yet: it runs in .github/workflows/mutation-mcp.yml on request; no result is claimed",
   "script": "artifacts/mdd-042/mutation/mutate_mcp.py",
   "mutants": 52,
-  "earlier_result": "artifacts/mdd-042/mutation/results-first-slice.txt (17 mutants, the first slice, 2e38019)"
+  "earlier_result": "artifacts/mdd-042/mutation/results-first-slice.txt (17 mutants, the first slice, 2e38019); a first run of the 52 on Actions (2026-11-15, run 43704479769) ended at mutant 38 when the script's own 3600 s command limit expired in the process tests: 36 of 37 verdicts were KILLED and one survived (a decode deadline), which a new decode deadline check now kills; the hang was not located"
  },
  "residual": [
   "the reference engine's executable is not on this machine; no request outside the recordings was compared with it",
@@ -876,6 +896,6 @@
   "one Windows host; the MCP process tests run on Linux only in the repository CI"
  ],
  "run": {
-  "started_utc": "2026-11-15T10:23:36.113514+00:00"
+  "started_utc": "2026-11-16T05:46:40.721577+00:00"
  }
 }

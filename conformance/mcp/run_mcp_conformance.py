@@ -197,7 +197,10 @@ def mutation_summary() -> dict:
         return {"file": MUTATION, "present": False, "current": False,
                 "status": "not run yet: it runs in .github/workflows/mutation-mcp.yml on request; no result is claimed",
                 "script": "artifacts/mdd-042/mutation/mutate_mcp.py", "mutants": len(module.MUTANTS),
-                "earlier_result": "artifacts/mdd-042/mutation/results-first-slice.txt (17 mutants, the first slice, 2e38019)"}
+                "earlier_result": "artifacts/mdd-042/mutation/results-first-slice.txt (17 mutants, the first slice, 2e38019); "
+                                 "a first run of the 52 on Actions (2026-11-15, run 43704479769) ended at mutant 38 when the script's own 3600 s command limit "
+                                 "expired in the process tests: 36 of 37 verdicts were KILLED and one survived (a decode deadline), which a new decode "
+                                 "deadline check now kills; the hang was not located"}
     lines = path.read_text(encoding="utf-8").splitlines()
     recorded = [line.split(":", 1)[1].strip() for line in lines if line.startswith("sources sha256:")]
     return {
@@ -205,7 +208,7 @@ def mutation_summary() -> dict:
         "current": recorded == [mutation_hash()],
         "killed": sum(1 for line in lines if line.startswith("KILLED")),
         "survived": [line[len("SURVIVED"):].strip() for line in lines if line.startswith("SURVIVED")],
-        "errors": sum(1 for line in lines if line.startswith("ERROR")),
+        "errors": sum(1 for line in lines if line.startswith(("ERROR", "TIMEOUT"))),
         "skipped": sum(1 for line in lines if line.startswith("SKIPPED")),
         "restored_tree_passes": any("passes the unit and process tests, the replays and their controls: True" in line for line in lines),
         "public_apk_was_present": any("public APK present for the manifest replay: True" in line for line in lines),

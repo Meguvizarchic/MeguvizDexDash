@@ -16,9 +16,12 @@ Usage: python -I conformance/decode/run_decode_conformance.py [--binary PATH] [-
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
+import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -277,6 +280,48 @@ def check_selection_and_errors(report: Report, client: McpClient, dataset: str) 
                closed["_is_error"] and closed["error"]["kind"] == "unknown_dataset")
 
 
+def check_deadline(report: Report, binary: Path) -> None:
+    """A decode that outlives its deadline closes its dataset, as a query does, and no other."""
+    spec = importlib.util.spec_from_file_location("decode_fixtures", ROOT / "tests" / "fixtures" / "decode" / "generate.py")
+    fixtures = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(fixtures)
+    program = fixtures.Program()
+    # 200,000 instructions: far more than a millisecond of rendering, still a small file (0.4 MB)
+    program.methods.append(fixtures.Method("huge", ["public", "static"], registers=1,
+                                           code=[fixtures.op("nop")] * 200000 + [fixtures.RET]))
+    directory = Path(tempfile.mkdtemp(prefix="mdd-deadline-"))
+    client = None
+    try:
+        huge = directory / "huge.dex"
+        huge.write_bytes(program.build("035"))
+        client = McpClient(binary)
+        client.initialize()
+        slow = client.call("open_dataset", inputs=[str(huge)])["dataset_id"]
+        other = client.call("open_dataset", inputs=[str(MAIN)])["dataset_id"]
+        late = client.call("decode", dataset_id=slow, method="Ldecode/T;->huge()V", timeout_ms=1)
+        error = late.get("error", {})
+        report.add("a decode that outlives its deadline says so and that the dataset was closed",
+                   late["_is_error"] and error.get("kind") == "timeout" and error.get("dataset_closed") is True
+                   and late.get("dataset_id") == slow, json.dumps(late)[:300])
+        listed = client.call("list_datasets")
+        report.add("the dataset closed by a decode deadline is gone and the other one is not",
+                   [d["dataset_id"] for d in listed["datasets"]] == [other], json.dumps(listed["datasets"])[:200])
+        after = client.call("decode", dataset_id=slow, method="Ldecode/T;->huge()V")
+        report.add("a request that names the closed dataset is refused as unknown_dataset",
+                   after["_is_error"] and after["error"]["kind"] == "unknown_dataset")
+        fine = client.call("decode", dataset_id=other, method="Ldecode/T;->op_00()V", file_id=0)
+        report.add("the other dataset still decodes", not fine["_is_error"] and fine["methods"][0]["file_id"] == 0)
+        again = client.call("open_dataset", inputs=[str(huge)])["dataset_id"]
+        whole = client.call("decode", dataset_id=again, method="Ldecode/T;->huge()V", max_lines=1000)
+        report.add("the same method decodes within the default deadline, so the deadline above was the cause",
+                   not whole["_is_error"] and whole["methods"][0]["total_lines"] == 200000 + 5,
+                   json.dumps(whole)[:200])
+    finally:
+        if client is not None:
+            client.close()
+        shutil.rmtree(directory, ignore_errors=True)
+
+
 def run(binary: Path) -> dict:
     report = Report()
     reproduced = subprocess.run([sys.executable, "-I", str(ROOT / "tests/fixtures/decode/generate.py"), "--check"],
@@ -287,6 +332,7 @@ def run(binary: Path) -> dict:
     state = check_texts(report, client)
     check_paging(report, client, state["dataset"])
     check_selection_and_errors(report, client, state["dataset"])
+    check_deadline(report, binary)
     code = client.close()
     report.add("the server exits cleanly", code == 0, str(code))
     failed = [c for c in report.checks if not c["equal"]]
