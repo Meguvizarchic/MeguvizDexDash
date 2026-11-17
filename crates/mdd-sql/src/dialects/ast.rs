@@ -29,6 +29,14 @@ enum Dependency {
 fn unsupported(reason: &str) -> MddError {
     MddError::new(ErrorCode::UnsupportedQuery, "sql.ast", reason)
 }
+/// MDD-084: the AST rewrite (`Rewrite::expr`/`query`) and the sqlparser `Display`
+/// formatting are recursive descent. In a debug build their frames overflow a default
+/// 1 MiB thread stack at roughly ten levels of boolean nesting, far below the validated
+/// `max_ast_depth`. The rewrite therefore runs on a stack proven sufficient for the
+/// absolute depth cap below, and that cap is aligned with the native evaluator's 64 so
+/// validation never admits a depth the rewrite cannot safely traverse.
+const AST_REWRITE_STACK_BYTES: usize = 16 * 1024 * 1024;
+const MAX_AST_REWRITE_DEPTH: usize = 64;
 fn parse_error(error: ParserError) -> MddError {
     if error == ParserError::RecursionLimitExceeded {
         quota("SQL_PARSER_DEPTH")
@@ -1149,6 +1157,41 @@ fn call(name: &str, args: Vec<Expr>) -> Expr {
 }
 
 pub(crate) fn adapt(
+    sql: &str,
+    limits: SqlLimits,
+    parameters: &[SqlValue],
+    relations: &[crate::provider::SqlRelation],
+    dialect_policy: super::SqlDialect,
+) -> MddResult<Adapted> {
+    // MDD-084: run the recursive AST rewrite on a stack proven sufficient for the
+    // validated depth (see AST_REWRITE_STACK_BYTES). A scoped thread borrows the inputs
+    // and is joined before returning, so no result or error escapes its lifetime. A
+    // failure to start the thread or a panic inside it is a fail-closed internal fault,
+    // never an empty success.
+    std::thread::scope(|scope| {
+        let worker = std::thread::Builder::new()
+            .stack_size(AST_REWRITE_STACK_BYTES)
+            .spawn_scoped(scope, move || {
+                adapt_on_stack(sql, limits, parameters, relations, dialect_policy)
+            })
+            .map_err(|_| {
+                MddError::new(
+                    ErrorCode::InternalFault,
+                    "sql.ast",
+                    "AST rewrite thread could not be started",
+                )
+            })?;
+        match worker.join() {
+            Ok(result) => result,
+            Err(_) => Err(MddError::new(
+                ErrorCode::InternalFault,
+                "sql.ast",
+                "AST rewrite thread panicked",
+            )),
+        }
+    })
+}
+fn adapt_on_stack(
     sql: &str,
     limits: SqlLimits,
     parameters: &[SqlValue],
@@ -2470,7 +2513,9 @@ impl Rewrite<'_> {
             .nodes
             .checked_add(1)
             .ok_or_else(|| quota("SQL_AST_NODES"))?;
-        if depth > self.limits.max_ast_depth || self.nodes > self.limits.max_ast_nodes {
+        if depth > self.limits.max_ast_depth.min(MAX_AST_REWRITE_DEPTH)
+            || self.nodes > self.limits.max_ast_nodes
+        {
             return Err(quota("SQL_AST_NODE_OR_DEPTH"));
         }
         Ok(())
@@ -4609,5 +4654,94 @@ mod aggregate_scan_tests {
             nested_query_needs_binding(query, &schemas, &BTreeSet::new(), 0, &budget).unwrap_err();
         assert_eq!(error.code, ErrorCode::QuotaExceeded);
         assert_eq!(error.message, "SQL_AGGREGATE_DETECTION_NODES");
+    }
+}
+
+#[cfg(test)]
+mod mdd084_rewrite_tests {
+    use super::*;
+    use crate::{
+        provider::{SqlColumn, SqlRelation},
+        values::SqlType,
+    };
+
+    fn facts_relation() -> SqlRelation {
+        SqlRelation {
+            name: "facts".into(),
+            columns: vec![SqlColumn {
+                id: "value".into(),
+                name: "value".into(),
+                data_type: SqlType::Text,
+                nullable: true,
+            }],
+            required_layers: vec![],
+            estimated_rows: None,
+        }
+    }
+
+    fn or_chain_sql(depth: usize, pattern: &str) -> String {
+        let mut clause = format!("value LIKE '{pattern}'");
+        for _ in 0..depth {
+            clause = format!("({clause} OR value LIKE 'z%')");
+        }
+        format!("SELECT value FROM facts WHERE {clause}")
+    }
+
+    fn adapt_on_small_caller_stack(sql: String, limits: SqlLimits) -> MddResult<Adapted> {
+        // MDD-084: before the fix the recursive rewrite overflowed this 1 MiB caller
+        // stack at roughly ten levels of boolean nesting. adapt must do its recursive
+        // work on its own proven-large stack, never on the caller's.
+        let relation = facts_relation();
+        std::thread::Builder::new()
+            .stack_size(1024 * 1024)
+            .spawn(move || {
+                adapt(
+                    &sql,
+                    limits,
+                    &[],
+                    &[relation],
+                    crate::dialects::SqlDialect::NativeV1,
+                )
+            })
+            .unwrap()
+            .join()
+            .unwrap()
+    }
+
+    #[test]
+    fn deep_or_chain_like_rewrites_without_caller_stack_overflow() {
+        let long_prefix = format!("{}%", "a".repeat(64));
+        for depth in [9usize, 10, 11] {
+            for pattern in ["a%", long_prefix.as_str()] {
+                let sql = or_chain_sql(depth, pattern);
+                let adapted = adapt_on_small_caller_stack(sql, SqlLimits::default())
+                    .unwrap_or_else(|e| {
+                        panic!("depth={depth} pattern_len={} {e:?}", pattern.len())
+                    });
+                assert!(adapted.sql.contains("mdd_like"));
+                assert_eq!(adapted.required_relations, vec!["facts".to_string()]);
+            }
+        }
+    }
+
+    #[test]
+    fn over_limit_or_chain_is_rejected_fail_closed() {
+        // Default lexical depth quota: 60 parentheses exceed max_ast_depth = 48.
+        let error = adapt_on_small_caller_stack(or_chain_sql(60, "a%"), SqlLimits::default())
+            .err()
+            .expect("over-depth chain must be rejected, never an empty success");
+        assert_eq!(error.code, ErrorCode::QuotaExceeded);
+        assert_eq!(error.message, "SQL_LEXICAL_DEPTH");
+        // Even with a raised configured depth, the absolute rewrite cap (64, aligned
+        // with the native evaluator) rejects fail-closed instead of recursing deeper.
+        let raised = SqlLimits {
+            max_ast_depth: 1000,
+            ..SqlLimits::default()
+        };
+        let error = adapt_on_small_caller_stack(or_chain_sql(100, "a%"), raised)
+            .err()
+            .expect("chain beyond the absolute rewrite cap must be rejected");
+        assert_eq!(error.code, ErrorCode::QuotaExceeded);
+        assert_eq!(error.message, "SQL_AST_NODE_OR_DEPTH");
     }
 }

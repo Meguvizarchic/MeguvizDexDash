@@ -1,0 +1,83 @@
+{
+  "task": "MDD-084",
+  "phase": "post",
+  "binary": "target/debug/meguvizdexdash.exe",
+  "binary_sha256": "ef8159b3aa7035d1b6342fd791324964669881fe5c53cc706028c366299f707a",
+  "input": "tests/fixtures/annotations/generated/annotations-038.dex",
+  "dialect": "dexsql-0.1.1",
+  "stack_overflow_exit_code": 3221225725,
+  "cases": {
+    "paren_depth_9": {
+      "exit_code": 0,
+      "stack_overflow": false,
+      "stderr_tail": "",
+      "terminal": {
+        "operation_status": "ok",
+        "execution_complete": true,
+        "emitted_rows": "1",
+        "error_code": null,
+        "error_message": null
+      }
+    },
+    "paren_depth_10": {
+      "exit_code": 0,
+      "stack_overflow": false,
+      "stderr_tail": "",
+      "terminal": {
+        "operation_status": "ok",
+        "execution_complete": true,
+        "emitted_rows": "1",
+        "error_code": null,
+        "error_message": null
+      }
+    },
+    "paren_depth_11": {
+      "exit_code": 0,
+      "stack_overflow": false,
+      "stderr_tail": "",
+      "terminal": {
+        "operation_status": "ok",
+        "execution_complete": true,
+        "emitted_rows": "1",
+        "error_code": null,
+        "error_message": null
+      }
+    },
+    "paren_depth_10_prefix64": {
+      "exit_code": 0,
+      "stack_overflow": false,
+      "stderr_tail": "",
+      "terminal": {
+        "operation_status": "ok",
+        "execution_complete": true,
+        "emitted_rows": "1",
+        "error_code": null,
+        "error_message": null
+      }
+    },
+    "flat_or_20": {
+      "exit_code": 0,
+      "stack_overflow": false,
+      "stderr_tail": "",
+      "terminal": {
+        "operation_status": "ok",
+        "execution_complete": true,
+        "emitted_rows": "1",
+        "error_code": null,
+        "error_message": null
+      }
+    },
+    "paren_depth_60_over_limit": {
+      "exit_code": 1,
+      "stack_overflow": false,
+      "stderr_tail": "",
+      "terminal": {
+        "operation_status": "error",
+        "execution_complete": false,
+        "emitted_rows": "0",
+        "error_code": "QUOTA_EXCEEDED",
+        "error_message": "SQL_LEXICAL_DEPTH"
+      }
+    }
+  }
+}

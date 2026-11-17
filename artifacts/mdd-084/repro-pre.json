@@ -1,0 +1,59 @@
+{
+  "task": "MDD-084",
+  "phase": "pre",
+  "binary": "target/debug/meguvizdexdash.exe",
+  "binary_sha256": "6d035110ca518eee6b52b20b67980cc9ba0660d34da7aa9a749e97884b9fc59f",
+  "input": "tests/fixtures/annotations/generated/annotations-038.dex",
+  "dialect": "dexsql-0.1.1",
+  "stack_overflow_exit_code": 3221225725,
+  "cases": {
+    "paren_depth_9": {
+      "exit_code": 0,
+      "stack_overflow": false,
+      "stderr_tail": "",
+      "terminal": {
+        "operation_status": "ok",
+        "execution_complete": true,
+        "emitted_rows": "1",
+        "error_code": null,
+        "error_message": null
+      }
+    },
+    "paren_depth_10": {
+      "exit_code": 3221225725,
+      "stack_overflow": true,
+      "stderr_tail": "\nthread 'main' (31408) has overflowed its stack\n",
+      "terminal": null
+    },
+    "paren_depth_11": {
+      "exit_code": 3221225725,
+      "stack_overflow": true,
+      "stderr_tail": "\nthread 'main' (28532) has overflowed its stack\n",
+      "terminal": null
+    },
+    "paren_depth_10_prefix64": {
+      "exit_code": 3221225725,
+      "stack_overflow": true,
+      "stderr_tail": "\nthread 'main' (6612) has overflowed its stack\n",
+      "terminal": null
+    },
+    "flat_or_20": {
+      "exit_code": 3221225725,
+      "stack_overflow": true,
+      "stderr_tail": "\nthread 'main' (21020) has overflowed its stack\n",
+      "terminal": null
+    },
+    "paren_depth_60_over_limit": {
+      "exit_code": 1,
+      "stack_overflow": false,
+      "stderr_tail": "",
+      "terminal": {
+        "operation_status": "error",
+        "execution_complete": false,
+        "emitted_rows": "0",
+        "error_code": "QUOTA_EXCEEDED",
+        "error_message": "SQL_LEXICAL_DEPTH"
+      }
+    }
+  }
+}

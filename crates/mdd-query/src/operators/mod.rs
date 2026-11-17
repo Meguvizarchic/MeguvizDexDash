@@ -40,21 +40,21 @@ pub enum Truth {
     Unknown,
 }
 impl Truth {
-    fn not(self) -> Self {
+    pub(crate) fn not(self) -> Self {
         match self {
             Self::True => Self::False,
             Self::False => Self::True,
             Self::Unknown => Self::Unknown,
         }
     }
-    fn and(self, other: Self) -> Self {
+    pub(crate) fn and(self, other: Self) -> Self {
         match (self, other) {
             (Self::False, _) | (_, Self::False) => Self::False,
             (Self::True, Self::True) => Self::True,
             _ => Self::Unknown,
         }
     }
-    fn or(self, other: Self) -> Self {
+    pub(crate) fn or(self, other: Self) -> Self {
         match (self, other) {
             (Self::True, _) | (_, Self::True) => Self::True,
             (Self::False, Self::False) => Self::False,
@@ -212,41 +212,86 @@ fn like_dp(text: &[u16], pattern: &[LikeToken], control: &mut Control<'_>) -> Md
     }
     Ok(previous[text.len()])
 }
+/// Reference-dialect LIKE matcher. Semantics and per-call `reference_like` charging
+/// are identical to a recursive descent, but the backtracking stack lives on the heap
+/// so a pattern up to the validated 256 tokens cannot overflow the call stack (MDD-084).
 fn like_reference(
     text: &[u16],
     pattern: &[LikeToken],
     control: &mut Control<'_>,
 ) -> MddResult<bool> {
-    control.step("reference_like", 1)?;
-    let Some((token, rest)) = pattern.split_first() else {
-        return Ok(text.is_empty());
-    };
-    match token {
-        LikeToken::AnyMany => {
-            for start in 0..=text.len() {
-                if like_reference(&text[start..], rest, control)? {
-                    return Ok(true);
+    // Each frame is an `AnyMany` continuation: the text/pattern position it matched at
+    // and the next start offset to try. `current` is the call being entered; a produced
+    // `Some(result)` unwinds, `None` means a child call was pushed and is entered next.
+    let mut stack: Vec<(usize, usize, usize)> = Vec::new();
+    let mut current: Option<(usize, usize)> = Some((0, 0));
+    loop {
+        let Some((t, p)) = current.take() else {
+            return Ok(false);
+        };
+        control.step("reference_like", 1)?;
+        let produced: Option<bool> = if p == pattern.len() {
+            Some(t == text.len())
+        } else {
+            match pattern[p] {
+                LikeToken::AnyMany => {
+                    stack.push((t, p, 0));
+                    current = Some((t, p + 1));
+                    None
+                }
+                LikeToken::AnyOne => {
+                    if t == text.len() {
+                        Some(false)
+                    } else {
+                        current = Some((t + 1, p + 1));
+                        None
+                    }
+                }
+                LikeToken::Literal(unit) => {
+                    if text.get(t) != Some(&unit) {
+                        Some(false)
+                    } else {
+                        current = Some((t + 1, p + 1));
+                        None
+                    }
                 }
             }
-            Ok(false)
+        };
+        let Some(result) = produced else { continue };
+        // A true result propagates to the root unchanged, exactly as the recursive
+        // version returns `Ok(true)` up every frame without further charging.
+        if result {
+            return Ok(true);
         }
-        LikeToken::AnyOne => {
-            if text.is_empty() {
-                Ok(false)
-            } else {
-                like_reference(&text[1..], rest, control)
-            }
-        }
-        LikeToken::Literal(unit) => {
-            if text.first() != Some(unit) {
-                Ok(false)
-            } else {
-                like_reference(&text[1..], rest, control)
+        // False: resume the nearest `AnyMany` with its next start, or fail closed.
+        loop {
+            let Some((t, p, start)) = stack.pop() else {
+                return Ok(false);
+            };
+            let next = start + 1;
+            if next <= text.len() - t {
+                stack.push((t, p, next));
+                current = Some((t + next, p + 1));
+                break;
             }
         }
     }
 }
 
+/// The deepest nesting of `And`/`Or`/`Not` the evaluator walks. `check_predicate` refuses deeper
+/// predicates when a plan is validated; the evaluator refuses them as well, so a predicate that
+/// bypassed validation still cannot exhaust the call stack.
+const PREDICATE_EVAL_DEPTH: usize = 64;
+
+/// Evaluate a predicate: one step per node, the parent before its children, the left child before
+/// the right, and no short-circuit (both sides are always evaluated, so a failure on either side
+/// is reported).
+///
+/// `And`/`Or`/`Not` recurse, but only through this small frame: the evaluation of a leaf is a
+/// separate function that is never inlined into it. The former evaluator kept the leaf match in the
+/// recursive function itself, a frame of tens of kilobytes in a debug build, and overflowed a 1 MiB
+/// stack at about ten levels of nesting (MDD-084); a frame of this size takes the validated depth of
+/// 64 on any stack.
 pub fn predicate(
     predicate: &Predicate,
     row: &Row,
@@ -254,7 +299,48 @@ pub fn predicate(
     control: &mut Control<'_>,
     reference: bool,
 ) -> MddResult<Truth> {
+    predicate_at(predicate, row, source, control, reference, 0)
+}
+
+fn predicate_at(
+    predicate: &Predicate,
+    row: &Row,
+    source: &dyn FactSource,
+    control: &mut Control<'_>,
+    reference: bool,
+    depth: usize,
+) -> MddResult<Truth> {
+    if depth > PREDICATE_EVAL_DEPTH {
+        return Err(invalid("PREDICATE_DEPTH_LIMIT"));
+    }
     control.step("predicate", 1)?;
+    match predicate {
+        Predicate::And { left, right } => {
+            let left = predicate_at(left, row, source, control, reference, depth + 1)?;
+            let right = predicate_at(right, row, source, control, reference, depth + 1)?;
+            Ok(left.and(right))
+        }
+        Predicate::Or { left, right } => {
+            let left = predicate_at(left, row, source, control, reference, depth + 1)?;
+            let right = predicate_at(right, row, source, control, reference, depth + 1)?;
+            Ok(left.or(right))
+        }
+        Predicate::Not { value } => {
+            Ok(predicate_at(value, row, source, control, reference, depth + 1)?.not())
+        }
+        leaf => predicate_leaf(leaf, row, source, control, reference),
+    }
+}
+/// Truth value of a non-boolean predicate leaf. Compound `And`/`Or`/`Not` nodes are handled by
+/// [`predicate_at`] and must never reach here. Kept out of line so that the recursive frame stays small.
+#[inline(never)]
+fn predicate_leaf(
+    predicate: &Predicate,
+    row: &Row,
+    source: &dyn FactSource,
+    control: &mut Control<'_>,
+    reference: bool,
+) -> MddResult<Truth> {
     Ok(match predicate {
         Predicate::Eq { left, right } | Predicate::RawBytesEq { left, right } => equality(
             expression(left, row, source, control)?,
@@ -290,21 +376,10 @@ pub fn predicate(
                 Truth::False
             }
         }
-        Predicate::And { left, right } => predicate_eval(left, row, source, control, reference)?
-            .and(predicate_eval(right, row, source, control, reference)?),
-        Predicate::Or { left, right } => predicate_eval(left, row, source, control, reference)?
-            .or(predicate_eval(right, row, source, control, reference)?),
-        Predicate::Not { value } => predicate_eval(value, row, source, control, reference)?.not(),
+        Predicate::And { .. } | Predicate::Or { .. } | Predicate::Not { .. } => {
+            return Err(invalid("PREDICATE_COMPOUND_IN_LEAF"));
+        }
     })
-}
-fn predicate_eval(
-    p: &Predicate,
-    r: &Row,
-    s: &dyn FactSource,
-    c: &mut Control<'_>,
-    reference: bool,
-) -> MddResult<Truth> {
-    predicate(p, r, s, c, reference)
 }
 
 pub fn compare_rows(left: &Row, right: &Row, keys: &[OrderKey]) -> Ordering {

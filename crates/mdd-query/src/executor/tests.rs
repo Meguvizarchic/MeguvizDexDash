@@ -2742,3 +2742,332 @@ fn empty_right_join_keeps_schema_and_empty_grouped_aggregate_has_no_row() {
         }
     }
 }
+// ---- MDD-084: deep boolean chains must not overflow the call stack ----
+
+fn mdd084_leaf(truth: Truth) -> Predicate {
+    // A LIKE over a literal needs no row columns; the three truth values come from
+    // matching text, non-matching text and NULL text respectively.
+    let (text, pattern) = match truth {
+        Truth::True => (Some("abc"), "a%"),
+        Truth::False => (Some("abc"), "z%"),
+        Truth::Unknown => (None, "a%"),
+    };
+    Predicate::Like {
+        value: Expr::Literal {
+            value: text.map_or(Value::Null, |t| Value::Utf16(t.encode_utf16().collect())),
+        },
+        pattern: operators::native_like_pattern(
+            &pattern.encode_utf16().collect::<Vec<u16>>(),
+            None,
+        )
+        .unwrap(),
+    }
+}
+
+fn mdd084_chain(connective: &str, leaves: &[Truth]) -> Predicate {
+    let mut iter = leaves.iter().rev();
+    let mut p = mdd084_leaf(*iter.next().unwrap());
+    for truth in iter {
+        let left = Box::new(mdd084_leaf(*truth));
+        let right = Box::new(p);
+        p = match connective {
+            "or" => Predicate::Or { left, right },
+            "and" => Predicate::And { left, right },
+            _ => unreachable!(),
+        };
+    }
+    p
+}
+
+fn mdd084_not_chain(depth: usize, inner: Truth) -> Predicate {
+    let mut p = mdd084_leaf(inner);
+    for _ in 0..depth {
+        p = Predicate::Not { value: Box::new(p) };
+    }
+    p
+}
+
+fn mdd084_fold(connective: &str, leaves: &[Truth]) -> Truth {
+    let mut acc = leaves[0];
+    for truth in &leaves[1..] {
+        acc = match connective {
+            "or" => acc.or(*truth),
+            "and" => acc.and(*truth),
+            _ => unreachable!(),
+        };
+    }
+    acc
+}
+
+#[test]
+fn deep_boolean_chains_evaluate_on_a_small_stack_without_overflow() {
+    // The former recursive predicate/predicate_eval pair overflowed a 1 MiB stack at
+    // about ten levels (MDD-084). The iterative evaluator must reach the validated
+    // depth of 64 on that same stack, in both execution dialects, with the exact
+    // three-valued result an independent fold of the leaf truths gives.
+    let handle = std::thread::Builder::new()
+        .stack_size(1024 * 1024)
+        .spawn(|| {
+            let catalog = source(fixture());
+            for depth in [1usize, 2, 3, 4, 5, 6, 9, 10, 11, 32, 64] {
+                let cases: Vec<(&str, Vec<Truth>)> = vec![
+                    // one true buried at the deepest position -> true
+                    ("or", {
+                        let mut v = vec![Truth::False; depth];
+                        v.push(Truth::True);
+                        v
+                    }),
+                    // no true, one unknown -> unknown
+                    ("or", {
+                        let mut v = vec![Truth::False; depth];
+                        v.push(Truth::Unknown);
+                        v
+                    }),
+                    // one false buried deepest -> false
+                    ("and", {
+                        let mut v = vec![Truth::True; depth];
+                        v.push(Truth::False);
+                        v
+                    }),
+                    // no false, one unknown -> unknown
+                    ("and", {
+                        let mut v = vec![Truth::True; depth];
+                        v.push(Truth::Unknown);
+                        v
+                    }),
+                ];
+                for (connective, leaves) in cases {
+                    let predicate = mdd084_chain(connective, &leaves);
+                    let expected = mdd084_fold(connective, &leaves);
+                    operators::check_predicate(&predicate, &Vec::new(), 0).unwrap();
+                    for reference in [false, true] {
+                        let actual = operators::predicate(
+                            &predicate,
+                            &Vec::new(),
+                            &catalog,
+                            &mut Control::new(ExecutionLimits::default()),
+                            reference,
+                        )
+                        .unwrap();
+                        assert_eq!(
+                            actual, expected,
+                            "{connective} depth={depth} ref={reference}"
+                        );
+                    }
+                }
+                // Not chain: even depth keeps the inner truth, odd depth flips it.
+                for inner in [Truth::True, Truth::False, Truth::Unknown] {
+                    let predicate = mdd084_not_chain(depth, inner);
+                    let expected = if depth % 2 == 0 { inner } else { inner.not() };
+                    operators::check_predicate(&predicate, &Vec::new(), 0).unwrap();
+                    for reference in [false, true] {
+                        let actual = operators::predicate(
+                            &predicate,
+                            &Vec::new(),
+                            &catalog,
+                            &mut Control::new(ExecutionLimits::default()),
+                            reference,
+                        )
+                        .unwrap();
+                        assert_eq!(actual, expected, "not depth={depth} ref={reference}");
+                    }
+                }
+            }
+        })
+        .unwrap();
+    handle.join().unwrap();
+}
+
+#[test]
+fn predicate_depth_over_64_is_rejected_fail_closed() {
+    let mut leaves = vec![Truth::False; 65];
+    leaves.push(Truth::True);
+    let predicate = mdd084_chain("or", &leaves);
+    let error = operators::check_predicate(&predicate, &Vec::new(), 0).unwrap_err();
+    assert_eq!(error.code, ErrorCode::InvalidArgument);
+    assert_eq!(error.message, "PREDICATE_DEPTH_LIMIT");
+}
+
+#[test]
+fn deep_like_reference_pattern_matches_dp_on_a_small_stack() {
+    // like_reference used to recurse once per pattern token; a 256-token pattern (the
+    // validated maximum) must match the iterative DP on a 1 MiB stack (MDD-084).
+    let handle = std::thread::Builder::new()
+        .stack_size(1024 * 1024)
+        .spawn(|| {
+            let catalog = source(fixture());
+            let texts = ["", "a", "abc", "aaaaaaaaaa", "ababababab"];
+            let patterns = [
+                "%".to_string(),
+                "a%".to_string(),
+                "%a%".to_string(),
+                "a".repeat(256),
+                format!("{}%", "a".repeat(255)),
+                format!("%{}", "a".repeat(255)),
+                "%a%a%a%a%a%a%a%a%a%a%".to_string(),
+                "_".repeat(256),
+                format!("{}%", "_".repeat(255)),
+            ];
+            for text in texts {
+                for pattern in &patterns {
+                    let tokens = operators::native_like_pattern(
+                        &pattern.encode_utf16().collect::<Vec<u16>>(),
+                        None,
+                    )
+                    .unwrap();
+                    let predicate = Predicate::Like {
+                        value: Expr::Literal {
+                            value: Value::Utf16(text.encode_utf16().collect()),
+                        },
+                        pattern: tokens,
+                    };
+                    operators::check_predicate(&predicate, &Vec::new(), 0).unwrap();
+                    let dp = operators::predicate(
+                        &predicate,
+                        &Vec::new(),
+                        &catalog,
+                        &mut Control::new(ExecutionLimits::default()),
+                        false,
+                    )
+                    .unwrap();
+                    let reference = operators::predicate(
+                        &predicate,
+                        &Vec::new(),
+                        &catalog,
+                        &mut Control::new(ExecutionLimits::default()),
+                        true,
+                    )
+                    .unwrap();
+                    assert_eq!(dp, reference, "text={text:?} pattern len={}", pattern.len());
+                }
+            }
+        })
+        .unwrap();
+    handle.join().unwrap();
+}
+
+/// A boolean tree built by the test and folded by an independent recursion (depth is small here).
+#[derive(Clone)]
+enum Mdd084Tree {
+    Leaf(Truth),
+    And(Box<Mdd084Tree>, Box<Mdd084Tree>),
+    Or(Box<Mdd084Tree>, Box<Mdd084Tree>),
+    Not(Box<Mdd084Tree>),
+}
+
+fn mdd084_tree(depth: usize, seed: &mut u32) -> Mdd084Tree {
+    // a small linear congruential generator keeps the shapes the same on every run
+    *seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+    let pick = (*seed >> 16) % 7;
+    if depth == 0 {
+        return Mdd084Tree::Leaf(match pick % 3 {
+            0 => Truth::True,
+            1 => Truth::False,
+            _ => Truth::Unknown,
+        });
+    }
+    match pick {
+        0 | 1 => Mdd084Tree::And(
+            Box::new(mdd084_tree(depth - 1, seed)),
+            Box::new(mdd084_tree(depth - 1, seed)),
+        ),
+        2 | 3 => Mdd084Tree::Or(
+            Box::new(mdd084_tree(depth - 1, seed)),
+            Box::new(mdd084_tree(depth - 1, seed)),
+        ),
+        4 => Mdd084Tree::Not(Box::new(mdd084_tree(depth - 1, seed))),
+        5 => Mdd084Tree::And(
+            Box::new(mdd084_tree(depth - 1, seed)),
+            Box::new(Mdd084Tree::Leaf(Truth::True)),
+        ),
+        _ => Mdd084Tree::Or(
+            Box::new(Mdd084Tree::Leaf(Truth::False)),
+            Box::new(mdd084_tree(depth - 1, seed)),
+        ),
+    }
+}
+
+fn mdd084_tree_truth(tree: &Mdd084Tree) -> Truth {
+    match tree {
+        Mdd084Tree::Leaf(truth) => *truth,
+        Mdd084Tree::And(l, r) => mdd084_tree_truth(l).and(mdd084_tree_truth(r)),
+        Mdd084Tree::Or(l, r) => mdd084_tree_truth(l).or(mdd084_tree_truth(r)),
+        Mdd084Tree::Not(v) => mdd084_tree_truth(v).not(),
+    }
+}
+
+fn mdd084_tree_predicate(tree: &Mdd084Tree) -> Predicate {
+    match tree {
+        Mdd084Tree::Leaf(truth) => mdd084_leaf(*truth),
+        Mdd084Tree::And(l, r) => Predicate::And {
+            left: Box::new(mdd084_tree_predicate(l)),
+            right: Box::new(mdd084_tree_predicate(r)),
+        },
+        Mdd084Tree::Or(l, r) => Predicate::Or {
+            left: Box::new(mdd084_tree_predicate(l)),
+            right: Box::new(mdd084_tree_predicate(r)),
+        },
+        Mdd084Tree::Not(v) => Predicate::Not {
+            value: Box::new(mdd084_tree_predicate(v)),
+        },
+    }
+}
+
+#[test]
+fn boolean_trees_of_any_shape_evaluate_like_an_independent_fold() {
+    // Shapes beyond a chain: left- and right-nested, balanced, with negations, from the
+    // depth at which the evaluator stops recursing (3) to well past it. Each is evaluated in
+    // both dialects and compared with a fold written separately in the test.
+    let handle = std::thread::Builder::new()
+        .stack_size(16 * 1024 * 1024)
+        .spawn(|| {
+            let catalog = source(fixture());
+            let mut seed = 0x084_u32;
+            let mut checked = 0usize;
+            for depth in 1..=7usize {
+                for _ in 0..60 {
+                    let tree = mdd084_tree(depth, &mut seed);
+                    let predicate = mdd084_tree_predicate(&tree);
+                    let expected = mdd084_tree_truth(&tree);
+                    operators::check_predicate(&predicate, &Vec::new(), 0).unwrap();
+                    for reference in [false, true] {
+                        let actual = operators::predicate(
+                            &predicate,
+                            &Vec::new(),
+                            &catalog,
+                            &mut Control::new(ExecutionLimits::default()),
+                            reference,
+                        )
+                        .unwrap();
+                        assert_eq!(actual, expected, "depth={depth} ref={reference}");
+                        checked += 1;
+                    }
+                }
+            }
+            assert_eq!(checked, 7 * 60 * 2);
+        })
+        .unwrap();
+    handle.join().unwrap();
+}
+
+#[test]
+fn the_evaluator_itself_refuses_a_predicate_deeper_than_64() {
+    // validation (`check_predicate`) refuses it first in a plan; a predicate that bypassed
+    // validation must still be refused rather than walked
+    let mut leaves = vec![Truth::False; 65];
+    leaves.push(Truth::True);
+    let predicate = mdd084_chain("or", &leaves);
+    let catalog = source(fixture());
+    for reference in [false, true] {
+        let error = operators::predicate(
+            &predicate,
+            &Vec::new(),
+            &catalog,
+            &mut Control::new(ExecutionLimits::default()),
+            reference,
+        )
+        .expect_err("a predicate beyond the depth limit is refused, never evaluated to a value");
+        assert_eq!(error.code, ErrorCode::InvalidArgument);
+        assert_eq!(error.message, "PREDICATE_DEPTH_LIMIT");
+    }
+}

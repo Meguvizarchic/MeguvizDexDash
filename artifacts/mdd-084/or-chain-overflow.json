@@ -1,0 +1,146 @@
+{
+ "schema_version": "mdd.or-chain-overflow.v1",
+ "task": "MDD-084",
+ "status": "fixed: the cases that crashed the process are evaluated, and a chain beyond the limits is refused with a structured error",
+ "kind": "development evidence; admits no profile",
+ "defect": "a SQL statement with ten nested parentheses of OR/LIKE, or a flat OR of twenty terms, ended the process with a stack overflow (0xC00000FD on Windows) in a debug build: the predicate evaluator recursed through one large frame per level and the SQL rewrite recursed on the caller's stack",
+ "fix": {
+  "evaluator": "crates/mdd-query/src/operators/mod.rs: `predicate` recurses through a small frame (`predicate_at`), the evaluation of a leaf is a separate function that is never inlined into it; a predicate deeper than 64 is refused with PREDICATE_DEPTH_LIMIT by the evaluator as well as by validation. Steps are charged as before: one per node, parent first, left before right, no short-circuit.",
+  "reference_like": "the reference-dialect LIKE matcher keeps its backtracking on the heap instead of recursing once per pattern token, with the same charge per state",
+  "rewrite": "crates/mdd-sql/src/dialects/ast.rs: the recursive SQL rewrite runs on a 16 MiB thread and its depth is capped at 64 (the default `max_ast_depth` is 48), beyond which it refuses with QUOTA_EXCEEDED / SQL_AST_NODE_OR_DEPTH; a thread that cannot start or that panics is an INTERNAL_FAULT, never an empty success"
+ },
+ "reproduction": {
+  "script": "artifacts/mdd-084/repro_or_chain_overflow.py",
+  "before": {
+   "binary_sha256": "6d035110ca518eee6b52b20b67980cc9ba0660d34da7aa9a749e97884b9fc59f",
+   "cases": {
+    "paren_depth_9": {
+     "exit_code": 0,
+     "stack_overflow": false,
+     "operation_status": "ok",
+     "error_code": null,
+     "error_message": null
+    },
+    "paren_depth_10": {
+     "exit_code": 3221225725,
+     "stack_overflow": true,
+     "operation_status": null,
+     "error_code": null,
+     "error_message": null
+    },
+    "paren_depth_11": {
+     "exit_code": 3221225725,
+     "stack_overflow": true,
+     "operation_status": null,
+     "error_code": null,
+     "error_message": null
+    },
+    "paren_depth_10_prefix64": {
+     "exit_code": 3221225725,
+     "stack_overflow": true,
+     "operation_status": null,
+     "error_code": null,
+     "error_message": null
+    },
+    "flat_or_20": {
+     "exit_code": 3221225725,
+     "stack_overflow": true,
+     "operation_status": null,
+     "error_code": null,
+     "error_message": null
+    },
+    "paren_depth_60_over_limit": {
+     "exit_code": 1,
+     "stack_overflow": false,
+     "operation_status": "error",
+     "error_code": "QUOTA_EXCEEDED",
+     "error_message": "SQL_LEXICAL_DEPTH"
+    }
+   }
+  },
+  "after": {
+   "binary_sha256": "ef8159b3aa7035d1b6342fd791324964669881fe5c53cc706028c366299f707a",
+   "cases": {
+    "paren_depth_9": {
+     "exit_code": 0,
+     "stack_overflow": false,
+     "operation_status": "ok",
+     "error_code": null,
+     "error_message": null
+    },
+    "paren_depth_10": {
+     "exit_code": 0,
+     "stack_overflow": false,
+     "operation_status": "ok",
+     "error_code": null,
+     "error_message": null
+    },
+    "paren_depth_11": {
+     "exit_code": 0,
+     "stack_overflow": false,
+     "operation_status": "ok",
+     "error_code": null,
+     "error_message": null
+    },
+    "paren_depth_10_prefix64": {
+     "exit_code": 0,
+     "stack_overflow": false,
+     "operation_status": "ok",
+     "error_code": null,
+     "error_message": null
+    },
+    "flat_or_20": {
+     "exit_code": 0,
+     "stack_overflow": false,
+     "operation_status": "ok",
+     "error_code": null,
+     "error_message": null
+    },
+    "paren_depth_60_over_limit": {
+     "exit_code": 1,
+     "stack_overflow": false,
+     "operation_status": "error",
+     "error_code": "QUOTA_EXCEEDED",
+     "error_message": "SQL_LEXICAL_DEPTH"
+    }
+   }
+  }
+ },
+ "tests": {
+  "mdd-query": {
+   "exit_code": 0,
+   "passed": 206,
+   "failed": 0
+  },
+  "mdd-sql": {
+   "exit_code": 0,
+   "passed": 255,
+   "failed": 0
+  }
+ },
+ "mutation_check": {
+  "file": "artifacts/mdd-084/mutation/results.txt",
+  "present": false,
+  "current": false,
+  "status": "not run yet: it runs in .github/workflows/mutation-or-chain.yml on request; no result is claimed",
+  "script": "artifacts/mdd-084/mutation/mutate_or_chain.py"
+ },
+ "inputs_sha256": {
+  "crates/mdd-query/src/operators/mod.rs": "6ac2489ec20d274b23a2059d458024f4b36d4631df6ca416b989509a1cb8d1dd",
+  "crates/mdd-query/src/executor/tests.rs": "4fea46d83f6505726d1c250467d04bcca0f7fc0306e3b370e3b12020c4087fc2",
+  "crates/mdd-sql/src/dialects/ast.rs": "7c65321a67acd1c6420cfc04df3bb82c054740fdbeda5f970c1f8f82663d3bac",
+  "artifacts/mdd-084/repro_or_chain_overflow.py": "214418433e793c62f6e74fef08a6a4f46814ccbe4dcb0dd37f00ab528a9a2c2a",
+  "artifacts/mdd-084/repro-pre.json": "01358b99ee4ec741bce325f482c206d0be03e68ca9e528d37ccbbffe0f7063b8",
+  "artifacts/mdd-084/mutation/mutate_or_chain.py": "1ddef1166488b12f781b502eefc5d0a5a3191b8db0f79d40e231120a118af6c6",
+  ".github/workflows/mutation-or-chain.yml": "65c4e3206c61da8f6b6f44df96c7ae9e78d576afffee2a0b3e17caa0c74059dc"
+ },
+ "residual": [
+  "the reproduction and the unit tests ran on one Windows host in a debug build; Linux is covered by the repository CI, and a release build was not run",
+  "the integration layer of MDD-052 keeps its own hard limit on the OR terms and the nesting depth (DIFF-5); relaxing it is a separate change after this fix is merged, as the task says",
+  "a statement between 48 and 64 levels of nesting is admitted only if `max_ast_depth` is raised; the default of 48 is unchanged",
+  "the mutation check runs in .github/workflows/mutation-or-chain.yml, not on a developer machine"
+ ],
+ "run": {
+  "finished_utc": "2026-11-17T06:04:32Z"
+ }
+}
