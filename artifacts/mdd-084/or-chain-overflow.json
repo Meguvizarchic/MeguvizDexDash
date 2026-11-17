@@ -120,10 +120,14 @@
  },
  "mutation_check": {
   "file": "artifacts/mdd-084/mutation/results.txt",
-  "present": false,
-  "current": false,
-  "status": "not run yet: it runs in .github/workflows/mutation-or-chain.yml on request; no result is claimed",
-  "script": "artifacts/mdd-084/mutation/mutate_or_chain.py"
+  "script": "artifacts/mdd-084/mutation/mutate_or_chain.py",
+  "present": true,
+  "current": true,
+  "killed": 12,
+  "survived": [],
+  "errors": 0,
+  "skipped": 0,
+  "restored_tree_passes": true
  },
  "inputs_sha256": {
   "crates/mdd-query/src/operators/mod.rs": "6ac2489ec20d274b23a2059d458024f4b36d4631df6ca416b989509a1cb8d1dd",
@@ -141,6 +145,6 @@
   "the mutation check runs in .github/workflows/mutation-or-chain.yml, not on a developer machine"
  ],
  "run": {
-  "finished_utc": "2026-11-17T06:04:32Z"
+  "finished_utc": "2026-11-17T07:28:28Z"
  }
 }

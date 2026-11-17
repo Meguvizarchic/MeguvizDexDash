@@ -54613,6 +54613,41 @@
       "sha256": "be8f44ceab3b49e22aaa9fa9eefd28da67559b579c3176d4f03c92898d1a8cc3"
     },
     {
+      "path": "artifacts/mdd-084/build_record.py",
+      "bytes": 8364,
+      "sha256": "0252df62dd1be837b4695b5db03307533fc7c57a4de02fd42628162ab63845c6"
+    },
+    {
+      "path": "artifacts/mdd-084/mutation/mutate_or_chain.py",
+      "bytes": 5158,
+      "sha256": "1ddef1166488b12f781b502eefc5d0a5a3191b8db0f79d40e231120a118af6c6"
+    },
+    {
+      "path": "artifacts/mdd-084/mutation/results.txt",
+      "bytes": 901,
+      "sha256": "fee91dd1e30cd6055bdce316c03c2f749c230a2444585e0e2a29bdd95665fee0"
+    },
+    {
+      "path": "artifacts/mdd-084/or-chain-overflow.json",
+      "bytes": 5785,
+      "sha256": "3f5e16e0ac14a2c4b93922a431c72ca05f1d68f89fa50ca9996a50b118ad29fb"
+    },
+    {
+      "path": "artifacts/mdd-084/repro-post.json",
+      "bytes": 2229,
+      "sha256": "96de4545aca7feea669d3da3ea8b322cef88d84ee61873f0b74ad7ec58ce6345"
+    },
+    {
+      "path": "artifacts/mdd-084/repro-pre.json",
+      "bytes": 1787,
+      "sha256": "01358b99ee4ec741bce325f482c206d0be03e68ca9e528d37ccbbffe0f7063b8"
+    },
+    {
+      "path": "artifacts/mdd-084/repro_or_chain_overflow.py",
+      "bytes": 7231,
+      "sha256": "214418433e793c62f6e74fef08a6a4f46814ccbe4dcb0dd37f00ab528a9a2c2a"
+    },
+    {
       "path": "artifacts/public-progress-20261104/merge-validation.json",
       "bytes": 2346,
       "sha256": "3a2cb72397e26e82505cfa84db05457199214a79513ac1eee5623125158f8d9f"

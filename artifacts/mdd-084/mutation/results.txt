@@ -1,0 +1,15 @@
+KILLED   evaluator: an AND is an OR [unit]
+KILLED   evaluator: an OR is an AND [unit]
+KILLED   evaluator: a NOT does not negate [unit]
+KILLED   evaluator: a predicate deeper than 64 is walked [unit]
+KILLED   evaluator: the depth limit is one too low [unit]
+KILLED   validation: a predicate deeper than 64 is accepted [unit]
+KILLED   like: a pattern with a star tries one start too few [unit]
+KILLED   like: a pattern with a star does not backtrack [unit]
+KILLED   like: a literal matches any unit [unit]
+KILLED   like: an underscore matches past the end [unit]
+KILLED   rewrite: the depth of the rewrite is not capped [unit]
+KILLED   rewrite: the rewrite runs on a small stack [unit]
+restored tree passes the unit and process tests, the replays and their controls: True
+public APK present for the manifest replay: False
+sources sha256: 48d2e05ed6b1cc8a89f41d03400f8ec18f9f1fad5b3a0457f1c4d9123322d5b1
