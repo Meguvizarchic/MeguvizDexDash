@@ -1477,7 +1477,7 @@
       "id": "MDD-053",
       "phase": "M5",
       "title": "迁移分页、checkpoint、批处理与远程 runner 契约",
-      "status": "in_progress",
+      "status": "done",
       "depends_on": [
         "MDD-033",
         "MDD-040",
@@ -1507,7 +1507,31 @@
         "docs/02_ARCHITECTURE_AND_CONTRACTS.md",
         "docs/03_HOSTLAB_MIGRATION.md",
         "docs/04_VALIDATION_AND_PERFORMANCE.md"
-      ]
+      ],
+      "implementation_evidence": [
+        "artifacts/mdd-053/remote-and-resume-equivalence.json",
+        "artifacts/mdd-053/mutation/results.txt",
+        "artifacts/mdd-053/mutation/mutate_checkpoint_remote.py",
+        "artifacts/mdd-053/mutation/results-pass3-214-20261117.txt",
+        "integrations/hostlab/checkpoint_adapter.py",
+        "integrations/hostlab/remote_runner_adapter.py",
+        "integrations/hostlab/remote_make_records.py",
+        "integrations/hostlab/checkpoint_test_support.py",
+        "integrations/hostlab/remote_test_support.py",
+        "integrations/hostlab/test_checkpoint_adapter.py",
+        "integrations/hostlab/test_checkpoint_live_engine.py",
+        "integrations/hostlab/test_remote_records.py",
+        "integrations/hostlab/test_remote_runner_adapter.py",
+        "conformance/hostlab/remote-contracts.json",
+        "conformance/corpus/hostlab/source-8782f43-extra/manifest.json",
+        "conformance/corpus/hostlab/source-8782f43-extra/analysis_checkpoint.py",
+        "conformance/corpus/hostlab/source-8782f43-extra/remote_artifacts.py",
+        "conformance/corpus/hostlab/source-8782f43-extra/remote_job.py",
+        "conformance/corpus/hostlab/source-8782f43-extra/remote_schedule.py",
+        "conformance/corpus/hostlab/source-8782f43-extra/runner_worker.py",
+        "conformance/corpus/hostlab/source-8782f43-extra/snapshot_transport.py"
+      ],
+      "implementation_notes": "2026-11-17, DONE (merged to codex/m2-facts-20261028 as 2057cf6 by the main session after independent review). The paging/checkpoint/remote-runner contracts (HL-13/HL-14/HL-15). integrations/hostlab/checkpoint_adapter.py seals and imports task checkpoints bound to engine/profile/schema/source/rule/config identity; import re-derives the state from the report and compares it (task id set and count), refuses in-flight and source_changed documents, and refuses results whose snapshot was never captured (snapshot=None with reuse/continue) on both the seal and the import path. remote_runner_adapter.py keeps HostLab's twelve orchestration tools, version matrix and worker task contracts as HostLab's own (the frozen source is the oracle); the gh dispatch guard classifies attached or unknown shorthands (-fref=main, -if, -z), non-GET methods and bodies as mutations, refused before anything runs. Replay across engines is refused once pages were accepted or a TEMP side effect exists; a TEMP side effect is proven conservatively - anything not provably a single pure SELECT/WITH-SELECT (literals and comments masked, one statement, no mutating keyword) counts as one, closing the frozen planner's prefix-check holes (WITH...INSERT, SELECT;CREATE). Old engine jobs read back under their own identity whatever is configured now; the samples/reports/source-snapshots/artifact-cache path scopes stay HostLab's. The six frozen -extra modules are hashed against both their manifest and the tool inventory, and two facts are demonstrated from the frozen source itself (ARTIFACT_LIMITS equal remote_artifacts' constants; the loader overwrites resume_origin and the frozen summary cannot read the adapter's nested lineage); their behaviour is otherwise not executed by the controls (the gateway's calls into them are stubbed), recorded as such. Evidence: 148 unittest cases (83 checkpoint including 5 against the real binary, 65 remote) rerun independently by the main session before merge and on the merged tree against engine binary 6d035110ca518eee6b52b20b67980cc9ba0660d34da7aa9a749e97884b9fc59f; mutation check 225 of 225 killed (private-copy harness, all anchors --dry-run verified; review-fix mutants 217-225 re-run independently and all killed); remote-contracts.json and remote-and-resume-equivalence.json --check current; the sources sha256 binding recomputed and equal; the interrupted 214-mutant historical slice preserved as results-pass3-214-20261117.txt. NOT DONE / NOT PROVEN: HostLab itself was not patched or run end-to-end; remote dispatch was exercised against stand-ins and the frozen gateway, not a live network service; the -extra modules' gateway behaviour beyond the two demonstrated facts is not executed; no profile is admitted; formal performance belongs to MDD-060/082."
     },
     {
       "id": "MDD-054",

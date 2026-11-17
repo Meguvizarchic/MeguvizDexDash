@@ -54518,6 +54518,26 @@
       "sha256": "9f5ee5fbbcfe0273a4551c23fa18540ba70a2d5a643b68fbebbdbc80b5a9089f"
     },
     {
+      "path": "artifacts/mdd-053/mutation/mutate_checkpoint_remote.py",
+      "bytes": 44474,
+      "sha256": "80313bf3b4daf0a2747701ef557d7e72ffb11ae0d3d20d4aab3fffebaf53bc13"
+    },
+    {
+      "path": "artifacts/mdd-053/mutation/results-pass3-214-20261117.txt",
+      "bytes": 12269,
+      "sha256": "fac7c1044ec9ffa12dd990e0ba2f3bf6934574cbee4370f9844dbdbcf1ea24ff"
+    },
+    {
+      "path": "artifacts/mdd-053/mutation/results.txt",
+      "bytes": 12935,
+      "sha256": "b3a1b621f50fe29a916ced8f68e848eec25c7619fb8767c672a008779a6887c5"
+    },
+    {
+      "path": "artifacts/mdd-053/remote-and-resume-equivalence.json",
+      "bytes": 40009,
+      "sha256": "1d949137e2511f645be3c7e33124cd6c4d3143468dbbfc5490a6dc335c554841"
+    },
+    {
       "path": "artifacts/mdd-071/mutation/mutate_decode.py",
       "bytes": 18485,
       "sha256": "bb36c67ba6aad24b0cdd9a88108d971f220423462842d042bcb57591850b3bad"
