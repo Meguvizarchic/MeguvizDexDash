@@ -20,7 +20,7 @@ use mdd_service::{
 };
 use mdd_session::ResourceLimits;
 use mdd_sql::{
-    provider::hostlab::HostLabRelation,
+    provider::hostlab::ContractRelation,
     temp::{MAX_NAMED_TEMP_QUERIES, NamedTempQuery, TempStatementResult},
     values::{SqlType, SqlValue},
     window::{SqlWindow, script_statements},
@@ -1388,7 +1388,7 @@ fn type_name(kind: SqlType) -> &'static str {
 }
 
 fn list_tables() -> Value {
-    let tables: Vec<Value> = HostLabRelation::ALL
+    let tables: Vec<Value> = ContractRelation::all()
         .iter()
         .map(|relation| {
             json!({
@@ -1402,17 +1402,12 @@ fn list_tables() -> Value {
 }
 
 fn describe_table(args: DescribeArgs) -> Result<Value, Failure> {
-    let relation = HostLabRelation::ALL
-        .iter()
-        .copied()
-        .find(|relation| relation.name().eq_ignore_ascii_case(&args.name))
-        .ok_or_else(|| {
-            Failure::Execution(with_kind(
-                refuse(ErrorCode::InvalidArgument, "UNKNOWN_TABLE")
-                    .detail("name", args.name.clone()),
-                "unknown_table",
-            ))
-        })?;
+    let relation = ContractRelation::parse_ignoring_case(&args.name).ok_or_else(|| {
+        Failure::Execution(with_kind(
+            refuse(ErrorCode::InvalidArgument, "UNKNOWN_TABLE").detail("name", args.name.clone()),
+            "unknown_table",
+        ))
+    })?;
     let columns: Vec<Value> = relation
         .columns()
         .iter()

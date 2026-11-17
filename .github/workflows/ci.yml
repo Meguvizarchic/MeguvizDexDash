@@ -114,6 +114,16 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -I artifacts/mdd-084/build_record.py --check
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -I tests/fixtures/public_relations/generate.py --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -I conformance/relations/test_public_relations_diff.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -I conformance/relations/public_relations_diff.py --binary $binary --out artifacts/ci/public-relations-diff.json --quiet
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -I conformance/relations/build_qualification.py --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -I artifacts/mdd-070/build_record.py --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -I benchmarks/test_producer_consumer_pipeline.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python conformance/mcp/test_replays.py

@@ -8,6 +8,7 @@ pub mod hostlab;
 pub mod indexes;
 pub mod metadata;
 pub mod pipeline;
+pub mod public_relations;
 pub mod raw_fingerprints;
 pub mod references;
 pub mod session;

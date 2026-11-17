@@ -2798,7 +2798,24 @@ impl AnnotationFacts {
     /// HostLab backend enumerates only what a class-bound directory reaches, so
     /// the SQL projections use the `reachable_*` producers below. The fact layer
     /// itself keeps the unreferenced items.
-    fn reachable_offsets(&self) -> (BTreeSet<u32>, BTreeSet<u32>) {
+    /// Offsets of the parameter reference lists that a class annotation directory names.
+    pub(crate) fn reachable_ref_list_offsets(&self) -> BTreeSet<u32> {
+        let directories: BTreeMap<_, _> = self
+            .data
+            .directories
+            .iter()
+            .map(|item| (item.byte_offset, item))
+            .collect();
+        self.data
+            .directory_bindings
+            .iter()
+            .filter_map(|binding| directories.get(&binding.directory_byte_offset))
+            .flat_map(|directory| directory.entries.iter())
+            .filter(|entry| entry.kind == AnnotationOwnerKind::Parameter)
+            .map(|entry| entry.target_byte_offset)
+            .collect()
+    }
+    pub(crate) fn reachable_offsets(&self) -> (BTreeSet<u32>, BTreeSet<u32>) {
         let directories: BTreeMap<_, _> = self
             .data
             .directories

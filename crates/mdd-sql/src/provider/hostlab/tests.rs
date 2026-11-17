@@ -119,7 +119,12 @@ impl Harness {
         cached
     }
 
-    fn provider(&self, code: bool, references: bool, annotations: bool) -> Arc<HostLabSqlProvider> {
+    pub(super) fn provider(
+        &self,
+        code: bool,
+        references: bool,
+        annotations: bool,
+    ) -> Arc<HostLabSqlProvider> {
         let mut facts = Vec::new();
         for position in 0..self.scope.dexes().len() {
             let base = self.layers(position);
@@ -970,11 +975,38 @@ fn every_contract_relation_name_is_registered_with_its_contract_columns() {
     )]);
     let provider = harness.provider(true, true, true);
     let relations = provider.relations().unwrap();
-    let mut registered: Vec<&str> = relations.iter().map(|r| r.name.as_str()).collect();
-    registered.sort_unstable();
-    let mut expected: Vec<&str> = HostLabRelation::ALL.iter().map(|r| r.name()).collect();
-    expected.sort_unstable();
+    // All fifty-six relations of the frozen manifest are registered, in the manifest's order.
+    let manifest: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(fixture("conformance/manifests/relations.json")).unwrap(),
+    )
+    .unwrap();
+    let expected: Vec<&str> = manifest["relations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|relation| relation["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(expected.len(), 56);
+    let registered: Vec<&str> = relations.iter().map(|r| r.name.as_str()).collect();
     assert_eq!(registered, expected);
+    assert_eq!(
+        ContractRelation::MANIFEST_ORDER.as_slice(),
+        expected.as_slice()
+    );
+    // The seventeen the HostLab queries read are the ones the manifest marks, and no other.
+    let required: Vec<&str> = manifest["relations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|relation| relation["required_by_hostlab"] == true)
+        .map(|relation| relation["name"].as_str().unwrap())
+        .collect();
+    let mut contract: Vec<&str> = HostLabRelation::ALL.iter().map(|r| r.name()).collect();
+    contract.sort_unstable();
+    let mut marked = required.clone();
+    marked.sort_unstable();
+    assert_eq!(contract, marked);
+    assert_eq!(PublicRelation::ALL.len() + HostLabRelation::ALL.len(), 56);
     // Column names, order, carrier type and nullability come from the contract
     // manifest, not from a hand-maintained duplicate.
     for relation in &relations {
@@ -996,17 +1028,24 @@ fn every_contract_relation_name_is_registered_with_its_contract_columns() {
                 column.name
             );
             let carrier = match expected_column["data_type"].as_str().unwrap() {
-                "UInt32" | "UInt64" => SqlType::U64,
-                "Int64" => SqlType::I64,
-                "Float64" => SqlType::F64,
-                "Utf8" | "Utf8View" => SqlType::Text,
+                // The reference returns a Boolean column as the integers 0 and 1, tagged uint64, and an Int32
+                // column as int64, so those are the carriers; a dictionary of text is text.
+                "UInt32" | "UInt64" | "Boolean" => Some(SqlType::U64),
+                "Int64" | "Int32" => Some(SqlType::I64),
+                "Float64" => Some(SqlType::F64),
+                "Utf8" | "Utf8View" | "Dictionary(Int8, Utf8)" => Some(SqlType::Text),
+                // A column the reference computes (CASE over the owner) has no declared type; each value
+                // carries its own.
+                "Dynamic" => None,
                 other => panic!("unmapped contract type {other}"),
             };
-            assert_eq!(
-                column.data_type, carrier,
-                "{}.{}",
-                relation.name, column.name
-            );
+            if let Some(carrier) = carrier {
+                assert_eq!(
+                    column.data_type, carrier,
+                    "{}.{}",
+                    relation.name, column.name
+                );
+            }
         }
     }
 }

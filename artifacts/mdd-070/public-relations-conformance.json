@@ -1,0 +1,94 @@
+{
+ "schema_version": "mdd.public-relations-conformance.v1",
+ "task": "MDD-070",
+ "status": "all 56 relations of the frozen manifest are advertised, described and answered; every relation was compared cell by cell with the recorded answers of the reference engine over the fixtures below",
+ "kind": "development evidence; admits no profile",
+ "engine_under_test": {
+  "binary_sha256": "8992ff48450f4f215495d384a1089d9ee864a1e4bcf274517f5dae0952e2db2f",
+  "server": {
+   "name": "meguvizdexdash",
+   "title": "MeguvizDexDash",
+   "version": "0.1.0-dev"
+  }
+ },
+ "reference": "dexsql 0.1.0 (f354ebcf715de9a66ef8ebe08b2b36807ab58e25cd5a1c0812e497fc1fcfc448), recorded in artifacts/mdd-070/a0-probe/",
+ "replay": {
+  "file": "artifacts/mdd-070/public-relations-diff.json",
+  "script": "conformance/relations/public_relations_diff.py",
+  "fixtures": 28,
+  "relations": 56,
+  "pairs": 1512,
+  "exact": 1462,
+  "same_rows_in_another_order": 45,
+  "refused_by_design": 5,
+  "differing": 0,
+  "declared_open_refusals": {
+   "shared-class-data": "two class definitions share one class_data_item; the engine refuses the DEX (INVALID_INPUT), the reference reads it"
+  },
+  "undeclared_open_refusals": []
+ },
+ "qualification": {
+  "file": "conformance/manifests/full-relation-qualification.json",
+  "script": "conformance/relations/build_qualification.py"
+ },
+ "tests": {
+  "mdd-facts lib": {
+   "exit_code": 0,
+   "passed": 204,
+   "failed": 0
+  },
+  "mdd-sql lib": {
+   "exit_code": 0,
+   "passed": 259,
+   "failed": 0
+  },
+  "mdd-cli mcp": {
+   "exit_code": 0,
+   "passed": 42,
+   "failed": 0
+  }
+ },
+ "mutation_check": {
+  "file": "artifacts/mdd-070/mutation/results.txt",
+  "present": false,
+  "current": false,
+  "script": "artifacts/mdd-070/mutation/mutate_public_relations.py",
+  "status": "not run yet: it runs in .github/workflows/mutation-public-relations.yml on request; no result is claimed"
+ },
+ "inputs_sha256": {
+  "crates/mdd-facts/src/public_relations/mod.rs": "87500d1731d4bdeaa3cdd8153843ea9f3926f94032c487dbe2453398280b4a99",
+  "crates/mdd-facts/src/public_relations/tables.rs": "69aac2eb80ce5dde328672b346ccd8f2a458f76ccc1032940f3fc16ce9eb2115",
+  "crates/mdd-facts/src/public_relations/code.rs": "f9c207be8ac4e08bff3f6965e2c93d7bd844d8a231c941015a9ed291edfbc184",
+  "crates/mdd-facts/src/public_relations/values.rs": "9f951c42fd7057e0bba98843caa1e4c26272715adc760240d661eab8840beace",
+  "crates/mdd-facts/src/public_relations/debug.rs": "fea229698f79773b70d13a5757175b09bfa2453a62084bf12f024d777142c549",
+  "crates/mdd-facts/src/public_relations/annotations.rs": "45359a8eb499160cbb9bc5ad9806537c5e16bd5448302d348d44e3ea372d9fa5",
+  "crates/mdd-facts/src/public_relations/tests.rs": "76b0004a872d5862f11c2a6be68639dc931c3eef4f17d13ae60d7b1ab8a21993",
+  "crates/mdd-sql/src/provider/hostlab/public.rs": "4a134e6aa3cfc0d9deebb906e28960af0797e67381dff5b28087870573cbeb80",
+  "crates/mdd-sql/src/provider/hostlab/public_tests.rs": "f081d5852e0518e1c995b2b2da4c9fb931dbba421d29018d96690e70c613b7c5",
+  "crates/mdd-sql/src/provider/hostlab.rs": "7bfb40a9c7f918f3e9e0bde5d8e6dd106f1fc3deb94440d5ca49a68cea75502c",
+  "crates/mdd-mcp/src/tools.rs": "266a9236980384c6d7e70cd816ed1e3727756c6d0526e3c7ecf2c36f9ac3c28f",
+  "conformance/relations/public_relations_diff.py": "a7ce118265029691fab4d10f2ca024bfdff961efc3d84be64112aa8389b2fdb8",
+  "conformance/relations/test_public_relations_diff.py": "753a3f5952f021c3c1a06eb984ffc54d8fda635cad148e317b705f4482e00295",
+  "conformance/relations/build_qualification.py": "752f446280f16e664919fcc650770ffb0ba8eb37c335be9fe44f9010742a4a93",
+  "artifacts/mdd-070/public-relations-diff.json": "c1da134de4c545321fe60d7ff47ddf40053d78cf7dd34a0367dd286217ab6ce2",
+  "conformance/manifests/full-relation-qualification.json": "e2d7aaa6aacd1c6491e5024f780105d8618b13241fc0b66c2206f3628babc1c2",
+  "conformance/manifests/relations.json": "f416926d6da3467b5cfea625978c2e4faac08c914cf2930d2c64878c261bb82d",
+  "artifacts/mdd-070/probe_a0.py": "c1d28c55bd2eb480c9cda44756b2abd32446f139279f791d3b6b050918fbc9d0",
+  "tests/fixtures/public_relations/generate.py": "7352cf0c459ed1ebd680b02fb2951a1b5a28e8b3fde4bcc9387d5870f484cd23",
+  "tests/fixtures/public_relations/manifest.json": "9cab37b9d8b066bce6b76d09f54825398b09b96e9b11628a0528d4152a5d1840",
+  "artifacts/mdd-070/mutation/mutate_public_relations.py": "f251bcdb485d05de9d8f04cb6263b478e6eb9fdceee4faddf1a59c9299a4cc55",
+  ".github/workflows/mutation-public-relations.yml": "0313765cf10e8248f668ed879b3311fd39f37a2b07dea7605cee57ed9d824321"
+ },
+ "residual": [
+  "the recorded answers are those of dexsql 0.1.0; 0.1.1 is not recaptured, so its profile is not verified (release v0.1.1 exists; downloading it needs the owner's approval)",
+  "the fixtures are small synthetic DEX files (one to a few classes) plus the project's earlier fixtures; no relation was compared on a real application, and the NewPipe APK was not used",
+  "relations whose recorded evidence is one or two fixtures (call_sites, call_site_args, class_static_values, hiddenapi_flags, try_items, catch_handlers, debug_*) are listed with their counts in the qualification record",
+  "SELECT * paged to the end is what was compared; joins, aggregates and ORDER BY over the 39 relations beyond the contract seventeen are not separately claimed",
+  "row order of a relation read without ORDER BY differs from the reference in 45 (relation, fixture) pairs (the same rows); it is a declared difference, not a defect",
+  "the mutation check runs in .github/workflows/mutation-public-relations.yml, not on a developer machine; a local sample of eight mutants was killed",
+  "the reference reads a DEX whose two classes share class data; the engine refuses it at open (declared)"
+ ],
+ "run": {
+  "finished_utc": "2026-11-17T10:55:30Z"
+ }
+}

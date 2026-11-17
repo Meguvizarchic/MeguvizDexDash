@@ -587,8 +587,27 @@ fn the_built_in_tables_are_listed_and_described_without_a_dataset() {
         .iter()
         .map(|t| t["name"].as_str().unwrap())
         .collect();
-    assert_eq!(names.len(), 17);
+    // All fifty-six relations of the frozen manifest, in its order.
+    let manifest: Value = serde_json::from_str(
+        &std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../conformance/manifests/relations.json"
+        ))
+        .unwrap(),
+    )
+    .unwrap();
+    let frozen: Vec<&str> = manifest["relations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|relation| relation["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(names, frozen);
+    assert_eq!(names.len(), 56);
     assert!(names.contains(&"dex_files") && names.contains(&"method_calls"));
+    let (described, error) = server.tool("describe_table", json!({"name":"debug_opcodes"}));
+    assert!(!error, "{described}");
+    assert_eq!(described["columns"].as_array().unwrap().len(), 18);
     let (described, error) = server.tool("describe_table", json!({"name":"Methods"}));
     assert!(!error, "names are case-insensitive: {described}");
     assert_eq!(described["name"], "methods");

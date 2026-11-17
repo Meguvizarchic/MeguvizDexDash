@@ -183,6 +183,122 @@ impl HostLabRelation {
     }
 }
 
+mod public;
+pub use public::PublicRelation;
+
+/// One relation of the frozen manifest that this provider answers: a contract relation the seventeen HostLab
+/// queries read, or a public relation beyond them.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ContractRelation {
+    Required(HostLabRelation),
+    Public(PublicRelation),
+}
+
+impl ContractRelation {
+    /// All fifty-six frozen relation names in `relations.json` order.
+    pub const MANIFEST_ORDER: [&'static str; 56] = [
+        "dex_files",
+        "map_items",
+        "id_items",
+        "strings",
+        "type_ids",
+        "types",
+        "type_lists",
+        "type_list_entries",
+        "proto_ids",
+        "protos",
+        "proto_params",
+        "field_ids",
+        "fields",
+        "method_ids",
+        "method_opcodes",
+        "class_data_methods",
+        "methods",
+        "method_handles",
+        "call_sites",
+        "call_site_args",
+        "encoded_arrays",
+        "encoded_array_values",
+        "encoded_array_owners",
+        "class_defs",
+        "classes",
+        "class_interfaces",
+        "class_data_items",
+        "class_fields",
+        "class_static_values",
+        "class_methods",
+        "hiddenapi_flags",
+        "code_items",
+        "try_items",
+        "catch_handlers",
+        "debug_info",
+        "debug_parameters",
+        "debug_positions",
+        "debug_locals",
+        "debug_opcodes",
+        "annotation_directories",
+        "annotation_directory_entries",
+        "annotation_sets",
+        "annotation_set_entries",
+        "annotation_set_ref_lists",
+        "annotation_set_refs",
+        "annotations",
+        "annotation_elements",
+        "method_refs",
+        "method_numbers",
+        "method_using_numbers",
+        "method_strings",
+        "method_calls",
+        "method_field_accesses",
+        "method_used_types",
+        "annotation_values",
+        "annotation_elements_resolved",
+    ];
+
+    /// The relations this provider answers, in `relations.json` order. A name of the manifest that is registered
+    /// nowhere would be absent here, and `every_frozen_relation_is_registered` fails on it.
+    pub fn all() -> Vec<Self> {
+        Self::MANIFEST_ORDER
+            .iter()
+            .filter_map(|name| Self::parse(name))
+            .collect()
+    }
+
+    pub fn parse(name: &str) -> Option<Self> {
+        HostLabRelation::parse(name)
+            .map(Self::Required)
+            .or_else(|| PublicRelation::parse(name).map(Self::Public))
+    }
+
+    /// Parse a table name the way the reference does for `describe_table`: without regard to ASCII case.
+    pub fn parse_ignoring_case(name: &str) -> Option<Self> {
+        Self::all()
+            .into_iter()
+            .find(|relation| relation.name().eq_ignore_ascii_case(name))
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Required(relation) => relation.name(),
+            Self::Public(relation) => relation.name(),
+        }
+    }
+
+    pub fn columns(self) -> &'static [(&'static str, SqlType, bool)] {
+        match self {
+            Self::Required(relation) => relation.columns(),
+            Self::Public(relation) => relation.columns(),
+        }
+    }
+
+    pub fn required_layers(self) -> Vec<FactLayer> {
+        match self {
+            Self::Required(relation) => relation.required_layers(),
+            Self::Public(relation) => relation.required_layers(),
+        }
+    }
+}
+
 const DEX_FILES_COLUMNS: &[(&str, SqlType, bool)] = &[
     ("file_id", SqlType::U64, false),
     ("string_pool_id", SqlType::U64, false),
@@ -705,7 +821,7 @@ impl HostLabSqlProvider {
         self.occurrences.len()
     }
 
-    fn relation(name: HostLabRelation) -> SqlRelation {
+    fn relation(name: ContractRelation) -> SqlRelation {
         SqlRelation {
             name: name.name().to_owned(),
             columns: name
@@ -1372,7 +1488,7 @@ fn text(value: &str) -> SqlValue {
 
 struct HostLabCursor {
     provider: Arc<HostLabSqlProvider>,
-    relation: HostLabRelation,
+    relation: ContractRelation,
     occurrence: usize,
     rows: std::vec::IntoIter<SqlRow>,
     control: SqlControl,
@@ -1389,10 +1505,17 @@ impl SqlFactCursor for HostLabCursor {
                 return Ok(None);
             };
             self.occurrence += 1;
-            self.rows = self
-                .provider
-                .occurrence_rows(self.relation, occurrence, &self.control)?
-                .into_iter();
+            self.rows = match self.relation {
+                ContractRelation::Required(relation) => {
+                    self.provider
+                        .occurrence_rows(relation, occurrence, &self.control)?
+                }
+                ContractRelation::Public(relation) => {
+                    self.provider
+                        .public_occurrence_rows(relation, occurrence, &self.control)?
+                }
+            }
+            .into_iter();
         }
     }
 }
@@ -1403,24 +1526,26 @@ impl SqlFactProvider for HostLabSqlProvider {
     }
 
     fn relations(&self) -> MddResult<Vec<SqlRelation>> {
+        let all = ContractRelation::all();
         let mut relations = Vec::new();
         relations
-            .try_reserve_exact(HostLabRelation::ALL.len())
+            .try_reserve_exact(all.len())
             .map_err(|_| quota("HOSTLAB_RELATION_ALLOCATION"))?;
-        for relation in HostLabRelation::ALL {
+        for relation in all {
             let mut projected = Self::relation(relation);
-            projected.estimated_rows = self.estimated_rows(relation)?.map(DecimalU64);
+            if let ContractRelation::Required(required) = relation {
+                projected.estimated_rows = self.estimated_rows(required)?.map(DecimalU64);
+            }
             relations.push(projected);
         }
         Ok(relations)
     }
 
     fn require_relation(&self, relation: &str) -> MddResult<()> {
-        let relation = HostLabRelation::parse(relation).ok_or_else(|| {
+        let relation = ContractRelation::parse(relation).ok_or_else(|| {
             invalid("UNKNOWN_HOSTLAB_RELATION").detail("relation", relation.to_owned())
         })?;
-        self.require_layer(relation)?;
-        self.require_coverage(relation)
+        self.require_contract_relation(relation)
     }
 
     fn open_cursor(
@@ -1428,11 +1553,10 @@ impl SqlFactProvider for HostLabSqlProvider {
         relation: &str,
         control: SqlControl,
     ) -> MddResult<Box<dyn SqlFactCursor>> {
-        let relation = HostLabRelation::parse(relation).ok_or_else(|| {
+        let relation = ContractRelation::parse(relation).ok_or_else(|| {
             invalid("UNKNOWN_HOSTLAB_RELATION").detail("relation", relation.to_owned())
         })?;
-        self.require_layer(relation)?;
-        self.require_coverage(relation)?;
+        self.require_contract_relation(relation)?;
         Ok(Box::new(HostLabCursor {
             provider: self,
             relation,
@@ -1443,8 +1567,24 @@ impl SqlFactProvider for HostLabSqlProvider {
     }
 }
 
+impl HostLabSqlProvider {
+    /// The seventeen contract relations are proven column by column by the coverage ledger; the public relations
+    /// beyond them are gated by the layers that build them.
+    fn require_contract_relation(&self, relation: ContractRelation) -> MddResult<()> {
+        match relation {
+            ContractRelation::Required(relation) => {
+                self.require_layer(relation)?;
+                self.require_coverage(relation)
+            }
+            ContractRelation::Public(relation) => self.require_public_layer(relation),
+        }
+    }
+}
+
 #[cfg(test)]
 mod combo_tests;
+#[cfg(test)]
+mod public_tests;
 #[cfg(test)]
 mod temp_tests;
 #[cfg(test)]

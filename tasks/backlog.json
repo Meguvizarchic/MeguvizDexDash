@@ -1897,6 +1897,36 @@
         "docs/02_ARCHITECTURE_AND_CONTRACTS.md",
         "docs/03_HOSTLAB_MIGRATION.md",
         "docs/04_VALIDATION_AND_PERFORMANCE.md"
+      ],
+      "implementation_notes": "2026-11-17, IN PROGRESS: implemented and verified against the recorded reference answers; three acceptance items stay open (below). All 56 relations of the frozen manifest are advertised by list_tables, described by describe_table and answered by query: the 17 contract relations that existed (MDD-032) plus 39 new ones, in four families: header and index tables (map_items, id_items, type_ids, type_lists, type_list_entries, proto_ids, protos, proto_params, field_ids, fields, method_ids, class_defs, class_data_items), method-bound code relations (method_opcodes, class_data_methods, try_items, catch_handlers, method_refs, method_numbers, method_using_numbers), encoded values (method_handles, call_sites, call_site_args, encoded_arrays, encoded_array_values, encoded_array_owners, class_static_values, hiddenapi_flags) with the debug relations (debug_info, debug_parameters, debug_positions, debug_locals, debug_opcodes), and annotation relations (annotation_directories, annotation_sets, annotation_set_ref_lists, annotation_set_refs, annotation_values, annotation_elements_resolved). Rows come from the validated fact layers; hiddenapi_flags has a new bounded reader of the hiddenapi_class_data section. Verification: every relation of every fixture was compared cell by cell with the recorded answers of dexsql 0.1.0 (conformance/relations/public_relations_diff.py): 28 fixtures, 27 compared (one is refused at open, declared), 1512 (relation, fixture) pairs, 1462 exact, 45 the same rows in another order, 5 refused by design (non-scalar strings), 0 differing. Seven new fixtures were generated for this task (debug programs, hidden API member order, an annotation without elements, and others) and the recorded answers are in artifacts/mdd-070/a0-probe/. Declared differences (in conformance/manifests/full-relation-qualification.json): integer tags of Int64 columns, one-ulp doubles, row order of unordered reads, non-scalar strings refused, shared class data refused at open, result column types of empty results, computed columns typed by value, the reference's paging defect on code items no method declares, the machine-dependent source_path. Layer gate: a relation whose layer is not built or not complete is refused with INCOMPLETE_FACTS naming the relation and the layer, never an empty table (tests in mdd-sql). Tests: mdd-facts 204, mdd-sql 259, process tests 42, workspace green, clippy and fmt clean. Mutation check: 54 mutants built (artifacts/mdd-070/mutation/mutate_public_relations.py, .github/workflows/mutation-public-relations.yml); the unmutated tree passes; a local sample of 8 was killed (one survivor found and fixed with a stricter test); the full run is NOT done yet. OPEN, so the task stays in_progress: (1) dexsql 0.1.1 was not recaptured, so the 0.1.1 profile is 'not verified' and per-profile differences are recorded for 0.1.0 only (the release exists; downloading the binary needs the owner's approval); (2) the full mutation run on Actions (needs a push); (3) the per-dialect capability list and the crates/mdd-sql/src/profiles/compatibility/ output are not produced: the profile information is data in the qualification record, not a Rust module. Evidence is thin (one or two fixtures with rows) for call_sites, call_site_args, class_static_values, hiddenapi_flags, try_items, catch_handlers and the debug relations; the counts are in the qualification record. Nothing is admitted: this is development evidence.",
+      "implementation_evidence": [
+        "conformance/manifests/full-relation-qualification.json",
+        "artifacts/mdd-070/public-relations-conformance.json",
+        "artifacts/mdd-070/public-relations-diff.json",
+        "artifacts/mdd-070/build_record.py",
+        "artifacts/mdd-070/probe_a0.py",
+        "artifacts/mdd-070/mutation/mutate_public_relations.py",
+        ".github/workflows/mutation-public-relations.yml",
+        "conformance/relations/public_relations_diff.py",
+        "conformance/relations/test_public_relations_diff.py",
+        "conformance/relations/build_qualification.py",
+        "tests/fixtures/public_relations/generate.py",
+        "tests/fixtures/public_relations/manifest.json",
+        "crates/mdd-facts/src/public_relations/mod.rs",
+        "crates/mdd-facts/src/public_relations/tables.rs",
+        "crates/mdd-facts/src/public_relations/code.rs",
+        "crates/mdd-facts/src/public_relations/values.rs",
+        "crates/mdd-facts/src/public_relations/debug.rs",
+        "crates/mdd-facts/src/public_relations/annotations.rs",
+        "crates/mdd-facts/src/public_relations/tests.rs",
+        "crates/mdd-sql/src/provider/hostlab/public.rs",
+        "crates/mdd-sql/src/provider/hostlab/public_tests.rs",
+        "crates/mdd-sql/src/provider/hostlab.rs",
+        "crates/mdd-mcp/src/tools.rs",
+        "crates/mdd-cli/tests/mcp.rs"
+      ],
+      "blocking_reasons": [
+        "dexsql 0.1.1 binary not recaptured (needs the owner's approval to download); full mutation run not done (needs a push to Actions); per-dialect capability list not produced"
       ]
     },
     {

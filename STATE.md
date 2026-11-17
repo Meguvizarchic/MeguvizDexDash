@@ -430,6 +430,20 @@
 
 **仍在 in_progress**：MDD-070（56 关系）与 MDD-072（Manifest xml、资源、十二工具）只有夹具起步，没有引擎实现；MDD-005 等独占测量窗口。
 
+## 2026-11-17 MDD-070：五十六关系补齐（仍 in_progress，三项未了）
+
+**做了什么**：`list_tables` 现在列出冻结 manifest 的全部 56 个关系（此前 17 个），`describe_table` 与 `query` 都能答；新增的 39 个按事实来源分四组：头部与索引表 13 个（`map_items`、`id_items`、`type_ids`、`type_lists`、`type_list_entries`、`proto_ids`、`protos`、`proto_params`、`field_ids`、`fields`、`method_ids`、`class_defs`、`class_data_items`）；绑定到方法的代码关系 7 个（`method_opcodes`、`class_data_methods`、`try_items`、`catch_handlers`、`method_refs`、`method_numbers`、`method_using_numbers`）；编码值与调试 13 个（`method_handles`、`call_sites`、`call_site_args`、三个 `encoded_array*`、`class_static_values`、`hiddenapi_flags`、五个 `debug_*`）；注解 6 个（`annotation_directories`、`annotation_sets`、`annotation_set_ref_lists`、`annotation_set_refs`、`annotation_values`、`annotation_elements_resolved`）。行来自已验证的事实层；`hiddenapi_flags` 新写了有界的 `hiddenapi_class_data` 读取。代码在 `crates/mdd-facts/src/public_relations/` 与 `crates/mdd-sql/src/provider/hostlab/public.rs`。
+
+**怎么验证的**：`conformance/relations/public_relations_diff.py` 把录下的 dexsql 0.1.0 答案逐关系、逐夹具、逐单元格回放给本引擎：28 个夹具（27 个比较，1 个在打开时被声明拒绝），1512 个（关系，夹具）对，**1462 个完全一致，45 个只是行顺序不同，5 个按设计拒绝（非标量字符串），0 个不同**。为薄弱处新生成了 7 个夹具（调试程序、hidden API 成员顺序、无元素注解等），并探测了参考引擎；这一过程里还查出两处我自己的实现差异并改正（`method_refs` 不列 invoke-polymorphic 的原型操作数；`method_numbers.double_value` 要按值的位模式读，不是按编码字段）。注册表测试把 56 个关系的列名、顺序、NULL 与类型逐一对着冻结 manifest 核对。
+
+**参考引擎自己的缺陷（已如实记录）**：0.1.0 在没有方法声明的 code item 上，`code_items` 计数为 1 却一页也不给（`next_offset` 不动）；本引擎只给方法绑定的 code item。浮点列的 64 位模式它多经过 17 位十进制，和精确读法差 1 ulp，本引擎给精确值。
+
+**声明的差异**（`conformance/manifests/full-relation-qualification.json`）：Int64 列的非负值标签（参考 int64，本引擎按值 uint64）；一个 ulp 的 double；不带 ORDER BY 的行顺序；非标量字符串整关系拒绝；共享 class_data 的 DEX 打开即拒；空结果的列类型；计算列按值定型；参考引擎的分页缺陷；`source_path` 随机器而不同。
+
+**没有做完，所以任务保持 in_progress**：（1）dexsql 0.1.1 没有重新录制，0.1.1 的 profile 记为"未验证"，逐 profile 差异只有 0.1.0（release 存在，下载二进制需要所有者批准）；（2）变异检查已建好（54 个变异，`mutate_public_relations.py` 与 `mutation-public-relations.yml`），未变异树通过，本机抽样 8 个全部被抓住（其中一个存活者因测试太松，已加强到断言拒绝原因后被抓住），**完整运行尚未做**，需要推送后在 Actions 上跑；（3）按方言的能力清单与 `crates/mdd-sql/src/profiles/compatibility/` 没有产出，profile 信息目前是资格记录里的数据，不是 Rust 模块。证据偏薄的关系（只有一两个夹具有行）：`call_sites`、`call_site_args`、`class_static_values`、`hiddenapi_flags`、`try_items`、`catch_handlers`、五个 `debug_*`，个数在资格记录里。
+
+**测试**：`mdd-facts` 204、`mdd-sql` 259、进程测试 42、整个工作区通过，clippy 与 fmt 干净；CI 的回放与 SDK 测试都过。新增 CI 检查：夹具 `--check`、回放控制测试、回放本身、资格记录与结论记录的 `--check`。不准入任何 profile；这是开发证据。
+
 ## Checkout 与交付
 
 工程目录 D:\MeguvisDexDash（保留目录原拼写）。远端已迁移到 https://github.com/Meguvizarchic/MeguvizDexDash（**公开仓库**，旧地址 jichuo1/MeguvizDexDash 自动转发）；PR #1 已于 2026-11-04 合并，`main` 现为 a9aa1f0，其中 27ac27e 是由本分支 71dfce9 生成的「脱敏工程进度快照」，之后 8 个提交是修补与 README/图标。本地分支 codex/m2-facts-20261028 当前**没有远端分支**：2026-11-12 曾整体推送，随后发现仓库公开，已按用户决定删除远端分支（GitHub 上提交仍可按 SHA 读取）。重新推送前必须先决定公开范围，见下节。

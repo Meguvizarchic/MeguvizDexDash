@@ -1,0 +1,56 @@
+{
+  "schema_version": "mdd.public-relation-fixtures.v1",
+  "generator": "tests/fixtures/public_relations/generate.py",
+  "files": [
+    {
+      "path": "marker-annotation-038.dex",
+      "sha256": "62297e1a0f1232b08d056e18b07d49e75d074a2e06121404de3605b3bdb956dd",
+      "bytes": 1460,
+      "kind": "synthetic-layout-fixture-not-installable-APK",
+      "encoded_expectation": "valid"
+    },
+    {
+      "path": "debug-programs-035.dex",
+      "sha256": "2ab595752b6069dd59a832785bba356a538d93ac754a601aff10a88f8823ec06",
+      "bytes": 640,
+      "kind": "synthetic-layout-fixture-not-installable-APK",
+      "encoded_expectation": "valid"
+    },
+    {
+      "path": "hiddenapi-order-039.dex",
+      "sha256": "98cd9a7b283464182bb8ed02842110b840084884de0bc942436c4b018d112551",
+      "bytes": 500,
+      "kind": "synthetic-layout-fixture-not-installable-APK",
+      "encoded_expectation": "valid"
+    },
+    {
+      "path": "debug-methods-035.dex",
+      "sha256": "4fb60555f4454115baddecc6bc17b8d2b9eb4bbeeb09ca0c361b49bd0859b161",
+      "bytes": 584,
+      "kind": "synthetic-layout-fixture-not-installable-APK",
+      "encoded_expectation": "valid"
+    },
+    {
+      "path": "hiddenapi-039.dex",
+      "sha256": "8551b140cc9fc984dfb399a4637048c0bc0c7990e75e46846c508eee0856c85b",
+      "bytes": 512,
+      "kind": "synthetic-layout-fixture-not-installable-APK",
+      "encoded_expectation": "valid"
+    },
+    {
+      "path": "static-values-035.dex",
+      "sha256": "171b33aeda229730c1331e5879d5a4c737a6052797211045e0aca5cd640565a8",
+      "bytes": 540,
+      "kind": "synthetic-layout-fixture-not-installable-APK",
+      "encoded_expectation": "valid"
+    },
+    {
+      "path": "proto-share-035.dex",
+      "sha256": "c92f38075bde0d59498b1ae849020aba5cb0287482a814d7168c5172f3db2a17",
+      "bytes": 564,
+      "kind": "synthetic-layout-fixture-not-installable-APK",
+      "encoded_expectation": "valid"
+    }
+  ],
+  "note": "Method-bound debug (two programs), hiddenapi (two member orders), an annotation without elements, non-empty static values and shared proto parameter lists; independent of the engine under test."
+}
