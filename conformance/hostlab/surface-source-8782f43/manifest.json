@@ -1,0 +1,28 @@
+{
+ "about": "HostLab sources imported by the frozen native_surface.py but absent from source-8782f43/; copied unchanged from a local clone at the pinned commit and checked against evidence/hostlab_verification.json",
+ "commit": "8782f43d537c442905123e35af325c412caa5188",
+ "files": [
+  {
+   "bytes": 678,
+   "origin_url": "https://raw.githubusercontent.com/jichuo1/innocent-lab-host-analysis/8782f43d537c442905123e35af325c412caa5188/tools/hostlab/audit_common.py",
+   "path": "conformance/hostlab/surface-source-8782f43/audit_common.py",
+   "sha256": "6f2468bfbaebf1cecab0fd9c5eaeb3afdc7f95fa2154aaee6e0b48613769b928",
+   "status": "obtained"
+  },
+  {
+   "bytes": 8720,
+   "origin_url": "https://raw.githubusercontent.com/jichuo1/innocent-lab-host-analysis/8782f43d537c442905123e35af325c412caa5188/tools/hostlab/priority_analysis.py",
+   "path": "conformance/hostlab/surface-source-8782f43/priority_analysis.py",
+   "sha256": "120f8e47da1869be02adb24da12952f0705ee89a1d89c2ae0de7580dc4434631",
+   "status": "obtained"
+  },
+  {
+   "bytes": 13694,
+   "origin_url": "https://raw.githubusercontent.com/jichuo1/innocent-lab-host-analysis/8782f43d537c442905123e35af325c412caa5188/tools/hostlab/surface_workers.py",
+   "path": "conformance/hostlab/surface-source-8782f43/surface_workers.py",
+   "sha256": "8d520bfddec822fb4b59abb671b1e87d148997086a8d9cb9230c942e4db9d0d4",
+   "status": "obtained"
+  }
+ ],
+ "schema": "mdd.hostlab-surface-source-manifest.v1"
+}

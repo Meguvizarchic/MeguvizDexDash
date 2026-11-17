@@ -1,0 +1,567 @@
+{
+ "about": "The surface provider (integrations/hostlab/surface_provider.py) on the real engine against HostLab's own surface path as the reference engine answered it (conformance/hostlab/surface-goldens.json). Made by integrations/hostlab/surface_make_equivalence.py.",
+ "declared_differences": [
+  {
+   "id": "DIFF-1",
+   "new": "such a class is fingerprinted as a class without methods: SHA-256 of nothing, no Composer signatures",
+   "original": "native_surface.scan completes but never sets method_bodies_sha256 and compose_signatures for those classes; surface_workers.summarize then raises KeyError",
+   "reason": "a crash that depends on which DEX file a class is in is not a behaviour worth keeping; the defined value is the one the original gives to a method-less class in a DEX file that does have methods",
+   "scenario": "fields-only.apk",
+   "title": "a family class in a DEX file in which no family class has a method"
+  },
+  {
+   "id": "DIFF-2",
+   "new": "every relation read (classes, class_fields, class_methods, method_calls, code_items) selects file_id and refuses a row of another file (SourceMismatch); the archive bytes are bound to the engine's recorded header fields (length, version, checksum, signature) before any offset is used",
+   "original": "the scan reads each relation with `WHERE file_id=...` but never re-checks the file_id of the rows it gets back, and code_items is selected without its file_id at all; the archive bytes are used without comparing them to the engine's facts",
+   "reason": "a local id is only meaningful with the source it came from. The binding compares the header fields the engine recorded; it does not recompute adler32 or SHA-1 over the body. Whole-file identity is the APK SHA-256 checked before and after the run, and the ZIP reader checks each member's CRC",
+   "scenario": null,
+   "title": "rows are checked against the file they were asked for, and bytes against the facts"
+  },
+  {
+   "id": "DIFF-3",
+   "new": "refused",
+   "original": "the last one silently replaces the first",
+   "reason": "a silent replacement binds a body to the wrong method",
+   "scenario": null,
+   "title": "one method_idx naming two methods, or two code rows for one method, in one DEX file"
+  },
+  {
+   "id": "DIFF-4",
+   "new": "admitted only when the stream's terminal line says ok, complete, untruncated and of the opened snapshot",
+   "original": "the transport reads the rows it is given until the marker",
+   "reason": "an incomplete answer must never be an empty or shorter result",
+   "scenario": null,
+   "title": "partial, truncated or errored engine answers"
+  },
+  {
+   "id": "DIFF-5",
+   "new": "the same condition as a balanced tree of the same predicates (the dynamic-page test distributed over its three words); the provider refuses more than 64 OR terms, or a statement whose parentheses nest more than 9 deep (SurfaceError), before sending it",
+   "original": "one chain `a OR b OR ...`",
+   "reason": "the debug build of the engine aborts the process with a stack overflow on a chain of 20 terms, or on a condition nested about ten deep (nine levels are answered, ten are not); the cap keeps every statement sent within what the engine admits",
+   "scenario": null,
+   "title": "the SQL of the family filter"
+  },
+  {
+   "id": "DIFF-6",
+   "new": "backend meguvizdexdash, workers as run",
+   "original": "backend dexsql, workers 2",
+   "reason": "the report says which engine did the work; it is not part of the report digest",
+   "scenario": null,
+   "title": "scan_execution"
+  },
+  {
+   "id": "DIFF-7",
+   "new": "refused (SourceMismatch) before any of its bytes are used",
+   "original": "zipfile.getinfo keeps the last member of a name; the scan reads it without noticing the earlier one",
+   "reason": "physical occurrences are not deduplicated: which member's bytes the facts describe cannot be decided, so the scan refuses instead of silently choosing the last",
+   "scenario": null,
+   "title": "an archive with two members named like one DEX file of the dataset"
+  },
+  {
+   "id": "DIFF-8",
+   "new": "read_identities refuses both (SourceMismatch) before any fact is read",
+   "original": "session.files is a dict, so a repeated file_id keeps the last row silently; two equal names fall into the ambiguous-number refusal only after the scan has begun",
+   "reason": "a local id and a member name must each name exactly one source; the archive is read by name, so a shared name cannot be bound to one file's facts",
+   "scenario": null,
+   "title": "a file_id naming two DEX files, or two DEX files sharing one entry name"
+  }
+ ],
+ "gates": {
+  "accounting_refuses_a_saving": true,
+  "all_stand_in_gates_accepted": true,
+  "real_scripts": {
+   "pinned_sha256": {
+    "home": "85351a40067cd129284ec10cd9809a9d7497aebbc93252d0ea7442c488e2b6bc",
+    "intake": "36fce528921e54be5600bd37eb4b6273e97552d2a0701170130b798fcbbe0068"
+   },
+   "reason": "run_intake.py and home_frame_audit.py are not in this repository and need a real host APK; their pinned digests are recorded under inputs.gate_scripts_sha256",
+   "status": "not_run"
+  },
+  "reuse_benefit_seconds_counted": 0.0,
+  "reuse_status": "not_implemented (HL-12)",
+  "run_by": "integrations/hostlab/surface_gate.py",
+  "scripts_run_unchanged": true,
+  "scripts_run_unchanged_scope": "the two stand-in runs recorded under observed.gate_stand_in; the real gate scripts were not run",
+  "stand_in_runs": 2,
+  "stand_in_script_sha256": "cffcc80a15c884f8489dc4b4343ac814913cc9361af6a3e972c59e1708848c2a",
+  "timed": "from before the start to after the end, output read"
+ },
+ "inputs": {
+  "fixtures": {
+   "base.apk": {
+    "bytes": 4602,
+    "sha256": "60cb121bc8085f4d1dcd8d7362d563464abf0f8806dd1f1a8cebdb3bd434c989"
+   },
+   "duplicate-resource.apk": {
+    "bytes": 779,
+    "sha256": "6fe1735d75aae1307e0ab21481efaa596919318f8adba3e49ab6044ed87c4c19"
+   },
+   "fields-only.apk": {
+    "bytes": 745,
+    "sha256": "610d5dbd84bcf5f58193debfdabc437714580076ef5dddaea3239f4f027b01f7"
+   },
+   "plain.apk": {
+    "bytes": 552,
+    "sha256": "4765431b09905439e5be6fa4e43d7e9f2dca4a1a57d8dada34a891b41dc73c8f"
+   },
+   "target.apk": {
+    "bytes": 4692,
+    "sha256": "1ad897405c1252917eb1bbfefaed351512b607d2a16e08fd8fc67b907af6885c"
+   }
+  },
+  "frozen_sources": {
+   "conformance/corpus/hostlab/source-8782f43": {
+    "analysis_batch": "8f40845d1328cae8a06dd29830c5e636d962da3cc72194e16904f6fb23030a64",
+    "install_dexsql": "2c223b638023b325a782771e4751a6371c393cb46750d253695e4b7e7727f1ca",
+    "native_cli": "ca2b1cfb824c0da8f6ab00baeb6bbb24308c734b9ebc3ba4c5c7219d9503a3e3",
+    "native_graph": "bcad2ba7e9a02bff07e08291960cf25c2d8f36474d3a5295188d180ed7bdf085",
+    "native_session": "a30457b7ebf011b5a451e008eb99f5e78ee412cbeba85e5a5658714116145920",
+    "native_surface": "503521fdbb694ca825a65e259981155dc5ccbbf69c4797d23e3e598d1bdaf174"
+   },
+   "conformance/hostlab/surface-source-8782f43": {
+    "audit_common": "6f2468bfbaebf1cecab0fd9c5eaeb3afdc7f95fa2154aaee6e0b48613769b928",
+    "priority_analysis": "120f8e47da1869be02adb24da12952f0705ee89a1d89c2ae0de7580dc4434631",
+    "surface_workers": "8d520bfddec822fb4b59abb671b1e87d148997086a8d9cb9230c942e4db9d0d4"
+   }
+  },
+  "gate_scripts_sha256": {
+   "home": "85351a40067cd129284ec10cd9809a9d7497aebbc93252d0ea7442c488e2b6bc",
+   "intake": "36fce528921e54be5600bd37eb4b6273e97552d2a0701170130b798fcbbe0068"
+  },
+  "implementation": {
+   "conformance/hostlab/surface-goldens.json": "c000c86c85ef35abddd13b08eaf424d067acce126ce6d6838a840d856fd396f3",
+   "integrations/hostlab/surface_fake_serve.py": "e9b54277bfd66c8b3aacd433528c15138c1de35ab5e665a549a6f9bb617fbf84",
+   "integrations/hostlab/surface_gate.py": "e6409f44ff71c3c70eab107a32374e63106db31a51adb979763bf59b74ff92df",
+   "integrations/hostlab/surface_make_equivalence.py": "25b2483b67af1a976db26a3479efdb789ea9b47510fe7a0a1631493f900521f9",
+   "integrations/hostlab/surface_make_goldens.py": "22797a4301bfc8dfc91674929ae8c245fc7950b4ce9048ba343498cf4b611854",
+   "integrations/hostlab/surface_provider.py": "63c72cbb82be9b3911c80e69fc73b8c99d179d6fdf5373512dd19d2fec23acc1",
+   "integrations/hostlab/surface_support.py": "560057e827f7970cc81464212275dded1028d37c8f2934206dc426fe9d258f9e",
+   "tests/fixtures/surface/expected.json": "ad748f20a88de569b6229c00e61ad318103c7afaf16bd336ec9665e15655263c",
+   "tests/fixtures/surface/generate.py": "8663a5fe293cf9a0c8e655c953d952974fb8f1fd53cf971c13ea62816170931c"
+  },
+  "reference_engine": {
+   "name": "dexsql",
+   "sha256": "f354ebcf715de9a66ef8ebe08b2b36807ab58e25cd5a1c0812e497fc1fcfc448",
+   "version": "0.1.0"
+  },
+  "rule_sha256": "8d520bfddec822fb4b59abb671b1e87d148997086a8d9cb9230c942e4db9d0d4"
+ },
+ "not_proven": [
+  "no real host APK was available or fetched: every result is on the synthetic fixtures of tests/fixtures/surface (5 APKs, 1-2 DEX files each)",
+  "HostLab itself was not changed or run: run_surface is not wired into native_audit/analyze, and the real run_intake.py/home_frame_audit.py gates were not run (they need a host APK); the gate harness was exercised with a stand-in script",
+  "no performance claim: no timing is compared, and no saving for sharing facts with the gates is counted (HL-12 is not implemented)",
+  "the engine is the unqualified development build: every profile has admitted=false, so the run needs profile_policy=allow_unadmitted",
+  "the reference engine was run only to make the golden (local, not in the repository); Linux was not run on this machine (CI covers it)",
+  "the 041 container, DEX versions other than 035 and the 128 MiB per-DEX limit are refused as the original refuses them, but only the refusal of a non-admitted version is exercised on a fixture"
+ ],
+ "observed": {
+  "elapsed_ms_per_fixture": {
+   "base.apk": 193.0,
+   "duplicate-resource.apk": 123.9,
+   "fields-only.apk": 119.7,
+   "plain.apk": 121.9,
+   "target.apk": 186.0
+  },
+  "engine": {
+   "binary_sha256": "ef8159b3aa7035d1b6342fd791324964669881fe5c53cc706028c366299f707a",
+   "build_id": "source-sha256:4b8f794cb719cc7a8ccc1b55d118f41947eee58498103294e7289ed1480bc549",
+   "engine_version": "0.1.0-dev"
+  },
+  "gate_stand_in": {
+   "gate_stand_in_accounting": {
+    "all_gates_accepted": true,
+    "all_gates_finished": true,
+    "gate_reuse": {
+     "benefit_seconds_counted": 0.0,
+     "status": "not_implemented",
+     "task": "HL-12"
+    },
+    "gate_seconds": 0.21639850000065053,
+    "gates": [
+     {
+      "accepted": true,
+      "argv": [
+       "C:\\Users\\Administrator\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+       "-I",
+       "C:\\Users\\Administrator\\AppData\\Local\\Temp\\tmpciz11mwr\\gate.py",
+       "0.05",
+       "0"
+      ],
+      "exit_code": 0,
+      "name": "intake",
+      "script_sha256": "cffcc80a15c884f8489dc4b4343ac814913cc9361af6a3e972c59e1708848c2a",
+      "seconds": 0.11552010000013979,
+      "stderr_bytes": 12,
+      "stderr_sha256": "e99c2db6865fb97b3f1f8fb6e78a33109251200cc4fad899488b6a6bdf5c8883",
+      "stdout_bytes": 78,
+      "stdout_sha256": "dc0654d0b9feb2dc6d3e0318c3135cfa31e81dddab641c4110d949b655ba5b37",
+      "timed_out": false
+     },
+     {
+      "accepted": true,
+      "argv": [
+       "C:\\Users\\Administrator\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+       "-I",
+       "C:\\Users\\Administrator\\AppData\\Local\\Temp\\tmpciz11mwr\\gate.py",
+       "0.05",
+       "0"
+      ],
+      "exit_code": 0,
+      "name": "home",
+      "script_sha256": "cffcc80a15c884f8489dc4b4343ac814913cc9361af6a3e972c59e1708848c2a",
+      "seconds": 0.10087840000051074,
+      "stderr_bytes": 12,
+      "stderr_sha256": "e99c2db6865fb97b3f1f8fb6e78a33109251200cc4fad899488b6a6bdf5c8883",
+      "stdout_bytes": 78,
+      "stdout_sha256": "dc0654d0b9feb2dc6d3e0318c3135cfa31e81dddab641c4110d949b655ba5b37",
+      "timed_out": false
+     }
+    ],
+    "schema": "mdd.hostlab-surface-gate-accounting.v1",
+    "surface_seconds": 0.0,
+    "total_seconds": 0.21639850000065053
+   },
+   "gate_stand_in_runs": [
+    {
+     "accepted": true,
+     "argv": [
+      "C:\\Users\\Administrator\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+      "-I",
+      "C:\\Users\\Administrator\\AppData\\Local\\Temp\\tmpciz11mwr\\gate.py",
+      "0.05",
+      "0"
+     ],
+     "exit_code": 0,
+     "name": "intake",
+     "script_sha256": "cffcc80a15c884f8489dc4b4343ac814913cc9361af6a3e972c59e1708848c2a",
+     "seconds": 0.11552010000013979,
+     "stderr_bytes": 12,
+     "stderr_sha256": "e99c2db6865fb97b3f1f8fb6e78a33109251200cc4fad899488b6a6bdf5c8883",
+     "stdout_bytes": 78,
+     "stdout_sha256": "dc0654d0b9feb2dc6d3e0318c3135cfa31e81dddab641c4110d949b655ba5b37",
+     "timed_out": false
+    },
+    {
+     "accepted": true,
+     "argv": [
+      "C:\\Users\\Administrator\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+      "-I",
+      "C:\\Users\\Administrator\\AppData\\Local\\Temp\\tmpciz11mwr\\gate.py",
+      "0.05",
+      "0"
+     ],
+     "exit_code": 0,
+     "name": "home",
+     "script_sha256": "cffcc80a15c884f8489dc4b4343ac814913cc9361af6a3e972c59e1708848c2a",
+     "seconds": 0.10087840000051074,
+     "stderr_bytes": 12,
+     "stderr_sha256": "e99c2db6865fb97b3f1f8fb6e78a33109251200cc4fad899488b6a6bdf5c8883",
+     "stdout_bytes": 78,
+     "stdout_sha256": "dc0654d0b9feb2dc6d3e0318c3135cfa31e81dddab641c4110d949b655ba5b37",
+     "timed_out": false
+    }
+   ]
+  },
+  "or_chain_of_the_original_filter": {
+   "answered": true,
+   "exit_status": 0,
+   "statement_terms": 35
+  }
+ },
+ "results": {
+  "all_negative_controls_fail_as_required": true,
+  "all_report_hashes_equal": true,
+  "cross_version": {
+   "base.apk->base.apk": {
+    "classifications": [],
+    "equal_to_original": true,
+    "families_changed": [],
+    "resource_changes": {
+     "added": [],
+     "changed": [],
+     "removed": []
+    },
+    "verdict": {
+     "reasons": [
+      "unmapped_paths"
+     ],
+     "status": "REVIEW_REQUIRED"
+    }
+   },
+   "base.apk->target.apk": {
+    "classifications": [
+     "new_family_candidate",
+     "protocol_signature_or_call_path_changed",
+     "retired_family_candidate",
+     "structure_or_call_path_changed"
+    ],
+    "equal_to_original": true,
+    "families_changed": [
+     "comment_legacy_v2",
+     "comment_native_legacy",
+     "dynamic_other_legacy",
+     "home_new_frame",
+     "pgc_legacy",
+     "search_native",
+     "comment_java_moss"
+    ],
+    "resource_changes": {
+     "added": [
+      "res/layout/new.xml"
+     ],
+     "changed": [
+      "res/layout/a.xml"
+     ],
+     "removed": [
+      "res/xml/b.xml"
+     ]
+    },
+    "verdict": {
+     "reasons": [
+      "structure_or_protocol_drift",
+      "native_resource_drift",
+      "unmapped_paths"
+     ],
+     "status": "REVIEW_REQUIRED"
+    }
+   },
+   "target.apk->base.apk": {
+    "classifications": [
+     "new_family_candidate",
+     "protocol_signature_or_call_path_changed",
+     "retired_family_candidate",
+     "structure_or_call_path_changed"
+    ],
+    "equal_to_original": true,
+    "families_changed": [
+     "comment_legacy_v2",
+     "comment_native_legacy",
+     "dynamic_other_legacy",
+     "home_new_frame",
+     "pgc_legacy",
+     "search_native",
+     "comment_java_moss"
+    ],
+    "resource_changes": {
+     "added": [
+      "res/xml/b.xml"
+     ],
+     "changed": [
+      "res/layout/a.xml"
+     ],
+     "removed": [
+      "res/layout/new.xml"
+     ]
+    },
+    "verdict": {
+     "reasons": [
+      "structure_or_protocol_drift",
+      "native_resource_drift",
+      "unmapped_paths"
+     ],
+     "status": "REVIEW_REQUIRED"
+    }
+   }
+  },
+  "negative_controls": [
+   {
+    "damage": "one hex digit of the golden's report digest changed",
+    "fails_as_required": true,
+    "id": "golden-digest",
+    "observed": "report_sha256"
+   },
+   {
+    "damage": "one bit of one method's instructions changed in the DEX member",
+    "fails_as_required": true,
+    "id": "changed-byte",
+    "observed": "class_records[0].method_bodies_sha256"
+   },
+   {
+    "damage": "the entry names of the two DEX files swapped in the engine's facts",
+    "fails_as_required": true,
+    "id": "swapped-names",
+    "observed": "SourceMismatch"
+   },
+   {
+    "damage": "the facts of base.apk read with the DEX bytes of target.apk",
+    "fails_as_required": true,
+    "id": "foreign-bytes",
+    "observed": "SourceMismatch"
+   },
+   {
+    "damage": "rows of file_id 1 answering a question about file_id 0",
+    "fails_as_required": true,
+    "id": "row-of-another-file",
+    "observed": "SourceMismatch"
+   },
+   {
+    "damage": "code_items rows of file_id 1 answering a question about file_id 0",
+    "fails_as_required": true,
+    "id": "code-row-of-another-file",
+    "observed": "SourceMismatch"
+   },
+   {
+    "damage": "a condition nested 10 deep offered to the per-file reader (cap 9)",
+    "fails_as_required": true,
+    "id": "condition-too-deep",
+    "observed": "SurfaceError"
+   },
+   {
+    "damage": "65 OR terms offered to the balanced-tree builder (cap 64)",
+    "fails_as_required": true,
+    "id": "too-many-or-terms",
+    "observed": "SurfaceError"
+   },
+   {
+    "damage": "a saving for sharing facts with the gates passed to the accounting",
+    "fails_as_required": true,
+    "id": "gate-reuse-saving",
+    "observed": "ValueError"
+   },
+   {
+    "damage": "the original path's bare report placed where the new schema's entry belongs",
+    "fails_as_required": true,
+    "id": "bare-legacy-report-in-the-store",
+    "observed": "CacheMismatch"
+   },
+   {
+    "damage": "a result larger than the row budget asked of the real engine",
+    "fails_as_required": true,
+    "id": "row-budget",
+    "observed": "EngineFailure"
+   }
+  ],
+  "scenarios": {
+   "base.apk": {
+    "class_digests_equal_to_independent_recipe": true,
+    "engine_report_sha256": "e6ce195106a6063ba198cf75e565662f37934f4534f0b4be0b01f5342cbd5a04",
+    "first_difference": null,
+    "original": {
+     "exception": null,
+     "outcome": "report",
+     "report_sha256": "e6ce195106a6063ba198cf75e565662f37934f4534f0b4be0b01f5342cbd5a04"
+    },
+    "raw_insns": {
+     "bodies": 14,
+     "equal_to_fixture_bytes": true,
+     "methods_compared": 16,
+     "without_body": 2
+    },
+    "report_hash_equal_to_original": true,
+    "resources": {
+     "duplicate_names": [],
+     "equal_to_hand_made_hashes": true,
+     "equal_to_original_function": true,
+     "members": 4
+    },
+    "stand_in_report_sha256": "e6ce195106a6063ba198cf75e565662f37934f4534f0b4be0b01f5342cbd5a04"
+   },
+   "duplicate-resource.apk": {
+    "class_digests_equal_to_independent_recipe": true,
+    "engine_report_sha256": "7613dea2a06b6a91aa4fff0168f2564e0d0b3c44750da1806db14bae5cd0c85f",
+    "first_difference": null,
+    "original": {
+     "exception": null,
+     "outcome": "report",
+     "report_sha256": "7613dea2a06b6a91aa4fff0168f2564e0d0b3c44750da1806db14bae5cd0c85f"
+    },
+    "raw_insns": {
+     "bodies": 0,
+     "equal_to_fixture_bytes": true,
+     "methods_compared": 0,
+     "without_body": 0
+    },
+    "report_hash_equal_to_original": true,
+    "resources": {
+     "duplicate_names": [
+      "res/layout/a.xml"
+     ],
+     "equal_to_hand_made_hashes": true,
+     "equal_to_original_function": true,
+     "members": 1
+    },
+    "stand_in_report_sha256": "7613dea2a06b6a91aa4fff0168f2564e0d0b3c44750da1806db14bae5cd0c85f"
+   },
+   "fields-only.apk": {
+    "class_digests_equal_to_independent_recipe": true,
+    "engine_report_sha256": "ca7f7800b9d39da9a8af2a80b7abae614c82190d299b34c46f7b494b0b640ef5",
+    "first_difference": null,
+    "original": {
+     "exception": "KeyError",
+     "outcome": "raised",
+     "report_sha256": null
+    },
+    "raw_insns": {
+     "bodies": 0,
+     "equal_to_fixture_bytes": true,
+     "methods_compared": 0,
+     "without_body": 0
+    },
+    "report_hash_equal_to_original": false,
+    "resources": {
+     "duplicate_names": [],
+     "equal_to_hand_made_hashes": true,
+     "equal_to_original_function": true,
+     "members": 1
+    },
+    "stand_in_report_sha256": "ca7f7800b9d39da9a8af2a80b7abae614c82190d299b34c46f7b494b0b640ef5"
+   },
+   "plain.apk": {
+    "class_digests_equal_to_independent_recipe": true,
+    "engine_report_sha256": "32a51391ace6552d921874a59335f0f1daa020cc886b1cf8c7acc7a72eb0d329",
+    "first_difference": null,
+    "original": {
+     "exception": null,
+     "outcome": "report",
+     "report_sha256": "32a51391ace6552d921874a59335f0f1daa020cc886b1cf8c7acc7a72eb0d329"
+    },
+    "raw_insns": {
+     "bodies": 0,
+     "equal_to_fixture_bytes": true,
+     "methods_compared": 0,
+     "without_body": 0
+    },
+    "report_hash_equal_to_original": true,
+    "resources": {
+     "duplicate_names": [],
+     "equal_to_hand_made_hashes": true,
+     "equal_to_original_function": true,
+     "members": 0
+    },
+    "stand_in_report_sha256": "32a51391ace6552d921874a59335f0f1daa020cc886b1cf8c7acc7a72eb0d329"
+   },
+   "target.apk": {
+    "class_digests_equal_to_independent_recipe": true,
+    "engine_report_sha256": "e86a6789ee8a6f17bea04337da950bf132d69b81cecc26b211ebe0369bd01e7c",
+    "first_difference": null,
+    "original": {
+     "exception": null,
+     "outcome": "report",
+     "report_sha256": "e86a6789ee8a6f17bea04337da950bf132d69b81cecc26b211ebe0369bd01e7c"
+    },
+    "raw_insns": {
+     "bodies": 14,
+     "equal_to_fixture_bytes": true,
+     "methods_compared": 16,
+     "without_body": 2
+    },
+    "report_hash_equal_to_original": true,
+    "resources": {
+     "duplicate_names": [],
+     "equal_to_hand_made_hashes": true,
+     "equal_to_original_function": true,
+     "members": 4
+    },
+    "stand_in_report_sha256": "e86a6789ee8a6f17bea04337da950bf132d69b81cecc26b211ebe0369bd01e7c"
+   }
+  }
+ },
+ "rollback": {
+  "default": "dexsql",
+  "store_marker": "mdd.hostlab-surface-store.v1",
+  "store_schema": "mdd.hostlab-surface.v1",
+  "switch": "surface_provider (dexsql | meguvizdexdash), independent of native_engine"
+ },
+ "schema": "mdd.hostlab-surface-equivalence.v1",
+ "task": "MDD-052"
+}

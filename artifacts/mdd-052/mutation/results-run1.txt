@@ -1,0 +1,123 @@
+  1 killed: a family prefix is missing
+  2 killed: the feed leg is gone
+  3 killed: the legs lose their bplus condition
+  4 killed: the legs are ORed with their word
+  5 killed: the filter is a chain of ORs
+  6 killed: the tree is lopsided
+  7 killed: the tree drops a term
+  8 killed: a percent sign is not escaped
+  9 killed: an underscore is not escaped
+ 10 killed: the ESCAPE clause is missing
+ 11 killed: control characters in a literal are accepted
+ 12 killed: quotes in a literal are not doubled
+ 13 killed: the protocol pattern lost its semicolon
+ 14 killed: a member is cut at the last arrow
+ 15 killed: a method without parenthesis is not refused
+ 16 killed: a field type is cut at the last colon
+ 17 killed: negative numbers are accepted
+ 18 killed: booleans are numbers
+ 19 killed: non-ASCII digits are numbers
+ 20 killed: anything is text
+ 21 killed: a name without a number has no order
+ 22 killed: overloads are not spaced
+ 23 killed: an unparsable prototype is accepted
+ 24 killed: a file_id may name two DEX files
+ 25 killed: two DEX files may share a name
+ 26 killed: the length is not compared
+ 27 killed: the version is not compared
+ 28 killed: the checksum is not compared
+ 29 killed: the signature is not compared
+ 30 killed: the DEX version gate is gone
+ 31 killed: the DEX magic is not checked
+ 32 killed: bytes are not bound to the facts
+ 33 killed: an archive with two members of one name is read
+ 34 killed: the size limit of a DEX is gone
+ 35 killed: a row of another file passes
+ 36 killed: the code ranges are not bounded
+ 37 killed: rows outside the range are accepted
+ 38 killed: rows of other methods are kept
+ 39 killed: two code rows are accepted
+ 40 killed: instruction size is taken as bytes
+ 41 killed: a logical DEX name is accepted
+ 42 killed: an ambiguous DEX number is accepted
+ 43 killed: files are ordered as text
+ 44 killed: a class defined twice is accepted
+ 45 killed: a method defined twice is accepted
+ 46 killed: one method_idx may name two methods
+ 47 killed: the engine's file_id is reported
+ 48 killed: edges carry the engine's file_id
+ 49 killed: the last DEX file is dropped
+ 50 killed: fields are not sorted
+ 51 killed: methods are not sorted
+ 52 killed: overloads are visited in plain order
+ 53 killed: name and prototype are not hashed
+ 54 killed: bodies are not hashed
+ 55 killed: the code interval is not checked
+ 56 killed: odd offsets are accepted
+ 57 killed: an interval may end past the DEX
+ 58 killed: every method is a Composer method
+ 59 killed: every caller is external
+ 60 killed: unregistered protocols are not recognised
+ 61 killed: the call count is one
+ 62 killed: an edge loses its target prototype
+ 63 killed: any Moss owner is a definition
+ 64 killed: an unregistered definition has no owner
+ 65 killed: any xml is a resource
+ 66 killed: any file named like resources.arsc is a resource
+ 67 killed: the size of a resource is not counted
+ 68 killed: duplicate names are not reported
+ 69 killed: timing is part of the report's identity
+ 70 killed: the identity depends on key order
+ 71 killed: a list longer than the other is the same
+ 72 killed: a missing key is not a difference
+ 73 killed: a type change is not a difference
+ 74 killed: protocol signatures stay lists
+ 75 killed: twin signatures stay lists
+ 76 killed: page matrix signatures stay lists
+ 77 killed: edges stay lists
+ 78 killed: class record fields stay lists
+ 79 killed: i64 cells are refused
+ 80 killed: a null cell is an empty text
+ 81 killed: an error status is not an error
+ 82 killed: partial input coverage is complete
+ 83 killed: partial fact coverage is complete
+ 84 killed: an incomplete execution is complete
+ 85 killed: more available rows are not truncation
+ 86 killed: a truncated result is complete
+ 87 killed: the emitted rows are not counted
+ 88 killed: the row budget is not enforced
+ 89 killed: another snapshot's answer is accepted
+ 90 killed: a rejected request is not an error
+ 91 killed: an answer for another request is accepted
+ 92 killed: the columns may change between batches
+ 93 killed: a row of the wrong width is accepted
+ 94 killed: duplicate column names are accepted
+ 95 killed: the byte budget is not enforced
+ 96 killed: an unknown line kind is a terminal
+ 97 killed: a statement without an order is sent
+ 98 killed: the budgets are not sent
+ 99 killed: any opening line is accepted
+100 killed: layers that could not be built are accepted
+101 killed: another dialect is accepted
+102 killed: a line that is not an object is accepted
+103 killed: an engine that exits with an error after close is fine
+Traceback (most recent call last):
+  File "D:\DevArea\MeguvisDexDash\.claude\worktrees\mdd-052-surface-16469e\artifacts\mdd-052\mutation\mutate_surface.py", line 270, in <module>
+    sys.exit(main(sys.argv[1:]))
+             ~~~~^^^^^^^^^^^^^^
+  File "D:\DevArea\MeguvisDexDash\.claude\worktrees\mdd-052-surface-16469e\artifacts\mdd-052\mutation\mutate_surface.py", line 251, in main
+    if not run_tests(OFFLINE):
+           ~~~~~~~~~^^^^^^^^^
+  File "D:\DevArea\MeguvisDexDash\.claude\worktrees\mdd-052-surface-16469e\artifacts\mdd-052\mutation\mutate_surface.py", line 200, in run_tests
+    done = subprocess.run([sys.executable, "-I", "-W", "error", "-m", "unittest", "discover", "-s", str(HOSTLAB), "-p", pattern, "-f"],
+                          capture_output=True, text=True, cwd=str(REPO), timeout=1200)
+  File "C:\Users\Administrator\AppData\Local\Programs\Python\Python313\Lib\subprocess.py", line 556, in run
+    stdout, stderr = process.communicate(input, timeout=timeout)
+                     ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Administrator\AppData\Local\Programs\Python\Python313\Lib\subprocess.py", line 1222, in communicate
+    stdout, stderr = self._communicate(input, endtime, timeout)
+                     ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Administrator\AppData\Local\Programs\Python\Python313\Lib\subprocess.py", line 1665, in _communicate
+    raise TimeoutExpired(self.args, orig_timeout)
+subprocess.TimeoutExpired: Command '['C:\\Users\\Administrator\\AppData\\Local\\Programs\\Python\\Python313\\python.exe', '-I', '-W', 'error', '-m', 'unittest', 'discover', '-s', 'D:\\DevArea\\MeguvisDexDash\\.claude\\worktrees\\mdd-052-surface-16469e\\integrations\\hostlab', '-p', 'test_surface_[pgs]*.py', '-f']' timed out after 1200 seconds
+exit 1

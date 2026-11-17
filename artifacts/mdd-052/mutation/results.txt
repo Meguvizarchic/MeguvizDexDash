@@ -1,0 +1,170 @@
+# MDD-052 surface mutation check (full run; results-run1.txt is the interrupted historical part-run)
+# semantics: KILLED = the offline suite fails, or (for an offline survivor) the live suite fails; a suite that
+#   hangs past 1200 s is killed whole (process tree) and counts as KILLED (timeout/hang) - a hang is a detection.
+# interpreter: D:\DevArea\MeguvisDexDash\.venv\Scripts\python.exe
+# offline pattern: test_surface_[pgs]*.py ; live: test_surface_live.py
+# mutants: 160
+  1 killed: a family prefix is missing
+  2 killed: the feed leg is gone
+  3 killed: the legs lose their bplus condition
+  4 killed: the legs are ORed with their word
+  5 killed: the filter is a chain of ORs
+  6 killed: the tree is lopsided
+  7 killed: the tree drops a term
+  8 killed: a percent sign is not escaped
+  9 killed: an underscore is not escaped
+ 10 killed: the ESCAPE clause is missing
+ 11 killed: control characters in a literal are accepted
+ 12 killed: quotes in a literal are not doubled
+ 13 killed: the protocol pattern lost its semicolon
+ 14 killed: a member is cut at the last arrow
+ 15 killed: a method without parenthesis is not refused
+ 16 killed: a field type is cut at the last colon
+ 17 killed: negative numbers are accepted
+ 18 killed: booleans are numbers
+ 19 killed: non-ASCII digits are numbers
+ 20 killed: anything is text
+ 21 killed: a name without a number has no order
+ 22 killed: overloads are not spaced
+ 23 killed: an unparsable prototype is accepted
+ 24 killed: a file_id may name two DEX files
+ 25 killed: two DEX files may share a name
+ 26 killed: the length is not compared
+ 27 killed: the version is not compared
+ 28 killed: the checksum is not compared
+ 29 killed: the signature is not compared
+ 30 killed: the DEX version gate is gone
+ 31 killed: the DEX magic is not checked
+ 32 killed: bytes are not bound to the facts
+ 33 killed: an archive with two members of one name is read
+ 34 killed: the size limit of a DEX is gone
+ 35 killed: a row of another file passes
+ 36 killed: the code ranges are not bounded
+ 37 killed: rows outside the range are accepted
+ 38 killed: rows of other methods are kept
+ 39 killed: two code rows are accepted
+ 40 killed: instruction size is taken as bytes
+ 41 killed: a logical DEX name is accepted
+ 42 killed: an ambiguous DEX number is accepted
+ 43 killed: files are ordered as text
+ 44 killed: a class defined twice is accepted
+ 45 killed: a method defined twice is accepted
+ 46 killed: one method_idx may name two methods
+ 47 killed: the engine's file_id is reported
+ 48 killed: edges carry the engine's file_id
+ 49 killed: the last DEX file is dropped
+ 50 killed: fields are not sorted
+ 51 killed: methods are not sorted
+ 52 killed: overloads are visited in plain order
+ 53 killed: name and prototype are not hashed
+ 54 killed: bodies are not hashed
+ 55 killed: the code interval is not checked
+ 56 killed: odd offsets are accepted
+ 57 killed: an interval may end past the DEX
+ 58 killed: every method is a Composer method
+ 59 killed: every caller is external
+ 60 killed: unregistered protocols are not recognised
+ 61 killed: the call count is one
+ 62 killed: an edge loses its target prototype
+ 63 killed: any Moss owner is a definition
+ 64 killed: an unregistered definition has no owner
+ 65 killed: any xml is a resource
+ 66 killed: any file named like resources.arsc is a resource
+ 67 killed: the size of a resource is not counted
+ 68 killed: duplicate names are not reported
+ 69 killed: timing is part of the report's identity
+ 70 killed: the identity depends on key order
+ 71 killed: a list longer than the other is the same
+ 72 killed: a missing key is not a difference
+ 73 killed: a type change is not a difference
+ 74 killed: protocol signatures stay lists
+ 75 killed: twin signatures stay lists
+ 76 killed: page matrix signatures stay lists
+ 77 killed: edges stay lists
+ 78 killed: class record fields stay lists
+ 79 killed: i64 cells are refused
+ 80 killed: a null cell is an empty text
+ 81 killed: an error status is not an error
+ 82 killed: partial input coverage is complete
+ 83 killed: partial fact coverage is complete
+ 84 killed: an incomplete execution is complete
+ 85 killed: more available rows are not truncation
+ 86 killed: a truncated result is complete
+ 87 killed: the emitted rows are not counted
+ 88 killed: the row budget is not enforced
+ 89 killed: another snapshot's answer is accepted
+ 90 killed: a rejected request is not an error
+ 91 killed: an answer for another request is accepted
+ 92 killed: the columns may change between batches
+ 93 killed: a row of the wrong width is accepted
+ 94 killed: duplicate column names are accepted
+ 95 killed: the byte budget is not enforced
+ 96 killed: an unknown line kind is a terminal
+ 97 killed: a statement without an order is sent
+ 98 killed: the budgets are not sent
+ 99 killed: any opening line is accepted
+100 killed: layers that could not be built are accepted
+101 killed: another dialect is accepted
+102 killed: a line that is not an object is accepted
+103 killed: an engine that exits with an error after close is fine
+104 killed (timeout/hang, offline suite stopped at 1200 s): a failed session leaves the engine running
+105 killed: the deadline is passed in seconds
+106 killed: an over-long line is read
+107 killed: the source is not checked before
+108 killed: the source is not checked after
+109 killed: the physical DEX inventory is not compared
+110 killed: a stored result is not reused
+111 killed: the original path may run without HostLab's scan
+112 killed: the original path is labelled as the engine
+113 killed: the original path stores its result
+114 killed: the store is used when evidence is asked for
+115 killed: a conflicting stored result is ignored
+116 killed: the store ignores the rule hash
+117 killed: the store ignores the engine build
+118 killed: the store ignores the engine binary
+119 killed: the store ignores the dialect
+120 killed: a stored entry of another schema is read
+121 killed: a stored entry of another source is read
+122 killed: a stored entry of other rules is read
+123 killed: a stored entry of another build is read
+124 killed: a stored report that does not match its digest is read
+125 killed: a directory of another schema is taken over
+126 killed: a stored report keeps its lists
+127 killed: an entry is saved without being checked
+128 killed: the surface switch accepts other providers
+129 killed: the surface switch accepts other keys
+130 killed: the surface switch defaults to the engine
+131 killed: the surface switch has no schema
+132 killed: the comparison has no resource changes
+133 killed: the time is not taken
+134 killed: the time stops early
+135 killed: a time-out has an exit status
+136 killed: a time-out is finished
+137 killed: only exit 0 is accepted
+138 killed: the home gate may exit 1
+139 killed: a gate that is not the pinned one runs
+140 killed: a gate may change while it runs
+141 killed: a negative saving is tolerated
+142 killed: a negative duration is tolerated
+143 killed: the gates are not in the total
+144 killed: only the slowest gate counts
+145 killed: every gate finished
+146 killed: a benefit is counted
+147 killed: the log of stdout is stderr
+148 killed: the gate gets an environment of its own
+149 killed: the gate ignores its directory
+150 killed: the evidence may name a gate twice
+151 killed: code rows are not checked against their file
+152 killed: code_items are read without their file_id
+153 killed: the OR term cap is gone
+154 killed: the OR term cap is raised
+155 killed: an empty OR tree is accepted
+156 killed: the SQL depth cap is gone
+157 killed: the SQL depth cap is raised
+158 killed: the depth measure keeps the last level
+159 killed: a page_size override is silently ignored
+160 killed: the request write has no deadline
+live suite: run
+survivors: []
+totals: 160 mutants, 160 killed (1 by timeout/hang), 0 survived
+sources sha256: 93396c4d27fff56e3feab631ef7c48c7eeae0fc1df85773d999bf4e35559cbbb

@@ -1,0 +1,1148 @@
+{
+ "files": {
+  "base.apk": {
+   "bytes": 4602,
+   "dex": {
+    "classes.dex": [
+     {
+      "descriptor": "Lcom/bilibili/app/comm/comment2/Holder;",
+      "expected_family": "comment_legacy_v2",
+      "fields": [
+       [
+        "COUNT",
+        "I"
+       ],
+       [
+        "tag",
+        "Ljava/lang/String;"
+       ]
+      ],
+      "method_bodies_sha256": "090386adca08a2c14653e8581056cf5addbfed6e95efbf705d091870a4fd41b3",
+      "methods": [
+       {
+        "access": 65537,
+        "body": "present",
+        "calls": [
+         "Ljava/lang/Object;-><init>()V"
+        ],
+        "insns_hex": "70100f0000000e00",
+        "insns_off": 952,
+        "insns_sha256": "abec4b251d26e286d3e322f55c8044b4853c716399b72c42c5f3e7eb50603baa",
+        "insns_units": 4,
+        "method_idx": 4,
+        "name": "<init>",
+        "proto": "()V"
+       },
+       {
+        "access": 1,
+        "body": "present",
+        "calls": [
+         "Lcom/bapis/bilibili/main/community/reply/v1/ReplyMoss;->fetch(Ljava/lang/String;)V"
+        ],
+        "insns_hex": "71100100010000000e00",
+        "insns_off": 976,
+        "insns_sha256": "2aa8dd29017abd1ae21d8529eb1672183dd6416c78312e9e6114071576302880",
+        "insns_units": 5,
+        "method_idx": 5,
+        "name": "bind",
+        "proto": "(Ljava/lang/String;I)V"
+       },
+       {
+        "access": 1,
+        "body": "present",
+        "calls": [],
+        "insns_hex": "12100e00",
+        "insns_off": 1004,
+        "insns_sha256": "85f1520d9439cdd83a25f66d1a12861925afe29468cb7cdf751f5568e3451851",
+        "insns_units": 2,
+        "method_idx": 8,
+        "name": "m",
+        "proto": "(I)V"
+       },
+       {
+        "access": 1,
+        "body": "present",
+        "calls": [],
+        "insns_hex": "12200e00",
+        "insns_off": 1024,
+        "insns_sha256": "44cb782d7b294cb2ec2c981b55d808a2fff50cff2f08639d662b2f591cf07513",
+        "insns_units": 2,
+        "method_idx": 9,
+        "name": "m",
+        "proto": "(IJ)V"
+       },
+       {
+        "access": 1025,
+        "body": "none",
+        "calls": [],
+        "insns_hex": null,
+        "insns_off": null,
+        "insns_sha256": null,
+        "insns_units": null,
+        "method_idx": 6,
+        "name": "hook",
+        "proto": "(I)V"
+       },
+       {
+        "access": 257,
+        "body": "none",
+        "calls": [],
+        "insns_hex": null,
+        "insns_off": null,
+        "insns_sha256": null,
+        "insns_units": null,
+        "method_idx": 7,
+        "name": "jni",
+        "proto": "()I"
+       }
+      ]
+     },
+     {
+      "descriptor": "Lcom/bilibili/app/comment3/ui/holder/Item;",
+      "expected_family": "comment_native_legacy",
+      "fields": [],
+      "method_bodies_sha256": "0242bd53ec8b2c42ed4dd55a18fcd98f32a5b095387cd4b7d95bf037b411b511",
+      "methods": [
+       {
+        "access": 1,
+        "body": "present",
+        "calls": [
+         "Lcom/bilibili/app/comm/comment2/Holder;->bind(Ljava/lang/String;I)V"
+        ],
+        "insns_hex": "6e30050010020e00",
+        "insns_off": 1044,
+        "insns_sha256": "00f8eac21468054d794448a8b245e6bff336d4e7e97f999e6749c58fafd9a4d0",
+        "insns_units": 4,
+        "method_idx": 10,
+        "name": "render",
+        "proto": "(Landroidx/compose/runtime/Composer;I)V"
+       }
+      ]
+     },
+     {
+      "descriptor": "Lcom/bilibili/app/comment3/ui/other/Z;",
+      "expected_family": "comment_other_ui:other",
+      "fields": [],
+      "method_bodies_sha256": "318fcb25a6adad0db10673073d71e22cdee1dee007271e9e305dc0843f1078b0",
+      "methods": [
+       {
+        "access": 1,
+        "body": "present",
+        "calls": [],
+        "insns_hex": "0e00",
+        "insns_off": 1068,
+        "insns_sha256": "7a2a7c0a81d1bd595dff09b918f8ecb5b5e8493654a4f83496956ed8eb017674",
+        "insns_units": 1,
+        "method_idx": 11,
+        "name": "x",
+        "proto": "()V"
+       }
+      ]
+     },
+     {
+      "descriptor": "Lkntr/common/comment/Panel;",
+      "expected_family": "comment_compose",
+      "fields": [],
+      "method_bodies_sha256": "6f8e787888df242b3cb4b8bb68389c2bb70200088ac97f67f312a100f1b65a72",
+      "methods": [
+       {
+        "access": 9,
+        "body": "present",
+        "calls": [
+         "Lcom/bapis/bilibili/main/community/reply/v1/KReplyMoss;->list()V"
+        ],
+        "insns_hex": "7100000000000e00",
+        "insns_off": 1088,
+        "insns_sha256": "83b18947a1373174940d0b274622d80ff5f8851bde2eaf255931b5e784ccf2fb",
+        "insns_units": 4,
+        "method_idx": 17,
+        "name": "Content",
+        "proto": "(Landroidx/compose/runtime/Composer;I)V"
+       }
+      ]
+     },
+     {
+      "descriptor": "Lcom/bilibili/bplus/dynamicFoo/Card;",
+      "expected_family": "dynamic_other_legacy",
+      "fields": [
+       [
+        "id",
+        "J"
+       ]
+      ],
+      "method_bodies_sha256": "a1cedbf4bebfaab1fa76d9e9de872bbc669941ff20c9b3ea962c2a68c341b4ea",
+      "methods": [
+       {
+        "access": 1,
+        "body": "present",
+        "calls": [
+         "Lcom/bapis/bilibili/zzz/FooMoss;->ping()V"
+        ],
+        "insns_hex": "7100030000000e00",
+        "insns_off": 1112,
+        "insns_sha256": "5e12e7536a66788ed4e01f1ff541ec57d0fd9529010837ab6baae385a2957053",
+        "insns_units": 4,
+        "method_idx": 12,
+        "name": "bind",
+        "proto": "()V"
+       }
+      ]
+     },
+     {
+      "descriptor": "Lkntr/app/following/Misc;",
+      "expected_family": "dynamic_other:(root)",
+      "fields": [],
+      "method_bodies_sha256": "69dd57c07e82aa5bb0a2c76684722f9f953f2bdfcfa208dc4c36cfe8ba8c22d2",
+      "methods": [
+       {
+        "access": 1,
+        "body": "present",
+        "calls": [
+         "Lkntr/app/following/Misc;->y()V"
+        ],
+        "insns_hex": "6e10100000000e00",
+        "insns_off": 1136,
+        "insns_sha256": "e08cbcd4f762e9762d8c1704b1efbb22b424e13ed0156fc15a020ba73c92ca4c",
+        "insns_units": 4,
+        "method_idx": 16,
+        "name": "y",
+        "proto": "()V"
+       }
+      ]
+     },
+     {
+      "descriptor": "Lcom/bapis/bilibili/main/community/reply/v1/ReplyMoss;",
+      "expected_family": null,
+      "fields": [],
+      "method_bodies_sha256": "e1b538beada82b4c8f73acd60122eb95f4e3012094aa434d32a28d98d92a9d91",
+      "methods": [
+       {
+        "access": 9,
+        "body": "present",
+        "calls": [],
+        "insns_hex": "0e00",
+        "insns_off": 1160,
+        "insns_sha256": "7a2a7c0a81d1bd595dff09b918f8ecb5b5e8493654a4f83496956ed8eb017674",
+        "insns_units": 1,
+        "method_idx": 1,
+        "name": "fetch",
+        "proto": "(Ljava/lang/String;)V"
+       },
+       {
+        "access": 9,
+        "body": "present",
+        "calls": [],
+        "insns_hex": "0e00",
+        "insns_off": 1180,
+        "insns_sha256": "7a2a7c0a81d1bd595dff09b918f8ecb5b5e8493654a4f83496956ed8eb017674",
+        "insns_units": 1,
+        "method_idx": 2,
+        "name": "list",
+        "proto": "()V"
+       }
+      ]
+     },
+     {
+      "descriptor": "Lcom/bapis/bilibili/main/community/reply/v1/KReplyMoss;",
+      "expected_family": null,
+      "fields": [],
+      "method_bodies_sha256": "b5e7c26dbdd1531a055b1f547419871e4122626420b3a0b4b71d749b95f11df6",
+      "methods": [
+       {
+        "access": 9,
+        "body": "present",
+        "calls": [],
+        "insns_hex": "0e00",
+        "insns_off": 1200,
+        "insns_sha256": "7a2a7c0a81d1bd595dff09b918f8ecb5b5e8493654a4f83496956ed8eb017674",
+        "insns_units": 1,
+        "method_idx": 0,
+        "name": "list",
+        "proto": "()V"
+       }
+      ]
+     },
+     {
+      "descriptor": "Lcom/bapis/bilibili/zzz/FooMoss;",
+      "expected_family": null,
+      "fields": [],
+      "method_bodies_sha256": "1d1e1ffa6c833f3906af0eea187e380021223e07003fc77ff021a0d43f15750c",
+      "methods": [
+       {
+        "access": 9,
+        "body": "present",
+        "calls": [],
+        "insns_hex": "0e00",
+        "insns_off": 1220,
+        "insns_sha256": "7a2a7c0a81d1bd595dff09b918f8ecb5b5e8493654a4f83496956ed8eb017674",
+        "insns_units": 1,
+        "method_idx": 3,
+        "name": "ping",
+        "proto": "()V"
+       }
+      ]
+     },
+     {
+      "descriptor": "Lcom/example/Caller;",
+      "expected_family": null,
+      "fields": [],
+      "method_bodies_sha256": "f8c95dc25d2a4ad6b5fc05fb6e2cb05628b01fd6edcd9954083b7ac92ddc4cc1",
+      "methods": [
+       {
+        "access": 9,
+        "body": "present",
+        "calls": [
+         "Lcom/bapis/bilibili/main/community/reply/v1/ReplyMoss;->fetch(Ljava/lang/String;)V",
+         "Lcom/bapis/bilibili/zzz/FooMoss;->ping()V",
+         "Lcom/bilibili/app/comm/comment2/Holder;->bind(Ljava/lang/String;I)V"
+        ],
+        "insns_hex": "7110010000007100030000007403050000000e00",
+        "insns_off": 1240,
+        "insns_sha256": "67f4c9dbc6bf9218189a8e9864c1b3653371f43a6c2ae3b234decf0c20b73be4",
+        "insns_units": 10,
+        "method_idx": 14,
+        "name": "run",
+        "proto": "()V"
+       },
+       {
+        "access": 1,
+        "body": "present",
+        "calls": [],
+        "insns_hex": "0e00",
+        "insns_off": 1276,
+        "insns_sha256": "7a2a7c0a81d1bd595dff09b918f8ecb5b5e8493654a4f83496956ed8eb017674",
+        "insns_units": 1,
+        "method_idx": 13,
+        "name": "plain",
+        "proto": "()V"
+       }
+      ]
+     }
+    ],
+    "classes2.dex": [
+     {
+      "descriptor": "Lcom/bilibili/app/comm/comment2/Holder;",
+      "expected_family": "comment_legacy_v2",
+      "fields": [
+       [
+        "tag",
+        "Ljava/lang/String;"
+       ]
+      ],
+      "method_bodies_sha256": "668afcfcde51410f2880ae19b9527b3dc22f653eead32f29d5dcd9ab10f8c7f8",
+      "methods": [
+       {
+        "access": 65537,
+        "body": "present",
+        "calls": [
+         "Ljava/lang/Object;-><init>()V"
+        ],
+        "insns_hex": "7010080000000e00",
+        "insns_off": 552,
+        "insns_sha256": "e84b9067378abb59a6d041c9e19ca1e6891b78204e69b9ce12c99bceae6a3bec",
+        "insns_units": 4,
+        "method_idx": 2,
+        "name": "<init>",
+        "proto": "()V"
+       },
+       {
+        "access": 1,
+        "body": "present",
+        "calls": [],
+        "insns_hex": "000000000e00",
+        "insns_off": 576,
+        "insns_sha256": "df3fdff10fd57331a5299b44ac223972f466dacd6b6036bb7baac6e2844470c5",
+        "insns_units": 3,
+        "method_idx": 3,
+        "name": "other",
+        "proto": "()V"
+       }
+      ]
+     },
+     {
+      "descriptor": "Ltv/danmaku/bili/khome/Home;",
+      "expected_family": "home_new_frame",
+      "fields": [],
+      "method_bodies_sha256": "24889a2d737bc4ecf3db84d03f65c308fa05224a48ff066646143d5d9b715a5f",
+      "methods": [
+       {
+        "access": 1,
+        "body": "present",
+        "calls": [
+         "Lcom/bapis/bilibili/main/community/reply/v1/ReplyMoss;->other(I)V"
+        ],
+        "insns_hex": "7110010001000e00",
+        "insns_off": 600,
+        "insns_sha256": "cd1ed8453c98f7eb15c406dbb805b89676664db40b44ee570d1c6f1853e7ae41",
+        "insns_units": 4,
+        "method_idx": 9,
+        "name": "show",
+        "proto": "()V"
+       }
+      ]
+     },
+     {
+      "descriptor": "Lcom/bilibili/search2/Feed;",
+      "expected_family": "search_native",
+      "fields": [
+       [
+        "rows",
+        "I"
+       ]
+      ],
+      "method_bodies_sha256": "4afc7337281cc8a0c36e48c18941ab329966173a06daf848bbcb15a0a8f6d02c",
+      "methods": [
+       {
+        "access": 1,
+        "body": "present",
+        "calls": [
+         "Lcom/bapis/bilibili/main/community/reply/v1/KReplyMoss;->list()V",
+         "Lcom/bilibili/app/comm/comment2/Holder;->other()V"
+        ],
+        "insns_hex": "7100000000006e10030000000e00",
+        "insns_off": 624,
+        "insns_sha256": "b1441ad3237efab51438e11a23aad520203f41d50541bf1e047714042aefde20",
+        "insns_units": 7,
+        "method_idx": 5,
+        "name": "load",
+        "proto": "()V"
+       },
+       {
+        "access": 1,
+        "body": "present",
+        "calls": [],
+        "insns_hex": "12300e00",
+        "insns_off": 656,
+        "insns_sha256": "98acf74aaabe86668c2d449952ae8ab161a06cd31f86123c4496412bbfa10f0d",
+        "insns_units": 2,
+        "method_idx": 4,
+        "name": "count",
+        "proto": "()I"
+       }
+      ]
+     },
+     {
+      "descriptor": "Lcom/bapis/bilibili/main/community/reply/v1/ReplyMoss;",
+      "expected_family": null,
+      "fields": [],
+      "method_bodies_sha256": "858a2d34e47503b08d2c3e49dd06976466cbd70e8cf00f8f36ad06e15f6a3b12",
+      "methods": [
+       {
+        "access": 9,
+        "body": "present",
+        "calls": [],
+        "insns_hex": "0e00",
+        "insns_off": 676,
+        "insns_sha256": "7a2a7c0a81d1bd595dff09b918f8ecb5b5e8493654a4f83496956ed8eb017674",
+        "insns_units": 1,
+        "method_idx": 1,
+        "name": "other",
+        "proto": "(I)V"
+       }
+      ]
+     },
+     {
+      "descriptor": "Lcom/example/Plain;",
+      "expected_family": null,
+      "fields": [],
+      "method_bodies_sha256": "da218bd66ac021d6fab3eb082ba2d1d2b3ba77961f4756d7065d1ff53c629737",
+      "methods": [
+       {
+        "access": 1,
+        "body": "present",
+        "calls": [],
+        "insns_hex": "0e00",
+        "insns_off": 696,
+        "insns_sha256": "7a2a7c0a81d1bd595dff09b918f8ecb5b5e8493654a4f83496956ed8eb017674",
+        "insns_units": 1,
+        "method_idx": 6,
+        "name": "a",
+        "proto": "()V"
+       },
+       {
+        "access": 1,
+        "body": "present",
+        "calls": [],
+        "insns_hex": "0e00",
+        "insns_off": 716,
+        "insns_sha256": "7a2a7c0a81d1bd595dff09b918f8ecb5b5e8493654a4f83496956ed8eb017674",
+        "insns_units": 1,
+        "method_idx": 7,
+        "name": "b",
+        "proto": "()V"
+       }
+      ]
+     }
+    ]
+   },
+   "members": [
+    "classes.dex",
+    "classes2.dex",
+    "resources.arsc",
+    "res/layout/a.xml",
+    "res/xml/b.xml",
+    "res/layout/empty.xml",
+    "res/raw/blob.bin",
+    "res/drawable/not_xml.png",
+    "assets/c.xml",
+    "AndroidManifest.xml"
+   ],
+   "resource_sha256": {
+    "res/layout/a.xml": "c6a59aa59d249cd96b279ea9972b31c26bff4eec58f3e8cc72e0f3e106a53a75",
+    "res/layout/empty.xml": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "res/xml/b.xml": "de8cca76a0ba2eb535509354b22a786f6acd1c886e459a7d7ceae446fd793eb4",
+    "resources.arsc": "fbcf0aa399af14945952b7353aa10611124c1f304e931b1921ad5cad28a50352"
+   },
+   "sha256": "60cb121bc8085f4d1dcd8d7362d563464abf0f8806dd1f1a8cebdb3bd434c989"
+  },
+  "duplicate-resource.apk": {
+   "bytes": 779,
+   "dex": {
+    "classes.dex": [
+     {
+      "descriptor": "Lcom/example/Plain;",
+      "expected_family": null,
+      "fields": [],
+      "method_bodies_sha256": "da218bd66ac021d6fab3eb082ba2d1d2b3ba77961f4756d7065d1ff53c629737",
+      "methods": [
+       {
+        "access": 1,
+        "body": "present",
+        "calls": [],
+        "insns_hex": "0e00",
+        "insns_off": 220,
+        "insns_sha256": "7a2a7c0a81d1bd595dff09b918f8ecb5b5e8493654a4f83496956ed8eb017674",
+        "insns_units": 1,
+        "method_idx": 0,
+        "name": "a",
+        "proto": "()V"
+       },
+       {
+        "access": 1,
+        "body": "present",
+        "calls": [],
+        "insns_hex": "0e00",
+        "insns_off": 240,
+        "insns_sha256": "7a2a7c0a81d1bd595dff09b918f8ecb5b5e8493654a4f83496956ed8eb017674",
+        "insns_units": 1,
+        "method_idx": 1,
+        "name": "b",
+        "proto": "()V"
+       }
+      ]
+     }
+    ]
+   },
+   "members": [
+    "classes.dex",
+    "res/layout/a.xml",
+    "res/layout/a.xml"
+   ],
+   "resource_sha256": {
+    "res/layout/a.xml": "16367aacb67a4a017c8da8ab95682ccb390863780f7114dda0a0e0c55644c7c4"
+   },
+   "sha256": "6fe1735d75aae1307e0ab21481efaa596919318f8adba3e49ab6044ed87c4c19"
+  },
+  "fields-only.apk": {
+   "bytes": 745,
+   "dex": {
+    "classes.dex": [
+     {
+      "descriptor": "Lcom/bilibili/app/comm/comment2/Holder;",
+      "expected_family": "comment_legacy_v2",
+      "fields": [
+       [
+        "COUNT",
+        "I"
+       ],
+       [
+        "tag",
+        "Ljava/lang/String;"
+       ]
+      ],
+      "method_bodies_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "methods": []
+     },
+     {
+      "descriptor": "Lcom/bilibili/bplus/dynamicFoo/Card;",
+      "expected_family": "dynamic_other_legacy",
+      "fields": [
+       [
+        "id",
+        "J"
+       ]
+      ],
+      "method_bodies_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "methods": []
+     }
+    ]
+   },
+   "members": [
+    "classes.dex",
+    "resources.arsc"
+   ],
+   "resource_sha256": {
+    "resources.arsc": "6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d"
+   },
+   "sha256": "610d5dbd84bcf5f58193debfdabc437714580076ef5dddaea3239f4f027b01f7"
+  },
+  "plain.apk": {
+   "bytes": 552,
+   "dex": {
+    "classes.dex": [
+     {
+      "descriptor": "Lcom/example/Plain;",
+      "expected_family": null,
+      "fields": [],
+      "method_bodies_sha256": "da218bd66ac021d6fab3eb082ba2d1d2b3ba77961f4756d7065d1ff53c629737",
+      "methods": [
+       {
+        "access": 1,
+        "body": "present",
+        "calls": [],
+        "insns_hex": "0e00",
+        "insns_off": 220,
+        "insns_sha256": "7a2a7c0a81d1bd595dff09b918f8ecb5b5e8493654a4f83496956ed8eb017674",
+        "insns_units": 1,
+        "method_idx": 0,
+        "name": "a",
+        "proto": "()V"
+       },
+       {
+        "access": 1,
+        "body": "present",
+        "calls": [],
+        "insns_hex": "0e00",
+        "insns_off": 240,
+        "insns_sha256": "7a2a7c0a81d1bd595dff09b918f8ecb5b5e8493654a4f83496956ed8eb017674",
+        "insns_units": 1,
+        "method_idx": 1,
+        "name": "b",
+        "proto": "()V"
+       }
+      ]
+     }
+    ]
+   },
+   "members": [
+    "classes.dex"
+   ],
+   "resource_sha256": {},
+   "sha256": "4765431b09905439e5be6fa4e43d7e9f2dca4a1a57d8dada34a891b41dc73c8f"
+  },
+  "target.apk": {
+   "bytes": 4692,
+   "dex": {
+    "classes.dex": [
+     {
+      "descriptor": "Lcom/bilibili/app/comm/comment2/Holder;",
+      "expected_family": "comment_legacy_v2",
+      "fields": [
+       [
+        "COUNT",
+        "I"
+       ],
+       [
+        "tag",
+        "Ljava/lang/String;"
+       ]
+      ],
+      "method_bodies_sha256": "2293dcf8464fcae43d65fd445f38ebf6e3709677f7fcc2064d10a5411b8093d5",
+      "methods": [
+       {
+        "access": 65537,
+        "body": "present",
+        "calls": [
+         "Ljava/lang/Object;-><init>()V"
+        ],
+        "insns_hex": "70100f0000000e00",
+        "insns_off": 912,
+        "insns_sha256": "abec4b251d26e286d3e322f55c8044b4853c716399b72c42c5f3e7eb50603baa",
+        "insns_units": 4,
+        "method_idx": 5,
+        "name": "<init>",
+        "proto": "()V"
+       },
+       {
+        "access": 1,
+        "body": "present",
+        "calls": [
+         "Lcom/bapis/bilibili/main/community/reply/v1/ReplyMoss;->fetch(Ljava/lang/String;)V"
+        ],
+        "insns_hex": "711002000100000000000e00",
+        "insns_off": 936,
+        "insns_sha256": "63704c4ae3f57207ddd6ca00446cf6c730d3c0c5c6c934f2d9ae1f71efb75f76",
+        "insns_units": 6,
+        "method_idx": 6,
+        "name": "bind",
+        "proto": "(Ljava/lang/String;I)V"
+       },
+       {
+        "access": 1,
+        "body": "present",
+        "calls": [],
+        "insns_hex": "12100e00",
+        "insns_off": 964,
+        "insns_sha256": "85f1520d9439cdd83a25f66d1a12861925afe29468cb7cdf751f5568e3451851",
+        "insns_units": 2,
+        "method_idx": 9,
+        "name": "m",
+        "proto": "(I)V"
+       },
+       {
+        "access": 1,
+        "body": "present",
+        "calls": [],
+        "insns_hex": "12200e00",
+        "insns_off": 984,
+        "insns_sha256": "44cb782d7b294cb2ec2c981b55d808a2fff50cff2f08639d662b2f591cf07513",
+        "insns_units": 2,
+        "method_idx": 10,
+        "name": "m",
+        "proto": "(IJ)V"
+       },
+       {
+        "access": 1025,
+        "body": "none",
+        "calls": [],
+        "insns_hex": null,
+        "insns_off": null,
+        "insns_sha256": null,
+        "insns_units": null,
+        "method_idx": 7,
+        "name": "hook",
+        "proto": "(I)V"
+       },
+       {
+        "access": 257,
+        "body": "none",
+        "calls": [],
+        "insns_hex": null,
+        "insns_off": null,
+        "insns_sha256": null,
+        "insns_units": null,
+        "method_idx": 8,
+        "name": "jni",
+        "proto": "()I"
+       }
+      ]
+     },
+     {
+      "descriptor": "Lcom/bilibili/app/comment3/ui/other/Z;",
+      "expected_family": "comment_other_ui:other",
+      "fields": [],
+      "method_bodies_sha256": "318fcb25a6adad0db10673073d71e22cdee1dee007271e9e305dc0843f1078b0",
+      "methods": [
+       {
+        "access": 1,
+        "body": "present",
+        "calls": [],
+        "insns_hex": "0e00",
+        "insns_off": 1004,
+        "insns_sha256": "7a2a7c0a81d1bd595dff09b918f8ecb5b5e8493654a4f83496956ed8eb017674",
+        "insns_units": 1,
+        "method_idx": 11,
+        "name": "x",
+        "proto": "()V"
+       }
+      ]
+     },
+     {
+      "descriptor": "Lkntr/common/comment/Panel;",
+      "expected_family": "comment_compose",
+      "fields": [],
+      "method_bodies_sha256": "6f8e787888df242b3cb4b8bb68389c2bb70200088ac97f67f312a100f1b65a72",
+      "methods": [
+       {
+        "access": 9,
+        "body": "present",
+        "calls": [
+         "Lcom/bapis/bilibili/main/community/reply/v1/KReplyMoss;->list()V"
+        ],
+        "insns_hex": "7100000000000e00",
+        "insns_off": 1024,
+        "insns_sha256": "83b18947a1373174940d0b274622d80ff5f8851bde2eaf255931b5e784ccf2fb",
+        "insns_units": 4,
+        "method_idx": 17,
+        "name": "Content",
+        "proto": "(Landroidx/compose/runtime/Composer;I)V"
+       }
+      ]
+     },
+     {
+      "descriptor": "Lcom/bilibili/bplus/dynamicFoo/Card;",
+      "expected_family": "dynamic_other_legacy",
+      "fields": [
+       [
+        "id",
+        "J"
+       ]
+      ],
+      "method_bodies_sha256": "1b4f6746201db4b768e597f108c541ed938bf5a6fb67a2ad8f203c0870bc017d",
+      "methods": [
+       {
+        "access": 1,
+        "body": "present",
+        "calls": [
+         "Lcom/bapis/bilibili/zzz/FooMoss;->ping()V"
+        ],
+        "insns_hex": "7100040000000e00",
+        "insns_off": 1048,
+        "insns_sha256": "601fca4088084386b9bb595b662d6d76195c8ad27e28e919a5da1fa3929b193a",
+        "insns_units": 4,
+        "method_idx": 12,
+        "name": "bind",
+        "proto": "()V"
+       }
+      ]
+     },
+     {
+      "descriptor": "Lkntr/app/following/Misc;",
+      "expected_family": "dynamic_other:(root)",
+      "fields": [],
+      "method_bodies_sha256": "69dd57c07e82aa5bb0a2c76684722f9f953f2bdfcfa208dc4c36cfe8ba8c22d2",
+      "methods": [
+       {
+        "access": 1,
+        "body": "present",
+        "calls": [
+         "Lkntr/app/following/Misc;->y()V"
+        ],
+        "insns_hex": "6e10100000000e00",
+        "insns_off": 1072,
+        "insns_sha256": "e08cbcd4f762e9762d8c1704b1efbb22b424e13ed0156fc15a020ba73c92ca4c",
+        "insns_units": 4,
+        "method_idx": 16,
+        "name": "y",
+        "proto": "()V"
+       }
+      ]
+     },
+     {
+      "descriptor": "Lcom/bapis/bilibili/main/community/reply/v1/ReplyMoss;",
+      "expected_family": null,
+      "fields": [],
+      "method_bodies_sha256": "f309e74104c84c4df75a9b6b75bfd2fbd48be85dccfe82272dda13083f59fcb0",
+      "methods": [
+       {
+        "access": 9,
+        "body": "present",
+        "calls": [],
+        "insns_hex": "0e00",
+        "insns_off": 1096,
+        "insns_sha256": "7a2a7c0a81d1bd595dff09b918f8ecb5b5e8493654a4f83496956ed8eb017674",
+        "insns_units": 1,
+        "method_idx": 2,
+        "name": "fetch",
+        "proto": "(Ljava/lang/String;)V"
+       },
+       {
+        "access": 9,
+        "body": "present",
+        "calls": [],
+        "insns_hex": "0e00",
+        "insns_off": 1116,
+        "insns_sha256": "7a2a7c0a81d1bd595dff09b918f8ecb5b5e8493654a4f83496956ed8eb017674",
+        "insns_units": 1,
+        "method_idx": 3,
+        "name": "list",
+        "proto": "()V"
+       },
+       {
+        "access": 9,
+        "body": "present",
+        "calls": [],
+        "insns_hex": "0e00",
+        "insns_off": 1136,
+        "insns_sha256": "7a2a7c0a81d1bd595dff09b918f8ecb5b5e8493654a4f83496956ed8eb017674",
+        "insns_units": 1,
+        "method_idx": 1,
+        "name": "extra",
+        "proto": "()V"
+       }
+      ]
+     },
+     {
+      "descriptor": "Lcom/bapis/bilibili/main/community/reply/v1/KReplyMoss;",
+      "expected_family": null,
+      "fields": [],
+      "method_bodies_sha256": "b5e7c26dbdd1531a055b1f547419871e4122626420b3a0b4b71d749b95f11df6",
+      "methods": [
+       {
+        "access": 9,
+        "body": "present",
+        "calls": [],
+        "insns_hex": "0e00",
+        "insns_off": 1156,
+        "insns_sha256": "7a2a7c0a81d1bd595dff09b918f8ecb5b5e8493654a4f83496956ed8eb017674",
+        "insns_units": 1,
+        "method_idx": 0,
+        "name": "list",
+        "proto": "()V"
+       }
+      ]
+     },
+     {
+      "descriptor": "Lcom/bapis/bilibili/zzz/FooMoss;",
+      "expected_family": null,
+      "fields": [],
+      "method_bodies_sha256": "1d1e1ffa6c833f3906af0eea187e380021223e07003fc77ff021a0d43f15750c",
+      "methods": [
+       {
+        "access": 9,
+        "body": "present",
+        "calls": [],
+        "insns_hex": "0e00",
+        "insns_off": 1176,
+        "insns_sha256": "7a2a7c0a81d1bd595dff09b918f8ecb5b5e8493654a4f83496956ed8eb017674",
+        "insns_units": 1,
+        "method_idx": 4,
+        "name": "ping",
+        "proto": "()V"
+       }
+      ]
+     },
+     {
+      "descriptor": "Lcom/example/Caller;",
+      "expected_family": null,
+      "fields": [],
+      "method_bodies_sha256": "ad0ad88525e591d048330f5846cc69ae82beef1029857a045cedc614dfb1ab23",
+      "methods": [
+       {
+        "access": 9,
+        "body": "present",
+        "calls": [
+         "Lcom/bapis/bilibili/main/community/reply/v1/ReplyMoss;->fetch(Ljava/lang/String;)V",
+         "Lcom/bapis/bilibili/zzz/FooMoss;->ping()V",
+         "Lcom/bilibili/app/comm/comment2/Holder;->bind(Ljava/lang/String;I)V"
+        ],
+        "insns_hex": "7110020000007100040000007403060000000e00",
+        "insns_off": 1196,
+        "insns_sha256": "d2de13fade686596f32ba0247c787cd89f55d0ce8a7ec13b084afc2db5b933e3",
+        "insns_units": 10,
+        "method_idx": 14,
+        "name": "run",
+        "proto": "()V"
+       },
+       {
+        "access": 1,
+        "body": "present",
+        "calls": [],
+        "insns_hex": "0e00",
+        "insns_off": 1232,
+        "insns_sha256": "7a2a7c0a81d1bd595dff09b918f8ecb5b5e8493654a4f83496956ed8eb017674",
+        "insns_units": 1,
+        "method_idx": 13,
+        "name": "plain",
+        "proto": "()V"
+       }
+      ]
+     }
+    ],
+    "classes2.dex": [
+     {
+      "descriptor": "Lcom/bilibili/app/comm/comment2/Holder;",
+      "expected_family": "comment_legacy_v2",
+      "fields": [
+       [
+        "tag",
+        "Ljava/lang/String;"
+       ]
+      ],
+      "method_bodies_sha256": "2f071ad42fbb15b0bb6f448cbb0681b0e473afc8c6ab648d31797753cf197419",
+      "methods": [
+       {
+        "access": 65537,
+        "body": "present",
+        "calls": [
+         "Ljava/lang/Object;-><init>()V"
+        ],
+        "insns_hex": "70100a0000000e00",
+        "insns_off": 640,
+        "insns_sha256": "9a16e29929a219f0465435d4d89738eb6446de3093ce0aed3664a7f3ed1ddd41",
+        "insns_units": 4,
+        "method_idx": 3,
+        "name": "<init>",
+        "proto": "()V"
+       },
+       {
+        "access": 1,
+        "body": "present",
+        "calls": [],
+        "insns_hex": "000000000e00",
+        "insns_off": 664,
+        "insns_sha256": "df3fdff10fd57331a5299b44ac223972f466dacd6b6036bb7baac6e2844470c5",
+        "insns_units": 3,
+        "method_idx": 4,
+        "name": "other",
+        "proto": "()V"
+       }
+      ]
+     },
+     {
+      "descriptor": "Ltv/danmaku/bili/khome/Home;",
+      "expected_family": "home_new_frame",
+      "fields": [],
+      "method_bodies_sha256": "657636f81e16ccb012205d9312271abea15ceedae47f69bad1550afcd9a20fa1",
+      "methods": [
+       {
+        "access": 1,
+        "body": "present",
+        "calls": [
+         "Lcom/bapis/bilibili/main/community/reply/v1/ReplyMoss;->other(I)V"
+        ],
+        "insns_hex": "7110020001000e00",
+        "insns_off": 688,
+        "insns_sha256": "929a157727ab7aed8ab89a7e8f71ee7116beea52133d6ac5cdc1c262825e682d",
+        "insns_units": 4,
+        "method_idx": 11,
+        "name": "show",
+        "proto": "()V"
+       }
+      ]
+     },
+     {
+      "descriptor": "Lcom/bilibili/search2/Feed;",
+      "expected_family": "search_native",
+      "fields": [
+       [
+        "rows",
+        "I"
+       ]
+      ],
+      "method_bodies_sha256": "a5830b0b94093d15d6ecc9ac07a5e3ba4c59d32da6c63202aa5aa06bd9ff84d0",
+      "methods": [
+       {
+        "access": 1,
+        "body": "present",
+        "calls": [
+         "Lcom/bapis/bilibili/main/community/reply/v1/KReplyMoss;->list()V",
+         "Lcom/bilibili/app/comm/comment2/Holder;->other()V"
+        ],
+        "insns_hex": "7100000000006e10040000000e00",
+        "insns_off": 712,
+        "insns_sha256": "ac0624eaae03b4f50529d86f449d5a0c158eb750353575b6ec9ad7418e7094ec",
+        "insns_units": 7,
+        "method_idx": 7,
+        "name": "load",
+        "proto": "()V"
+       },
+       {
+        "access": 1,
+        "body": "present",
+        "calls": [],
+        "insns_hex": "12300e00",
+        "insns_off": 744,
+        "insns_sha256": "98acf74aaabe86668c2d449952ae8ab161a06cd31f86123c4496412bbfa10f0d",
+        "insns_units": 2,
+        "method_idx": 6,
+        "name": "count",
+        "proto": "()I"
+       }
+      ]
+     },
+     {
+      "descriptor": "Lcom/bapis/bilibili/main/community/reply/v1/ReplyMoss;",
+      "expected_family": null,
+      "fields": [],
+      "method_bodies_sha256": "858a2d34e47503b08d2c3e49dd06976466cbd70e8cf00f8f36ad06e15f6a3b12",
+      "methods": [
+       {
+        "access": 9,
+        "body": "present",
+        "calls": [],
+        "insns_hex": "0e00",
+        "insns_off": 764,
+        "insns_sha256": "7a2a7c0a81d1bd595dff09b918f8ecb5b5e8493654a4f83496956ed8eb017674",
+        "insns_units": 1,
+        "method_idx": 2,
+        "name": "other",
+        "proto": "(I)V"
+       }
+      ]
+     },
+     {
+      "descriptor": "Lcom/example/Plain;",
+      "expected_family": null,
+      "fields": [],
+      "method_bodies_sha256": "da218bd66ac021d6fab3eb082ba2d1d2b3ba77961f4756d7065d1ff53c629737",
+      "methods": [
+       {
+        "access": 1,
+        "body": "present",
+        "calls": [],
+        "insns_hex": "0e00",
+        "insns_off": 784,
+        "insns_sha256": "7a2a7c0a81d1bd595dff09b918f8ecb5b5e8493654a4f83496956ed8eb017674",
+        "insns_units": 1,
+        "method_idx": 8,
+        "name": "a",
+        "proto": "()V"
+       },
+       {
+        "access": 1,
+        "body": "present",
+        "calls": [],
+        "insns_hex": "0e00",
+        "insns_off": 804,
+        "insns_sha256": "7a2a7c0a81d1bd595dff09b918f8ecb5b5e8493654a4f83496956ed8eb017674",
+        "insns_units": 1,
+        "method_idx": 9,
+        "name": "b",
+        "proto": "()V"
+       }
+      ]
+     },
+     {
+      "descriptor": "Lcom/bilibili/bangumi/ui/Page;",
+      "expected_family": "pgc_legacy",
+      "fields": [],
+      "method_bodies_sha256": "d1a0977b88f25b2f0cea5451278f8bd869032b5d6207e43a18b65ca7cddd6791",
+      "methods": [
+       {
+        "access": 1,
+        "body": "present",
+        "calls": [
+         "Lcom/bapis/bilibili/main/community/reply/v1/ReplyMoss;->fetch(Ljava/lang/String;)V"
+        ],
+        "insns_hex": "7110010000000e00",
+        "insns_off": 824,
+        "insns_sha256": "2c12d59d296d9b4ffe45bc5c7e5da053ccec133fbfc59f8f1f1d3b5a132a625d",
+        "insns_units": 4,
+        "method_idx": 5,
+        "name": "open",
+        "proto": "()V"
+       }
+      ]
+     }
+    ]
+   },
+   "members": [
+    "classes.dex",
+    "classes2.dex",
+    "resources.arsc",
+    "res/layout/empty.xml",
+    "res/raw/blob.bin",
+    "res/drawable/not_xml.png",
+    "assets/c.xml",
+    "AndroidManifest.xml",
+    "res/layout/a.xml",
+    "res/layout/new.xml"
+   ],
+   "resource_sha256": {
+    "res/layout/a.xml": "6dd21f08c011a90660675554e3535ea57f1e764be005330c6a6c2c25b8fa7a5c",
+    "res/layout/empty.xml": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "res/layout/new.xml": "63578eb7c5651dccffa5fa0b4a0800f382ffc80e912a7ba573e04c4442729a49",
+    "resources.arsc": "fbcf0aa399af14945952b7353aa10611124c1f304e931b1921ad5cad28a50352"
+   },
+   "sha256": "1ad897405c1252917eb1bbfefaed351512b607d2a16e08fd8fc67b907af6885c"
+  }
+ },
+ "generator": "tests/fixtures/surface/generate.py",
+ "schema": "mdd.surface-fixture-expectations.v1",
+ "shared_method_idx_in_base": [
+  4,
+  5,
+  9
+ ]
+}

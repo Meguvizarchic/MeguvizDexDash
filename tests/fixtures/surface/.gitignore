@@ -1,0 +1,2 @@
+# The surface fixtures are synthetic APKs written byte for byte by generate.py (checked with --check).
+!generated/*.apk

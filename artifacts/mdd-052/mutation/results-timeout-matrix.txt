@@ -1,0 +1,11 @@
+# MDD-052 surface mutation check (full run; results-run1.txt is the interrupted historical part-run)
+# semantics: KILLED = the offline suite fails, or (for an offline survivor) the live suite fails; a suite that
+#   hangs past 1200 s is killed whole (process tree) and counts as KILLED (timeout/hang) - a hang is a detection.
+# interpreter: D:\DevArea\MeguvisDexDash\.venv\Scripts\python.exe
+# offline pattern: test_surface_[pgs]*.py ; live: test_surface_live.py
+# mutants: 1
+  1 killed: a time-out is finished
+live suite: run
+survivors: []
+totals: 1 mutants, 1 killed (0 by timeout/hang), 0 survived
+sources sha256: 93396c4d27fff56e3feab631ef7c48c7eeae0fc1df85773d999bf4e35559cbbb
