@@ -408,6 +408,8 @@
 
 **修复派发与 backlog 同步**：三个修复子代理已按上述清单派发（各自 worktree，文件互不重叠；要求全套件绿+全量变异 0 存活+证据重生成 --check current 后才提交）。backlog：051/052/053 转 in_progress；新登记 **MDD-084**（引擎 OR 链 LIKE 深嵌套栈溢出，大栈线程或深度上限 fail-closed 拒绝；修复后由独立变更组放宽 052 集成侧 DIFF-5 硬上限）。引擎缺陷不在 052 本次范围内擅自修。
 
+**下一批门槛任务派发（2026-11-17 续）**：依赖已满足的 READY 集为 044/070/072/084，已各建独立 worktree（基于 ab3fcd3：mdd-044-pipeline、mdd-070-relations、mdd-072-resources、mdd-084-orstack）并派实现代理。044 纯 Python 消费侧，只读主树二进制；070/072/084 为 Rust，各自 `--target-dir` 独立构建、`-j 6` 限 CPU，不写主树 target（修复代理在用）。文件所有权已划分：070 拥有 mdd-facts/public_relations 与 mdd-sql/profiles/compatibility，072 拥有 mdd-input/resources 与 mdd-mcp/resource_tools，084 拥有 mdd-query operators/executor 深度守卫；共享注册文件最小增量并报告。**合入顺序计划**：051/052/053（证据锚定当前二进制 6d035110…）与 044 先合，070/072/084（改引擎）后合——后者合入会换二进制，需按 071 先例刷新 042/071 等受影响记录并重跑对应运维。MDD-005 性能基线仍待独占测量时段，七代理并行期间不跑正式计时。ucompact 评估后无需要（磁盘余量充足，去重无收益且不动 artifact 身份）。
+
 ## Checkout 与交付
 
 工程目录 D:\MeguvisDexDash（保留目录原拼写）。远端已迁移到 https://github.com/Meguvizarchic/MeguvizDexDash（**公开仓库**，旧地址 jichuo1/MeguvizDexDash 自动转发）；PR #1 已于 2026-11-04 合并，`main` 现为 a9aa1f0，其中 27ac27e 是由本分支 71dfce9 生成的「脱敏工程进度快照」，之后 8 个提交是修补与 README/图标。本地分支 codex/m2-facts-20261028 当前**没有远端分支**：2026-11-12 曾整体推送，随后发现仓库公开，已按用户决定删除远端分支（GitHub 上提交仍可按 SHA 读取）。重新推送前必须先决定公开范围，见下节。
