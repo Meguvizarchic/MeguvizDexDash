@@ -2231,7 +2231,7 @@
       "depends_on": [],
       "owner_role": "协议与 worker 负责人",
       "scope": [
-        "定位原生 SQL 求值器对 OR/LIKE 链的递归点并实测栈消耗（MDD-052 审查实测：debug 构建括号深度 10 进程崩溃 0xC00000FD/exit 3221225725，深度 9 通过；前缀扩到 64 时深度 10 同样崩溃）",
+        "定位原生 SQL 求值器对 OR/LIKE 链的递归点并实测栈消耗（MDD-052 审查实测：debug 构建括号深度 10 进程崩溃 0xC00000FD/exit 3221225725，深度 9 通过；前缀扩到 64 时深度 10 同样崩溃）。codegraph 已定位：crates/mdd-query/src/operators/mod.rs:250 predicate 经 :300 predicate_eval 对 And/Or/Not 自递归（每层两帧、求值期无深度守卫）；校验侧 check_predicate(:94)、expression_type(:71) 与 executor.rs:249/294/326 放行深度 ≤64，远超 debug 栈实际容忍；like_dp(:197) 为迭代 DP，like_reference 为参考方言路径",
         "实现大栈求值线程或显式深度/项数上限的 fail-closed 拒绝（明确 INVALID_ARGUMENT 类错误），不得静默截断、不得包装 unsupported、不得进程崩溃",
         "补深度 9/10/11 与长前缀回归测试（debug/release，Windows 本地 + Linux CI），负例证明拒绝带真实错误码",
         "修复合入后由独立变更组移除或放宽 MDD-052 集成侧 DIFF-5 硬上限并更新声明；本任务不混入集成层改动"
