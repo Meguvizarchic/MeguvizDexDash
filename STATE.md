@@ -414,6 +414,20 @@
 
 **MDD-053 合入与收口（2026-11-17 续）**：修复代理完成全部清单并提交 `26b0ab1`（21 文件全新，不触共享文件与 Rust）。主代理独立复核通过：P1-1 import 补快照绑定（snapshot=None 且含 reuse/continue 即拒，seal/import 四路拒绝测试）；P1-2 SQL 改保守纯查询证明（掩码字面量/注释、单语句、SELECT/WITH 前缀、变异关键字黑名单；WITH…INSERT 与 SELECT;CREATE 两个冻结 planner 洞均计副作用，且冻结 executor 真实流量全判纯）；P1-3 -extra 六模块双 SHA 钉（manifest+inventory）并实证两事实（ARTIFACT_LIMITS 相等、loader 覆写 resume_origin 且冻结 summary 读不了嵌套 lineage），其余行为如实标 stubbed/not executed；P2-1 derive_state 比 id 集合+计数（双向测试）；P2-2 连写/未知短选项判写、拒发前零运行。148 项套件（83 checkpoint 含 5 真实二进制 + 65 remote）合入前后各独立重跑 OK；两份记录 --check current；sources sha256 绑定实算吻合；--dry-run 225 锚点全匹配；审查修复变异 217-225 抽查实跑全杀；214 变异历史切片保留改名。`git merge --no-ff` 合入为 `2057cf6`，backlog 053 转 done，ledger 增 hostlab_remote_resume。限制如实保留：HostLab 本体未端到端运行，远程 dispatch 用替身与冻结 gateway 锻炼（非真实网络），无 profile 准入。052 变异全量跑仍在进行（harness 存活、results.txt 增长中），044/070/072/084 实现代理仍在跑。
 
+## 2026-11-17 接续：MDD-084 引擎栈溢出修复，MDD-052 与 MDD-044 收口
+
+**接手**：另一个软件已把 071 收口（67/67）、刷新 042 记录、合入 051/053（审查修复后），并为 044/070/072/084 建了 worktree，这些提交本地 14 个、未推送；我先在 HEAD `839f6d0` 上重跑 fmt、clippy、Rust 测试、各回放、HostLab 集成测试和 `check_progress`，全部通过，再接着做。**更正我此前的一个错误**：公开 NewPipe APK 一直在 `artifacts/local/inputs/`，044 不需要下载。
+
+**MDD-084（实现完成，变异检查待 Actions）**：`flat OR` 20 项或括号嵌套 10 层，会让 debug 构建的引擎进程以 `0xC00000FD` 栈溢出退出。崩溃复现脚本 `artifacts/mdd-084/repro_or_chain_overflow.py`：修复前深度 10、11、10 加 64 字符前缀、平铺 20 项都崩溃（深度 9 通过）；修复后六个用例都不崩，允许的深度答复完整、`ok`，超限的是结构化 `QUOTA_EXCEEDED`、零行。根因：`predicate` 把叶子求值写在递归函数里（debug 下一帧几十 KB），SQL 改写也在调用者栈上递归。修复：`predicate_at` 小栈帧递归、叶子求值拆成不内联的独立函数，求值器自己也拒绝深于 64 的谓词，步骤计费不变；`like_reference` 的回溯改放堆上；`ast.rs` 的改写放到 16 MiB 线程、深度上限 64（默认 `max_ast_depth` 48 不变）。一个早先草稿用堆栈迭代求值，变异抽样证明帧变小后它是等价的，所以保留更简单、行路径上不分配内存的递归形式。测试：`mdd-query` 206、`mdd-sql` 255 项，含 1 MiB 栈上深度 1 到 64 的链、420 棵随机布尔树对独立折叠、求值器深度拒绝、256 token 的 LIKE。**没跑**：release 构建、本机 Linux、12 个变异（`mutation-or-chain.yml`，推送后在 Actions 上跑，约 4 分钟）。
+
+**MDD-052（done，限声明范围）**：`integrations/hostlab/surface_provider.py` 把 HostLab 的 surface 与原始指纹交给引擎（`serve` 流），规则仍是 HostLab 自己的 `surface_workers.py`/`priority_analysis.py`（字节级复制进 `conformance/hostlab/surface-source-8782f43/`，SHA-256 与库存一致）。独立开关（默认 `dexsql` 即回滚值）、独立缓存命名空间。真引擎的报告与冻结原路径驱动 dexsql 0.1.0 的报告在 4 个夹具上 SHA-256 逐字相同；八处声明差异（DIFF-1 到 8，含跨文件回答被拒、重复成员被拒、局部/截断不是更短的结果）。验证：离线 186、真引擎 13 项，变异 160/160（其中 1 个靠挂死检测），Linux 由推送后的 CI。审查指出的四个 P1 均已修：`code_items` 现在 SELECT `file_id` 并逐行核对；DIFF-5 的上限与平衡树写法保留；`surface-equivalence.json` 对当前二进制重生成；闸门证据只对替身运行如实标注。**未证明**：HostLab 本体未改动或运行；HostLab 真正的 `run_intake.py`/`home_frame_audit.py` 不在仓库，闸门用替身演练，`scripts_run_unchanged` 只对替身运行成立；归档与引擎的绑定比较头部字段，不重算 adler32/SHA-1；只有 5 个合成 APK。
+
+**MDD-044（done，诊断证据）**：对完整的公开 NewPipe 0.28.6 五列 `class_methods` 导出（55,763 行）经四个真实 OS 管道通道（CLI query、serve 原始帧、Python SDK worker、MCP 每页 1000 行）各跑两轮，外加 Unicode/NULL/重复的小反例和一个截断负控。列批 `columns-v1`（消费端原型，按 docs/02 的 10.3 布局）还原的字段、类型、NULL、重复、行数与规范哈希和 JSON 完全一致；传输字节 15,270,783 对 11,639,428（0.762x），但消费端解码 CPU 0.81 s 对 0.11 s，另加生产端编码 0.21 s，且引擎的 `mdd-wire/1` 只提供 `json`，没有端到端优势可证：**裁决 disabled，JSON 保持，MCP 仍是 JSON**。到完整应用对象的诊断耗时（共享主机，秒）：CLI query 46.6–74.3，serve 原始帧 50.0–50.8，SDK worker 6.0–6.9，MCP 97–102（56 页，每页重跑语句）。**这个差距是 MDD-061 的线索，不是本任务的结论**。67 项单测，27/27 变异。**未证明**：独占窗口的比较计时（归 MDD-060/082）、Linux 下的基准运行。
+
+**CI 补齐**：此前合入 051/053 时没有把它们的 `--check` 接进 `ci.yml`；本次一并加上 051、053、052（夹具、源码复制、golden、equivalence）、084（崩溃复现、记录 `--check`）、044（单测）。
+
+**仍在 in_progress**：MDD-070（56 关系）与 MDD-072（Manifest xml、资源、十二工具）只有夹具起步，没有引擎实现；MDD-005 等独占测量窗口。
+
 ## Checkout 与交付
 
 工程目录 D:\MeguvisDexDash（保留目录原拼写）。远端已迁移到 https://github.com/Meguvizarchic/MeguvizDexDash（**公开仓库**，旧地址 jichuo1/MeguvizDexDash 自动转发）；PR #1 已于 2026-11-04 合并，`main` 现为 a9aa1f0，其中 27ac27e 是由本分支 71dfce9 生成的「脱敏工程进度快照」，之后 8 个提交是修补与 README/图标。本地分支 codex/m2-facts-20261028 当前**没有远端分支**：2026-11-12 曾整体推送，随后发现仓库公开，已按用户决定删除远端分支（GitHub 上提交仍可按 SHA 读取）。重新推送前必须先决定公开范围，见下节。

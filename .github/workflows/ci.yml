@@ -12,7 +12,7 @@ jobs:
       matrix:
         os: [ubuntu-24.04, windows-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 35
     defaults:
       run:
         shell: pwsh
@@ -97,6 +97,24 @@ jobs:
           python -I -m unittest discover -s integrations/hostlab -p "test_*.py"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -I integrations/hostlab/make_provider_selection.py --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -I integrations/hostlab/make_structural_equivalence.py --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -I integrations/hostlab/remote_make_records.py --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -I tests/fixtures/surface/generate.py --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -I conformance/hostlab/surface_import_sources.py --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -I integrations/hostlab/surface_make_goldens.py --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -I integrations/hostlab/surface_make_equivalence.py --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -I artifacts/mdd-084/repro_or_chain_overflow.py --binary $binary --phase post --out artifacts/ci/mdd-084-repro-post.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -I artifacts/mdd-084/build_record.py --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -I benchmarks/test_producer_consumer_pipeline.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python conformance/mcp/test_replays.py
       - name: Run actual dependency and SQL probes

@@ -1291,7 +1291,7 @@
       "id": "MDD-044",
       "phase": "M4",
       "title": "验证真实生产消费管道并评估可选列批",
-      "status": "in_progress",
+      "status": "done",
       "depends_on": [
         "MDD-035",
         "MDD-040",
@@ -1324,6 +1324,16 @@
         "docs/02_ARCHITECTURE_AND_CONTRACTS.md",
         "docs/03_HOSTLAB_MIGRATION.md",
         "docs/04_VALIDATION_AND_PERFORMANCE.md"
+      ],
+      "implementation_notes": "2026-11-17, DONE as diagnostic development evidence (not a performance qualification). benchmarks/producer-consumer-pipeline.py runs the full public NewPipe 0.28.6 five-column class_methods export (55,763 rows, input digest pinned in conformance/manifests/input-corpus.json, sha256 e56ef628...be58) through four real OS-pipe channels to the real engine binary (CLI query --format jsonl, serve with raw framed lines, the Python SDK worker, MCP with 1000-row pages), 2 rounds each, plus small Unicode / NULL / duplicate counterexamples whose expected rows come from the fixture recipe, not from the engine, and a truncation negative control. The clock runs from before the engine process is spawned to the complete application object with the terminal and page invariants verified; wire bytes, queueing, CPU and peak memory are reported apart and none is derived from another. Fail-closed: partial or unknown coverage, truncation, leftover pages, a missing terminal, a row count that disagrees with the terminal, a lost worker or a non-zero exit are errors. Column batches: a consumer-side prototype (columns-v1, laid out as docs/02 10.3) over the same typed cells restores the fields, types, NULLs, duplicates, row count and canonical digest of the JSON batches exactly (full workload and counterexamples); wire bytes 15,270,783 (json) vs 11,639,428 (columns-v1, 0.762x); consumer CPU to the application object 0.1065 s vs 0.8083 s plus 0.2138 s to encode; the engine's mdd-wire/1 hello offers only `json`, so columns-v1 has no engine implementation and no end-to-end advantage can be shown. Verdict `disabled`: JSON stays the encoding; MCP stays JSON; no binary encoding is offered. Diagnostic timings of the 55,763-row export on a shared host (2 rounds, seconds to the application object): CLI query 46.6 to 74.3, serve with raw lines 50.0 to 50.8, SDK worker 6.0 to 6.9, MCP 97 to 102 for the statements (56 pages of 1000 rows, each page re-runs the statement); producer peak working set about 705 MB in every channel. The contrast between the worker and MCP is a finding for MDD-061, not a result of this task. 67 unit tests of the consumer-side logic and 27 of 27 mutants killed (completeness gate, canonical digest, column codec, MCP cell normalization, stream consumer). NOT PROVEN: any exclusive-window or comparative timing (the host was shared; MDD-060/082 own that); the Linux behaviour of the benchmark (CI runs the unit tests only); RSS under a different encoding (none exists).",
+      "implementation_evidence": [
+        "artifacts/mdd-044/encoding-decision.json",
+        "artifacts/mdd-044/pipeline-runs.jsonl",
+        "artifacts/mdd-044/mutation/results.txt",
+        "artifacts/mdd-044/mutation/mutate_pipeline.py",
+        "benchmarks/producer-consumer-pipeline.py",
+        "benchmarks/test_producer_consumer_pipeline.py",
+        "conformance/protocol/column-batch-cases.json"
       ]
     },
     {
@@ -1441,7 +1451,7 @@
       "id": "MDD-052",
       "phase": "M5",
       "title": "迁移 native_surface 与原始指纹证据",
-      "status": "in_progress",
+      "status": "done",
       "depends_on": [
         "MDD-025",
         "MDD-026",
@@ -1471,6 +1481,29 @@
         "docs/02_ARCHITECTURE_AND_CONTRACTS.md",
         "docs/03_HOSTLAB_MIGRATION.md",
         "docs/04_VALIDATION_AND_PERFORMANCE.md"
+      ],
+      "implementation_notes": "2026-11-17, DONE within the declared scope (local runs: 186 offline tests, 13 against the real engine, mutation 160 of 160 killed; Linux by CI after the push). integrations/hostlab/surface_provider.py hands HostLab's class/method surface, raw code fingerprint and raw resource fingerprint to the engine through `serve`, and leaves the rules (families, protocols, summarize, compare, resource_changes, verdict) to HostLab's own surface_workers.py / priority_analysis.py, injected and byte-copied into conformance/hostlab/surface-source-8782f43/ (SHA-256 equal to the pinned inventory). The switch is independent (surface_provider = dexsql by default, which is the rollback value and runs the original native_surface.scan without starting anything; meguvizdexdash uses the engine and never falls back silently); its cache has one namespace, <state>/mdd-engine/reports/<engine>/surface/, addressed by source SHA-256 + rules hash + engine build + binary digest + dialect, and refuses a mismatching entry without reading or changing it. Every relation read (classes, class_fields, class_methods, method_calls, code_items) selects file_id and every row is checked against the DEX file asked for (DIFF-2), the archive's bytes are bound to the engine's header facts before any offset is used, a duplicate method_idx, a duplicate code row, two archive members of one name, and two DEX files sharing a file_id or an entry name are refused (DIFF-3, 7, 8); a partial, truncated or failed answer is an error, never a shorter result (DIFF-4). Where the original path fails (a DEX whose family classes have no methods raises KeyError('compose_signatures') in summarize, reproduced with the reference engine) the new path answers with the empty-content digest (DIFF-1). The family filter is written as a balanced tree and capped before sending (MAX_OR_TERMS 64, MAX_SQL_DEPTH 9) because the unfixed engine overflowed its stack on 20 ORs or ten parentheses (DIFF-5); MDD-084 fixed that and the caps stay until a separate change relaxes them. page_size is refused rather than accepted and ignored. The independent intake/home gates run unchanged and fully timed through surface_gate.py, with no gate-reuse gain booked. Evidence: the real engine's reports equal the frozen path driven against dexsql 0.1.0 byte for byte (SHA-256) on 4 fixtures; surface-goldens.json is frozen from the reference engine; surface-equivalence.json (every input hashed, negative controls actually executed) is regenerated against the current binary; mutation check 160 of 160 killed (one by hang detection), run on this machine. NOT PROVEN: HostLab itself was not patched or run; HostLab's real run_intake.py and home_frame_audit.py are not in the repository, so the gate harness was exercised with stand-ins and the record says so (scripts_run_unchanged is computed over the stand-in runs only); the archive-to-engine binding compares header fields (length, version, checksum, signature) and does not recompute adler32/SHA-1; only five synthetic APKs and four reference comparisons, no real-world sample.",
+      "implementation_evidence": [
+        "artifacts/mdd-052/surface-equivalence.json",
+        "artifacts/mdd-052/mutation/results.txt",
+        "artifacts/mdd-052/mutation/mutate_surface.py",
+        "conformance/hostlab/surface-goldens.json",
+        "conformance/hostlab/surface_import_sources.py",
+        "conformance/hostlab/surface-source-8782f43/manifest.json",
+        "integrations/hostlab/surface_provider.py",
+        "integrations/hostlab/surface_gate.py",
+        "integrations/hostlab/surface_support.py",
+        "integrations/hostlab/surface_fake_serve.py",
+        "integrations/hostlab/surface_make_goldens.py",
+        "integrations/hostlab/surface_make_equivalence.py",
+        "integrations/hostlab/SURFACE.md",
+        "integrations/hostlab/test_surface_provider.py",
+        "integrations/hostlab/test_surface_switch.py",
+        "integrations/hostlab/test_surface_gate.py",
+        "integrations/hostlab/test_surface_goldens.py",
+        "integrations/hostlab/test_surface_live.py",
+        "tests/fixtures/surface/generate.py",
+        "tests/fixtures/surface/expected.json"
       ]
     },
     {
@@ -2294,6 +2327,22 @@
       "references": [
         "docs/02_ARCHITECTURE_AND_CONTRACTS.md",
         "integrations/hostlab/SURFACE.md"
+      ],
+      "implementation_notes": "2026-11-17, IMPLEMENTED; the mutation workflow (mutation-or-chain.yml, 12 faults) has not run yet, no result is claimed. Defect (found by the MDD-052 review): a SQL statement with ten nested parentheses of OR/LIKE, or a flat OR of twenty terms, ended the engine process with a stack overflow (0xC00000FD) in a debug build. Reproduced by artifacts/mdd-084/repro_or_chain_overflow.py against the unfixed build (exit 3221225725 on depth 10, depth 11, depth 10 with a 64-character prefix and a flat OR of 20; depth 9 passes; depth 60 is refused by the lexical depth quota), and after the fix none of the six cases crashes, the admitted ones answer complete and ok, the over-limit one is a structured QUOTA_EXCEEDED with no rows. Cause: predicate() kept the leaf match inside the recursive function, a frame of tens of kilobytes in a debug build; the SQL rewrite (ast.rs) also recursed on the caller's stack. Fix: crates/mdd-query/src/operators/mod.rs predicate_at recurses through a small frame with the leaf evaluation out of line (#[inline(never)]), refuses a predicate deeper than 64 with PREDICATE_DEPTH_LIMIT (validation already did; the evaluator now does as well), and charges one step per node as before (parent first, left before right, no short-circuit); like_reference keeps its backtracking on the heap with the same charge per state; crates/mdd-sql/src/dialects/ast.rs runs the recursive rewrite on a 16 MiB thread and caps its depth at 64 (the default max_ast_depth is 48 and unchanged), failing closed with QUOTA_EXCEEDED / SQL_AST_NODE_OR_DEPTH, and a thread that cannot start or that panics is an INTERNAL_FAULT, never an empty success. An earlier draft evaluated deep predicates on a heap stack; the mutation sample showed that variant equivalent once the frame was small, so the simpler recursive form with an allocation-free row path was kept (the evaluator runs per row). Tests: mdd-query 206 and mdd-sql 255 lib tests, among them depth 1 to 64 chains in both dialects on a 1 MiB stack, 420 random boolean trees against an independent fold, the evaluator's own depth refusal, a 256-token reference LIKE pattern on a 1 MiB stack, and the rewrite on a 1 MiB caller stack at depth 9 to 11 with 64-character prefixes; the golden query replay (77 cases, 145 pages) and the process tests are unchanged. NOT RUN: a release build; Linux locally (the repository CI runs the debug tests and the reproduction); the mutation workflow. The integration side of MDD-052 keeps its own caps (MAX_OR_TERMS, MAX_SQL_DEPTH) until a separate change relaxes them, as this task's scope says.",
+      "implementation_evidence": [
+        "artifacts/mdd-084/or-chain-overflow.json",
+        "artifacts/mdd-084/repro_or_chain_overflow.py",
+        "artifacts/mdd-084/repro-pre.json",
+        "artifacts/mdd-084/repro-post.json",
+        "artifacts/mdd-084/build_record.py",
+        "artifacts/mdd-084/mutation/mutate_or_chain.py",
+        ".github/workflows/mutation-or-chain.yml",
+        "crates/mdd-query/src/operators/mod.rs",
+        "crates/mdd-query/src/executor/tests.rs",
+        "crates/mdd-sql/src/dialects/ast.rs"
+      ],
+      "blocking_reasons": [
+        "the mutation check of the 12 faults has not run: gh workflow run mutation-or-chain.yml after the push, then commit its results.txt as artifacts/mdd-084/mutation/results.txt"
       ]
     }
   ]
