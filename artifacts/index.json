@@ -54530,7 +54530,7 @@
     {
       "path": "artifacts/mdd-051/structural-equivalence.json",
       "bytes": 41074,
-      "sha256": "9f5ee5fbbcfe0273a4551c23fa18540ba70a2d5a643b68fbebbdbc80b5a9089f"
+      "sha256": "a2a76a8850d340b10459a8f22235e7ddd9eeff3dd59a376370e3f0c01578f65c"
     },
     {
       "path": "artifacts/mdd-052/mutation/mutate_surface.py",

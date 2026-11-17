@@ -1,0 +1,2009 @@
+{
+ "engine": {
+  "name": "dexsql",
+  "version": "0.1.1+6ac7870875a519ec471e41c93fc86d80e8e2bce7",
+  "sha256": "602105c98232120c14d6124fb33574f2f95f12e50e51d25b8834f893925f28d6"
+ },
+ "tables": {
+  "dex_files": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "string_pool_id"
+    },
+    {
+     "data_type": "Utf8",
+     "name": "source_path"
+    },
+    {
+     "data_type": "Utf8",
+     "name": "entry_name"
+    },
+    {
+     "data_type": "UInt64",
+     "name": "byte_len"
+    },
+    {
+     "data_type": "Utf8",
+     "name": "dex_version"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "checksum"
+    },
+    {
+     "data_type": "Utf8",
+     "name": "signature_hex"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "file_size"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "header_size"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "endian_tag"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "link_size"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "link_off"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "map_off"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "string_count"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "string_ids_off"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "type_count"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "type_ids_off"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "proto_count"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "proto_ids_off"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "field_count"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "field_ids_off"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "method_count"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "method_ids_off"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "class_count"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "class_defs_off"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "data_size"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "data_off"
+    }
+   ],
+   "name": "dex_files"
+  },
+  "map_items": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "ordinal"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "type_code"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "size"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "offset"
+    }
+   ],
+   "name": "map_items"
+  },
+  "id_items": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "item_type_code"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "item_off"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "item_end_off"
+    },
+    {
+     "data_type": "UInt32?",
+     "name": "data_off"
+    }
+   ],
+   "name": "id_items"
+  },
+  "strings": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "string_pool_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "string_idx"
+    },
+    {
+     "data_type": "Utf8View",
+     "name": "value"
+    }
+   ],
+   "name": "strings"
+  },
+  "type_ids": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "type_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "descriptor_idx"
+    }
+   ],
+   "name": "type_ids"
+  },
+  "types": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "type_idx"
+    },
+    {
+     "data_type": "Utf8",
+     "name": "descriptor"
+    },
+    {
+     "data_type": "Utf8",
+     "name": "java_name"
+    }
+   ],
+   "name": "types"
+  },
+  "type_lists": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "type_list_off"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "type_list_end_off"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "size"
+    }
+   ],
+   "name": "type_lists"
+  },
+  "type_list_entries": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "type_list_off"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "ordinal"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "type_idx"
+    }
+   ],
+   "name": "type_list_entries"
+  },
+  "proto_ids": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "proto_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "shorty_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "return_type_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "parameters_off"
+    }
+   ],
+   "name": "proto_ids"
+  },
+  "protos": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "proto_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "shorty_idx"
+    },
+    {
+     "data_type": "Utf8",
+     "name": "shorty"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "return_type_idx"
+    },
+    {
+     "data_type": "Utf8",
+     "name": "return_descriptor"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "parameters_off"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "param_count"
+    },
+    {
+     "data_type": "Utf8",
+     "name": "param_descriptors"
+    }
+   ],
+   "name": "protos"
+  },
+  "proto_params": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "proto_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "ordinal"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "type_idx"
+    },
+    {
+     "data_type": "Utf8",
+     "name": "descriptor"
+    }
+   ],
+   "name": "proto_params"
+  },
+  "field_ids": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "field_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "class_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "type_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "name_idx"
+    }
+   ],
+   "name": "field_ids"
+  },
+  "fields": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "field_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "class_idx"
+    },
+    {
+     "data_type": "Utf8",
+     "name": "class_descriptor"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "type_idx"
+    },
+    {
+     "data_type": "Utf8",
+     "name": "type_descriptor"
+    },
+    {
+     "data_type": "Utf8",
+     "name": "name"
+    },
+    {
+     "data_type": "Utf8",
+     "name": "descriptor"
+    }
+   ],
+   "name": "fields"
+  },
+  "method_ids": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "method_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "class_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "proto_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "name_idx"
+    }
+   ],
+   "name": "method_ids"
+  },
+  "method_opcodes": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "method_idx"
+    },
+    {
+     "data_type": "UInt32?",
+     "name": "opcode_count"
+    },
+    {
+     "data_type": "Utf8View?",
+     "name": "opcode_hex"
+    }
+   ],
+   "name": "method_opcodes"
+  },
+  "class_data_methods": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "class_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "method_idx"
+    },
+    {
+     "data_type": "UInt32?",
+     "name": "access_flags"
+    },
+    {
+     "data_type": "Utf8?",
+     "name": "kind"
+    }
+   ],
+   "name": "class_data_methods"
+  },
+  "methods": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "method_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "class_idx"
+    },
+    {
+     "data_type": "Utf8View",
+     "name": "class_descriptor"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "proto_idx"
+    },
+    {
+     "data_type": "Utf8View",
+     "name": "name"
+    },
+    {
+     "data_type": "Utf8View",
+     "name": "descriptor"
+    },
+    {
+     "data_type": "Utf8View",
+     "name": "return_descriptor"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "param_count"
+    },
+    {
+     "data_type": "Utf8View",
+     "name": "param_descriptors"
+    },
+    {
+     "data_type": "UInt32?",
+     "name": "access_flags"
+    },
+    {
+     "data_type": "UInt32?",
+     "name": "opcode_count"
+    },
+    {
+     "data_type": "Utf8View?",
+     "name": "opcode_hex"
+    },
+    {
+     "data_type": "Utf8?",
+     "name": "method_kind"
+    }
+   ],
+   "name": "methods"
+  },
+  "method_handles": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "method_handle_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "method_handle_type"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "member_idx"
+    }
+   ],
+   "name": "method_handles"
+  },
+  "call_sites": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "call_site_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "call_site_off"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "value_count"
+    },
+    {
+     "data_type": "UInt32?",
+     "name": "method_handle_idx"
+    },
+    {
+     "data_type": "UInt32?",
+     "name": "method_name_idx"
+    },
+    {
+     "data_type": "UInt32?",
+     "name": "proto_idx"
+    }
+   ],
+   "name": "call_sites"
+  },
+  "call_site_args": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "call_site_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "call_site_off"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "ordinal"
+    },
+    {
+     "data_type": "Utf8",
+     "name": "value_kind"
+    },
+    {
+     "data_type": "UInt32?",
+     "name": "value_index"
+    },
+    {
+     "data_type": "Int64?",
+     "name": "value_i64"
+    },
+    {
+     "data_type": "Float64?",
+     "name": "value_f64"
+    }
+   ],
+   "name": "call_site_args"
+  },
+  "encoded_arrays": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "encoded_array_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "encoded_array_off"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "encoded_array_end_off"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "value_count"
+    }
+   ],
+   "name": "encoded_arrays"
+  },
+  "encoded_array_values": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "encoded_array_off"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "depth"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "ordinal"
+    },
+    {
+     "data_type": "UInt32?",
+     "name": "name_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "value_off"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "value_end_off"
+    },
+    {
+     "data_type": "Utf8",
+     "name": "value_kind"
+    },
+    {
+     "data_type": "UInt32?",
+     "name": "value_index"
+    },
+    {
+     "data_type": "Int64?",
+     "name": "value_i64"
+    },
+    {
+     "data_type": "Float64?",
+     "name": "value_f64"
+    }
+   ],
+   "name": "encoded_array_values"
+  },
+  "encoded_array_owners": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "encoded_array_off"
+    },
+    {
+     "data_type": "Utf8",
+     "name": "owner_kind"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "owner_idx"
+    }
+   ],
+   "name": "encoded_array_owners"
+  },
+  "class_defs": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "class_def_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "class_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "access_flags"
+    },
+    {
+     "data_type": "UInt32?",
+     "name": "superclass_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "interfaces_off"
+    },
+    {
+     "data_type": "UInt32?",
+     "name": "source_file_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "annotations_off"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "class_data_off"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "static_values_off"
+    }
+   ],
+   "name": "class_defs"
+  },
+  "classes": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "class_def_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "class_idx"
+    },
+    {
+     "data_type": "Utf8",
+     "name": "descriptor"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "access_flags"
+    },
+    {
+     "data_type": "Utf8?",
+     "name": "superclass_descriptor"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "interface_count"
+    },
+    {
+     "data_type": "Utf8?",
+     "name": "source_file"
+    }
+   ],
+   "name": "classes"
+  },
+  "class_interfaces": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "class_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "ordinal"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "interface_type_idx"
+    },
+    {
+     "data_type": "Utf8",
+     "name": "interface_descriptor"
+    }
+   ],
+   "name": "class_interfaces"
+  },
+  "class_data_items": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "class_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "class_data_off"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "class_data_end_off"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "static_fields_size"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "instance_fields_size"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "direct_methods_size"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "virtual_methods_size"
+    }
+   ],
+   "name": "class_data_items"
+  },
+  "class_fields": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "class_idx"
+    },
+    {
+     "data_type": "Utf8",
+     "name": "class_descriptor"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "field_idx"
+    },
+    {
+     "data_type": "Utf8",
+     "name": "field_name"
+    },
+    {
+     "data_type": "Utf8",
+     "name": "field_descriptor"
+    },
+    {
+     "data_type": "Utf8",
+     "name": "kind"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "access_flags"
+    }
+   ],
+   "name": "class_fields"
+  },
+  "class_static_values": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "class_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "static_values_off"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "ordinal"
+    },
+    {
+     "data_type": "UInt32?",
+     "name": "field_idx"
+    },
+    {
+     "data_type": "Utf8",
+     "name": "value_kind"
+    },
+    {
+     "data_type": "UInt32?",
+     "name": "value_index"
+    },
+    {
+     "data_type": "Int64?",
+     "name": "value_i64"
+    },
+    {
+     "data_type": "Float64?",
+     "name": "value_f64"
+    }
+   ],
+   "name": "class_static_values"
+  },
+  "class_methods": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "class_idx"
+    },
+    {
+     "data_type": "Utf8",
+     "name": "class_descriptor"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "method_idx"
+    },
+    {
+     "data_type": "Utf8",
+     "name": "method_name"
+    },
+    {
+     "data_type": "Utf8",
+     "name": "method_descriptor"
+    },
+    {
+     "data_type": "Utf8",
+     "name": "kind"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "access_flags"
+    }
+   ],
+   "name": "class_methods"
+  },
+  "hiddenapi_flags": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "class_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "ordinal"
+    },
+    {
+     "data_type": "Utf8",
+     "name": "member_kind"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "member_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "flag"
+    }
+   ],
+   "name": "hiddenapi_flags"
+  },
+  "code_items": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "method_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "code_off"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "registers_size"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "ins_size"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "outs_size"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "tries_size"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "debug_info_off"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "insns_size"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "insns_off"
+    },
+    {
+     "data_type": "UInt32?",
+     "name": "tries_off"
+    },
+    {
+     "data_type": "UInt32?",
+     "name": "handlers_off"
+    }
+   ],
+   "name": "code_items"
+  },
+  "try_items": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "method_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "try_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "start_addr"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "insn_count"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "handler_off"
+    }
+   ],
+   "name": "try_items"
+  },
+  "catch_handlers": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "method_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "handler_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "handler_off"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "ordinal"
+    },
+    {
+     "data_type": "UInt32?",
+     "name": "type_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "addr"
+    },
+    {
+     "data_type": "Boolean",
+     "name": "is_catch_all"
+    }
+   ],
+   "name": "catch_handlers"
+  },
+  "debug_info": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "method_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "debug_info_off"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "line_start"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "parameters_size"
+    }
+   ],
+   "name": "debug_info"
+  },
+  "debug_parameters": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "method_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "debug_info_off"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "ordinal"
+    },
+    {
+     "data_type": "UInt32?",
+     "name": "name_idx"
+    }
+   ],
+   "name": "debug_parameters"
+  },
+  "debug_positions": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "method_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "debug_info_off"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "ordinal"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "address"
+    },
+    {
+     "data_type": "Int32",
+     "name": "line"
+    },
+    {
+     "data_type": "UInt32?",
+     "name": "source_file_idx"
+    },
+    {
+     "data_type": "Boolean",
+     "name": "prologue_end"
+    },
+    {
+     "data_type": "Boolean",
+     "name": "epilogue_begin"
+    }
+   ],
+   "name": "debug_positions"
+  },
+  "debug_locals": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "method_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "debug_info_off"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "ordinal"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "address"
+    },
+    {
+     "data_type": "Utf8",
+     "name": "event"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "register_num"
+    },
+    {
+     "data_type": "UInt32?",
+     "name": "name_idx"
+    },
+    {
+     "data_type": "UInt32?",
+     "name": "type_idx"
+    },
+    {
+     "data_type": "UInt32?",
+     "name": "signature_idx"
+    }
+   ],
+   "name": "debug_locals"
+  },
+  "debug_opcodes": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "method_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "debug_info_off"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "ordinal"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "opcode_off"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "opcode_end_off"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "opcode"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "address"
+    },
+    {
+     "data_type": "Int32",
+     "name": "line"
+    },
+    {
+     "data_type": "UInt32?",
+     "name": "address_diff"
+    },
+    {
+     "data_type": "Int32?",
+     "name": "line_diff"
+    },
+    {
+     "data_type": "UInt32?",
+     "name": "register_num"
+    },
+    {
+     "data_type": "UInt32?",
+     "name": "name_idx"
+    },
+    {
+     "data_type": "UInt32?",
+     "name": "type_idx"
+    },
+    {
+     "data_type": "UInt32?",
+     "name": "signature_idx"
+    },
+    {
+     "data_type": "UInt32?",
+     "name": "source_file_idx"
+    },
+    {
+     "data_type": "Boolean",
+     "name": "emits_position"
+    },
+    {
+     "data_type": "Boolean",
+     "name": "emits_local"
+    }
+   ],
+   "name": "debug_opcodes"
+  },
+  "annotation_directories": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "class_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "annotations_off"
+    },
+    {
+     "data_type": "UInt32?",
+     "name": "class_annotations_off"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "fields_size"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "methods_size"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "parameters_size"
+    }
+   ],
+   "name": "annotation_directories"
+  },
+  "annotation_directory_entries": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "class_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "annotations_off"
+    },
+    {
+     "data_type": "Utf8",
+     "name": "entry_kind"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "entry_idx"
+    },
+    {
+     "data_type": "UInt32?",
+     "name": "annotation_set_off"
+    },
+    {
+     "data_type": "UInt32?",
+     "name": "annotation_set_ref_list_off"
+    }
+   ],
+   "name": "annotation_directory_entries"
+  },
+  "annotation_sets": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "annotation_set_off"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "size"
+    }
+   ],
+   "name": "annotation_sets"
+  },
+  "annotation_set_entries": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "annotation_set_off"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "ordinal"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "annotation_off"
+    }
+   ],
+   "name": "annotation_set_entries"
+  },
+  "annotation_set_ref_lists": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "annotation_set_ref_list_off"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "size"
+    }
+   ],
+   "name": "annotation_set_ref_lists"
+  },
+  "annotation_set_refs": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "annotation_set_ref_list_off"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "ordinal"
+    },
+    {
+     "data_type": "UInt32?",
+     "name": "annotation_set_off"
+    }
+   ],
+   "name": "annotation_set_refs"
+  },
+  "annotations": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "annotation_off"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "visibility"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "type_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "element_count"
+    }
+   ],
+   "name": "annotations"
+  },
+  "annotation_elements": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "annotation_off"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "depth"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "ordinal"
+    },
+    {
+     "data_type": "UInt32?",
+     "name": "name_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "value_off"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "value_end_off"
+    },
+    {
+     "data_type": "Utf8",
+     "name": "value_kind"
+    },
+    {
+     "data_type": "UInt32?",
+     "name": "value_index"
+    },
+    {
+     "data_type": "Int64?",
+     "name": "value_i64"
+    },
+    {
+     "data_type": "Float64?",
+     "name": "value_f64"
+    }
+   ],
+   "name": "annotation_elements"
+  },
+  "method_refs": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "class_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "method_idx"
+    },
+    {
+     "data_type": "Dictionary(Int8, Utf8)",
+     "name": "index_kind"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "index"
+    },
+    {
+     "data_type": "Utf8?",
+     "name": "using_type"
+    }
+   ],
+   "name": "method_refs"
+  },
+  "method_numbers": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "class_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "method_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "opcode"
+    },
+    {
+     "data_type": "Dictionary(Int8, Utf8)",
+     "name": "number_type"
+    },
+    {
+     "data_type": "Int64",
+     "name": "long_value"
+    },
+    {
+     "data_type": "Float64?",
+     "name": "double_value"
+    }
+   ],
+   "name": "method_numbers"
+  },
+  "method_using_numbers": {
+   "columns": [
+    {
+     "data_type": "Utf8View",
+     "name": "method"
+    },
+    {
+     "data_type": "Utf8View",
+     "name": "method_class"
+    },
+    {
+     "data_type": "Utf8View",
+     "name": "method_name"
+    },
+    {
+     "data_type": "Dictionary(Int8, Utf8)",
+     "name": "number_type"
+    },
+    {
+     "data_type": "Int64",
+     "name": "long_value"
+    },
+    {
+     "data_type": "Float64?",
+     "name": "double_value"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "opcode"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "class_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "method_idx"
+    }
+   ],
+   "name": "method_using_numbers"
+  },
+  "method_strings": {
+   "columns": [
+    {
+     "data_type": "Utf8View",
+     "name": "method"
+    },
+    {
+     "data_type": "Utf8View",
+     "name": "method_class"
+    },
+    {
+     "data_type": "Utf8View",
+     "name": "method_name"
+    },
+    {
+     "data_type": "Utf8View",
+     "name": "value"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "class_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "method_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "string_idx"
+    }
+   ],
+   "name": "method_strings"
+  },
+  "method_calls": {
+   "columns": [
+    {
+     "data_type": "Utf8View",
+     "name": "method"
+    },
+    {
+     "data_type": "Utf8View",
+     "name": "method_class"
+    },
+    {
+     "data_type": "Utf8View",
+     "name": "method_name"
+    },
+    {
+     "data_type": "Utf8View",
+     "name": "callee"
+    },
+    {
+     "data_type": "Utf8View",
+     "name": "callee_class"
+    },
+    {
+     "data_type": "Utf8View",
+     "name": "callee_name"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "class_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "method_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "callee_method_idx"
+    }
+   ],
+   "name": "method_calls"
+  },
+  "method_field_accesses": {
+   "columns": [
+    {
+     "data_type": "Utf8View",
+     "name": "method"
+    },
+    {
+     "data_type": "Utf8View",
+     "name": "method_class"
+    },
+    {
+     "data_type": "Utf8View",
+     "name": "method_name"
+    },
+    {
+     "data_type": "Utf8View",
+     "name": "field"
+    },
+    {
+     "data_type": "Utf8View",
+     "name": "field_class"
+    },
+    {
+     "data_type": "Utf8View",
+     "name": "field_name"
+    },
+    {
+     "data_type": "Utf8View",
+     "name": "field_type"
+    },
+    {
+     "data_type": "Utf8?",
+     "name": "using_type"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "class_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "method_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "field_idx"
+    }
+   ],
+   "name": "method_field_accesses"
+  },
+  "method_used_types": {
+   "columns": [
+    {
+     "data_type": "Utf8View",
+     "name": "method"
+    },
+    {
+     "data_type": "Utf8View",
+     "name": "method_class"
+    },
+    {
+     "data_type": "Utf8View",
+     "name": "method_name"
+    },
+    {
+     "data_type": "Utf8View",
+     "name": "type_descriptor"
+    },
+    {
+     "data_type": "Utf8View",
+     "name": "type_name"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "class_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "method_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "type_idx"
+    }
+   ],
+   "name": "method_used_types"
+  },
+  "annotation_values": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "class_idx"
+    },
+    {
+     "data_type": "Dynamic",
+     "name": "owner_kind"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "owner_idx"
+    },
+    {
+     "data_type": "Utf8?",
+     "name": "owner_descriptor"
+    },
+    {
+     "data_type": "Dynamic?",
+     "name": "parameter_idx"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "annotation_off"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "annotation_type_idx"
+    },
+    {
+     "data_type": "Utf8",
+     "name": "annotation_descriptor"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "depth"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "ordinal"
+    },
+    {
+     "data_type": "UInt32?",
+     "name": "name_idx"
+    },
+    {
+     "data_type": "Utf8?",
+     "name": "name"
+    },
+    {
+     "data_type": "Utf8",
+     "name": "value_kind"
+    },
+    {
+     "data_type": "Int64?",
+     "name": "value_i64"
+    },
+    {
+     "data_type": "Float64?",
+     "name": "value_f64"
+    }
+   ],
+   "name": "annotation_values"
+  },
+  "annotation_elements_resolved": {
+   "columns": [
+    {
+     "data_type": "UInt32",
+     "name": "file_id"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "class_idx"
+    },
+    {
+     "data_type": "Dynamic",
+     "name": "owner_kind"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "owner_idx"
+    },
+    {
+     "data_type": "Utf8?",
+     "name": "owner"
+    },
+    {
+     "data_type": "Dynamic?",
+     "name": "parameter_idx"
+    },
+    {
+     "data_type": "Utf8",
+     "name": "annotation"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "visibility"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "element_count"
+    },
+    {
+     "data_type": "UInt32",
+     "name": "annotation_off"
+    },
+    {
+     "data_type": "UInt32?",
+     "name": "element_ordinal"
+    },
+    {
+     "data_type": "Utf8?",
+     "name": "element_name"
+    },
+    {
+     "data_type": "Utf8?",
+     "name": "value_kind"
+    },
+    {
+     "data_type": "UInt32?",
+     "name": "value_index"
+    },
+    {
+     "data_type": "Int64?",
+     "name": "value_i64"
+    },
+    {
+     "data_type": "Float64?",
+     "name": "value_f64"
+    },
+    {
+     "data_type": "Dynamic?",
+     "name": "retention_policy"
+    }
+   ],
+   "name": "annotation_elements_resolved"
+  }
+ }
+}

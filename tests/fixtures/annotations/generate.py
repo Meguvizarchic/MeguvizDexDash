@@ -42,7 +42,7 @@ def build(features=None):
     descriptors = ["I", "Ldalvik/annotation/Signature;", "Lfixture/A;", "Lfixture/Enum;", "Lfixture/Nested;", "Lfixture/Values;", "Ljava/lang/Object;", "Ljava/lang/String;", "Ljava/util/List;"]
     if "shared_empty_directory" in features:
         descriptors.append("Lfixture/B;")
-    call_site = bool(features & {"call_site_array","call_site_short"})
+    call_site = bool(features & {"call_site_array","call_site_short","call_site_extra_args"})
     if call_site:
         descriptors.extend(["Lfixture/Bootstrap;","Ljava/lang/invoke/CallSite;","Ljava/lang/invoke/MethodHandles$Lookup;","Ljava/lang/invoke/MethodType;"])
     strings = sorted(set(descriptors + names + field_fragments + method_fragments + class_fragments + ["LLI", "E", "f", "f2", "m", "m2", "value", "hello", "a", "z"] + (["LLLL","bootstrap"] if call_site else []) + (["L"] if "parameter_zero_proto" in features else [])))
@@ -116,7 +116,11 @@ def build(features=None):
     if call_site:
         labels["call_site_array"] = len(data)
         map_entries.append((0x2005,1,len(data)))
-        data.extend(bytes([2,0x16,0,0x17,sid["m"]]) if "call_site_short" in features else bytes([3,0x16,0,0x17,sid["m"],0x15,method_proto_index]))
+        if "call_site_extra_args" in features:
+            # the three leading values and two more static arguments: an int and a string
+            data.extend(bytes([5,0x16,0,0x17,sid["m"],0x15,method_proto_index,0x04,7,0x17,sid["hello"]]))
+        else:
+            data.extend(bytes([2,0x16,0,0x17,sid["m"]]) if "call_site_short" in features else bytes([3,0x16,0,0x17,sid["m"],0x15,method_proto_index]))
         struct.pack_into("<I",data,labels["call_site_ids"],labels["call_site_array"])
 
     def reference(kind, index):
@@ -155,6 +159,9 @@ def build(features=None):
     if "marker_annotation" in features:
         # a marker: an annotation item with no elements, reachable through the method's set
         annotation_values.append(("marker_annotation", bytes([1]) + uleb(tid["Lfixture/Values;"]) + b"\0"))
+    if "build_annotation" in features:
+        # visibility 0 (build): kept in the file for build tools, reachable through the method's set
+        annotation_values.append(("build_annotation", bytes([0]) + uleb(tid["Lfixture/Values;"]) + b"\0"))
     map_entries.append((0x2004, len(annotation_values), len(data)))
     for name, value in annotation_values:
         labels[name] = len(data)
@@ -162,7 +169,7 @@ def build(features=None):
     align()
     parameter_item = labels["method_signature"] if "parameter_shared_signature" in features else labels["values"]
     set_values = [("class_set", [labels["class_signature"], labels["values"]]), ("field_set", [labels["field_signature"]]),
-                  ("method_set", [labels["method_signature"]] + ([labels["marker_annotation"]] if "marker_annotation" in features else [])), ("parameter_set", [parameter_item])]
+                  ("method_set", [labels["method_signature"]] + ([labels["marker_annotation"]] if "marker_annotation" in features else []) + ([labels["build_annotation"]] if "build_annotation" in features else [])), ("parameter_set", [parameter_item])]
     if "parameter_empty_set_shared" in features:
         set_values.extend([("parameter_empty_set", []), ("parameter_orphan_empty_set", [])])
     if features & {"orphan_set","shared_empty_set","orphan_bad_set"}:

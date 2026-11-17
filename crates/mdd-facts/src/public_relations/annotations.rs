@@ -371,7 +371,7 @@ impl AnnotationFacts {
                 let annotation = self.type_descriptor(item.type_idx)?;
                 let element_count = to_u32(item.elements.len() as u64, "element count")?;
                 let retention = match item.visibility {
-                    0 => Some("build"),
+                    0 => Some("class"),
                     1 => Some("runtime"),
                     2 => Some("system"),
                     _ => None,

@@ -118,7 +118,11 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -I conformance/relations/test_public_relations_diff.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -I conformance/relations/public_relations_diff.py --binary $binary --out artifacts/ci/public-relations-diff.json --quiet
+          python -I conformance/relations/public_relations_diff.py --binary $binary --dialect dexsql-0.1.0 --out artifacts/ci/public-relations-diff.json --quiet
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -I conformance/relations/public_relations_diff.py --binary $binary --dialect dexsql-0.1.1 --probe-dir artifacts/mdd-070/a1-probe --out artifacts/ci/public-relations-diff-0.1.1.json --quiet
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -I conformance/relations/compare_references.py --check
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -I conformance/relations/build_qualification.py --check
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

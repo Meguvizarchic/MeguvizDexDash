@@ -104,6 +104,28 @@ class Verdicts(unittest.TestCase):
         self.assertEqual(D.compare("r", recorded(self.cols, rows), got(self.cols, [], declared))["verdict"], "refused_by_design")
 
 
+class TheReferenceGaps(unittest.TestCase):
+    cols = [column("a"), column("b", "utf8")]
+    pair = ("parameter-empty-zero-proto", "type_list_entries")
+
+    def test_rows_the_reference_left_out_are_a_declared_gap_only_for_the_declared_pair(self):
+        have = [[u(1), t("x")], [u(2), t("y")]]
+        out = D.compare(self.pair[1], recorded(self.cols, []), got(self.cols, have), self.pair[0])
+        self.assertEqual(out["verdict"], "reference_incomplete")
+        # the same difference anywhere else is a difference
+        self.assertEqual(D.compare(self.pair[1], recorded(self.cols, []), got(self.cols, have), "other")["verdict"], "differs")
+        self.assertEqual(D.compare("other", recorded(self.cols, []), got(self.cols, have), self.pair[0])["verdict"], "differs")
+
+    def test_a_row_the_engine_lacks_is_not_excused_by_the_gap(self):
+        want = [[u(1), t("x")], [u(3), t("z")]]
+        have = [[u(1), t("x")], [u(2), t("y")]]
+        self.assertEqual(D.compare(self.pair[1], recorded(self.cols, want), got(self.cols, have), self.pair[0])["verdict"], "differs")
+
+    def test_the_gaps_are_the_stalled_pairs_and_the_entries_of_the_unreferenced_lists(self):
+        self.assertLessEqual(D.A0_PAGING_DEFECTS, D.REFERENCE_GAPS)
+        self.assertEqual(len(D.REFERENCE_GAPS - D.A0_PAGING_DEFECTS), 2)
+
+
 class DeclaredDifferences(unittest.TestCase):
     def test_a_non_negative_value_of_an_int64_column_may_carry_either_tag_a_negative_one_may_not(self):
         cols = [column("v", "int64")]
@@ -145,19 +167,24 @@ class TheRecordedAnswers(unittest.TestCase):
             self.assertNotIn("DevArea", text, path.name)
             self.assertNotIn(":\\\\", text, path.name)
 
-    def test_every_record_holds_the_fifty_six_frozen_relations_of_one_fixture(self):
+    def test_every_record_of_both_references_holds_the_fifty_six_frozen_relations_of_one_fixture(self):
         manifest = json.loads((ROOT / "conformance" / "manifests" / "relations.json").read_text(encoding="utf-8"))
         names = [entry["name"] for entry in manifest["relations"]]
-        records = [p for p in sorted((ROOT / "artifacts" / "mdd-070" / "a0-probe").glob("*.json")) if p.name != "describe-tables.json"]
-        self.assertGreaterEqual(len(records), 28)
-        for path in records:
-            record = json.loads(path.read_text(encoding="utf-8"))
-            self.assertEqual(list(record["relations"]), names, path.name)
-            self.assertEqual(D.sha256(ROOT / record["fixture"]), record["fixture_sha256"], path.name)
-            for name, answer in record["relations"].items():
-                self.assertIsNone(answer["error"], f"{path.name} {name}")
-                # the reference's paging defect is declared, pair by pair, and no other pair may show it
-                self.assertEqual(answer["paging_stuck"], (path.stem, name) in D.A0_PAGING_DEFECTS, f"{path.name} {name}")
+        fixtures = {}
+        for directory in ("a0-probe", "a1-probe"):
+            records = [p for p in sorted((ROOT / "artifacts" / "mdd-070" / directory).glob("*.json")) if p.name != "describe-tables.json"]
+            self.assertGreaterEqual(len(records), 47, directory)
+            fixtures[directory] = [p.name for p in records]
+            for path in records:
+                record = json.loads(path.read_text(encoding="utf-8"))
+                self.assertEqual(list(record["relations"]), names, f"{directory}/{path.name}")
+                self.assertEqual(D.sha256(ROOT / record["fixture"]), record["fixture_sha256"], f"{directory}/{path.name}")
+                for name, answer in record["relations"].items():
+                    self.assertIsNone(answer["error"], f"{directory}/{path.name} {name}")
+                    # the reference's paging defect is declared, pair by pair, and no other pair may show it
+                    self.assertEqual(answer["paging_stuck"], (path.stem, name) in D.A0_PAGING_DEFECTS, f"{directory}/{path.name} {name}")
+        # both references were asked about the same fixtures
+        self.assertEqual(fixtures["a0-probe"], fixtures["a1-probe"])
 
 
 if __name__ == "__main__":

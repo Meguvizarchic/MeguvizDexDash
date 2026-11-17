@@ -24,6 +24,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 RECORD = "artifacts/mdd-070/public-relations-conformance.json"
 DIFF = "artifacts/mdd-070/public-relations-diff.json"
+DIFF_011 = "artifacts/mdd-070/public-relations-diff-0.1.1.json"
+REFERENCE_VERSIONS = "artifacts/mdd-070/reference-versions.json"
 QUALIFICATION = "conformance/manifests/full-relation-qualification.json"
 MUTATION = "artifacts/mdd-070/mutation/results.txt"
 BINARY = "target/debug/meguvizdexdash" + (".exe" if sys.platform == "win32" else "")
@@ -35,7 +37,7 @@ SOURCES = [
     "crates/mdd-sql/src/provider/hostlab/public_tests.rs", "crates/mdd-sql/src/provider/hostlab.rs",
     "crates/mdd-mcp/src/tools.rs", "conformance/relations/public_relations_diff.py",
     "conformance/relations/test_public_relations_diff.py", "conformance/relations/build_qualification.py",
-    DIFF, QUALIFICATION, "conformance/manifests/relations.json", "artifacts/mdd-070/probe_a0.py",
+    DIFF, DIFF_011, REFERENCE_VERSIONS, QUALIFICATION, "conformance/relations/compare_references.py", "conformance/manifests/relations.json", "artifacts/mdd-070/probe_a0.py",
     "tests/fixtures/public_relations/generate.py", "tests/fixtures/public_relations/manifest.json",
     "artifacts/mdd-070/mutation/mutate_public_relations.py", ".github/workflows/mutation-public-relations.yml",
 ]
@@ -71,6 +73,23 @@ def mutation_summary() -> dict:
             "restored_tree_passes": any("passes the unit and process tests, the replays and their controls: True" in line for line in lines)}
 
 
+def replay_record(diff: dict, file: str) -> dict:
+    summary = diff["summary"]
+    return {
+        "file": file, "script": "conformance/relations/public_relations_diff.py", "reference": diff["reference"],
+        "dialect": diff["engine_under_test"].get("dialect"),
+        "fixtures": len(diff["fixtures_compared"]), "relations": len(diff["relations_compared"]),
+        "pairs": sum(v["fixtures"] for v in summary.values()),
+        "exact": sum(v["match"] + v["match_cells"] for v in summary.values()),
+        "same_rows_in_another_order": sum(v["reordered"] for v in summary.values()),
+        "refused_by_design": sum(v["refused_by_design"] for v in summary.values()),
+        "reference_incomplete": sum(v.get("reference_incomplete", 0) for v in summary.values()),
+        "differing": sum(v["differs"] + v["error"] for v in summary.values()),
+        "declared_open_refusals": diff["declared_open_refusals"],
+        "undeclared_open_refusals": diff["undeclared_open_refusals"],
+    }
+
+
 def check() -> int:
     record = json.loads((ROOT / RECORD).read_text(encoding="utf-8"))
     stale = [path for path, digest in record["inputs_sha256"].items() if sha256(path) != digest]
@@ -90,15 +109,23 @@ def main() -> int:
     if args.check:
         return check()
 
-    code, text = run([sys.executable, "-I", "conformance/relations/public_relations_diff.py", "--binary", BINARY, "--out", DIFF, "--quiet"])
+    for dialect, out, probes in (("dexsql-0.1.0", DIFF, "artifacts/mdd-070/a0-probe"), ("dexsql-0.1.1", DIFF_011, "artifacts/mdd-070/a1-probe")):
+        code, text = run([sys.executable, "-I", "conformance/relations/public_relations_diff.py", "--binary", BINARY,
+                          "--dialect", dialect, "--probe-dir", probes, "--out", out, "--quiet"])
+        if code != 0:
+            print(text[-3000:])
+            raise SystemExit(f"the replay of the recorded answers of {probes} does not pass against the current build in the {dialect} dialect")
+    code, text = run([sys.executable, "-I", "conformance/relations/compare_references.py"])
     if code != 0:
-        print(text[-3000:])
-        raise SystemExit("the replay of the recorded answers does not pass against the current build")
+        print(text)
+        raise SystemExit("the two recorded versions could not be compared")
     code, text = run([sys.executable, "-I", "conformance/relations/build_qualification.py"])
     if code != 0:
         print(text)
         raise SystemExit("the qualification record could not be built")
     diff = json.loads((ROOT / DIFF).read_text(encoding="utf-8"))
+    diff_011 = json.loads((ROOT / DIFF_011).read_text(encoding="utf-8"))
+    versions = json.loads((ROOT / REFERENCE_VERSIONS).read_text(encoding="utf-8"))
 
     tests = {}
     for label, command in (("mdd-facts lib", ["-p", "mdd-facts", "--lib"]), ("mdd-sql lib", ["-p", "mdd-sql", "--lib"]),
@@ -118,37 +145,32 @@ def main() -> int:
         "schema_version": "mdd.public-relations-conformance.v1",
         "task": "MDD-070",
         "status": "all 56 relations of the frozen manifest are advertised, described and answered; every relation was compared "
-                  "cell by cell with the recorded answers of the reference engine over the fixtures below",
+                  "cell by cell with the recorded answers of dexsql 0.1.0 and of dexsql 0.1.1 over the fixtures of the qualification record",
         "kind": "development evidence; admits no profile",
         "engine_under_test": diff["engine_under_test"],
         "reference": diff["reference"],
-        "replay": {
-            "file": DIFF, "script": "conformance/relations/public_relations_diff.py",
-            "fixtures": len(diff["fixtures_compared"]), "relations": len(diff["relations_compared"]), "pairs": pairs,
-            "exact": sum(v["match"] + v["match_cells"] for v in summary.values()),
-            "same_rows_in_another_order": sum(v["reordered"] for v in summary.values()),
-            "refused_by_design": sum(v["refused_by_design"] for v in summary.values()),
-            "differing": sum(v["differs"] + v["error"] for v in summary.values()),
-            "declared_open_refusals": diff["declared_open_refusals"],
-            "undeclared_open_refusals": diff["undeclared_open_refusals"],
-        },
+        "replay": replay_record(diff, DIFF),
+        "replay_0.1.1": replay_record(diff_011, DIFF_011),
+        "reference_versions": {"file": REFERENCE_VERSIONS, "script": "conformance/relations/compare_references.py",
+                               "reading": versions["reading"], "pairs": versions["pairs"], "verdicts": versions["verdicts"]},
         "qualification": {"file": QUALIFICATION, "script": "conformance/relations/build_qualification.py"},
         "tests": tests,
         "mutation_check": mutation,
         "inputs_sha256": {path: sha256(path) for path in SOURCES},
         "residual": [
-            "the recorded answers are those of dexsql 0.1.0; 0.1.1 is not recaptured, so its profile is not verified (release v0.1.1 exists; downloading it needs the owner's approval)",
+            "the recorded answers are those of dexsql 0.1.0 and 0.1.1, windows-amd64 builds only; the two are identical on every fixture and relation, which does not show they are alike on other fixtures or in SQL behaviour beyond SELECT *",
             "the fixtures are small synthetic DEX files (one to a few classes) plus the project's earlier fixtures; no relation was compared on a real application, and the NewPipe APK was not used",
-            "relations whose recorded evidence is one or two fixtures (call_sites, call_site_args, class_static_values, hiddenapi_flags, try_items, catch_handlers, debug_*) are listed with their counts in the qualification record",
+            "relations whose recorded evidence is one or two fixtures (class_static_values, hiddenapi_flags, try_items, catch_handlers, debug_*) are listed with their counts in the qualification record",
             "SELECT * paged to the end is what was compared; joins, aggregates and ORDER BY over the 39 relations beyond the contract seventeen are not separately claimed",
-            "row order of a relation read without ORDER BY differs from the reference in 45 (relation, fixture) pairs (the same rows); it is a declared difference, not a defect",
-            "the mutation check runs in .github/workflows/mutation-public-relations.yml, not on a developer machine; a local sample of eight mutants was killed",
+            "row order of a relation read without ORDER BY differs from the reference in some (relation, fixture) pairs (the same rows); it is a declared difference, not a defect",
+            "the mutation check runs in .github/workflows/mutation-public-relations.yml, not on a developer machine; its first Actions run found five survivors, which became new fixtures (the rerun on the final commit is what counts, and is not in this record until it has run)",
+            "the per-dialect list of relations is data in the qualification record; there is no Rust module under crates/mdd-sql/src/profiles/compatibility/ (the task lists that path as an output)",
             "the reference reads a DEX whose two classes share class data; the engine refuses it at open (declared)",
         ],
         "run": {"finished_utc": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")},
     }
     (ROOT / RECORD).write_text(json.dumps(record, ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n")
-    print(f"wrote {RECORD}; replay {record['replay']['exact']}/{pairs} exact; tests {tests}; mutation present={mutation['present']} current={mutation['current']}")
+    print(f"wrote {RECORD}; replay {record['replay']['exact']}/{pairs} exact (0.1.1: {record['replay_0.1.1']['exact']}/{record['replay_0.1.1']['pairs']}); tests {tests}; mutation present={mutation['present']} current={mutation['current']}")
     return 0
 
 

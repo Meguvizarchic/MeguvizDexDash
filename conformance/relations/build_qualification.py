@@ -24,9 +24,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = "conformance/manifests/relations.json"
 DIFF = "artifacts/mdd-070/public-relations-diff.json"
+DIFF_011 = "artifacts/mdd-070/public-relations-diff-0.1.1.json"
+REFERENCE_VERSIONS = "artifacts/mdd-070/reference-versions.json"
 OUT = "conformance/manifests/full-relation-qualification.json"
 PROBES = "artifacts/mdd-070/a0-probe"
-INPUTS = [MANIFEST, DIFF, "conformance/relations/public_relations_diff.py", "conformance/relations/build_qualification.py",
+INPUTS = [MANIFEST, DIFF, DIFF_011, REFERENCE_VERSIONS, "conformance/relations/public_relations_diff.py", "conformance/relations/build_qualification.py",
           "tests/fixtures/public_relations/manifest.json"]
 
 LAYER_REFUSAL = ("INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; "
@@ -104,7 +106,8 @@ DECLARED = {
     "STRICT_INPUT": "a DEX in which two class definitions share one class_data_item is refused at open; the reference reads it",
     "COLUMN_TYPE_OF_EMPTY_RESULT": "the type the engine reports for a result column is taken from the values, so a column with no value or only NULLs is reported 'unknown'; the reference reports the declared type",
     "DYNAMIC_COLUMNS": "owner_kind, parameter_idx and retention_policy are computed columns the reference types 'sqlite_dynamic'; the engine types them by their values",
-    "A0_PAGING_DEFECT": "reading code_items of a DEX with a code item no method declares, the reference counts the item and delivers no page (next_offset stays); the engine answers with the method-bound items, none here",
+    "A0_PAGING_DEFECT": "reading code_items of a DEX with a code item no method declares, or type_lists of a DEX with a type list nothing refers to, the reference counts the item and delivers no page (next_offset stays); the engine answers code_items with the method-bound items (none here) and type_lists with every list of the section",
+    "REFERENCE_INCOMPLETE": "type_list_entries of a type list nothing refers to: the reference has no entries for it, the engine lists them; every row the reference delivers is the engine's too (two fixtures)",
     "LOCAL_PATH": "dex_files.source_path is the path the input was opened from and differs by machine; it is not compared",
 }
 
@@ -113,9 +116,24 @@ def sha256(relative: str) -> str:
     return hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()
 
 
+def replay_summary(diff: dict) -> dict:
+    summary = diff["summary"]
+    return {
+        "reference": diff["reference"], "dialect": diff["engine_under_test"].get("dialect"),
+        "fixtures": len(diff["fixtures_compared"]), "pairs": sum(v["fixtures"] for v in summary.values()),
+        "exact": sum(v["match"] + v["match_cells"] for v in summary.values()),
+        "same_rows_in_another_order": sum(v["reordered"] for v in summary.values()),
+        "refused_by_design": sum(v["refused_by_design"] for v in summary.values()),
+        "reference_incomplete": sum(v.get("reference_incomplete", 0) for v in summary.values()),
+        "differing": sum(v["differs"] + v["error"] for v in summary.values()),
+        "blocking_relations": diff["blocking_relations"],
+    }
+
+
 def build() -> dict:
     manifest = json.loads((ROOT / MANIFEST).read_text(encoding="utf-8"))
     diff = json.loads((ROOT / DIFF).read_text(encoding="utf-8"))
+    diff_011 = json.loads((ROOT / DIFF_011).read_text(encoding="utf-8"))
     names = [entry["name"] for entry in manifest["relations"]]
     if set(KNOWLEDGE) != set(names):
         raise SystemExit(f"the knowledge table and the manifest differ: {sorted(set(KNOWLEDGE) ^ set(names))}")
@@ -151,6 +169,7 @@ def build() -> dict:
                 "exact": summary["match"] + summary["match_cells"],
                 "same_rows_in_another_order": summary["reordered"],
                 "refused_by_design": summary["refused_by_design"],
+                "reference_incomplete": summary.get("reference_incomplete", 0),
                 "differing": summary["differs"] + summary["error"],
                 "fixtures_with_rows_list": nonempty,
             },
@@ -169,12 +188,19 @@ def build() -> dict:
         "profiles": {
             "dexsql-0.1.0-compat-v1": {
                 "status": "compared, not admitted",
-                "basis": "the recorded answers of dexsql 0.1.0 for every relation of every fixture above, replayed by conformance/relations/public_relations_diff.py",
+                "basis": "the recorded answers of dexsql 0.1.0 (artifacts/mdd-070/a0-probe/) replayed by conformance/relations/public_relations_diff.py with the server in the dexsql-0.1.0 dialect",
+                "replay": replay_summary(diff),
             },
             "dexsql-0.1.1-compat-v1": {
-                "status": "not verified",
-                "basis": "the 0.1.1 schema has not been recaptured and no 0.1.1 answer is recorded; the documents say both versions list the same fifty-six relations, which this record does not take as evidence of equal rows",
+                "status": "compared, not admitted",
+                "basis": "the recorded answers of dexsql 0.1.1 (artifacts/mdd-070/a1-probe/; windows-amd64, sha256 602105c98232120c14d6124fb33574f2f95f12e50e51d25b8834f893925f28d6, checked against the release's SHA256SUMS and the asset digest GitHub holds) replayed with the server in the dexsql-0.1.1 dialect",
+                "replay": replay_summary(diff_011),
+                "against_0.1.0": "the recorded answers of the two versions are identical on every fixture and relation (artifacts/mdd-070/reference-versions.json); the differences between the profiles that are recorded are therefore none, within those fixtures and that question",
             },
+        },
+        "dialects": {
+            "dexsql-0.1.0": {"relations_advertised": len(names), "evidence": DIFF},
+            "dexsql-0.1.1": {"relations_advertised": len(names), "evidence": DIFF_011},
         },
         "sql_surface": "each relation is exercised by SELECT * paged to the end; the 17 contract relations are additionally exercised by the MDD-035 corpus (joins, aggregates, CTEs, ORDER BY). General SQL over the 39 others is not claimed beyond what the query layer proves for any relation.",
         "special_formats": "no relation here depends on DEX 041, compact DEX, OAT or VDEX; those keep their own capability matrix (compatibility/ledger.json format_qualifications)",

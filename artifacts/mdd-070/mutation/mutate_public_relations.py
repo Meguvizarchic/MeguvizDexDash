@@ -122,7 +122,7 @@ MUTANTS = [
     ("debug_locals: a start is not remembered", DEBUG, [("locals.insert(register, local);", "let _ = (register, local);")]),
     ("debug_locals: an end shows nothing", DEBUG, [("_ => locals.get(&register).copied().unwrap_or_default(),", "_ => Local::default(),")]),
     # ---- the annotation relations
-    ("annotation_elements_resolved: build is runtime", ANNOTATIONS, [('0 => Some("build"),', '0 => Some("runtime"),')]),
+    ("annotation_elements_resolved: build visibility is runtime", ANNOTATIONS, [('0 => Some("class"),', '0 => Some("runtime"),')]),
     ("annotation_elements_resolved: system is runtime", ANNOTATIONS, [('2 => Some("system"),', '2 => Some("runtime"),')]),
     ("annotation_elements_resolved: an annotation without elements has no row", ANNOTATIONS, [("if top.is_empty() {", "if false {")]),
     ("annotation_elements_resolved: nested elements are top level", ANNOTATIONS,

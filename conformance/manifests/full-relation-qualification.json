@@ -4,17 +4,20 @@
  "kind": "development evidence; admits no profile",
  "reference": "dexsql 0.1.0 (f354ebcf715de9a66ef8ebe08b2b36807ab58e25cd5a1c0812e497fc1fcfc448), recorded in artifacts/mdd-070/a0-probe/",
  "engine_under_test": {
-  "binary_sha256": "8992ff48450f4f215495d384a1089d9ee864a1e4bcf274517f5dae0952e2db2f",
+  "binary_sha256": "27e1cbdb25cf9324227e94a295e0eb6579cd068d0d9f9247d92b881a024468f9",
   "server": {
    "name": "meguvizdexdash",
    "title": "MeguvizDexDash",
    "version": "0.1.0-dev"
-  }
+  },
+  "dialect": "dexsql-0.1.0"
  },
  "relations_count": 56,
  "fixtures": [
   "all-debug-opcodes",
   "annotations-038",
+  "build-annotation-038",
+  "call-site-extra-args-038",
   "classic-035",
   "debug-methods-035",
   "debug-programs-035",
@@ -31,20 +34,39 @@
   "minimal-035",
   "nonscalar-string-035",
   "packed-switch",
+  "parameter-empty-nonzero-proto",
+  "parameter-empty-zero-proto",
+  "parameter-long-nonzero-proto",
+  "parameter-orphan-empty-no-binding",
+  "parameter-shared-empty-set",
+  "parameter-shared-signature",
+  "parameter-shared-signature-complete",
   "poly-custom-038",
   "proto-share-035",
+  "root-class-035",
   "shared-class-data",
   "sparse-switch",
   "static-values-035",
+  "static-values-nested-035",
   "strings-mutf8-035",
   "try-catch-all",
   "valid-call-site-array",
+  "valid-orphan-annotation",
   "valid-orphan-arrays",
+  "valid-orphan-empty-directory",
+  "valid-orphan-empty-ref-list",
+  "valid-orphan-empty-set",
+  "valid-orphan-external-directory",
+  "valid-orphan-known-directory",
+  "valid-shared-empty-directory",
+  "valid-shared-empty-set",
   "valid-static-empty-array"
  ],
  "fixture_dex_versions": {
   "all-debug-opcodes": "040",
   "annotations-038": "038",
+  "build-annotation-038": "038",
+  "call-site-extra-args-038": "038",
   "classic-035": "035",
   "debug-methods-035": "035",
   "debug-programs-035": "035",
@@ -61,15 +83,32 @@
   "minimal-035": "035",
   "nonscalar-string-035": "035",
   "packed-switch": "040",
+  "parameter-empty-nonzero-proto": "038",
+  "parameter-empty-zero-proto": "038",
+  "parameter-long-nonzero-proto": "038",
+  "parameter-orphan-empty-no-binding": "038",
+  "parameter-shared-empty-set": "038",
+  "parameter-shared-signature-complete": "038",
+  "parameter-shared-signature": "038",
   "poly-custom-038": "038",
   "proto-share-035": "035",
+  "root-class-035": "035",
   "shared-class-data": "035",
   "sparse-switch": "040",
   "static-values-035": "035",
+  "static-values-nested-035": "035",
   "strings-mutf8-035": "035",
   "try-catch-all": "040",
   "valid-call-site-array": "038",
+  "valid-orphan-annotation": "038",
   "valid-orphan-arrays": "038",
+  "valid-orphan-empty-directory": "038",
+  "valid-orphan-empty-ref-list": "038",
+  "valid-orphan-empty-set": "038",
+  "valid-orphan-external-directory": "038",
+  "valid-orphan-known-directory": "038",
+  "valid-shared-empty-directory": "038",
+  "valid-shared-empty-set": "038",
   "valid-static-empty-array": "038"
  },
  "declared_differences": {
@@ -80,7 +119,8 @@
   "STRICT_INPUT": "a DEX in which two class definitions share one class_data_item is refused at open; the reference reads it",
   "COLUMN_TYPE_OF_EMPTY_RESULT": "the type the engine reports for a result column is taken from the values, so a column with no value or only NULLs is reported 'unknown'; the reference reports the declared type",
   "DYNAMIC_COLUMNS": "owner_kind, parameter_idx and retention_policy are computed columns the reference types 'sqlite_dynamic'; the engine types them by their values",
-  "A0_PAGING_DEFECT": "reading code_items of a DEX with a code item no method declares, the reference counts the item and delivers no page (next_offset stays); the engine answers with the method-bound items, none here",
+  "A0_PAGING_DEFECT": "reading code_items of a DEX with a code item no method declares, or type_lists of a DEX with a type list nothing refers to, the reference counts the item and delivers no page (next_offset stays); the engine answers code_items with the method-bound items (none here) and type_lists with every list of the section",
+  "REFERENCE_INCOMPLETE": "type_list_entries of a type list nothing refers to: the reference has no entries for it, the engine lists them; every row the reference delivers is the engine's too (two fixtures)",
   "LOCAL_PATH": "dex_files.source_path is the path the input was opened from and differs by machine; it is not compared"
  },
  "declared_open_refusals": {
@@ -89,11 +129,46 @@
  "profiles": {
   "dexsql-0.1.0-compat-v1": {
    "status": "compared, not admitted",
-   "basis": "the recorded answers of dexsql 0.1.0 for every relation of every fixture above, replayed by conformance/relations/public_relations_diff.py"
+   "basis": "the recorded answers of dexsql 0.1.0 (artifacts/mdd-070/a0-probe/) replayed by conformance/relations/public_relations_diff.py with the server in the dexsql-0.1.0 dialect",
+   "replay": {
+    "reference": "dexsql 0.1.0 (f354ebcf715de9a66ef8ebe08b2b36807ab58e25cd5a1c0812e497fc1fcfc448), recorded in artifacts/mdd-070/a0-probe/",
+    "dialect": "dexsql-0.1.0",
+    "fixtures": 47,
+    "pairs": 2576,
+    "exact": 2504,
+    "same_rows_in_another_order": 63,
+    "refused_by_design": 5,
+    "reference_incomplete": 4,
+    "differing": 0,
+    "blocking_relations": []
+   }
   },
   "dexsql-0.1.1-compat-v1": {
-   "status": "not verified",
-   "basis": "the 0.1.1 schema has not been recaptured and no 0.1.1 answer is recorded; the documents say both versions list the same fifty-six relations, which this record does not take as evidence of equal rows"
+   "status": "compared, not admitted",
+   "basis": "the recorded answers of dexsql 0.1.1 (artifacts/mdd-070/a1-probe/; windows-amd64, sha256 602105c98232120c14d6124fb33574f2f95f12e50e51d25b8834f893925f28d6, checked against the release's SHA256SUMS and the asset digest GitHub holds) replayed with the server in the dexsql-0.1.1 dialect",
+   "replay": {
+    "reference": "dexsql 0.1.1+6ac7870875a519ec471e41c93fc86d80e8e2bce7 (602105c98232120c14d6124fb33574f2f95f12e50e51d25b8834f893925f28d6), recorded in artifacts/mdd-070/a1-probe/",
+    "dialect": "dexsql-0.1.1",
+    "fixtures": 47,
+    "pairs": 2576,
+    "exact": 2504,
+    "same_rows_in_another_order": 63,
+    "refused_by_design": 5,
+    "reference_incomplete": 4,
+    "differing": 0,
+    "blocking_relations": []
+   },
+   "against_0.1.0": "the recorded answers of the two versions are identical on every fixture and relation (artifacts/mdd-070/reference-versions.json); the differences between the profiles that are recorded are therefore none, within those fixtures and that question"
+  }
+ },
+ "dialects": {
+  "dexsql-0.1.0": {
+   "relations_advertised": 56,
+   "evidence": "artifacts/mdd-070/public-relations-diff.json"
+  },
+  "dexsql-0.1.1": {
+   "relations_advertised": 56,
+   "evidence": "artifacts/mdd-070/public-relations-diff-0.1.1.json"
   }
  },
  "sql_surface": "each relation is exercised by SELECT * paged to the end; the 17 contract relations are additionally exercised by the MDD-035 corpus (joins, aggregates, CTEs, ORDER BY). General SQL over the 39 others is not claimed beyond what the query layer proves for any relation.",
@@ -252,21 +327,24 @@
     "INCOMPLETE_FACTS naming the column when source_path or entry_name has no lossless text"
    ],
    "evidence": {
-    "fixtures_compared": 27,
-    "fixtures_with_rows": 27,
+    "fixtures_compared": 46,
+    "fixtures_with_rows": 46,
     "dex_versions_with_rows": [
      "035",
      "038",
      "039",
      "040"
     ],
-    "exact": 27,
+    "exact": 46,
     "same_rows_in_another_order": 0,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "all-debug-opcodes",
      "annotations-038",
+     "build-annotation-038",
+     "call-site-extra-args-038",
      "classic-035",
      "debug-methods-035",
      "debug-programs-035",
@@ -283,14 +361,31 @@
      "minimal-035",
      "nonscalar-string-035",
      "packed-switch",
+     "parameter-empty-nonzero-proto",
+     "parameter-empty-zero-proto",
+     "parameter-long-nonzero-proto",
+     "parameter-orphan-empty-no-binding",
+     "parameter-shared-empty-set",
+     "parameter-shared-signature-complete",
+     "parameter-shared-signature",
      "poly-custom-038",
      "proto-share-035",
+     "root-class-035",
      "sparse-switch",
      "static-values-035",
+     "static-values-nested-035",
      "strings-mutf8-035",
      "try-catch-all",
      "valid-call-site-array",
+     "valid-orphan-annotation",
      "valid-orphan-arrays",
+     "valid-orphan-empty-directory",
+     "valid-orphan-empty-ref-list",
+     "valid-orphan-empty-set",
+     "valid-orphan-external-directory",
+     "valid-orphan-known-directory",
+     "valid-shared-empty-directory",
+     "valid-shared-empty-set",
      "valid-static-empty-array"
     ]
    }
@@ -333,21 +428,24 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
-    "fixtures_with_rows": 27,
+    "fixtures_compared": 46,
+    "fixtures_with_rows": 46,
     "dex_versions_with_rows": [
      "035",
      "038",
      "039",
      "040"
     ],
-    "exact": 27,
+    "exact": 46,
     "same_rows_in_another_order": 0,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "all-debug-opcodes",
      "annotations-038",
+     "build-annotation-038",
+     "call-site-extra-args-038",
      "classic-035",
      "debug-methods-035",
      "debug-programs-035",
@@ -364,14 +462,31 @@
      "minimal-035",
      "nonscalar-string-035",
      "packed-switch",
+     "parameter-empty-nonzero-proto",
+     "parameter-empty-zero-proto",
+     "parameter-long-nonzero-proto",
+     "parameter-orphan-empty-no-binding",
+     "parameter-shared-empty-set",
+     "parameter-shared-signature-complete",
+     "parameter-shared-signature",
      "poly-custom-038",
      "proto-share-035",
+     "root-class-035",
      "sparse-switch",
      "static-values-035",
+     "static-values-nested-035",
      "strings-mutf8-035",
      "try-catch-all",
      "valid-call-site-array",
+     "valid-orphan-annotation",
      "valid-orphan-arrays",
+     "valid-orphan-empty-directory",
+     "valid-orphan-empty-ref-list",
+     "valid-orphan-empty-set",
+     "valid-orphan-external-directory",
+     "valid-orphan-known-directory",
+     "valid-shared-empty-directory",
+     "valid-shared-empty-set",
      "valid-static-empty-array"
     ]
    }
@@ -419,20 +534,23 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
-    "fixtures_with_rows": 21,
+    "fixtures_compared": 46,
+    "fixtures_with_rows": 40,
     "dex_versions_with_rows": [
      "035",
      "038",
      "039",
      "040"
     ],
-    "exact": 27,
+    "exact": 46,
     "same_rows_in_another_order": 0,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "annotations-038",
+     "build-annotation-038",
+     "call-site-extra-args-038",
      "classic-035",
      "debug-methods-035",
      "debug-programs-035",
@@ -446,12 +564,29 @@
      "hiddenapi-order-039",
      "marker-annotation-038",
      "nonscalar-string-035",
+     "parameter-empty-nonzero-proto",
+     "parameter-empty-zero-proto",
+     "parameter-long-nonzero-proto",
+     "parameter-orphan-empty-no-binding",
+     "parameter-shared-empty-set",
+     "parameter-shared-signature-complete",
+     "parameter-shared-signature",
      "poly-custom-038",
      "proto-share-035",
+     "root-class-035",
      "static-values-035",
+     "static-values-nested-035",
      "strings-mutf8-035",
      "valid-call-site-array",
+     "valid-orphan-annotation",
      "valid-orphan-arrays",
+     "valid-orphan-empty-directory",
+     "valid-orphan-empty-ref-list",
+     "valid-orphan-empty-set",
+     "valid-orphan-external-directory",
+     "valid-orphan-known-directory",
+     "valid-shared-empty-directory",
+     "valid-shared-empty-set",
      "valid-static-empty-array"
     ]
    }
@@ -485,20 +620,23 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
-    "fixtures_with_rows": 21,
+    "fixtures_compared": 46,
+    "fixtures_with_rows": 40,
     "dex_versions_with_rows": [
      "035",
      "038",
      "039",
      "040"
     ],
-    "exact": 24,
+    "exact": 43,
     "same_rows_in_another_order": 0,
     "refused_by_design": 3,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "annotations-038",
+     "build-annotation-038",
+     "call-site-extra-args-038",
      "classic-035",
      "debug-methods-035",
      "debug-programs-035",
@@ -512,12 +650,29 @@
      "hiddenapi-order-039",
      "marker-annotation-038",
      "nonscalar-string-035",
+     "parameter-empty-nonzero-proto",
+     "parameter-empty-zero-proto",
+     "parameter-long-nonzero-proto",
+     "parameter-orphan-empty-no-binding",
+     "parameter-shared-empty-set",
+     "parameter-shared-signature-complete",
+     "parameter-shared-signature",
      "poly-custom-038",
      "proto-share-035",
+     "root-class-035",
      "static-values-035",
+     "static-values-nested-035",
      "strings-mutf8-035",
      "valid-call-site-array",
+     "valid-orphan-annotation",
      "valid-orphan-arrays",
+     "valid-orphan-empty-directory",
+     "valid-orphan-empty-ref-list",
+     "valid-orphan-empty-set",
+     "valid-orphan-external-directory",
+     "valid-orphan-known-directory",
+     "valid-shared-empty-directory",
+     "valid-shared-empty-set",
      "valid-static-empty-array"
     ]
    }
@@ -550,20 +705,23 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
-    "fixtures_with_rows": 20,
+    "fixtures_compared": 46,
+    "fixtures_with_rows": 39,
     "dex_versions_with_rows": [
      "035",
      "038",
      "039",
      "040"
     ],
-    "exact": 27,
+    "exact": 46,
     "same_rows_in_another_order": 0,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "annotations-038",
+     "build-annotation-038",
+     "call-site-extra-args-038",
      "classic-035",
      "debug-methods-035",
      "debug-programs-035",
@@ -577,11 +735,28 @@
      "hiddenapi-order-039",
      "marker-annotation-038",
      "nonscalar-string-035",
+     "parameter-empty-nonzero-proto",
+     "parameter-empty-zero-proto",
+     "parameter-long-nonzero-proto",
+     "parameter-orphan-empty-no-binding",
+     "parameter-shared-empty-set",
+     "parameter-shared-signature-complete",
+     "parameter-shared-signature",
      "poly-custom-038",
      "proto-share-035",
+     "root-class-035",
      "static-values-035",
+     "static-values-nested-035",
      "valid-call-site-array",
+     "valid-orphan-annotation",
      "valid-orphan-arrays",
+     "valid-orphan-empty-directory",
+     "valid-orphan-empty-ref-list",
+     "valid-orphan-empty-set",
+     "valid-orphan-external-directory",
+     "valid-orphan-known-directory",
+     "valid-shared-empty-directory",
+     "valid-shared-empty-set",
      "valid-static-empty-array"
     ]
    }
@@ -619,20 +794,23 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
-    "fixtures_with_rows": 20,
+    "fixtures_compared": 46,
+    "fixtures_with_rows": 39,
     "dex_versions_with_rows": [
      "035",
      "038",
      "039",
      "040"
     ],
-    "exact": 27,
+    "exact": 46,
     "same_rows_in_another_order": 0,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "annotations-038",
+     "build-annotation-038",
+     "call-site-extra-args-038",
      "classic-035",
      "debug-methods-035",
      "debug-programs-035",
@@ -646,11 +824,28 @@
      "hiddenapi-order-039",
      "marker-annotation-038",
      "nonscalar-string-035",
+     "parameter-empty-nonzero-proto",
+     "parameter-empty-zero-proto",
+     "parameter-long-nonzero-proto",
+     "parameter-orphan-empty-no-binding",
+     "parameter-shared-empty-set",
+     "parameter-shared-signature-complete",
+     "parameter-shared-signature",
      "poly-custom-038",
      "proto-share-035",
+     "root-class-035",
      "static-values-035",
+     "static-values-nested-035",
      "valid-call-site-array",
+     "valid-orphan-annotation",
      "valid-orphan-arrays",
+     "valid-orphan-empty-directory",
+     "valid-orphan-empty-ref-list",
+     "valid-orphan-empty-set",
+     "valid-orphan-external-directory",
+     "valid-orphan-known-directory",
+     "valid-shared-empty-directory",
+     "valid-shared-empty-set",
      "valid-static-empty-array"
     ]
    }
@@ -688,20 +883,23 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
-    "fixtures_with_rows": 14,
+    "fixtures_compared": 46,
+    "fixtures_with_rows": 29,
     "dex_versions_with_rows": [
      "035",
      "038",
      "039",
      "040"
     ],
-    "exact": 26,
-    "same_rows_in_another_order": 1,
+    "exact": 42,
+    "same_rows_in_another_order": 2,
     "refused_by_design": 0,
+    "reference_incomplete": 2,
     "differing": 0,
     "fixtures_with_rows_list": [
      "annotations-038",
+     "build-annotation-038",
+     "call-site-extra-args-038",
      "debug-methods-035",
      "debug-programs-035",
      "decode-all",
@@ -710,10 +908,23 @@
      "definitions-040",
      "empty-class-data",
      "marker-annotation-038",
+     "parameter-empty-nonzero-proto",
+     "parameter-long-nonzero-proto",
+     "parameter-shared-empty-set",
+     "parameter-shared-signature-complete",
+     "parameter-shared-signature",
      "poly-custom-038",
      "proto-share-035",
      "valid-call-site-array",
+     "valid-orphan-annotation",
      "valid-orphan-arrays",
+     "valid-orphan-empty-directory",
+     "valid-orphan-empty-ref-list",
+     "valid-orphan-empty-set",
+     "valid-orphan-external-directory",
+     "valid-orphan-known-directory",
+     "valid-shared-empty-directory",
+     "valid-shared-empty-set",
      "valid-static-empty-array"
     ]
    }
@@ -751,20 +962,23 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
-    "fixtures_with_rows": 14,
+    "fixtures_compared": 46,
+    "fixtures_with_rows": 29,
     "dex_versions_with_rows": [
      "035",
      "038",
      "039",
      "040"
     ],
-    "exact": 26,
-    "same_rows_in_another_order": 1,
+    "exact": 42,
+    "same_rows_in_another_order": 2,
     "refused_by_design": 0,
+    "reference_incomplete": 2,
     "differing": 0,
     "fixtures_with_rows_list": [
      "annotations-038",
+     "build-annotation-038",
+     "call-site-extra-args-038",
      "debug-methods-035",
      "debug-programs-035",
      "decode-all",
@@ -773,10 +987,23 @@
      "definitions-040",
      "empty-class-data",
      "marker-annotation-038",
+     "parameter-empty-nonzero-proto",
+     "parameter-long-nonzero-proto",
+     "parameter-shared-empty-set",
+     "parameter-shared-signature-complete",
+     "parameter-shared-signature",
      "poly-custom-038",
      "proto-share-035",
      "valid-call-site-array",
+     "valid-orphan-annotation",
      "valid-orphan-arrays",
+     "valid-orphan-empty-directory",
+     "valid-orphan-empty-ref-list",
+     "valid-orphan-empty-set",
+     "valid-orphan-external-directory",
+     "valid-orphan-known-directory",
+     "valid-shared-empty-directory",
+     "valid-shared-empty-set",
      "valid-static-empty-array"
     ]
    }
@@ -819,20 +1046,23 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
-    "fixtures_with_rows": 20,
+    "fixtures_compared": 46,
+    "fixtures_with_rows": 39,
     "dex_versions_with_rows": [
      "035",
      "038",
      "039",
      "040"
     ],
-    "exact": 27,
+    "exact": 46,
     "same_rows_in_another_order": 0,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "annotations-038",
+     "build-annotation-038",
+     "call-site-extra-args-038",
      "classic-035",
      "debug-methods-035",
      "debug-programs-035",
@@ -846,11 +1076,28 @@
      "hiddenapi-order-039",
      "marker-annotation-038",
      "nonscalar-string-035",
+     "parameter-empty-nonzero-proto",
+     "parameter-empty-zero-proto",
+     "parameter-long-nonzero-proto",
+     "parameter-orphan-empty-no-binding",
+     "parameter-shared-empty-set",
+     "parameter-shared-signature-complete",
+     "parameter-shared-signature",
      "poly-custom-038",
      "proto-share-035",
+     "root-class-035",
      "static-values-035",
+     "static-values-nested-035",
      "valid-call-site-array",
+     "valid-orphan-annotation",
      "valid-orphan-arrays",
+     "valid-orphan-empty-directory",
+     "valid-orphan-empty-ref-list",
+     "valid-orphan-empty-set",
+     "valid-orphan-external-directory",
+     "valid-orphan-known-directory",
+     "valid-shared-empty-directory",
+     "valid-shared-empty-set",
      "valid-static-empty-array"
     ]
    }
@@ -913,20 +1160,23 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
-    "fixtures_with_rows": 20,
+    "fixtures_compared": 46,
+    "fixtures_with_rows": 39,
     "dex_versions_with_rows": [
      "035",
      "038",
      "039",
      "040"
     ],
-    "exact": 27,
+    "exact": 46,
     "same_rows_in_another_order": 0,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "annotations-038",
+     "build-annotation-038",
+     "call-site-extra-args-038",
      "classic-035",
      "debug-methods-035",
      "debug-programs-035",
@@ -940,11 +1190,28 @@
      "hiddenapi-order-039",
      "marker-annotation-038",
      "nonscalar-string-035",
+     "parameter-empty-nonzero-proto",
+     "parameter-empty-zero-proto",
+     "parameter-long-nonzero-proto",
+     "parameter-orphan-empty-no-binding",
+     "parameter-shared-empty-set",
+     "parameter-shared-signature-complete",
+     "parameter-shared-signature",
      "poly-custom-038",
      "proto-share-035",
+     "root-class-035",
      "static-values-035",
+     "static-values-nested-035",
      "valid-call-site-array",
+     "valid-orphan-annotation",
      "valid-orphan-arrays",
+     "valid-orphan-empty-directory",
+     "valid-orphan-empty-ref-list",
+     "valid-orphan-empty-set",
+     "valid-orphan-external-directory",
+     "valid-orphan-known-directory",
+     "valid-shared-empty-directory",
+     "valid-shared-empty-set",
      "valid-static-empty-array"
     ]
    }
@@ -987,20 +1254,23 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
-    "fixtures_with_rows": 14,
+    "fixtures_compared": 46,
+    "fixtures_with_rows": 29,
     "dex_versions_with_rows": [
      "035",
      "038",
      "039",
      "040"
     ],
-    "exact": 19,
-    "same_rows_in_another_order": 8,
+    "exact": 23,
+    "same_rows_in_another_order": 23,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "annotations-038",
+     "build-annotation-038",
+     "call-site-extra-args-038",
      "debug-methods-035",
      "debug-programs-035",
      "decode-all",
@@ -1009,10 +1279,23 @@
      "definitions-040",
      "empty-class-data",
      "marker-annotation-038",
+     "parameter-empty-nonzero-proto",
+     "parameter-long-nonzero-proto",
+     "parameter-shared-empty-set",
+     "parameter-shared-signature-complete",
+     "parameter-shared-signature",
      "poly-custom-038",
      "proto-share-035",
      "valid-call-site-array",
+     "valid-orphan-annotation",
      "valid-orphan-arrays",
+     "valid-orphan-empty-directory",
+     "valid-orphan-empty-ref-list",
+     "valid-orphan-empty-set",
+     "valid-orphan-external-directory",
+     "valid-orphan-known-directory",
+     "valid-shared-empty-directory",
+     "valid-shared-empty-set",
      "valid-static-empty-array"
     ]
    }
@@ -1055,20 +1338,23 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
-    "fixtures_with_rows": 17,
+    "fixtures_compared": 46,
+    "fixtures_with_rows": 35,
     "dex_versions_with_rows": [
      "035",
      "038",
      "039",
      "040"
     ],
-    "exact": 27,
+    "exact": 46,
     "same_rows_in_another_order": 0,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "annotations-038",
+     "build-annotation-038",
+     "call-site-extra-args-038",
      "classic-035",
      "decode-all",
      "definitions-035",
@@ -1080,10 +1366,26 @@
      "hiddenapi-order-039",
      "marker-annotation-038",
      "nonscalar-string-035",
+     "parameter-empty-nonzero-proto",
+     "parameter-empty-zero-proto",
+     "parameter-long-nonzero-proto",
+     "parameter-orphan-empty-no-binding",
+     "parameter-shared-empty-set",
+     "parameter-shared-signature-complete",
+     "parameter-shared-signature",
      "poly-custom-038",
      "static-values-035",
+     "static-values-nested-035",
      "valid-call-site-array",
+     "valid-orphan-annotation",
      "valid-orphan-arrays",
+     "valid-orphan-empty-directory",
+     "valid-orphan-empty-ref-list",
+     "valid-orphan-empty-set",
+     "valid-orphan-external-directory",
+     "valid-orphan-known-directory",
+     "valid-shared-empty-directory",
+     "valid-shared-empty-set",
      "valid-static-empty-array"
     ]
    }
@@ -1141,20 +1443,23 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
-    "fixtures_with_rows": 17,
+    "fixtures_compared": 46,
+    "fixtures_with_rows": 35,
     "dex_versions_with_rows": [
      "035",
      "038",
      "039",
      "040"
     ],
-    "exact": 27,
+    "exact": 46,
     "same_rows_in_another_order": 0,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "annotations-038",
+     "build-annotation-038",
+     "call-site-extra-args-038",
      "classic-035",
      "decode-all",
      "definitions-035",
@@ -1166,10 +1471,26 @@
      "hiddenapi-order-039",
      "marker-annotation-038",
      "nonscalar-string-035",
+     "parameter-empty-nonzero-proto",
+     "parameter-empty-zero-proto",
+     "parameter-long-nonzero-proto",
+     "parameter-orphan-empty-no-binding",
+     "parameter-shared-empty-set",
+     "parameter-shared-signature-complete",
+     "parameter-shared-signature",
      "poly-custom-038",
      "static-values-035",
+     "static-values-nested-035",
      "valid-call-site-array",
+     "valid-orphan-annotation",
      "valid-orphan-arrays",
+     "valid-orphan-empty-directory",
+     "valid-orphan-empty-ref-list",
+     "valid-orphan-empty-set",
+     "valid-orphan-external-directory",
+     "valid-orphan-known-directory",
+     "valid-shared-empty-directory",
+     "valid-shared-empty-set",
      "valid-static-empty-array"
     ]
    }
@@ -1212,20 +1533,23 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
-    "fixtures_with_rows": 20,
+    "fixtures_compared": 46,
+    "fixtures_with_rows": 39,
     "dex_versions_with_rows": [
      "035",
      "038",
      "039",
      "040"
     ],
-    "exact": 27,
+    "exact": 46,
     "same_rows_in_another_order": 0,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "annotations-038",
+     "build-annotation-038",
+     "call-site-extra-args-038",
      "classic-035",
      "debug-methods-035",
      "debug-programs-035",
@@ -1239,11 +1563,28 @@
      "hiddenapi-order-039",
      "marker-annotation-038",
      "nonscalar-string-035",
+     "parameter-empty-nonzero-proto",
+     "parameter-empty-zero-proto",
+     "parameter-long-nonzero-proto",
+     "parameter-orphan-empty-no-binding",
+     "parameter-shared-empty-set",
+     "parameter-shared-signature-complete",
+     "parameter-shared-signature",
      "poly-custom-038",
      "proto-share-035",
+     "root-class-035",
      "static-values-035",
+     "static-values-nested-035",
      "valid-call-site-array",
+     "valid-orphan-annotation",
      "valid-orphan-arrays",
+     "valid-orphan-empty-directory",
+     "valid-orphan-empty-ref-list",
+     "valid-orphan-empty-set",
+     "valid-orphan-external-directory",
+     "valid-orphan-known-directory",
+     "valid-shared-empty-directory",
+     "valid-shared-empty-set",
      "valid-static-empty-array"
     ]
    }
@@ -1281,20 +1622,23 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
-    "fixtures_with_rows": 20,
+    "fixtures_compared": 46,
+    "fixtures_with_rows": 39,
     "dex_versions_with_rows": [
      "035",
      "038",
      "039",
      "040"
     ],
-    "exact": 27,
+    "exact": 46,
     "same_rows_in_another_order": 0,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "annotations-038",
+     "build-annotation-038",
+     "call-site-extra-args-038",
      "classic-035",
      "debug-methods-035",
      "debug-programs-035",
@@ -1308,11 +1652,28 @@
      "hiddenapi-order-039",
      "marker-annotation-038",
      "nonscalar-string-035",
+     "parameter-empty-nonzero-proto",
+     "parameter-empty-zero-proto",
+     "parameter-long-nonzero-proto",
+     "parameter-orphan-empty-no-binding",
+     "parameter-shared-empty-set",
+     "parameter-shared-signature-complete",
+     "parameter-shared-signature",
      "poly-custom-038",
      "proto-share-035",
+     "root-class-035",
      "static-values-035",
+     "static-values-nested-035",
      "valid-call-site-array",
+     "valid-orphan-annotation",
      "valid-orphan-arrays",
+     "valid-orphan-empty-directory",
+     "valid-orphan-empty-ref-list",
+     "valid-orphan-empty-set",
+     "valid-orphan-external-directory",
+     "valid-orphan-known-directory",
+     "valid-shared-empty-directory",
+     "valid-shared-empty-set",
      "valid-static-empty-array"
     ]
    }
@@ -1355,20 +1716,23 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
-    "fixtures_with_rows": 20,
+    "fixtures_compared": 46,
+    "fixtures_with_rows": 39,
     "dex_versions_with_rows": [
      "035",
      "038",
      "039",
      "040"
     ],
-    "exact": 19,
+    "exact": 38,
     "same_rows_in_another_order": 8,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "annotations-038",
+     "build-annotation-038",
+     "call-site-extra-args-038",
      "classic-035",
      "debug-methods-035",
      "debug-programs-035",
@@ -1382,11 +1746,28 @@
      "hiddenapi-order-039",
      "marker-annotation-038",
      "nonscalar-string-035",
+     "parameter-empty-nonzero-proto",
+     "parameter-empty-zero-proto",
+     "parameter-long-nonzero-proto",
+     "parameter-orphan-empty-no-binding",
+     "parameter-shared-empty-set",
+     "parameter-shared-signature-complete",
+     "parameter-shared-signature",
      "poly-custom-038",
      "proto-share-035",
+     "root-class-035",
      "static-values-035",
+     "static-values-nested-035",
      "valid-call-site-array",
+     "valid-orphan-annotation",
      "valid-orphan-arrays",
+     "valid-orphan-empty-directory",
+     "valid-orphan-empty-ref-list",
+     "valid-orphan-empty-set",
+     "valid-orphan-external-directory",
+     "valid-orphan-known-directory",
+     "valid-shared-empty-directory",
+     "valid-shared-empty-set",
      "valid-static-empty-array"
     ]
    }
@@ -1474,20 +1855,23 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
-    "fixtures_with_rows": 20,
+    "fixtures_compared": 46,
+    "fixtures_with_rows": 39,
     "dex_versions_with_rows": [
      "035",
      "038",
      "039",
      "040"
     ],
-    "exact": 27,
+    "exact": 46,
     "same_rows_in_another_order": 0,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "annotations-038",
+     "build-annotation-038",
+     "call-site-extra-args-038",
      "classic-035",
      "debug-methods-035",
      "debug-programs-035",
@@ -1501,11 +1885,28 @@
      "hiddenapi-order-039",
      "marker-annotation-038",
      "nonscalar-string-035",
+     "parameter-empty-nonzero-proto",
+     "parameter-empty-zero-proto",
+     "parameter-long-nonzero-proto",
+     "parameter-orphan-empty-no-binding",
+     "parameter-shared-empty-set",
+     "parameter-shared-signature-complete",
+     "parameter-shared-signature",
      "poly-custom-038",
      "proto-share-035",
+     "root-class-035",
      "static-values-035",
+     "static-values-nested-035",
      "valid-call-site-array",
+     "valid-orphan-annotation",
      "valid-orphan-arrays",
+     "valid-orphan-empty-directory",
+     "valid-orphan-empty-ref-list",
+     "valid-orphan-empty-set",
+     "valid-orphan-external-directory",
+     "valid-orphan-known-directory",
+     "valid-shared-empty-directory",
+     "valid-shared-empty-set",
      "valid-static-empty-array"
     ]
    }
@@ -1543,23 +1944,41 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
-    "fixtures_with_rows": 7,
+    "fixtures_compared": 46,
+    "fixtures_with_rows": 24,
     "dex_versions_with_rows": [
      "038",
      "039"
     ],
-    "exact": 27,
+    "exact": 46,
     "same_rows_in_another_order": 0,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "annotations-038",
+     "build-annotation-038",
+     "call-site-extra-args-038",
      "handles-039",
      "marker-annotation-038",
+     "parameter-empty-nonzero-proto",
+     "parameter-empty-zero-proto",
+     "parameter-long-nonzero-proto",
+     "parameter-orphan-empty-no-binding",
+     "parameter-shared-empty-set",
+     "parameter-shared-signature-complete",
+     "parameter-shared-signature",
      "poly-custom-038",
      "valid-call-site-array",
+     "valid-orphan-annotation",
      "valid-orphan-arrays",
+     "valid-orphan-empty-directory",
+     "valid-orphan-empty-ref-list",
+     "valid-orphan-empty-set",
+     "valid-orphan-external-directory",
+     "valid-orphan-known-directory",
+     "valid-shared-empty-directory",
+     "valid-shared-empty-set",
      "valid-static-empty-array"
     ]
    }
@@ -1612,16 +2031,18 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
-    "fixtures_with_rows": 2,
+    "fixtures_compared": 46,
+    "fixtures_with_rows": 3,
     "dex_versions_with_rows": [
      "038"
     ],
-    "exact": 27,
+    "exact": 46,
     "same_rows_in_another_order": 0,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
+     "call-site-extra-args-038",
      "poly-custom-038",
      "valid-call-site-array"
     ]
@@ -1680,16 +2101,18 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
-    "fixtures_with_rows": 2,
+    "fixtures_compared": 46,
+    "fixtures_with_rows": 3,
     "dex_versions_with_rows": [
      "038"
     ],
-    "exact": 27,
+    "exact": 46,
     "same_rows_in_another_order": 0,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
+     "call-site-extra-args-038",
      "poly-custom-038",
      "valid-call-site-array"
     ]
@@ -1733,19 +2156,22 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
-    "fixtures_with_rows": 5,
+    "fixtures_compared": 46,
+    "fixtures_with_rows": 7,
     "dex_versions_with_rows": [
      "035",
      "038"
     ],
-    "exact": 27,
+    "exact": 46,
     "same_rows_in_another_order": 0,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
+     "call-site-extra-args-038",
      "poly-custom-038",
      "static-values-035",
+     "static-values-nested-035",
      "valid-call-site-array",
      "valid-orphan-arrays",
      "valid-static-empty-array"
@@ -1820,19 +2246,22 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
-    "fixtures_with_rows": 5,
+    "fixtures_compared": 46,
+    "fixtures_with_rows": 7,
     "dex_versions_with_rows": [
      "035",
      "038"
     ],
-    "exact": 27,
+    "exact": 46,
     "same_rows_in_another_order": 0,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
+     "call-site-extra-args-038",
      "poly-custom-038",
      "static-values-035",
+     "static-values-nested-035",
      "valid-call-site-array",
      "valid-orphan-arrays",
      "valid-static-empty-array"
@@ -1872,19 +2301,22 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
-    "fixtures_with_rows": 4,
+    "fixtures_compared": 46,
+    "fixtures_with_rows": 6,
     "dex_versions_with_rows": [
      "035",
      "038"
     ],
-    "exact": 27,
+    "exact": 46,
     "same_rows_in_another_order": 0,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
+     "call-site-extra-args-038",
      "poly-custom-038",
      "static-values-035",
+     "static-values-nested-035",
      "valid-call-site-array",
      "valid-static-empty-array"
     ]
@@ -1953,20 +2385,23 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
-    "fixtures_with_rows": 20,
+    "fixtures_compared": 46,
+    "fixtures_with_rows": 39,
     "dex_versions_with_rows": [
      "035",
      "038",
      "039",
      "040"
     ],
-    "exact": 27,
+    "exact": 46,
     "same_rows_in_another_order": 0,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "annotations-038",
+     "build-annotation-038",
+     "call-site-extra-args-038",
      "classic-035",
      "debug-methods-035",
      "debug-programs-035",
@@ -1980,11 +2415,28 @@
      "hiddenapi-order-039",
      "marker-annotation-038",
      "nonscalar-string-035",
+     "parameter-empty-nonzero-proto",
+     "parameter-empty-zero-proto",
+     "parameter-long-nonzero-proto",
+     "parameter-orphan-empty-no-binding",
+     "parameter-shared-empty-set",
+     "parameter-shared-signature-complete",
+     "parameter-shared-signature",
      "poly-custom-038",
      "proto-share-035",
+     "root-class-035",
      "static-values-035",
+     "static-values-nested-035",
      "valid-call-site-array",
+     "valid-orphan-annotation",
      "valid-orphan-arrays",
+     "valid-orphan-empty-directory",
+     "valid-orphan-empty-ref-list",
+     "valid-orphan-empty-set",
+     "valid-orphan-external-directory",
+     "valid-orphan-known-directory",
+     "valid-shared-empty-directory",
+     "valid-shared-empty-set",
      "valid-static-empty-array"
     ]
    }
@@ -2042,20 +2494,23 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
-    "fixtures_with_rows": 20,
+    "fixtures_compared": 46,
+    "fixtures_with_rows": 39,
     "dex_versions_with_rows": [
      "035",
      "038",
      "039",
      "040"
     ],
-    "exact": 27,
+    "exact": 46,
     "same_rows_in_another_order": 0,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "annotations-038",
+     "build-annotation-038",
+     "call-site-extra-args-038",
      "classic-035",
      "debug-methods-035",
      "debug-programs-035",
@@ -2069,11 +2524,28 @@
      "hiddenapi-order-039",
      "marker-annotation-038",
      "nonscalar-string-035",
+     "parameter-empty-nonzero-proto",
+     "parameter-empty-zero-proto",
+     "parameter-long-nonzero-proto",
+     "parameter-orphan-empty-no-binding",
+     "parameter-shared-empty-set",
+     "parameter-shared-signature-complete",
+     "parameter-shared-signature",
      "poly-custom-038",
      "proto-share-035",
+     "root-class-035",
      "static-values-035",
+     "static-values-nested-035",
      "valid-call-site-array",
+     "valid-orphan-annotation",
      "valid-orphan-arrays",
+     "valid-orphan-empty-directory",
+     "valid-orphan-empty-ref-list",
+     "valid-orphan-empty-set",
+     "valid-orphan-external-directory",
+     "valid-orphan-known-directory",
+     "valid-shared-empty-directory",
+     "valid-shared-empty-set",
      "valid-static-empty-array"
     ]
    }
@@ -2116,16 +2588,17 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
+    "fixtures_compared": 46,
     "fixtures_with_rows": 4,
     "dex_versions_with_rows": [
      "035",
      "038",
      "040"
     ],
-    "exact": 27,
+    "exact": 46,
     "same_rows_in_another_order": 0,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "definitions-035",
@@ -2188,20 +2661,23 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
-    "fixtures_with_rows": 20,
+    "fixtures_compared": 46,
+    "fixtures_with_rows": 39,
     "dex_versions_with_rows": [
      "035",
      "038",
      "039",
      "040"
     ],
-    "exact": 27,
+    "exact": 46,
     "same_rows_in_another_order": 0,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "annotations-038",
+     "build-annotation-038",
+     "call-site-extra-args-038",
      "classic-035",
      "debug-methods-035",
      "debug-programs-035",
@@ -2215,11 +2691,28 @@
      "hiddenapi-order-039",
      "marker-annotation-038",
      "nonscalar-string-035",
+     "parameter-empty-nonzero-proto",
+     "parameter-empty-zero-proto",
+     "parameter-long-nonzero-proto",
+     "parameter-orphan-empty-no-binding",
+     "parameter-shared-empty-set",
+     "parameter-shared-signature-complete",
+     "parameter-shared-signature",
      "poly-custom-038",
      "proto-share-035",
+     "root-class-035",
      "static-values-035",
+     "static-values-nested-035",
      "valid-call-site-array",
+     "valid-orphan-annotation",
      "valid-orphan-arrays",
+     "valid-orphan-empty-directory",
+     "valid-orphan-empty-ref-list",
+     "valid-orphan-empty-set",
+     "valid-orphan-external-directory",
+     "valid-orphan-known-directory",
+     "valid-shared-empty-directory",
+     "valid-shared-empty-set",
      "valid-static-empty-array"
     ]
    }
@@ -2277,20 +2770,23 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
-    "fixtures_with_rows": 12,
+    "fixtures_compared": 46,
+    "fixtures_with_rows": 30,
     "dex_versions_with_rows": [
      "035",
      "038",
      "039",
      "040"
     ],
-    "exact": 27,
+    "exact": 46,
     "same_rows_in_another_order": 0,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "annotations-038",
+     "build-annotation-038",
+     "call-site-extra-args-038",
      "definitions-035",
      "definitions-038",
      "definitions-040",
@@ -2298,9 +2794,25 @@
      "hiddenapi-039",
      "hiddenapi-order-039",
      "marker-annotation-038",
+     "parameter-empty-nonzero-proto",
+     "parameter-empty-zero-proto",
+     "parameter-long-nonzero-proto",
+     "parameter-orphan-empty-no-binding",
+     "parameter-shared-empty-set",
+     "parameter-shared-signature-complete",
+     "parameter-shared-signature",
      "static-values-035",
+     "static-values-nested-035",
      "valid-call-site-array",
+     "valid-orphan-annotation",
      "valid-orphan-arrays",
+     "valid-orphan-empty-directory",
+     "valid-orphan-empty-ref-list",
+     "valid-orphan-empty-set",
+     "valid-orphan-external-directory",
+     "valid-orphan-known-directory",
+     "valid-shared-empty-directory",
+     "valid-shared-empty-set",
      "valid-static-empty-array"
     ]
    }
@@ -2363,17 +2875,19 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
-    "fixtures_with_rows": 1,
+    "fixtures_compared": 46,
+    "fixtures_with_rows": 2,
     "dex_versions_with_rows": [
      "035"
     ],
-    "exact": 27,
+    "exact": 46,
     "same_rows_in_another_order": 0,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
-     "static-values-035"
+     "static-values-035",
+     "static-values-nested-035"
     ]
    }
   },
@@ -2430,20 +2944,23 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
-    "fixtures_with_rows": 20,
+    "fixtures_compared": 46,
+    "fixtures_with_rows": 39,
     "dex_versions_with_rows": [
      "035",
      "038",
      "039",
      "040"
     ],
-    "exact": 19,
+    "exact": 38,
     "same_rows_in_another_order": 8,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "annotations-038",
+     "build-annotation-038",
+     "call-site-extra-args-038",
      "classic-035",
      "debug-methods-035",
      "debug-programs-035",
@@ -2457,11 +2974,28 @@
      "hiddenapi-order-039",
      "marker-annotation-038",
      "nonscalar-string-035",
+     "parameter-empty-nonzero-proto",
+     "parameter-empty-zero-proto",
+     "parameter-long-nonzero-proto",
+     "parameter-orphan-empty-no-binding",
+     "parameter-shared-empty-set",
+     "parameter-shared-signature-complete",
+     "parameter-shared-signature",
      "poly-custom-038",
      "proto-share-035",
+     "root-class-035",
      "static-values-035",
+     "static-values-nested-035",
      "valid-call-site-array",
+     "valid-orphan-annotation",
      "valid-orphan-arrays",
+     "valid-orphan-empty-directory",
+     "valid-orphan-empty-ref-list",
+     "valid-orphan-empty-set",
+     "valid-orphan-external-directory",
+     "valid-orphan-known-directory",
+     "valid-shared-empty-directory",
+     "valid-shared-empty-set",
      "valid-static-empty-array"
     ]
    }
@@ -2510,14 +3044,15 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
+    "fixtures_compared": 46,
     "fixtures_with_rows": 2,
     "dex_versions_with_rows": [
      "039"
     ],
-    "exact": 27,
+    "exact": 46,
     "same_rows_in_another_order": 0,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "hiddenapi-039",
@@ -2598,17 +3133,18 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
-    "fixtures_with_rows": 15,
+    "fixtures_compared": 46,
+    "fixtures_with_rows": 17,
     "dex_versions_with_rows": [
      "035",
      "038",
      "039",
      "040"
     ],
-    "exact": 23,
+    "exact": 42,
     "same_rows_in_another_order": 4,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "classic-035",
@@ -2625,7 +3161,9 @@
      "nonscalar-string-035",
      "poly-custom-038",
      "proto-share-035",
-     "static-values-035"
+     "root-class-035",
+     "static-values-035",
+     "static-values-nested-035"
     ]
    }
   },
@@ -2672,14 +3210,15 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
+    "fixtures_compared": 46,
     "fixtures_with_rows": 1,
     "dex_versions_with_rows": [
      "039"
     ],
-    "exact": 27,
+    "exact": 46,
     "same_rows_in_another_order": 0,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "decode-all"
@@ -2739,14 +3278,15 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
+    "fixtures_compared": 46,
     "fixtures_with_rows": 1,
     "dex_versions_with_rows": [
      "039"
     ],
-    "exact": 27,
+    "exact": 46,
     "same_rows_in_another_order": 0,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "decode-all"
@@ -2791,14 +3331,15 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
+    "fixtures_compared": 46,
     "fixtures_with_rows": 2,
     "dex_versions_with_rows": [
      "035"
     ],
-    "exact": 26,
+    "exact": 45,
     "same_rows_in_another_order": 1,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "debug-methods-035",
@@ -2844,14 +3385,15 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
+    "fixtures_compared": 46,
     "fixtures_with_rows": 2,
     "dex_versions_with_rows": [
      "035"
     ],
-    "exact": 27,
+    "exact": 46,
     "same_rows_in_another_order": 0,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "debug-methods-035",
@@ -2917,14 +3459,15 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
+    "fixtures_compared": 46,
     "fixtures_with_rows": 2,
     "dex_versions_with_rows": [
      "035"
     ],
-    "exact": 26,
+    "exact": 45,
     "same_rows_in_another_order": 1,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "debug-methods-035",
@@ -2995,14 +3538,15 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
+    "fixtures_compared": 46,
     "fixtures_with_rows": 2,
     "dex_versions_with_rows": [
      "035"
     ],
-    "exact": 27,
+    "exact": 46,
     "same_rows_in_another_order": 0,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "debug-methods-035",
@@ -3113,14 +3657,15 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
+    "fixtures_compared": 46,
     "fixtures_with_rows": 2,
     "dex_versions_with_rows": [
      "035"
     ],
-    "exact": 26,
+    "exact": 45,
     "same_rows_in_another_order": 1,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "debug-methods-035",
@@ -3176,20 +3721,38 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
-    "fixtures_with_rows": 5,
+    "fixtures_compared": 46,
+    "fixtures_with_rows": 22,
     "dex_versions_with_rows": [
      "038"
     ],
-    "exact": 27,
+    "exact": 46,
     "same_rows_in_another_order": 0,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "annotations-038",
+     "build-annotation-038",
+     "call-site-extra-args-038",
      "marker-annotation-038",
+     "parameter-empty-nonzero-proto",
+     "parameter-empty-zero-proto",
+     "parameter-long-nonzero-proto",
+     "parameter-orphan-empty-no-binding",
+     "parameter-shared-empty-set",
+     "parameter-shared-signature-complete",
+     "parameter-shared-signature",
      "valid-call-site-array",
+     "valid-orphan-annotation",
      "valid-orphan-arrays",
+     "valid-orphan-empty-directory",
+     "valid-orphan-empty-ref-list",
+     "valid-orphan-empty-set",
+     "valid-orphan-external-directory",
+     "valid-orphan-known-directory",
+     "valid-shared-empty-directory",
+     "valid-shared-empty-set",
      "valid-static-empty-array"
     ]
    }
@@ -3242,20 +3805,37 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
-    "fixtures_with_rows": 5,
+    "fixtures_compared": 46,
+    "fixtures_with_rows": 21,
     "dex_versions_with_rows": [
      "038"
     ],
-    "exact": 27,
+    "exact": 46,
     "same_rows_in_another_order": 0,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "annotations-038",
+     "build-annotation-038",
+     "call-site-extra-args-038",
      "marker-annotation-038",
+     "parameter-empty-nonzero-proto",
+     "parameter-empty-zero-proto",
+     "parameter-long-nonzero-proto",
+     "parameter-orphan-empty-no-binding",
+     "parameter-shared-empty-set",
+     "parameter-shared-signature-complete",
+     "parameter-shared-signature",
      "valid-call-site-array",
+     "valid-orphan-annotation",
      "valid-orphan-arrays",
+     "valid-orphan-empty-directory",
+     "valid-orphan-empty-ref-list",
+     "valid-orphan-empty-set",
+     "valid-orphan-external-directory",
+     "valid-orphan-known-directory",
+     "valid-shared-empty-set",
      "valid-static-empty-array"
     ]
    }
@@ -3288,20 +3868,37 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
-    "fixtures_with_rows": 5,
+    "fixtures_compared": 46,
+    "fixtures_with_rows": 21,
     "dex_versions_with_rows": [
      "038"
     ],
-    "exact": 27,
-    "same_rows_in_another_order": 0,
+    "exact": 45,
+    "same_rows_in_another_order": 1,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "annotations-038",
+     "build-annotation-038",
+     "call-site-extra-args-038",
      "marker-annotation-038",
+     "parameter-empty-nonzero-proto",
+     "parameter-empty-zero-proto",
+     "parameter-long-nonzero-proto",
+     "parameter-orphan-empty-no-binding",
+     "parameter-shared-empty-set",
+     "parameter-shared-signature-complete",
+     "parameter-shared-signature",
      "valid-call-site-array",
+     "valid-orphan-annotation",
      "valid-orphan-arrays",
+     "valid-orphan-empty-directory",
+     "valid-orphan-empty-ref-list",
+     "valid-orphan-empty-set",
+     "valid-orphan-external-directory",
+     "valid-orphan-known-directory",
+     "valid-shared-empty-set",
      "valid-static-empty-array"
     ]
    }
@@ -3339,20 +3936,37 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
-    "fixtures_with_rows": 5,
+    "fixtures_compared": 46,
+    "fixtures_with_rows": 21,
     "dex_versions_with_rows": [
      "038"
     ],
-    "exact": 27,
+    "exact": 46,
     "same_rows_in_another_order": 0,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "annotations-038",
+     "build-annotation-038",
+     "call-site-extra-args-038",
      "marker-annotation-038",
+     "parameter-empty-nonzero-proto",
+     "parameter-empty-zero-proto",
+     "parameter-long-nonzero-proto",
+     "parameter-orphan-empty-no-binding",
+     "parameter-shared-empty-set",
+     "parameter-shared-signature-complete",
+     "parameter-shared-signature",
      "valid-call-site-array",
+     "valid-orphan-annotation",
      "valid-orphan-arrays",
+     "valid-orphan-empty-directory",
+     "valid-orphan-empty-ref-list",
+     "valid-orphan-empty-set",
+     "valid-orphan-external-directory",
+     "valid-orphan-known-directory",
+     "valid-shared-empty-set",
      "valid-static-empty-array"
     ]
    }
@@ -3385,20 +3999,36 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
-    "fixtures_with_rows": 5,
+    "fixtures_compared": 46,
+    "fixtures_with_rows": 20,
     "dex_versions_with_rows": [
      "038"
     ],
-    "exact": 27,
+    "exact": 46,
     "same_rows_in_another_order": 0,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "annotations-038",
+     "build-annotation-038",
+     "call-site-extra-args-038",
      "marker-annotation-038",
+     "parameter-empty-nonzero-proto",
+     "parameter-empty-zero-proto",
+     "parameter-long-nonzero-proto",
+     "parameter-shared-empty-set",
+     "parameter-shared-signature-complete",
+     "parameter-shared-signature",
      "valid-call-site-array",
+     "valid-orphan-annotation",
      "valid-orphan-arrays",
+     "valid-orphan-empty-directory",
+     "valid-orphan-empty-ref-list",
+     "valid-orphan-empty-set",
+     "valid-orphan-external-directory",
+     "valid-orphan-known-directory",
+     "valid-shared-empty-set",
      "valid-static-empty-array"
     ]
    }
@@ -3436,20 +4066,34 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
-    "fixtures_with_rows": 5,
+    "fixtures_compared": 46,
+    "fixtures_with_rows": 18,
     "dex_versions_with_rows": [
      "038"
     ],
-    "exact": 27,
+    "exact": 46,
     "same_rows_in_another_order": 0,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "annotations-038",
+     "build-annotation-038",
+     "call-site-extra-args-038",
      "marker-annotation-038",
+     "parameter-long-nonzero-proto",
+     "parameter-shared-empty-set",
+     "parameter-shared-signature-complete",
+     "parameter-shared-signature",
      "valid-call-site-array",
+     "valid-orphan-annotation",
      "valid-orphan-arrays",
+     "valid-orphan-empty-directory",
+     "valid-orphan-empty-ref-list",
+     "valid-orphan-empty-set",
+     "valid-orphan-external-directory",
+     "valid-orphan-known-directory",
+     "valid-shared-empty-set",
      "valid-static-empty-array"
     ]
    }
@@ -3492,20 +4136,37 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
-    "fixtures_with_rows": 5,
+    "fixtures_compared": 46,
+    "fixtures_with_rows": 21,
     "dex_versions_with_rows": [
      "038"
     ],
-    "exact": 27,
+    "exact": 46,
     "same_rows_in_another_order": 0,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "annotations-038",
+     "build-annotation-038",
+     "call-site-extra-args-038",
      "marker-annotation-038",
+     "parameter-empty-nonzero-proto",
+     "parameter-empty-zero-proto",
+     "parameter-long-nonzero-proto",
+     "parameter-orphan-empty-no-binding",
+     "parameter-shared-empty-set",
+     "parameter-shared-signature-complete",
+     "parameter-shared-signature",
      "valid-call-site-array",
+     "valid-orphan-annotation",
      "valid-orphan-arrays",
+     "valid-orphan-empty-directory",
+     "valid-orphan-empty-ref-list",
+     "valid-orphan-empty-set",
+     "valid-orphan-external-directory",
+     "valid-orphan-known-directory",
+     "valid-shared-empty-set",
      "valid-static-empty-array"
     ]
    }
@@ -3578,20 +4239,37 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
-    "fixtures_with_rows": 5,
+    "fixtures_compared": 46,
+    "fixtures_with_rows": 21,
     "dex_versions_with_rows": [
      "038"
     ],
-    "exact": 27,
+    "exact": 46,
     "same_rows_in_another_order": 0,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "annotations-038",
+     "build-annotation-038",
+     "call-site-extra-args-038",
      "marker-annotation-038",
+     "parameter-empty-nonzero-proto",
+     "parameter-empty-zero-proto",
+     "parameter-long-nonzero-proto",
+     "parameter-orphan-empty-no-binding",
+     "parameter-shared-empty-set",
+     "parameter-shared-signature-complete",
+     "parameter-shared-signature",
      "valid-call-site-array",
+     "valid-orphan-annotation",
      "valid-orphan-arrays",
+     "valid-orphan-empty-directory",
+     "valid-orphan-empty-ref-list",
+     "valid-orphan-empty-set",
+     "valid-orphan-external-directory",
+     "valid-orphan-known-directory",
+     "valid-shared-empty-set",
      "valid-static-empty-array"
     ]
    }
@@ -3639,7 +4317,7 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
+    "fixtures_compared": 46,
     "fixtures_with_rows": 9,
     "dex_versions_with_rows": [
      "035",
@@ -3647,9 +4325,10 @@
      "039",
      "040"
     ],
-    "exact": 18,
+    "exact": 37,
     "same_rows_in_another_order": 9,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "classic-035",
@@ -3712,15 +4391,16 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
+    "fixtures_compared": 46,
     "fixtures_with_rows": 3,
     "dex_versions_with_rows": [
      "035",
      "039"
     ],
-    "exact": 27,
+    "exact": 46,
     "same_rows_in_another_order": 0,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "debug-methods-035",
@@ -3792,15 +4472,16 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
+    "fixtures_compared": 46,
     "fixtures_with_rows": 3,
     "dex_versions_with_rows": [
      "035",
      "039"
     ],
-    "exact": 27,
+    "exact": 46,
     "same_rows_in_another_order": 0,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "debug-methods-035",
@@ -3863,16 +4544,17 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
+    "fixtures_compared": 46,
     "fixtures_with_rows": 5,
     "dex_versions_with_rows": [
      "035",
      "038",
      "039"
     ],
-    "exact": 25,
+    "exact": 44,
     "same_rows_in_another_order": 0,
     "refused_by_design": 2,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "classic-035",
@@ -3946,7 +4628,7 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
+    "fixtures_compared": 46,
     "fixtures_with_rows": 9,
     "dex_versions_with_rows": [
      "035",
@@ -3954,9 +4636,10 @@
      "039",
      "040"
     ],
-    "exact": 26,
+    "exact": 45,
     "same_rows_in_another_order": 1,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "classic-035",
@@ -4044,16 +4727,17 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
+    "fixtures_compared": 46,
     "fixtures_with_rows": 5,
     "dex_versions_with_rows": [
      "035",
      "038",
      "039"
     ],
-    "exact": 25,
+    "exact": 44,
     "same_rows_in_another_order": 2,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "classic-035",
@@ -4122,16 +4806,17 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
+    "fixtures_compared": 46,
     "fixtures_with_rows": 5,
     "dex_versions_with_rows": [
      "035",
      "038",
      "039"
     ],
-    "exact": 27,
+    "exact": 46,
     "same_rows_in_another_order": 0,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "classic-035",
@@ -4236,20 +4921,37 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
-    "fixtures_with_rows": 5,
+    "fixtures_compared": 46,
+    "fixtures_with_rows": 21,
     "dex_versions_with_rows": [
      "038"
     ],
-    "exact": 27,
+    "exact": 46,
     "same_rows_in_another_order": 0,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "annotations-038",
+     "build-annotation-038",
+     "call-site-extra-args-038",
      "marker-annotation-038",
+     "parameter-empty-nonzero-proto",
+     "parameter-empty-zero-proto",
+     "parameter-long-nonzero-proto",
+     "parameter-orphan-empty-no-binding",
+     "parameter-shared-empty-set",
+     "parameter-shared-signature-complete",
+     "parameter-shared-signature",
      "valid-call-site-array",
+     "valid-orphan-annotation",
      "valid-orphan-arrays",
+     "valid-orphan-empty-directory",
+     "valid-orphan-empty-ref-list",
+     "valid-orphan-empty-set",
+     "valid-orphan-external-directory",
+     "valid-orphan-known-directory",
+     "valid-shared-empty-set",
      "valid-static-empty-array"
     ]
    }
@@ -4353,20 +5055,37 @@
     "INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; never an empty table"
    ],
    "evidence": {
-    "fixtures_compared": 27,
-    "fixtures_with_rows": 5,
+    "fixtures_compared": 46,
+    "fixtures_with_rows": 21,
     "dex_versions_with_rows": [
      "038"
     ],
-    "exact": 27,
+    "exact": 46,
     "same_rows_in_another_order": 0,
     "refused_by_design": 0,
+    "reference_incomplete": 0,
     "differing": 0,
     "fixtures_with_rows_list": [
      "annotations-038",
+     "build-annotation-038",
+     "call-site-extra-args-038",
      "marker-annotation-038",
+     "parameter-empty-nonzero-proto",
+     "parameter-empty-zero-proto",
+     "parameter-long-nonzero-proto",
+     "parameter-orphan-empty-no-binding",
+     "parameter-shared-empty-set",
+     "parameter-shared-signature-complete",
+     "parameter-shared-signature",
      "valid-call-site-array",
+     "valid-orphan-annotation",
      "valid-orphan-arrays",
+     "valid-orphan-empty-directory",
+     "valid-orphan-empty-ref-list",
+     "valid-orphan-empty-set",
+     "valid-orphan-external-directory",
+     "valid-orphan-known-directory",
+     "valid-shared-empty-set",
      "valid-static-empty-array"
     ]
    }
@@ -4374,9 +5093,11 @@
  ],
  "inputs_sha256": {
   "conformance/manifests/relations.json": "f416926d6da3467b5cfea625978c2e4faac08c914cf2930d2c64878c261bb82d",
-  "artifacts/mdd-070/public-relations-diff.json": "c1da134de4c545321fe60d7ff47ddf40053d78cf7dd34a0367dd286217ab6ce2",
-  "conformance/relations/public_relations_diff.py": "a7ce118265029691fab4d10f2ca024bfdff961efc3d84be64112aa8389b2fdb8",
-  "conformance/relations/build_qualification.py": "752f446280f16e664919fcc650770ffb0ba8eb37c335be9fe44f9010742a4a93",
-  "tests/fixtures/public_relations/manifest.json": "9cab37b9d8b066bce6b76d09f54825398b09b96e9b11628a0528d4152a5d1840"
+  "artifacts/mdd-070/public-relations-diff.json": "df3f68e71046889151f0a4b62adb2776f354becba12ae1c8ffe6a5e453887493",
+  "artifacts/mdd-070/public-relations-diff-0.1.1.json": "23bace1efc893c3aa5c32eba80f7764e5f47493ca1de2b56b761b27344dc6602",
+  "artifacts/mdd-070/reference-versions.json": "cdc95f053b4ac006a5ded088ccff8b0fde3fbf2cec8255b813646a860003a91d",
+  "conformance/relations/public_relations_diff.py": "f8a0975ee610cc5e7da788b553d8dc683477cdb1b767939b414bfe402a7b40db",
+  "conformance/relations/build_qualification.py": "87b1dca2d316628b89c2f49b8fa93f4641b27ef4c0a3398a3ccfb165a4416cdd",
+  "tests/fixtures/public_relations/manifest.json": "2084057e8aa81af4886e7a8044b61e15e0a8a15752c6a0394e69cc4c10125783"
  }
 }

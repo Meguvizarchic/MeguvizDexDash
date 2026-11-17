@@ -15,6 +15,10 @@ relation family no existing fixture covers with a *method-bound* fact:
                           markers that reset after a position, a position past the code end, a shared program
 * hiddenapi-order-039.dex hidden API flags where the member index order differs from the class data order
 * marker-annotation-038.dex  an annotation without elements, reachable through a method's set
+* build-annotation-038.dex   an annotation of build visibility
+* call-site-extra-args-038.dex  a call site array with static arguments after the three it must start with
+* root-class-035.dex      a class definition with no superclass
+* static-values-nested-035.dex  a static value array holding an array
 
 Usage: python -I tests/fixtures/public_relations/generate.py [--check]
 """
@@ -116,6 +120,7 @@ class Dex:
         self.static_values: bytes | None = None  # encoded_array_item payload
         self.hiddenapi: bytes | None = None  # hiddenapi_class_data_item payload
         self.source_file: str | None = None
+        self.root = False  # a class with no superclass
 
     def build(self, version: str = "035") -> bytes:
         types = {self.class_name, OBJECT, "V"} | self.extra_types
@@ -267,7 +272,7 @@ class Dex:
             struct.pack_into("<HHI", head, field_off + 8 * i, tidx[owner], tidx[ty], sidx[name])
         for i, (owner, name, ret, params) in enumerate(methods):
             struct.pack_into("<HHI", head, method_off + 8 * i, tidx[owner], pidx[(ret, params)], sidx[name])
-        struct.pack_into("<IIIIIIII", head, class_off, tidx[self.class_name], 1, tidx[OBJECT], 0,
+        struct.pack_into("<IIIIIIII", head, class_off, tidx[self.class_name], 1, NO_INDEX if self.root else tidx[OBJECT], 0,
                          sidx[self.source_file] if self.source_file else NO_INDEX, 0, class_data_off,
                          static_values_off)
         data = bytearray(head + body)
@@ -407,6 +412,29 @@ def build_hiddenapi_order() -> Dex:
     return dex
 
 
+
+def build_root_class() -> Dex:
+    """A class definition with no superclass (superclass_idx is the no-index value)."""
+    dex = Dex("Lpub/R;")
+    dex.root = True
+    dex.methods.append(Method("m", ["public", "static"], registers=1, units=[0x000E]))
+    return dex
+
+
+def build_nested_static_values() -> Dex:
+    dex = Dex("Lpub/N;")
+    dex.fields.append(Field("a", "I", ["public", "static"]))
+    dex.fields.append(Field("b", "I", ["public", "static"]))
+    dex.methods.append(Method("m", ["public", "static"], registers=0, units=[0x000E]))
+    return dex
+
+
+def nested_static_values_payload() -> bytes:
+    """Two static values; the second is itself an array of two ints."""
+    inner = uleb(2) + encoded_value("int", bytes([1])) + encoded_value("int", bytes([2]))
+    return uleb(2) + encoded_value("int", bytes([5])) + encoded_value("array", inner)
+
+
 def build_static_values() -> Dex:
     dex = Dex("Lpub/S;")
     dex.fields.append(Field("a", "I", ["public", "static"]))
@@ -481,9 +509,17 @@ def main(argv: list[str]) -> int:
     annotation_fixtures = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(annotation_fixtures)
     marker_dex, _ = annotation_fixtures.build({"marker_annotation"})
+    build_dex, _ = annotation_fixtures.build({"build_annotation"})
+    extra_args_dex, _ = annotation_fixtures.build({"call_site_extra_args"})
+    nested = build_nested_static_values()
+    nested.static_values = nested_static_values_payload()
 
     fixtures = {
         "marker-annotation-038.dex": marker_dex,
+        "build-annotation-038.dex": build_dex,
+        "call-site-extra-args-038.dex": extra_args_dex,
+        "root-class-035.dex": build_root_class().build("035"),
+        "static-values-nested-035.dex": nested.build("035"),
         "debug-programs-035.dex": dp.build("035"),
         "hiddenapi-order-039.dex": build_hiddenapi_order().build("039"),
         "debug-methods-035.dex": dex.build("035"),

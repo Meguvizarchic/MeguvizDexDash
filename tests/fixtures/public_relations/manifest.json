@@ -10,6 +10,34 @@
       "encoded_expectation": "valid"
     },
     {
+      "path": "build-annotation-038.dex",
+      "sha256": "c1c43fba85fd61e84b5f6b2998c3b9b6ce165cbb6282ed690c00c156d0ba446c",
+      "bytes": 1460,
+      "kind": "synthetic-layout-fixture-not-installable-APK",
+      "encoded_expectation": "valid"
+    },
+    {
+      "path": "call-site-extra-args-038.dex",
+      "sha256": "a5970e9a987eb2b7de518740d943dfce7b62c723586abe1dec31327f45c90b19",
+      "bytes": 1700,
+      "kind": "synthetic-layout-fixture-not-installable-APK",
+      "encoded_expectation": "valid"
+    },
+    {
+      "path": "root-class-035.dex",
+      "sha256": "8cbede635b9919cdc691b5507831b5263146ddcf1de9f353b6d8bf6fb7c79c12",
+      "bytes": 380,
+      "kind": "synthetic-layout-fixture-not-installable-APK",
+      "encoded_expectation": "valid"
+    },
+    {
+      "path": "static-values-nested-035.dex",
+      "sha256": "2ac342e5f1c717ad1e2820210b8cd0a09ebd853a2bdd01b3722f0dfdb5815f4c",
+      "bytes": 456,
+      "kind": "synthetic-layout-fixture-not-installable-APK",
+      "encoded_expectation": "valid"
+    },
+    {
       "path": "debug-programs-035.dex",
       "sha256": "2ab595752b6069dd59a832785bba356a538d93ac754a601aff10a88f8823ec06",
       "bytes": 640,

@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-"""MDD-070: probe the A0 reference engine (dexsql 0.1.0) for all 56 public relations.
+"""MDD-070: probe a reference engine (dexsql) for all 56 public relations.
 
-Usage: python -I artifacts/mdd-070/probe_a0.py [PATH-TO-dexsql-0.1.0]
+Usage: python -I artifacts/mdd-070/probe_a0.py [BINARY] [--version 0.1.0] [--out DIR] [--raw DIR]
+  dexsql 0.1.0 (A0): the defaults; records go to artifacts/mdd-070/a0-probe/
+  dexsql 0.1.1 (A1): --version 0.1.1 --out artifacts/mdd-070/a1-probe --raw artifacts/local/mdd-070-a1
 
 Opens each rich fixture, records list_tables / describe_table schemas and the full
 paged rows of every frozen relation. Raw records (with local absolute paths) go to
@@ -12,6 +14,7 @@ No bare asserts: every invariant violation raises explicitly.
 """
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import sys
@@ -22,9 +25,15 @@ sys.path.insert(0, str(ROOT / "conformance" / "mcp"))
 from mcp_client import McpClient  # noqa: E402
 
 # the reference binary is an ignored local input (artifacts/local/dexsql-a0/); pass its path as the first argument
-A0 = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "artifacts" / "local" / "dexsql-a0" / "dexsql-windows-amd64.exe"
-RAW_DIR = ROOT / "artifacts" / "local" / "mdd-070"
-OUT_DIR = ROOT / "artifacts" / "mdd-070" / "a0-probe"
+_ARGS = argparse.ArgumentParser(description="probe a reference dexsql for the 56 public relations")
+_ARGS.add_argument("binary", nargs="?", type=Path, default=ROOT / "artifacts" / "local" / "dexsql-a0" / "dexsql-windows-amd64.exe")
+_ARGS.add_argument("--version", default="0.1.0", help="the version the server must report")
+_ARGS.add_argument("--out", type=Path, default=ROOT / "artifacts" / "mdd-070" / "a0-probe")
+_ARGS.add_argument("--raw", type=Path, default=ROOT / "artifacts" / "local" / "mdd-070")
+_OPTIONS = _ARGS.parse_args()
+A0 = _OPTIONS.binary
+RAW_DIR = _OPTIONS.raw
+OUT_DIR = _OPTIONS.out
 
 FIXTURES = [
     "tests/fixtures/annotations/generated/annotations-038.dex",
@@ -55,6 +64,25 @@ FIXTURES = [
     "tests/fixtures/public_relations/generated/debug-programs-035.dex",
     "tests/fixtures/public_relations/generated/hiddenapi-order-039.dex",
     "tests/fixtures/public_relations/generated/marker-annotation-038.dex",
+    "tests/fixtures/public_relations/generated/build-annotation-038.dex",
+    "tests/fixtures/public_relations/generated/call-site-extra-args-038.dex",
+    "tests/fixtures/public_relations/generated/root-class-035.dex",
+    "tests/fixtures/public_relations/generated/static-values-nested-035.dex",
+    "tests/fixtures/annotations/generated/parameter-empty-nonzero-proto.dex",
+    "tests/fixtures/annotations/generated/parameter-empty-zero-proto.dex",
+    "tests/fixtures/annotations/generated/parameter-long-nonzero-proto.dex",
+    "tests/fixtures/annotations/generated/parameter-orphan-empty-no-binding.dex",
+    "tests/fixtures/annotations/generated/parameter-shared-empty-set.dex",
+    "tests/fixtures/annotations/generated/parameter-shared-signature-complete.dex",
+    "tests/fixtures/annotations/generated/parameter-shared-signature.dex",
+    "tests/fixtures/annotations/generated/valid-orphan-annotation.dex",
+    "tests/fixtures/annotations/generated/valid-orphan-empty-directory.dex",
+    "tests/fixtures/annotations/generated/valid-orphan-empty-ref-list.dex",
+    "tests/fixtures/annotations/generated/valid-orphan-empty-set.dex",
+    "tests/fixtures/annotations/generated/valid-orphan-external-directory.dex",
+    "tests/fixtures/annotations/generated/valid-orphan-known-directory.dex",
+    "tests/fixtures/annotations/generated/valid-shared-empty-directory.dex",
+    "tests/fixtures/annotations/generated/valid-shared-empty-set.dex",
 ]
 
 
@@ -135,8 +163,9 @@ def main() -> None:
     try:
         info = client.initialize()
         server = info.get("serverInfo", {})
-        if server.get("version") != "0.1.0":
-            raise RuntimeError(f"unexpected A0 version: {server}")
+        # 0.1.1 reports its build too ("0.1.1+<commit>"); the record keeps the whole string
+        if str(server.get("version")).split("+")[0] != _OPTIONS.version:
+            raise RuntimeError(f"unexpected reference version: {server}, wanted {_OPTIONS.version}")
         describes = {}
         for relation in relations:
             response = client.request("tools/call", {"name": "describe_table",

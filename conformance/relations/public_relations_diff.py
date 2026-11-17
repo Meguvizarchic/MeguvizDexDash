@@ -10,6 +10,7 @@ A relation is judged per fixture:
   match_cells column names and all cells equal in the recorded order; a column's type or nullable flag differs (noted)
   reordered   column names and cells equal as a multiset but not in the recorded order (declared difference ORDER)
   refused_by_design  the engine refused the relation for a declared reason (NON_SCALAR)
+  reference_incomplete  the reference left out rows the DEX holds (REFERENCE_GAPS); every row it did deliver is the engine's too
   differs   anything else (the first difference is kept)
   error     the engine refused or failed (its error text is kept)
 
@@ -23,6 +24,7 @@ Usage: python -I conformance/relations/public_relations_diff.py [--binary PATH] 
 from __future__ import annotations
 
 import argparse
+import collections
 import hashlib
 import json
 import math
@@ -60,6 +62,13 @@ NON_SCALAR_MARKERS = ("non_scalar_UTF16", "NON_SCALAR_TEXT_PROJECTION")
 A0_PAGING_DEFECTS = {
     ("all-debug-opcodes", "code_items"), ("fill-array", "code_items"), ("packed-switch", "code_items"),
     ("sparse-switch", "code_items"), ("try-catch-all", "code_items"), ("shared-class-data", "code_items"),
+    # a type list nothing refers to: counted (count(*) is 1), never delivered
+    ("parameter-empty-zero-proto", "type_lists"), ("parameter-orphan-empty-no-binding", "type_lists"),
+}
+# What the reference leaves out although the DEX holds it: the entries of a type list nothing refers to. The engine reads the
+# physical section, so it delivers the list and its entries; the rows the reference does deliver must all be among them.
+REFERENCE_GAPS = A0_PAGING_DEFECTS | {
+    ("parameter-empty-zero-proto", "type_list_entries"), ("parameter-orphan-empty-no-binding", "type_list_entries"),
 }
 
 
@@ -121,7 +130,7 @@ def normalized(cell, tag_ints: bool):
     return json.dumps({"type": kind, "value": value}, ensure_ascii=False, sort_keys=True)
 
 
-def compare(relation: str, recorded: dict, got: dict) -> dict:
+def compare(relation: str, recorded: dict, got: dict, fixture: str = "") -> dict:
     """Cells decide the verdict. Column metadata is compared too, but a difference in the type or the nullable flag of a
     column that the engine reports for a result is kept as a note, not as a failure of the cells."""
     if got["error"] is not None:
@@ -177,6 +186,10 @@ def compare(relation: str, recorded: dict, got: dict) -> dict:
     elif sorted(want) == sorted(have):
         out["verdict"] = "reordered"
         out["first_difference"] = {"row": first_difference(want, have)["row"]}
+    elif (fixture, relation) in REFERENCE_GAPS and not (collections.Counter(map(tuple, want)) - collections.Counter(map(tuple, have))):
+        # every row the reference delivered is there; the engine also has the rows the reference could not or did not give
+        out["verdict"] = "reference_incomplete"
+        out["first_difference"] = {"row": first_difference(sorted(want), sorted(have))["row"]}
     else:
         out["verdict"] = "differs"
         if len(want) != len(have):
@@ -192,6 +205,15 @@ def first_difference(want: list, have: list) -> dict:
     longer, which = (want, "recorded") if len(want) > len(have) else (have, "engine")
     shorter = min(len(want), len(have))
     return {"row": shorter, which: longer[shorter]}
+
+
+def reference_text(directory: Path, first: Path) -> str:
+    engine = json.loads(first.read_text(encoding="utf-8"))["engine"]
+    try:
+        where = directory.resolve().relative_to(ROOT).as_posix()
+    except ValueError:
+        where = directory.name
+    return f"{engine['name']} {engine['version']} ({engine['sha256']}), recorded in {where}/"
 
 
 def write_record(path: Path, record: dict) -> None:
@@ -217,6 +239,8 @@ def main() -> int:
     parser.add_argument("--allow", default="")
     parser.add_argument("--out", type=Path, default=ROOT / "artifacts" / "mdd-070" / "public-relations-diff.json")
     parser.add_argument("--quiet", action="store_true")
+    parser.add_argument("--dialect", default="", help="the SQL dialect the server runs in (dexsql-0.1.0 or dexsql-0.1.1); the server default when empty")
+    parser.add_argument("--probe-dir", type=Path, default=PROBE_DIR, help="the recorded answers to replay (a0-probe: dexsql 0.1.0, a1-probe: dexsql 0.1.1)")
     parser.add_argument("--strict-order", action="store_true", help="a relation read in another order than the recorded one fails")
     args = parser.parse_args()
 
@@ -230,7 +254,7 @@ def main() -> int:
     allowed = {r for r in args.allow.split(",") if r}
 
     probes = []
-    for path in sorted(PROBE_DIR.glob("*.json")):
+    for path in sorted(args.probe_dir.glob("*.json")):
         if path.name == "describe-tables.json":
             continue
         if only_fixtures and path.stem not in only_fixtures:
@@ -239,7 +263,7 @@ def main() -> int:
     if not probes:
         raise SystemExit("no probe record selected")
 
-    client = McpClient(args.binary)
+    client = McpClient(args.binary, ["--dialect", args.dialect] if args.dialect else None)
     results: dict = {}
     try:
         info = client.initialize()
@@ -262,7 +286,7 @@ def main() -> int:
                     per_relation[relation] = {"verdict": "error", "detail": "not listed by list_tables",
                                               "rows_recorded": len(record["relations"][relation]["rows"]), "rows_engine": 0}
                     continue
-                per_relation[relation] = compare(relation, record["relations"][relation], page_relation(client, dataset_id, relation))
+                per_relation[relation] = compare(relation, record["relations"][relation], page_relation(client, dataset_id, relation), path.stem)
             client.call("close_dataset", dataset_id=dataset_id)
             results[path.stem] = per_relation
             if not args.quiet:
@@ -279,19 +303,20 @@ def main() -> int:
             "fixtures": len(verdicts),
             "match": verdicts.count("match"), "match_cells": verdicts.count("match_cells"), "reordered": verdicts.count("reordered"),
             "refused_by_design": verdicts.count("refused_by_design"),
+            "reference_incomplete": verdicts.count("reference_incomplete"),
             "differs": verdicts.count("differs"), "error": verdicts.count("error"),
             "nonempty_fixtures": sum(1 for f in results if relation in results[f] and results[f][relation]["rows_recorded"] > 0),
         }
     passing = ("match", "match_cells") if args.strict_order else ("match", "match_cells", "reordered")
     # refused_by_design counts as passing only because the refusal itself is the declared behaviour (NON_SCALAR)
-    passing = (*passing, "refused_by_design")
+    passing = (*passing, "refused_by_design", "reference_incomplete")
     blocking = [r for r in wanted if r not in allowed
                 and any(results[f][r]["verdict"] not in passing for f in results if r in results[f])]
     all_match = all(v["fixtures"] == v["match"] + v["match_cells"] for v in summary.values()) and not undeclared_open
     record = {
         "schema_version": "mdd.public-relations-diff.v2",
-        "engine_under_test": {"binary_sha256": sha256(args.binary), "server": info.get("serverInfo")},
-        "reference": "dexsql 0.1.0 (f354ebcf715de9a66ef8ebe08b2b36807ab58e25cd5a1c0812e497fc1fcfc448), recorded in artifacts/mdd-070/a0-probe/",
+        "engine_under_test": {"binary_sha256": sha256(args.binary), "server": info.get("serverInfo"), "dialect": args.dialect or "server default"},
+        "reference": reference_text(args.probe_dir, probes[0]),
         "relations_compared": wanted, "fixtures_compared": [p.stem for p in probes],
         "declared_open_refusals": DECLARED_OPEN_REFUSALS, "undeclared_open_refusals": undeclared_open,
         "all_match": all_match, "blocking_relations": blocking, "summary": summary, "results": results,
@@ -300,7 +325,7 @@ def main() -> int:
     write_record(args.out, record)
     total = sum(v["fixtures"] for v in summary.values())
     print(f"{sum(v['match'] + v['match_cells'] for v in summary.values())} of {total} (relation, fixture) pairs match exactly, "
-          f"{sum(v['reordered'] for v in summary.values())} only in another order, {sum(v['refused_by_design'] for v in summary.values())} refused by design; "
+          f"{sum(v['reordered'] for v in summary.values())} only in another order, {sum(v['refused_by_design'] for v in summary.values())} refused by design, {sum(v['reference_incomplete'] for v in summary.values())} where the reference is incomplete; "
           f"blocking relations: {blocking}; undeclared open refusals: {undeclared_open}; wrote {args.out}")
     return 0 if not blocking and not undeclared_open else 1
 

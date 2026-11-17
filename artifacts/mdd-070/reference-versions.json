@@ -1,0 +1,36 @@
+{
+ "schema_version": "mdd.reference-versions.v1",
+ "task": "MDD-070",
+ "kind": "development evidence; admits no profile",
+ "older": {
+  "name": "dexsql",
+  "version": "0.1.0",
+  "sha256": "f354ebcf715de9a66ef8ebe08b2b36807ab58e25cd5a1c0812e497fc1fcfc448"
+ },
+ "newer": {
+  "name": "dexsql",
+  "version": "0.1.1+6ac7870875a519ec471e41c93fc86d80e8e2bce7",
+  "sha256": "602105c98232120c14d6124fb33574f2f95f12e50e51d25b8834f893925f28d6"
+ },
+ "fixtures": 47,
+ "relations": 56,
+ "pairs": 2632,
+ "verdicts": {
+  "match": 2632
+ },
+ "pairs_that_differ": [],
+ "list_tables_equal": true,
+ "describe_table_equal": true,
+ "described_differently": [],
+ "reading": "identical",
+ "limits": [
+  "only the windows-amd64 build of each version was probed",
+  "the fixtures are small synthetic DEX files; the question asked of each relation was SELECT * paged to the end",
+  "equal answers on these fixtures do not show equal answers on others, nor equal SQL behaviour beyond them"
+ ],
+ "inputs_sha256": {
+  "artifacts/mdd-070/a0-probe": "2bb9fa1648ab411ad1e9cc0d84404cf01b72a12a13ce9d9c22849559127a13af",
+  "artifacts/mdd-070/a1-probe": "0fa9d19c83018a4370445614d873ee00a4c3d59769b566662459afad412d700d",
+  "conformance/relations/public_relations_diff.py": "f8a0975ee610cc5e7da788b553d8dc683477cdb1b767939b414bfe402a7b40db"
+ }
+}
