@@ -1383,7 +1383,7 @@
       "id": "MDD-051",
       "phase": "M5",
       "title": "迁移 NativeSession、Graph 与二十七 FEATURE 结构审计",
-      "status": "in_progress",
+      "status": "done",
       "depends_on": [
         "MDD-026",
         "MDD-035",
@@ -1413,7 +1413,29 @@
         "docs/02_ARCHITECTURE_AND_CONTRACTS.md",
         "docs/03_HOSTLAB_MIGRATION.md",
         "docs/04_VALIDATION_AND_PERFORMANCE.md"
-      ]
+      ],
+      "implementation_evidence": [
+        "artifacts/mdd-051/structural-equivalence.json",
+        "artifacts/mdd-051/mutation/results.txt",
+        "artifacts/mdd-051/mutation/mutate_structural.py",
+        "integrations/hostlab/native_session.py",
+        "integrations/hostlab/structural_provider.py",
+        "integrations/hostlab/structural_compare.py",
+        "integrations/hostlab/structural_equivalence.py",
+        "integrations/hostlab/structural_frozen.py",
+        "integrations/hostlab/make_structural_equivalence.py",
+        "integrations/hostlab/test_structural_provider.py",
+        "integrations/hostlab/test_structural_session.py",
+        "integrations/hostlab/test_structural_equivalence.py",
+        "integrations/hostlab/structural_README.md",
+        "conformance/hostlab/structural-goldens.json",
+        "conformance/hostlab/structural_a0_golden.py",
+        "conformance/hostlab/structural_dex.py",
+        "conformance/hostlab/structural_worlds.py",
+        "conformance/hostlab/structural-catalog/analysis/audit_catalog.json",
+        "conformance/hostlab/structural-catalog/analysis/HostCompatibilityAudit.java"
+      ],
+      "implementation_notes": "2026-11-17, DONE (merged to codex/m2-facts-20261028 as 8b136b2 by the main session after independent review). The structural audit HL-08/HL-09/HL-10 over the engine. integrations/hostlab/native_session.py speaks both wires: B0 keeps HostLab's DTO and request scheduling with wire changes registered separately (W-B0-*), B1 uses the typed/batch interface; terminal columns must match the batches on both wires. structural_provider.py runs HostLab's own Rules (the Graph and the 27 FEATURE rules stay in HostLab's native_rules/native_graph and the operator catalog, injected; the frozen copies are the oracle) and keeps four outcomes apart: complete (MISSING/PARTIAL verdicts are results), audit_refused (UnsupportedAudit type and message unchanged), incomplete_coverage (no business verdict given), failed (classified by the engine's own code). Coverage is fail-closed: a statement sent but walked away from is never covered - pending abandoned terminals and terminals skipped by the next statement both withhold completeness (statement_abandoned), as do unfinished statements, non-complete input/facts and dataset layer issues; a cancelled terminal raises with the engine's code. The rollback value dexsql hands back HostLab's own session, reported as backend dexsql with no engine identity; engine results publish only below provider.namespaces. Evidence: 126 unittest cases (provider/session/equivalence) passed, rerun independently by the main session before merge and on the merged tree against engine binary 6d035110ca518eee6b52b20b67980cc9ba0660d34da7aa9a749e97884b9fc59f; mutation check 64 of 64 killed, mutants 61-64 (the review fixes) re-run independently by the main session and all killed; artifacts/mdd-051/structural-equivalence.json --check current and conformance/hostlab/structural_a0_golden.py --verify-inputs pass; the seven sha256 bindings in results.txt recomputed and equal. The declared B1 string-pool difference is compared against the input's own string pool read independently from the DEX bytes (ULEB128 UTF-16 unit count, MUTF-8), with negative controls proving the comparison can fail. NOT DONE / NOT PROVEN: HostLab itself was not patched or run end-to-end; the audit is exercised over the fixture corpus and the frozen operator catalog, not a private APK; no profile is admitted; formal performance belongs to MDD-060/082."
     },
     {
       "id": "MDD-052",

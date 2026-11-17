@@ -54478,6 +54478,16 @@
       "sha256": "778adb503155c878de4e50f14387784dfe5e252ffb101a68d50fa556c90e810e"
     },
     {
+      "path": "artifacts/mdd-051/mutation/mutate_structural.py",
+      "bytes": 18150,
+      "sha256": "3b932678f1f99fc268ba3bb7f71d89799e8bdb1bb9cddabb6984c281a6b3d004"
+    },
+    {
+      "path": "artifacts/mdd-051/mutation/results.txt",
+      "bytes": 5707,
+      "sha256": "16be5d87d9e1108156ffcb814af5f279c25f7f437935be5e2af46b2d1274eab9"
+    },
+    {
       "path": "artifacts/mdd-051/skeleton-20261110/newpipe.err",
       "bytes": 0,
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
@@ -54501,6 +54511,11 @@
       "path": "artifacts/mdd-051/skeleton-20261112-file-id-fix/member-policy.json",
       "bytes": 6291,
       "sha256": "9112f8af24e00ea3b76201872f4929d2b688c823cb7db31dbb4303be5515a0ed"
+    },
+    {
+      "path": "artifacts/mdd-051/structural-equivalence.json",
+      "bytes": 41074,
+      "sha256": "9f5ee5fbbcfe0273a4551c23fa18540ba70a2d5a643b68fbebbdbc80b5a9089f"
     },
     {
       "path": "artifacts/mdd-071/mutation/mutate_decode.py",
