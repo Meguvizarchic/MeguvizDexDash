@@ -5095,8 +5095,8 @@
  ],
  "inputs_sha256": {
   "conformance/manifests/relations.json": "f416926d6da3467b5cfea625978c2e4faac08c914cf2930d2c64878c261bb82d",
-  "artifacts/mdd-070/public-relations-diff.json": "cbc354cf2c04b0b898d8840b27108446904cc66b0fdeecb9a5bdcb827c13f484",
-  "artifacts/mdd-070/public-relations-diff-0.1.1.json": "13ad0063b73bd852cd9c05fcde7b69713eab484ed14e281a5da81530d5f97b10",
+  "artifacts/mdd-070/public-relations-diff.json": "35997471a5a6e4cad9384f40e4c1cf5827ed0ba9917c12a3070d5199d7c2d8b9",
+  "artifacts/mdd-070/public-relations-diff-0.1.1.json": "66e61e9805b5a6079c764e6e2edd6172f923588a932eb5438195c644a068013f",
   "crates/mdd-sql/src/profiles/compatibility/mod.rs": "d5b05a66fc95d7aedd9e3e2507b6dacc9365b9e595ff66427c81e2a101d1ec36",
   "artifacts/mdd-070/reference-versions.json": "cdc95f053b4ac006a5ded088ccff8b0fde3fbf2cec8255b813646a860003a91d",
   "conformance/relations/public_relations_diff.py": "f8a0975ee610cc5e7da788b553d8dc683477cdb1b767939b414bfe402a7b40db",

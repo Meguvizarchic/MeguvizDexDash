@@ -54435,7 +54435,7 @@
     {
       "path": "artifacts/mdd-042/mutation/results.txt",
       "bytes": 3522,
-      "sha256": "9389b29b7667af8109e8c074c06e0f4661421ca2589cd08c1c0e15aac3f77ced"
+      "sha256": "9756687e26b7167d58a735c302b519fdcda6f109536cbe3f7d30286f9a4c449e"
     },
     {
       "path": "artifacts/mdd-043/mutation/mutate_abi.py",
@@ -54590,7 +54590,7 @@
     {
       "path": "artifacts/mdd-071/mutation/results.txt",
       "bytes": 4744,
-      "sha256": "97ca72bf5cf0df41f8b2d3dd9a7c03261e314c35b4d9e77a1e4097430b8bd1a4"
+      "sha256": "378f42c8a1bad665a7e2ef70417bb3dd3e3bac5fd72b59742ac63ee7a5f83d3f"
     },
     {
       "path": "artifacts/mdd-071/smali-and-paging-conformance.json",
@@ -54625,7 +54625,7 @@
     {
       "path": "artifacts/mdd-084/mutation/results.txt",
       "bytes": 901,
-      "sha256": "a2a7751e0b7d2e3dd745fd093de34f7ad3f26fb09656c9583bdc69455d43bb88"
+      "sha256": "4f353a6f7797f914cbc9dd3051fd981ae03f0ae547ca54d72838df4abcbca2bb"
     },
     {
       "path": "artifacts/mdd-084/or-chain-overflow.json",

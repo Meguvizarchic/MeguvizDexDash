@@ -83,9 +83,9 @@
   "file": "artifacts/mdd-070/mutation/results.txt",
   "script": "artifacts/mdd-070/mutation/mutate_public_relations.py",
   "present": true,
-  "current": false,
+  "current": true,
   "mutants": 59,
-  "killed": 54,
+  "killed": 59,
   "survived": [],
   "errors": 0,
   "skipped": 0,
@@ -108,10 +108,10 @@
   "conformance/relations/public_relations_diff.py": "f8a0975ee610cc5e7da788b553d8dc683477cdb1b767939b414bfe402a7b40db",
   "conformance/relations/test_public_relations_diff.py": "a06411377a0fde54431fdb64b86779f885f8e57ddcb17ac00e7744a34e40f742",
   "conformance/relations/build_qualification.py": "48eb8c2dcad274c0e3f5035632280d7665963a4f7996096b3b9d6d3e6ad2f583",
-  "artifacts/mdd-070/public-relations-diff.json": "cbc354cf2c04b0b898d8840b27108446904cc66b0fdeecb9a5bdcb827c13f484",
-  "artifacts/mdd-070/public-relations-diff-0.1.1.json": "13ad0063b73bd852cd9c05fcde7b69713eab484ed14e281a5da81530d5f97b10",
+  "artifacts/mdd-070/public-relations-diff.json": "35997471a5a6e4cad9384f40e4c1cf5827ed0ba9917c12a3070d5199d7c2d8b9",
+  "artifacts/mdd-070/public-relations-diff-0.1.1.json": "66e61e9805b5a6079c764e6e2edd6172f923588a932eb5438195c644a068013f",
   "artifacts/mdd-070/reference-versions.json": "cdc95f053b4ac006a5ded088ccff8b0fde3fbf2cec8255b813646a860003a91d",
-  "conformance/manifests/full-relation-qualification.json": "0d095710ce57265775c78325b9445f0a4d3e88ae5eaf1f71ab5277f8cc618251",
+  "conformance/manifests/full-relation-qualification.json": "6f13fc0d0adc182bc4de6000199035f30ad787c868d9ff7d0f95b79f7e025f33",
   "conformance/relations/compare_references.py": "d75044ee0e567d35d051611db794a8accd742d014de4225ac27f3070766f81ef",
   "conformance/manifests/relations.json": "f416926d6da3467b5cfea625978c2e4faac08c914cf2930d2c64878c261bb82d",
   "artifacts/mdd-070/probe_a0.py": "a119ae3ec723534a62b653c26c3985d815367bc63640f736b11d44ef32de94fb",
@@ -131,6 +131,6 @@
   "the reference reads a DEX whose two classes share class data; the engine refuses it at open (declared)"
  ],
  "run": {
-  "finished_utc": "2026-11-17T13:00:49Z"
+  "finished_utc": "2026-11-17T13:39:14Z"
  }
 }

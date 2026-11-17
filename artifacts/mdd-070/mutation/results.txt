@@ -51,7 +51,12 @@ KILLED   gate: the annotations are not required [unit]
 KILLED   gate: the references are not required [unit]
 KILLED   columns: a nullable column is not nullable [unit]
 KILLED   columns: a signed column is text [unit]
+KILLED   profiles: the 0.1.1 dialect is held to the 0.1.0 profile [unit]
+KILLED   profiles: a dialect withholds a relation [unit]
+KILLED   profiles: a name that is no frozen relation can be hidden [unit]
+KILLED   profiles: the native dialect is held to a compatibility profile [unit]
+KILLED   bridge: the dialect's list is not applied to the schema [unit]
 KILLED   registry: the public relations are not listed [unit]
 restored tree passes the unit and process tests, the replays and their controls: True
 public APK present for the manifest replay: False
-sources sha256: 3e70f05207e496c223bace7c4d213545c8653410cfcab0a2124fa6584fc8d821
+sources sha256: 726c4fee62dbf78ebbe741d7c998815aac6556241247c5a23c5f749529fb02cd
