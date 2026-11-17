@@ -1,0 +1,32 @@
+ 1 killed: the completeness gate accepts a non-ok operation_status
+ 2 killed: the completeness gate accepts an incomplete execution
+ 3 killed: the completeness gate accepts a truncated result
+ 4 killed: the completeness gate accepts more_available rows
+ 5 killed: the completeness gate accepts a leftover next_cursor
+ 6 killed: the completeness gate accepts partial/unknown coverage
+ 7 killed: the completeness gate ignores emitted_rows vs delivered
+ 8 killed: the completeness gate ignores the expected row count
+ 9 killed: NULL canonicalizes to an empty string
+10 killed: the canonical digest ignores row order
+11 killed: the canonical digest drops duplicate rows
+12 killed: f64 decode canonicalizes NaN, losing the payload
+13 killed: text decode uses strict UTF-8, rejecting unpaired surrogates
+14 killed: decode ignores the dex_mutf8 utf16_units count
+15 killed: decode accepts nonzero trailing bitmap bits
+16 killed: decode accepts a nonzeroed NULL fixed-width slot
+17 killed: decode accepts non-monotonic varlen offsets
+18 killed: decode accepts a wrong tail offset
+19 killed: decode accepts a NULL varlen row carrying bytes
+20 killed: decode accepts unaccounted trailing bytes in the body
+21 killed: decode accepts nonzero descriptor flags
+22 killed: decode accepts a bool slot that is not 0/1
+23 killed: MCP uint64 is mistagged as i64
+24 killed: the stdout proxy counts str length, not wire bytes
+25 killed: the stream consumer ignores sequence/first_row continuity
+26 killed: the encoding evaluation skips the canonical cell fidelity check
+27 killed: infer_schema accepts a mixed-type column
+killed 27/27; survivors: []
+sources sha256:
+  36ed880ff0280f566aaff0ed5bb9d8d8f0bb440dd9194ffeb383bea3cde17a60  benchmarks/producer-consumer-pipeline.py
+  ceb010d1c251d7d48a0fd73106fa80f27a1b4ba9aba02fe55c8e47ce39f93014  benchmarks/test_producer_consumer_pipeline.py
+  ebf791901e0051fe1aee2fc7d8195bb1d42c9c0d9de3d97e298e1d354394e534  conformance/protocol/column-batch-cases.json

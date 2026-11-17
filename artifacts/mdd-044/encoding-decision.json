@@ -1,0 +1,186 @@
+{
+ "schema_version": "mdd.encoding-decision.v1",
+ "task": "MDD-044",
+ "kind": "development evidence; diagnostic timing on a shared host, not a performance qualification",
+ "utc": "2026-11-17T03:56:39Z",
+ "binary": {
+  "sha256": "6d035110ca518eee6b52b20b67980cc9ba0660d34da7aa9a749e97884b9fc59f",
+  "build_id": "source-sha256:7bfc8b12a9c8b6eea9544716f06a386a557ce85f57ed3645239d51aa9573d8a8",
+  "engine_version": "0.1.0-dev",
+  "transports": [
+   {
+    "name": "cli-json",
+    "result_encodings": [
+     "json"
+    ],
+    "version": "1"
+   },
+   {
+    "name": "cli-jsonl-stream",
+    "result_encodings": [
+     "json"
+    ],
+    "version": "1"
+   },
+   {
+    "name": "cli-text",
+    "result_encodings": [
+     "text"
+    ],
+    "version": "1"
+   }
+  ],
+  "path_placeholder": "target/debug/meguvizdexdash (main tree, read-only; MDD_WORKER_BINARY)"
+ },
+ "input": {
+  "id": "newpipe-0.28.6",
+  "sha256": "e56ef6280b700696172797f94513ffd3f9aae9349945a2f06e235ec24446be58",
+  "bytes": 10885562,
+  "path_placeholder": "artifacts/local/inputs/NewPipe_v0.28.6.apk",
+  "visibility": "public",
+  "origin_url": "https://github.com/TeamNewPipe/NewPipe/releases/download/v0.28.6/NewPipe_v0.28.6.apk"
+ },
+ "workload": {
+  "sql": "SELECT file_id,class_descriptor,method_idx,method_name,method_descriptor FROM class_methods ORDER BY file_id,class_idx,method_idx",
+  "dialect": "dexsql-0.1.1",
+  "rows": 55763,
+  "batches": 56
+ },
+ "candidate": {
+  "name": "columns-v1",
+  "status": "consumer-side prototype only; not implemented by the engine wire",
+  "layout": "docs/02_ARCHITECTURE_AND_CONTRACTS.md 10.3: LE fixed-width values, validity bitmap (1=non-NULL, LSB first, trailing bits zero), row_count+1 u64 offsets + contiguous bytes, NULL rows zero-length/zeroed, f64 raw bits, dex_mutf8 raw bytes + u64 unit counts",
+  "text_encoding": "utf-8/surrogatepass; unpaired surrogates recover as the UTF-16 unit cell form"
+ },
+ "measurements": {
+  "json_body_bytes": 15270783,
+  "columns_body_bytes": 11639428,
+  "json_parse_seconds": 0.05647719999979017,
+  "columns_encode_seconds": 0.21381920000385435,
+  "columns_decode_seconds": 0.7301204999967013,
+  "json_materialize_seconds": 0.0500201000013476,
+  "columns_materialize_seconds": 0.07822589999705087,
+  "rows": 55763,
+  "batches": 56
+ },
+ "fidelity": {
+  "columns_equal": true,
+  "row_count_equal": true,
+  "canonical_cells_equal": true,
+  "canonical_digest_equal": true,
+  "full_result_digest": "12a98815e8e0bbc8eff4cfe9077263a5581ca31b57106add895aea60beb82ee6"
+ },
+ "wire_v1_contract_digest": "26f615c6a103dd4518f9f06c91a529ec90f5cad654a5f738e3fcd46134ddc40a",
+ "reserialization_mismatches": 0,
+ "counterexample_fidelity": [
+  {
+   "channel": "cli-query",
+   "label": "counterexample-export",
+   "expected_rows": 3,
+   "expected_digest": "607b06e0e28cc15233a486acef012dc8d43e4b65b844ee4986bf29f19db12bd0",
+   "matched": true
+  },
+  {
+   "channel": "cli-query",
+   "label": "counterexample-null",
+   "expected_rows": 3,
+   "expected_digest": "1aaa3a1017513cd8f47ded59f6fcefb4cb8910b814b7327bd4c1ac64736f94f3",
+   "matched": true
+  },
+  {
+   "channel": "cli-serve-raw",
+   "label": "counterexample-export",
+   "expected_rows": 3,
+   "expected_digest": "607b06e0e28cc15233a486acef012dc8d43e4b65b844ee4986bf29f19db12bd0",
+   "matched": true
+  },
+  {
+   "channel": "cli-serve-raw",
+   "label": "counterexample-null",
+   "expected_rows": 3,
+   "expected_digest": "1aaa3a1017513cd8f47ded59f6fcefb4cb8910b814b7327bd4c1ac64736f94f3",
+   "matched": true
+  },
+  {
+   "channel": "sdk-worker",
+   "label": "counterexample-export",
+   "expected_rows": 3,
+   "matched": true,
+   "comparison": "app_digest (SDK decodes cells)"
+  },
+  {
+   "channel": "sdk-worker",
+   "label": "counterexample-null",
+   "expected_rows": 3,
+   "matched": true,
+   "comparison": "app_digest (SDK decodes cells)"
+  },
+  {
+   "channel": "mcp",
+   "label": "counterexample-export",
+   "expected_rows": 3,
+   "expected_digest": "607b06e0e28cc15233a486acef012dc8d43e4b65b844ee4986bf29f19db12bd0",
+   "matched": true
+  },
+  {
+   "channel": "mcp",
+   "label": "counterexample-null",
+   "expected_rows": 3,
+   "expected_digest": "1aaa3a1017513cd8f47ded59f6fcefb4cb8910b814b7327bd4c1ac64736f94f3",
+   "matched": true
+  }
+ ],
+ "verdict": "disabled",
+ "reasons": [
+  "fidelity verified on the full workload and the counterexamples: fields, types, NULL, duplicates, row count and canonical digest are identical after the columns-v1 round trip",
+  "wire bytes: json 15270783 vs columns-v1 11639428 (0.762x)",
+  "consumer CPU to the application object: json parse+materialize 0.1065s vs columns decode+materialize 0.8083s (encode adds 0.2138s on the producer side)",
+  "the engine's mdd-wire/1 hello offers encoding `json` only (conformance/protocol/wire-v1-cases.json negotiation cases); columns-v1 has no engine implementation, so no end-to-end advantage through the real OS pipe can be demonstrated without engine-side work, which this task does not do",
+  "a consumer-side prototype's byte/CPU numbers are not an end-to-end result; RSS was measured separately per run and is never derived from encoding size",
+  "the candidate's Python decode+materialize path is not faster than the JSON path"
+ ],
+ "mcp": "stays JSON; no binary encoding is offered on MCP stdout",
+ "binary_channel": "binary/column encodings only via the dedicated worker/SDK channel (mdd-wire/1); enabling columns-v1 there requires engine implementation and a fresh end-to-end comparison, not this prototype",
+ "load_conditions": {
+  "exclusive_window": false,
+  "note": "shared host: other agents run tests/builds concurrently; diagnostic timing only",
+  "meguvizdexdash_processes_at_start": 0,
+  "cpu_count": 24,
+  "platform": "Windows-11-10.0.26300-SP0",
+  "python": "3.12.14"
+ },
+ "sources_sha256": {
+  "benchmarks/producer-consumer-pipeline.py": "36ed880ff0280f566aaff0ed5bb9d8d8f0bb440dd9194ffeb383bea3cde17a60",
+  "benchmarks/test_producer_consumer_pipeline.py": "ceb010d1c251d7d48a0fd73106fa80f27a1b4ba9aba02fe55c8e47ce39f93014",
+  "conformance/protocol/column-batch-cases.json": "ebf791901e0051fe1aee2fc7d8195bb1d42c9c0d9de3d97e298e1d354394e534"
+ },
+ "reproduce": [
+  "python -I benchmarks/producer-consumer-pipeline.py gen-cases",
+  "MDD_WORKER_BINARY=<main-tree>/target/debug/meguvizdexdash.exe python -I benchmarks/producer-consumer-pipeline.py run --rounds 2",
+  "python -I -m unittest discover -s benchmarks -p test_producer_consumer_pipeline.py -v",
+  "python -I artifacts/mdd-044/mutation/mutate_pipeline.py"
+ ],
+ "cross_channel": {
+  "canonical_digest": "12a98815e8e0bbc8eff4cfe9077263a5581ca31b57106add895aea60beb82ee6",
+  "app_digest": "27c916fa774dcb635864d5731c97270d6a05ddb244eb53003af38d8010057a28",
+  "rows": 55763,
+  "channels": [
+   "cli-query",
+   "cli-serve-raw",
+   "sdk-worker",
+   "mcp"
+  ]
+ },
+ "negative_controls": [
+  {
+   "name": "quota_truncation_gate",
+   "status": "passed",
+   "detail": "--max-rows 10 -> QUOTA_EXCEEDED/truncated terminal refused by require_complete"
+  }
+ ],
+ "not_run": [
+  "in-process C ABI SDK (python/mdd core) for this workload: the FFI session dialect is fixed to native-v1, which has no class_methods relation; the dexsql contract dialect is only offered by CLI/serve/MCP, and engine-side changes are out of this task's scope. The SDK OS-pipe path is covered by mdd.worker.",
+  "a columns-v1 end-to-end run through the engine: the wire negotiation offers json only; the candidate is a consumer-side prototype, so its numbers are representation-level, not pipe-level",
+  "exclusive-window performance qualification (MDD-060/082)"
+ ]
+}
