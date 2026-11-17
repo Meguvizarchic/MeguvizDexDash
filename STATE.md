@@ -1,6 +1,6 @@
 # MeguvizDexDash 当前状态
 
-更新：2026-11-12（Asia/Shanghai）。唯一任务图：tasks/backlog.json；当前产品仍在实施，所有产品 profile admitted=false。
+更新：2026-11-17（Asia/Shanghai）。唯一任务图：tasks/backlog.json；当前产品仍在实施，所有产品 profile admitted=false。
 
 ## 2026-11-11 生产前资格推进（5 子代理 + 3 Step-Reviewer）
 
@@ -391,6 +391,14 @@
 **一个泄漏与修正**：被拒绝参数的报错文字会引用发送的输入路径，黄金里 `raw_text` 留下了夹具目录（`7beaa29` 起是 `D:\DevArea\MeguvisDexDash\…`，071 分支重生成后含会话 worktree 名）。生成器现在对 `raw_text` 同样归一化为 `<fixtures>`，黄金已用参考二进制重新生成（`852060f`），当前树里不再有本机路径；`7beaa29` 到 `9208c06` 的历史里还有，是工作区路径不含用户名，没有改写历史。
 
 **MDD-042 的记录与本次合入**：071 改动了 042 记录所跟踪的源文件（`tools.rs`、`mcp.rs` 等），所以 `run_mcp_conformance.py --check` 现在会报 stale，042 的变异结果对应的是 `6abfef5` 的源码。042 的 3 个变异锚点因 071 的改动失效（空描述符、范围错误的 kind、decode 超时关闭数据集），已修复并在本机确认被抓住。071 收口后统一重跑 042 的 runner 与 `mutation-mcp.yml` 并更新记录；在那之前 042 的记录是 `6abfef5` 时点的快照。
+
+## 2026-11-17 MDD-071 收口（done）与中断现场接管
+
+**MDD-071 标 done**：完成条件「变异工作流干净」已满足。6 个存活变异由 `451cbaf` 的补测试与夹具杀死（合入 `c7d9e20`，上一会话本机逐个确认过）；`mutation-decode.yml` run 43995971316 在 `c7d9e20` 上 **67/67 被抓住、0 存活**，结果入库 `artifacts/mdd-071/mutation/results.txt`。`build_mdd071_record.py --check` current。验收五条未改；声明的限制保留：类文本单页不能续页（余下走 SQL 表）、注解/debug/字段/类头无第三方 oracle（参考引擎不输出）、12 条回放未运行（11 条属 MDD-072 的 xml 模式、1 条 1 ms 超时）、只在一台 Windows 主机本机验证（Linux 由 CI，c7d9e20 两平台绿）。
+
+**MDD-042 记录同步刷新**：071 改动过 042 记录跟踪的源文件，按上一节约定重跑 `run_mcp_conformance.py`（96 项 Rust、clippy 0、schema 与参考相等、query 回放 77 用例/145 页相等、A0 回放 246/246、方法 252/252、sessions/decode/manifest 检查全过、mutation current=True）与 `mutation-mcp.yml` run 43995975532（**57/57 被抓住**）。新结果写 `artifacts/mdd-042/mutation/results.txt`，7beaa29 时点的旧切片保留为 `results-before-071.txt`（历史含义不变）。
+
+**接管中断现场**：上一会话（Claude）因额度耗尽停在三个 worktree 的未提交工作上——MDD-051（结构审计）、MDD-052（surface）、MDD-053（远程/checkpoint），全部为未跟踪新文件、无已跟踪文件改动。主代理现场盘点：051 测试 122 项全过、变异 60/60；053 测试 144 项全过、两份证据 --check current、变异 214/214；052 测试与证据在跑/复核中，其变异运行被中断（results-run1.txt 为空），需重跑。三个对抗审查子代理已拉起。合入与门禁结果见后续章节。
 
 ## Checkout 与交付
 

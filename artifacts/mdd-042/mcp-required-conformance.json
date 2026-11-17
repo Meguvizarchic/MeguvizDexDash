@@ -564,7 +564,8 @@
    "The reference's server_busy (a second request while one runs) cannot arise: this server answers one request at a time.",
    "A recursive CTE is the reference's way to run long; this server's SQL does not offer it, so the deadline is exercised with a cross join.",
    "Dataset identifiers are opaque here (dataset-<hex>); the reference counts dataset-1, dataset-2.",
-   "limits values (max_datasets, max_output_bytes, timeout_ms, ...) are each server's own configuration; only their names are compared."
+   "limits values (max_datasets, max_output_bytes, timeout_ms, ...) are each server's own configuration; only their names are compared.",
+   "Since MDD-071 a decode answer also names the version of the text it shows (`text_format`); a class page also has a `class` object, and a text row may have `omitted` and `source_total_lines`. The reference has none of them; they are removed before the answers are compared."
   ]
  },
  "decode_conformance": {
@@ -702,11 +703,15 @@
     "equal": true
    },
    {
-    "name": "a class is refused as not implemented, not answered with a stand-in",
+    "name": "a class defined in two DEX files is ambiguous until file_id says which",
     "equal": true
    },
    {
-    "name": "the context mode is refused as not implemented, not answered with a stand-in",
+    "name": "a class with its file_id is listed",
+    "equal": true
+   },
+   {
+    "name": "the context mode shows the anchor lines of a method",
     "equal": true
    },
    {
@@ -766,7 +771,7 @@
     "equal": true
    }
   ],
-  "passed": 49,
+  "passed": 50,
   "failed": 0,
   "not_run": 0
  },
@@ -830,78 +835,24 @@
    "sha256": "f354ebcf715de9a66ef8ebe08b2b36807ab58e25cd5a1c0812e497fc1fcfc448",
    "version": "0.1.0"
   },
-  "recorded_utc": "2026-11-16T08:53:50Z",
-  "cases_run": 184,
-  "cases_equal": 184,
-  "cases_equal_exactly": 65,
+  "recorded_utc": "2026-11-16T14:35:13Z",
+  "cases_run": 246,
+  "cases_equal": 246,
+  "cases_equal_exactly": 116,
   "cases_equal_with_a_declared_difference": {
-   "ERROR WORDING": 22,
+   "CLASS PAGE BYTES": 2,
+   "ERROR WORDING": 26,
    "LENIENT": 15,
-   "MALFORMED ARGUMENTS": 50,
+   "MALFORMED ARGUMENTS": 53,
    "ORDER OF CHECKS": 29,
    "OWN SCOPE": 2,
-   "TEXT CONVENTIONS": 1
+   "TEXT CONVENTIONS": 3
   },
   "cases_not_run": [
    {
     "id": "decode-arg-timeout_ms-1",
     "reason": "a 1 ms deadline",
     "refused_cleanly": null
-   },
-   {
-    "id": "decode-arg-mode-context",
-    "reason": "the context mode (MDD-071)",
-    "refused_cleanly": true
-   },
-   {
-    "id": "decode-select-class",
-    "reason": "decode of a class (MDD-071)",
-    "refused_cleanly": true
-   },
-   {
-    "id": "decode-select-class-unknown",
-    "reason": "decode of a class (MDD-071)",
-    "refused_cleanly": true
-   },
-   {
-    "id": "decode-select-class-smali",
-    "reason": "decode of a class (MDD-071)",
-    "refused_cleanly": true
-   },
-   {
-    "id": "decode-select-class-summary",
-    "reason": "decode of a class (MDD-071)",
-    "refused_cleanly": true
-   },
-   {
-    "id": "decode-select-class-context",
-    "reason": "decode of a class (MDD-071)",
-    "refused_cleanly": true
-   },
-   {
-    "id": "decode-select-class-page-2",
-    "reason": "decode of a class (MDD-071)",
-    "refused_cleanly": true
-   },
-   {
-    "id": "decode-select-class-offset-past",
-    "reason": "decode of a class (MDD-071)",
-    "refused_cleanly": true
-   },
-   {
-    "id": "decode-text-switch-context",
-    "reason": "the context mode (MDD-071)",
-    "refused_cleanly": true
-   },
-   {
-    "id": "decode-text-try-context",
-    "reason": "the context mode (MDD-071)",
-    "refused_cleanly": true
-   },
-   {
-    "id": "decode-text-abstract-context",
-    "reason": "the context mode (MDD-071)",
-    "refused_cleanly": true
    },
    {
     "id": "manifest-mode-xml",
@@ -994,7 +945,27 @@
    },
    {
     "class": "NOT IMPLEMENTED",
-    "why": "decode of a class, the context mode and the xml mode of get_manifest (MDD-071, MDD-072) are refused as `not_implemented`; they are not compared."
+    "why": "the xml mode of get_manifest (MDD-072) is refused as `not_implemented`; it is not compared."
+   },
+   {
+    "class": "TEXT FORMAT",
+    "why": "every decode answer that shows text names the version of its text (`text_format`); a context row also gives `source_total_lines`, the line count of the full text its `line N:` numbers index."
+   },
+   {
+    "class": "CLASS OBJECT",
+    "why": "a class page also carries `class`: the class's own facts (flags, superclass, source file, interfaces, field counts) and, in the text modes on the first page, its declaration, fields and annotations as a text; and a method row may carry `omitted`, what its text leaves out. The reference has neither."
+   },
+   {
+    "class": "EXTRA DIRECTIVES",
+    "why": "the smali text here also carries annotation blocks, `.param` lines and debug directives (`.line`, `.local`, `.end local`, `.restart local`, `.prologue`, `.epilogue`, `.source`) that the reference never writes; canon_smali drops them before the texts are compared, so the instructions, operands, targets, payloads and exception tables are what is compared."
+   },
+   {
+    "class": "CONTEXT",
+    "why": "the context view keeps the same kinds of lines as the reference's (method line, registers line, label lines, catch lines; checked against the reference for every method of the fixture). Its `line N:` numbers count the lines of this server's own full text, so they are compared only through canon_context, which drops the numbers and merges the labels that name one address; the labels themselves are named by baksmali's conventions here."
+   },
+   {
+    "class": "CLASS PAGE BYTES",
+    "why": "in a class page `max_bytes` is one budget of UTF-8 bytes for the text of all its methods (the reference's counts the serialized answer, twice); a class page's answer is compared only where no budget is asked for."
    },
    {
     "class": "OWN SCOPE",
@@ -1013,7 +984,7 @@
  "tests": {
   "rust": {
    "exit_code": 0,
-   "passed": 77,
+   "passed": 96,
    "failed": 0
   },
   "clippy_exit_code": 0,
@@ -1025,48 +996,48 @@
   ],
   "log_sha256": {
    "rust": [
-    "1886c0cb9cb92bf1c892c502ac07ec355939375c9485c536b0d99c11f08d7a45",
-    "a49e1dfc8ad53eef34c4668d86d30c8f8b9a0ab80e2f9580763cecf99bdfd2c8",
-    "89a4c007c8ac888772ece80460d1ef7e4063a1a9fdf49aa1d20e9cd4c577ab3f"
+    "12b23863c037dc7fc582a219388dd1ec0c2ad906c1bb6b389126606bb2fdffc6",
+    "6749300f798c3746dbed7f06b4185692787848f3ab3ce5b439b44a0d0cd128c8",
+    "8f0b0ec418106096be2073f989b05f166e159a7354881ec5831f70a76f376d78"
    ],
-   "clippy": "add59096252b8b8c36725244bc1410450001e3e832505437cce853ac3514bee1",
+   "clippy": "9e907d5947ec1da5771791068576455e54ccb2d5c33403b9a20b6177d597adf0",
    "controls": [
     "2ae2691b3d3801ad0641d8313b60970e02727334cee88f780f22f77a9b498b9f",
-    "59323237cc44fb5b9e0a15f5cfc04b23fb6490fd0a93525b8a1ba35e34c88fd9",
-    "fcaad54608aeaa9bdad1daf81c09a831f7f3300905dbe0be7f8614410a7e5285"
+    "9c6b937ffef9af6554df4e6810328a5913eb50fe013df21d9ac76897caa20a0c",
+    "c8f948c440019e15ae008615be9c2dd0e798297b66430e08648176576d02f943"
    ]
   },
   "raw_logs_kept_at": "artifacts/local/ (ignored; carries developer-machine output)"
  },
  "inputs_sha256": {
-  "crates/mdd-mcp/src/tools.rs": "8737de246be7f435b7896d70b07eb126436785fc9ef92f2578838ce86dbb5963",
+  "crates/mdd-mcp/src/tools.rs": "8c7e860b6dc94f479daaddabb13f03e2ac494d6b0cf49f16ae67834ddf013743",
   "crates/mdd-mcp/src/server.rs": "92d533d0184883d63a52753af925d8fdeebb0d511af09057cd824860ef71668b",
   "crates/mdd-mcp/src/protocol.rs": "dcc1508b6f61ffa6632f27954b0aaa6801367dd543fff7648a0d4862bdcda020",
   "crates/mdd-mcp/src/lib.rs": "04c090fad25cd89003d79350892283c307366246c8c3ac41b454656813dc9879",
   "crates/mdd-mcp/src/tool_schemas.json": "4f3fc454c010dbc6c000ea9a1528dd6e7acd4f011c10232548b881edb459b724",
-  "crates/mdd-cli/tests/mcp.rs": "fcdaf12cd0daaf79a1a73096135fc08552e0200c319949b2a4f0b582f1be5dc8",
-  "crates/mdd-service/src/decode.rs": "f204b6248c2cc7539cec5e54df27fe4ee4a08ee935f122572bff31919dd0d45c",
-  "crates/mdd-service/src/dataset.rs": "1550b191e4acf65de6fb49ee847c6745c7b00f2fa2d08c557eab230b7df97f43",
+  "crates/mdd-cli/tests/mcp.rs": "173236d88e4c3960f27ea97405dfb818395a8d354a5f234c3f29f9706d54e9bb",
+  "crates/mdd-service/src/decode.rs": "d55939c12121f1720ca53d33f6e1d05c482e86fa33a663d7ddc8e1415dc52958",
+  "crates/mdd-service/src/dataset.rs": "d80cd616399f4fb2ba531db9fb20fbaa56ad2432517c0bdc7df6f7bfc45a9a53",
   "crates/mdd-service/src/manifest.rs": "54b533e54e9e0fc6770347ec62a819a35e09e2e6446eda831bd36e2f4a5ed061",
-  "crates/mdd-facts/src/smali_required/mod.rs": "8f618539ad6c09a90e4c6bc8675187555898bedcf922d465457956449cf8efee",
-  "crates/mdd-facts/src/smali_required/render.rs": "fefe2584db10a6af225325f812119205dc6af84ea8e5b7f445d87dfb7f6028c4",
+  "crates/mdd-facts/src/smali_required/mod.rs": "d963e9d1474135931a08556943936eb86ad3d4bb2b47580916bfb0a645598f42",
+  "crates/mdd-facts/src/smali_required/render.rs": "bc25c553212c0ae23d003195f753dcd21626aec5399832a922c5802694a43264",
   "crates/mdd-facts/src/smali_required/tests.rs": "81892e6beafbc695d77c9878fe6329aec4160ab0323d1d0dbda0b578d5712592",
   "conformance/mcp/mcp_client.py": "55c470322ba59f432edbb63603188170f47485d1854cc5e97abb792700bec611",
   "conformance/mcp/golden_replay.py": "3ccbb853796f0edec0d52efe2e5305e70f18e73131e2c5a4b208aa4fa17e795a",
   "conformance/mcp/test_golden_replay.py": "9413ec6ec059537cb7e5a0b25f650bd029ebcb7ca63f761e18352a00fe502496",
-  "conformance/mcp/lifecycle_replay.py": "3deb276ff39ed5ba4028fa605d469984b659142b328d29a306b354ffaf84d32a",
+  "conformance/mcp/lifecycle_replay.py": "03d995cf68c7c1c1029fb5f0bc2d01202ec5249dbc443e8a943ba665138b401e",
   "conformance/mcp/manifest_replay.py": "145150259f2b50877fcf08b5f1f3a096e66c06fb2d1d03c35291e44b2304f0e9",
   "conformance/mcp/test_replays.py": "98c05c58ad78b1f8b34f22bf8748273da317a15b215cf6fb8a4aea61d8ff50b4",
   "conformance/mcp/tiny_dex.py": "e051c06d951b5973a8ef6972139fb977e58fbb44fa1f2ff0cd2663070a95e8f5",
   "conformance/mcp/run_mcp_conformance.py": "757ec1458346171ec15f1d149a7a06f555b99505c1320f39123ae513b4a2f6b6",
-  "conformance/decode/oracle.py": "fd59e719043bb50a227c7cf41bd171b3c4313c81705b5f59320ff7612b4babba",
-  "conformance/decode/run_decode_conformance.py": "9a104e046ca588b321db97a628090b3dead1cd7b15e4f44482d6dd74c6e784e6",
+  "conformance/decode/oracle.py": "45b3d4d051fbf0a931fe16544235b1585722eeac05d7562f3ce266bdd64ec835",
+  "conformance/decode/run_decode_conformance.py": "f5a06e549155d4e49ce2095a73b696c487c86191c7d059135923114b43bbf1bc",
   "conformance/decode/hand-expected.txt": "3dfad5ab67a2c9e86a60024d06a1284ab08002a1953c8cd39eb89e505af218e8",
-  "conformance/decode/a0_cases.py": "940e552451194ecd1b1a9dbcdf19635445deab581f2ecdf6305364f663b3b39d",
-  "conformance/decode/a0_replay.py": "9704115e274af5308b58db023c2ab2a2e1eb850750edd0d7c6396f6810c61ae4",
-  "conformance/decode/test_a0_replay.py": "e47af03e38faab80cf6e59698ab1ff945020cd74346534148454f2d54b21d0e5",
-  "conformance/decode/generate_a0_golden.py": "a6eac3d9ff509465124459e625850f14e15ddda1bd0f9e795e218f0f743dd9cd",
-  "conformance/decode/a0-golden.json": "2b4aad1ded11f0bbe849669798cdfd663aeb67271826c7c94c21acb5412c67ba",
+  "conformance/decode/a0_cases.py": "c0f96d4c370ab3b246312c84a3d52e408fb8e9a7324f932cb2f747d73a125a59",
+  "conformance/decode/a0_replay.py": "57e987af455f15c584a2dd6c5e8c5832ab749d527a9a8941d617ef233458e426",
+  "conformance/decode/test_a0_replay.py": "9ca5b8bb06b9252497e0aa54daea79dfafeb9377bf45e41a4ccca33e670d934d",
+  "conformance/decode/generate_a0_golden.py": "f6818aa91b1ced6fe84aeb42599a6b51973b7d6aedbd6ec917acd150380f7870",
+  "conformance/decode/a0-golden.json": "3395b655341781101e7838d8a9e255a94acf19ef634dbfcffdfabba8c9e64e57",
   "tests/fixtures/decode/generate.py": "8dd3ff79c7a24249a92ee1c0456f94bda8c92be89a452acd429035d7ac142a9b",
   "tests/fixtures/decode/manifest.json": "43e35c6889b508c11d6c808285fcdcadd6e636843aa2b32751631fdd9adc34cf",
   "conformance/corpus/hostlab/required-variants.json": "134a2a389ba16369dc454a600a0a524e882078cd804506158aed8076a2aa24c2",
@@ -1107,6 +1078,6 @@
   "one Windows host; the MCP process tests run on Linux only in the repository CI"
  ],
  "run": {
-  "started_utc": "2026-11-16T09:21:31.779893+00:00"
+  "started_utc": "2026-11-17T01:51:23.995811+00:00"
  }
 }
