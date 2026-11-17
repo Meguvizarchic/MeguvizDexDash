@@ -1,0 +1,1200 @@
+{
+  "controls": [
+    {
+      "description": "a dispatch that died is journalled first, looked up by title, and never sent again",
+      "expected": {
+        "dispatches": 1,
+        "job_state": "dispatch_unknown",
+        "journal_after": "dispatch_unknown",
+        "journal_before_dispatch": "dispatch_unknown",
+        "mutating_gh_calls": 0,
+        "redispatch_allowed": false
+      },
+      "id": "remote.unknown_dispatch_not_replayed",
+      "observed": {
+        "dispatches": 1,
+        "job_state": "dispatch_unknown",
+        "journal_after": "dispatch_unknown",
+        "journal_before_dispatch": "dispatch_unknown",
+        "mutating_gh_calls": 0,
+        "redispatch_allowed": false
+      },
+      "ok": true
+    },
+    {
+      "description": "the seven non-dispatching tools hand on no dispatching call and run no mutating gh call; the five dispatching ones do hand one on",
+      "expected": {
+        "advance_version_matrix": {
+          "class": "dispatching",
+          "hands_on_a_dispatching_call": true,
+          "mutating_gh_calls": 0
+        },
+        "job_result": {
+          "class": "non_dispatching",
+          "hands_on_a_dispatching_call": false,
+          "mutating_gh_calls": 0
+        },
+        "job_status": {
+          "class": "non_dispatching",
+          "hands_on_a_dispatching_call": false,
+          "mutating_gh_calls": 0
+        },
+        "list_jobs": {
+          "class": "non_dispatching",
+          "hands_on_a_dispatching_call": false,
+          "mutating_gh_calls": 0
+        },
+        "plan_analysis": {
+          "class": "non_dispatching",
+          "hands_on_a_dispatching_call": false,
+          "mutating_gh_calls": 0
+        },
+        "plan_version_matrix": {
+          "class": "non_dispatching",
+          "hands_on_a_dispatching_call": false,
+          "mutating_gh_calls": 0
+        },
+        "recover_version_matrix": {
+          "class": "dispatching",
+          "hands_on_a_dispatching_call": true,
+          "mutating_gh_calls": 0
+        },
+        "submit_analysis": {
+          "class": "dispatching",
+          "hands_on_a_dispatching_call": true,
+          "mutating_gh_calls": 0
+        },
+        "submit_job": {
+          "class": "dispatching",
+          "hands_on_a_dispatching_call": true,
+          "mutating_gh_calls": 0
+        },
+        "submit_version_matrix": {
+          "class": "dispatching",
+          "hands_on_a_dispatching_call": true,
+          "mutating_gh_calls": 0
+        },
+        "version_matrix_result": {
+          "class": "non_dispatching",
+          "hands_on_a_dispatching_call": false,
+          "mutating_gh_calls": 0
+        },
+        "version_matrix_status": {
+          "class": "non_dispatching",
+          "hands_on_a_dispatching_call": false,
+          "mutating_gh_calls": 0
+        }
+      },
+      "id": "remote.dispatch_audit",
+      "observed": {
+        "advance_version_matrix": {
+          "class": "dispatching",
+          "hands_on_a_dispatching_call": true,
+          "mutating_gh_calls": 0
+        },
+        "job_result": {
+          "class": "non_dispatching",
+          "hands_on_a_dispatching_call": false,
+          "mutating_gh_calls": 0
+        },
+        "job_status": {
+          "class": "non_dispatching",
+          "hands_on_a_dispatching_call": false,
+          "mutating_gh_calls": 0
+        },
+        "list_jobs": {
+          "class": "non_dispatching",
+          "hands_on_a_dispatching_call": false,
+          "mutating_gh_calls": 0
+        },
+        "plan_analysis": {
+          "class": "non_dispatching",
+          "hands_on_a_dispatching_call": false,
+          "mutating_gh_calls": 0
+        },
+        "plan_version_matrix": {
+          "class": "non_dispatching",
+          "hands_on_a_dispatching_call": false,
+          "mutating_gh_calls": 0
+        },
+        "recover_version_matrix": {
+          "class": "dispatching",
+          "hands_on_a_dispatching_call": true,
+          "mutating_gh_calls": 0
+        },
+        "submit_analysis": {
+          "class": "dispatching",
+          "hands_on_a_dispatching_call": true,
+          "mutating_gh_calls": 0
+        },
+        "submit_job": {
+          "class": "dispatching",
+          "hands_on_a_dispatching_call": true,
+          "mutating_gh_calls": 0
+        },
+        "submit_version_matrix": {
+          "class": "dispatching",
+          "hands_on_a_dispatching_call": true,
+          "mutating_gh_calls": 0
+        },
+        "version_matrix_result": {
+          "class": "non_dispatching",
+          "hands_on_a_dispatching_call": false,
+          "mutating_gh_calls": 0
+        },
+        "version_matrix_status": {
+          "class": "non_dispatching",
+          "hands_on_a_dispatching_call": false,
+          "mutating_gh_calls": 0
+        }
+      },
+      "ok": true
+    },
+    {
+      "description": "version_matrix_status asks the queue to advance with dispatch=False",
+      "expected": false,
+      "id": "remote.status_does_not_dispatch",
+      "observed": false,
+      "ok": true
+    },
+    {
+      "description": "the run the gateway hands to the artifact check binds the artifact to its attempt, head SHA, sample and engine pin",
+      "expected": {
+        "attempt": 2,
+        "files": 3,
+        "registrable": true,
+        "verified": null
+      },
+      "id": "remote.binding.positive",
+      "observed": {
+        "attempt": 2,
+        "files": 3,
+        "registrable": true,
+        "verified": null
+      },
+      "ok": true
+    },
+    {
+      "description": "a result is not read back for another attempt, run, head SHA, request, repository, engine, sample or runner",
+      "expected": {
+        "another attempt": "run_attempt_mismatch",
+        "another engine": "engine_changed",
+        "another head sha": "head_sha_mismatch",
+        "another repository": "repository_mismatch",
+        "another request": "request_id_mismatch",
+        "another run": "run_mismatch",
+        "another runner revision": "runner_changed",
+        "another sample": "source_changed"
+      },
+      "id": "remote.binding.negatives",
+      "observed": {
+        "another attempt": "run_attempt_mismatch",
+        "another engine": "engine_changed",
+        "another head sha": "head_sha_mismatch",
+        "another repository": "repository_mismatch",
+        "another request": "request_id_mismatch",
+        "another run": "run_mismatch",
+        "another runner revision": "runner_changed",
+        "another sample": "source_changed"
+      },
+      "ok": true
+    },
+    {
+      "description": "a changed artifact file is refused",
+      "expected": "file_changed",
+      "id": "remote.binding.file_changed",
+      "observed": "file_changed",
+      "ok": true
+    },
+    {
+      "description": "only a completed analysis of a successful run is registrable as a completion",
+      "expected": {
+        "cancelled": false,
+        "complete": true,
+        "partial": false,
+        "source_changed": false,
+        "worker_lost": false
+      },
+      "id": "remote.registrable",
+      "observed": {
+        "cancelled": false,
+        "complete": true,
+        "partial": false,
+        "source_changed": false,
+        "worker_lost": false
+      },
+      "ok": true
+    },
+    {
+      "description": "a failed, cancelled or running run has no result manifest",
+      "expected": [
+        "run_not_successful",
+        "run_not_successful",
+        "run_not_completed"
+      ],
+      "id": "remote.failed_run_has_no_manifest",
+      "observed": [
+        "run_not_successful",
+        "run_not_successful",
+        "run_not_completed"
+      ],
+      "ok": true
+    },
+    {
+      "description": "a job is pinned to runner, sample, backend, engine and configuration before it is dispatched; resume does not change the pin; work on a legacy backend has no engine",
+      "expected": {
+        "dispatches": false,
+        "legacy_backends": {
+          "l1": "dexsql"
+        },
+        "legacy_engine": null,
+        "resume_same_pin": true,
+        "task_backends": {
+          "l1": "meguvizdexdash",
+          "q": "meguvizdexdash"
+        }
+      },
+      "id": "remote.pin",
+      "observed": {
+        "dispatches": false,
+        "legacy_backends": {
+          "l1": "dexsql"
+        },
+        "legacy_engine": null,
+        "resume_same_pin": true,
+        "task_backends": {
+          "l1": "meguvizdexdash",
+          "q": "meguvizdexdash"
+        }
+      },
+      "ok": true
+    },
+    {
+      "description": "a job pinned under one engine build is refused under another",
+      "expected": "engine_changed",
+      "id": "remote.pin.engine_changed",
+      "observed": "engine_changed",
+      "ok": true
+    },
+    {
+      "description": "an orchestration tool is not an engine tool and an engine tool is not an orchestration tool; `query` is routed by its server",
+      "expected": {
+        "open_dataset@hostlab-remote": "tool_not_on_server",
+        "plan_analysis@engine": "tool_not_on_server",
+        "plan_analysis@hostlab-remote": "remote_orchestration",
+        "query@dexq": "legacy_dexq",
+        "query@meguvizdexdash": "engine_native"
+      },
+      "id": "remote.routing",
+      "observed": {
+        "open_dataset@hostlab-remote": "tool_not_on_server",
+        "plan_analysis@engine": "tool_not_on_server",
+        "plan_analysis@hostlab-remote": "remote_orchestration",
+        "query@dexq": "legacy_dexq",
+        "query@meguvizdexdash": "engine_native"
+      },
+      "ok": true
+    },
+    {
+      "description": "three attempts with one page each ask the engine for offsets 0, 3, 6 and for the locate task once",
+      "expected": {
+        "locate_queries": 1,
+        "offsets": [
+          [
+            0,
+            3
+          ],
+          [
+            3,
+            3
+          ],
+          [
+            6,
+            1
+          ]
+        ]
+      },
+      "id": "resume.walk.offsets",
+      "observed": {
+        "locate_queries": 1,
+        "offsets": [
+          [
+            0,
+            3
+          ],
+          [
+            3,
+            3
+          ],
+          [
+            6,
+            1
+          ]
+        ]
+      },
+      "ok": true
+    },
+    {
+      "description": "the rows of the three attempts are the rows of one uninterrupted run, none repeated, none dropped",
+      "expected": {
+        "count": 7,
+        "equal": true,
+        "unique": 7
+      },
+      "id": "resume.walk.rows",
+      "observed": {
+        "count": 7,
+        "equal": true,
+        "unique": 7
+      },
+      "ok": true
+    },
+    {
+      "description": "partial, partial, complete; each attempt names the one before it",
+      "expected": {
+        "lineage": [
+          null,
+          true,
+          true
+        ],
+        "terminations": [
+          "partial",
+          "partial",
+          "complete"
+        ]
+      },
+      "id": "resume.walk.terminations",
+      "observed": {
+        "lineage": [
+          null,
+          true,
+          true
+        ],
+        "terminations": [
+          "partial",
+          "partial",
+          "complete"
+        ]
+      },
+      "ok": true
+    },
+    {
+      "description": "a complete task is reused, not run again",
+      "expected": {
+        "reused": 1,
+        "reused_flag": true
+      },
+      "id": "resume.complete_task_reused",
+      "observed": {
+        "reused": 1,
+        "reused_flag": true
+      },
+      "ok": true
+    },
+    {
+      "description": "the executor's report is the same with the adapter wired in and without it (wall-clock fields aside)",
+      "expected": {
+        "reports_equal": true,
+        "same_engine_calls": true
+      },
+      "id": "optimizations.adapter_transparent",
+      "observed": {
+        "reports_equal": true,
+        "same_engine_calls": true
+      },
+      "ok": true
+    },
+    {
+      "description": "an identical non-query task is answered from the first one: one engine query, reused_from set",
+      "expected": {
+        "dataset_opens": 1,
+        "locate_queries": 1,
+        "query_pages": 3,
+        "reused_from": "l1"
+      },
+      "id": "optimizations.non_query_memo",
+      "observed": {
+        "dataset_opens": 1,
+        "locate_queries": 1,
+        "query_pages": 3,
+        "reused_from": "l1"
+      },
+      "ok": true
+    },
+    {
+      "description": "a checkpoint is refused when this component differs",
+      "expected": "schema_changed",
+      "id": "identity.schema_changed",
+      "observed": "schema_changed",
+      "ok": true
+    },
+    {
+      "description": "a checkpoint is refused when this component differs",
+      "expected": "engine_changed",
+      "id": "identity.engine_changed",
+      "observed": "engine_changed",
+      "ok": true
+    },
+    {
+      "description": "a checkpoint is refused when this component differs",
+      "expected": "capability_changed",
+      "id": "identity.capability_changed",
+      "observed": "capability_changed",
+      "ok": true
+    },
+    {
+      "description": "a checkpoint is refused when this component differs",
+      "expected": "profile_changed",
+      "id": "identity.profile_changed",
+      "observed": "profile_changed",
+      "ok": true
+    },
+    {
+      "description": "a checkpoint is refused when this component differs",
+      "expected": "dialect_changed",
+      "id": "identity.dialect_changed",
+      "observed": "dialect_changed",
+      "ok": true
+    },
+    {
+      "description": "a checkpoint is refused when this component differs",
+      "expected": "config_changed",
+      "id": "identity.config_changed",
+      "observed": "config_changed",
+      "ok": true
+    },
+    {
+      "description": "a checkpoint is refused when this component differs",
+      "expected": "generation_changed",
+      "id": "identity.generation_changed",
+      "observed": "generation_changed",
+      "ok": true
+    },
+    {
+      "description": "a checkpoint is refused when this component differs",
+      "expected": "generation_changed",
+      "id": "identity.generation_changed",
+      "observed": "generation_changed",
+      "ok": true
+    },
+    {
+      "description": "a checkpoint is refused when this component differs",
+      "expected": "request_changed",
+      "id": "identity.request_changed",
+      "observed": "request_changed",
+      "ok": true
+    },
+    {
+      "description": "a checkpoint is refused when this component differs",
+      "expected": "rule_changed",
+      "id": "identity.rule_changed",
+      "observed": "rule_changed",
+      "ok": true
+    },
+    {
+      "description": "a checkpoint is refused when this component differs",
+      "expected": "source_changed",
+      "id": "identity.source_changed",
+      "observed": "source_changed",
+      "ok": true
+    },
+    {
+      "description": "a checkpoint is refused when this component differs",
+      "expected": "source_changed",
+      "id": "identity.source_changed",
+      "observed": "source_changed",
+      "ok": true
+    },
+    {
+      "description": "the same identity resumes",
+      "expected": null,
+      "id": "identity.same",
+      "observed": null,
+      "ok": true
+    },
+    {
+      "description": "a HostLab schema-2 checkpoint is not upgraded",
+      "expected": "legacy_checkpoint_not_upgraded",
+      "id": "identity.legacy_schema",
+      "observed": "legacy_checkpoint_not_upgraded",
+      "ok": true
+    },
+    {
+      "description": "a document changed after sealing",
+      "expected": "seal_mismatch",
+      "id": "identity.tampered",
+      "observed": "seal_mismatch",
+      "ok": true
+    },
+    {
+      "description": "a state edited and sealed again is not trusted: it does not follow from the report",
+      "expected": "state_mismatch",
+      "id": "identity.forged_state",
+      "observed": "state_mismatch",
+      "ok": true
+    },
+    {
+      "description": "the run, attempt and request claimed must be the ones that made it",
+      "expected": "origin_mismatch",
+      "id": "identity.origin",
+      "observed": "origin_mismatch",
+      "ok": true
+    },
+    {
+      "description": "APK_B answers the same query with the same columns, rows and total but is another source: refused at import",
+      "expected": "source_changed",
+      "id": "snapshot.other_bytes_same_shape",
+      "observed": "source_changed",
+      "ok": true
+    },
+    {
+      "description": "HostLab hashed A, the engine captured B: refused when the dataset opens, no page read",
+      "expected": {
+        "complete": false,
+        "pages_read": 0,
+        "reason": "source_binding_mismatch",
+        "termination": "source_changed"
+      },
+      "id": "snapshot.engine_captured_other_bytes",
+      "observed": {
+        "complete": false,
+        "pages_read": 0,
+        "reason": "source_binding_mismatch",
+        "termination": "source_changed"
+      },
+      "ok": true
+    },
+    {
+      "description": "the checkpoint it was refused from is untouched and still resumes",
+      "expected": "partial",
+      "id": "snapshot.refusal_leaves_checkpoint_usable",
+      "observed": "partial",
+      "ok": true
+    },
+    {
+      "description": "same bytes, another capture: refused when the dataset opens, no page read",
+      "expected": {
+        "pages_read": 0,
+        "reason": "snapshot_changed"
+      },
+      "id": "snapshot.engine_captured_differently",
+      "observed": {
+        "pages_read": 0,
+        "reason": "snapshot_changed"
+      },
+      "ok": true
+    },
+    {
+      "description": "the same bytes at another path resume (the identity is the content, not the path)",
+      "expected": {
+        "offsets": [
+          [
+            0,
+            3
+          ],
+          [
+            3,
+            3
+          ]
+        ],
+        "same_snapshot": true
+      },
+      "id": "snapshot.same_bytes_other_path",
+      "observed": {
+        "offsets": [
+          [
+            0,
+            3
+          ],
+          [
+            3,
+            3
+          ]
+        ],
+        "same_snapshot": true
+      },
+      "ok": true
+    },
+    {
+      "description": "two opens of the same bytes: different dataset ids, the same snapshot identity",
+      "expected": {
+        "dataset_ids_differ": true,
+        "identities_equal": true
+      },
+      "id": "snapshot.handles_are_not_identity",
+      "observed": {
+        "dataset_ids_differ": true,
+        "identities_equal": true
+      },
+      "ok": true
+    },
+    {
+      "description": "a partial query is recorded as a compatible offset: where it stopped, how many rows, which columns",
+      "expected": {
+        "mode": "compat_offset",
+        "next_offset": 3,
+        "rows": 3,
+        "total_rows": 7
+      },
+      "id": "position.compat_offset",
+      "observed": {
+        "mode": "compat_offset",
+        "next_offset": 3,
+        "rows": 3,
+        "total_rows": 7
+      },
+      "ok": true
+    },
+    {
+      "description": "a position that carries a native cursor token is refused (the cursor dies with its worker)",
+      "expected": "native_cursor_not_persistable",
+      "id": "position.native_cursor_refused",
+      "observed": "native_cursor_not_persistable",
+      "ok": true
+    },
+    {
+      "description": "a position that does not end where its rows end is refused",
+      "expected": "position_inconsistent",
+      "id": "position.gap_refused",
+      "observed": "position_inconsistent",
+      "ok": true
+    },
+    {
+      "description": "how the run ended decides whether it is cached and whether a resume is a success",
+      "expected": {
+        "cache_refusal": "worker_lost",
+        "complete_flag": false,
+        "resume_refusal": null,
+        "resume_success": false,
+        "termination": "worker_lost"
+      },
+      "id": "ending.worker_lost_before_any_result",
+      "observed": {
+        "cache_refusal": "worker_lost",
+        "complete_flag": false,
+        "resume_refusal": null,
+        "resume_success": false,
+        "termination": "worker_lost"
+      },
+      "ok": true
+    },
+    {
+      "description": "how the run ended decides whether it is cached and whether a resume is a success",
+      "expected": {
+        "cache_refusal": "worker_lost",
+        "complete_flag": false,
+        "resume_refusal": null,
+        "resume_success": false,
+        "termination": "worker_lost"
+      },
+      "id": "ending.worker_lost_after_a_page",
+      "observed": {
+        "cache_refusal": "worker_lost",
+        "complete_flag": false,
+        "resume_refusal": null,
+        "resume_success": false,
+        "termination": "worker_lost"
+      },
+      "ok": true
+    },
+    {
+      "description": "how the run ended decides whether it is cached and whether a resume is a success",
+      "expected": {
+        "cache_refusal": "cancelled",
+        "complete_flag": false,
+        "resume_refusal": null,
+        "resume_success": false,
+        "termination": "cancelled"
+      },
+      "id": "ending.cancelled_by_engine_code",
+      "observed": {
+        "cache_refusal": "cancelled",
+        "complete_flag": false,
+        "resume_refusal": null,
+        "resume_success": false,
+        "termination": "cancelled"
+      },
+      "ok": true
+    },
+    {
+      "description": "how the run ended decides whether it is cached and whether a resume is a success",
+      "expected": {
+        "cache_refusal": "cancelled",
+        "complete_flag": true,
+        "resume_refusal": null,
+        "resume_success": false,
+        "termination": "cancelled"
+      },
+      "id": "ending.cancelled_by_hint",
+      "observed": {
+        "cache_refusal": "cancelled",
+        "complete_flag": true,
+        "resume_refusal": null,
+        "resume_success": false,
+        "termination": "cancelled"
+      },
+      "ok": true
+    },
+    {
+      "description": "how the run ended decides whether it is cached and whether a resume is a success",
+      "expected": {
+        "cache_refusal": "source_changed",
+        "complete_flag": false,
+        "resume_refusal": "source_changed",
+        "resume_success": null,
+        "termination": "source_changed"
+      },
+      "id": "ending.source_changed_during_the_run",
+      "observed": {
+        "cache_refusal": "source_changed",
+        "complete_flag": false,
+        "resume_refusal": "source_changed",
+        "resume_success": null,
+        "termination": "source_changed"
+      },
+      "ok": true
+    },
+    {
+      "description": "how the run ended decides whether it is cached and whether a resume is a success",
+      "expected": {
+        "cache_refusal": "partial",
+        "complete_flag": false,
+        "resume_refusal": null,
+        "resume_success": false,
+        "termination": "partial"
+      },
+      "id": "ending.partial_by_budget",
+      "observed": {
+        "cache_refusal": "partial",
+        "complete_flag": false,
+        "resume_refusal": null,
+        "resume_success": false,
+        "termination": "partial"
+      },
+      "ok": true
+    },
+    {
+      "description": "how the run ended decides whether it is cached and whether a resume is a success",
+      "expected": {
+        "cache_refusal": null,
+        "complete_flag": true,
+        "resume_refusal": null,
+        "resume_success": true,
+        "termination": "complete"
+      },
+      "id": "ending.complete",
+      "observed": {
+        "cache_refusal": null,
+        "complete_flag": true,
+        "resume_refusal": null,
+        "resume_success": true,
+        "termination": "complete"
+      },
+      "ok": true
+    },
+    {
+      "description": "a complete structured result is stored and found again under the same identity",
+      "expected": {
+        "found": true,
+        "no_overwrite": "NamespaceCollision",
+        "stored_in_completion_dir": true
+      },
+      "id": "cache.store_and_find",
+      "observed": {
+        "found": true,
+        "no_overwrite": "NamespaceCollision",
+        "stored_in_completion_dir": true
+      },
+      "ok": true
+    },
+    {
+      "description": "arbitrary SQL is not completion-cached (HostLab does not either)",
+      "expected": "arbitrary_sql_not_cached",
+      "id": "cache.arbitrary_sql",
+      "observed": "arbitrary_sql_not_cached",
+      "ok": true
+    },
+    {
+      "description": "the completion directory of another engine build is not written",
+      "expected": "generation_changed",
+      "id": "cache.other_engine_directory",
+      "observed": "generation_changed",
+      "ok": true
+    },
+    {
+      "description": "another sample revision is a different entry",
+      "expected": null,
+      "id": "cache.other_revision_is_a_miss",
+      "observed": null,
+      "ok": true
+    },
+    {
+      "description": "a corrupt entry is not served, not replaced, and reported",
+      "expected": {
+        "kept": true,
+        "rejected": 1,
+        "served": false
+      },
+      "id": "cache.corrupt_entry",
+      "observed": {
+        "kept": true,
+        "rejected": 1,
+        "served": false
+      },
+      "ok": true
+    },
+    {
+      "description": "a new job names its backend; after a page was accepted or TEMP touched it is not replayed on another engine",
+      "expected": {
+        "fresh job, auto": "refuse",
+        "fresh job, explicit dexsql": "replay",
+        "fresh job, not explicit": "refuse",
+        "pages accepted": "refuse",
+        "same engine": "same_engine",
+        "temp side effect": "refuse"
+      },
+      "id": "rollback.replay",
+      "observed": {
+        "fresh job, auto": "refuse",
+        "fresh job, explicit dexsql": "replay",
+        "fresh job, not explicit": "refuse",
+        "pages accepted": "refuse",
+        "same engine": "same_engine",
+        "temp side effect": "refuse"
+      },
+      "ok": true
+    },
+    {
+      "description": "an engine job is read back under its own identity and nothing is written or converted",
+      "expected": {
+        "kind": "mdd_checkpoint",
+        "same_identity": true,
+        "unchanged": true
+      },
+      "id": "rollback.read_back",
+      "observed": {
+        "kind": "mdd_checkpoint",
+        "same_identity": true,
+        "unchanged": true
+      },
+      "ok": true
+    },
+    {
+      "description": "a HostLab report/checkpoint is read as its original engine's and is never resumed by the new engine",
+      "expected": {
+        "backends": [
+          "dexsql"
+        ],
+        "kind": "hostlab_legacy",
+        "reason": "legacy_checkpoint_not_upgraded"
+      },
+      "id": "rollback.hostlab_checkpoint",
+      "observed": {
+        "backends": [
+          "dexsql"
+        ],
+        "kind": "hostlab_legacy",
+        "reason": "legacy_checkpoint_not_upgraded"
+      },
+      "ok": true
+    },
+    {
+      "description": "the frozen -extra analysis_checkpoint.summary cannot read the adapter's nested resume_origin lineage (KeyError) but reads the loader's flat origin; the loader overwrites resume_origin (frozen_extra_copy.analysis_checkpoint_loader)",
+      "expected": {
+        "summary_with_adapter_lineage": "KeyError",
+        "summary_with_loader_origin": "accepted"
+      },
+      "id": "resume.hostlab_loader_lineage",
+      "observed": {
+        "summary_with_adapter_lineage": "KeyError",
+        "summary_with_loader_origin": "accepted"
+      },
+      "ok": true
+    }
+  ],
+  "engine_identity_source": {
+    "kind": "stand-in",
+    "note": "hostlab_test_support.FakeEngine answers version/capabilities/mcp, pinned and probed through install_meguvizdexdash.py; checkpoint_test_support.FakeDexsql answers the MCP calls with the real shape. HostLab's batch executor and paging module are the frozen originals. test_checkpoint_live_engine.py runs the resume flow against the real binary.",
+    "platform": "fixture/platform"
+  },
+  "existing_optimizations": {
+    "kept": [
+      {
+        "claimed_as_new_gain": false,
+        "evidence": {
+          "anchor": "reused = memo.get(identity) if task[\"operation\"] != \"query\" else None",
+          "file": "conformance/corpus/hostlab/source-8782f43/analysis_batch.py",
+          "sha256": "8f40845d1328cae8a06dd29830c5e636d962da3cc72194e16904f6fb23030a64"
+        },
+        "meaning": "complete non-query tasks of one backend session are answered from the first identical one",
+        "name": "non-query memo",
+        "reimplemented_by_the_adapters": false,
+        "status": "kept_as_is"
+      },
+      {
+        "claimed_as_new_gain": false,
+        "evidence": {
+          "anchor": "if not output[\"partial\"] and task[\"operation\"] != \"query\":\n                                memo[identity] = (name, output)",
+          "file": "conformance/corpus/hostlab/source-8782f43/analysis_batch.py",
+          "sha256": "8f40845d1328cae8a06dd29830c5e636d962da3cc72194e16904f6fb23030a64"
+        },
+        "meaning": "no partial or query result is memoised",
+        "name": "memo is filled only by complete non-query results",
+        "reimplemented_by_the_adapters": false,
+        "status": "kept_as_is"
+      },
+      {
+        "claimed_as_new_gain": false,
+        "evidence": {
+          "anchor": "\"execution\": \"one_sequential_session_per_backend\"",
+          "file": "conformance/corpus/hostlab/source-8782f43/analysis_plan.py",
+          "sha256": "acc007958419d233bf0be6271e288c10588df2984701f5f6abf585a895ad07cb"
+        },
+        "meaning": "one prepared dataset per backend group",
+        "name": "one session per backend",
+        "reimplemented_by_the_adapters": false,
+        "status": "kept_as_is"
+      },
+      {
+        "claimed_as_new_gain": false,
+        "evidence": {
+          "anchor": "MAX_RESULT_BYTES = 2 * 1024 * 1024",
+          "file": "conformance/corpus/hostlab/source-8782f43/analysis_batch.py",
+          "sha256": "8f40845d1328cae8a06dd29830c5e636d962da3cc72194e16904f6fb23030a64"
+        },
+        "meaning": "2 MiB of results per batch",
+        "name": "bounded batch result budget",
+        "reimplemented_by_the_adapters": false,
+        "status": "kept_as_is"
+      },
+      {
+        "claimed_as_new_gain": false,
+        "evidence": {
+          "anchor": "len(body.encode()) < 64000",
+          "file": "conformance/corpus/hostlab/source-8782f43/analysis_batch.py",
+          "sha256": "8f40845d1328cae8a06dd29830c5e636d962da3cc72194e16904f6fb23030a64"
+        },
+        "meaning": "decode continues only while the text stays under 64000 bytes",
+        "name": "bounded decode text",
+        "reimplemented_by_the_adapters": false,
+        "status": "kept_as_is"
+      },
+      {
+        "claimed_as_new_gain": false,
+        "evidence": {
+          "anchor": "self.process.stdout.read1(64*1024)",
+          "file": "conformance/corpus/hostlab/source-8782f43/native_cli.py",
+          "sha256": "ca2b1cfb824c0da8f6ab00baeb6bbb24308c734b9ebc3ba4c5c7219d9503a3e3"
+        },
+        "meaning": "the audit CLI is read in chunks of at most 64 KiB",
+        "name": "64 KiB read chunks",
+        "reimplemented_by_the_adapters": false,
+        "status": "kept_as_is"
+      },
+      {
+        "claimed_as_new_gain": false,
+        "evidence": {
+          "anchor": "self.messages = queue.Queue(maxsize=8)",
+          "file": "conformance/corpus/hostlab/source-8782f43/native_cli.py",
+          "sha256": "ca2b1cfb824c0da8f6ab00baeb6bbb24308c734b9ebc3ba4c5c7219d9503a3e3"
+        },
+        "meaning": "at most 8 chunks wait for the consumer",
+        "name": "bounded queue",
+        "reimplemented_by_the_adapters": false,
+        "status": "kept_as_is"
+      },
+      {
+        "claimed_as_new_gain": false,
+        "evidence": {
+          "anchor": "\" AND method_idx BETWEEN \"",
+          "file": "conformance/corpus/hostlab/source-8782f43/native_surface.py",
+          "sha256": "503521fdbb694ca825a65e259981155dc5ccbbf69c4797d23e3e598d1bdaf174"
+        },
+        "meaning": "code_items are narrowed to the min/max method index per DEX",
+        "name": "range filter",
+        "reimplemented_by_the_adapters": false,
+        "status": "kept_as_is"
+      },
+      {
+        "claimed_as_new_gain": false,
+        "evidence": {
+          "anchor": "report[\"resume_origin\"] = copy.deepcopy(resume[\"resume_origin\"])",
+          "file": "conformance/corpus/hostlab/source-8782f43/analysis_batch.py",
+          "sha256": "8f40845d1328cae8a06dd29830c5e636d962da3cc72194e16904f6fb23030a64"
+        },
+        "meaning": "complete tasks are reused, partial queries continue at their cursor",
+        "name": "checkpoint resume",
+        "reimplemented_by_the_adapters": false,
+        "status": "kept_as_is"
+      },
+      {
+        "claimed_as_new_gain": false,
+        "evidence": {
+          "anchor": "Create a durable exact-version queue",
+          "file": "conformance/corpus/hostlab/source-8782f43/remote_mcp.py",
+          "sha256": "dc196d75a2edb41b37057fa94b9a608d6fdf674d0962f0856198cfb710ee3787"
+        },
+        "meaning": "the queue behind submit/advance/status/result",
+        "name": "durable version-matrix queue",
+        "reimplemented_by_the_adapters": false,
+        "status": "kept_as_is"
+      },
+      {
+        "claimed_as_new_gain": false,
+        "evidence": {
+          "anchor": "Ordinary arbitrary SQL is not completion-cached",
+          "file": "conformance/corpus/hostlab/source-8782f43/remote_mcp.py",
+          "sha256": "dc196d75a2edb41b37057fa94b9a608d6fdf674d0962f0856198cfb710ee3787"
+        },
+        "meaning": "HostLab does not completion-cache arbitrary SQL",
+        "name": "no completion cache for arbitrary SQL",
+        "reimplemented_by_the_adapters": false,
+        "status": "kept_as_is"
+      }
+    ],
+    "new_gains_claimed": [],
+    "rule": "these exist in HostLab at the frozen commit and are not registered as gains of the new engine; the adapters neither reimplement nor bypass them (the differential control optimizations.adapter_transparent)"
+  },
+  "generated_by": {
+    "check": "... --check",
+    "command": "python -I integrations/hostlab/remote_make_records.py",
+    "deterministic": true,
+    "script": "integrations/hostlab/remote_make_records.py"
+  },
+  "inputs": {
+    "files": [
+      {
+        "bytes": 5416,
+        "path": "conformance/corpus/hostlab/source-8782f43/manifest.json",
+        "sha256": "a895c45417410e917c49cb86d498b581148d61e11e6815fb80dc5816d92535bb"
+      },
+      {
+        "bytes": 28247,
+        "path": "conformance/corpus/hostlab/source-8782f43/remote_mcp.py",
+        "sha256": "dc196d75a2edb41b37057fa94b9a608d6fdf674d0962f0856198cfb710ee3787"
+      },
+      {
+        "bytes": 10947,
+        "path": "conformance/corpus/hostlab/source-8782f43/analysis_plan.py",
+        "sha256": "acc007958419d233bf0be6271e288c10588df2984701f5f6abf585a895ad07cb"
+      },
+      {
+        "bytes": 11581,
+        "path": "conformance/corpus/hostlab/source-8782f43/analysis_paging.py",
+        "sha256": "91adddc501e80e8ceeaa7f55ca6f6b12bd715502589f80e7cd4d7da2e5201cb1"
+      },
+      {
+        "bytes": 23159,
+        "path": "conformance/corpus/hostlab/source-8782f43/analysis_batch.py",
+        "sha256": "8f40845d1328cae8a06dd29830c5e636d962da3cc72194e16904f6fb23030a64"
+      },
+      {
+        "bytes": 9276,
+        "path": "conformance/corpus/hostlab/source-8782f43/native_cli.py",
+        "sha256": "ca2b1cfb824c0da8f6ab00baeb6bbb24308c734b9ebc3ba4c5c7219d9503a3e3"
+      },
+      {
+        "bytes": 8822,
+        "path": "conformance/corpus/hostlab/source-8782f43/native_surface.py",
+        "sha256": "503521fdbb694ca825a65e259981155dc5ccbbf69c4797d23e3e598d1bdaf174"
+      },
+      {
+        "bytes": 3936,
+        "path": "conformance/corpus/hostlab/source-8782f43-extra/manifest.json",
+        "sha256": "8e9a657a36a609ff89f129f1133473ed80ca1ff283893b262eb476d9fd7ef2d9"
+      },
+      {
+        "bytes": 15471,
+        "path": "conformance/corpus/hostlab/source-8782f43-extra/analysis_checkpoint.py",
+        "sha256": "cabc41a443fde6f9798509ec7157f0577c59beaa8aaebe6c247265c31ee58d90"
+      },
+      {
+        "bytes": 12506,
+        "path": "conformance/corpus/hostlab/source-8782f43-extra/remote_artifacts.py",
+        "sha256": "5ddd0e35235afc8cd3ac53b6619cfa62a826f0aa2610c459a85b55207889aa50"
+      },
+      {
+        "bytes": 17935,
+        "path": "conformance/corpus/hostlab/source-8782f43-extra/remote_job.py",
+        "sha256": "8c7e63257b418c2b64c3d3c5759728cf85eeb83f2628326629453bb8c769f236"
+      },
+      {
+        "bytes": 13072,
+        "path": "conformance/corpus/hostlab/source-8782f43-extra/remote_schedule.py",
+        "sha256": "7174fae71c25670fb96e0c313180c23fe224db534729f34bf0a1f18209e6354d"
+      },
+      {
+        "bytes": 13428,
+        "path": "conformance/corpus/hostlab/source-8782f43-extra/runner_worker.py",
+        "sha256": "dae63dc34a6b27095b0040ef8e7cac6f8e09d0cb43e7b601e46c22ed2b0df665"
+      },
+      {
+        "bytes": 14985,
+        "path": "conformance/corpus/hostlab/source-8782f43-extra/snapshot_transport.py",
+        "sha256": "b75d5c1aac417c2f192da74d85f0da840aed9c7a110d4d54be2dcfb48ef28bf8"
+      },
+      {
+        "bytes": 106365,
+        "path": "conformance/manifests/tools-and-options.json",
+        "sha256": "1b84fc50d9ae2f2eaa555ed5db6e5e0629e7b3ade98c285ed5dfa8a990db97d9"
+      },
+      {
+        "bytes": 35341,
+        "path": "evidence/hostlab_integration_inventory.json",
+        "sha256": "788ccd3e5be84b7f653db98fd30887658923a8b50295b26a141c285f0770d5d5"
+      },
+      {
+        "bytes": 39072,
+        "path": "integrations/hostlab/provider.py",
+        "sha256": "f66f5f0c55b6e69d579b2df406e4b2041e8f37da592f8b5c72c5d508284c03a7"
+      },
+      {
+        "bytes": 53809,
+        "path": "integrations/hostlab/checkpoint_adapter.py",
+        "sha256": "6559802c0685b7ab9558987e30f80456a360203bc1f9ddcb067331951653ed36"
+      },
+      {
+        "bytes": 26232,
+        "path": "integrations/hostlab/remote_runner_adapter.py",
+        "sha256": "c243abee47cedd38e78917aa1fea1261134e47cecbf60b4a39b7b23d219574ca"
+      },
+      {
+        "bytes": 15567,
+        "path": "integrations/hostlab/checkpoint_test_support.py",
+        "sha256": "8cb77ccbf22e0255101cef71684cd8d64a9243922ce4dc143dea1a4d67c7e084"
+      },
+      {
+        "bytes": 9945,
+        "path": "integrations/hostlab/remote_test_support.py",
+        "sha256": "7a0532c6d42f76dd64134206355e99cae2291f656289d0cda56a1c4690e70e6f"
+      },
+      {
+        "bytes": 74188,
+        "path": "integrations/hostlab/remote_make_records.py",
+        "sha256": "6892cdea8046ba7ff17f2a0c9643686ceacbeb7b2397748f53a3476bccb92de6"
+      }
+    ]
+  },
+  "not_proven": [
+    "the frozen -extra analysis_checkpoint.py shows HostLab's loader builds its own `resume_origin` and overwrites the report's, and its summary reads flat keys (run_id/attempt/artifact_id/reused_complete_tasks) the adapter's nested lineage does not have: the sealed envelope here is the adapter's own chain, not consumed by HostLab's loader or summary (demonstrated by resume.hostlab_loader_lineage). version_matrix.py, remote_dispatch.py, runner_group.py, source_snapshot.py and adaptive_schedule.py were not obtained; submit/recover idempotency and the queue are not shown",
+    "that analysis_batch.execute, wired to the provider, runs a whole analysis on the new engine: the frozen executor only knows the backends sqlite and dexsql, so these controls label the engine's work `dexsql`; the mapping to `meguvizdexdash` is the integration's",
+    "the snapshot capture on a real HostLab deployment: it needs analysis_batch.Client replaced by OpenCapture.wrap(Client)",
+    "any performance claim: nothing here is timed, and no existing optimisation is counted as a gain"
+  ],
+  "not_run": [
+    "any GitHub Actions run, any `gh` call to the network, any workflow dispatch: the gh runner is a guard that runs nothing",
+    "the real engine inside these controls: they use stand-ins (the real-engine flow is test_checkpoint_live_engine.py)",
+    "the 0.1.1 dialect, Linux and macOS"
+  ],
+  "remote_contract": {
+    "file": "conformance/hostlab/remote-contracts.json",
+    "sha256": "67c69520115d893af15c8da0e72ab6f8fe61bdbf01116520f381c145b3f20528"
+  },
+  "schema": "mdd.hostlab-remote-resume-equivalence.v1",
+  "summary": {
+    "controls": 59,
+    "failed": [],
+    "ok": 59
+  },
+  "task": "MDD-053"
+}

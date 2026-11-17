@@ -1,0 +1,67 @@
+{
+  "commit": "8782f43d537c442905123e35af325c412caa5188",
+  "about": "Six more files of the public HostLab repository at the commit of ../source-8782f43, added for MDD-053: the sealed checkpoint, the scheduler, the artifact cache, the Actions entry point, the group runner and the source-snapshot transport. Same status as the frozen copy: a copy of the original files, not a checkout. Their SHA-256 and sizes equal the ones recorded by the audit in evidence/hostlab_integration_inventory.json before they were obtained.",
+  "obtained": "2026-11-17, curl from raw.githubusercontent.com, after the user approved the download of exactly these six files (names, source and sizes were stated first)",
+  "not_obtained": [
+    "version_matrix.py",
+    "remote_dispatch.py",
+    "runner_group.py",
+    "source_snapshot.py",
+    "adaptive_schedule.py",
+    "analyze.py",
+    "hostlab.py",
+    "process_control.py",
+    "runner_resources.py",
+    "prepare_runtime.py"
+  ],
+  "files": [
+    {
+      "path": "conformance/corpus/hostlab/source-8782f43-extra/analysis_checkpoint.py",
+      "origin_url": "https://raw.githubusercontent.com/jichuo1/innocent-lab-host-analysis/8782f43d537c442905123e35af325c412caa5188/tools/hostlab/analysis_checkpoint.py",
+      "sha256": "cabc41a443fde6f9798509ec7157f0577c59beaa8aaebe6c247265c31ee58d90",
+      "bytes": 15471,
+      "status": "obtained",
+      "matches_inventory": "evidence/hostlab_integration_inventory.json reviewed_source_files"
+    },
+    {
+      "path": "conformance/corpus/hostlab/source-8782f43-extra/remote_artifacts.py",
+      "origin_url": "https://raw.githubusercontent.com/jichuo1/innocent-lab-host-analysis/8782f43d537c442905123e35af325c412caa5188/tools/hostlab/remote_artifacts.py",
+      "sha256": "5ddd0e35235afc8cd3ac53b6619cfa62a826f0aa2610c459a85b55207889aa50",
+      "bytes": 12506,
+      "status": "obtained",
+      "matches_inventory": "evidence/hostlab_integration_inventory.json reviewed_source_files"
+    },
+    {
+      "path": "conformance/corpus/hostlab/source-8782f43-extra/remote_job.py",
+      "origin_url": "https://raw.githubusercontent.com/jichuo1/innocent-lab-host-analysis/8782f43d537c442905123e35af325c412caa5188/tools/hostlab/remote_job.py",
+      "sha256": "8c7e63257b418c2b64c3d3c5759728cf85eeb83f2628326629453bb8c769f236",
+      "bytes": 17935,
+      "status": "obtained",
+      "matches_inventory": "evidence/hostlab_integration_inventory.json reviewed_source_files"
+    },
+    {
+      "path": "conformance/corpus/hostlab/source-8782f43-extra/remote_schedule.py",
+      "origin_url": "https://raw.githubusercontent.com/jichuo1/innocent-lab-host-analysis/8782f43d537c442905123e35af325c412caa5188/tools/hostlab/remote_schedule.py",
+      "sha256": "7174fae71c25670fb96e0c313180c23fe224db534729f34bf0a1f18209e6354d",
+      "bytes": 13072,
+      "status": "obtained",
+      "matches_inventory": "evidence/hostlab_integration_inventory.json reviewed_source_files"
+    },
+    {
+      "path": "conformance/corpus/hostlab/source-8782f43-extra/runner_worker.py",
+      "origin_url": "https://raw.githubusercontent.com/jichuo1/innocent-lab-host-analysis/8782f43d537c442905123e35af325c412caa5188/tools/hostlab/runner_worker.py",
+      "sha256": "dae63dc34a6b27095b0040ef8e7cac6f8e09d0cb43e7b601e46c22ed2b0df665",
+      "bytes": 13428,
+      "status": "obtained",
+      "matches_inventory": "evidence/hostlab_integration_inventory.json reviewed_source_files"
+    },
+    {
+      "path": "conformance/corpus/hostlab/source-8782f43-extra/snapshot_transport.py",
+      "origin_url": "https://raw.githubusercontent.com/jichuo1/innocent-lab-host-analysis/8782f43d537c442905123e35af325c412caa5188/tools/hostlab/snapshot_transport.py",
+      "sha256": "b75d5c1aac417c2f192da74d85f0da840aed9c7a110d4d54be2dcfb48ef28bf8",
+      "bytes": 14985,
+      "status": "obtained",
+      "matches_inventory": "evidence/hostlab_integration_inventory.json reviewed_source_files"
+    }
+  ]
+}

@@ -1,0 +1,233 @@
+MDD-053 mutation check, run locally (not on GitHub Actions)
+date: 2026-11-17, Windows, Python 3.13.15, 16 workers, each mutant in a private copy; base commit 6b3574c plus the uncommitted MDD-053 files
+command: python -I artifacts/mdd-053/mutation/mutate_checkpoint_remote.py --jobs 16
+tests per mutant: test_checkpoint_adapter.py + test_remote_runner_adapter.py (stand-in engine, frozen HostLab code), stopped at the first failure
+history:
+  pass 1 (212 mutants, 12 workers): 13 survivors. 8 were real gaps in the tests (position that does not end where its rows end, partial
+  locate seeded, seal algorithm, request sealed with its resume, resumed run that captured another snapshot, partial cache entry of the same
+  identity served, HostLab scopes and the cache directory in assert_writable) and got new assertions or tests; 1 was a redundant boolean
+  check, replaced by a stricter ASCII-digit check; 3 were checks that could not be reached (report.complete re-check in the cache, title and
+  size comparison of the manifest) and were removed from the modules; 1 mutant was equivalent and was rewritten.
+  pass 2 (209 mutants): 0 survivors.
+  Between pass 2 and this run a defect turned up that no mutant had pointed at: the progress file of CheckpointWriter was replaced with a bare
+  os.replace, and a Windows file scanner holding the destination for a moment made it raise PermissionError, which HostLab's executor records
+  as a failure of the running task (a partial query ended and the next task was skipped; seen twice in 4 full-suite runs, reproduced by
+  injecting the error). Writing the progress file is now retried and best effort (listed in inflight_errors), the final seal stays strict;
+  3 tests and 5 mutants were added.
+  this run (pass 3): the corrected list on the finished tree.
+
+  1 killed: a resumed request does not keep the identity of the original
+  2 killed: a request for the engine shares an identity with the same request for dexsql
+  3 killed: a plan made under another configuration is accepted
+  4 killed: the source SHA-256 is not checked
+  5 killed: the sample revision is not checked
+  6 killed: the rule catalog digest is not checked
+  7 killed: the catalog epoch is not checked
+  8 killed: the directory generation is a constant
+  9 killed: an incomplete engine identity is accepted
+ 10 killed: a plan that does not use the engine gets an identity
+ 11 killed: snapshot inputs need not be numbered in order
+ 12 killed: the snapshot content key is not checked
+ 13 killed: a non-ASCII digit is a byte length
+ 14 killed: a source need not have a content id
+ 15 killed: the captured bytes need not be the bytes HostLab hashed
+ 16 killed: the session handles are part of the snapshot identity
+ 17 killed: a position need not end where its rows end
+ 18 killed: pagination may disagree with the statement
+ 19 killed: the flat rows may disagree with the typed rows
+ 20 killed: the SQL of the position is not checked
+ 21 killed: the start offset is not checked
+ 22 killed: a complete result gets a position
+ 23 killed: a native cursor token is accepted in a position
+ 24 killed: a position is not compared with the rows
+ 25 killed: the next page need not start at the cursor
+ 26 killed: the next page may change its columns
+ 27 killed: the next page may change the total
+ 28 killed: any binding maps to a compatible offset
+ 29 killed: the delivered rows may exceed the total
+ 30 killed: a worker lost by type name is not found
+ 31 killed: an unverified source counts as unchanged
+ 32 killed: an engine SOURCE_CHANGED does not end the run as source_changed
+ 33 killed: a cancellation code is ignored
+ 34 killed: the cancelled hint is ignored
+ 35 killed: a worker-lost code is ignored
+ 36 killed: the worker-lost hint is ignored
+ 37 killed: complete does not need the report to say complete
+ 38 killed: complete does not need every task complete
+ 39 killed: a failed session does not stop a result being complete
+ 40 killed: fewer tasks than requested are complete
+ 41 killed: a progress report is not in flight
+ 42 killed: nothing is excluded from reuse by how the run ended
+ 43 killed: a partial non-query task is continued
+ 44 killed: a complete task is not reused
+ 45 killed: a hint outside cancelled and worker_lost is accepted
+ 46 killed: a report is sealed for another request
+ 47 killed: results are sealed without a snapshot
+ 48 killed: the seal digest is not checked
+ 49 killed: the seal algorithm is not checked
+ 50 killed: an origin need not have a run id and attempt
+ 51 killed: an origin need not have a request id
+ 52 killed: a schema-2 checkpoint is upgraded
+ 53 killed: an unknown schema is accepted
+ 54 killed: a request that does not match its identity is trusted
+ 55 killed: the sealed request fingerprint is not compared
+ 56 killed: a state that does not follow from the report is trusted
+ 57 killed: an in-flight checkpoint is resumed
+ 58 killed: a checkpoint of a changed source is resumed
+ 59 killed: the origin claim is not compared
+ 60 killed: a missing origin satisfies a claim
+ 61 killed: the sample index of the claim is not compared
+ 62 killed: an oversized document is read
+ 63 killed: another snapshot may be bound
+ 64 killed: a refused snapshot still binds the checkpoint
+ 65 killed: a resume with nothing reusable is a resume
+ 66 killed: everything is seeded
+ 67 killed: every resume is a success
+ 68 killed: the seed carries no lineage
+ 69 killed: the schema version is not compared
+ 70 killed: the engine build is not compared
+ 71 killed: the capability digest is not compared
+ 72 killed: the profile is not compared
+ 73 killed: the dialect is not compared
+ 74 killed: the configuration is not compared
+ 75 killed: the directory generation is not compared
+ 76 killed: the request is not compared
+ 77 killed: the rule catalog is not compared
+ 78 killed: the source SHA-256 is not compared
+ 79 killed: the sample revision is not compared
+ 80 killed: profile, dialect and configuration are folded into the engine
+ 81 killed: the sample hash is not checked when the engine opens
+ 82 killed: the checkpoint is not checked when the engine opens
+ 83 killed: an answer without a manifest is read as the engine's
+ 84 killed: different snapshots in one run are accepted
+ 85 killed: every exception becomes a lost worker
+ 86 killed: a lost channel is not a lost worker
+ 87 killed: a stream error by name is not a lost worker
+ 88 killed: an error answer to open_dataset is read
+ 89 killed: the lost worker carries no engine code
+ 90 killed: a refusal carries no engine code
+ 91 killed: a run that opened the engine need not have captured it
+ 92 killed: a resumed run need not have bound the checkpoint
+ 93 killed: a resumed run may capture another snapshot
+ 94 killed: the final checkpoint may be overwritten
+ 95 killed: a progress file that cannot be written stops the analysis
+ 96 killed: a progress file is not tried again
+ 97 killed: a failed progress write leaves its staged file
+ 98 killed: a progress write failure is not listed
+ 99 killed: a progress write does not wait before the next try
+100 killed: the writer accepts any hint
+101 killed: the writer forgets how the run ended
+102 killed: a resumed checkpoint does not name its parent
+103 killed: checkpoints live beside HostLab's reports
+104 killed: a result that did not complete is cached
+105 killed: arbitrary SQL is cached
+106 killed: a result without a snapshot is cached
+107 killed: bytes other than the sample's are cached
+108 killed: the completion directory of another build is written
+109 killed: the directory marker is not compared
+110 killed: an entry may be overwritten
+111 killed: the cache key includes the snapshot
+112 killed: an entry of another identity is served
+113 killed: a partial entry is served
+114 killed: an entry for other bytes is served
+115 killed: a rejected entry is not reported
+116 killed: an oversized entry is read
+117 killed: a replay needs no explicit backend
+118 killed: auto is an explicit backend
+119 killed: a replay on the same engine is a cross-engine replay
+120 killed: accepted rows do not stop a replay
+121 killed: accepted pages do not stop a replay
+122 killed: TEMP side effects do not stop a replay
+123 killed: a job on an unknown backend is replayed
+124 killed: a refused replay does not raise
+125 killed: the rows of non-query results are not counted
+126 killed: a partial answer is not an accepted page
+127 killed: a TEMP query is not a side effect
+128 killed: a statement that is not SELECT is not a side effect
+129 killed: a HostLab checkpoint is read as the engine's
+130 killed: a corrupt checkpoint is read back
+131 killed: reading back an in-flight checkpoint says it is resumable
+132 killed: an oversized checkpoint is read back
+133 killed: a refusal can cause a fallback
+134 killed: a lost worker is a fallback code
+135 killed: a tool is routed on any server
+136 killed: an unknown server is routed
+137 killed: advance is not a dispatching tool
+138 killed: an engine tool has the wrong name
+139 killed: dexq has a tool too many
+140 killed: a body does not make a call a mutation
+141 killed: an empty command is a read
+142 killed: a field flag is not a mutation
+143 killed: a body flag is not a mutation
+144 killed: a POST is a read
+145 killed: a trailing method flag is a read
+146 killed: --method=DELETE is a read
+147 killed: -XPUT is a read
+148 killed: a run rerun is a read
+149 killed: a release create is a read
+150 killed: an unknown command is a read
+151 killed: the guard runs a mutation
+152 killed: the guard does not record
+153 killed: the guard cannot be told to allow
+154 killed: the runner revision is not checked
+155 killed: the resume claim is part of the pin
+156 killed: the sample SHA-256 is not checked
+157 killed: the sample revision is not checked
+158 killed: the version code is not checked
+159 killed: the pin has no engine
+160 killed: the pin does not name the runner
+161 killed: the runner revision is not compared
+162 killed: the backends are not compared
+163 killed: the engine is not compared
+164 killed: the configuration is not compared
+165 killed: the request is not compared
+166 killed: the sample is not compared
+167 killed: the request id is not checked
+168 killed: the run attempt is not required
+169 killed: the head SHA is not required
+170 killed: the run id is not required
+171 killed: the title need not name the request
+172 killed: an unfinished run has a manifest
+173 killed: a failed run has a manifest
+174 killed: an empty result has a manifest
+175 killed: a file outside the root is listed
+176 killed: the number of files is not limited
+177 killed: the size of a file is not limited
+178 killed: the unpacked size is not limited
+179 killed: duplicate files are listed
+180 killed: a limit is not the cache's
+181 killed: a partial analysis is registrable
+182 killed: a failed run is registrable
+183 killed: registrability is not enforced
+184 killed: the manifest seal is not checked
+185 killed: the manifest schema is not checked
+186 killed: the repository is not compared
+187 killed: the workflow is not compared
+188 killed: the request is not compared in the manifest
+189 killed: the run is not compared
+190 killed: the run attempt is not compared
+191 killed: the head SHA is not compared
+192 killed: the pin is not compared
+193 killed: a listed path may leave the root
+194 killed: a missing file is not noticed
+195 killed: a changed file is not noticed
+196 killed: an extra file is not noticed
+197 killed: an unknown dispatch is replayed
+198 killed: a run in progress is not running
+199 killed: a failed conclusion is not a failure
+200 killed: a cancelled run is not cancelled
+201 killed: a running job may be sent again
+202 killed: a failed job is sent again under the old key
+203 killed: an unknown dispatch is recovered
+204 killed: a verified success is recovered
+205 killed: an unverified success is recovered without asking
+206 killed: the adapter writes anywhere
+207 killed: the adapter writes in HostLab's scopes
+208 killed: the engine's cache is not writable
+209 killed: a sample is read by any spelling
+210 killed: a missing sample is read
+211 killed: a changed sample is read
+212 killed: a scope is writable by the adapter
+213 killed: a refusal can cause a fallback
+214 killed: a changed engine is a fallback code
+214 mutants; survivors: []
