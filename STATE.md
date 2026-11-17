@@ -430,7 +430,7 @@
 
 **仍在 in_progress**：MDD-070（56 关系）与 MDD-072（Manifest xml、资源、十二工具）只有夹具起步，没有引擎实现；MDD-005 等独占测量窗口。
 
-## 2026-11-17 MDD-070：五十六关系补齐（仍 in_progress，三项未了）
+## 2026-11-17 MDD-070：五十六关系补齐（done）
 
 **做了什么**：`list_tables` 现在列出冻结 manifest 的全部 56 个关系（此前 17 个），`describe_table` 与 `query` 都能答；新增的 39 个按事实来源分四组：头部与索引表 13 个（`map_items`、`id_items`、`type_ids`、`type_lists`、`type_list_entries`、`proto_ids`、`protos`、`proto_params`、`field_ids`、`fields`、`method_ids`、`class_defs`、`class_data_items`）；绑定到方法的代码关系 7 个（`method_opcodes`、`class_data_methods`、`try_items`、`catch_handlers`、`method_refs`、`method_numbers`、`method_using_numbers`）；编码值与调试 13 个（`method_handles`、`call_sites`、`call_site_args`、三个 `encoded_array*`、`class_static_values`、`hiddenapi_flags`、五个 `debug_*`）；注解 6 个（`annotation_directories`、`annotation_sets`、`annotation_set_ref_lists`、`annotation_set_refs`、`annotation_values`、`annotation_elements_resolved`）。行来自已验证的事实层；`hiddenapi_flags` 新写了有界的 `hiddenapi_class_data` 读取。代码在 `crates/mdd-facts/src/public_relations/` 与 `crates/mdd-sql/src/provider/hostlab/public.rs`。
 
@@ -448,7 +448,7 @@
 
 **这次推送的方式**：加模块会让 042/071/084/070 的变异结果过期，所以这次先把提交推到分支 `claude/mdd-070-relations`，在分支上对 19b2019 重跑四个变异检查（070 59/59、042 57/57、071 67/67、084 12/12，三份旧结果只有哈希行变化），把结果提交到分支，等分支上的 CI 通过后再让 `main` 快进，`main` 没有再变红。
 
-**任务状态**：五条验收与所有列出的输出都已具备；状态仍是 in_progress，等所有者同意标 done。证据偏薄的关系（只有一两个夹具有行）：`class_static_values`、`hiddenapi_flags`、`try_items`、`catch_handlers`、五个 `debug_*`，个数在资格记录里。
+**任务状态**：五条验收与所有列出的输出都已具备，所有者同意后标为 **done**（限定：开发证据，不准入任何 profile；证据偏薄的关系如下；只探测了两个版本的 windows-amd64 构建；对 17 个契约关系之外的 39 个，所问的只有 `SELECT *` 读到底）。证据偏薄的关系（只有一两个夹具有行）：`class_static_values`、`hiddenapi_flags`、`try_items`、`catch_handlers`、五个 `debug_*`，个数在资格记录里。
 
 **测试**：`mdd-facts` 204、`mdd-sql` 259、进程测试 42、整个工作区通过，clippy 与 fmt 干净；CI 的回放与 SDK 测试本机都过。新增 CI 检查：夹具 `--check`、回放控制测试、两个方言的回放、两版本对比的 `--check`、资格记录与结论记录的 `--check`。不准入任何 profile；这是开发证据。
 
