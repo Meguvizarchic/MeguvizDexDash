@@ -1,0 +1,73 @@
+clean copy: all suites pass
+sha256 fb35fdcaff152e0e928e0e8a50c0fa887e1635749131f8a76b1e34591ede52f8 integrations/hostlab/native_session.py
+sha256 2972becc9d7d2da3584915e7555ff221363adad117575154a70c6b9a3c5377b0 integrations/hostlab/structural_provider.py
+sha256 a13109aaf280cab40e3470d1e88ffd8667ff621475fd74e6c05288841e2e5c93 integrations/hostlab/test_structural_provider.py
+sha256 ebbb136b408f10b9904d039111ce7c18f6dace85e6b64be6e48a4aa33777f582 integrations/hostlab/test_structural_session.py
+sha256 041ca4547f71a080719f61fb452a290949d9da5fbed178994e000af89f3e9d83 integrations/hostlab/test_structural_equivalence.py
+sha256 3b932678f1f99fc268ba3bb7f71d89799e8bdb1bb9cddabb6984c281a6b3d004 artifacts/mdd-051/mutation/mutate_structural.py
+engine binary sha256 6d035110ca518eee6b52b20b67980cc9ba0660d34da7aa9a749e97884b9fc59f
+ 1 killed (test_structural_session.py): literal lets a NUL through
+ 2 killed (test_structural_session.py): literal does not double a quote
+ 3 killed (test_structural_session.py): in_list separates with a space
+ 4 killed (test_structural_session.py): an unknown structural key is accepted
+ 5 killed (test_structural_session.py): any wire is accepted
+ 6 killed (test_structural_session.py): the engine gets DexSQL's --threads
+ 7 killed (test_structural_session.py): the SQL budgets are not passed
+ 8 killed (test_structural_session.py): an integer is not rendered as text
+ 9 killed (test_structural_session.py): a bool counts as an integer
+10 killed (test_structural_session.py): a REAL is rendered instead of refused
+11 killed (test_structural_session.py): MUTF-8 surrogates are decoded wrongly
+12 killed (test_structural_session.py): an unpaired surrogate is accepted as text
+13 killed (test_structural_session.py): an engine error loses its code
+14 killed (test_structural_session.py): a failed terminal is read as a result
+15 killed (test_structural_session.py): incomplete facts are an ordinary rejection
+16 killed (test_structural_session.py): the terminal row count is not checked
+17 killed (test_structural_session.py): a truncated result is accepted
+18 killed (test_structural_session.py): incomplete coverage is accepted
+19 killed (test_structural_session.py): batches may arrive out of sequence
+20 killed (test_structural_session.py): a batch may start at any row
+21 killed (test_structural_session.py): a frame for another request is taken
+22 killed (test_structural_session.py): the worst coverage is not kept
+23 killed (test_structural_session.py): an abandoned statement is forgotten
+24 killed (test_structural_session.py): the stable-ordering guard is gone
+25 killed (test_structural_session.py): ambiguous columns are accepted
+26 killed (test_structural_session.py): B0 drops the shape statement's limit
+27 killed (test_structural_session.py): B0 projects the value, not its hex
+28 killed (test_structural_session.py): B0 reads the text N as NULL no more
+29 killed (test_structural_session.py): B0 decodes leniently
+30 killed (test_structural_session.py): B0 allows one row too many
+31 killed (test_structural_session.py): B1 allows one row too many
+32 killed (test_structural_session.py): B0 counts no bytes
+33 killed (test_structural_session.py): B1 counts no bytes
+34 killed (test_structural_session.py): B1 does not count its statements
+35 killed (test_structural_session.py): the DEX inventory is not compared
+36 killed (test_structural_session.py): an error in the block asks the engine to close politely
+37 killed (test_structural_session.py): a bad exit status after close is not reported
+38 killed (test_structural_session.py): an engine that ignores close is not reported
+39 killed (test_structural_provider.py): the rollback value starts the engine
+40 killed (test_structural_session.py): the wire setting is ignored
+41 killed (test_structural_session.py): the engine's identity is dropped
+42 killed (test_structural_provider.py): the audit's refusal is an engine failure
+43 killed (test_structural_provider.py): incomplete coverage is an engine failure
+44 killed (test_structural_provider.py): an incomplete DEX inventory is an engine failure
+45 killed (test_structural_provider.py): the FEATURE set is not checked
+46 killed (test_structural_provider.py): coverage that is not complete is ignored
+47 killed (test_structural_provider.py): dataset layer issues are ignored
+48 killed (test_structural_provider.py): a statement-free session counts as covered
+49 killed (test_structural_provider.py): incomplete coverage still completes
+50 killed (test_structural_provider.py): the source is not checked before the run
+51 killed (test_structural_provider.py): the source is not checked after the run
+52 killed (test_structural_provider.py): a deadline is unclassified
+53 killed (test_structural_provider.py): a source mismatch is unclassified
+54 killed (test_structural_provider.py): HostLab's own session is reported as the engine
+55 killed (test_structural_provider.py): the engine's wire is not recorded
+56 killed (test_structural_provider.py): a non-complete outcome returns its record
+57 killed (test_structural_provider.py): a result of DexSQL is published in the engine's namespace
+58 killed (test_structural_provider.py): a published result may replace another
+59 killed (test_structural_provider.py): the class count is not taken
+60 killed (test_structural_provider.py): the queries are not counted
+61 killed (test_structural_session.py): an abandoned terminal is not counted as uncovered
+62 killed (test_structural_session.py): pending abandoned statements are not counted
+63 killed (test_structural_session.py): B0 ignores the terminal's columns
+64 killed (test_structural_provider.py): an abandoned statement is ignored
+mutants: 64, survivors: []

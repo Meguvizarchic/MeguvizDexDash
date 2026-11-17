@@ -1,0 +1,188 @@
+{
+  "lists": {
+    "auditBottomBar.owners": [
+      "syn.cat.BottomBar"
+    ],
+    "auditCommentCopy.highOwners": [
+      "syn.cat.CopyHigh"
+    ],
+    "auditCommentCopy.lowOwners": [
+      "syn.cat.CopyLow"
+    ],
+    "auditCommentData.replyOwners": [
+      "syn.reply.Reply"
+    ],
+    "auditCommentSection.services": [
+      "syn.cat.CommentService"
+    ],
+    "auditCommentTopology.detailSetters": [
+      "setOid",
+      "setType"
+    ],
+    "auditCommentTopology.replyGetters": [
+      "getContent",
+      "getMember",
+      "getRpid"
+    ],
+    "auditFullNumber.names": [
+      "formatNumber",
+      "format"
+    ],
+    "auditFullNumber.owners": [
+      "syn.cat.NumberFmt",
+      "kntr.base.localization.NumberFormat_androidKt"
+    ],
+    "auditHomeRecommend.responses": [
+      "syn.cat.RecResponse"
+    ],
+    "auditHomeTabs.owners": [
+      "syn.cat.TabsOwner"
+    ],
+    "auditHomeTopBar.baseOwners": [
+      "syn.cat.TopBarBase"
+    ],
+    "auditMineComponents.groupOwners": [
+      "syn.cat.MineGroup"
+    ],
+    "auditMineComponents.itemOwners": [
+      "syn.cat.MineItem"
+    ],
+    "auditSplash.names": [
+      "getSplashList",
+      "getList"
+    ],
+    "auditSplash.owners": [
+      "syn.cat.SplashResponse"
+    ],
+    "auditStory.booleanNames": [
+      "isStory",
+      "isLive"
+    ],
+    "run.blockCandidates": [
+      "syn.cat.UpdateGate"
+    ],
+    "run.qualityCandidates": [
+      "syn.cat.QualityPrefs",
+      "syn.cat.QualityAlt"
+    ]
+  },
+  "owners": [
+    "kntr.base.localization.NumberFormat_androidKt",
+    "syn.cat.BottomBar",
+    "syn.cat.CommentService",
+    "syn.cat.CopyHigh",
+    "syn.cat.CopyLow",
+    "syn.cat.MineGroup",
+    "syn.cat.MineItem",
+    "syn.cat.NumberFmt",
+    "syn.cat.QualityAlt",
+    "syn.cat.QualityPrefs",
+    "syn.cat.RecResponse",
+    "syn.cat.SplashResponse",
+    "syn.cat.TabsOwner",
+    "syn.cat.TopBarBase",
+    "syn.cat.UpdateGate",
+    "syn.reply.Reply",
+    "syn.pad.P000",
+    "syn.pad.P001",
+    "syn.pad.P002",
+    "syn.pad.P003",
+    "syn.pad.P004",
+    "syn.pad.P005",
+    "syn.pad.P006",
+    "syn.pad.P007",
+    "syn.pad.P008",
+    "syn.pad.P009",
+    "syn.pad.P010",
+    "syn.pad.P011",
+    "syn.pad.P012",
+    "syn.pad.P013",
+    "syn.pad.P014",
+    "syn.pad.P015",
+    "syn.pad.P016",
+    "syn.pad.P017",
+    "syn.pad.P018",
+    "syn.pad.P019",
+    "syn.pad.P020",
+    "syn.pad.P021",
+    "syn.pad.P022",
+    "syn.pad.P023",
+    "syn.pad.P024",
+    "syn.pad.P025",
+    "syn.pad.P026",
+    "syn.pad.P027",
+    "syn.pad.P028",
+    "syn.pad.P029",
+    "syn.pad.P030",
+    "syn.pad.P031",
+    "syn.pad.P032",
+    "syn.pad.P033",
+    "syn.pad.P034",
+    "syn.pad.P035",
+    "syn.pad.P036",
+    "syn.pad.P037",
+    "syn.pad.P038",
+    "syn.pad.P039",
+    "syn.pad.P040",
+    "syn.pad.P041",
+    "syn.pad.P042",
+    "syn.pad.P043",
+    "syn.pad.P044",
+    "syn.pad.P045",
+    "syn.pad.P046",
+    "syn.pad.P047",
+    "syn.pad.P048",
+    "syn.pad.P049",
+    "syn.pad.P050",
+    "syn.pad.P051",
+    "syn.pad.P052",
+    "syn.pad.P053",
+    "syn.pad.P054",
+    "syn.pad.P055",
+    "syn.pad.P056",
+    "syn.pad.P057",
+    "syn.pad.P058",
+    "syn.pad.P059",
+    "syn.pad.P060",
+    "syn.pad.P061",
+    "syn.pad.P062",
+    "syn.pad.P063",
+    "syn.pad.P064",
+    "syn.pad.P065",
+    "syn.pad.P066",
+    "syn.pad.P067",
+    "syn.pad.P068",
+    "syn.pad.P069",
+    "syn.pad.P070",
+    "syn.pad.P071",
+    "syn.pad.P072",
+    "syn.pad.P073",
+    "syn.pad.P074",
+    "syn.pad.P075",
+    "syn.pad.P076",
+    "syn.pad.P077",
+    "syn.pad.P078",
+    "syn.pad.P079",
+    "syn.pad.P080",
+    "syn.pad.P081",
+    "syn.pad.P082",
+    "syn.pad.P083",
+    "syn.pad.P084",
+    "syn.pad.P085",
+    "syn.pad.P086",
+    "syn.pad.P087",
+    "syn.pad.P088",
+    "syn.pad.P089",
+    "syn.pad.P090",
+    "syn.pad.P091",
+    "syn.pad.P092",
+    "syn.pad.P093",
+    "syn.pad.P094",
+    "syn.pad.P095",
+    "syn.pad.P096",
+    "syn.pad.P097",
+    "syn.pad.P098",
+    "syn.pad.P099"
+  ],
+  "reference_sha256": "f1993fda790af2d93437dc5f5581f5ace36dec484be76eccdde485abb12981d3"
+}
