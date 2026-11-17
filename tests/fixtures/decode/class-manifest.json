@@ -1,8 +1,8 @@
 {
  "files": {
   "decode-class.dex": {
-   "bytes": 1664,
-   "sha256": "a2669980e5134ce507b659d5722576a6e716abe8693b1072b193a6432038266e"
+   "bytes": 1776,
+   "sha256": "74b844eecb49b9a75c86d6390b7ed3319f6e2a0109ad897fa9cc71feccaa4ea3"
   }
  },
  "generator": "tests/fixtures/decode/generate_class.py",

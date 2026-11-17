@@ -34,6 +34,7 @@
 .field private volatile transient n_annotated:Ljava/lang/String;
     .annotation build Ldecode/Ann;
         count = 0x7ft
+        k = {}
     .end annotation
 .end field
 ### decode-class.dex class-context Ldecode/K;
@@ -116,6 +117,26 @@ line 1:     .registers 6
 
     return-void
 .end method
+### decode-class.dex method Ldecode/K;->h(IJ)V
+.method public h(IJ)V
+    .registers 5
+    .param p1, "x"
+    .param p2, "y"
+        .annotation runtime Ldecode/Ann;
+        .end annotation
+    .end param
+
+    .local p1, "x":I
+    .local p2, "y":J
+    .line 40
+    nop
+    .end local p1
+    return-void
+.end method
+### decode-class.dex method-context Ldecode/K;->h(IJ)V
+# Original zero-based smali line numbers; labels retain method-relative code-unit offsets.
+line 0: .method public h(IJ)V
+line 1:     .registers 5
 ### decode-class.dex method Ldecode/K;->r8()V
 .method public static r8()V
     .registers 1

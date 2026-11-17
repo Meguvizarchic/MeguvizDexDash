@@ -79,6 +79,9 @@ MUTANTS = [
     ("method: the method's own annotations are not written", METHOD, [(".extend(index.set_lines(data, &context, set, 4)?);", ".extend(Vec::<String>::new());")]),
     ("method: the prologue directive is misspelled", METHOD, [('7 => ".prologue".to_owned(),\n        8', '7 => ".prolog".to_owned(),\n        8')]),
     ("method: a local with a signature loses its comma", METHOD, [('                line.push_str(", ");\n                line.push_str(&context.string_literal(index)?);', '                line.push(\' \');\n                line.push_str(&context.string_literal(index)?);')]),
+    # No engine input tells this one from the original: the debug layer fills `source_line` only for a usable position, so the guard
+    # repeats what `Some(line)` already says. It is a defence against an event built another way, and the unit test
+    # `only_a_position_the_debug_layer_calls_usable_is_written_as_a_line` builds exactly such an event.
     ("method: a position that is no source line is written", METHOD, [("Some(line) if event.source_line_usable => format!", "Some(line) => format!")]),
     ("method: an event at the end of the code is lost", METHOD, [("            DebugAddressScope::AtCodeEnd => insns_size,\n", "")]),
     ("method: an event inside an instruction is placed at it", METHOD, [("                if instruction_starts.contains(&event.address_code_units) =>", "                if true =>")]),

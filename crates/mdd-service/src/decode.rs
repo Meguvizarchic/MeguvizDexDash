@@ -552,3 +552,165 @@ pub fn render_class_text(dataset: &Dataset, class: LocatedClass) -> MddResult<Re
     };
     render_class(&view, ClassLimits::default())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{Dialect, InputRequest};
+    use mdd_facts::smali_required::{MethodExtras, render_method_with};
+    use mdd_session::ResourceLimits;
+    use mdd_sql::control::SqlLimits;
+    use std::path::PathBuf;
+
+    const F: &str = "Ldecode/K;->f(IJLjava/lang/String;)V";
+    const PING: &str = "Ldecode/Marker;->ping()V";
+
+    fn class_dataset() -> Dataset {
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/decode/generated/decode-class.dex");
+        Dataset::open(
+            &[InputRequest { path, kind: None }],
+            Dialect::DexSql010,
+            ResourceLimits::default(),
+            SqlLimits::default(),
+        )
+        .expect("the fixture opens")
+    }
+
+    /// The method rendered with the lines a caller adds, through the hook and nothing else.
+    fn with_extras(
+        dataset: &Dataset,
+        descriptor: &str,
+        extras: &MethodExtras,
+    ) -> MddResult<RenderedMethod> {
+        let located = select(
+            dataset,
+            Selector::Descriptor {
+                descriptor,
+                file_id: None,
+            },
+        )
+        .expect("the method is defined");
+        let occurrences = dataset.occurrences();
+        let position = occurrences
+            .iter()
+            .position(|o| o.file_id == located.file_id)
+            .unwrap();
+        let occurrence = &occurrences[position];
+        let index = &dataset.decode_indexes()[position];
+        let definitions = occurrence.definitions.definitions();
+        let definition = &definitions.method_definitions[located.definition];
+        let code = code_of(occurrence, index, &definition.body)?;
+        let view = MethodView {
+            metadata: &occurrence.metadata,
+            definitions,
+            definition,
+            code,
+        };
+        render_method_with(&view, SmaliLimits::default(), extras)
+    }
+
+    fn lines(at: &[(u32, &str)]) -> std::collections::BTreeMap<u32, Vec<String>> {
+        at.iter()
+            .map(|(address, line)| (*address, vec![(*line).to_owned()]))
+            .collect()
+    }
+
+    #[test]
+    fn lines_given_to_the_renderer_go_where_they_were_asked() {
+        let dataset = class_dataset();
+        let plain = with_extras(&dataset, F, &MethodExtras::default()).unwrap();
+        let extras = MethodExtras {
+            header: vec!["    HEADER".to_owned()],
+            // 0 is the first instruction, 1 the second (a two-unit one), 8 the end of the code
+            at_address: lines(&[(0, "    FIRST"), (1, "    SECOND"), (8, "    END")]),
+        };
+        let shown = with_extras(&dataset, F, &extras).unwrap().text;
+        assert!(shown.contains("    .registers 6\n    HEADER\n\n    FIRST\n    const/4 v0, 0x1\n    SECOND\n    const-string v1, \"x\"\n"), "{shown}");
+        assert!(
+            shown.ends_with("    return-void\n    END\n.end method\n"),
+            "{shown}"
+        );
+        // taking the added lines away gives the instruction text back, byte for byte
+        let without: String = shown
+            .lines()
+            .filter(|line| !["    HEADER", "    FIRST", "    SECOND", "    END"].contains(line))
+            .map(|line| format!("{line}\n"))
+            .collect();
+        assert_eq!(without, plain.text);
+    }
+
+    #[test]
+    fn a_line_for_an_address_where_no_instruction_starts_is_refused_not_dropped() {
+        let dataset = class_dataset();
+        // 2 is the second unit of the const-string at 1; 4 is inside the invoke at 3..=5; 9 is past the code
+        for address in [2u32, 4, 5, 9] {
+            let extras = MethodExtras {
+                header: Vec::new(),
+                at_address: lines(&[(address, "    LOST")]),
+            };
+            let error = with_extras(&dataset, F, &extras).expect_err(&format!("address {address}"));
+            assert_eq!(error.code, ErrorCode::InternalFault, "address {address}");
+        }
+        // one good address beside a bad one is still a refusal: the count of placed lines must match
+        let extras = MethodExtras {
+            header: Vec::new(),
+            at_address: lines(&[(0, "    OK"), (2, "    LOST")]),
+        };
+        assert!(with_extras(&dataset, F, &extras).is_err());
+    }
+
+    #[test]
+    fn a_method_without_code_takes_header_lines_and_no_address_lines() {
+        let dataset = class_dataset();
+        let header = MethodExtras {
+            header: vec!["    NOTE".to_owned()],
+            at_address: Default::default(),
+        };
+        assert_eq!(
+            with_extras(&dataset, PING, &header).unwrap().text,
+            ".method public abstract ping()V\n    NOTE\n.end method\n"
+        );
+        let address = MethodExtras {
+            header: Vec::new(),
+            at_address: lines(&[(0, "    LOST")]),
+        };
+        assert!(with_extras(&dataset, PING, &address).is_err());
+    }
+
+    #[test]
+    fn a_class_pages_its_methods_in_method_idx_order_and_the_end_is_an_empty_page() {
+        let dataset = class_dataset();
+        let class = select_class(&dataset, "Ldecode/K;", None).expect("K is defined");
+        let all = class_page(&dataset, class, 0, 50).unwrap();
+        assert_eq!(all.total_methods, 6);
+        let indexes: Vec<u32> = all.methods.iter().map(|m| m.method_idx).collect();
+        assert!(
+            indexes.windows(2).all(|pair| pair[0] < pair[1]),
+            "{indexes:?}"
+        );
+        let tail = class_page(&dataset, class, 4, 50).unwrap();
+        assert_eq!(tail.methods.len(), 2);
+        assert_eq!(tail.methods[0].method_idx, indexes[4]);
+        let end = class_page(&dataset, class, 6, 50).unwrap();
+        assert!(end.methods.is_empty());
+        let past = class_page(&dataset, class, 7, 50).unwrap_err();
+        assert_eq!(past.message, METHOD_OFFSET_PAST_END);
+        assert_eq!(class_page(&dataset, class, 0, 1).unwrap().methods.len(), 1);
+    }
+
+    #[test]
+    fn a_class_that_is_only_referred_to_or_not_there_is_not_found() {
+        let dataset = class_dataset();
+        for descriptor in ["Ljava/lang/Object;", "Lnope/N;", "decode.K"] {
+            assert!(matches!(
+                select_class(&dataset, descriptor, None),
+                Err(Failure::NotFound { .. })
+            ));
+        }
+        assert!(matches!(
+            select_class(&dataset, "Ldecode/K;", Some(3)),
+            Err(Failure::NotFound { .. })
+        ));
+    }
+}
