@@ -19,6 +19,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import surface_gate as G  # noqa: E402
 
+# A sleep or a time-out limit is measured by a clock whose tick is 15.6 ms on Windows, and a sleep can end a few
+# milliseconds early (a 0.8 s limit was measured as 0.797 s on a CI runner). A lower bound on a measured time is
+# therefore the intended time minus this slack; an upper bound needs none.
+CLOCK_SLACK = 0.05
+
 PROBE = '''\
 import json, os, sys, time
 args = sys.argv[1:]
@@ -124,13 +129,13 @@ class Timing(Temp):
         started = time.monotonic()
         run = G.run_gate("home", self.argv(sleep=0.6))
         elapsed = time.monotonic() - started
-        self.assertGreaterEqual(run.seconds, 0.6)
+        self.assertGreaterEqual(run.seconds, 0.6 - CLOCK_SLACK)
         self.assertLessEqual(run.seconds, elapsed)
 
     def test_a_gate_that_fails_is_timed_and_recorded_not_dropped(self):
         run = G.run_gate("intake", self.argv(sleep=0.2, code=3))
         self.assertEqual((run.exit_code, run.finished, run.accepted(), run.timed_out), (3, True, False, False))
-        self.assertGreaterEqual(run.seconds, 0.2)
+        self.assertGreaterEqual(run.seconds, 0.2 - CLOCK_SLACK)
         total = G.accounting(1.0, [run])
         self.assertAlmostEqual(total["total_seconds"], 1.0 + run.seconds)
         self.assertFalse(total["all_gates_accepted"])
@@ -146,10 +151,10 @@ class Timing(Temp):
     def test_a_gate_that_is_stopped_at_its_limit_is_a_time_out_not_a_success(self):
         run = G.run_gate("home", self.argv(sleep=30), timeout=0.8)
         self.assertEqual((run.timed_out, run.exit_code, run.finished, run.accepted()), (True, None, False, False))
-        self.assertGreaterEqual(run.seconds, 0.8)
+        self.assertGreaterEqual(run.seconds, 0.8 - CLOCK_SLACK)
         total = G.accounting(0.0, [run])
         self.assertFalse(total["all_gates_finished"])
-        self.assertGreaterEqual(total["gate_seconds"], 0.8)
+        self.assertGreaterEqual(total["gate_seconds"], 0.8 - CLOCK_SLACK)
 
     def test_timeout_and_exit_status_are_independent_acceptance_conditions(self):
         completed = G.run_gate("home", self.argv())
