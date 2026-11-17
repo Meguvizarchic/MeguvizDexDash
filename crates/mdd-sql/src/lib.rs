@@ -3,6 +3,7 @@
 mod bridge;
 pub mod control;
 pub mod dialects;
+pub mod profiles;
 pub mod provider;
 pub mod runtime;
 pub mod temp;

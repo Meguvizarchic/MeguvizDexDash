@@ -4,7 +4,7 @@
  "status": "all 56 relations of the frozen manifest are advertised, described and answered; every relation was compared cell by cell with the recorded answers of dexsql 0.1.0 and of dexsql 0.1.1 over the fixtures of the qualification record",
  "kind": "development evidence; admits no profile",
  "engine_under_test": {
-  "binary_sha256": "84b988c32107a616875780c5af9cd4a19c85fe87f98fd087c67845aa5a3be102",
+  "binary_sha256": "028b66179e6ae3ae7a413598a055e2d4544e4e3ba313addf8036ec9629c31775",
   "server": {
    "name": "meguvizdexdash",
    "title": "MeguvizDexDash",
@@ -70,12 +70,12 @@
   },
   "mdd-sql lib": {
    "exit_code": 0,
-   "passed": 259,
+   "passed": 265,
    "failed": 0
   },
   "mdd-cli mcp": {
    "exit_code": 0,
-   "passed": 42,
+   "passed": 43,
    "failed": 0
   }
  },
@@ -83,8 +83,8 @@
   "file": "artifacts/mdd-070/mutation/results.txt",
   "script": "artifacts/mdd-070/mutation/mutate_public_relations.py",
   "present": true,
-  "current": true,
-  "mutants": 54,
+  "current": false,
+  "mutants": 59,
   "killed": 54,
   "survived": [],
   "errors": 0,
@@ -100,22 +100,24 @@
   "crates/mdd-facts/src/public_relations/annotations.rs": "9a9aec0322bcdb61a0daf7cce417ab3f621b6f5a0054dd9eaa050766ab650749",
   "crates/mdd-facts/src/public_relations/tests.rs": "76b0004a872d5862f11c2a6be68639dc931c3eef4f17d13ae60d7b1ab8a21993",
   "crates/mdd-sql/src/provider/hostlab/public.rs": "4a134e6aa3cfc0d9deebb906e28960af0797e67381dff5b28087870573cbeb80",
-  "crates/mdd-sql/src/provider/hostlab/public_tests.rs": "f081d5852e0518e1c995b2b2da4c9fb931dbba421d29018d96690e70c613b7c5",
+  "crates/mdd-sql/src/provider/hostlab/public_tests.rs": "8bb527782fb82fec26463d7638247b3f3d99d3ab0c73e55743dc146d7500aeb8",
   "crates/mdd-sql/src/provider/hostlab.rs": "7bfb40a9c7f918f3e9e0bde5d8e6dd106f1fc3deb94440d5ca49a68cea75502c",
-  "crates/mdd-mcp/src/tools.rs": "266a9236980384c6d7e70cd816ed1e3727756c6d0526e3c7ecf2c36f9ac3c28f",
+  "crates/mdd-mcp/src/tools.rs": "2147e9002481042d6a79abca4335a7cb2a801e652226335c128c593752cfdfcb",
+  "crates/mdd-sql/src/profiles/compatibility/mod.rs": "d5b05a66fc95d7aedd9e3e2507b6dacc9365b9e595ff66427c81e2a101d1ec36",
+  "crates/mdd-sql/src/profiles/mod.rs": "537c4fb45dd3cbfe8c19875f930ce22efbc68b4b1599afe1891762c08fda245c",
   "conformance/relations/public_relations_diff.py": "f8a0975ee610cc5e7da788b553d8dc683477cdb1b767939b414bfe402a7b40db",
   "conformance/relations/test_public_relations_diff.py": "a06411377a0fde54431fdb64b86779f885f8e57ddcb17ac00e7744a34e40f742",
-  "conformance/relations/build_qualification.py": "87b1dca2d316628b89c2f49b8fa93f4641b27ef4c0a3398a3ccfb165a4416cdd",
-  "artifacts/mdd-070/public-relations-diff.json": "88731301759d6a091857b6def54d8a74ed8dd9aaba59a75c563d6f7f1e39d9c8",
-  "artifacts/mdd-070/public-relations-diff-0.1.1.json": "4ec8d4dbfb75df7c7eded061867a2aac5c1f4e46ba460ac4d69b996a09f9e272",
+  "conformance/relations/build_qualification.py": "48eb8c2dcad274c0e3f5035632280d7665963a4f7996096b3b9d6d3e6ad2f583",
+  "artifacts/mdd-070/public-relations-diff.json": "cbc354cf2c04b0b898d8840b27108446904cc66b0fdeecb9a5bdcb827c13f484",
+  "artifacts/mdd-070/public-relations-diff-0.1.1.json": "13ad0063b73bd852cd9c05fcde7b69713eab484ed14e281a5da81530d5f97b10",
   "artifacts/mdd-070/reference-versions.json": "cdc95f053b4ac006a5ded088ccff8b0fde3fbf2cec8255b813646a860003a91d",
-  "conformance/manifests/full-relation-qualification.json": "0ffe73acf07a48a924e36005d46c5d4af8ce46bbaad2187eded560af0ba70d6f",
+  "conformance/manifests/full-relation-qualification.json": "0d095710ce57265775c78325b9445f0a4d3e88ae5eaf1f71ab5277f8cc618251",
   "conformance/relations/compare_references.py": "d75044ee0e567d35d051611db794a8accd742d014de4225ac27f3070766f81ef",
   "conformance/manifests/relations.json": "f416926d6da3467b5cfea625978c2e4faac08c914cf2930d2c64878c261bb82d",
   "artifacts/mdd-070/probe_a0.py": "a119ae3ec723534a62b653c26c3985d815367bc63640f736b11d44ef32de94fb",
   "tests/fixtures/public_relations/generate.py": "d3bef2a0bb0061b314fc4f519d352ba7efe40b141665a473e4903c24ec849ae9",
   "tests/fixtures/public_relations/manifest.json": "2084057e8aa81af4886e7a8044b61e15e0a8a15752c6a0394e69cc4c10125783",
-  "artifacts/mdd-070/mutation/mutate_public_relations.py": "641ee83fd76d4bea5c8af0a3242f47603092c04e4e50d6838b0986e677927911",
+  "artifacts/mdd-070/mutation/mutate_public_relations.py": "325fa387af20019c37ef9636cd5e6e6ed1dd552f7721ef692cb1668b7e054b06",
   ".github/workflows/mutation-public-relations.yml": "0313765cf10e8248f668ed879b3311fd39f37a2b07dea7605cee57ed9d824321"
  },
  "residual": [
@@ -125,10 +127,10 @@
   "SELECT * paged to the end is what was compared; joins, aggregates and ORDER BY over the 39 relations beyond the contract seventeen are not separately claimed",
   "row order of a relation read without ORDER BY differs from the reference in some (relation, fixture) pairs (the same rows); it is a declared difference, not a defect",
   "the mutation check runs in .github/workflows/mutation-public-relations.yml, not on a developer machine; its first Actions run (44069669883, on 2777640) found five survivors, which became new fixtures; the run on 3da061a (44079808656) killed all 54 (43 by the replay of the recorded answers, 11 by unit tests); a mutant the replay kills is held only as well as the fixtures reach it, and the relations with one or two fixtures with rows are held least",
-  "the per-dialect list of relations is data in the qualification record; there is no Rust module under crates/mdd-sql/src/profiles/compatibility/ (the task lists that path as an output)",
+  "the per-dialect list of relations (crates/mdd-sql/src/profiles/compatibility/) withholds nothing: both references list all 56 and answer alike on the recorded fixtures; the mechanism that applies a withheld relation to list_tables, describe_table and the bridge is tested with an injected list, and the MCP-level wiring is not separately mutation-tested because with an empty list it has no observable effect",
   "the reference reads a DEX whose two classes share class data; the engine refuses it at open (declared)"
  ],
  "run": {
-  "finished_utc": "2026-11-17T12:20:24Z"
+  "finished_utc": "2026-11-17T13:00:49Z"
  }
 }

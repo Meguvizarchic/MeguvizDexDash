@@ -444,7 +444,9 @@
 
 **变异检查（070 自己）**：54 个变异。第一次 Actions 运行（44069669883）有 5 个存活者，都是真实的证据缺口，各补一个夹具（build 可见性、第二个参数槽、call site 额外参数、没有父类的类、静态值里嵌套数组），其中一个还暴露了真缺陷（可见性 0 的保留策略是 `class`，不是 `build`）。3da061a 上的运行（44079808656）**54/54 被抓住**：43 个被"对录制答案的回放"抓住，11 个被单元测试抓住；未变异树通过。被回放抓住的变异只被夹具所覆盖的地方保住，只有一两个夹具有行的关系保得最弱。
 
-**没有做完，所以任务保持 in_progress**：`crates/mdd-sql/src/profiles/compatibility/` 没有产出，按方言的关系清单目前是资格记录里的数据（两个方言都是同样的 56 个），不是 Rust 模块，是否需要这个路径由所有者决定。证据偏薄的关系（只有一两个夹具有行）：`class_static_values`、`hiddenapi_flags`、`try_items`、`catch_handlers`、五个 `debug_*`，个数在资格记录里。
+**按方言的关系清单（所有者要求做成模块，已做）**：`crates/mdd-sql/src/profiles/compatibility/` 给出每个 SQL 方言所宣告的冻结关系（注册表减去该方言扣留的；今天谁都不扣留，因为 dexsql 0.1.0 与 0.1.1 都列全 56 个，且在所有录制夹具上答案相同），并命名 `dexsql-0.1.0-compat-v1` 与 `dexsql-0.1.1-compat-v1` 两个 profile，但不准入。`list_tables`、`describe_table` 与 SQL 桥都用它：被某方言扣留的关系不被列出、不被描述，也不在语句绑定的 schema 里。测试对照冻结 manifest、资格记录与账本；测试专用的注入显示它对桥的效果；5 个新增变异在本机全被抓住。MCP 层的接线在列表为空时没有可观察的效果，所以不单独做变异测试，这一点写进了记录。
+
+**还没做完，所以任务保持 in_progress**：加上这个模块后，`tools.rs`、`mcp.rs`、`dataset.rs` 又变了，MDD-042、071、084 与 070 自己的变异结果要在最终提交上再重跑一次，MDD-051 边界记录的文件数也又变了（已重新生成）。证据偏薄的关系（只有一两个夹具有行）：`class_static_values`、`hiddenapi_flags`、`try_items`、`catch_handlers`、五个 `debug_*`，个数在资格记录里。
 
 **测试**：`mdd-facts` 204、`mdd-sql` 259、进程测试 42、整个工作区通过，clippy 与 fmt 干净；CI 的回放与 SDK 测试本机都过。新增 CI 检查：夹具 `--check`、回放控制测试、两个方言的回放、两版本对比的 `--check`、资格记录与结论记录的 `--check`。不准入任何 profile；这是开发证据。
 

@@ -89,7 +89,8 @@ impl Dialect {
         }
     }
 
-    fn sql(self) -> SqlDialect {
+    /// The dialect as the SQL layer names it.
+    pub fn sql(self) -> SqlDialect {
         match self {
             Self::NativeV1 => SqlDialect::NativeV1,
             Self::DexSql010 => SqlDialect::DexSql010,

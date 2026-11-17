@@ -4,7 +4,7 @@
  "kind": "development evidence; admits no profile",
  "reference": "dexsql 0.1.0 (f354ebcf715de9a66ef8ebe08b2b36807ab58e25cd5a1c0812e497fc1fcfc448), recorded in artifacts/mdd-070/a0-probe/",
  "engine_under_test": {
-  "binary_sha256": "84b988c32107a616875780c5af9cd4a19c85fe87f98fd087c67845aa5a3be102",
+  "binary_sha256": "028b66179e6ae3ae7a413598a055e2d4544e4e3ba313addf8036ec9629c31775",
   "server": {
    "name": "meguvizdexdash",
    "title": "MeguvizDexDash",
@@ -164,11 +164,13 @@
  "dialects": {
   "dexsql-0.1.0": {
    "relations_advertised": 56,
-   "evidence": "artifacts/mdd-070/public-relations-diff.json"
+   "evidence": "artifacts/mdd-070/public-relations-diff.json",
+   "module": "crates/mdd-sql/src/profiles/compatibility/mod.rs"
   },
   "dexsql-0.1.1": {
    "relations_advertised": 56,
-   "evidence": "artifacts/mdd-070/public-relations-diff-0.1.1.json"
+   "evidence": "artifacts/mdd-070/public-relations-diff-0.1.1.json",
+   "module": "crates/mdd-sql/src/profiles/compatibility/mod.rs"
   }
  },
  "sql_surface": "each relation is exercised by SELECT * paged to the end; the 17 contract relations are additionally exercised by the MDD-035 corpus (joins, aggregates, CTEs, ORDER BY). General SQL over the 39 others is not claimed beyond what the query layer proves for any relation.",
@@ -5093,11 +5095,12 @@
  ],
  "inputs_sha256": {
   "conformance/manifests/relations.json": "f416926d6da3467b5cfea625978c2e4faac08c914cf2930d2c64878c261bb82d",
-  "artifacts/mdd-070/public-relations-diff.json": "88731301759d6a091857b6def54d8a74ed8dd9aaba59a75c563d6f7f1e39d9c8",
-  "artifacts/mdd-070/public-relations-diff-0.1.1.json": "4ec8d4dbfb75df7c7eded061867a2aac5c1f4e46ba460ac4d69b996a09f9e272",
+  "artifacts/mdd-070/public-relations-diff.json": "cbc354cf2c04b0b898d8840b27108446904cc66b0fdeecb9a5bdcb827c13f484",
+  "artifacts/mdd-070/public-relations-diff-0.1.1.json": "13ad0063b73bd852cd9c05fcde7b69713eab484ed14e281a5da81530d5f97b10",
+  "crates/mdd-sql/src/profiles/compatibility/mod.rs": "d5b05a66fc95d7aedd9e3e2507b6dacc9365b9e595ff66427c81e2a101d1ec36",
   "artifacts/mdd-070/reference-versions.json": "cdc95f053b4ac006a5ded088ccff8b0fde3fbf2cec8255b813646a860003a91d",
   "conformance/relations/public_relations_diff.py": "f8a0975ee610cc5e7da788b553d8dc683477cdb1b767939b414bfe402a7b40db",
-  "conformance/relations/build_qualification.py": "87b1dca2d316628b89c2f49b8fa93f4641b27ef4c0a3398a3ccfb165a4416cdd",
+  "conformance/relations/build_qualification.py": "48eb8c2dcad274c0e3f5035632280d7665963a4f7996096b3b9d6d3e6ad2f583",
   "tests/fixtures/public_relations/manifest.json": "2084057e8aa81af4886e7a8044b61e15e0a8a15752c6a0394e69cc4c10125783"
  }
 }

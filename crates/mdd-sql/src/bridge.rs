@@ -689,7 +689,11 @@ impl SqlBridge {
         }
     }
     fn prepare_inner(&self, sql: &str, parameters: &[SqlValue]) -> MddResult<PreparedSql> {
-        let relations = self.provider.relations()?;
+        // A frozen relation the dialect does not advertise is not in the schema the statement is bound against.
+        let relations = crate::profiles::compatibility::visible_relations(
+            self.provider.relations()?,
+            self.dialect,
+        );
         let mut names = BTreeSet::new();
         for relation in &relations {
             if relation.name.is_empty()

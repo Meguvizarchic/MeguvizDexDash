@@ -32,6 +32,8 @@ FACTS = "crates/mdd-facts/src/public_relations/"
 TABLES, CODE, VALUES, DEBUG, ANNOTATIONS = (FACTS + n for n in ("tables.rs", "code.rs", "values.rs", "debug.rs", "annotations.rs"))
 PUBLIC = "crates/mdd-sql/src/provider/hostlab/public.rs"
 REGISTRY = "crates/mdd-sql/src/provider/hostlab.rs"
+PROFILES = "crates/mdd-sql/src/profiles/compatibility/mod.rs"
+BRIDGE = "crates/mdd-sql/src/bridge.rs"
 
 # the suites of this task: the crates that hold the projections and the registry, the process tests, the replays
 base.UNIT_MCP = [*base.CARGO, "-p", "mdd-facts", "-p", "mdd-sql", "--lib", *base.TAIL]
@@ -45,7 +47,8 @@ base.REPLAYS = [
 base.CONTROLS = [*base.CONTROLS, [PY, "-I", "conformance/relations/test_public_relations_diff.py"]]
 base.SOURCES = [
     *base.SOURCES, TABLES, CODE, VALUES, DEBUG, ANNOTATIONS, FACTS + "mod.rs", FACTS + "tests.rs", PUBLIC, REGISTRY,
-    "crates/mdd-sql/src/provider/hostlab/public_tests.rs", "crates/mdd-facts/src/annotations.rs",
+    "crates/mdd-sql/src/provider/hostlab/public_tests.rs", "crates/mdd-facts/src/annotations.rs", PROFILES,
+    "crates/mdd-sql/src/profiles/mod.rs", BRIDGE, "crates/mdd-service/src/dataset.rs",
     "conformance/relations/public_relations_diff.py", "conformance/relations/test_public_relations_diff.py",
     "conformance/manifests/relations.json", "tests/fixtures/public_relations/generate.py",
     "tests/fixtures/public_relations/manifest.json",
@@ -140,6 +143,19 @@ MUTANTS = [
     ("columns: a nullable column is not nullable", PUBLIC,
      [('("class_annotations_off", SqlType::U64, true),', '("class_annotations_off", SqlType::U64, false),')]),
     ("columns: a signed column is text", PUBLIC, [('("long_value", SqlType::I64, false),\n    ("double_value", SqlType::F64, true),\n];\nconst METHOD_USING', '("long_value", SqlType::Text, false),\n    ("double_value", SqlType::F64, true),\n];\nconst METHOD_USING')]),
+    # ---- the per-dialect list
+    ("profiles: the 0.1.1 dialect is held to the 0.1.0 profile", PROFILES,
+     [("SqlDialect::DexSql011 => DEXSQL_011_PROFILE,", "SqlDialect::DexSql011 => DEXSQL_010_PROFILE,")]),
+    ("profiles: a dialect withholds a relation", PROFILES,
+     [("SqlDialect::NativeV1 | SqlDialect::DexSql010 | SqlDialect::DexSql011 => Vec::new(),",
+       'SqlDialect::NativeV1 | SqlDialect::DexSql010 | SqlDialect::DexSql011 => vec!["debug_opcodes"],')]),
+    ("profiles: a name that is no frozen relation can be hidden", PROFILES,
+     [("ContractRelation::parse(name).is_some() && withheld.contains(&name)", "withheld.contains(&name)")]),
+    ("profiles: the native dialect is held to a compatibility profile", PROFILES,
+     [("SqlDialect::NativeV1 => return None,", "SqlDialect::NativeV1 => DEXSQL_010_PROFILE,")]),
+    ("bridge: the dialect's list is not applied to the schema", BRIDGE,
+     [("        let relations = crate::profiles::compatibility::visible_relations(\n            self.provider.relations()?,\n            self.dialect,\n        );",
+       "        let relations = self.provider.relations()?;")]),
     ("registry: the public relations are not listed", REGISTRY,
      [(".filter_map(|name| Self::parse(name))", ".filter_map(|name| HostLabRelation::parse(name).map(Self::Required))")]),
 ]

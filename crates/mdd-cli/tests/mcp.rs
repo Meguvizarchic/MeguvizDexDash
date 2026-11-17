@@ -618,6 +618,30 @@ fn the_built_in_tables_are_listed_and_described_without_a_dataset() {
     assert_eq!(unknown["error"]["message"], "UNKNOWN_TABLE");
 }
 
+#[test]
+fn both_compatibility_dialects_list_and_describe_the_same_fifty_six_tables() {
+    let mut lists = Vec::new();
+    for dialect in ["dexsql-0.1.0", "dexsql-0.1.1"] {
+        let mut server = Mcp::ready(&["--dialect", dialect]);
+        let (listed, error) = server.tool("list_tables", json!({}));
+        assert!(!error, "{dialect}: {listed}");
+        let tables = listed["tables"].as_array().unwrap().clone();
+        assert_eq!(tables.len(), 56, "{dialect}");
+        for table in &tables {
+            let name = table["name"].as_str().unwrap();
+            let (described, error) = server.tool("describe_table", json!({"name": name}));
+            assert!(!error, "{dialect} {name}: {described}");
+            assert_eq!(
+                described["columns"].as_array().unwrap().len() as u64,
+                table["column_count"].as_u64().unwrap(),
+                "{dialect} {name}"
+            );
+        }
+        lists.push(tables);
+    }
+    assert_eq!(lists[0], lists[1]);
+}
+
 // ---- query ----------------------------------------------------------------------
 
 #[test]

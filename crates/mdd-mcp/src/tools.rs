@@ -20,7 +20,8 @@ use mdd_service::{
 };
 use mdd_session::ResourceLimits;
 use mdd_sql::{
-    provider::hostlab::ContractRelation,
+    dialects::SqlDialect,
+    profiles::compatibility,
     temp::{MAX_NAMED_TEMP_QUERIES, NamedTempQuery, TempStatementResult},
     values::{SqlType, SqlValue},
     window::{SqlWindow, script_statements},
@@ -450,9 +451,11 @@ pub fn call(registry: &mut Registry, name: &str, arguments_value: Value) -> Resu
         "get_manifest" => get_manifest(registry, arguments(arguments_value)?),
         "list_tables" => {
             arguments::<NoArgs>(arguments_value)?;
-            Ok(list_tables())
+            Ok(list_tables(registry.config().dialect.sql()))
         }
-        "describe_table" => describe_table(arguments(arguments_value)?),
+        "describe_table" => {
+            describe_table(registry.config().dialect.sql(), arguments(arguments_value)?)
+        }
         "query" => query(registry, arguments(arguments_value)?),
         other => Err(Failure::UnknownTool(other.to_owned())),
     }
@@ -1387,8 +1390,8 @@ fn type_name(kind: SqlType) -> &'static str {
     }
 }
 
-fn list_tables() -> Value {
-    let tables: Vec<Value> = ContractRelation::all()
+fn list_tables(dialect: SqlDialect) -> Value {
+    let tables: Vec<Value> = compatibility::advertised_relations(dialect)
         .iter()
         .map(|relation| {
             json!({
@@ -1401,13 +1404,17 @@ fn list_tables() -> Value {
     json!({"tables": tables})
 }
 
-fn describe_table(args: DescribeArgs) -> Result<Value, Failure> {
-    let relation = ContractRelation::parse_ignoring_case(&args.name).ok_or_else(|| {
-        Failure::Execution(with_kind(
-            refuse(ErrorCode::InvalidArgument, "UNKNOWN_TABLE").detail("name", args.name.clone()),
-            "unknown_table",
-        ))
-    })?;
+fn describe_table(dialect: SqlDialect, args: DescribeArgs) -> Result<Value, Failure> {
+    let relation = compatibility::advertised_relations(dialect)
+        .into_iter()
+        .find(|relation| relation.name().eq_ignore_ascii_case(&args.name))
+        .ok_or_else(|| {
+            Failure::Execution(with_kind(
+                refuse(ErrorCode::InvalidArgument, "UNKNOWN_TABLE")
+                    .detail("name", args.name.clone()),
+                "unknown_table",
+            ))
+        })?;
     let columns: Vec<Value> = relation
         .columns()
         .iter()

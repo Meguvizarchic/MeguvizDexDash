@@ -25,10 +25,11 @@ ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = "conformance/manifests/relations.json"
 DIFF = "artifacts/mdd-070/public-relations-diff.json"
 DIFF_011 = "artifacts/mdd-070/public-relations-diff-0.1.1.json"
+MODULE = "crates/mdd-sql/src/profiles/compatibility/mod.rs"
 REFERENCE_VERSIONS = "artifacts/mdd-070/reference-versions.json"
 OUT = "conformance/manifests/full-relation-qualification.json"
 PROBES = "artifacts/mdd-070/a0-probe"
-INPUTS = [MANIFEST, DIFF, DIFF_011, REFERENCE_VERSIONS, "conformance/relations/public_relations_diff.py", "conformance/relations/build_qualification.py",
+INPUTS = [MANIFEST, DIFF, DIFF_011, MODULE, REFERENCE_VERSIONS, "conformance/relations/public_relations_diff.py", "conformance/relations/build_qualification.py",
           "tests/fixtures/public_relations/manifest.json"]
 
 LAYER_REFUSAL = ("INCOMPLETE_FACTS, naming the relation and the layer, when the layer is not built or not complete; "
@@ -199,8 +200,8 @@ def build() -> dict:
             },
         },
         "dialects": {
-            "dexsql-0.1.0": {"relations_advertised": len(names), "evidence": DIFF},
-            "dexsql-0.1.1": {"relations_advertised": len(names), "evidence": DIFF_011},
+            "dexsql-0.1.0": {"relations_advertised": len(names), "evidence": DIFF, "module": MODULE},
+            "dexsql-0.1.1": {"relations_advertised": len(names), "evidence": DIFF_011, "module": MODULE},
         },
         "sql_surface": "each relation is exercised by SELECT * paged to the end; the 17 contract relations are additionally exercised by the MDD-035 corpus (joins, aggregates, CTEs, ORDER BY). General SQL over the 39 others is not claimed beyond what the query layer proves for any relation.",
         "special_formats": "no relation here depends on DEX 041, compact DEX, OAT or VDEX; those keep their own capability matrix (compatibility/ledger.json format_qualifications)",

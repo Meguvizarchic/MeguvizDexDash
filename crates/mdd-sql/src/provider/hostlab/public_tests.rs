@@ -95,3 +95,45 @@ fn a_public_relation_is_not_reached_through_another_providers_name() {
     assert!(ContractRelation::parse("map_items").is_some());
     assert!(ContractRelation::parse_ignoring_case("MAP_ITEMS").is_some());
 }
+
+#[test]
+fn a_relation_the_dialect_withholds_is_not_in_the_schema_its_statements_are_bound_against() {
+    let harness = open(&[(FIXTURE, InputKind::RawDex)]);
+    for dialect in [SqlDialect::DexSql010, SqlDialect::DexSql011] {
+        let bridge = SqlBridge::new(
+            harness.provider(true, true, true),
+            dialect,
+            SqlLimits::default(),
+        )
+        .unwrap();
+        assert!(
+            bridge.query("SELECT * FROM debug_opcodes").is_ok(),
+            "{dialect:?}"
+        );
+        crate::profiles::compatibility::with_withheld(&["debug_opcodes"], || {
+            let error = bridge.query("SELECT * FROM debug_opcodes").unwrap_err();
+            assert_eq!(
+                error.code,
+                ErrorCode::InvalidArgument,
+                "{dialect:?}: {error:?}"
+            );
+            // the others are untouched, in a join as well
+            assert!(
+                bridge.query("SELECT * FROM map_items").is_ok(),
+                "{dialect:?}"
+            );
+            assert!(
+                bridge
+                    .query(
+                        "SELECT a.type_idx FROM type_ids a JOIN types b ON a.type_idx = b.type_idx"
+                    )
+                    .is_ok(),
+                "{dialect:?}"
+            );
+        });
+        assert!(
+            bridge.query("SELECT * FROM debug_opcodes").is_ok(),
+            "{dialect:?}"
+        );
+    }
+}
