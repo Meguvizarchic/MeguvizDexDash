@@ -1,0 +1,1726 @@
+{
+  "about": "The twelve orchestration tools of HostLab's local gateway, read out of the frozen source. They are served by the `hostlab-remote` MCP server; the engine's own MCP server (`meguvizdexdash mcp`) and the legacy dexq server have other tools, some with overlapping names. The adapters keep this contract; they do not change it.",
+  "argument_checks": {
+    "bad_request_id": "ToolError: Invalid request ID",
+    "job_result": [
+      {
+        "arguments": {},
+        "outcome": "accepted"
+      },
+      {
+        "arguments": {
+          "page_chars": 1024,
+          "result_offset": 0
+        },
+        "outcome": "accepted"
+      },
+      {
+        "arguments": {
+          "page_chars": 128000
+        },
+        "outcome": "accepted"
+      },
+      {
+        "arguments": {
+          "result_file": "job.json"
+        },
+        "outcome": "accepted"
+      },
+      {
+        "arguments": {
+          "result_offset": -1
+        },
+        "outcome": "ToolError: result_offset must be 0..2147483647"
+      },
+      {
+        "arguments": {
+          "result_offset": 2147483648
+        },
+        "outcome": "ToolError: result_offset must be 0..2147483647"
+      },
+      {
+        "arguments": {
+          "result_offset": true
+        },
+        "outcome": "ToolError: result_offset must be 0..2147483647"
+      },
+      {
+        "arguments": {
+          "sample_index": -2
+        },
+        "outcome": "ToolError: sample_index must be -1..11"
+      },
+      {
+        "arguments": {
+          "sample_index": 12
+        },
+        "outcome": "ToolError: sample_index must be -1..11"
+      },
+      {
+        "arguments": {
+          "sample_index": 0
+        },
+        "outcome": "ToolError: sample_index applies only to grouped jobs"
+      },
+      {
+        "arguments": {
+          "page_chars": 1023
+        },
+        "outcome": "ToolError: page_chars must be 1024..128000"
+      },
+      {
+        "arguments": {
+          "page_chars": 128001
+        },
+        "outcome": "ToolError: page_chars must be 1024..128000"
+      },
+      {
+        "arguments": {
+          "result_file": 5
+        },
+        "outcome": "ToolError: result_file must name a returned text file"
+      },
+      {
+        "arguments": {
+          "result_file": "../result.txt"
+        },
+        "outcome": "ToolError: result_file must be a returned text file path (up to 4096 characters, no traversal)"
+      },
+      {
+        "arguments": {
+          "result_file": "C:/result.txt"
+        },
+        "outcome": "ToolError: result_file must be a returned text file path (up to 4096 characters, no traversal)"
+      },
+      {
+        "arguments": {
+          "result_file": "a//b.txt"
+        },
+        "outcome": "ToolError: result_file must be a returned text file path (up to 4096 characters, no traversal)"
+      },
+      {
+        "arguments": {
+          "result_file": "evil.sh"
+        },
+        "outcome": "ToolError: result_file must be a returned text file path (up to 4096 characters, no traversal)"
+      }
+    ],
+    "request_id_pattern": "[0-9a-f]{32}",
+    "submit_job": [
+      {
+        "arguments": {
+          "operation": "inventory",
+          "version_code": 1
+        },
+        "outcome": "accepted"
+      },
+      {
+        "arguments": {
+          "operation": "audit",
+          "version_code": 1
+        },
+        "outcome": "accepted"
+      },
+      {
+        "arguments": {
+          "operation": "decompile",
+          "version_code": 1
+        },
+        "outcome": "accepted"
+      },
+      {
+        "arguments": {
+          "operation": "query",
+          "version_code": 1
+        },
+        "outcome": "accepted"
+      },
+      {
+        "arguments": {
+          "operation": "decode",
+          "version_code": 1
+        },
+        "outcome": "accepted"
+      },
+      {
+        "arguments": {
+          "operation": "string_refs",
+          "version_code": 1
+        },
+        "outcome": "accepted"
+      },
+      {
+        "arguments": {
+          "operation": "info",
+          "version_code": 1
+        },
+        "outcome": "accepted"
+      },
+      {
+        "arguments": {
+          "operation": "multipath_audit",
+          "version_code": 1
+        },
+        "outcome": "accepted"
+      },
+      {
+        "arguments": {
+          "operation": "regenerate_ai",
+          "version_code": 1
+        },
+        "outcome": "accepted"
+      },
+      {
+        "arguments": {
+          "operation": "source_check",
+          "version_code": 1
+        },
+        "outcome": "accepted"
+      },
+      {
+        "arguments": {
+          "operation": "info",
+          "version_code": 0
+        },
+        "outcome": "ToolError: Invalid bounded operation parameters"
+      },
+      {
+        "arguments": {
+          "operation": "info",
+          "version_code": 10000000000
+        },
+        "outcome": "ToolError: Invalid bounded operation parameters"
+      },
+      {
+        "arguments": {
+          "operation": "plan_analysis",
+          "version_code": 1
+        },
+        "outcome": "ToolError: Invalid bounded operation parameters"
+      },
+      {
+        "arguments": {
+          "argument": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+          "operation": "info",
+          "version_code": 1
+        },
+        "outcome": "ToolError: Invalid bounded operation parameters"
+      },
+      {
+        "arguments": {
+          "max_cell_chars": 16000,
+          "operation": "query",
+          "version_code": 1
+        },
+        "outcome": "accepted"
+      },
+      {
+        "arguments": {
+          "max_cell_chars": 16001,
+          "operation": "query",
+          "version_code": 1
+        },
+        "outcome": "ToolError: max_cell_chars must be 1..16000 and only varies for query"
+      },
+      {
+        "arguments": {
+          "max_cell_chars": 301,
+          "operation": "info",
+          "version_code": 1
+        },
+        "outcome": "ToolError: max_cell_chars must be 1..16000 and only varies for query"
+      },
+      {
+        "arguments": {
+          "operation": "info",
+          "source_mode": "worktree",
+          "version_code": 1
+        },
+        "outcome": "ToolError: source_mode applies only to complete analysis"
+      },
+      {
+        "arguments": {
+          "operation": "multipath_audit",
+          "source_mode": "historical",
+          "version_code": 1
+        },
+        "outcome": "ToolError: New analysis cannot silently use historical source"
+      },
+      {
+        "arguments": {
+          "operation": "regenerate_ai",
+          "source_mode": "historical",
+          "version_code": 1
+        },
+        "outcome": "accepted"
+      }
+    ]
+  },
+  "constants": {
+    "MAX_RESULT_PAGE_CHARS": 128000,
+    "PAGEABLE_FILES": [
+      "class.java",
+      "group.json",
+      "inventory.json",
+      "job.json",
+      "priority-report.md",
+      "priority-summary.json",
+      "report.md",
+      "result.txt",
+      "summary.json",
+      "summary.md"
+    ],
+    "PREVIEW_FILES": [
+      "class.java",
+      "group.json",
+      "inventory.json",
+      "job.json",
+      "priority-report.md",
+      "report.md",
+      "result.txt",
+      "summary.json",
+      "summary.md"
+    ],
+    "RESULT_PAGE_CHARS": 32000
+  },
+  "dispatch": {
+    "dispatching": [
+      "submit_version_matrix",
+      "advance_version_matrix",
+      "recover_version_matrix",
+      "submit_analysis",
+      "submit_job"
+    ],
+    "evidence": "each tool's dispatch class is checked against the calls it hands on when the frozen gateway runs (test_remote_runner_adapter.py::Registry); version_matrix_status hands on dispatch=False",
+    "non_dispatching": [
+      "plan_version_matrix",
+      "version_matrix_status",
+      "version_matrix_result",
+      "plan_analysis",
+      "job_status",
+      "list_jobs",
+      "job_result"
+    ]
+  },
+  "frozen_extra_copy": {
+    "about": "Six more files of the frozen HostLab commit, in source-8782f43-extra (not the main copy the gateway tests load). Hashed here and verified equal to evidence/hostlab_integration_inventory.json. Their behaviour is still not executed by the controls (the gateway's calls into them are stubbed), except the two facts demonstrated below from the frozen source itself.",
+    "analysis_checkpoint_loader": {
+      "anchor": "report[\"resume_origin\"] = {**binding,",
+      "demonstrated": {
+        "summary_with_adapter_lineage": "KeyError",
+        "summary_with_loader_origin": "accepted"
+      },
+      "meaning": "HostLab's loader builds its own resume_origin from the run binding and overwrites the report's; its summary reads flat keys the adapter's nested lineage {seal, identity_sha256, origin, claim} does not have, so the adapter's lineage is its own chain, not consumed by HostLab's loader or summary",
+      "resume_origin_overwritten_unconditionally": true,
+      "source": "conformance/corpus/hostlab/source-8782f43-extra/analysis_checkpoint.py:237-256",
+      "summary_consumes_flat_keys": [
+        "run_id",
+        "attempt",
+        "artifact_id",
+        "reused_complete_tasks"
+      ]
+    },
+    "manifest": {
+      "commit": "8782f43d537c442905123e35af325c412caa5188",
+      "path": "conformance/corpus/hostlab/source-8782f43-extra/manifest.json",
+      "sha256": "8e9a657a36a609ff89f129f1133473ed80ca1ff283893b262eb476d9fd7ef2d9"
+    },
+    "modules": [
+      {
+        "bytes": 15471,
+        "matches_inventory": true,
+        "module": "analysis_checkpoint",
+        "origin_url": "https://raw.githubusercontent.com/jichuo1/innocent-lab-host-analysis/8782f43d537c442905123e35af325c412caa5188/tools/hostlab/analysis_checkpoint.py",
+        "path": "conformance/corpus/hostlab/source-8782f43-extra/analysis_checkpoint.py",
+        "sha256": "cabc41a443fde6f9798509ec7157f0577c59beaa8aaebe6c247265c31ee58d90"
+      },
+      {
+        "bytes": 12506,
+        "matches_inventory": true,
+        "module": "remote_artifacts",
+        "origin_url": "https://raw.githubusercontent.com/jichuo1/innocent-lab-host-analysis/8782f43d537c442905123e35af325c412caa5188/tools/hostlab/remote_artifacts.py",
+        "path": "conformance/corpus/hostlab/source-8782f43-extra/remote_artifacts.py",
+        "sha256": "5ddd0e35235afc8cd3ac53b6619cfa62a826f0aa2610c459a85b55207889aa50"
+      },
+      {
+        "bytes": 17935,
+        "matches_inventory": true,
+        "module": "remote_job",
+        "origin_url": "https://raw.githubusercontent.com/jichuo1/innocent-lab-host-analysis/8782f43d537c442905123e35af325c412caa5188/tools/hostlab/remote_job.py",
+        "path": "conformance/corpus/hostlab/source-8782f43-extra/remote_job.py",
+        "sha256": "8c7e63257b418c2b64c3d3c5759728cf85eeb83f2628326629453bb8c769f236"
+      },
+      {
+        "bytes": 13072,
+        "matches_inventory": true,
+        "module": "remote_schedule",
+        "origin_url": "https://raw.githubusercontent.com/jichuo1/innocent-lab-host-analysis/8782f43d537c442905123e35af325c412caa5188/tools/hostlab/remote_schedule.py",
+        "path": "conformance/corpus/hostlab/source-8782f43-extra/remote_schedule.py",
+        "sha256": "7174fae71c25670fb96e0c313180c23fe224db534729f34bf0a1f18209e6354d"
+      },
+      {
+        "bytes": 13428,
+        "matches_inventory": true,
+        "module": "runner_worker",
+        "origin_url": "https://raw.githubusercontent.com/jichuo1/innocent-lab-host-analysis/8782f43d537c442905123e35af325c412caa5188/tools/hostlab/runner_worker.py",
+        "path": "conformance/corpus/hostlab/source-8782f43-extra/runner_worker.py",
+        "sha256": "dae63dc34a6b27095b0040ef8e7cac6f8e09d0cb43e7b601e46c22ed2b0df665"
+      },
+      {
+        "bytes": 14985,
+        "matches_inventory": true,
+        "module": "snapshot_transport",
+        "origin_url": "https://raw.githubusercontent.com/jichuo1/innocent-lab-host-analysis/8782f43d537c442905123e35af325c412caa5188/tools/hostlab/snapshot_transport.py",
+        "path": "conformance/corpus/hostlab/source-8782f43-extra/snapshot_transport.py",
+        "sha256": "b75d5c1aac417c2f192da74d85f0da840aed9c7a110d4d54be2dcfb48ef28bf8"
+      }
+    ],
+    "not_obtained": [
+      "version_matrix.py",
+      "remote_dispatch.py",
+      "runner_group.py",
+      "source_snapshot.py",
+      "adaptive_schedule.py",
+      "analyze.py",
+      "hostlab.py",
+      "process_control.py",
+      "runner_resources.py",
+      "prepare_runtime.py"
+    ],
+    "remote_artifacts_limits": {
+      "equals_adapter_ARTIFACT_LIMITS": {
+        "max_file_bytes": true,
+        "max_files": true,
+        "max_unpacked_bytes": true,
+        "max_zip_bytes": true
+      },
+      "frozen_constants": {
+        "MAX_ARCHIVE_BYTES": 67108864,
+        "MAX_FILES": 4096,
+        "MAX_FILE_BYTES": 33554432,
+        "MAX_RESULT_BYTES": 134217728
+      },
+      "mapping_to_ARTIFACT_LIMITS": {
+        "max_file_bytes": "MAX_FILE_BYTES",
+        "max_files": "MAX_FILES",
+        "max_unpacked_bytes": "MAX_RESULT_BYTES",
+        "max_zip_bytes": "MAX_ARCHIVE_BYTES"
+      },
+      "source": "conformance/corpus/hostlab/source-8782f43-extra/remote_artifacts.py:21-24"
+    }
+  },
+  "generated_by": {
+    "check": "... --check",
+    "command": "python -I integrations/hostlab/remote_make_records.py",
+    "deterministic": true,
+    "script": "integrations/hostlab/remote_make_records.py"
+  },
+  "inputs": [
+    {
+      "bytes": 5416,
+      "path": "conformance/corpus/hostlab/source-8782f43/manifest.json",
+      "sha256": "a895c45417410e917c49cb86d498b581148d61e11e6815fb80dc5816d92535bb"
+    },
+    {
+      "bytes": 28247,
+      "path": "conformance/corpus/hostlab/source-8782f43/remote_mcp.py",
+      "sha256": "dc196d75a2edb41b37057fa94b9a608d6fdf674d0962f0856198cfb710ee3787"
+    },
+    {
+      "bytes": 10947,
+      "path": "conformance/corpus/hostlab/source-8782f43/analysis_plan.py",
+      "sha256": "acc007958419d233bf0be6271e288c10588df2984701f5f6abf585a895ad07cb"
+    },
+    {
+      "bytes": 11581,
+      "path": "conformance/corpus/hostlab/source-8782f43/analysis_paging.py",
+      "sha256": "91adddc501e80e8ceeaa7f55ca6f6b12bd715502589f80e7cd4d7da2e5201cb1"
+    },
+    {
+      "bytes": 23159,
+      "path": "conformance/corpus/hostlab/source-8782f43/analysis_batch.py",
+      "sha256": "8f40845d1328cae8a06dd29830c5e636d962da3cc72194e16904f6fb23030a64"
+    },
+    {
+      "bytes": 9276,
+      "path": "conformance/corpus/hostlab/source-8782f43/native_cli.py",
+      "sha256": "ca2b1cfb824c0da8f6ab00baeb6bbb24308c734b9ebc3ba4c5c7219d9503a3e3"
+    },
+    {
+      "bytes": 8822,
+      "path": "conformance/corpus/hostlab/source-8782f43/native_surface.py",
+      "sha256": "503521fdbb694ca825a65e259981155dc5ccbbf69c4797d23e3e598d1bdaf174"
+    },
+    {
+      "bytes": 3936,
+      "path": "conformance/corpus/hostlab/source-8782f43-extra/manifest.json",
+      "sha256": "8e9a657a36a609ff89f129f1133473ed80ca1ff283893b262eb476d9fd7ef2d9"
+    },
+    {
+      "bytes": 15471,
+      "path": "conformance/corpus/hostlab/source-8782f43-extra/analysis_checkpoint.py",
+      "sha256": "cabc41a443fde6f9798509ec7157f0577c59beaa8aaebe6c247265c31ee58d90"
+    },
+    {
+      "bytes": 12506,
+      "path": "conformance/corpus/hostlab/source-8782f43-extra/remote_artifacts.py",
+      "sha256": "5ddd0e35235afc8cd3ac53b6619cfa62a826f0aa2610c459a85b55207889aa50"
+    },
+    {
+      "bytes": 17935,
+      "path": "conformance/corpus/hostlab/source-8782f43-extra/remote_job.py",
+      "sha256": "8c7e63257b418c2b64c3d3c5759728cf85eeb83f2628326629453bb8c769f236"
+    },
+    {
+      "bytes": 13072,
+      "path": "conformance/corpus/hostlab/source-8782f43-extra/remote_schedule.py",
+      "sha256": "7174fae71c25670fb96e0c313180c23fe224db534729f34bf0a1f18209e6354d"
+    },
+    {
+      "bytes": 13428,
+      "path": "conformance/corpus/hostlab/source-8782f43-extra/runner_worker.py",
+      "sha256": "dae63dc34a6b27095b0040ef8e7cac6f8e09d0cb43e7b601e46c22ed2b0df665"
+    },
+    {
+      "bytes": 14985,
+      "path": "conformance/corpus/hostlab/source-8782f43-extra/snapshot_transport.py",
+      "sha256": "b75d5c1aac417c2f192da74d85f0da840aed9c7a110d4d54be2dcfb48ef28bf8"
+    },
+    {
+      "bytes": 106365,
+      "path": "conformance/manifests/tools-and-options.json",
+      "sha256": "1b84fc50d9ae2f2eaa555ed5db6e5e0629e7b3ade98c285ed5dfa8a990db97d9"
+    },
+    {
+      "bytes": 35341,
+      "path": "evidence/hostlab_integration_inventory.json",
+      "sha256": "788ccd3e5be84b7f653db98fd30887658923a8b50295b26a141c285f0770d5d5"
+    },
+    {
+      "bytes": 39072,
+      "path": "integrations/hostlab/provider.py",
+      "sha256": "f66f5f0c55b6e69d579b2df406e4b2041e8f37da592f8b5c72c5d508284c03a7"
+    },
+    {
+      "bytes": 53809,
+      "path": "integrations/hostlab/checkpoint_adapter.py",
+      "sha256": "6559802c0685b7ab9558987e30f80456a360203bc1f9ddcb067331951653ed36"
+    },
+    {
+      "bytes": 26232,
+      "path": "integrations/hostlab/remote_runner_adapter.py",
+      "sha256": "c243abee47cedd38e78917aa1fea1261134e47cecbf60b4a39b7b23d219574ca"
+    },
+    {
+      "bytes": 15567,
+      "path": "integrations/hostlab/checkpoint_test_support.py",
+      "sha256": "8cb77ccbf22e0255101cef71684cd8d64a9243922ce4dc143dea1a4d67c7e084"
+    },
+    {
+      "bytes": 9945,
+      "path": "integrations/hostlab/remote_test_support.py",
+      "sha256": "7a0532c6d42f76dd64134206355e99cae2291f656289d0cda56a1c4690e70e6f"
+    },
+    {
+      "bytes": 74188,
+      "path": "integrations/hostlab/remote_make_records.py",
+      "sha256": "6892cdea8046ba7ff17f2a0c9643686ceacbeb7b2397748f53a3476bccb92de6"
+    }
+  ],
+  "not_engine_tools": {
+    "engine_native_mcp": [
+      "close_dataset",
+      "decode",
+      "describe_table",
+      "get_manifest",
+      "get_manifest_components",
+      "list_datasets",
+      "list_resource_files",
+      "list_tables",
+      "open_dataset",
+      "query",
+      "query_resources",
+      "read_resource"
+    ],
+    "engine_tools_served_today": [
+      "close_dataset",
+      "decode",
+      "describe_table",
+      "get_manifest",
+      "list_datasets",
+      "list_tables",
+      "open_dataset",
+      "query"
+    ],
+    "engine_vs_dexq_overlap": [
+      "close_dataset",
+      "decode",
+      "list_datasets",
+      "open_dataset",
+      "query"
+    ],
+    "legacy_dexq": [
+      "open_dataset",
+      "list_datasets",
+      "close_dataset",
+      "describe_tables",
+      "query",
+      "decode",
+      "find_refs",
+      "apk_info"
+    ],
+    "orchestration_vs_dexq_overlap": [],
+    "orchestration_vs_engine_overlap": [],
+    "remote_orchestration": [
+      "plan_version_matrix",
+      "submit_version_matrix",
+      "advance_version_matrix",
+      "version_matrix_status",
+      "version_matrix_result",
+      "recover_version_matrix",
+      "plan_analysis",
+      "submit_analysis",
+      "submit_job",
+      "job_status",
+      "list_jobs",
+      "job_result"
+    ],
+    "rule": "a call is routed by (server, tool), never by the tool name: `query` is a tool of two servers and of neither orchestration call; the `operation` values of submit_job are arguments, not tools",
+    "submit_job_operations": [
+      "inventory",
+      "audit",
+      "decompile",
+      "query",
+      "decode",
+      "string_refs",
+      "info",
+      "multipath_audit",
+      "regenerate_ai",
+      "source_check"
+    ]
+  },
+  "not_in_the_frozen_copy": {
+    "also_not_in_the_main_frozen_copy": [
+      {
+        "in_frozen_extra_copy": true,
+        "inventory": {
+          "bytes": 15471,
+          "sha256": "cabc41a443fde6f9798509ec7157f0577c59beaa8aaebe6c247265c31ee58d90"
+        },
+        "module": "analysis_checkpoint"
+      },
+      {
+        "in_frozen_extra_copy": true,
+        "inventory": {
+          "bytes": 17935,
+          "sha256": "8c7e63257b418c2b64c3d3c5759728cf85eeb83f2628326629453bb8c769f236"
+        },
+        "module": "remote_job"
+      },
+      {
+        "in_frozen_extra_copy": true,
+        "inventory": {
+          "bytes": 13428,
+          "sha256": "dae63dc34a6b27095b0040ef8e7cac6f8e09d0cb43e7b601e46c22ed2b0df665"
+        },
+        "module": "runner_worker"
+      }
+    ],
+    "consequence": "their behaviour is not executed by these controls (the gateway's calls into them are stubbed and recorded); the six in the frozen -extra copy are source evidence only, and version_matrix, remote_dispatch, runner_group, source_snapshot and adaptive_schedule were not obtained",
+    "modules": [
+      {
+        "in_frozen_copy": false,
+        "in_frozen_extra_copy": false,
+        "inventory": {
+          "bytes": 14912,
+          "sha256": "4e3696f0f833fc600c78e52285dc647224b02436e87c3115d400170761a38498"
+        },
+        "module": "adaptive_schedule"
+      },
+      {
+        "in_frozen_copy": false,
+        "in_frozen_extra_copy": true,
+        "inventory": {
+          "bytes": 12506,
+          "sha256": "5ddd0e35235afc8cd3ac53b6619cfa62a826f0aa2610c459a85b55207889aa50"
+        },
+        "module": "remote_artifacts"
+      },
+      {
+        "in_frozen_copy": false,
+        "in_frozen_extra_copy": false,
+        "inventory": null,
+        "module": "remote_dispatch"
+      },
+      {
+        "in_frozen_copy": false,
+        "in_frozen_extra_copy": true,
+        "inventory": {
+          "bytes": 13072,
+          "sha256": "7174fae71c25670fb96e0c313180c23fe224db534729f34bf0a1f18209e6354d"
+        },
+        "module": "remote_schedule"
+      },
+      {
+        "in_frozen_copy": false,
+        "in_frozen_extra_copy": false,
+        "inventory": null,
+        "module": "runner_group"
+      },
+      {
+        "in_frozen_copy": false,
+        "in_frozen_extra_copy": true,
+        "inventory": {
+          "bytes": 14985,
+          "sha256": "b75d5c1aac417c2f192da74d85f0da840aed9c7a110d4d54be2dcfb48ef28bf8"
+        },
+        "module": "snapshot_transport"
+      },
+      {
+        "in_frozen_copy": false,
+        "in_frozen_extra_copy": false,
+        "inventory": null,
+        "module": "source_snapshot"
+      },
+      {
+        "in_frozen_copy": false,
+        "in_frozen_extra_copy": false,
+        "inventory": null,
+        "module": "version_matrix"
+      }
+    ],
+    "note": "the main frozen copy the gateway tests load is source-8782f43; six of these modules are in the frozen source-8782f43-extra copy (see frozen_extra_copy), the rest were not obtained"
+  },
+  "path_scopes": {
+    "analysis-schedule": {
+      "adapter_access": "none",
+      "engine_copy": "runtime/hostlab/mdd-engine/remote/<engine_dir>/analysis-schedule",
+      "hostlab": "runtime/hostlab/analysis-schedule/"
+    },
+    "artifact-cache": {
+      "adapter_access": "none",
+      "engine_copy": "runtime/hostlab/mdd-engine/remote/<engine_dir>/artifact-cache",
+      "hostlab": "runtime/hostlab/artifact-cache/<scope>/<run>/attempt-<n>/"
+    },
+    "dexq-cache": {
+      "adapter_access": "none",
+      "engine_copy": "runtime/hostlab/mdd-engine/remote/<engine_dir>/dexq-cache",
+      "hostlab": "runtime/hostlab/dexq-cache/"
+    },
+    "remote-job-map": {
+      "adapter_access": "none",
+      "engine_copy": "runtime/hostlab/mdd-engine/remote/<engine_dir>/remote-job-map",
+      "hostlab": "runtime/hostlab/remote-job-map/"
+    },
+    "remote-output": {
+      "adapter_access": "none",
+      "engine_copy": "runtime/hostlab/mdd-engine/remote/<engine_dir>/remote-output",
+      "hostlab": "runtime/hostlab/remote-output/"
+    },
+    "remote-requests": {
+      "adapter_access": "none",
+      "engine_copy": "runtime/hostlab/mdd-engine/remote/<engine_dir>/remote-requests",
+      "hostlab": "runtime/hostlab/remote-requests/"
+    },
+    "remote-results": {
+      "adapter_access": "none",
+      "engine_copy": "runtime/hostlab/mdd-engine/remote/<engine_dir>/remote-results",
+      "hostlab": "runtime/hostlab/remote-results/"
+    },
+    "reports": {
+      "adapter_access": "none",
+      "engine_copy": "runtime/hostlab/mdd-engine/reports/<engine_dir>",
+      "hostlab": "runtime/hostlab/reports/<version>/<sha-prefix>/<stamp>/"
+    },
+    "samples": {
+      "adapter_access": "read",
+      "engine_copy": "runtime/hostlab/mdd-engine/remote/<engine_dir>/samples",
+      "hostlab": "runtime/hostlab/samples/<apk_sha>/base.apk"
+    },
+    "source-snapshots": {
+      "adapter_access": "none",
+      "engine_copy": "runtime/hostlab/mdd-engine/remote/<engine_dir>/source-snapshots",
+      "hostlab": "runtime/hostlab/source-snapshots/<sha>/context.json"
+    },
+    "version-matrices": {
+      "adapter_access": "none",
+      "engine_copy": "runtime/hostlab/mdd-engine/remote/<engine_dir>/version-matrices",
+      "hostlab": "runtime/hostlab/version-matrices/"
+    }
+  },
+  "responses_keys": {
+    "job_result": [
+      "collection",
+      "file_pages",
+      "files",
+      "result_page",
+      "run",
+      "source_freshness",
+      "task_summary",
+      "text",
+      "text_truncated"
+    ],
+    "job_result.collection": [
+      "artifact",
+      "cache_hit",
+      "elapsed_ms",
+      "integrity",
+      "run_attempt"
+    ],
+    "job_result.file_pages_item": [
+      "chars",
+      "file",
+      "next_offset",
+      "offset",
+      "page_chars",
+      "total_chars"
+    ],
+    "job_result.result_page": [
+      "chars",
+      "file",
+      "next_offset",
+      "offset",
+      "page_chars",
+      "total_chars"
+    ],
+    "job_result.task_summary": [
+      "counts",
+      "failures",
+      "truncated"
+    ],
+    "job_status_known_run": [
+      "conclusion",
+      "dispatch",
+      "head_sha",
+      "html_url",
+      "id",
+      "lookup_elapsed_ms",
+      "queued_at",
+      "request_id",
+      "run_attempt",
+      "run_updated_at",
+      "stale_observation_ignored",
+      "state_uncertain",
+      "status"
+    ],
+    "job_status_no_run_yet": [
+      "lookup_elapsed_ms",
+      "request_id",
+      "status"
+    ],
+    "list_jobs_item": [
+      "conclusion",
+      "display_title",
+      "html_url",
+      "id",
+      "status"
+    ],
+    "plan_analysis_passthrough": true,
+    "submit_analysis_passthrough": true,
+    "submit_job": [
+      "created_at",
+      "dispatched",
+      "module_source",
+      "operation",
+      "queued_at",
+      "repository",
+      "request_id",
+      "source_mode",
+      "status",
+      "version_code"
+    ],
+    "version_matrix_status_passthrough": true
+  },
+  "run_attempt_and_artifact_binding": {
+    "adapter_binding": "run_binding + result_manifest (remote_runner_adapter.py)",
+    "artifact_call": "remote_artifacts.get(REPO, request_id, run, gh)",
+    "artifact_call_found_in_source": true,
+    "artifact_identity": "repository/request/run/attempt/head SHA + ZIP/files integrity (inventory cache_layers.artifact)",
+    "artifact_limits": {
+      "max_file_bytes": 33554432,
+      "max_files": 4096,
+      "max_unpacked_bytes": 134217728,
+      "max_zip_bytes": 67108864
+    },
+    "artifact_limits_verified_against": "frozen_extra_copy.remote_artifacts_limits (source-8782f43-extra/remote_artifacts.py:21-24) and inventory cache_layers.artifact",
+    "job_result_collection_carries": [
+      "cache_hit",
+      "artifact",
+      "integrity",
+      "elapsed_ms",
+      "run_attempt"
+    ],
+    "job_status_carries": [
+      "queued_at",
+      "dispatch",
+      "run_attempt",
+      "run_updated_at"
+    ],
+    "lookup": "the run is found by the title `hostlab-<request_id>` among the latest 50 runs of the workflow",
+    "lookup_title_found_in_source": true,
+    "run_keys_required_for_a_stored_matrix_run": [
+      "display_title",
+      "head_sha",
+      "run_attempt"
+    ]
+  },
+  "schema": "mdd.hostlab-remote-contracts.v1",
+  "server": {
+    "instructions_sha256": "f92f489405c5e54dab90a6ddf9e337a23215fa139f6ad7e62fcaccf9dbbd2c18",
+    "name": "hostlab-remote",
+    "public_http_configured": false,
+    "repository": "jichuo1/innocent-lab-host-analysis",
+    "transport": "stdio",
+    "workflow": "host-analysis.yml"
+  },
+  "source": {
+    "bytes": 28247,
+    "commit": "8782f43d537c442905123e35af325c412caa5188",
+    "origin_url": "https://raw.githubusercontent.com/jichuo1/innocent-lab-host-analysis/8782f43d537c442905123e35af325c412caa5188/tools/hostlab/remote_mcp.py",
+    "path": "conformance/corpus/hostlab/source-8782f43/remote_mcp.py",
+    "sha256": "dc196d75a2edb41b37057fa94b9a608d6fdf674d0962f0856198cfb710ee3787"
+  },
+  "source_sha_binding": {
+    "passed_on_found_in_source": true,
+    "passed_on_unchanged": "remote_schedule.submit(version_code, request, gh, lookup, runs, repository=REPO, workflow=WORKFLOW, apk_sha256=apk_sha256, sample_revision=sample_revision, idempotency_key=idempotency_key)",
+    "resume": "request.resume={run_id,attempt,request_id} needs the exact APK SHA and sample revision (docstring)",
+    "submit_analysis_parameters": [
+      "version_code",
+      "request",
+      "apk_sha256",
+      "sample_revision",
+      "idempotency_key"
+    ]
+  },
+  "task": "MDD-053",
+  "tools": [
+    {
+      "dispatch_class": "non_dispatching",
+      "docstring_matches_mdd003_extraction": true,
+      "docstring_sha256": "9e65db09f9aa2dcfa7a2b663b6012ca556c103087904f28aa2c9e85533216cb9",
+      "documented_limits": {
+        "No dispatch here": true,
+        "Plan 1..40 exact APKs over at most 4 runners": true,
+        "native up to 12, otherwise 4": true,
+        "runner_batch_size=1..4": true
+      },
+      "forwards": [
+        {
+          "args": [
+            "samples",
+            "request",
+            "max_parallel",
+            "reuse_completed",
+            "deadline_seconds",
+            "runner_batch_size",
+            "execution_policy"
+          ],
+          "call": "version_matrix.plan",
+          "kwargs": {},
+          "line": 183
+        }
+      ],
+      "lines": [
+        177,
+        186
+      ],
+      "name": "plan_version_matrix",
+      "parameters": [
+        {
+          "annotation": "list[dict]",
+          "default": null,
+          "name": "samples",
+          "required": true
+        },
+        {
+          "annotation": "dict",
+          "default": null,
+          "name": "request",
+          "required": true
+        },
+        {
+          "annotation": "int",
+          "default": "4",
+          "name": "max_parallel",
+          "required": false
+        },
+        {
+          "annotation": "bool",
+          "default": "True",
+          "name": "reuse_completed",
+          "required": false
+        },
+        {
+          "annotation": "int",
+          "default": "1800",
+          "name": "deadline_seconds",
+          "required": false
+        },
+        {
+          "annotation": "int",
+          "default": "1",
+          "name": "runner_batch_size",
+          "required": false
+        },
+        {
+          "annotation": "str",
+          "default": "'fixed'",
+          "name": "execution_policy",
+          "required": false
+        }
+      ],
+      "signature": "samples: list[dict], request: dict, max_parallel: int=4, reuse_completed: bool=True, deadline_seconds: int=1800, runner_batch_size: int=1, execution_policy: str='fixed'",
+      "signature_matches_mdd003_extraction": true
+    },
+    {
+      "dispatch_class": "dispatching",
+      "docstring_matches_mdd003_extraction": true,
+      "docstring_sha256": "c188d50c3462cf8fcbcc4d6d26b8a004a3eaf483541ed81dae547956cafe3a1a",
+      "documented_limits": {
+        "Unknown dispatches and failures never replay automatically": true,
+        "dispatches up to two jobs per call": true,
+        "fills up to four physical slots": true
+      },
+      "forwards": [
+        {
+          "args": [
+            "samples",
+            "request",
+            "gh"
+          ],
+          "call": "version_matrix.create",
+          "kwargs": {
+            "deadline_seconds": "deadline_seconds",
+            "execution_policy": "execution_policy",
+            "idempotency_key": "idempotency_key",
+            "max_parallel": "max_parallel",
+            "repository": "REPO",
+            "reuse_completed": "reuse_completed",
+            "runner_batch_size": "runner_batch_size"
+          },
+          "line": 197
+        },
+        {
+          "args": [
+            "created['matrix_id']",
+            "gh",
+            "lookup",
+            "runs"
+          ],
+          "call": "version_matrix.advance",
+          "kwargs": {
+            "collect_group": "matrix_group_artifact",
+            "repository": "REPO",
+            "workflow": "WORKFLOW"
+          },
+          "line": 202
+        }
+      ],
+      "lines": [
+        190,
+        205
+      ],
+      "name": "submit_version_matrix",
+      "parameters": [
+        {
+          "annotation": "list[dict]",
+          "default": null,
+          "name": "samples",
+          "required": true
+        },
+        {
+          "annotation": "dict",
+          "default": null,
+          "name": "request",
+          "required": true
+        },
+        {
+          "annotation": "int",
+          "default": "4",
+          "name": "max_parallel",
+          "required": false
+        },
+        {
+          "annotation": "bool",
+          "default": "True",
+          "name": "reuse_completed",
+          "required": false
+        },
+        {
+          "annotation": "int",
+          "default": "1800",
+          "name": "deadline_seconds",
+          "required": false
+        },
+        {
+          "annotation": "str",
+          "default": "''",
+          "name": "idempotency_key",
+          "required": false
+        },
+        {
+          "annotation": "int",
+          "default": "1",
+          "name": "runner_batch_size",
+          "required": false
+        },
+        {
+          "annotation": "str",
+          "default": "'fixed'",
+          "name": "execution_policy",
+          "required": false
+        }
+      ],
+      "signature": "samples: list[dict], request: dict, max_parallel: int=4, reuse_completed: bool=True, deadline_seconds: int=1800, idempotency_key: str='', runner_batch_size: int=1, execution_policy: str='fixed'",
+      "signature_matches_mdd003_extraction": true
+    },
+    {
+      "dispatch_class": "dispatching",
+      "docstring_matches_mdd003_extraction": true,
+      "docstring_sha256": "4cd8be3ce88ee9421efa586aa7b8666bee76b5c1a9e6816986ad483d654d913a",
+      "documented_limits": {
+        "a deadline stops new dispatches without cancelling accepted jobs": true,
+        "adaptive queues fill up to four": true,
+        "dispatch at most two jobs per call": true
+      },
+      "forwards": [
+        {
+          "args": [
+            "matrix_id",
+            "gh",
+            "lookup",
+            "runs"
+          ],
+          "call": "version_matrix.advance",
+          "kwargs": {
+            "collect_group": "matrix_group_artifact",
+            "repository": "REPO",
+            "workflow": "WORKFLOW"
+          },
+          "line": 213
+        }
+      ],
+      "lines": [
+        209,
+        216
+      ],
+      "name": "advance_version_matrix",
+      "parameters": [
+        {
+          "annotation": "str",
+          "default": null,
+          "name": "matrix_id",
+          "required": true
+        }
+      ],
+      "signature": "matrix_id: str",
+      "signature_matches_mdd003_extraction": true
+    },
+    {
+      "dispatch_class": "non_dispatching",
+      "docstring_matches_mdd003_extraction": true,
+      "docstring_sha256": "69d135a549b6049ad40d7bcb4732f038d633bd90dbbd98a4ef6cc37dab3ba192",
+      "documented_limits": {
+        "without submitting additional work": true
+      },
+      "forwards": [
+        {
+          "args": [
+            "matrix_id",
+            "gh",
+            "lookup",
+            "runs"
+          ],
+          "call": "version_matrix.advance",
+          "kwargs": {
+            "collect_group": "matrix_group_artifact",
+            "dispatch": "False",
+            "repository": "REPO",
+            "workflow": "WORKFLOW"
+          },
+          "line": 224
+        }
+      ],
+      "lines": [
+        220,
+        227
+      ],
+      "name": "version_matrix_status",
+      "parameters": [
+        {
+          "annotation": "str",
+          "default": null,
+          "name": "matrix_id",
+          "required": true
+        }
+      ],
+      "signature": "matrix_id: str",
+      "signature_matches_mdd003_extraction": true
+    },
+    {
+      "dispatch_class": "non_dispatching",
+      "docstring_matches_mdd003_extraction": true,
+      "docstring_sha256": "df3800e205ab827844ce0fed2d8c0d14f262e5fdd6246e531bf6d0b5af154f05",
+      "documented_limits": {
+        "1..4 download workers": true,
+        "prefetch_only=true downloads only completed entries": true
+      },
+      "forwards": [
+        {
+          "args": [
+            "matrix_id",
+            "matrix_artifact",
+            "offset",
+            "limit"
+          ],
+          "call": "version_matrix.prefetch",
+          "kwargs": {
+            "download_parallel": "download_parallel"
+          },
+          "line": 237
+        },
+        {
+          "args": [
+            "matrix_id",
+            "job_result",
+            "offset",
+            "limit"
+          ],
+          "call": "version_matrix.compare",
+          "kwargs": {
+            "collect": "matrix_artifact",
+            "download_parallel": "download_parallel"
+          },
+          "line": 239
+        }
+      ],
+      "lines": [
+        231,
+        242
+      ],
+      "name": "version_matrix_result",
+      "parameters": [
+        {
+          "annotation": "str",
+          "default": null,
+          "name": "matrix_id",
+          "required": true
+        },
+        {
+          "annotation": "int",
+          "default": "0",
+          "name": "offset",
+          "required": false
+        },
+        {
+          "annotation": "int",
+          "default": "8",
+          "name": "limit",
+          "required": false
+        },
+        {
+          "annotation": "int",
+          "default": "4",
+          "name": "download_parallel",
+          "required": false
+        },
+        {
+          "annotation": "bool",
+          "default": "False",
+          "name": "prefetch_only",
+          "required": false
+        }
+      ],
+      "signature": "matrix_id: str, offset: int=0, limit: int=8, download_parallel: int=4, prefetch_only: bool=False",
+      "signature_matches_mdd003_extraction": true
+    },
+    {
+      "dispatch_class": "dispatching",
+      "docstring_matches_mdd003_extraction": true,
+      "docstring_sha256": "5366bb62bf14a3865567bda8b8bd11f8338a3168286cab60239bf51344eb14b5",
+      "documented_limits": {
+        "Running/unknown dispatches stay excluded": true,
+        "Uses Actions minutes": true
+      },
+      "forwards": [
+        {
+          "args": [
+            "matrix_id",
+            "gh"
+          ],
+          "call": "version_matrix.recover",
+          "kwargs": {
+            "idempotency_key": "idempotency_key",
+            "include_unverified_results": "include_unverified_results",
+            "repository": "REPO"
+          },
+          "line": 250
+        },
+        {
+          "args": [
+            "created['matrix_id']",
+            "gh",
+            "lookup",
+            "runs"
+          ],
+          "call": "version_matrix.advance",
+          "kwargs": {
+            "collect_group": "matrix_group_artifact",
+            "repository": "REPO",
+            "workflow": "WORKFLOW"
+          },
+          "line": 254
+        }
+      ],
+      "lines": [
+        246,
+        257
+      ],
+      "name": "recover_version_matrix",
+      "parameters": [
+        {
+          "annotation": "str",
+          "default": null,
+          "name": "matrix_id",
+          "required": true
+        },
+        {
+          "annotation": "str",
+          "default": "''",
+          "name": "idempotency_key",
+          "required": false
+        },
+        {
+          "annotation": "bool",
+          "default": "False",
+          "name": "include_unverified_results",
+          "required": false
+        }
+      ],
+      "signature": "matrix_id: str, idempotency_key: str='', include_unverified_results: bool=False",
+      "signature_matches_mdd003_extraction": true
+    },
+    {
+      "dispatch_class": "non_dispatching",
+      "docstring_matches_mdd003_extraction": true,
+      "docstring_sha256": "61325af012e3d4feaa932bcfbb54b2417ef55d8d83fc042a1e7e03f3a558a078",
+      "documented_limits": {
+        "Plan up to 16 related tasks without dispatching": true,
+        "default 8/1000/1048576": true,
+        "max_pages:1..32,max_rows:1..10000,max_bytes:1024..1048576": true
+      },
+      "forwards": [
+        {
+          "args": [
+            "request"
+          ],
+          "call": "remote_schedule.describe",
+          "kwargs": {},
+          "line": 302
+        }
+      ],
+      "lines": [
+        298,
+        304
+      ],
+      "name": "plan_analysis",
+      "parameters": [
+        {
+          "annotation": "dict",
+          "default": null,
+          "name": "request",
+          "required": true
+        }
+      ],
+      "signature": "request: dict",
+      "signature_matches_mdd003_extraction": true
+    },
+    {
+      "dispatch_class": "dispatching",
+      "docstring_matches_mdd003_extraction": true,
+      "docstring_sha256": "7b1bc8ba5fd2aa240a6bc57e20fb3e89f3fe2298f97a7809c1beb6691f95454e",
+      "documented_limits": {
+        "Ordinary arbitrary SQL is not completion-cached": true,
+        "Unknown dispatch is never replayed": true,
+        "Uses Actions minutes": true,
+        "exact APK SHA and sample revision are required": true,
+        "never by replaying its prefix": true
+      },
+      "forwards": [
+        {
+          "args": [
+            "version_code",
+            "request",
+            "gh",
+            "lookup",
+            "runs"
+          ],
+          "call": "remote_schedule.submit",
+          "kwargs": {
+            "apk_sha256": "apk_sha256",
+            "idempotency_key": "idempotency_key",
+            "repository": "REPO",
+            "sample_revision": "sample_revision",
+            "workflow": "WORKFLOW"
+          },
+          "line": 313
+        }
+      ],
+      "lines": [
+        308,
+        318
+      ],
+      "name": "submit_analysis",
+      "parameters": [
+        {
+          "annotation": "int",
+          "default": null,
+          "name": "version_code",
+          "required": true
+        },
+        {
+          "annotation": "dict",
+          "default": null,
+          "name": "request",
+          "required": true
+        },
+        {
+          "annotation": "str",
+          "default": "''",
+          "name": "apk_sha256",
+          "required": false
+        },
+        {
+          "annotation": "str",
+          "default": "''",
+          "name": "sample_revision",
+          "required": false
+        },
+        {
+          "annotation": "str",
+          "default": "''",
+          "name": "idempotency_key",
+          "required": false
+        }
+      ],
+      "signature": "version_code: int, request: dict, apk_sha256: str='', sample_revision: str='', idempotency_key: str=''",
+      "signature_matches_mdd003_extraction": true
+    },
+    {
+      "dispatch_class": "dispatching",
+      "docstring_matches_mdd003_extraction": true,
+      "docstring_sha256": "c5c3a868b9283444e53206dba1cc0a4696358cccd63d72469e493d8c0852f9dc",
+      "documented_limits": {
+        "Uses Actions minutes; returns immediately": true
+      },
+      "forwards": [
+        {
+          "args": [
+            "hostlab.ROOT",
+            "gh"
+          ],
+          "call": "snapshot_transport.prepare",
+          "kwargs": {
+            "mode": "source_mode"
+          },
+          "line": 349
+        },
+        {
+          "args": [
+            "REPO",
+            "WORKFLOW",
+            "inputs",
+            "gh"
+          ],
+          "call": "remote_dispatch.dispatch",
+          "kwargs": {},
+          "line": 361
+        }
+      ],
+      "lines": [
+        322,
+        365
+      ],
+      "name": "submit_job",
+      "parameters": [
+        {
+          "annotation": "int",
+          "default": null,
+          "name": "version_code",
+          "required": true
+        },
+        {
+          "annotation": "str",
+          "default": null,
+          "name": "operation",
+          "required": true
+        },
+        {
+          "annotation": "str",
+          "default": "''",
+          "name": "argument",
+          "required": false
+        },
+        {
+          "annotation": "int",
+          "default": "300",
+          "name": "max_cell_chars",
+          "required": false
+        },
+        {
+          "annotation": "str",
+          "default": "'auto'",
+          "name": "source_mode",
+          "required": false
+        }
+      ],
+      "signature": "version_code: int, operation: str, argument: str='', max_cell_chars: int=300, source_mode: str='auto'",
+      "signature_matches_mdd003_extraction": true
+    },
+    {
+      "dispatch_class": "non_dispatching",
+      "docstring_matches_mdd003_extraction": true,
+      "docstring_sha256": "987683a7647ad984467a3e5009b56ea122f0a7b4fbfb578b1d5b611074f44362",
+      "documented_limits": {
+        "Does not wait": true
+      },
+      "forwards": [
+        {
+          "args": [
+            "request_id",
+            "run"
+          ],
+          "call": "remote_schedule.observe",
+          "kwargs": {},
+          "line": 377
+        },
+        {
+          "args": [
+            "json.loads(journal.read_text(encoding='utf-8'))",
+            "run"
+          ],
+          "call": "remote_schedule.reconcile",
+          "kwargs": {},
+          "line": 382
+        },
+        {
+          "args": [
+            "receipt"
+          ],
+          "call": "remote_schedule.public_status",
+          "kwargs": {},
+          "line": 387
+        }
+      ],
+      "lines": [
+        369,
+        394
+      ],
+      "name": "job_status",
+      "parameters": [
+        {
+          "annotation": "str",
+          "default": null,
+          "name": "request_id",
+          "required": true
+        }
+      ],
+      "signature": "request_id: str",
+      "signature_matches_mdd003_extraction": true
+    },
+    {
+      "dispatch_class": "non_dispatching",
+      "docstring_matches_mdd003_extraction": true,
+      "docstring_sha256": "a9b1b556c3574a0bea3e1f94d796647d36f88741605df94b1d688098b6c54869",
+      "documented_limits": {
+        "List the latest ten analysis runs": true
+      },
+      "forwards": [],
+      "lines": [
+        398,
+        400
+      ],
+      "name": "list_jobs",
+      "parameters": [],
+      "signature": "",
+      "signature_matches_mdd003_extraction": true
+    },
+    {
+      "dispatch_class": "non_dispatching",
+      "docstring_matches_mdd003_extraction": true,
+      "docstring_sha256": "36c44a47541075dee5a57488920387cebe98364f1cdb5bb67c43889118e72308",
+      "documented_limits": {
+        "1024..128000": true,
+        "does not submit another Actions analysis job": true,
+        "sample_index=0..11": true
+      },
+      "forwards": [
+        {
+          "args": [
+            "REPO",
+            "request_id",
+            "run",
+            "gh"
+          ],
+          "call": "remote_artifacts.get",
+          "kwargs": {},
+          "line": 440
+        }
+      ],
+      "lines": [
+        404,
+        468
+      ],
+      "name": "job_result",
+      "parameters": [
+        {
+          "annotation": "str",
+          "default": null,
+          "name": "request_id",
+          "required": true
+        },
+        {
+          "annotation": "int",
+          "default": "0",
+          "name": "result_offset",
+          "required": false
+        },
+        {
+          "annotation": "int",
+          "default": "-1",
+          "name": "sample_index",
+          "required": false
+        },
+        {
+          "annotation": "int",
+          "default": "RESULT_PAGE_CHARS",
+          "name": "page_chars",
+          "required": false
+        },
+        {
+          "annotation": "str",
+          "default": "''",
+          "name": "result_file",
+          "required": false
+        }
+      ],
+      "signature": "request_id: str, result_offset: int=0, sample_index: int=-1, page_chars: int=RESULT_PAGE_CHARS, result_file: str=''",
+      "signature_matches_mdd003_extraction": true
+    }
+  ],
+  "worker_task_contract": {
+    "continuation_requires": {
+      "ORDER BY only inside a subquery": "query_requires_stable_outer_order",
+      "no ORDER BY": "query_requires_stable_outer_order",
+      "outer ORDER BY": null,
+      "volatile random()": "query_volatile_order_or_values"
+    },
+    "fingerprint_covers_resume": true,
+    "limits": {
+      "backends": [
+        "auto",
+        "dexsql",
+        "sqlite"
+      ],
+      "max_request_bytes": 30000,
+      "max_tasks": 16,
+      "operations": [
+        "decode",
+        "info",
+        "locate",
+        "query",
+        "refs"
+      ],
+      "paging_defaults": {
+        "max_bytes": 1048576,
+        "max_pages": 8,
+        "max_rows": 1000
+      },
+      "schema": 1
+    },
+    "normalized_has_resume_without": true,
+    "normalized_resume": {
+      "attempt": 2,
+      "request_id": "abababababababababababababababab",
+      "run_id": 5
+    },
+    "probes": [
+      {
+        "name": "minimal request",
+        "outcome": "accepted"
+      },
+      {
+        "name": "backend meguvizdexdash (not a frozen backend)",
+        "outcome": "ValueError: unsupported backend"
+      },
+      {
+        "name": "negotiation block (provider-only)",
+        "outcome": "ValueError: unsupported analysis request fields"
+      },
+      {
+        "name": "backends sqlite and dexsql",
+        "outcome": "accepted"
+      },
+      {
+        "name": "16 tasks",
+        "outcome": "accepted"
+      },
+      {
+        "name": "17 tasks",
+        "outcome": "ValueError: analysis needs 1..16 tasks"
+      },
+      {
+        "name": "resume with run, attempt and request",
+        "outcome": "accepted"
+      },
+      {
+        "name": "resume without attempt",
+        "outcome": "ValueError: resume needs run_id, attempt, request_id and optional sample_index"
+      },
+      {
+        "name": "resume with a short request id",
+        "outcome": "ValueError: invalid resume request_id"
+      },
+      {
+        "name": "resume with sample_index 11",
+        "outcome": "accepted"
+      },
+      {
+        "name": "resume with sample_index 12",
+        "outcome": "ValueError: resume sample_index must be 0..11"
+      },
+      {
+        "name": "query with pagination",
+        "outcome": "accepted"
+      },
+      {
+        "name": "query with pagination beyond bounds",
+        "outcome": "ValueError: max_pages must be 1..32"
+      },
+      {
+        "name": "query offset 99000",
+        "outcome": "accepted"
+      },
+      {
+        "name": "query offset 99001",
+        "outcome": "ValueError: offset must be 0..99000"
+      },
+      {
+        "name": "sqlite query with offset",
+        "outcome": "ValueError: SQLite query paging must be explicit in its SQL"
+      },
+      {
+        "name": "timeout 600 and threads 6",
+        "outcome": "accepted"
+      },
+      {
+        "name": "timeout 601",
+        "outcome": "ValueError: timeout_seconds must be 1..600"
+      },
+      {
+        "name": "unknown field",
+        "outcome": "ValueError: unsupported analysis request fields"
+      }
+    ]
+  }
+}
