@@ -16,7 +16,7 @@ def main():
     graph = json.loads((ROOT/'tasks/backlog.json').read_text(encoding='utf-8'))
     tasks = graph['tasks']
     by_id = {t['id']:t for t in tasks}
-    require(len(tasks) == len(by_id) == 51, 'task IDs/count differ from the canonical graph')
+    require(len(tasks) == len(by_id) == 52, 'task IDs/count differ from the canonical graph')
     seen, active = set(), set()
     def visit(task_id):
         if task_id in active:
