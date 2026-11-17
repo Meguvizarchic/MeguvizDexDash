@@ -1291,7 +1291,7 @@
       "id": "MDD-044",
       "phase": "M4",
       "title": "验证真实生产消费管道并评估可选列批",
-      "status": "todo",
+      "status": "in_progress",
       "depends_on": [
         "MDD-035",
         "MDD-040",
@@ -1789,7 +1789,7 @@
       "id": "MDD-070",
       "phase": "M7",
       "title": "补齐已承诺的五十六关系与兼容 ledger",
-      "status": "todo",
+      "status": "in_progress",
       "depends_on": [
         "MDD-035",
         "MDD-042"
@@ -1897,7 +1897,7 @@
       "id": "MDD-072",
       "phase": "M7",
       "title": "补齐 Manifest、资源查询与十二工具公开面",
-      "status": "todo",
+      "status": "in_progress",
       "depends_on": [
         "MDD-025",
         "MDD-035",
@@ -2227,7 +2227,7 @@
       "id": "MDD-084",
       "phase": "M4",
       "title": "修复原生 SQL 求值 OR 链 LIKE 深嵌套栈溢出",
-      "status": "todo",
+      "status": "in_progress",
       "depends_on": [],
       "owner_role": "协议与 worker 负责人",
       "scope": [
