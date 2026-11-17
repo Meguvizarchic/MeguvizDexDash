@@ -1383,7 +1383,7 @@
       "id": "MDD-051",
       "phase": "M5",
       "title": "迁移 NativeSession、Graph 与二十七 FEATURE 结构审计",
-      "status": "todo",
+      "status": "in_progress",
       "depends_on": [
         "MDD-026",
         "MDD-035",
@@ -1419,7 +1419,7 @@
       "id": "MDD-052",
       "phase": "M5",
       "title": "迁移 native_surface 与原始指纹证据",
-      "status": "todo",
+      "status": "in_progress",
       "depends_on": [
         "MDD-025",
         "MDD-026",
@@ -1455,7 +1455,7 @@
       "id": "MDD-053",
       "phase": "M5",
       "title": "迁移分页、checkpoint、批处理与远程 runner 契约",
-      "status": "todo",
+      "status": "in_progress",
       "depends_on": [
         "MDD-033",
         "MDD-040",
@@ -2221,6 +2221,33 @@
         "docs/02_ARCHITECTURE_AND_CONTRACTS.md",
         "docs/03_HOSTLAB_MIGRATION.md",
         "docs/04_VALIDATION_AND_PERFORMANCE.md"
+      ]
+    },
+    {
+      "id": "MDD-084",
+      "phase": "M4",
+      "title": "修复原生 SQL 求值 OR 链 LIKE 深嵌套栈溢出",
+      "status": "todo",
+      "depends_on": [],
+      "owner_role": "协议与 worker 负责人",
+      "scope": [
+        "定位原生 SQL 求值器对 OR/LIKE 链的递归点并实测栈消耗（MDD-052 审查实测：debug 构建括号深度 10 进程崩溃 0xC00000FD/exit 3221225725，深度 9 通过；前缀扩到 64 时深度 10 同样崩溃）",
+        "实现大栈求值线程或显式深度/项数上限的 fail-closed 拒绝（明确 INVALID_ARGUMENT 类错误），不得静默截断、不得包装 unsupported、不得进程崩溃",
+        "补深度 9/10/11 与长前缀回归测试（debug/release，Windows 本地 + Linux CI），负例证明拒绝带真实错误码",
+        "修复合入后由独立变更组移除或放宽 MDD-052 集成侧 DIFF-5 硬上限并更新声明；本任务不混入集成层改动"
+      ],
+      "outputs": [
+        "artifacts/mdd-084/or-chain-overflow.json"
+      ],
+      "acceptance": [
+        "深 OR 链查询要么正确求值要么返回明确错误，进程不崩溃；崩溃复现脚本修复前必崩、修复后必不崩",
+        "拒绝路径 fail-closed：超限不得变成空成功或部分结果",
+        "回归与变异按项目约定执行并归档证据；MDD-052 的平衡树绕过与硬上限在本任务完成前保持有效"
+      ],
+      "evidence_required": true,
+      "references": [
+        "docs/02_ARCHITECTURE_AND_CONTRACTS.md",
+        "integrations/hostlab/SURFACE.md"
       ]
     }
   ]

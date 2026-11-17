@@ -400,6 +400,14 @@
 
 **接管中断现场**：上一会话（Claude）因额度耗尽停在三个 worktree 的未提交工作上——MDD-051（结构审计）、MDD-052（surface）、MDD-053（远程/checkpoint），全部为未跟踪新文件、无已跟踪文件改动。主代理现场盘点：051 测试 122 项全过、变异 60/60；053 测试 144 项全过、两份证据 --check current、变异 214/214；052 测试与证据在跑/复核中，其变异运行被中断（results-run1.txt 为空），需重跑。三个对抗审查子代理已拉起。合入与门禁结果见后续章节。
 
+**071 收口提交与三任务审查结论（2026-11-17 续）**：071 收口 7 文件已提交 `9001153`（本分支；origin/main 仍在 c7d9e20，推送需用户当次授权）。三个对抗审查全部完成，裁决如下：
+
+- **MDD-051 有条件可合入**：无 P0。P1-1 未消费语句被标 abandoned 后丢弃 terminal 不计覆盖，sent≠covered 仍判 complete（违反 W-B0-6 与「未消费页不得变成功」，fake serve 已复现）；P1-2 证据锚定旧二进制 4e455090…（当前 6d035110…），须用当前二进制重生成 equivalence 并重跑变异。P2：B0 不校验 terminal/batch 列名矛盾、cancelled 无 named test、probe_agreement 声明差异只查非空、family/protocol 措辞延至 052。
+- **MDD-052 不可合入（修复前）**：P1-1 code_items SELECT 不含 file_id，跨文件回答静默接受（digest 改变无 SourceMismatch）；P1-2 DIFF-5 栈溢出绕过只剩 1 层余量且守卫钉错表达式（实测深度 10 崩溃 0xC00000FD、前缀 64 同样崩溃）；P1-3 surface-equivalence.json 源 SHA 过期 --check 必失败；P1-4 gates 证据 4/5 字段是字面量、scripts_run_unchanged:true 失实（真门禁脚本不在仓库从未运行）。P2：变异 harness 不捕获 TimeoutExpired，上一轮 103/150 后崩溃（results-run1.txt 实为 123 行部分运行，保留作历史切片）；bind_dex 措辞、两项未登记拒绝、page_size 收而不发、生成器裸 assert。另：主代理停掉一个在干净代码上挂死 >20 分钟的全套件运行（fake_serve 子进程链 CPU≈0），根因由修复代理诊断。
+- **MDD-053 不可合入（修复前）**：P1-1 import 不查快照绑定——snapshot=None 的 complete 文档可 import 成功并 bind 任意快照 seed reuse（seal/cache 均拒、import 独漏，已复现）；P1-2 SQL 守卫仅前缀正则，放行 `WITH x AS(SELECT 1) INSERT…` 与 `SELECT 1; CREATE TEMP TABLE…`，temp_side_effects=0 允许跨引擎重放（冻结 analysis_plan.py 同款洞，适配器侧保守防御）；P1-3 -extra 六冻结模块无代码引用、记录措辞失实。P2：derive_state 只比任务数不比 id 集合、gh_effect 把附着 `-fref=main` 判 read。
+
+**修复派发与 backlog 同步**：三个修复子代理已按上述清单派发（各自 worktree，文件互不重叠；要求全套件绿+全量变异 0 存活+证据重生成 --check current 后才提交）。backlog：051/052/053 转 in_progress；新登记 **MDD-084**（引擎 OR 链 LIKE 深嵌套栈溢出，大栈线程或深度上限 fail-closed 拒绝；修复后由独立变更组放宽 052 集成侧 DIFF-5 硬上限）。引擎缺陷不在 052 本次范围内擅自修。
+
 ## Checkout 与交付
 
 工程目录 D:\MeguvisDexDash（保留目录原拼写）。远端已迁移到 https://github.com/Meguvizarchic/MeguvizDexDash（**公开仓库**，旧地址 jichuo1/MeguvizDexDash 自动转发）；PR #1 已于 2026-11-04 合并，`main` 现为 a9aa1f0，其中 27ac27e 是由本分支 71dfce9 生成的「脱敏工程进度快照」，之后 8 个提交是修补与 README/图标。本地分支 codex/m2-facts-20261028 当前**没有远端分支**：2026-11-12 曾整体推送，随后发现仓库公开，已按用户决定删除远端分支（GitHub 上提交仍可按 SHA 读取）。重新推送前必须先决定公开范围，见下节。
