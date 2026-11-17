@@ -440,9 +440,11 @@
 
 **声明的差异**（`conformance/manifests/full-relation-qualification.json`）：Int64 列的非负值标签（参考 int64，本引擎按值 uint64）；一个 ulp 的 double；不带 ORDER BY 的行顺序；非标量字符串整关系拒绝；共享 class_data 的 DEX 打开即拒；空结果的列类型；计算列按值定型；参考引擎的分页缺陷与不完整；`source_path` 随机器而不同。
 
-**推送后 CI 变红，原因与处理**：2777640 推送后 CI 失败（运行 44069595482）。根因：它新增的生产 Rust 文件改变了 MDD-051 边界记录里的"核心生产文件数"（114 → 121），`make_structural_equivalence.py --check` 因此在 `boundary` 上失败；已重新生成 `artifacts/mdd-051/structural-equivalence.json`。同一个提交还改了 `crates/mdd-mcp/src/tools.rs` 与 `crates/mdd-cli/tests/mcp.rs`，MDD-042、071、084 变异结果的 `sources sha256` 覆盖这两个文件，所以三者的结果变成"过期"（084 的 `build_record.py --check` 因此也会失败），要在最终提交上重跑这三个变异检查。变异检查（运行 44069669883）的 5 个存活者都是真实的证据缺口，已各补一个夹具（build 可见性、第二个参数槽、call site 额外参数、没有父类的类、静态值里嵌套数组），其中一个还暴露了真缺陷（上面的 `class`）。
+**推送后 CI 变红，原因与处理**：2777640 推送后 CI 失败（运行 44069595482）。根因：它新增的生产 Rust 文件改变了 MDD-051 边界记录里的"核心生产文件数"（114 → 121），`make_structural_equivalence.py --check` 因此在 `boundary` 上失败，已重新生成 `artifacts/mdd-051/structural-equivalence.json`。同一个提交还改了 `crates/mdd-mcp/src/tools.rs` 与 `crates/mdd-cli/tests/mcp.rs`，MDD-042、071、084 变异结果的 `sources sha256` 覆盖这两个文件，三者的结果因此过期。修复提交 3da061a 推送后，在它上面重跑了这三个变异检查：042 57/57、071 67/67、084 12/12，全部被抓住，各自的 results.txt 只有哈希行变化。
 
-**没有做完，所以任务保持 in_progress**：（1）最终提交上的变异重跑：070 自己的 54 个，以及哈希已变的 042、071、084；（2）`crates/mdd-sql/src/profiles/compatibility/` 没有产出，按方言的关系清单目前是资格记录里的数据（两个方言都是同样的 56 个），不是 Rust 模块，是否需要这个路径由所有者决定。证据偏薄的关系（只有一两个夹具有行）：`class_static_values`、`hiddenapi_flags`、`try_items`、`catch_handlers`、五个 `debug_*`，个数在资格记录里。
+**变异检查（070 自己）**：54 个变异。第一次 Actions 运行（44069669883）有 5 个存活者，都是真实的证据缺口，各补一个夹具（build 可见性、第二个参数槽、call site 额外参数、没有父类的类、静态值里嵌套数组），其中一个还暴露了真缺陷（可见性 0 的保留策略是 `class`，不是 `build`）。3da061a 上的运行（44079808656）**54/54 被抓住**：43 个被"对录制答案的回放"抓住，11 个被单元测试抓住；未变异树通过。被回放抓住的变异只被夹具所覆盖的地方保住，只有一两个夹具有行的关系保得最弱。
+
+**没有做完，所以任务保持 in_progress**：`crates/mdd-sql/src/profiles/compatibility/` 没有产出，按方言的关系清单目前是资格记录里的数据（两个方言都是同样的 56 个），不是 Rust 模块，是否需要这个路径由所有者决定。证据偏薄的关系（只有一两个夹具有行）：`class_static_values`、`hiddenapi_flags`、`try_items`、`catch_handlers`、五个 `debug_*`，个数在资格记录里。
 
 **测试**：`mdd-facts` 204、`mdd-sql` 259、进程测试 42、整个工作区通过，clippy 与 fmt 干净；CI 的回放与 SDK 测试本机都过。新增 CI 检查：夹具 `--check`、回放控制测试、两个方言的回放、两版本对比的 `--check`、资格记录与结论记录的 `--check`。不准入任何 profile；这是开发证据。
 

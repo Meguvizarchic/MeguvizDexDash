@@ -163,7 +163,7 @@ def main() -> int:
             "relations whose recorded evidence is one or two fixtures (class_static_values, hiddenapi_flags, try_items, catch_handlers, debug_*) are listed with their counts in the qualification record",
             "SELECT * paged to the end is what was compared; joins, aggregates and ORDER BY over the 39 relations beyond the contract seventeen are not separately claimed",
             "row order of a relation read without ORDER BY differs from the reference in some (relation, fixture) pairs (the same rows); it is a declared difference, not a defect",
-            "the mutation check runs in .github/workflows/mutation-public-relations.yml, not on a developer machine; its first Actions run found five survivors, which became new fixtures (the rerun on the final commit is what counts, and is not in this record until it has run)",
+            "the mutation check runs in .github/workflows/mutation-public-relations.yml, not on a developer machine; its first Actions run (44069669883, on 2777640) found five survivors, which became new fixtures; the run on 3da061a (44079808656) killed all 54 (43 by the replay of the recorded answers, 11 by unit tests); a mutant the replay kills is held only as well as the fixtures reach it, and the relations with one or two fixtures with rows are held least",
             "the per-dialect list of relations is data in the qualification record; there is no Rust module under crates/mdd-sql/src/profiles/compatibility/ (the task lists that path as an output)",
             "the reference reads a DEX whose two classes share class data; the engine refuses it at open (declared)",
         ],
