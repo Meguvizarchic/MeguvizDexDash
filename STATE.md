@@ -462,9 +462,9 @@
 
 **没做 / 没证明**：compact 资源条目（表里有就拒绝为 `unsupported_capability`）、overlay、staged alias、样式 span 不在答案里；没探测 dexsql 0.1.1；除 NewPipe 外没有别的真实应用；64 MiB 上限只在小尺寸上测过。
 
-**变异检查**：119 个变异已写好（`artifacts/mdd-072/mutation/mutate_resources.py`，`.github/workflows/mutation-resources.yml`），**还没跑**。它改了 `tools.rs`、`dataset.rs` 等文件，MDD-042/070/071/084 的变异结果因此过期，要和 072 一起在同一提交上重跑，做法同 070：先推分支，在分支上重跑五个变异检查，结果提交到分支，分支 CI 过后再让 `main` 快进。MDD-051 边界记录与 `provider-selection.json` 已重新生成（生产 Rust 文件数变了）。
+**变异检查**：118 个变异（`artifacts/mdd-072/mutation/mutate_resources.py`，`.github/workflows/mutation-resources.yml`，结果 `artifacts/mdd-072/mutation/results.txt`）。前几轮的存活者都是测试的缺口，不是引擎的错：第三轮 20 个、第四轮 1 个，各补了测试或夹具（同名两成员的归档、逐字节拼装的表与二进制 XML、导出规则的边界）。第五轮（44247914806）**118/118 杀死**，未变异树通过。它改了 `tools.rs`、`dataset.rs` 等文件，所以 MDD-042/070/071/084 的变异结果在同一份代码上重跑：**57/57、59/59、67/67、12/12**（四份 results.txt 只有哈希行变化）。第一次推送还漏了 43 个合成夹具 APK（`.gitignore` 的 `*.apk` 把它们静默跳过，分支 CI 与变异检查因此失败），已用明确的放行规则补上；HostLab 的引擎测试还写着 8 个工具，已改成 12 个。MDD-051 边界记录与 `provider-selection.json` 已重新生成。
 
-**任务状态**：保持 in_progress：变异检查没跑；四份旧变异结果待重跑；所有者还没同意标 done。
+**任务状态**：保持 in_progress：所有者还没同意标 done（带着上面的声明差异和限定）。
 
 **测试**：整个工作区 1080 项通过，clippy 与 fmt 干净；CLI 进程测试新增 10 项；`mdd-input` 资源模块 39 项（含逐字节拼装的表与二进制 XML）。新增 CI 检查：资源夹具 `--check`、回放控制测试、回放、记录 `--check`。不准入任何 profile；这是开发证据。
 

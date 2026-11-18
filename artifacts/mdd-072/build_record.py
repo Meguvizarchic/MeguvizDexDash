@@ -180,7 +180,7 @@ def main() -> int:
             "style spans of pool strings are validated and kept in the parsed table but not shown",
             "the 64 MiB resource cap and the table budgets are enforced by the same code paths as the others and are tested at small sizes only; no 64 MiB member was read here",
             "the row budget of query_resources, list_resource_files and get_manifest_components counts the answer as sent (structured content and its text copy) and reproduces the reference's page sizes at one recorded point; page boundaries under a small max_bytes can differ by a row (declared class ROW_BUDGET)",
-            "the mutation check runs in .github/workflows/mutation-resources.yml, not on a developer machine; until its results.txt is committed no mutation result is claimed",
+            "the mutation check runs in .github/workflows/mutation-resources.yml, not on a developer machine. Its first runs found survivors that were gaps in the tests, not in the engine (20 in the third run, 1 in the fourth); each got a test, and the fifth run (44247914806) killed all 118 mutants and the unmutated tree passes. The mutation results of MDD-042, 070, 071 and 084 were rerun on the same code and killed 57/57, 59/59, 67/67 and 12/12. A mutant the replay kills is held only as well as the recorded inputs reach it, and the replay about the real application is not part of the Actions run (its APK is a local file)",
         ],
         "run": {"finished_utc": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")},
     }
