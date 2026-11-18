@@ -172,7 +172,7 @@
  "tests": {
   "mdd-input lib": {
    "exit_code": 0,
-   "passed": 71,
+   "passed": 72,
    "failed": 0
   },
   "mdd-service lib": {
@@ -206,7 +206,7 @@
   "crates/mdd-input/src/resources/config.rs": "ae18e648607d9d833d5cb730f27ad6e123789c8e8f7a45d8a414f5335a6047f6",
   "crates/mdd-input/src/resources/arsc.rs": "1350780cc4946a370bb6b21e98afcbad9a05a524b37a8d848c75d6cf73e18671",
   "crates/mdd-input/src/resources/query.rs": "53afedb7c1002ee24220304a4ea647f73645fdd9ad06025ef00b5945b54d4e67",
-  "crates/mdd-input/src/resources/tests.rs": "38f32f71a35e21d6619ecd30c1f51a5f549cae412a409f9be7c13cf32254bc89",
+  "crates/mdd-input/src/resources/tests.rs": "ca01452731fdb02929f3b65603b42f89174ecf264113e9bb6540fc1e0bc3706b",
   "crates/mdd-input/src/manifest/mod.rs": "46696fba00a1eea12ffd02ec3240a02fb472c5d160566f6d419385f968b3ab31",
   "crates/mdd-service/src/resources.rs": "3043ac1705c615d2c58f14c68ea3c37c2bba19a85b0c3510ad2cda55b6a7c6aa",
   "crates/mdd-service/src/manifest.rs": "bcd6a52d701eb28b0f74956ed5bf3471a941903691a9fc270a8562539aac66a4",
@@ -241,6 +241,6 @@
   "the mutation check runs in .github/workflows/mutation-resources.yml, not on a developer machine; until its results.txt is committed no mutation result is claimed"
  ],
  "run": {
-  "finished_utc": "2026-11-18T05:41:38Z"
+  "finished_utc": "2026-11-18T05:59:44Z"
  }
 }
