@@ -44,7 +44,6 @@ SOURCES = [
     "conformance/mcp/resources_replay.py", "conformance/mcp/test_resources_replay.py", CONTRACT, TOOLS_LIST, CALLS,
     "tests/fixtures/resources/generate.py", "tests/fixtures/resources/manifest.json",
     "artifacts/mdd-072/probe/probe_a0.py", "artifacts/mdd-072/mutation/mutate_resources.py",
-    ".github/workflows/mutation-resources.yml",
 ]
 
 

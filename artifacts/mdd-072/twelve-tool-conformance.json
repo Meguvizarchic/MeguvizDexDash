@@ -226,8 +226,7 @@
   "tests/fixtures/resources/generate.py": "d83d7c929f8471abe39bae4aa633ad32c64e6afbf0a50c95156c0354c2c52be7",
   "tests/fixtures/resources/manifest.json": "e91d3286d877e3777fbebc9d370db3a6b4720ac9d71ddc2dc19b3e689f2a40e6",
   "artifacts/mdd-072/probe/probe_a0.py": "e10a4b037f1d6dff78af28115e28aada9220d23ace24fd1abe316a3510b57092",
-  "artifacts/mdd-072/mutation/mutate_resources.py": "94a14c9f187d34530f4f4687730463c1bca268fd86e9cbaca46caf365bf985d3",
-  ".github/workflows/mutation-resources.yml": "630adf7e6c5a314ff178a3d8cf97f2867072b8ed1443e20284d66fb8e7a02838"
+  "artifacts/mdd-072/mutation/mutate_resources.py": "94a14c9f187d34530f4f4687730463c1bca268fd86e9cbaca46caf365bf985d3"
  },
  "residual": [
   "the recorded answers are those of dexsql 0.1.0, windows-amd64 build only; dexsql 0.1.1 was not probed for the resource tools",
