@@ -88,6 +88,7 @@ jobs:
         run: |
           # The first run of the flows on this runner found no page to drive. Before blaming the application,
           # print what the machine has: the registered Evergreen runtime versions and the runtime folders.
+          $ErrorActionPreference = 'Continue'
           $client = '{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
           foreach ($root in 'HKLM:\SOFTWARE\WOW6432Node', 'HKLM:\SOFTWARE', 'HKCU:\SOFTWARE') {
             $key = "$root\Microsoft\EdgeUpdate\Clients\$client"
@@ -97,6 +98,15 @@ jobs:
             if (Test-Path $dir) { "$dir : $((Get-ChildItem $dir -Name) -join ', ')" } else { "$dir : absent" }
           }
           "OS: $([Environment]::OSVersion.VersionString); interactive session: $([Environment]::UserInteractive); user: $env:USERNAME"
+          # The runtime is installed (first diagnostic run) yet the debugging port never opens: look for a policy
+          # or an environment setting that could switch remote debugging off or change the browser's arguments.
+          foreach ($key in 'HKLM\SOFTWARE\Policies\Microsoft\Edge', 'HKLM\SOFTWARE\Policies\Microsoft\EdgeWebView', 'HKCU\SOFTWARE\Policies\Microsoft\Edge') {
+            "== policy values under $key"
+            reg query $key /s 2>&1
+          }
+          "== WEBVIEW2 environment variables"
+          Get-ChildItem Env: | Where-Object { $_.Name -like 'WEBVIEW2*' } | ForEach-Object { "$($_.Name)=$($_.Value)" }
+          "== end"
       - name: Verify the package and run the user flows against the unpacked copy (Windows)
         if: runner.os == 'Windows'
         run: |

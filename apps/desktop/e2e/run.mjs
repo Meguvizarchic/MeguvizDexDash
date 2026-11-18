@@ -78,7 +78,7 @@ for (const testCase of cases) {
     }
   } catch (error) {
     result.status = 'failed';
-    result.error = String(error?.stack ?? error).split('\n').slice(0, 6).join('\n');
+    result.error = String(error?.stack ?? error).split('\n').slice(0, 14).join('\n');
   } finally {
     if (app) await app.close().catch(() => {});
   }

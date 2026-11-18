@@ -3,7 +3,7 @@
 //
 // This is a test driver for the built application, not part of it: the application contains no test hook.
 import { execFileSync, spawn } from 'node:child_process';
-import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -137,15 +137,62 @@ function windowTitle(pid) {
   }
 }
 
+/** Read-only: does the debugging port answer on another loopback name than the one the driver uses? */
+async function otherHosts(port) {
+  const answers = [];
+  for (const host of ['127.0.0.1', '[::1]', 'localhost']) {
+    try {
+      const response = await fetch(`http://${host}:${port}/json/version`, { signal: AbortSignal.timeout(3_000) });
+      answers.push(`${host} answered ${response.status}`);
+    } catch (error) {
+      answers.push(`${host} ${error.cause?.code ?? error.name}`);
+    }
+  }
+  return answers.join('; ');
+}
+
+/** Read-only: names in the user data folder, and the DevToolsActivePort file Chromium writes there once it has
+ *  opened a debugging port (its presence says the port was opened, whatever the driver could reach). */
+function userDataFacts(userData) {
+  const names = (dir) => {
+    try { return readdirSync(dir).slice(0, 20).join(', ') || '(empty)'; } catch (error) { return `unreadable (${error.code ?? error.message})`; }
+  };
+  const active = [['user data folder', userData], ['user data folder/EBWebView', join(userData, 'EBWebView')]].map(([label, dir]) => {
+    try { return `${label}/DevToolsActivePort = ${readFileSync(join(dir, 'DevToolsActivePort'), 'utf8').trim().replace(/\s+/g, ' ')}`; } catch { return null; }
+  }).filter(Boolean);
+  return `user data folder: ${names(userData)}; EBWebView: ${names(join(userData, 'EBWebView'))}; ${active.join('; ') || 'no DevToolsActivePort file'}`;
+}
+
+/** Read-only: what the WebView2 browser process was started with (the flags only) and which sockets WebView2
+ *  processes listen on. Tells "the flag never arrived" from "the port opened somewhere the driver did not look". */
+function webviewDetails() {
+  const script = [
+    "$procs = @(Get-CimInstance Win32_Process -Filter \"Name='msedgewebview2.exe'\")",
+    "foreach ($p in $procs) { if ($p.CommandLine -and $p.CommandLine -match 'webview-exe-name=mdd-desktop' -and $p.CommandLine -notmatch '--type=') { 'browser process ' + $p.ProcessId + ' started with: ' + (([regex]::Matches($p.CommandLine, '--[A-Za-z0-9-]+(=[^ ]*)?') | ForEach-Object { $_.Value }) -join ' ') } }",
+    '$ids = @($procs | ForEach-Object { $_.ProcessId })',
+    "$listen = @(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object { $ids -contains $_.OwningProcess } | ForEach-Object { $_.LocalAddress + ':' + $_.LocalPort + ' (pid ' + $_.OwningProcess + ')' })",
+    "'sockets WebView2 processes listen on: ' + $(if ($listen.Count) { $listen -join ', ' } else { 'none' })",
+  ].join('\n');
+  try {
+    const out = execFileSync('powershell', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')], {
+      encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 30_000,
+    });
+    return out.split(/\r?\n/).filter(Boolean).map((line) => (line.length > 1_500 ? `${line.slice(0, 1_500)}…` : line));
+  } catch (error) {
+    return [`WebView2 process details unavailable (${error.code ?? error.message})`];
+  }
+}
+
 /** What a window that never appeared leaves behind, for the error message: a runtime that cannot start
  *  (nothing in the user data folder, no helper processes) looks different from a port that never opened. */
-function launchFacts({ child, port, stderr, userData, probe }) {
-  let entries;
-  try { entries = String(readdirSync(userData).length); } catch (error) { entries = `unreadable (${error.code ?? error.message})`; }
+async function launchFacts({ child, port, stderr, userData, probe }) {
   return [
     `no page target on port ${port} within 30 s`,
     `application: ${child.exitCode === null ? `pid ${child.pid}, still running, window title "${windowTitle(child.pid)}"` : `exited with ${child.exitCode}`}; debugging port: ${probe.answered ? probe.last : `never answered (${probe.last})`}`,
-    `WebView2 Runtime: ${registeredRuntimes()}; msedgewebview2.exe processes on the machine: ${webviewProcesses()}; user data folder entries: ${entries}`,
+    `WebView2 Runtime: ${registeredRuntimes()}; msedgewebview2.exe processes on the machine: ${webviewProcesses()}`,
+    userDataFacts(userData),
+    `loopback probe of /json/version: ${await otherHosts(port)}`,
+    ...webviewDetails(),
     `stderr: ${stderr.trim() || '(empty)'}`,
   ].join('\n');
 }
@@ -193,7 +240,7 @@ export async function launch({ exe, port = 9333, env = {} }) {
     if (!page) await sleep(200);
   }
   if (!page) {
-    const message = launchFacts({ child, port, stderr, userData, probe });
+    const message = await launchFacts({ child, port, stderr, userData, probe });
     await abandon(child, userData);
     throw new Error(message);
   }
