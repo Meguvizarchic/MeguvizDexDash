@@ -14,7 +14,7 @@ name: Resources mutation check
 # artifacts/mdd-072/mutation/results.txt without other changes. It is current for the commit it ran on and for every
 # later commit that leaves the files it hashes unchanged.
 on:
-  # TEMPORARY: a workflow that is not on the default branch cannot be dispatched, so while this file is only on the
+  # TEMPORARY (second run, after the fixture archives were added): a workflow that is not on the default branch cannot be dispatched, so while this file is only on the
   # branch claude/mdd-072-resources a push that touches it starts the check. Removed before main moves.
   push:
     branches: [claude/mdd-072-resources]

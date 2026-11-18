@@ -11,6 +11,10 @@
 # tests/fixtures/decode/generate.py writes byte for byte; the MCP process tests read them.
 !tests/fixtures/decode/generated/manifest-small.apk
 !tests/fixtures/decode/generated/no-manifest.apk
+# Synthetic archives that tests/fixtures/resources/generate.py writes byte for byte, and the inputs the reference engine
+# was asked about (artifacts/mdd-072/probe); the resource tools' process tests and the replay read them.
+!tests/fixtures/resources/generated/*.apk
+!tests/fixtures/resources/probe/*/*.apk
 # Synthetic two-entry APK (classic.dex twice, fixed timestamps) that
 # crates/mdd-facts scope.rs dex_file_provenance_matches_recorded_a0_entries reads;
 # A0's recorded source_path points here, so the file stays at this path.
