@@ -33,7 +33,7 @@ def sha256(path: Path) -> str:
 
 
 def run(command: list[str], cwd: Path) -> tuple[int, str]:
-    done = subprocess.run(command, cwd=cwd, capture_output=True, text=True, check=False)
+    done = subprocess.run(command, cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="replace", check=False)
     return done.returncode, done.stdout + done.stderr
 
 

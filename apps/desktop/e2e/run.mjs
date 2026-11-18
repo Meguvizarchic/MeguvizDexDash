@@ -70,8 +70,11 @@ for (const testCase of cases) {
         };
       }
       await flows[testCase.id]({ app, check });
-      const errors = await app.pageErrors();
-      check('the page raised no errors', errors.length === 0, errors.join(' | '));
+      // a flow that killed the window has nothing left to ask; it checks the page itself before the kill
+      if (!app.killed) {
+        const errors = await app.pageErrors();
+        check('the page raised no errors', errors.length === 0, errors.join(' | '));
+      }
     }
   } catch (error) {
     result.status = 'failed';

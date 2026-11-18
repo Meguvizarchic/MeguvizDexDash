@@ -24,7 +24,7 @@ FORBIDDEN_PERMISSIONS = ("fs:", "shell:", "http:", "opener:", "process:", "os:",
 
 
 def run(*args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(args, cwd=HERE, capture_output=True, text=True, check=False)
+    return subprocess.run(args, cwd=HERE, capture_output=True, text=True, encoding="utf-8", errors="replace", check=False)
 
 
 def in_graph(crate: str, target: str) -> bool:

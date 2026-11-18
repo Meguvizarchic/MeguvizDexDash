@@ -29,6 +29,7 @@ export class App extends AppBase {
   }
 
   killApp() {
+    this.killed = true;
     this.child.kill();
   }
 

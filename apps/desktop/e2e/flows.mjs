@@ -423,6 +423,8 @@ export const flows = {
     await openInputs(app, [desktop('a.dex')]);
     const engines = engineChildren(app.pid);
     check('the application has exactly one engine child process', engines.length === 1, JSON.stringify(engines));
+    const errors = await app.pageErrors();
+    check('the page raised no errors before the window was killed', errors.length === 0, errors.join(' | '));
     app.killApp();
     const deadline = Date.now() + 5000;
     while (engines.some(alive) && Date.now() < deadline) await sleep(100);

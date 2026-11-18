@@ -39,6 +39,7 @@ class WebDriverApp extends AppBase {
   }
 
   killApp() {
+    this.killed = true;
     process.kill(this.pid, 'SIGKILL');
   }
 

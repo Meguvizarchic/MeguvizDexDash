@@ -66,7 +66,7 @@ def main() -> int:
         problems.append("the manifest does not say this is a preview")
 
     engine = root / f"meguvizdexdash{EXE}"
-    shown = subprocess.run([str(engine), "version"], capture_output=True, text=True, check=False)
+    shown = subprocess.run([str(engine), "version"], capture_output=True, text=True, encoding="utf-8", errors="replace", check=False)
     if shown.returncode != 0 or json.loads(shown.stdout) != manifest["engine"]:
         problems.append("the packaged engine does not report the identity the manifest records")
     record["engine_build_id"] = manifest["engine"].get("build_id")

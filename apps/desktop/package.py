@@ -78,7 +78,7 @@ def sha256(path: Path) -> str:
 
 
 def run(*args: str, cwd: Path) -> str:
-    done = subprocess.run(args, cwd=cwd, capture_output=True, text=True, check=False)
+    done = subprocess.run(args, cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="replace", check=False)
     if done.returncode != 0:
         sys.exit(f"{' '.join(args)} failed in {cwd}:\n{done.stdout}\n{done.stderr}")
     return done.stdout.strip()
