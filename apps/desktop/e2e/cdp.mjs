@@ -2,8 +2,8 @@
 // is started with --remote-debugging-port (Windows). No dependency: Node's own fetch and WebSocket.
 //
 // This is a test driver for the built application, not part of it: the application contains no test hook.
-import { spawn } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync, spawn } from 'node:child_process';
+import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -95,6 +95,71 @@ async function targets(port) {
   return response.json();
 }
 
+const RUNTIME_CLIENT = '{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}';
+
+/** Read-only: which WebView2 Runtime versions the registry knows. The window cannot start without one. */
+function registeredRuntimes() {
+  const found = [];
+  for (const root of ['HKLM\\SOFTWARE\\WOW6432Node', 'HKLM\\SOFTWARE', 'HKCU\\SOFTWARE']) {
+    try {
+      const out = execFileSync('reg', ['query', `${root}\\Microsoft\\EdgeUpdate\\Clients\\${RUNTIME_CLIENT}`, '/v', 'pv'], {
+        encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 10_000,
+      });
+      found.push(`${root} ${/pv\s+REG_SZ\s+(\S+)/.exec(out)?.[1] ?? 'registered, no version'}`);
+    } catch { /* not registered under this root */ }
+  }
+  return found.length ? found.join('; ') : 'none registered';
+}
+
+/** Read-only: how many WebView2 browser/helper processes exist on the machine right now. */
+function webviewProcesses() {
+  try {
+    const out = execFileSync('tasklist', ['/FI', 'IMAGENAME eq msedgewebview2.exe', '/NH', '/FO', 'CSV'], {
+      encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 10_000,
+    });
+    return String(out.split('\n').filter((line) => line.toLowerCase().includes('msedgewebview2.exe')).length);
+  } catch (error) {
+    return `unknown (${error.code ?? error.message})`;
+  }
+}
+
+/** Read-only: the title Windows reports for the application's window. A runtime that is missing makes the
+ *  application stop on a modal "Could not find the WebView2 Runtime" box, which this shows as its title. */
+function windowTitle(pid) {
+  try {
+    const out = execFileSync('tasklist', ['/V', '/FI', `PID eq ${pid}`, '/NH', '/FO', 'CSV'], {
+      encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 10_000,
+    });
+    const fields = out.trim().split('","');
+    return fields.length > 1 ? fields[fields.length - 1].replace(/"$/, '') : 'no such process';
+  } catch (error) {
+    return `unknown (${error.code ?? error.message})`;
+  }
+}
+
+/** What a window that never appeared leaves behind, for the error message: a runtime that cannot start
+ *  (nothing in the user data folder, no helper processes) looks different from a port that never opened. */
+function launchFacts({ child, port, stderr, userData, probe }) {
+  let entries;
+  try { entries = String(readdirSync(userData).length); } catch (error) { entries = `unreadable (${error.code ?? error.message})`; }
+  return [
+    `no page target on port ${port} within 30 s`,
+    `application: ${child.exitCode === null ? `pid ${child.pid}, still running, window title "${windowTitle(child.pid)}"` : `exited with ${child.exitCode}`}; debugging port: ${probe.answered ? probe.last : `never answered (${probe.last})`}`,
+    `WebView2 Runtime: ${registeredRuntimes()}; msedgewebview2.exe processes on the machine: ${webviewProcesses()}; user data folder entries: ${entries}`,
+    `stderr: ${stderr.trim() || '(empty)'}`,
+  ].join('\n');
+}
+
+/** A launch that failed must not leave the application, or its user data folder, behind. */
+async function abandon(child, userData) {
+  if (child.exitCode === null) {
+    child.kill();
+    await new Promise((resolve) => { if (child.exitCode !== null) resolve(); else child.once('exit', resolve); });
+  }
+  await sleep(300);
+  try { rmSync(userData, { recursive: true, force: true, maxRetries: 5 }); } catch { /* still in use: the temp folder is cleaned with the machine */ }
+}
+
 /** Start the application and connect to its window. */
 export async function launch({ exe, port = 9333, env = {} }) {
   const userData = mkdtempSync(join(tmpdir(), 'mdd-desktop-e2e-'));
@@ -110,15 +175,28 @@ export async function launch({ exe, port = 9333, env = {} }) {
   let stderr = '';
   child.stderr.on('data', (chunk) => { stderr += chunk; });
   let page;
+  const probe = { answered: false, last: 'not tried' };
   const started = Date.now();
   while (!page && Date.now() - started < 30_000) {
-    if (child.exitCode !== null) throw new Error(`the application exited with ${child.exitCode}: ${stderr}`);
+    if (child.exitCode !== null) {
+      await abandon(child, userData);
+      throw new Error(`the application exited with ${child.exitCode}: ${stderr}`);
+    }
     try {
-      page = (await targets(port)).find((t) => t.type === 'page' && !t.url.startsWith('devtools://'));
-    } catch { /* the port is not open yet */ }
+      const list = await targets(port);
+      probe.answered = true;
+      probe.last = `answered with ${list.length} target(s): ${list.map((t) => t.type).join(', ') || 'none'}`;
+      page = list.find((t) => t.type === 'page' && !t.url.startsWith('devtools://'));
+    } catch (error) {
+      probe.last = error.cause?.code ?? error.message; // the port is not open yet
+    }
     if (!page) await sleep(200);
   }
-  if (!page) throw new Error(`no page target on port ${port}: ${stderr}`);
+  if (!page) {
+    const message = launchFacts({ child, port, stderr, userData, probe });
+    await abandon(child, userData);
+    throw new Error(message);
+  }
   const socket = new WebSocket(page.webSocketDebuggerUrl);
   await new Promise((resolve, reject) => {
     socket.addEventListener('open', resolve, { once: true });
