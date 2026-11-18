@@ -175,3 +175,24 @@ fn a_mobile_network_code_of_all_ones_is_written_as_00() {
     assert_eq!(with(260), "mnc260");
     assert_eq!(with(0), "");
 }
+
+#[test]
+fn a_three_letter_language_whose_letters_are_late_in_the_alphabet_is_unpacked_whole() {
+    use super::config::Configuration;
+    // "yue": y = 24, u = 20, e = 4 (offsets from 'a'); the first letter needs all five bits
+    let pack = |first: u8, second: u8, third: u8| {
+        [
+            0x80 | (third << 2) | (second >> 3),
+            first | ((second & 7) << 5),
+        ]
+    };
+    let with = |pair: [u8; 2]| {
+        let mut raw = vec![0u8; 28];
+        raw[0] = 28;
+        raw[8..10].copy_from_slice(&pair);
+        Configuration::parse(&raw).unwrap().qualifier()
+    };
+    assert_eq!(with(pack(24, 20, 4)), "yue");
+    assert_eq!(with(pack(0, 1, 2)), "abc");
+    assert_eq!(with(pack(25, 25, 25)), "zzz");
+}
