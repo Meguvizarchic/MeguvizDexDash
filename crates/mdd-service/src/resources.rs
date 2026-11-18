@@ -25,6 +25,11 @@ use std::{collections::HashMap, sync::Arc};
 /// engine's `max_resource_bytes`.
 pub const MAX_RESOURCE_BYTES: u64 = 64 * 1024 * 1024;
 
+/// Whether a member of this declared size may be served.
+fn within_cap(declared: u64) -> bool {
+    declared <= MAX_RESOURCE_BYTES
+}
+
 /// Why a resource could not be served.
 #[derive(Debug)]
 pub enum ResourceFailure {
@@ -205,7 +210,7 @@ impl Dataset {
                 "entry is a directory".to_owned(),
             ));
         }
-        if member.declared_size.0 > MAX_RESOURCE_BYTES {
+        if !within_cap(member.declared_size.0) {
             return Err(ResourceFailure::Error(
                 refuse(
                     ErrorCode::QuotaExceeded,
@@ -257,3 +262,10 @@ impl Dataset {
         Ok(handle)
     }
 }
+
+#[cfg(test)]
+#[path = "components_tests.rs"]
+mod components_tests;
+#[cfg(test)]
+#[path = "resources_tests.rs"]
+mod resources_tests;

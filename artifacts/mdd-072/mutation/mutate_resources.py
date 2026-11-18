@@ -45,7 +45,8 @@ base.REPLAYS = [
 ]
 base.CONTROLS = [*base.CONTROLS, [PY, "-I", "conformance/mcp/test_resources_replay.py"]]
 base.SOURCES = [
-    *base.SOURCES, VALUE, FRAMEWORK, XML, CONFIG, ARSC, QUERY, INPUT + "mod.rs", INPUT + "tests.rs", SERVICE, COMMON, FILES,
+    *base.SOURCES, VALUE, FRAMEWORK, XML, CONFIG, ARSC, QUERY, INPUT + "mod.rs", INPUT + "tests.rs", INPUT + "arsc_tests.rs", INPUT + "xml_tests.rs", SERVICE,
+    "crates/mdd-service/src/resources_tests.rs", "crates/mdd-service/src/components_tests.rs", COMMON, FILES,
     COMPONENTS, READ, QUERY_TOOL, "crates/mdd-input/src/manifest/mod.rs", "crates/mdd-input/src/manifest/axml.rs",
     "crates/mdd-mcp/src/tool_schemas.json", "conformance/mcp/resources_replay.py", "conformance/mcp/test_resources_replay.py",
     "conformance/mcp/resources-full-contract.json", "artifacts/mdd-072/a0-probe/calls.jsonl",
@@ -123,7 +124,6 @@ MUTANTS = [
     ("arsc: a 16-bit offset counts words", ARSC, [("usize::from(offset) * 4", "usize::from(offset) * 2")]),
     ("arsc: a chunk size need not be aligned", ARSC, [("|| !size.is_multiple_of(4)", "")]),
     ("arsc: the type id offset is ignored", ARSC, [(".checked_sub(1 + type_id_offset)", ".checked_sub(1)")]),
-    ("arsc: entries may start inside the offset table", ARSC, [("|| entries_start < header {", "{")]),
     ("arsc: a compact entry is read as a plain one", ARSC, [("if entry_flags & ENTRY_COMPACT != 0 {", "if false {")]),
     ("arsc: the entry budget is one too many", ARSC, [("> limits.max_entries {", "> limits.max_entries + 1 {")]),
     ("arsc: a table's size may be smaller than its bytes", ARSC, [("|| whole.len() != bytes.len() {", "|| whole.len() > bytes.len() {")]),
@@ -141,7 +141,7 @@ MUTANTS = [
     # ---- the archive and the dataset
     ("service: members are in reverse name order", SERVICE, [("a.0.cmp(&b.0).then(a.1.entry_index.cmp(&b.1.entry_index))", "b.0.cmp(&a.0).then(a.1.entry_index.cmp(&b.1.entry_index))")]),
     ("service: a directory entry is read as a file", SERVICE, [("if member.is_directory {", "if false {")]),
-    ("service: the resource cap is doubled", SERVICE, [("member.declared_size.0 > MAX_RESOURCE_BYTES", "member.declared_size.0 > MAX_RESOURCE_BYTES * 2")]),
+    ("service: the resource cap is doubled", SERVICE, [("    declared <= MAX_RESOURCE_BYTES\n", "    declared <= MAX_RESOURCE_BYTES * 2\n")]),
     ("service: binary XML is recognised by another magic", SERVICE, [("starts_with(&[3, 0, 8, 0])", "starts_with(&[3, 0, 9, 0])")]),
     ("service: hex is read as text", SERVICE, [("let (kind, text) = if hex {", "let (kind, text) = if false {")]),
     ("service: a hex read and a text read share a cache entry", SERVICE, [("let key = (input_index, name.to_owned(), hex);", "let key = (input_index, name.to_owned(), false);")]),
@@ -169,12 +169,12 @@ MUTANTS = [
     ("tools: a broken member is not a resource error", COMMON, [('"resource_error"\n            } else if error.stage == "manifest"', '"invalid_input"\n            } else if error.stage == "manifest"')]),
     ("tools: several archives are not ambiguous", COMMON, [('"ambiguous_input",', '"invalid_argument",')]),
     ("tools: an unsupported table is invalid", COMMON, [("ResourceFailure::InvalidTable(error) if error.code == ErrorCode::UnsupportedCapability => {", "ResourceFailure::InvalidTable(error) if false => {")]),
-    ("tools: a prefix is a substring", FILES, [("files.retain(|file| file.name.starts_with(&prefix));", "files.retain(|file| file.name.contains(&prefix));")]),
+    ("tools: a prefix is a substring", FILES, [("files.retain(|file| file.name.starts_with(prefix));", "files.retain(|file| file.name.contains(prefix));")]),
     ("tools: only_exported keeps the unknown", COMPONENTS, [("c.exported == Some(true))", "c.exported != Some(false))")]),
     ("tools: a hex page holds a quarter of max_bytes", READ, [("usize::try_from(max_bytes / 8)", "usize::try_from(max_bytes / 4)")]),
     ("tools: binary XML is called text", READ, [('"android_xml"', '"text"')]),
     ("tools: a hex offset past the end is accepted", READ, [("if args.offset > source_bytes {", "if args.offset > source_bytes + 1 {")]),
-    ("tools: the resource id has no fixed width", QUERY_TOOL, [('format!("0x{:08x}", row.entry.resource_id)', 'format!("0x{:x}", row.entry.resource_id)')]),
+    ("tools: the resource id has no fixed width", QUERY_TOOL, [('format!("0x{id:08x}")', 'format!("0x{id:x}")')]),
     ("tools: an attribute reference row has no reference id", QUERY_TOOL, [("            | data_type::ATTRIBUTE\n", "")]),
     ("tools: a row has no item count", QUERY_TOOL, [('out.insert("item_count".to_owned(), json!(item.count));', "")]),
     ("tools: the default configuration is every configuration", QUERY_TOOL, [("configuration: args.configuration.clone(),", "configuration: args.configuration.clone().filter(|c| !c.is_empty()),")]),

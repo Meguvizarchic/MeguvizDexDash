@@ -12,6 +12,10 @@
    "bytes": 5972,
    "sha256": "87df92f3e444e17e03161c8cfdc8a7dbfa501682d09f32718958693b382db0a1"
   },
+  "resources-duplicate.apk": {
+   "bytes": 784,
+   "sha256": "39edc297612e7fedf00c44cadbbfd9b3d128fb3fa5218393640e1b3b95bc5bd1"
+  },
   "resources-no-arsc.apk": {
    "bytes": 2792,
    "sha256": "a53e9ecdd089b58be97678f9135b2f481c2132844d7765020d13af14b4ca4231"

@@ -59,4 +59,4 @@ KILLED   bridge: the dialect's list is not applied to the schema [unit]
 KILLED   registry: the public relations are not listed [unit]
 restored tree passes the unit and process tests, the replays and their controls: True
 public APK present for the manifest replay: False
-sources sha256: 726c4fee62dbf78ebbe741d7c998815aac6556241247c5a23c5f749529fb02cd
+sources sha256: 9bd77490ee6ef9fd4d8d642ed4aad940953f322d39c43f201ec3ee3f0eadd24d

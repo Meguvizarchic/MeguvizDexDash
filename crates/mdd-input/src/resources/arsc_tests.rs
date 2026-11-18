@@ -518,3 +518,95 @@ fn a_map_entry_without_items_is_one_row_that_says_it_is_empty() {
     );
     assert!(table.row(keys[1]).item.is_none());
 }
+
+#[test]
+fn a_map_entry_whose_size_field_says_eight_is_refused_even_when_nothing_follows_it() {
+    // size 8 with a count of zero: no item is read past the end, so only the size itself is wrong
+    let mut entry = le16(8);
+    entry.extend(le16(1));
+    entry.extend(le32(0));
+    entry.extend(le32(0));
+    entry.extend(le32(0));
+    let body = vec![type_chunk(1, 0, 1, &dense(&[0]), &entry)];
+    let bytes = table_of(&["v"], &[package(0x7f, 0, &["style"], &["k0"], &body)], 1);
+    assert!(parse(&bytes).is_err());
+    // the same entry with the size the platform writes is an empty map entry
+    let ok = map_entry(0, 0, &[]);
+    let body = vec![type_chunk(1, 0, 1, &dense(&[0]), &ok)];
+    let bytes = table_of(&["v"], &[package(0x7f, 0, &["style"], &["k0"], &body)], 1);
+    assert!(parse(&bytes).is_ok());
+}
+
+#[test]
+fn a_chunk_of_a_type_not_read_is_counted_and_a_misaligned_one_is_refused() {
+    let good = plain();
+    let with_unknown = |size: usize| {
+        let mut table = good.clone();
+        let mut unknown = le16(0x0999);
+        unknown.extend(le16(8));
+        unknown.extend(le32(size as u32));
+        unknown.resize(size, 0);
+        table.extend(unknown);
+        let total = table.len() as u32;
+        table[4..8].copy_from_slice(&le32(total));
+        table
+    };
+    let counted = parse(&with_unknown(12)).unwrap();
+    assert_eq!(counted.skipped_chunks(), 1);
+    assert_eq!(parse(&good).unwrap().skipped_chunks(), 0);
+    // ten bytes: the chunk and, with it, the root chunk are not a whole number of words
+    assert!(parse(&with_unknown(10)).is_err());
+}
+
+#[test]
+fn a_table_must_have_its_global_pool_even_when_no_entry_needs_a_string() {
+    let entries = entry(0, 0, 0x10, 5);
+    let body = vec![type_chunk(1, 0, 1, &dense(&[0]), &entries)];
+    let package = package(0x7f, 0, &["integer"], &["k0"], &body);
+    let mut fields = le32(1);
+    fields.truncate(4);
+    let without = chunk(2, 12, &fields, &package);
+    assert!(parse(&without).is_err());
+    let with = table_of(
+        &["v"],
+        &[self::package(0x7f, 0, &["integer"], &["k0"], &body)],
+        1,
+    );
+    assert!(parse(&with).is_ok());
+}
+
+#[test]
+fn a_type_filter_is_the_whole_type_name() {
+    use super::query::Filter;
+    let table = parse(&plain()).unwrap();
+    let by_type = |t: &str| {
+        table
+            .query(&Filter {
+                resource_type: Some(t.to_owned()),
+                ..Filter::default()
+            })
+            .len()
+    };
+    assert_eq!(by_type("string"), 3);
+    assert_eq!(by_type("str"), 0);
+    assert_eq!(by_type("strings"), 0);
+    assert_eq!(by_type(""), 0);
+}
+
+#[test]
+fn a_name_filter_with_a_package_needs_that_package() {
+    use super::query::Filter;
+    let table = parse(&plain()).unwrap();
+    let by_name = |n: &str| {
+        table
+            .query(&Filter {
+                name: Some(n.to_owned()),
+                ..Filter::default()
+            })
+            .len()
+    };
+    assert_eq!(by_name("string/k0"), 1);
+    assert_eq!(by_name("pkg:string/k0"), 1);
+    assert_eq!(by_name("other:string/k0"), 0);
+    assert_eq!(by_name("k0"), 0);
+}

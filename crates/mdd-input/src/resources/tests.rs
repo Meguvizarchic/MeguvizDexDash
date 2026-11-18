@@ -145,3 +145,33 @@ fn a_manifest_is_written_as_the_reference_writes_it_except_for_its_text_node() {
     assert_eq!(text, expected);
     assert_eq!(text.len(), 690 + "    text\n".len());
 }
+
+#[test]
+fn the_install_locations_are_named_by_value() {
+    use super::framework::named;
+    assert_eq!(named("installLocation", 0).as_deref(), Some("auto"));
+    assert_eq!(named("installLocation", 1).as_deref(), Some("internalOnly"));
+    assert_eq!(
+        named("installLocation", 2).as_deref(),
+        Some("preferExternal")
+    );
+    assert_eq!(
+        named("launchMode", 4).as_deref(),
+        Some("singleInstancePerTask")
+    );
+    assert_eq!(named("launchMode", 3).as_deref(), Some("singleInstance"));
+}
+
+#[test]
+fn a_mobile_network_code_of_all_ones_is_written_as_00() {
+    use super::config::Configuration;
+    let with = |mnc: u16| {
+        let mut raw = vec![0u8; 28];
+        raw[0] = 28;
+        raw[6..8].copy_from_slice(&mnc.to_le_bytes());
+        Configuration::parse(&raw).unwrap().qualifier()
+    };
+    assert_eq!(with(0xffff), "mnc00");
+    assert_eq!(with(260), "mnc260");
+    assert_eq!(with(0), "");
+}

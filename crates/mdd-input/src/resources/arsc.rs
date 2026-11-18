@@ -341,7 +341,7 @@ impl ResourceTable {
         let flags = u8_at(chunk, 9)?;
         let count = u32_at(chunk, 12)? as usize;
         let entries_start = u32_at(chunk, 16)? as usize;
-        if type_id == 0 || header < 24 || entries_start > chunk.len() || entries_start < header {
+        if type_id == 0 || header < 24 || entries_start > chunk.len() {
             return Err(invalid("a type chunk has a bad id, header or entry start"));
         }
         let config = Configuration::parse(

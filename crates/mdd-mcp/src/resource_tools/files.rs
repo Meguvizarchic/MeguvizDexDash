@@ -1,6 +1,7 @@
 //! `list_resource_files`: the members of an archive, by name.
 use super::{fit_rows, limit_of, row_budget, run, window};
 use crate::tools::{Failure, Registry};
+use mdd_service::resources::ResourceFile;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -17,6 +18,12 @@ pub struct Args {
     timeout_ms: Option<u64>,
 }
 
+/// The members whose name starts with `prefix` (case-sensitive; empty keeps all).
+fn with_prefix(mut files: Vec<ResourceFile>, prefix: &str) -> Vec<ResourceFile> {
+    files.retain(|file| file.name.starts_with(prefix));
+    files
+}
+
 pub fn list_resource_files(registry: &mut Registry, args: Args) -> Result<Value, Failure> {
     let limit = limit_of(args.limit)?;
     let budget = row_budget(args.max_bytes)?;
@@ -28,9 +35,8 @@ pub fn list_resource_files(registry: &mut Registry, args: Args) -> Result<Value,
         args.input_index,
         args.timeout_ms,
         move |dataset, index| {
-            let mut files = dataset.resource_files(index)?;
-            files.retain(|file| file.name.starts_with(&prefix));
-            Ok(files)
+            let files = dataset.resource_files(index)?;
+            Ok(with_prefix(files, &prefix))
         },
     )?;
     let (start, end) = window(args.offset, files.len(), limit)?;
@@ -64,4 +70,36 @@ pub fn list_resource_files(registry: &mut Registry, args: Args) -> Result<Value,
             "truncated": next < total,
         })
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn file(name: &str) -> ResourceFile {
+        ResourceFile {
+            entry_index: 0,
+            name: name.to_owned(),
+            raw_name_hex: None,
+            bytes: 0,
+            compressed_bytes: 0,
+            crc32: 0,
+            directory: false,
+        }
+    }
+
+    #[test]
+    fn a_prefix_is_the_start_of_a_name_and_case_matters() {
+        let files = vec![
+            file("res/raw/a"),
+            file("raw/b"),
+            file("Raw/c"),
+            file("assets/res/d"),
+        ];
+        let names = |kept: Vec<ResourceFile>| kept.into_iter().map(|f| f.name).collect::<Vec<_>>();
+        assert_eq!(names(with_prefix(files.clone(), "raw/")), ["raw/b"]);
+        assert_eq!(names(with_prefix(files.clone(), "res/")), ["res/raw/a"]);
+        assert_eq!(names(with_prefix(files.clone(), "")).len(), 4);
+        assert!(with_prefix(files, "RAW/").is_empty());
+    }
 }

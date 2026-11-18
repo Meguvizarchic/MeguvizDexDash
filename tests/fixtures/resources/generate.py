@@ -294,6 +294,22 @@ def apk(members: dict[str, bytes], deflate: set[str] = frozenset()) -> bytes:
     return buffer.getvalue()
 
 
+def apk_with_repeated_name(members: list[tuple[str, bytes]]) -> bytes:
+    """A stored archive that may name a member twice, which a dict cannot: the central directory lists both."""
+    import warnings
+
+    buffer = io.BytesIO()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")  # zipfile warns about the repeated name; that is the point
+        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_STORED) as archive:
+            for name, data in members:
+                info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
+                info.external_attr = 0o644 << 16
+                info.create_system = 3
+                archive.writestr(info, data)
+    return buffer.getvalue()
+
+
 def tiny_dex() -> bytes:
     """Reuse the decode fixture's small DEX so the APKs have a real DEX member."""
     return (ROOT / "tests/fixtures/decode/generated/decode-v035.dex").read_bytes()
@@ -331,6 +347,9 @@ def build_all() -> dict[str, bytes]:
         "resources-no-arsc.apk": apk({"AndroidManifest.xml": manifest, "classes.dex": dex,
                                       "assets/hello.txt": text}),
     }
+    # two members of one name: neither is chosen for the reader
+    files["resources-duplicate.apk"] = apk_with_repeated_name(
+        [("classes.dex", dex), ("assets/dup.txt", b"one\n"), ("assets/dup.txt", b"two\n")])
     # damaged arsc: truncated, and bad magic
     files["resources-corrupt.apk"] = apk({**base, "resources.arsc": arsc[: len(arsc) // 2]})
     bad_magic = bytearray(arsc); bad_magic[0] = 9

@@ -310,3 +310,147 @@ pub(crate) fn check_ceiling(registry: &Registry, answer: &Value) -> Result<(), F
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tools::error_result;
+    use mdd_types::MddError;
+
+    fn kind(failure: ResourceFailure) -> String {
+        let Failure::Execution(error) = kind_of(failure) else {
+            panic!("a tool error");
+        };
+        error_result(&error)["error"]["kind"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+    }
+
+    #[test]
+    fn each_failure_has_the_kind_the_contract_names() {
+        let error = |code| MddError::new(code, "t", "m");
+        assert_eq!(
+            kind(ResourceFailure::NoSuchInput("m".into())),
+            "not_archive"
+        );
+        assert_eq!(kind(ResourceFailure::NotFound("m".into())), "not_found");
+        assert_eq!(
+            kind(ResourceFailure::Directory("m".into())),
+            "invalid_input"
+        );
+        assert_eq!(kind(ResourceFailure::Several("m".into())), "ambiguous");
+        assert_eq!(
+            kind(ResourceFailure::InvalidXml(error(ErrorCode::InvalidInput))),
+            "invalid_xml"
+        );
+        assert_eq!(
+            kind(ResourceFailure::InvalidTable(error(
+                ErrorCode::InvalidInput
+            ))),
+            "invalid_resource_table"
+        );
+        // a table that uses what is not read yet is not an invalid table
+        assert_eq!(
+            kind(ResourceFailure::InvalidTable(error(
+                ErrorCode::UnsupportedCapability
+            ))),
+            "unsupported_capability"
+        );
+        assert_eq!(
+            kind(ResourceFailure::Error(error(ErrorCode::QuotaExceeded))),
+            "quota_exceeded"
+        );
+        let broken = MddError::new(
+            ErrorCode::InvalidInput,
+            "archive.member_bytes",
+            "Invalid checksum",
+        )
+        .detail("reason", "CRC_OR_DECOMPRESSION_FAILURE");
+        assert_eq!(kind(ResourceFailure::Error(broken)), "resource_error");
+        let manifest = MddError::new(ErrorCode::InvalidInput, "manifest", "bad");
+        assert_eq!(kind(ResourceFailure::Error(manifest)), "invalid_xml");
+    }
+
+    #[test]
+    fn an_answer_weighs_its_compact_json_and_the_escaped_text_copy() {
+        // {"a":"b"} is 9 bytes, and as the text of a JSON string {\"a\":\"b\"} is 13
+        assert_eq!(wire_size(&json!({"a": "b"})), 9 + 13);
+        assert_eq!(wire_size(&json!([])), 2 + 2);
+    }
+
+    #[test]
+    fn rows_are_added_while_the_answer_fits_and_an_answer_exactly_at_the_budget_fits() {
+        let rows: Vec<Value> = (0..4).map(|n| json!({"n": n})).collect();
+        let build = |count: usize| json!({"rows": &rows[..count]});
+        let one = wire_size(&build(1));
+        let three = wire_size(&build(3));
+        assert_eq!(fit_rows(&rows, three, &build).unwrap(), build(3));
+        assert_eq!(fit_rows(&rows, three - 1, &build).unwrap(), build(2));
+        assert_eq!(fit_rows(&rows, one, &build).unwrap(), build(1));
+        assert!(
+            fit_rows(&rows, one - 1, &build).is_err(),
+            "not even one row fits"
+        );
+        assert_eq!(fit_rows(&[], 100, &build).unwrap(), build(0));
+    }
+
+    fn page(text: &str, offset: u64, max_bytes: u64) -> Value {
+        text_page(text, offset, max_bytes).unwrap()
+    }
+
+    #[test]
+    fn a_text_page_holds_whole_lines_up_to_a_quarter_of_max_bytes() {
+        // a quarter of 4096 is 1024: a line of exactly 1024 bytes fits, one of 1025 is cut
+        let exact = format!("{}\n{}\n", "a".repeat(1023), "b".repeat(5));
+        let first = page(&exact, 0, 4096);
+        assert_eq!(first["text"].as_str().unwrap().len(), 1024);
+        assert_eq!(
+            (first["ends_mid_line"].clone(), first["next_offset"].clone()),
+            (json!(false), json!(1024))
+        );
+        let long = format!("{}\nrest\n", "a".repeat(1024));
+        let cut = page(&long, 0, 4096);
+        assert_eq!(cut["text"].as_str().unwrap().len(), 1024);
+        assert_eq!(
+            (cut["ends_mid_line"].clone(), cut["end_line"].clone()),
+            (json!(true), json!(0))
+        );
+        // the rest of that line, then the next
+        let rest = page(&long, 1024, 4096);
+        assert_eq!(rest["text"], "\nrest\n");
+        assert_eq!(
+            (
+                rest["starts_mid_line"].clone(),
+                rest["start_line"].clone(),
+                rest["end_line"].clone()
+            ),
+            (json!(true), json!(0), json!(2))
+        );
+        assert_eq!(page("", 0, 4096)["next_offset"], Value::Null);
+        // never inside a character: 1023 bytes then a three-byte character that straddles the budget
+        let wide = format!("{}世{}", "a".repeat(1023), "z");
+        let page = page(&wide, 0, 4096);
+        assert_eq!(page["text"].as_str().unwrap().len(), 1023);
+        assert!(
+            text_page(&wide, 1024, 4096).is_err(),
+            "offset 1024 is inside the character"
+        );
+        assert!(text_page(&wide, 99_999, 4096).is_err());
+    }
+
+    #[test]
+    fn the_range_of_a_page_and_of_a_limit_is_checked() {
+        assert!(limit_of(Some(0)).is_err());
+        assert!(limit_of(Some(201)).is_err());
+        assert_eq!(limit_of(None).unwrap(), 200);
+        assert_eq!(limit_of(Some(1)).unwrap(), 1);
+        assert!(page_bytes_of(Some(4095)).is_err());
+        assert!(page_bytes_of(Some(131_073)).is_err());
+        assert_eq!(page_bytes_of(Some(4096)).unwrap(), 4096);
+        assert_eq!(page_bytes_of(None).unwrap(), 131_072);
+        assert_eq!(window(7, 7, 5).unwrap(), (7, 7));
+        assert_eq!(window(2, 7, 3).unwrap(), (2, 5));
+        assert!(window(8, 7, 5).is_err());
+    }
+}

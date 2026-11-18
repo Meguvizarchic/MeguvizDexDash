@@ -31,6 +31,11 @@ pub struct Args {
     timeout_ms: Option<u64>,
 }
 
+/// `0x` and eight hex digits, whatever the id: a framework id is `0x01010000`, not `0x1010000`.
+fn resource_id_hex(id: u32) -> String {
+    format!("0x{id:08x}")
+}
+
 fn row_json(handle: &TableHandle, row: &Row<'_>) -> Result<Value, MddError> {
     let table = &handle.table;
     let mut out = Map::new();
@@ -40,7 +45,7 @@ fn row_json(handle: &TableHandle, row: &Row<'_>) -> Result<Value, MddError> {
     out.insert("resource_id".to_owned(), json!(row.entry.resource_id));
     out.insert(
         "resource_id_hex".to_owned(),
-        json!(format!("0x{:08x}", row.entry.resource_id)),
+        json!(resource_id_hex(row.entry.resource_id)),
     );
     // a map entry without items has no value to show
     if let Some(value) = row.value {
@@ -127,4 +132,16 @@ pub fn query_resources(registry: &mut Registry, args: Args) -> Result<Value, Fai
         map.insert("source".to_owned(), source_json(&handle.evidence));
     }
     Ok(answer)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resource_id_hex;
+
+    #[test]
+    fn an_id_has_eight_digits() {
+        assert_eq!(resource_id_hex(0x7f01_0000), "0x7f010000");
+        assert_eq!(resource_id_hex(0x0101_0000), "0x01010000");
+        assert_eq!(resource_id_hex(0), "0x00000000");
+    }
 }

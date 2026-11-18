@@ -294,3 +294,34 @@ fn only_the_android_namespace_gets_framework_names_for_its_integers() {
     assert!(text.contains("p:protectionLevel=\"signature\""), "{text}");
     assert!(text.contains("\n  protectionLevel=\"2\""), "{text}");
 }
+
+#[test]
+fn a_flag_word_written_as_hex_is_named_like_one_written_as_decimal() {
+    let mut s = strings();
+    s.push(units("http://schemas.android.com/apk/res/android")); // 8
+    s.push(units("protectionLevel")); // 9
+    for (kind, expected) in [(0x10u8, "signature"), (0x11, "signature")] {
+        let nodes = vec![
+            start_ns(3, 8),
+            start_element(NONE, 4, &[(8, 9, NONE, kind, 2)]),
+            end_element(NONE, 4),
+            end_ns(3, 8),
+        ];
+        let text = shown(document(pool(&s, true), nodes)).unwrap();
+        assert!(
+            text.contains(&format!("p:protectionLevel=\"{expected}\"")),
+            "{text}"
+        );
+    }
+    // typed as a string it is a string, whatever its data word says
+    let mut with_text = s.clone();
+    with_text.push(units("whatever"));
+    let nodes = vec![
+        start_ns(3, 8),
+        start_element(NONE, 4, &[(8, 9, 10, 3, 10)]),
+        end_element(NONE, 4),
+        end_ns(3, 8),
+    ];
+    let text = shown(document(pool(&with_text, true), nodes)).unwrap();
+    assert!(text.contains("p:protectionLevel=\"whatever\""), "{text}");
+}

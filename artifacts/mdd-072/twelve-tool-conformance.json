@@ -172,17 +172,17 @@
  "tests": {
   "mdd-input lib": {
    "exit_code": 0,
-   "passed": 63,
+   "passed": 71,
    "failed": 0
   },
   "mdd-service lib": {
    "exit_code": 0,
-   "passed": 16,
+   "passed": 25,
    "failed": 0
   },
   "mdd-mcp lib": {
    "exit_code": 0,
-   "passed": 22,
+   "passed": 29,
    "failed": 0
   },
   "mdd-cli mcp": {
@@ -204,29 +204,29 @@
   "crates/mdd-input/src/resources/framework.rs": "821bad661f2eb4c8daec667c32ab6c3ddc71ceacdcb49ad9a7a2d875bd13c26d",
   "crates/mdd-input/src/resources/xml.rs": "774f7738e6037dbee27eb8f57e77f7156a084f519de840ea683107c0de8403f0",
   "crates/mdd-input/src/resources/config.rs": "ae18e648607d9d833d5cb730f27ad6e123789c8e8f7a45d8a414f5335a6047f6",
-  "crates/mdd-input/src/resources/arsc.rs": "a1e11d2fe6301f7bf1457b9171a35e8dab1ea06c2af0d1327dc54539af44c471",
+  "crates/mdd-input/src/resources/arsc.rs": "1350780cc4946a370bb6b21e98afcbad9a05a524b37a8d848c75d6cf73e18671",
   "crates/mdd-input/src/resources/query.rs": "53afedb7c1002ee24220304a4ea647f73645fdd9ad06025ef00b5945b54d4e67",
-  "crates/mdd-input/src/resources/tests.rs": "81518df072f536f8d36d8dee39ca0741ad5f483e448e52d2136e4d06f78e8d1c",
+  "crates/mdd-input/src/resources/tests.rs": "38f32f71a35e21d6619ecd30c1f51a5f549cae412a409f9be7c13cf32254bc89",
   "crates/mdd-input/src/manifest/mod.rs": "46696fba00a1eea12ffd02ec3240a02fb472c5d160566f6d419385f968b3ab31",
-  "crates/mdd-service/src/resources.rs": "1b99b2310e264f239d2894b355dd2fb13c30e4b0a876a3f2b6e14de3fca0b092",
+  "crates/mdd-service/src/resources.rs": "3043ac1705c615d2c58f14c68ea3c37c2bba19a85b0c3510ad2cda55b6a7c6aa",
   "crates/mdd-service/src/manifest.rs": "bcd6a52d701eb28b0f74956ed5bf3471a941903691a9fc270a8562539aac66a4",
   "crates/mdd-service/src/dataset.rs": "c4246ce7b5153730523635a729e5232522cfd5db49a1e5a1a0a0f17fcdb03e2a",
   "crates/mdd-mcp/src/tools.rs": "7678eb4ffc512560ad945e0ad3735d2260275a4d81ba5876f64b9eb3381cedf8",
   "crates/mdd-mcp/src/tool_schemas.json": "238137d77806250a7421ce7d79744220499c50cffeb0863e8df5a7203493b457",
-  "crates/mdd-mcp/src/resource_tools/mod.rs": "e7025428137ed0f2bf66d0d41c76e69fbc905262cbcf6d8a5b1ca35d73120f47",
-  "crates/mdd-mcp/src/resource_tools/files.rs": "01a29f43a77d80e1b84ae99db6ec4acd7e04216a72e73a563fb9f1b3043a4a8f",
+  "crates/mdd-mcp/src/resource_tools/mod.rs": "6d3b486cbe543c2b29256d6a1a01caeaf484ee78b7451678f454b6b97ba8d30a",
+  "crates/mdd-mcp/src/resource_tools/files.rs": "5ec1eefd0be2b85d4857878084df628dddddcc054a6bd4253beac4e6285ad78f",
   "crates/mdd-mcp/src/resource_tools/components.rs": "a0b27a389ce4f5814d9c961d02bdfeac63a2f45c546bb4f6ac9b25a14242da25",
   "crates/mdd-mcp/src/resource_tools/read.rs": "97031ad5151b9254bf31eb342def56c31fc2169f990e53b3d5d0fa01155a3d67",
-  "crates/mdd-mcp/src/resource_tools/query.rs": "c3cf946b2af9cddb2b1ffb1e2966a82b5eaf36a5b6883fb6e059f178f42af897",
+  "crates/mdd-mcp/src/resource_tools/query.rs": "e7111a28cdad4a7395bd7052835996347d5d22ac839b2edd4550fcc41ca70592",
   "conformance/mcp/resources_replay.py": "957f7e383a8ac1233c58db0f57a3fef4da01c186f87b918db0f32e717969a2e5",
   "conformance/mcp/test_resources_replay.py": "5711cccc9fbd64dcd423a584fb1edca4bd27a0a446310945efa3a8fe4aa83a8e",
   "conformance/mcp/resources-full-contract.json": "ca6bd6b3ef49914d4cd190626556231f085c9827659d340e64cebdaa9ffc992b",
   "artifacts/mdd-072/a0-probe/tools-list.json": "7530c7fb4ae0fac55ac01e3c18700521ea8f838351c8974871f59cbbbdfa7318",
   "artifacts/mdd-072/a0-probe/calls.jsonl": "9b320d58c6144e4ea96a5974d341941afa7da2ef1eda2bba3154f52285c9d107",
-  "tests/fixtures/resources/generate.py": "d83d7c929f8471abe39bae4aa633ad32c64e6afbf0a50c95156c0354c2c52be7",
-  "tests/fixtures/resources/manifest.json": "e91d3286d877e3777fbebc9d370db3a6b4720ac9d71ddc2dc19b3e689f2a40e6",
+  "tests/fixtures/resources/generate.py": "c0e71e0500cd8faaac8a5049632e9ae02704de27a0f8e3c4d2aae4a86e8d36c6",
+  "tests/fixtures/resources/manifest.json": "56d3dc449d1704580b93d3a1abc2d1c64d72710c2e7b02f241df64652f092ea6",
   "artifacts/mdd-072/probe/probe_a0.py": "e10a4b037f1d6dff78af28115e28aada9220d23ace24fd1abe316a3510b57092",
-  "artifacts/mdd-072/mutation/mutate_resources.py": "65ea48ea262f6212bab89b943bf024ab6215d964df7fb589b492169b10d00dad"
+  "artifacts/mdd-072/mutation/mutate_resources.py": "05fc8c20f1ee5f841cfe5bbaae612a71dfc0101ecca68bb7b5f6b1f0594a5e39"
  },
  "residual": [
   "the recorded answers are those of dexsql 0.1.0, windows-amd64 build only; dexsql 0.1.1 was not probed for the resource tools",
@@ -241,6 +241,6 @@
   "the mutation check runs in .github/workflows/mutation-resources.yml, not on a developer machine; until its results.txt is committed no mutation result is claimed"
  ],
  "run": {
-  "finished_utc": "2026-11-18T05:12:30Z"
+  "finished_utc": "2026-11-18T05:41:38Z"
  }
 }
