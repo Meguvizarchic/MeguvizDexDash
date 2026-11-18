@@ -120,7 +120,7 @@ pub struct Dataset {
     pub(crate) session: SessionHandle,
     /// The session's SQL front: plain statements, TEMP definitions and windows. Its
     /// bridge is what `run` prepares and executes against.
-    temp: TempSqlSession,
+    temp: Option<TempSqlSession>,
     pub(crate) scope_id: String,
     pub(crate) dialect: Dialect,
     pub(crate) limits: ResourceLimits,
@@ -133,6 +133,8 @@ pub struct Dataset {
     pub(crate) inventories: Vec<ArchiveInventory>,
     /// Parsed manifests by input position, so paging the permissions parses once.
     pub(crate) manifests: Mutex<HashMap<usize, Arc<ManifestDocument>>>,
+    /// Resources read, rendered or parsed, so paging through one reads it once.
+    pub(crate) resources: Mutex<crate::resources::ResourceCache>,
 }
 
 impl Dataset {
@@ -157,32 +159,30 @@ impl Dataset {
         let snapshot = Arc::new(Snapshot::capture(&specs, CaptureLimits::default())?);
         let mut inventories = Vec::new();
         for source in snapshot.sources() {
+            // An archive with resources and no DEX is a valid input: the resource tools
+            // read it, and the tools that need code say so (`require_dex`).
             inventories.push(ArchiveInventory::build(
                 source,
-                InventoryPolicy::default(),
+                InventoryPolicy {
+                    require_dex: false,
+                    ..InventoryPolicy::default()
+                },
                 ArchiveLimits::default(),
             )?);
         }
         let refs: Vec<&ArchiveInventory> = inventories.iter().collect();
         let scope = SelectedScope::from_inventories(&snapshot, &refs)?;
         let dex_count: usize = inventories.iter().map(|i| i.selected_dexes().len()).sum();
-        if dex_count == 0 {
-            return Err(MddError::new(
-                ErrorCode::InvalidInput,
-                "service",
-                "the inputs select no DEX",
-            ));
-        }
-        let (bridge, layer_issues, occurrences) = match dialect {
-            Dialect::NativeV1 => (
-                Self::native_bridge(&snapshot, &inventories, sql_limits)?,
-                Vec::new(),
-                Vec::new(),
-            ),
+        // No DEX, no SQL: the facts every relation reads do not exist, and an empty provider
+        // would answer "no rows" where the truth is "nothing to ask".
+        let built = (dex_count > 0).then(|| match dialect {
+            Dialect::NativeV1 => Self::native_bridge(&snapshot, &inventories, sql_limits)
+                .map(|bridge| (bridge, Vec::new(), Vec::new())),
             Dialect::DexSql010 | Dialect::DexSql011 => {
-                Self::contract_bridge(dialect, &snapshot, &inventories, &scope, sql_limits)?
+                Self::contract_bridge(dialect, &snapshot, &inventories, &scope, sql_limits)
             }
-        };
+        });
+        let built = built.transpose()?;
         // A session or query can only restrict the lifecycle's ceiling, never raise it,
         // so the ceiling is what was asked for: a longer deadline must not be cut to the
         // default without a word.
@@ -193,7 +193,18 @@ impl Dataset {
         })?);
         let snapshot_handle = lifecycle.register_snapshot(Arc::clone(&snapshot))?;
         let session = lifecycle.open_session(&snapshot_handle, limits)?;
-        let temp = TempSqlSession::new(Arc::clone(&lifecycle), session.clone(), bridge)?;
+        let (temp, layer_issues, occurrences) = match built {
+            Some((bridge, layer_issues, occurrences)) => (
+                Some(TempSqlSession::new(
+                    Arc::clone(&lifecycle),
+                    session.clone(),
+                    bridge,
+                )?),
+                layer_issues,
+                occurrences,
+            ),
+            None => (None, Vec::new(), Vec::new()),
+        };
         Ok(Self {
             lifecycle,
             snapshot,
@@ -209,6 +220,7 @@ impl Dataset {
             decode_indexes: OnceLock::new(),
             inventories,
             manifests: Mutex::new(HashMap::new()),
+            resources: Mutex::new(crate::resources::ResourceCache::default()),
         })
     }
 
@@ -333,17 +345,18 @@ impl Dataset {
         Ok((bridge, issues, occurrences))
     }
 
-    /// The session's SQL front, for callers that run TEMP definitions and windows.
-    pub fn temp(&self) -> &TempSqlSession {
-        &self.temp
+    /// The session's SQL front, for callers that run TEMP definitions and windows. A dataset
+    /// without DEX has none.
+    pub fn temp(&self) -> MddResult<&TempSqlSession> {
+        self.temp.as_ref().ok_or_else(no_dex)
     }
 
     pub fn snapshot(&self) -> &Snapshot {
         &self.snapshot
     }
 
-    pub fn bridge(&self) -> &SqlBridge {
-        self.temp.bridge()
+    pub fn bridge(&self) -> MddResult<&SqlBridge> {
+        Ok(self.temp()?.bridge())
     }
 
     pub fn scope_id(&self) -> &str {
@@ -358,6 +371,20 @@ impl Dataset {
     /// number of selected DEX occurrences is.
     pub fn dex_count(&self) -> usize {
         self.dex_count
+    }
+
+    pub fn has_dex(&self) -> bool {
+        self.dex_count > 0
+    }
+
+    /// The tools that read code (SQL, decode) refuse a dataset with none, in these words,
+    /// so an empty result is never mistaken for "this archive has no such thing".
+    pub fn require_dex(&self) -> MddResult<()> {
+        if self.has_dex() {
+            Ok(())
+        } else {
+            Err(no_dex())
+        }
     }
 
     pub fn layer_issues(&self) -> &[LayerIssue] {
@@ -421,6 +448,15 @@ impl Dataset {
     }
 }
 
+fn no_dex() -> MddError {
+    MddError::new(
+        ErrorCode::InvalidInput,
+        "service.dataset",
+        "this dataset has resources but no DEX; query an input containing DEX",
+    )
+    .detail("dex_count", "0")
+}
+
 impl Drop for Dataset {
     fn drop(&mut self) {
         let _ = self.lifecycle.close_session(&self.session);
@@ -474,7 +510,7 @@ mod tests {
         for dialect in [Dialect::NativeV1, Dialect::DexSql010] {
             let dataset =
                 Dataset::open(&[fixture()], dialect, ResourceLimits::default(), asked).unwrap();
-            let got = dataset.bridge().limits();
+            let got = dataset.bridge().unwrap().limits();
             assert_eq!(
                 (got.max_steps, got.max_scanned_rows, got.max_result_rows),
                 (11, 22, 33),

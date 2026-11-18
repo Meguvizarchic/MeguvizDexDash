@@ -227,9 +227,9 @@
         "sha256": "2c223b638023b325a782771e4751a6371c393cb46750d253695e4b7e7727f1ca"
       },
       {
-        "bytes": 5099,
+        "bytes": 5168,
         "path": "conformance/mcp/hostlab-required-tools.json",
-        "sha256": "f7299b4524f63245e1d978b96607b24d626a663c6dc918113bfca60bf28126ca"
+        "sha256": "6afc8de69d79cf0ca403b03fff9f392f783f602ed46be665b135ee153e08e033"
       }
     ]
   },

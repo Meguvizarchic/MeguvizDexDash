@@ -1825,8 +1825,8 @@
    "why": "the summary mode here also names the method's `declaration`."
   },
   {
-   "class": "NOT IMPLEMENTED",
-   "why": "the xml mode of get_manifest (MDD-072) is refused as `not_implemented`; it is not compared."
+   "class": "XML TEXT NODES",
+   "why": "the xml mode of get_manifest (MDD-072) keeps the text nodes of the document and the reference drops them; the fixture manifest has one, so its text is nine bytes longer here. The texts are compared with the lines that hold only character data removed from this server's."
   },
   {
    "class": "TEXT FORMAT",

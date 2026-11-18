@@ -452,6 +452,22 @@
 
 **测试**：`mdd-facts` 204、`mdd-sql` 259、进程测试 42、整个工作区通过，clippy 与 fmt 干净；CI 的回放与 SDK 测试本机都过。新增 CI 检查：夹具 `--check`、回放控制测试、两个方言的回放、两版本对比的 `--check`、资格记录与结论记录的 `--check`。不准入任何 profile；这是开发证据。
 
+## 2026-11-18 MDD-072：Manifest xml、资源查询与十二工具（in_progress，三项未了）
+
+**做了什么**：十二个工具现在都已注册，输入 schema 与注解和参考引擎发布的逐个相等。`get_manifest` 的 `xml` 模式不再被拒绝：整个 Manifest 以 XML 文本返回，按文本的 UTF-8 字节分页，所有命名空间声明和带命名空间的属性、所有 typed 值都写出来。新增四个工具：`get_manifest_components`（组件、导出状态及原因、intent-filter、launcher、metadata、alias 目标）、`list_resource_files`（归档全部成员，按名排序，同名成员都列）、`read_resource`（auto：二进制 XML 转 XML 文本、UTF-8 保持文本、其余小写 hex；hex 强制原字节；偏移单位随表示）、`query_resources`（`resources.arsc` 逐资源、逐配置、逐条目一行，配置不合并，引用只命名不展开）。代码在 `crates/mdd-input/src/resources/`（值的拼写、框架名、二进制 XML 转文本、`ResTable_config` 限定符、严格的 resources.arsc 读取器、查询）、`crates/mdd-service/src/resources.rs`、`crates/mdd-mcp/src/resource_tools/`。只含资源、没有 DEX 的 APK 现在能打开（`has_dex: false`），`query` 与 `decode` 对它明确拒绝为 `no_dex`，不返回空结果。`get_manifest` 摘要现在也能写出 float、dimension、fraction、color、null（MDD-042 当时拒绝），和 XML 共用同一个函数，同一个值只有一种写法。
+
+**怎么验证的**：参考引擎（dexsql 0.1.0）的每一次调用都录下来回放：458 条，其中 277 条针对合成归档（探测脚本在 `artifacts/mdd-072/probe/`，输入保存在 `tests/fixtures/resources/probe/`，哈希入清单），181 条针对公开的 NewPipe 0.28.6 APK（APK 与这份录制都是被忽略的本地文件，由 `probe_newpipe.py` 对固定的参考引擎生成；缺它们时回放只跑前 277 条并在报告里写明 not run）。**331 条逐字段相等，127 条属于已命名的有意差异，0 条未解释**（`conformance/mcp/resources_replay.py`，分类器自己有 18 个控制测试，证明它能判失败）。MDD-071 的回放现在也比较 11 条 Manifest xml 记录（257/257 相等）。MDD-025 的 NewPipe 摘要回放仍 11/11 通过。真实应用找到了合成夹具找不到的东西：同一资源的各配置按限定符字符串排序、没有条目的 map 条目是一行、`foregroundServiceType` 要命名、负的 dimension。
+
+**声明的差异**（`conformance/mcp/resources-full-contract.json`，共十二类）：XML 保留文本节点与全部命名空间（用文档给的前缀）；框架资源 id 不命名（`@01030055`，不是 `@android:style/Theme.NoDisplay`）；布局属性的框架枚举不命名（写数字，不是 `fill_parent`），只有 `installLocation`、`launchMode`、`protectionLevel`、`foregroundServiceType` 有名；控制字符按原样保留；格式不良的输入（表头类型不对、使用但未声明的命名空间、重复属性）本引擎拒绝而参考读过去；参考把布局里的 typed 值写成无符号十进制字、把负 dimension 写成无符号尾数；未知单位写成完整形式；字符串型的 `protectionLevel` 显示字符串；行预算在小 `max_bytes` 下可能差一行；错误措辞；参数越界走 JSON-RPC。
+
+**没做 / 没证明**：compact 资源条目（表里有就拒绝为 `unsupported_capability`）、overlay、staged alias、样式 span 不在答案里；没探测 dexsql 0.1.1；除 NewPipe 外没有别的真实应用；64 MiB 上限只在小尺寸上测过。
+
+**变异检查**：119 个变异已写好（`artifacts/mdd-072/mutation/mutate_resources.py`，`.github/workflows/mutation-resources.yml`），**还没跑**。它改了 `tools.rs`、`dataset.rs` 等文件，MDD-042/070/071/084 的变异结果因此过期，要和 072 一起在同一提交上重跑，做法同 070：先推分支，在分支上重跑五个变异检查，结果提交到分支，分支 CI 过后再让 `main` 快进。MDD-051 边界记录与 `provider-selection.json` 已重新生成（生产 Rust 文件数变了）。
+
+**任务状态**：保持 in_progress：变异检查没跑；四份旧变异结果待重跑；所有者还没同意标 done。
+
+**测试**：整个工作区 1080 项通过，clippy 与 fmt 干净；CLI 进程测试新增 10 项；`mdd-input` 资源模块 39 项（含逐字节拼装的表与二进制 XML）。新增 CI 检查：资源夹具 `--check`、回放控制测试、回放、记录 `--check`。不准入任何 profile；这是开发证据。
+
 ## Checkout 与交付
 
 工程目录 D:\MeguvisDexDash（保留目录原拼写）。远端已迁移到 https://github.com/Meguvizarchic/MeguvizDexDash（**公开仓库**，旧地址 jichuo1/MeguvizDexDash 自动转发）；PR #1 已于 2026-11-04 合并，`main` 现为 a9aa1f0，其中 27ac27e 是由本分支 71dfce9 生成的「脱敏工程进度快照」，之后 8 个提交是修补与 README/图标。本地分支 codex/m2-facts-20261028 当前**没有远端分支**：2026-11-12 曾整体推送，随后发现仓库公开，已按用户决定删除远端分支（GitHub 上提交仍可按 SHA 读取）。重新推送前必须先决定公开范围，见下节。

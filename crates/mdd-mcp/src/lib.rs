@@ -6,9 +6,11 @@
 //! writes nothing but protocol messages to stdout.
 //!
 //! Tools offered: `open_dataset`, `list_datasets`, `close_dataset`, `list_tables`,
-//! `describe_table`, `query`. Anything else is not listed and is refused by name;
-//! a tool is registered only when it is implemented (see `tools`).
+//! `describe_table`, `query`, `decode`, `get_manifest`, `get_manifest_components`,
+//! `list_resource_files`, `read_resource` and `query_resources`. Anything else is not listed
+//! and is refused by name; a tool is registered only when it is implemented (see `tools`).
 pub mod protocol;
+pub mod resource_tools;
 pub mod server;
 pub mod tools;
 

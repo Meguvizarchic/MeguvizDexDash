@@ -1,0 +1,4346 @@
+{
+ "counts": {
+  "match": 331,
+  "declared": 127
+ },
+ "classes": {
+  "XML_TEXT_NODES": 26,
+  "ARGUMENT_RANGE_SHAPE": 15,
+  "NAMESPACES_KEPT": 21,
+  "STRING_VALUE_AS_INDEX": 1,
+  "LIST_TABLES_SHAPE": 1,
+  "ERROR_WORDING": 17,
+  "STRICT_INPUT": 9,
+  "ENUM_ON_STRING_TYPE": 5,
+  "CONTROL_CHARS": 3,
+  "FRAMEWORK_NAMES": 33,
+  "UNKNOWN_UNIT": 1,
+  "ROW_BUDGET": 1,
+  "NEGATIVE_DIMENSION": 3,
+  "FRAMEWORK_ENUMS": 34,
+  "RAW_WORD_IN_LAYOUT": 27
+ },
+ "results": [
+  {
+   "call": "000 probe_a0 open_dataset {\"inputs\": [\"manifest-small.apk\"]}",
+   "verdict": "match"
+  },
+  {
+   "call": "001 probe_a0 get_manifest {\"mode\": \"xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "XML_TEXT_NODES"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 22,
+     "ours": 23
+    },
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.test\\\"\\n  android:ve...(748 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.test\\\"\\n  android:ve...(758 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 690,
+     "ours": 699
+    }
+   ]
+  },
+  {
+   "call": "002 probe_a0 get_manifest_components {}",
+   "verdict": "match"
+  },
+  {
+   "call": "003 probe_a0 get_manifest_components {\"kind\": \"activity\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "004 probe_a0 get_manifest_components {\"only_exported\": true}",
+   "verdict": "match"
+  },
+  {
+   "call": "005 probe_a0 list_resource_files {}",
+   "verdict": "match"
+  },
+  {
+   "call": "006 probe_a0 read_resource {\"name\": \"AndroidManifest.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "XML_TEXT_NODES"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 22,
+     "ours": 23
+    },
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.test\\\"\\n  android:ve...(748 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.test\\\"\\n  android:ve...(758 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 690,
+     "ours": 699
+    }
+   ]
+  },
+  {
+   "call": "007 probe_a0 read_resource {\"format\": \"hex\", \"name\": \"AndroidManifest.xml\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "008 probe_a0 read_resource {\"name\": \"classes.dex\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "009 probe_a0 read_resource {\"name\": \"nope.txt\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "010 probe_a0 query_resources {}",
+   "verdict": "match"
+  },
+  {
+   "call": "011 probe_a0 query_resources {\"resource_type\": \"string\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "012 probe_matrix open_dataset {\"inputs\": [\"resources-small.apk\"]}",
+   "verdict": "match"
+  },
+  {
+   "call": "013 probe_matrix list_resource_files {}",
+   "verdict": "match"
+  },
+  {
+   "call": "014 probe_matrix list_resource_files {\"prefix\": \"res/\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "015 probe_matrix list_resource_files {\"prefix\": \"assets/\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "016 probe_matrix list_resource_files {\"limit\": 2}",
+   "verdict": "match"
+  },
+  {
+   "call": "017 probe_matrix list_resource_files {\"limit\": 2, \"offset\": 2}",
+   "verdict": "match"
+  },
+  {
+   "call": "018 probe_matrix list_resource_files {\"limit\": 2, \"offset\": 6}",
+   "verdict": "match"
+  },
+  {
+   "call": "019 probe_matrix list_resource_files {\"offset\": 99}",
+   "verdict": "match"
+  },
+  {
+   "call": "020 probe_matrix list_resource_files {\"limit\": 0}",
+   "verdict": "declared",
+   "classes": [
+    "ARGUMENT_RANGE_SHAPE"
+   ],
+   "diffs": [
+    {
+     "path": "/jsonrpc_error",
+     "reference": {
+      "error": {
+       "kind": "invalid_input",
+       "message": "limit must be in 1..=200"
+      }
+     },
+     "ours": {
+      "code": -32602,
+      "message": "limit must be in 1..=200"
+     }
+    }
+   ],
+   "ours_error": {
+    "code": -32602,
+    "message": "limit must be in 1..=200"
+   }
+  },
+  {
+   "call": "021 probe_matrix read_resource {\"name\": \"assets/hello.txt\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "022 probe_matrix read_resource {\"format\": \"hex\", \"name\": \"assets/hello.txt\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "023 probe_matrix read_resource {\"name\": \"assets/blob.bin\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "024 probe_matrix read_resource {\"max_bytes\": 4096, \"name\": \"assets/blob.bin\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "025 probe_matrix read_resource {\"max_bytes\": 4096, \"name\": \"assets/blob.bin\", \"offset\": 100}",
+   "verdict": "match"
+  },
+  {
+   "call": "026 probe_matrix read_resource {\"name\": \"assets/blob.bin\", \"offset\": 256}",
+   "verdict": "match"
+  },
+  {
+   "call": "027 probe_matrix read_resource {\"name\": \"assets/blob.bin\", \"offset\": 257}",
+   "verdict": "match"
+  },
+  {
+   "call": "028 probe_matrix read_resource {\"max_bytes\": 4096, \"name\": \"assets/blob.bin\", \"offset\": 1}",
+   "verdict": "match"
+  },
+  {
+   "call": "029 probe_matrix read_resource {\"name\": \"res/layout/main.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "NAMESPACES_KEPT",
+    "STRING_VALUE_AS_INDEX",
+    "XML_TEXT_NODES"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 12,
+     "ours": 16
+    },
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<LinearLayout\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:orientation=\\\"14\\\"\\n  andr...(381 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<LinearLayout\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  xmlns:app=\\\"http://schemas.android...(513 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 347,
+     "ours": 471
+    }
+   ]
+  },
+  {
+   "call": "030 probe_matrix read_resource {\"format\": \"hex\", \"max_bytes\": 4096, \"name\": \"res/layout/main.xml\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "031 probe_matrix read_resource {\"name\": \"resources.arsc\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "032 probe_matrix read_resource {\"max_bytes\": 4096, \"name\": \"res/raw/data.bin\", \"offset\": 200}",
+   "verdict": "match"
+  },
+  {
+   "call": "033 probe_matrix read_resource {\"max_bytes\": 4096, \"name\": \"AndroidManifest.xml\", \"offset\": 100}",
+   "verdict": "declared",
+   "classes": [
+    "XML_TEXT_NODES"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 22,
+     "ours": 23
+    },
+    {
+     "path": "/page/text",
+     "reference": "\"/android\\\"\\n  package=\\\"example.test\\\"\\n  android:versionCode=\\\"7\\\"\\n  android:versionName=\\\"7.2\\\">\\n  <uses-sdk\\n    android:minSdkVersion=\\\"21\\\"\\n    android...(641 characters)",
+     "ours": "\"/android\\\"\\n  package=\\\"example.test\\\"\\n  android:versionCode=\\\"7\\\"\\n  android:versionName=\\\"7.2\\\">\\n  <uses-sdk\\n    android:minSdkVersion=\\\"21\\\"\\n    android...(651 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 690,
+     "ours": 699
+    }
+   ]
+  },
+  {
+   "call": "034 probe_matrix read_resource {\"name\": \"AndroidManifest.xml\", \"offset\": 690}",
+   "verdict": "declared",
+   "classes": [
+    "XML_TEXT_NODES"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 22,
+     "ours": 23
+    },
+    {
+     "path": "/page/starts_mid_line",
+     "reference": false,
+     "ours": true
+    },
+    {
+     "path": "/page/text",
+     "reference": "",
+     "ours": "anifest>\n"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 690,
+     "ours": 699
+    }
+   ]
+  },
+  {
+   "call": "035 probe_matrix read_resource {\"name\": \"AndroidManifest.xml\", \"offset\": 691}",
+   "verdict": "declared",
+   "classes": [
+    "XML_TEXT_NODES"
+   ],
+   "diffs": [
+    {
+     "path": "/is_error",
+     "reference": true,
+     "ours": false
+    }
+   ]
+  },
+  {
+   "call": "036 probe_matrix read_resource {\"name\": \"missing\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "037 probe_matrix read_resource {\"name\": \"\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "038 probe_matrix read_resource {\"max_bytes\": 0, \"name\": \"assets/hello.txt\"}",
+   "verdict": "declared",
+   "classes": [
+    "ARGUMENT_RANGE_SHAPE"
+   ],
+   "diffs": [
+    {
+     "path": "/jsonrpc_error",
+     "reference": {
+      "error": {
+       "kind": "invalid_input",
+       "message": "max_bytes must be in 4096..=131072"
+      }
+     },
+     "ours": {
+      "code": -32602,
+      "message": "max_bytes must be in 4096..=131072"
+     }
+    }
+   ],
+   "ours_error": {
+    "code": -32602,
+    "message": "max_bytes must be in 4096..=131072"
+   }
+  },
+  {
+   "call": "039 probe_matrix read_resource {\"max_bytes\": 10, \"name\": \"assets/hello.txt\"}",
+   "verdict": "declared",
+   "classes": [
+    "ARGUMENT_RANGE_SHAPE"
+   ],
+   "diffs": [
+    {
+     "path": "/jsonrpc_error",
+     "reference": {
+      "error": {
+       "kind": "invalid_input",
+       "message": "max_bytes must be in 4096..=131072"
+      }
+     },
+     "ours": {
+      "code": -32602,
+      "message": "max_bytes must be in 4096..=131072"
+     }
+    }
+   ],
+   "ours_error": {
+    "code": -32602,
+    "message": "max_bytes must be in 4096..=131072"
+   }
+  },
+  {
+   "call": "040 probe_matrix query_resources {}",
+   "verdict": "match"
+  },
+  {
+   "call": "041 probe_matrix query_resources {\"resource_type\": \"string\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "042 probe_matrix query_resources {\"name\": \"string/app_name\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "043 probe_matrix query_resources {\"name\": \"example.test:string/app_name\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "044 probe_matrix query_resources {\"resource_id\": 2130771968}",
+   "verdict": "match"
+  },
+  {
+   "call": "045 probe_matrix query_resources {\"resource_id\": 2130771969}",
+   "verdict": "match"
+  },
+  {
+   "call": "046 probe_matrix query_resources {\"contains\": \"app\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "047 probe_matrix query_resources {\"configuration\": \"\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "048 probe_matrix query_resources {\"configuration\": \"en\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "049 probe_matrix query_resources {\"configuration\": \"zh-rCN\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "050 probe_matrix query_resources {\"configuration\": \"zh-rCN\", \"name\": \"string/app_name\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "051 probe_matrix query_resources {\"resource_type\": \"style\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "052 probe_matrix query_resources {\"resource_type\": \"array\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "053 probe_matrix query_resources {\"resource_type\": \"plurals\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "054 probe_matrix query_resources {\"resource_type\": \"color\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "055 probe_matrix query_resources {\"resource_type\": \"dimen\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "056 probe_matrix query_resources {\"configuration\": \"night\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "057 probe_matrix query_resources {\"configuration\": \"land\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "058 probe_matrix query_resources {\"configuration\": \"nope\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "059 probe_matrix query_resources {\"name\": \"string/missing\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "060 probe_matrix query_resources {\"resource_id\": 2140733440}",
+   "verdict": "match"
+  },
+  {
+   "call": "061 probe_matrix query_resources {\"limit\": 1, \"resource_type\": \"string\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "062 probe_matrix query_resources {\"limit\": 1, \"offset\": 1, \"resource_type\": \"string\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "063 probe_matrix query_resources {\"limit\": 0}",
+   "verdict": "declared",
+   "classes": [
+    "ARGUMENT_RANGE_SHAPE"
+   ],
+   "diffs": [
+    {
+     "path": "/jsonrpc_error",
+     "reference": {
+      "error": {
+       "kind": "invalid_input",
+       "message": "limit must be in 1..=200"
+      }
+     },
+     "ours": {
+      "code": -32602,
+      "message": "limit must be in 1..=200"
+     }
+    }
+   ],
+   "ours_error": {
+    "code": -32602,
+    "message": "limit must be in 1..=200"
+   }
+  },
+  {
+   "call": "064 probe_matrix query_resources {\"offset\": 9999}",
+   "verdict": "match"
+  },
+  {
+   "call": "065 probe_matrix get_manifest_components {}",
+   "verdict": "match"
+  },
+  {
+   "call": "066 probe_matrix get_manifest_components {\"limit\": 2}",
+   "verdict": "match"
+  },
+  {
+   "call": "067 probe_matrix get_manifest_components {\"limit\": 2, \"offset\": 2}",
+   "verdict": "match"
+  },
+  {
+   "call": "068 probe_matrix get_manifest_components {\"offset\": 99}",
+   "verdict": "match"
+  },
+  {
+   "call": "069 probe_matrix get_manifest_components {\"kind\": \"provider\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "070 probe_matrix get_manifest_components {\"kind\": \"bogus\"}",
+   "verdict": "declared",
+   "classes": [
+    "ARGUMENT_RANGE_SHAPE"
+   ],
+   "diffs": [
+    {
+     "path": "/jsonrpc_error",
+     "reference": {
+      "error": {
+       "kind": "invalid_input",
+       "message": "kind must be activity, activity-alias, service, receiver, or provider"
+      }
+     },
+     "ours": {
+      "code": -32602,
+      "message": "kind must be activity, activity-alias, service, receiver, or provider"
+     }
+    }
+   ],
+   "ours_error": {
+    "code": -32602,
+    "message": "kind must be activity, activity-alias, service, receiver, or provider"
+   }
+  },
+  {
+   "call": "071 probe_matrix open_dataset {\"inputs\": [\"resources-only.apk\"]}",
+   "verdict": "match"
+  },
+  {
+   "call": "072 probe_matrix get_manifest {}",
+   "verdict": "match"
+  },
+  {
+   "call": "073 probe_matrix get_manifest {\"mode\": \"xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "XML_TEXT_NODES"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 22,
+     "ours": 23
+    },
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.test\\\"\\n  android:ve...(748 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.test\\\"\\n  android:ve...(758 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 690,
+     "ours": 699
+    }
+   ]
+  },
+  {
+   "call": "074 probe_matrix list_resource_files {}",
+   "verdict": "match"
+  },
+  {
+   "call": "075 probe_matrix query_resources {\"resource_type\": \"string\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "076 probe_matrix read_resource {\"name\": \"assets/hello.txt\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "077 probe_matrix list_tables {}",
+   "verdict": "declared",
+   "classes": [
+    "LIST_TABLES_SHAPE"
+   ],
+   "diffs": [
+    {
+     "path": "/tables[0]",
+     "reference": "dex_files",
+     "ours": {
+      "column_count": 28,
+      "kind": "table",
+      "name": "dex_files"
+     }
+    },
+    {
+     "path": "/tables[1]",
+     "reference": "map_items",
+     "ours": {
+      "column_count": 5,
+      "kind": "table",
+      "name": "map_items"
+     }
+    },
+    {
+     "path": "/tables[2]",
+     "reference": "id_items",
+     "ours": {
+      "column_count": 6,
+      "kind": "table",
+      "name": "id_items"
+     }
+    },
+    {
+     "path": "/tables[3]",
+     "reference": "strings",
+     "ours": {
+      "column_count": 3,
+      "kind": "table",
+      "name": "strings"
+     }
+    },
+    {
+     "path": "/tables[4]",
+     "reference": "type_ids",
+     "ours": {
+      "column_count": 3,
+      "kind": "table",
+      "name": "type_ids"
+     }
+    },
+    {
+     "path": "/tables[5]",
+     "reference": "types",
+     "ours": {
+      "column_count": 4,
+      "kind": "table",
+      "name": "types"
+     }
+    },
+    {
+     "path": "/tables[6]",
+     "reference": "type_lists",
+     "ours": {
+      "column_count": 4,
+      "kind": "table",
+      "name": "type_lists"
+     }
+    },
+    {
+     "path": "/tables[7]",
+     "reference": "type_list_entries",
+     "ours": {
+      "column_count": 4,
+      "kind": "table",
+      "name": "type_list_entries"
+     }
+    }
+   ]
+  },
+  {
+   "call": "078 probe_matrix query {\"sql\": [\"SELECT file_id FROM dex_files\"]}",
+   "verdict": "match"
+  },
+  {
+   "call": "079 probe_matrix open_dataset {\"inputs\": [\"resources-no-arsc.apk\"]}",
+   "verdict": "match"
+  },
+  {
+   "call": "080 probe_matrix query_resources {}",
+   "verdict": "match"
+  },
+  {
+   "call": "081 probe_matrix list_resource_files {}",
+   "verdict": "match"
+  },
+  {
+   "call": "082 probe_matrix read_resource {\"name\": \"assets/hello.txt\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "083 probe_matrix open_dataset {\"inputs\": [\"resources-corrupt.apk\"]}",
+   "verdict": "match"
+  },
+  {
+   "call": "084 probe_matrix query_resources {}",
+   "verdict": "declared",
+   "classes": [
+    "ERROR_WORDING"
+   ],
+   "diffs": [
+    {
+     "path": "/error/message",
+     "reference": "failed to parse resource table package",
+     "ours": "a chunk reaches past the end of its parent"
+    }
+   ],
+   "ours_error": {
+    "code": "INVALID_INPUT",
+    "details": {},
+    "kind": "invalid_resource_table",
+    "message": "a chunk reaches past the end of its parent",
+    "retryable": false,
+    "stage": "resources.table"
+   }
+  },
+  {
+   "call": "085 probe_matrix read_resource {\"name\": \"resources.arsc\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "086 probe_matrix read_resource {\"format\": \"hex\", \"name\": \"resources.arsc\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "087 probe_matrix list_resource_files {}",
+   "verdict": "match"
+  },
+  {
+   "call": "088 probe_matrix open_dataset {\"inputs\": [\"resources-bad-magic.apk\"]}",
+   "verdict": "match"
+  },
+  {
+   "call": "089 probe_matrix query_resources {}",
+   "verdict": "declared",
+   "classes": [
+    "STRICT_INPUT"
+   ],
+   "diffs": [
+    {
+     "path": "/is_error",
+     "reference": false,
+     "ours": true
+    }
+   ],
+   "ours_error": {
+    "code": "INVALID_INPUT",
+    "details": {
+     "chunk_type": 9
+    },
+    "kind": "invalid_resource_table",
+    "message": "not a resource table, or its size field is wrong",
+    "retryable": false,
+    "stage": "resources.table"
+   }
+  },
+  {
+   "call": "090 probe_matrix read_resource {\"name\": \"resources.arsc\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "091 probe_matrix open_dataset {\"inputs\": [\"resources-bad-crc.apk\"]}",
+   "verdict": "match"
+  },
+  {
+   "call": "092 probe_matrix read_resource {\"name\": \"assets/hello.txt\"}",
+   "verdict": "declared",
+   "classes": [
+    "ERROR_WORDING"
+   ],
+   "diffs": [
+    {
+     "path": "/error/message",
+     "reference": "ZIP entry assets/hello.txt CRC32 mismatch",
+     "ours": "Invalid checksum"
+    }
+   ],
+   "ours_error": {
+    "code": "INVALID_INPUT",
+    "details": {
+     "input_coverage": "partial",
+     "member_id": "snapshot-55443ff575326984cb64cac1a05cd5ea4a5083a93fdc61d27a05279a864a91a7:source:0:member:5",
+     "member_ordinal": "5",
+     "reason": "CRC_OR_DECOMPRESSION_FAILURE",
+     "source_occurrence_id": "snapshot-55443ff575326984cb64cac1a05cd5ea4a5083a93fdc61d27a05279a864a91a7:source:0"
+    },
+    "kind": "resource_error",
+    "message": "Invalid checksum",
+    "retryable": false,
+    "stage": "archive.member_bytes"
+   }
+  },
+  {
+   "call": "093 probe_matrix list_resource_files {}",
+   "verdict": "match"
+  },
+  {
+   "call": "094 probe_matrix query_resources {\"resource_type\": \"string\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "095 probe_micro open_dataset {\"inputs\": [\"pl-edges.apk\"]}",
+   "verdict": "match"
+  },
+  {
+   "call": "096 probe_micro get_manifest {\"limit\": 200}",
+   "verdict": "match"
+  },
+  {
+   "call": "097 probe_micro open_dataset {\"inputs\": [\"resolved.apk\"]}",
+   "verdict": "match"
+  },
+  {
+   "call": "098 probe_micro get_manifest {}",
+   "verdict": "match"
+  },
+  {
+   "call": "099 probe_micro get_manifest {\"mode\": \"xml\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "100 probe_micro query_resources {\"resource_type\": \"string\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "101 probe_micro open_dataset {\"inputs\": [\"paging-edges.apk\"]}",
+   "verdict": "match"
+  },
+  {
+   "call": "102 probe_micro get_manifest {\"limit\": 1}",
+   "verdict": "match"
+  },
+  {
+   "call": "103 probe_micro get_manifest {\"limit\": 1, \"offset\": 1}",
+   "verdict": "match"
+  },
+  {
+   "call": "104 probe_micro get_manifest {\"limit\": 1, \"offset\": 3}",
+   "verdict": "match"
+  },
+  {
+   "call": "105 probe_micro get_manifest {\"offset\": 99}",
+   "verdict": "declared",
+   "classes": [
+    "ERROR_WORDING"
+   ],
+   "diffs": [
+    {
+     "path": "/error/message",
+     "reference": "offset 99 exceeds total_rows 3",
+     "ours": "offset is past the last permission row"
+    }
+   ],
+   "ours_error": {
+    "code": "INVALID_ARGUMENT",
+    "details": {},
+    "kind": "invalid_range",
+    "message": "offset is past the last permission row",
+    "retryable": false,
+    "stage": "mcp"
+   }
+  },
+  {
+   "call": "106 probe_micro get_manifest {\"mode\": \"xml\", \"offset\": 690}",
+   "verdict": "match"
+  },
+  {
+   "call": "107 probe_micro get_manifest_components {\"offset\": 5}",
+   "verdict": "match"
+  },
+  {
+   "call": "108 probe_micro list_resource_files {\"offset\": 4}",
+   "verdict": "match"
+  },
+  {
+   "call": "109 probe_micro query_resources {\"offset\": 19}",
+   "verdict": "match"
+  },
+  {
+   "call": "110 probe_micro read_resource {\"name\": \"assets/hello.txt\", \"offset\": 6}",
+   "verdict": "match"
+  },
+  {
+   "call": "111 probe_micro open_dataset {\"inputs\": [\"no-ns.apk\"]}",
+   "verdict": "match"
+  },
+  {
+   "call": "112 probe_micro get_manifest {}",
+   "verdict": "declared",
+   "classes": [
+    "STRICT_INPUT"
+   ],
+   "diffs": [
+    {
+     "path": "/is_error",
+     "reference": false,
+     "ours": true
+    }
+   ],
+   "ours_error": {
+    "code": "INVALID_INPUT",
+    "details": {},
+    "kind": "invalid_input",
+    "message": "AXML namespace URI is not in scope",
+    "retryable": false,
+    "stage": "manifest"
+   }
+  },
+  {
+   "call": "113 probe_micro get_manifest {\"mode\": \"xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "STRICT_INPUT"
+   ],
+   "diffs": [
+    {
+     "path": "/is_error",
+     "reference": false,
+     "ours": true
+    }
+   ],
+   "ours_error": {
+    "code": "INVALID_INPUT",
+    "details": {},
+    "kind": "invalid_xml",
+    "message": "AXML namespace URI is not in scope",
+    "retryable": false,
+    "stage": "manifest"
+   }
+  },
+  {
+   "call": "114 probe_micro open_dataset {\"inputs\": [\"styled-read.apk\"]}",
+   "verdict": "match"
+  },
+  {
+   "call": "115 probe_micro read_resource {\"name\": \"res/layout/styled.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "XML_TEXT_NODES"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 31,
+     "ours": 32
+    },
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.test\\\"\\n  android:ve...(1015 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.test\\\"\\n  android:ve...(1025 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 930,
+     "ours": 939
+    }
+   ]
+  },
+  {
+   "call": "116 probe_micro read_resource {\"name\": \"res/layout/unpaired.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "XML_TEXT_NODES"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 31,
+     "ours": 32
+    },
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.test\\\"\\n  android:ve...(1015 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.test\\\"\\n  android:ve...(1025 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 930,
+     "ours": 939
+    }
+   ]
+  },
+  {
+   "call": "117 probe_enums open_dataset {\"inputs\": [\"enums.apk\"]}",
+   "verdict": "match"
+  },
+  {
+   "call": "118 probe_enums get_manifest {\"limit\": 200}",
+   "verdict": "declared",
+   "classes": [
+    "ENUM_ON_STRING_TYPE"
+   ],
+   "diffs": [
+    {
+     "path": "/permissions[35]/attributes/android:protectionLevel",
+     "reference": "privileged|signature",
+     "ours": "signature"
+    },
+    {
+     "path": "/permissions[36]/attributes/android:protectionLevel",
+     "reference": "privileged|signatureOrSystem",
+     "ours": "dangerous"
+    },
+    {
+     "path": "/permissions[37]/attributes/android:protectionLevel",
+     "reference": "privileged|internal",
+     "ours": "normal"
+    },
+    {
+     "path": "/permissions[38]/attributes/android:protectionLevel",
+     "reference": "privileged|internal|dangerous",
+     "ours": "signature|privileged"
+    },
+    {
+     "path": "/permissions[39]/attributes/android:protectionLevel",
+     "reference": "privileged|internal|signature",
+     "ours": "bogus"
+    }
+   ]
+  },
+  {
+   "call": "119 probe_enums get_manifest_components {\"limit\": 200}",
+   "verdict": "match"
+  },
+  {
+   "call": "120 probe_enums open_dataset {\"inputs\": [\"install-location.apk\"]}",
+   "verdict": "match"
+  },
+  {
+   "call": "121 probe_enums get_manifest {}",
+   "verdict": "match"
+  },
+  {
+   "call": "122 probe_enums open_dataset {\"inputs\": [\"edges.apk\"]}",
+   "verdict": "match"
+  },
+  {
+   "call": "123 probe_enums get_manifest {}",
+   "verdict": "declared",
+   "classes": [
+    "CONTROL_CHARS",
+    "FRAMEWORK_NAMES",
+    "UNKNOWN_UNIT"
+   ],
+   "diffs": [
+    {
+     "path": "/application/android:attr_fw_unknown",
+     "reference": "@0101ffff",
+     "ours": "?0101ffff"
+    },
+    {
+     "path": "/application/android:dynref_fw",
+     "reference": "@android:attr/theme",
+     "ours": "@01010000"
+    },
+    {
+     "path": "/application/android:fu2",
+     "reference": "5000",
+     "ours": "<0x3202, type Fraction, unit 2>"
+    },
+    {
+     "path": "/application/android:fu3",
+     "reference": "5000",
+     "ours": "<0x3203, type Fraction, unit 3>"
+    },
+    {
+     "path": "/application/android:u6",
+     "reference": "12",
+     "ours": "<0xc06, type Dimension, unit 6>"
+    },
+    {
+     "path": "/application/android:u7",
+     "reference": "12",
+     "ours": "<0xc07, type Dimension, unit 7>"
+    },
+    {
+     "path": "/application/ctrl",
+     "reference": "a bcde",
+     "ours": "a\rb\u000bc\fd\u0001e"
+    }
+   ]
+  },
+  {
+   "call": "124 probe_enums read_resource {\"max_bytes\": 8192, \"name\": \"assets/big.txt\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "125 probe_enums read_resource {\"max_bytes\": 131072, \"name\": \"assets/big.txt\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "126 probe_enums read_resource {\"max_bytes\": 4097, \"name\": \"assets/big.txt\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "127 probe_enums read_resource {\"format\": \"hex\", \"max_bytes\": 8192, \"name\": \"assets/big.txt\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "128 probe_enums open_dataset {\"inputs\": [\"typed-table.apk\"]}",
+   "verdict": "match"
+  },
+  {
+   "call": "129 probe_enums query_resources {\"limit\": 200}",
+   "verdict": "match"
+  },
+  {
+   "call": "130 probe_enums query_resources {\"contains\": \"Hello\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "131 probe_enums query_resources {\"contains\": \"k1\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "132 probe_enums query_resources {\"contains\": \"example.typed\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "133 probe_enums query_resources {\"resource_id\": 2130771986}",
+   "verdict": "match"
+  },
+  {
+   "call": "134 probe_enums query_resources {\"limit\": 200, \"max_bytes\": 4096}",
+   "verdict": "match"
+  },
+  {
+   "call": "135 probe_enums query_resources {\"limit\": 200, \"max_bytes\": 4096, \"offset\": 10}",
+   "verdict": "declared",
+   "classes": [
+    "ROW_BUDGET"
+   ],
+   "diffs": [
+    {
+     "path": "/next_offset",
+     "reference": 17,
+     "ours": 18
+    },
+    {
+     "path": "/values[len]",
+     "reference": 7,
+     "ours": 8
+    }
+   ]
+  },
+  {
+   "call": "136 probe_enums list_resource_files {\"max_bytes\": 4096}",
+   "verdict": "match"
+  },
+  {
+   "call": "137 probe_enums get_manifest_components {\"max_bytes\": 4096}",
+   "verdict": "declared",
+   "classes": [
+    "ERROR_WORDING"
+   ],
+   "diffs": [
+    {
+     "path": "/error/message",
+     "reference": "archive entry not found: AndroidManifest.xml",
+     "ours": "the archive has no AndroidManifest.xml"
+    }
+   ],
+   "ours_error": {
+    "code": "INVALID_INPUT",
+    "details": {},
+    "kind": "not_found",
+    "message": "the archive has no AndroidManifest.xml",
+    "retryable": false,
+    "stage": "mcp"
+   }
+  },
+  {
+   "call": "138 probe_enums open_dataset {\"inputs\": [\"bad-axml.apk\"]}",
+   "verdict": "match"
+  },
+  {
+   "call": "139 probe_enums read_resource {\"name\": \"res/layout/bad.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "ERROR_WORDING"
+   ],
+   "diffs": [
+    {
+     "path": "/error/message",
+     "reference": "file size too small for manifest",
+     "ours": "AXML range exceeds chunk"
+    }
+   ],
+   "ours_error": {
+    "code": "INVALID_INPUT",
+    "details": {},
+    "kind": "invalid_xml",
+    "message": "AXML range exceeds chunk",
+    "retryable": false,
+    "stage": "manifest"
+   }
+  },
+  {
+   "call": "140 probe_enums read_resource {\"format\": \"hex\", \"name\": \"res/layout/bad.xml\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "141 probe_enums list_resource_files {\"prefix\": \"RES/\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "142 probe_enums list_resource_files {\"prefix\": \"res\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "143 probe_typed open_dataset {\"inputs\": [\"attr-sweep.apk\"]}",
+   "verdict": "match"
+  },
+  {
+   "call": "144 probe_typed get_manifest {}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_NAMES"
+   ],
+   "diffs": [
+    {
+     "path": "/application/android:a0000",
+     "reference": "android:attr/theme",
+     "ours": "?01010000"
+    },
+    {
+     "path": "/application/android:a0001",
+     "reference": "android:attr/label",
+     "ours": "?01010001"
+    },
+    {
+     "path": "/application/android:a0002",
+     "reference": "android:attr/icon",
+     "ours": "?01010002"
+    },
+    {
+     "path": "/application/android:a0003",
+     "reference": "android:attr/name",
+     "ours": "?01010003"
+    },
+    {
+     "path": "/application/android:a0004",
+     "reference": "android:attr/manageSpaceActivity",
+     "ours": "?01010004"
+    },
+    {
+     "path": "/application/android:a0005",
+     "reference": "android:attr/allowClearUserData",
+     "ours": "?01010005"
+    },
+    {
+     "path": "/application/android:a0006",
+     "reference": "android:attr/permission",
+     "ours": "?01010006"
+    },
+    {
+     "path": "/application/android:a0007",
+     "reference": "android:attr/readPermission",
+     "ours": "?01010007"
+    }
+   ]
+  },
+  {
+   "call": "145 probe_typed get_manifest {\"max_bytes\": 131072, \"mode\": \"xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_NAMES"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 682,
+     "ours": 1092
+    },
+    {
+     "path": "/page/next_offset",
+     "reference": 32750,
+     "ours": 32751
+    },
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.typed\\\">\\n  <uses-sd...(34794 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.typed\\\">\\n  <uses-sd...(36025 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 64287,
+     "ours": 39247
+    }
+   ]
+  },
+  {
+   "call": "146 probe_typed open_dataset {\"inputs\": [\"corner.apk\"]}",
+   "verdict": "match"
+  },
+  {
+   "call": "147 probe_typed get_manifest {}",
+   "verdict": "declared",
+   "classes": [
+    "CONTROL_CHARS"
+   ],
+   "diffs": [
+    {
+     "path": "/application/s_newline",
+     "reference": "line1 line2 tab",
+     "ours": "line1\nline2\ttab"
+    }
+   ]
+  },
+  {
+   "call": "148 probe_typed get_manifest {\"max_bytes\": 131072, \"mode\": \"xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "CONTROL_CHARS"
+   ],
+   "diffs": [
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.typed\\\">\\n  <uses-sd...(1774 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.typed\\\">\\n  <uses-sd...(1782 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 1630,
+     "ours": 1638
+    }
+   ]
+  },
+  {
+   "call": "149 probe_extra open_dataset {\"inputs\": [\"manifest-utf8.apk\"]}",
+   "verdict": "match"
+  },
+  {
+   "call": "150 probe_extra get_manifest {}",
+   "verdict": "match"
+  },
+  {
+   "call": "151 probe_extra get_manifest {\"mode\": \"xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "XML_TEXT_NODES"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 31,
+     "ours": 32
+    },
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.test\\\"\\n  android:ve...(1015 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.test\\\"\\n  android:ve...(1025 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 930,
+     "ours": 939
+    }
+   ]
+  },
+  {
+   "call": "152 probe_extra get_manifest {\"max_bytes\": 4096, \"mode\": \"xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "XML_TEXT_NODES"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 31,
+     "ours": 32
+    },
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.test\\\"\\n  android:ve...(1015 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.test\\\"\\n  android:ve...(1025 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 930,
+     "ours": 939
+    }
+   ]
+  },
+  {
+   "call": "153 probe_extra open_dataset {\"inputs\": [\"manifest-utf16.apk\"]}",
+   "verdict": "match"
+  },
+  {
+   "call": "154 probe_extra get_manifest {}",
+   "verdict": "match"
+  },
+  {
+   "call": "155 probe_extra get_manifest {\"mode\": \"xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "XML_TEXT_NODES"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 31,
+     "ours": 32
+    },
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.test\\\"\\n  android:ve...(1015 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.test\\\"\\n  android:ve...(1025 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 930,
+     "ours": 939
+    }
+   ]
+  },
+  {
+   "call": "156 probe_extra get_manifest {\"max_bytes\": 4096, \"mode\": \"xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "XML_TEXT_NODES"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 31,
+     "ours": 32
+    },
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.test\\\"\\n  android:ve...(1015 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.test\\\"\\n  android:ve...(1025 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 930,
+     "ours": 939
+    }
+   ]
+  },
+  {
+   "call": "157 probe_extra open_dataset {\"inputs\": [\"manifest-all-typed-values.apk\"]}",
+   "verdict": "match"
+  },
+  {
+   "call": "158 probe_extra get_manifest {}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_NAMES"
+   ],
+   "diffs": [
+    {
+     "path": "/application/attrRef",
+     "reference": "android:attr/theme",
+     "ours": "?01010000"
+    }
+   ]
+  },
+  {
+   "call": "159 probe_extra get_manifest {\"mode\": \"xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_NAMES",
+    "XML_TEXT_NODES"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 38,
+     "ours": 39
+    },
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.test\\\"\\n  android:ve...(1260 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.test\\\"\\n  android:ve...(1261 characters)"
+    }
+   ]
+  },
+  {
+   "call": "160 probe_extra get_manifest {\"max_bytes\": 4096, \"mode\": \"xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_NAMES",
+    "XML_TEXT_NODES"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 38,
+     "ours": 33
+    },
+    {
+     "path": "/page/next_offset",
+     "reference": null,
+     "ours": 990
+    },
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.test\\\"\\n  android:ve...(1260 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.test\\\"\\n  android:ve...(1085 characters)"
+    }
+   ]
+  },
+  {
+   "call": "161 probe_extra open_dataset {\"inputs\": [\"manifest-long-utf8.apk\"]}",
+   "verdict": "match"
+  },
+  {
+   "call": "162 probe_extra get_manifest {}",
+   "verdict": "match"
+  },
+  {
+   "call": "163 probe_extra get_manifest {\"mode\": \"xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "XML_TEXT_NODES"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 31,
+     "ours": 32
+    },
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.test\\\"\\n  android:ve...(1015 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.test\\\"\\n  android:ve...(1025 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 930,
+     "ours": 939
+    }
+   ]
+  },
+  {
+   "call": "164 probe_extra get_manifest {\"max_bytes\": 4096, \"mode\": \"xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "XML_TEXT_NODES"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 31,
+     "ours": 32
+    },
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.test\\\"\\n  android:ve...(1015 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.test\\\"\\n  android:ve...(1025 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 930,
+     "ours": 939
+    }
+   ]
+  },
+  {
+   "call": "165 probe_extra open_dataset {\"inputs\": [\"manifest-unpaired-value-utf16.apk\"]}",
+   "verdict": "match"
+  },
+  {
+   "call": "166 probe_extra get_manifest {}",
+   "verdict": "match"
+  },
+  {
+   "call": "167 probe_extra get_manifest {\"mode\": \"xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "XML_TEXT_NODES"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 31,
+     "ours": 32
+    },
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.test\\\"\\n  android:ve...(1015 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.test\\\"\\n  android:ve...(1025 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 930,
+     "ours": 939
+    }
+   ]
+  },
+  {
+   "call": "168 probe_extra get_manifest {\"max_bytes\": 4096, \"mode\": \"xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "XML_TEXT_NODES"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 31,
+     "ours": 32
+    },
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.test\\\"\\n  android:ve...(1015 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.test\\\"\\n  android:ve...(1025 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 930,
+     "ours": 939
+    }
+   ]
+  },
+  {
+   "call": "169 probe_extra open_dataset {\"inputs\": [\"manifest-styled-utf8.apk\"]}",
+   "verdict": "match"
+  },
+  {
+   "call": "170 probe_extra get_manifest {}",
+   "verdict": "match"
+  },
+  {
+   "call": "171 probe_extra get_manifest {\"mode\": \"xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "XML_TEXT_NODES"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 31,
+     "ours": 32
+    },
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.test\\\"\\n  android:ve...(1015 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.test\\\"\\n  android:ve...(1025 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 930,
+     "ours": 939
+    }
+   ]
+  },
+  {
+   "call": "172 probe_extra get_manifest {\"max_bytes\": 4096, \"mode\": \"xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "XML_TEXT_NODES"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 31,
+     "ours": 32
+    },
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.test\\\"\\n  android:ve...(1015 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.test\\\"\\n  android:ve...(1025 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 930,
+     "ours": 939
+    }
+   ]
+  },
+  {
+   "call": "173 probe_extra open_dataset {\"inputs\": [\"manifest-aliased-pool.apk\"]}",
+   "verdict": "match"
+  },
+  {
+   "call": "174 probe_extra get_manifest {}",
+   "verdict": "match"
+  },
+  {
+   "call": "175 probe_extra get_manifest {\"mode\": \"xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "XML_TEXT_NODES"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 31,
+     "ours": 32
+    },
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.test\\\"\\n  android:ve...(1015 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.test\\\"\\n  android:ve...(1025 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 930,
+     "ours": 939
+    }
+   ]
+  },
+  {
+   "call": "176 probe_extra get_manifest {\"max_bytes\": 4096, \"mode\": \"xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "XML_TEXT_NODES"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 31,
+     "ours": 32
+    },
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.test\\\"\\n  android:ve...(1015 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.test\\\"\\n  android:ve...(1025 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 930,
+     "ours": 939
+    }
+   ]
+  },
+  {
+   "call": "177 probe_extra open_dataset {\"inputs\": [\"manifest-shadowed-uri.apk\"]}",
+   "verdict": "match"
+  },
+  {
+   "call": "178 probe_extra get_manifest {}",
+   "verdict": "declared",
+   "classes": [
+    "STRICT_INPUT"
+   ],
+   "diffs": [
+    {
+     "path": "/is_error",
+     "reference": false,
+     "ours": true
+    }
+   ],
+   "ours_error": {
+    "code": "INVALID_INPUT",
+    "details": {},
+    "kind": "invalid_input",
+    "message": "AXML namespace URI is not in scope",
+    "retryable": false,
+    "stage": "manifest"
+   }
+  },
+  {
+   "call": "179 probe_extra get_manifest {\"mode\": \"xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "STRICT_INPUT"
+   ],
+   "diffs": [
+    {
+     "path": "/is_error",
+     "reference": false,
+     "ours": true
+    }
+   ],
+   "ours_error": {
+    "code": "INVALID_INPUT",
+    "details": {},
+    "kind": "invalid_xml",
+    "message": "AXML namespace URI is not in scope",
+    "retryable": false,
+    "stage": "manifest"
+   }
+  },
+  {
+   "call": "180 probe_extra get_manifest {\"max_bytes\": 4096, \"mode\": \"xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "STRICT_INPUT"
+   ],
+   "diffs": [
+    {
+     "path": "/is_error",
+     "reference": false,
+     "ours": true
+    }
+   ],
+   "ours_error": {
+    "code": "INVALID_INPUT",
+    "details": {},
+    "kind": "invalid_xml",
+    "message": "AXML namespace URI is not in scope",
+    "retryable": false,
+    "stage": "manifest"
+   }
+  },
+  {
+   "call": "181 probe_extra open_dataset {\"inputs\": [\"manifest-ambiguous-prefix.apk\"]}",
+   "verdict": "match"
+  },
+  {
+   "call": "182 probe_extra get_manifest {}",
+   "verdict": "match"
+  },
+  {
+   "call": "183 probe_extra get_manifest {\"mode\": \"xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "NAMESPACES_KEPT",
+    "XML_TEXT_NODES"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 31,
+     "ours": 33
+    },
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.test\\\"\\n  android:ve...(1015 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  xmlns:attrRef=\\\"http://schemas.android...(1089 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 930,
+     "ours": 1000
+    }
+   ]
+  },
+  {
+   "call": "184 probe_extra get_manifest {\"max_bytes\": 4096, \"mode\": \"xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "NAMESPACES_KEPT",
+    "XML_TEXT_NODES"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 31,
+     "ours": 33
+    },
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.test\\\"\\n  android:ve...(1015 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  xmlns:attrRef=\\\"http://schemas.android...(1089 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 930,
+     "ours": 1000
+    }
+   ]
+  },
+  {
+   "call": "185 probe_extra open_dataset {\"inputs\": [\"manifest-duplicate-attribute.apk\"]}",
+   "verdict": "match"
+  },
+  {
+   "call": "186 probe_extra get_manifest {}",
+   "verdict": "declared",
+   "classes": [
+    "STRICT_INPUT"
+   ],
+   "diffs": [
+    {
+     "path": "/is_error",
+     "reference": false,
+     "ours": true
+    }
+   ],
+   "ours_error": {
+    "code": "INVALID_INPUT",
+    "details": {},
+    "kind": "invalid_input",
+    "message": "duplicate expanded attribute name",
+    "retryable": false,
+    "stage": "manifest"
+   }
+  },
+  {
+   "call": "187 probe_extra get_manifest {\"mode\": \"xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "STRICT_INPUT"
+   ],
+   "diffs": [
+    {
+     "path": "/is_error",
+     "reference": false,
+     "ours": true
+    }
+   ],
+   "ours_error": {
+    "code": "INVALID_INPUT",
+    "details": {},
+    "kind": "invalid_xml",
+    "message": "duplicate expanded attribute name",
+    "retryable": false,
+    "stage": "manifest"
+   }
+  },
+  {
+   "call": "188 probe_extra get_manifest {\"max_bytes\": 4096, \"mode\": \"xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "STRICT_INPUT"
+   ],
+   "diffs": [
+    {
+     "path": "/is_error",
+     "reference": false,
+     "ours": true
+    }
+   ],
+   "ours_error": {
+    "code": "INVALID_INPUT",
+    "details": {},
+    "kind": "invalid_xml",
+    "message": "duplicate expanded attribute name",
+    "retryable": false,
+    "stage": "manifest"
+   }
+  },
+  {
+   "call": "189 probe_extra open_dataset {\"inputs\": [\"rich.apk\"]}",
+   "verdict": "match"
+  },
+  {
+   "call": "190 probe_extra get_manifest {}",
+   "verdict": "declared",
+   "classes": [
+    "ENUM_ON_STRING_TYPE"
+   ],
+   "diffs": [
+    {
+     "path": "/permissions[2]/attributes/android:protectionLevel",
+     "reference": "privileged|signatureOrSystem",
+     "ours": "signature"
+    }
+   ]
+  },
+  {
+   "call": "191 probe_extra get_manifest {\"mode\": \"xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "ENUM_ON_STRING_TYPE"
+   ],
+   "diffs": [
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.rich\\\"\\n  android:ve...(2133 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.rich\\\"\\n  android:ve...(2114 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 1988,
+     "ours": 1969
+    }
+   ]
+  },
+  {
+   "call": "192 probe_extra get_manifest_components {}",
+   "verdict": "match"
+  },
+  {
+   "call": "193 probe_extra get_manifest_components {\"only_exported\": true}",
+   "verdict": "match"
+  },
+  {
+   "call": "194 probe_extra get_manifest_components {\"kind\": \"activity\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "195 probe_extra get_manifest_components {\"kind\": \"activity-alias\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "196 probe_extra get_manifest_components {\"kind\": \"service\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "197 probe_extra get_manifest_components {\"limit\": 2, \"offset\": 2}",
+   "verdict": "match"
+  },
+  {
+   "call": "198 probe_extra get_manifest_components {\"kind\": \"provider\", \"only_exported\": true}",
+   "verdict": "match"
+  },
+  {
+   "call": "199 probe_extra open_dataset {\"inputs\": [\"rich-old.apk\"]}",
+   "verdict": "match"
+  },
+  {
+   "call": "200 probe_extra get_manifest {}",
+   "verdict": "declared",
+   "classes": [
+    "ENUM_ON_STRING_TYPE"
+   ],
+   "diffs": [
+    {
+     "path": "/permissions[2]/attributes/android:protectionLevel",
+     "reference": "privileged|signatureOrSystem",
+     "ours": "signature"
+    }
+   ]
+  },
+  {
+   "call": "201 probe_extra get_manifest {\"mode\": \"xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "ENUM_ON_STRING_TYPE"
+   ],
+   "diffs": [
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.rich\\\"\\n  android:ve...(2133 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.rich\\\"\\n  android:ve...(2114 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 1988,
+     "ours": 1969
+    }
+   ]
+  },
+  {
+   "call": "202 probe_extra get_manifest_components {}",
+   "verdict": "match"
+  },
+  {
+   "call": "203 probe_extra get_manifest_components {\"only_exported\": true}",
+   "verdict": "match"
+  },
+  {
+   "call": "204 probe_extra get_manifest_components {\"kind\": \"activity\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "205 probe_extra get_manifest_components {\"kind\": \"activity-alias\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "206 probe_extra get_manifest_components {\"kind\": \"service\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "207 probe_extra get_manifest_components {\"limit\": 2, \"offset\": 2}",
+   "verdict": "match"
+  },
+  {
+   "call": "208 probe_extra get_manifest_components {\"kind\": \"provider\", \"only_exported\": true}",
+   "verdict": "match"
+  },
+  {
+   "call": "209 probe_extra open_dataset {\"inputs\": [\"paging.apk\"]}",
+   "verdict": "match"
+  },
+  {
+   "call": "210 probe_extra list_resource_files {}",
+   "verdict": "match"
+  },
+  {
+   "call": "211 probe_extra read_resource {\"name\": \"assets/big.txt\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "212 probe_extra read_resource {\"max_bytes\": 4096, \"name\": \"assets/big.txt\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "213 probe_extra read_resource {\"max_bytes\": 4096, \"name\": \"assets/big.txt\", \"offset\": 4090}",
+   "verdict": "match"
+  },
+  {
+   "call": "214 probe_extra read_resource {\"name\": \"assets/big.txt\", \"offset\": 6000}",
+   "verdict": "match"
+  },
+  {
+   "call": "215 probe_extra read_resource {\"name\": \"assets/big.bin\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "216 probe_extra read_resource {\"max_bytes\": 4096, \"name\": \"assets/big.bin\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "217 probe_extra read_resource {\"max_bytes\": 4096, \"name\": \"assets/big.bin\", \"offset\": 2048}",
+   "verdict": "match"
+  },
+  {
+   "call": "218 probe_extra read_resource {\"name\": \"assets/big.bin\", \"offset\": 6144}",
+   "verdict": "match"
+  },
+  {
+   "call": "219 probe_extra read_resource {\"max_bytes\": 4096, \"name\": \"assets/multi.txt\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "220 probe_extra read_resource {\"name\": \"assets/multi.txt\", \"offset\": 4095}",
+   "verdict": "match"
+  },
+  {
+   "call": "221 probe_extra read_resource {\"name\": \"assets/multi.txt\", \"offset\": 4096}",
+   "verdict": "match"
+  },
+  {
+   "call": "222 probe_extra read_resource {\"name\": \"assets/empty.txt\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "223 probe_extra read_resource {\"format\": \"hex\", \"name\": \"assets/empty.txt\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "224 probe_extra read_resource {\"name\": \"res/\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "225 probe_extra read_resource {\"name\": \"res/raw/x.bin\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "226 probe_extra read_resource {\"format\": \"hex\", \"max_bytes\": 4096, \"name\": \"assets/big.txt\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "227 probe_extra read_resource {\"name\": \"assets/big.txt\", \"timeout_ms\": 0}",
+   "verdict": "declared",
+   "classes": [
+    "ARGUMENT_RANGE_SHAPE"
+   ],
+   "diffs": [
+    {
+     "path": "/jsonrpc_error",
+     "reference": {
+      "error": {
+       "kind": "invalid_input",
+       "message": "timeout_ms must be in 1..=60000"
+      }
+     },
+     "ours": {
+      "code": -32602,
+      "message": "timeout_ms must be positive"
+     }
+    }
+   ],
+   "ours_error": {
+    "code": -32602,
+    "message": "timeout_ms must be positive"
+   }
+  },
+  {
+   "call": "228 probe_extra read_resource {\"input_index\": 3, \"name\": \"assets/big.txt\"}",
+   "verdict": "declared",
+   "classes": [
+    "ERROR_WORDING"
+   ],
+   "diffs": [
+    {
+     "path": "/error/message",
+     "reference": "input_index does not identify an archive input",
+     "ours": "input_index 3 is not an archive of this dataset (archive inputs: [0])"
+    }
+   ],
+   "ours_error": {
+    "code": "INVALID_ARGUMENT",
+    "details": {},
+    "kind": "not_archive",
+    "message": "input_index 3 is not an archive of this dataset (archive inputs: [0])",
+    "retryable": false,
+    "stage": "mcp"
+   }
+  },
+  {
+   "call": "229 probe_extra open_dataset {\"inputs\": [\"qualifiers.apk\"]}",
+   "verdict": "match"
+  },
+  {
+   "call": "230 probe_extra query_resources {}",
+   "verdict": "match"
+  },
+  {
+   "call": "231 probe_extra query_resources {\"configuration\": \"en-land\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "232 probe_extra query_resources {\"configuration\": \"hdpi\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "233 probe_extra query_resources {\"configuration\": \"v21\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "234 probe_extra query_resources {\"configuration\": \"zh-rCN-port\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "235 probe_extra query_resources {\"configuration\": \"land\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "236 probe_extra query_resources {\"name\": \"label\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "237 probe_extra query_resources {\"name\": \"string/\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "238 probe_extra query_resources {\"name\": \"bogus:string/label\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "239 probe_extra query_resources {\"resource_type\": \"bogus\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "240 probe_extra query_resources {\"resource_id\": 0}",
+   "verdict": "match"
+  },
+  {
+   "call": "241 probe_extra query_resources {\"contains\": \"LABEL\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "242 probe_extra query_resources {\"contains\": \"label\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "243 probe_extra query_resources {\"max_bytes\": 4096}",
+   "verdict": "match"
+  },
+  {
+   "call": "244 probe_extra query_resources {\"timeout_ms\": 0}",
+   "verdict": "declared",
+   "classes": [
+    "ARGUMENT_RANGE_SHAPE"
+   ],
+   "diffs": [
+    {
+     "path": "/jsonrpc_error",
+     "reference": {
+      "error": {
+       "kind": "invalid_input",
+       "message": "timeout_ms must be in 1..=60000"
+      }
+     },
+     "ours": {
+      "code": -32602,
+      "message": "timeout_ms must be positive"
+     }
+    }
+   ],
+   "ours_error": {
+    "code": -32602,
+    "message": "timeout_ms must be positive"
+   }
+  },
+  {
+   "call": "245 probe_extra query_resources {\"resource_id\": 4294967296}",
+   "verdict": "declared",
+   "classes": [
+    "ARGUMENT_RANGE_SHAPE"
+   ],
+   "diffs": [
+    {
+     "path": "/jsonrpc_error",
+     "reference": "failed to deserialize parameters: invalid value: integer `4294967296`, expected u32",
+     "ours": {
+      "code": -32602,
+      "message": "resource_id must fit 32 bits"
+     }
+    }
+   ],
+   "ours_error": {
+    "code": -32602,
+    "message": "resource_id must fit 32 bits"
+   }
+  },
+  {
+   "call": "246 probe_extra open_dataset {\"inputs\": [\"resources-small.apk\"]}",
+   "verdict": "match"
+  },
+  {
+   "call": "247 probe_extra read_resource {\"name\": \"assets/hello.txt\"}",
+   "verdict": "declared",
+   "classes": [
+    "ERROR_WORDING"
+   ],
+   "diffs": [
+    {
+     "path": "/error/message",
+     "reference": "dataset \"dataset-999\" is not open; call open_dataset first",
+     "ours": "dataset \"dataset-closed\" is not open; call open_dataset first"
+    }
+   ],
+   "ours_error": {
+    "code": "INVALID_ARGUMENT",
+    "details": {},
+    "kind": "unknown_dataset",
+    "message": "dataset \"dataset-closed\" is not open; call open_dataset first",
+    "retryable": false,
+    "stage": "mcp"
+   }
+  },
+  {
+   "call": "248 probe_extra get_manifest {\"input_index\": 1}",
+   "verdict": "declared",
+   "classes": [
+    "ERROR_WORDING"
+   ],
+   "diffs": [
+    {
+     "path": "/error/message",
+     "reference": "input_index does not identify an archive input",
+     "ours": "input_index 1 is not an archive of this dataset (archive inputs: [0])"
+    }
+   ],
+   "ours_error": {
+    "code": "INVALID_ARGUMENT",
+    "details": {},
+    "kind": "not_archive",
+    "message": "input_index 1 is not an archive of this dataset (archive inputs: [0])",
+    "retryable": false,
+    "stage": "mcp"
+   }
+  },
+  {
+   "call": "249 probe_extra read_resource {\"input_index\": 1, \"name\": \"assets/hello.txt\"}",
+   "verdict": "declared",
+   "classes": [
+    "ERROR_WORDING"
+   ],
+   "diffs": [
+    {
+     "path": "/error/message",
+     "reference": "input_index does not identify an archive input",
+     "ours": "input_index 1 is not an archive of this dataset (archive inputs: [0])"
+    }
+   ],
+   "ours_error": {
+    "code": "INVALID_ARGUMENT",
+    "details": {},
+    "kind": "not_archive",
+    "message": "input_index 1 is not an archive of this dataset (archive inputs: [0])",
+    "retryable": false,
+    "stage": "mcp"
+   }
+  },
+  {
+   "call": "250 probe_extra query_resources {\"input_index\": 1}",
+   "verdict": "declared",
+   "classes": [
+    "ERROR_WORDING"
+   ],
+   "diffs": [
+    {
+     "path": "/error/message",
+     "reference": "input_index does not identify an archive input",
+     "ours": "input_index 1 is not an archive of this dataset (archive inputs: [0])"
+    }
+   ],
+   "ours_error": {
+    "code": "INVALID_ARGUMENT",
+    "details": {},
+    "kind": "not_archive",
+    "message": "input_index 1 is not an archive of this dataset (archive inputs: [0])",
+    "retryable": false,
+    "stage": "mcp"
+   }
+  },
+  {
+   "call": "251 probe_extra list_resource_files {\"input_index\": 1}",
+   "verdict": "declared",
+   "classes": [
+    "ERROR_WORDING"
+   ],
+   "diffs": [
+    {
+     "path": "/error/message",
+     "reference": "input_index does not identify an archive input",
+     "ours": "input_index 1 is not an archive of this dataset (archive inputs: [0])"
+    }
+   ],
+   "ours_error": {
+    "code": "INVALID_ARGUMENT",
+    "details": {},
+    "kind": "not_archive",
+    "message": "input_index 1 is not an archive of this dataset (archive inputs: [0])",
+    "retryable": false,
+    "stage": "mcp"
+   }
+  },
+  {
+   "call": "252 probe_extra get_manifest_components {\"input_index\": 1}",
+   "verdict": "declared",
+   "classes": [
+    "ERROR_WORDING"
+   ],
+   "diffs": [
+    {
+     "path": "/error/message",
+     "reference": "input_index does not identify an archive input",
+     "ours": "input_index 1 is not an archive of this dataset (archive inputs: [0])"
+    }
+   ],
+   "ours_error": {
+    "code": "INVALID_ARGUMENT",
+    "details": {},
+    "kind": "not_archive",
+    "message": "input_index 1 is not an archive of this dataset (archive inputs: [0])",
+    "retryable": false,
+    "stage": "mcp"
+   }
+  },
+  {
+   "call": "253 probe_extra get_manifest {\"timeout_ms\": 0}",
+   "verdict": "declared",
+   "classes": [
+    "ARGUMENT_RANGE_SHAPE"
+   ],
+   "diffs": [
+    {
+     "path": "/jsonrpc_error",
+     "reference": {
+      "error": {
+       "kind": "invalid_input",
+       "message": "timeout_ms must be in 1..=60000"
+      }
+     },
+     "ours": {
+      "code": -32602,
+      "message": "timeout_ms must be positive"
+     }
+    }
+   ],
+   "ours_error": {
+    "code": -32602,
+    "message": "timeout_ms must be positive"
+   }
+  },
+  {
+   "call": "254 probe_extra get_manifest {\"mode\": \"bogus\"}",
+   "verdict": "declared",
+   "classes": [
+    "ARGUMENT_RANGE_SHAPE"
+   ],
+   "diffs": [
+    {
+     "path": "/jsonrpc_error",
+     "reference": "failed to deserialize parameters: unknown variant `bogus`, expected `summary` or `xml`",
+     "ours": {
+      "code": -32602,
+      "message": "mode must be summary or xml"
+     }
+    }
+   ],
+   "ours_error": {
+    "code": -32602,
+    "message": "mode must be summary or xml"
+   }
+  },
+  {
+   "call": "255 probe_extra read_resource {\"format\": \"bogus\", \"name\": \"assets/hello.txt\"}",
+   "verdict": "declared",
+   "classes": [
+    "ARGUMENT_RANGE_SHAPE"
+   ],
+   "diffs": [
+    {
+     "path": "/jsonrpc_error",
+     "reference": "failed to deserialize parameters: unknown variant `bogus`, expected `auto` or `hex`",
+     "ours": {
+      "code": -32602,
+      "message": "format must be auto or hex"
+     }
+    }
+   ],
+   "ours_error": {
+    "code": -32602,
+    "message": "format must be auto or hex"
+   }
+  },
+  {
+   "call": "256 probe_extra get_manifest_components {\"max_bytes\": 0}",
+   "verdict": "declared",
+   "classes": [
+    "ARGUMENT_RANGE_SHAPE"
+   ],
+   "diffs": [
+    {
+     "path": "/jsonrpc_error",
+     "reference": {
+      "error": {
+       "kind": "invalid_input",
+       "message": "max_bytes must be in 4096..=131072"
+      }
+     },
+     "ours": {
+      "code": -32602,
+      "message": "max_bytes must be in 4096..=131072"
+     }
+    }
+   ],
+   "ours_error": {
+    "code": -32602,
+    "message": "max_bytes must be in 4096..=131072"
+   }
+  },
+  {
+   "call": "257 probe_extra list_resource_files {\"max_bytes\": 0}",
+   "verdict": "declared",
+   "classes": [
+    "ARGUMENT_RANGE_SHAPE"
+   ],
+   "diffs": [
+    {
+     "path": "/jsonrpc_error",
+     "reference": {
+      "error": {
+       "kind": "invalid_input",
+       "message": "max_bytes must be in 4096..=131072"
+      }
+     },
+     "ours": {
+      "code": -32602,
+      "message": "max_bytes must be in 4096..=131072"
+     }
+    }
+   ],
+   "ours_error": {
+    "code": -32602,
+    "message": "max_bytes must be in 4096..=131072"
+   }
+  },
+  {
+   "call": "258 probe_extra query_resources {\"max_bytes\": 0}",
+   "verdict": "declared",
+   "classes": [
+    "ARGUMENT_RANGE_SHAPE"
+   ],
+   "diffs": [
+    {
+     "path": "/jsonrpc_error",
+     "reference": {
+      "error": {
+       "kind": "invalid_input",
+       "message": "max_bytes must be in 4096..=131072"
+      }
+     },
+     "ours": {
+      "code": -32602,
+      "message": "max_bytes must be in 4096..=131072"
+     }
+    }
+   ],
+   "ours_error": {
+    "code": -32602,
+    "message": "max_bytes must be in 4096..=131072"
+   }
+  },
+  {
+   "call": "259 probe_extra get_manifest {\"limit\": 0, \"mode\": \"xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "ARGUMENT_RANGE_SHAPE"
+   ],
+   "diffs": [
+    {
+     "path": "/jsonrpc_error",
+     "reference": {
+      "error": {
+       "kind": "invalid_input",
+       "message": "limit must be in 1..=200"
+      }
+     },
+     "ours": {
+      "code": -32602,
+      "message": "limit must be in 1..=200"
+     }
+    }
+   ],
+   "ours_error": {
+    "code": -32602,
+    "message": "limit must be in 1..=200"
+   }
+  },
+  {
+   "call": "260 probe_extra read_resource {\"name\": \"assets/hello.txt\"}",
+   "verdict": "declared",
+   "classes": [
+    "ERROR_WORDING"
+   ],
+   "diffs": [
+    {
+     "path": "/error/message",
+     "reference": "dataset \"dataset-15\" is not open; call open_dataset first",
+     "ours": "dataset \"dataset-closed\" is not open; call open_dataset first"
+    }
+   ],
+   "ours_error": {
+    "code": "INVALID_ARGUMENT",
+    "details": {},
+    "kind": "unknown_dataset",
+    "message": "dataset \"dataset-closed\" is not open; call open_dataset first",
+    "retryable": false,
+    "stage": "mcp"
+   }
+  },
+  {
+   "call": "261 probe_extra query_resources {}",
+   "verdict": "declared",
+   "classes": [
+    "ERROR_WORDING"
+   ],
+   "diffs": [
+    {
+     "path": "/error/message",
+     "reference": "dataset \"dataset-15\" is not open; call open_dataset first",
+     "ours": "dataset \"dataset-closed\" is not open; call open_dataset first"
+    }
+   ],
+   "ours_error": {
+    "code": "INVALID_ARGUMENT",
+    "details": {},
+    "kind": "unknown_dataset",
+    "message": "dataset \"dataset-closed\" is not open; call open_dataset first",
+    "retryable": false,
+    "stage": "mcp"
+   }
+  },
+  {
+   "call": "262 probe_extra open_dataset {\"inputs\": [\"no-manifest.apk\"]}",
+   "verdict": "match"
+  },
+  {
+   "call": "263 probe_extra get_manifest {}",
+   "verdict": "declared",
+   "classes": [
+    "ERROR_WORDING"
+   ],
+   "diffs": [
+    {
+     "path": "/error/message",
+     "reference": "archive entry not found: AndroidManifest.xml",
+     "ours": "the archive has no AndroidManifest.xml"
+    }
+   ],
+   "ours_error": {
+    "code": "INVALID_INPUT",
+    "details": {},
+    "kind": "not_found",
+    "message": "the archive has no AndroidManifest.xml",
+    "retryable": false,
+    "stage": "mcp"
+   }
+  },
+  {
+   "call": "264 probe_extra get_manifest {\"mode\": \"xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "ERROR_WORDING"
+   ],
+   "diffs": [
+    {
+     "path": "/error/message",
+     "reference": "archive entry not found: AndroidManifest.xml",
+     "ours": "the archive has no AndroidManifest.xml"
+    }
+   ],
+   "ours_error": {
+    "code": "INVALID_INPUT",
+    "details": {},
+    "kind": "not_found",
+    "message": "the archive has no AndroidManifest.xml",
+    "retryable": false,
+    "stage": "mcp"
+   }
+  },
+  {
+   "call": "265 probe_extra get_manifest_components {}",
+   "verdict": "declared",
+   "classes": [
+    "ERROR_WORDING"
+   ],
+   "diffs": [
+    {
+     "path": "/error/message",
+     "reference": "archive entry not found: AndroidManifest.xml",
+     "ours": "the archive has no AndroidManifest.xml"
+    }
+   ],
+   "ours_error": {
+    "code": "INVALID_INPUT",
+    "details": {},
+    "kind": "not_found",
+    "message": "the archive has no AndroidManifest.xml",
+    "retryable": false,
+    "stage": "mcp"
+   }
+  },
+  {
+   "call": "266 probe_extra open_dataset {\"inputs\": [\"multi-a.apk\", \"multi-b.apk\"]}",
+   "verdict": "match"
+  },
+  {
+   "call": "267 probe_extra list_resource_files {}",
+   "verdict": "match"
+  },
+  {
+   "call": "268 probe_extra list_resource_files {\"input_index\": 1}",
+   "verdict": "match"
+  },
+  {
+   "call": "269 probe_extra read_resource {\"name\": \"assets/hello.txt\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "270 probe_extra read_resource {\"input_index\": 1, \"name\": \"assets/hello.txt\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "271 probe_extra read_resource {\"name\": \"assets/a.txt\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "272 probe_extra query_resources {\"resource_type\": \"string\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "273 probe_extra query_resources {\"input_index\": 1, \"resource_type\": \"string\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "274 probe_extra get_manifest {\"mode\": \"xml\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "275 probe_extra get_manifest {\"input_index\": 1, \"mode\": \"xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "XML_TEXT_NODES"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 22,
+     "ours": 23
+    },
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.test\\\"\\n  android:ve...(748 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  package=\\\"example.test\\\"\\n  android:ve...(758 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 690,
+     "ours": 699
+    }
+   ]
+  },
+  {
+   "call": "276 probe_extra get_manifest_components {\"input_index\": 1}",
+   "verdict": "match"
+  },
+  {
+   "call": "277 probe_newpipe open_dataset {\"inputs\": [\"NewPipe_v0.28.6.apk\"]}",
+   "verdict": "match"
+  },
+  {
+   "call": "278 probe_newpipe get_manifest {\"mode\": \"xml\", \"offset\": 0}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_NAMES"
+   ],
+   "diffs": [
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:versionCode=\\\"1011\\\"\\n  androi...(24957 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:versionCode=\\\"1011\\\"\\n  androi...(24881 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 23574,
+     "ours": 23498
+    }
+   ]
+  },
+  {
+   "call": "279 probe_newpipe get_manifest_components {\"limit\": 200, \"offset\": 0}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_NAMES"
+   ],
+   "diffs": [
+    {
+     "path": "/components[9]/attributes/android:theme",
+     "reference": "@android:style/Theme.NoDisplay",
+     "ours": "@01030055"
+    },
+    {
+     "path": "/components[10]/attributes/android:theme",
+     "reference": "@android:style/Theme.NoDisplay",
+     "ours": "@01030055"
+    },
+    {
+     "path": "/components[35]/attributes/android:theme",
+     "reference": "@android:style/Theme.Translucent.NoTitleBar",
+     "ours": "@01030010"
+    }
+   ]
+  },
+  {
+   "call": "280 probe_newpipe get_manifest_components {\"limit\": 200, \"offset\": 0, \"only_exported\": true}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_NAMES"
+   ],
+   "diffs": [
+    {
+     "path": "/components[3]/attributes/android:theme",
+     "reference": "@android:style/Theme.NoDisplay",
+     "ours": "@01030055"
+    }
+   ]
+  },
+  {
+   "call": "281 probe_newpipe get_manifest_components {\"kind\": \"activity\", \"limit\": 200, \"offset\": 0}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_NAMES"
+   ],
+   "diffs": [
+    {
+     "path": "/components[4]/attributes/android:theme",
+     "reference": "@android:style/Theme.NoDisplay",
+     "ours": "@01030055"
+    },
+    {
+     "path": "/components[5]/attributes/android:theme",
+     "reference": "@android:style/Theme.NoDisplay",
+     "ours": "@01030055"
+    },
+    {
+     "path": "/components[11]/attributes/android:theme",
+     "reference": "@android:style/Theme.Translucent.NoTitleBar",
+     "ours": "@01030010"
+    }
+   ]
+  },
+  {
+   "call": "282 probe_newpipe get_manifest_components {\"kind\": \"service\", \"limit\": 200, \"offset\": 0}",
+   "verdict": "match"
+  },
+  {
+   "call": "283 probe_newpipe get_manifest_components {\"kind\": \"receiver\", \"limit\": 200, \"offset\": 0}",
+   "verdict": "match"
+  },
+  {
+   "call": "284 probe_newpipe get_manifest_components {\"kind\": \"provider\", \"limit\": 200, \"offset\": 0}",
+   "verdict": "match"
+  },
+  {
+   "call": "285 probe_newpipe list_resource_files {\"limit\": 200, \"offset\": 0}",
+   "verdict": "match"
+  },
+  {
+   "call": "286 probe_newpipe list_resource_files {\"limit\": 200, \"offset\": 200}",
+   "verdict": "match"
+  },
+  {
+   "call": "287 probe_newpipe list_resource_files {\"limit\": 200, \"offset\": 400}",
+   "verdict": "match"
+  },
+  {
+   "call": "288 probe_newpipe list_resource_files {\"limit\": 200, \"offset\": 600}",
+   "verdict": "match"
+  },
+  {
+   "call": "289 probe_newpipe list_resource_files {\"limit\": 200, \"offset\": 800}",
+   "verdict": "match"
+  },
+  {
+   "call": "290 probe_newpipe list_resource_files {\"limit\": 200, \"offset\": 1000}",
+   "verdict": "match"
+  },
+  {
+   "call": "291 probe_newpipe list_resource_files {\"limit\": 200, \"offset\": 1200}",
+   "verdict": "match"
+  },
+  {
+   "call": "292 probe_newpipe list_resource_files {\"limit\": 200, \"offset\": 0, \"prefix\": \"res/layout\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "293 probe_newpipe list_resource_files {\"limit\": 200, \"offset\": 0, \"prefix\": \"assets/\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "294 probe_newpipe query_resources {\"limit\": 200}",
+   "verdict": "match"
+  },
+  {
+   "call": "295 probe_newpipe query_resources {\"limit\": 200, \"offset\": 0, \"resource_type\": \"string\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "296 probe_newpipe query_resources {\"limit\": 200, \"offset\": 200, \"resource_type\": \"string\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "297 probe_newpipe query_resources {\"limit\": 200, \"offset\": 400, \"resource_type\": \"string\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "298 probe_newpipe query_resources {\"limit\": 200, \"offset\": 600, \"resource_type\": \"string\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "299 probe_newpipe query_resources {\"limit\": 200, \"offset\": 0, \"resource_type\": \"layout\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "300 probe_newpipe query_resources {\"limit\": 200, \"offset\": 200, \"resource_type\": \"layout\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "301 probe_newpipe query_resources {\"limit\": 200, \"offset\": 0, \"resource_type\": \"drawable\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "302 probe_newpipe query_resources {\"limit\": 200, \"offset\": 200, \"resource_type\": \"drawable\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "303 probe_newpipe query_resources {\"limit\": 200, \"offset\": 400, \"resource_type\": \"drawable\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "304 probe_newpipe query_resources {\"limit\": 200, \"offset\": 600, \"resource_type\": \"drawable\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "305 probe_newpipe query_resources {\"limit\": 200, \"offset\": 0, \"resource_type\": \"color\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "306 probe_newpipe query_resources {\"limit\": 200, \"offset\": 200, \"resource_type\": \"color\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "307 probe_newpipe query_resources {\"limit\": 200, \"offset\": 0, \"resource_type\": \"dimen\"}",
+   "verdict": "declared",
+   "classes": [
+    "NEGATIVE_DIMENSION"
+   ],
+   "diffs": [
+    {
+     "path": "/values[12]/value",
+     "reference": "16777213dip",
+     "ours": "-3dip"
+    },
+    {
+     "path": "/values[148]/value",
+     "reference": "16777215px",
+     "ours": "-1px"
+    },
+    {
+     "path": "/values[150]/value",
+     "reference": "16777215px",
+     "ours": "-1px"
+    }
+   ]
+  },
+  {
+   "call": "308 probe_newpipe query_resources {\"limit\": 200, \"offset\": 200, \"resource_type\": \"dimen\"}",
+   "verdict": "declared",
+   "classes": [
+    "NEGATIVE_DIMENSION"
+   ],
+   "diffs": [
+    {
+     "path": "/values[63]/value",
+     "reference": "16777212dip",
+     "ours": "-4dip"
+    }
+   ]
+  },
+  {
+   "call": "309 probe_newpipe query_resources {\"limit\": 200, \"offset\": 400, \"resource_type\": \"dimen\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "310 probe_newpipe query_resources {\"limit\": 200, \"offset\": 600, \"resource_type\": \"dimen\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "311 probe_newpipe query_resources {\"limit\": 200, \"offset\": 0, \"resource_type\": \"bool\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "312 probe_newpipe query_resources {\"limit\": 200, \"offset\": 0, \"resource_type\": \"integer\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "313 probe_newpipe query_resources {\"limit\": 200, \"offset\": 0, \"resource_type\": \"id\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "314 probe_newpipe query_resources {\"limit\": 200, \"offset\": 200, \"resource_type\": \"id\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "315 probe_newpipe query_resources {\"limit\": 200, \"offset\": 400, \"resource_type\": \"id\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "316 probe_newpipe query_resources {\"limit\": 200, \"offset\": 600, \"resource_type\": \"id\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "317 probe_newpipe query_resources {\"limit\": 200, \"offset\": 0, \"resource_type\": \"style\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "318 probe_newpipe query_resources {\"limit\": 200, \"offset\": 193, \"resource_type\": \"style\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "319 probe_newpipe query_resources {\"limit\": 200, \"offset\": 332, \"resource_type\": \"style\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "320 probe_newpipe query_resources {\"limit\": 200, \"offset\": 449, \"resource_type\": \"style\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "321 probe_newpipe query_resources {\"limit\": 200, \"offset\": 0, \"resource_type\": \"array\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "322 probe_newpipe query_resources {\"limit\": 200, \"offset\": 200, \"resource_type\": \"array\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "323 probe_newpipe query_resources {\"limit\": 200, \"offset\": 400, \"resource_type\": \"array\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "324 probe_newpipe query_resources {\"limit\": 200, \"offset\": 600, \"resource_type\": \"array\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "325 probe_newpipe query_resources {\"limit\": 200, \"offset\": 0, \"resource_type\": \"plurals\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "326 probe_newpipe query_resources {\"limit\": 200, \"offset\": 200, \"resource_type\": \"plurals\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "327 probe_newpipe query_resources {\"limit\": 200, \"offset\": 392, \"resource_type\": \"plurals\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "328 probe_newpipe query_resources {\"limit\": 200, \"offset\": 574, \"resource_type\": \"plurals\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "329 probe_newpipe query_resources {\"limit\": 200, \"offset\": 0, \"resource_type\": \"attr\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "330 probe_newpipe query_resources {\"limit\": 200, \"offset\": 200, \"resource_type\": \"attr\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "331 probe_newpipe query_resources {\"limit\": 200, \"offset\": 400, \"resource_type\": \"attr\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "332 probe_newpipe query_resources {\"limit\": 200, \"offset\": 600, \"resource_type\": \"attr\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "333 probe_newpipe query_resources {\"limit\": 200, \"offset\": 0, \"resource_type\": \"xml\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "334 probe_newpipe query_resources {\"limit\": 200, \"offset\": 0, \"resource_type\": \"menu\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "335 probe_newpipe query_resources {\"limit\": 200, \"offset\": 0, \"resource_type\": \"mipmap\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "336 probe_newpipe query_resources {\"limit\": 200, \"offset\": 0, \"resource_type\": \"raw\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "337 probe_newpipe query_resources {\"limit\": 200, \"offset\": 0, \"resource_type\": \"anim\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "338 probe_newpipe query_resources {\"limit\": 200, \"offset\": 0, \"resource_type\": \"animator\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "339 probe_newpipe query_resources {\"limit\": 200, \"offset\": 0, \"resource_type\": \"font\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "340 probe_newpipe query_resources {\"limit\": 200, \"offset\": 0, \"resource_type\": \"fraction\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "341 probe_newpipe query_resources {\"limit\": 200, \"offset\": 0, \"resource_type\": \"interpolator\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "342 probe_newpipe query_resources {\"limit\": 200, \"offset\": 0, \"resource_type\": \"navigation\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "343 probe_newpipe query_resources {\"configuration\": \"\", \"limit\": 200, \"offset\": 0}",
+   "verdict": "match"
+  },
+  {
+   "call": "344 probe_newpipe query_resources {\"configuration\": \"\", \"limit\": 200, \"offset\": 200}",
+   "verdict": "match"
+  },
+  {
+   "call": "345 probe_newpipe query_resources {\"configuration\": \"en\", \"limit\": 200, \"offset\": 0}",
+   "verdict": "match"
+  },
+  {
+   "call": "346 probe_newpipe query_resources {\"configuration\": \"de\", \"limit\": 200, \"offset\": 0}",
+   "verdict": "match"
+  },
+  {
+   "call": "347 probe_newpipe query_resources {\"configuration\": \"de\", \"limit\": 200, \"offset\": 200}",
+   "verdict": "match"
+  },
+  {
+   "call": "348 probe_newpipe query_resources {\"configuration\": \"fr\", \"limit\": 200, \"offset\": 0}",
+   "verdict": "match"
+  },
+  {
+   "call": "349 probe_newpipe query_resources {\"configuration\": \"fr\", \"limit\": 200, \"offset\": 200}",
+   "verdict": "match"
+  },
+  {
+   "call": "350 probe_newpipe query_resources {\"configuration\": \"night\", \"limit\": 200, \"offset\": 0}",
+   "verdict": "match"
+  },
+  {
+   "call": "351 probe_newpipe query_resources {\"configuration\": \"land\", \"limit\": 200, \"offset\": 0}",
+   "verdict": "match"
+  },
+  {
+   "call": "352 probe_newpipe query_resources {\"configuration\": \"v21\", \"limit\": 200, \"offset\": 0}",
+   "verdict": "match"
+  },
+  {
+   "call": "353 probe_newpipe query_resources {\"configuration\": \"hdpi\", \"limit\": 200, \"offset\": 0}",
+   "verdict": "match"
+  },
+  {
+   "call": "354 probe_newpipe query_resources {\"configuration\": \"xxhdpi\", \"limit\": 200, \"offset\": 0}",
+   "verdict": "match"
+  },
+  {
+   "call": "355 probe_newpipe query_resources {\"configuration\": \"ldrtl\", \"limit\": 200, \"offset\": 0}",
+   "verdict": "match"
+  },
+  {
+   "call": "356 probe_newpipe query_resources {\"configuration\": \"sw600dp\", \"limit\": 200, \"offset\": 0}",
+   "verdict": "match"
+  },
+  {
+   "call": "357 probe_newpipe query_resources {\"configuration\": \"zh-rCN\", \"limit\": 200, \"offset\": 0}",
+   "verdict": "match"
+  },
+  {
+   "call": "358 probe_newpipe query_resources {\"configuration\": \"zh-rCN\", \"limit\": 200, \"offset\": 200}",
+   "verdict": "match"
+  },
+  {
+   "call": "359 probe_newpipe query_resources {\"configuration\": \"pt-rBR\", \"limit\": 200, \"offset\": 0}",
+   "verdict": "match"
+  },
+  {
+   "call": "360 probe_newpipe query_resources {\"configuration\": \"pt-rBR\", \"limit\": 200, \"offset\": 200}",
+   "verdict": "match"
+  },
+  {
+   "call": "361 probe_newpipe query_resources {\"contains\": \"app_name\", \"limit\": 200, \"offset\": 0}",
+   "verdict": "match"
+  },
+  {
+   "call": "362 probe_newpipe query_resources {\"contains\": \"title\", \"limit\": 200, \"offset\": 0}",
+   "verdict": "declared",
+   "classes": [
+    "NEGATIVE_DIMENSION"
+   ],
+   "diffs": [
+    {
+     "path": "/values[32]/value",
+     "reference": "16777213dip",
+     "ours": "-3dip"
+    }
+   ]
+  },
+  {
+   "call": "363 probe_newpipe query_resources {\"contains\": \"title\", \"limit\": 200, \"offset\": 200}",
+   "verdict": "match"
+  },
+  {
+   "call": "364 probe_newpipe query_resources {\"contains\": \"settings\", \"limit\": 200, \"offset\": 0}",
+   "verdict": "match"
+  },
+  {
+   "call": "365 probe_newpipe query_resources {\"contains\": \"settings\", \"limit\": 200, \"offset\": 200}",
+   "verdict": "match"
+  },
+  {
+   "call": "366 probe_newpipe query_resources {\"contains\": \"ic_\", \"limit\": 200, \"offset\": 0}",
+   "verdict": "match"
+  },
+  {
+   "call": "367 probe_newpipe query_resources {\"contains\": \"ic_\", \"limit\": 200, \"offset\": 200}",
+   "verdict": "match"
+  },
+  {
+   "call": "368 probe_newpipe query_resources {\"limit\": 200, \"name\": \"string/app_name\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "369 probe_newpipe query_resources {\"limit\": 200, \"name\": \"org.schabi.newpipe:string/app_name\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "370 probe_newpipe query_resources {\"limit\": 50, \"max_bytes\": 131072, \"offset\": 0, \"resource_type\": \"style\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "371 probe_newpipe read_resource {\"name\": \"res/rW.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_ENUMS",
+    "NAMESPACES_KEPT",
+    "RAW_WORD_IN_LAYOUT"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 51,
+     "ours": 52
+    },
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<androidx.cardview.widget.CardView\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:orien...(2068 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<androidx.cardview.widget.CardView\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  xmlns:app=\\\"h...(2031 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 1925,
+     "ours": 1885
+    }
+   ]
+  },
+  {
+   "call": "372 probe_newpipe read_resource {\"name\": \"res/rW1.xml\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "373 probe_newpipe read_resource {\"name\": \"res/rX.xml\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "374 probe_newpipe read_resource {\"name\": \"res/rY.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_ENUMS",
+    "RAW_WORD_IN_LAYOUT"
+   ],
+   "diffs": [
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<RelativeLayout\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:theme=\\\"@7f130143\\\"\\n  a...(2135 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<RelativeLayout\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:theme=\\\"@7f130143\\\"\\n  a...(2043 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 1972,
+     "ours": 1880
+    }
+   ]
+  },
+  {
+   "call": "375 probe_newpipe read_resource {\"name\": \"res/rY1.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_ENUMS",
+    "FRAMEWORK_NAMES"
+   ],
+   "diffs": [
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<merge xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\">\\n  <androidx.appcompat.widget.ContentFrameLayo...(409 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<merge xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\">\\n  <androidx.appcompat.widget.ContentFrameLayo...(358 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 382,
+     "ours": 331
+    }
+   ]
+  },
+  {
+   "call": "376 probe_newpipe read_resource {\"name\": \"res/rn.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_ENUMS",
+    "FRAMEWORK_NAMES",
+    "NAMESPACES_KEPT",
+    "RAW_WORD_IN_LAYOUT"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 82,
+     "ours": 83
+    },
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<androidx.constraintlayout.widget.ConstraintLayout\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\...(3559 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<androidx.constraintlayout.widget.ConstraintLayout\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\...(3377 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 3325,
+     "ours": 3140
+    }
+   ]
+  },
+  {
+   "call": "377 probe_newpipe read_resource {\"name\": \"res/rx.xml\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "378 probe_newpipe read_resource {\"name\": \"res/s3.xml\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "379 probe_newpipe read_resource {\"name\": \"res/s4.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_ENUMS",
+    "FRAMEWORK_NAMES",
+    "NAMESPACES_KEPT",
+    "RAW_WORD_IN_LAYOUT"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 90,
+     "ours": 91
+    },
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<androidx.core.widget.NestedScrollView\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:o...(3946 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<androidx.core.widget.NestedScrollView\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  xmlns:app...(3804 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 3692,
+     "ours": 3547
+    }
+   ]
+  },
+  {
+   "call": "380 probe_newpipe read_resource {\"name\": \"res/s41.xml\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "381 probe_newpipe read_resource {\"name\": \"res/s6.xml\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "382 probe_newpipe read_resource {\"name\": \"res/sA.xml\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "383 probe_newpipe read_resource {\"name\": \"res/sF.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_ENUMS",
+    "NAMESPACES_KEPT",
+    "RAW_WORD_IN_LAYOUT"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 17,
+     "ours": 18
+    },
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<FrameLayout\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:layout_width=\\\"fill_parent\\...(691 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<FrameLayout\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  xmlns:app=\\\"http://schemas.android....(688 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 642,
+     "ours": 636
+    }
+   ]
+  },
+  {
+   "call": "384 probe_newpipe read_resource {\"name\": \"res/sM.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_ENUMS",
+    "NAMESPACES_KEPT"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 29,
+     "ours": 31
+    },
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<menu xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\">\\n  <item\\n    android:icon=\\\"@7f080152\\\"\\n    a...(890 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<menu\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  xmlns:app=\\\"http://schemas.android.com/apk...(938 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 811,
+     "ours": 855
+    }
+   ]
+  },
+  {
+   "call": "385 probe_newpipe read_resource {\"name\": \"res/sO.xml\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "386 probe_newpipe read_resource {\"name\": \"res/sX.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "NAMESPACES_KEPT"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 14,
+     "ours": 15
+    },
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<animated-vector\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:drawable=\\\"@7f08018e\\\">...(429 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<animated-vector\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  xmlns:aapt=\\\"http://schemas.and...(479 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 393,
+     "ours": 440
+    }
+   ]
+  },
+  {
+   "call": "387 probe_newpipe read_resource {\"name\": \"res/sa.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_ENUMS",
+    "RAW_WORD_IN_LAYOUT"
+   ],
+   "diffs": [
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<RelativeLayout\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:layout_width=\\\"fill_pare...(596 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<RelativeLayout\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:layout_width=\\\"-1\\\"\\n  a...(562 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 549,
+     "ours": 515
+    }
+   ]
+  },
+  {
+   "call": "388 probe_newpipe read_resource {\"name\": \"res/sb.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_ENUMS",
+    "FRAMEWORK_NAMES",
+    "NAMESPACES_KEPT",
+    "RAW_WORD_IN_LAYOUT"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 86,
+     "ours": 87
+    },
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<androidx.constraintlayout.widget.ConstraintLayout\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\...(3741 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<androidx.constraintlayout.widget.ConstraintLayout\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\...(3555 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 3495,
+     "ours": 3306
+    }
+   ]
+  },
+  {
+   "call": "389 probe_newpipe read_resource {\"name\": \"res/sl.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "NAMESPACES_KEPT"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 31,
+     "ours": 33
+    },
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<animated-selector xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\">\\n  <item\\n    android:state_checke...(972 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<animated-selector\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  xmlns:app=\\\"http://schemas.an...(1028 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 891,
+     "ours": 943
+    }
+   ]
+  },
+  {
+   "call": "390 probe_newpipe read_resource {\"name\": \"res/sn.xml\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "391 probe_newpipe read_resource {\"name\": \"res/t1.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_ENUMS",
+    "FRAMEWORK_NAMES",
+    "RAW_WORD_IN_LAYOUT"
+   ],
+   "diffs": [
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<LinearLayout\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:gravity=\\\"center_vertical\\...(3690 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<LinearLayout\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:gravity=\\\"0x00000010\\\"\\n  ...(3249 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 3443,
+     "ours": 3002
+    }
+   ]
+  },
+  {
+   "call": "392 probe_newpipe read_resource {\"name\": \"res/t4.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_ENUMS",
+    "FRAMEWORK_NAMES",
+    "RAW_WORD_IN_LAYOUT"
+   ],
+   "diffs": [
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<RelativeLayout\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:id=\\\"@7f0a01ec\\\"\\n  andr...(2213 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<RelativeLayout\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:id=\\\"@7f0a01ec\\\"\\n  andr...(2079 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 2050,
+     "ours": 1916
+    }
+   ]
+  },
+  {
+   "call": "393 probe_newpipe read_resource {\"name\": \"res/t6.xml\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "394 probe_newpipe read_resource {\"name\": \"res/t8.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_NAMES"
+   ],
+   "diffs": [
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<selector xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\">\\n  <item\\n    android:state_focused=\\\"true\\...(789 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<selector xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\">\\n  <item\\n    android:state_focused=\\\"true\\...(772 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 725,
+     "ours": 708
+    }
+   ]
+  },
+  {
+   "call": "395 probe_newpipe read_resource {\"name\": \"res/tC.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_ENUMS",
+    "FRAMEWORK_NAMES",
+    "NAMESPACES_KEPT",
+    "RAW_WORD_IN_LAYOUT"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 245,
+     "ours": 246
+    },
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<RelativeLayout\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:id=\\\"@7f0a021b\\\"\\n  andr...(9402 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<RelativeLayout\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  xmlns:app=\\\"http://schemas.andro...(8959 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 8717,
+     "ours": 8271
+    }
+   ]
+  },
+  {
+   "call": "396 probe_newpipe read_resource {\"name\": \"res/tL.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_ENUMS",
+    "FRAMEWORK_NAMES"
+   ],
+   "diffs": [
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<inset\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:insetLeft=\\\"16dip\\\"\\n  android:in...(404 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<inset\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:insetLeft=\\\"16dip\\\"\\n  android:in...(385 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 370,
+     "ours": 351
+    }
+   ]
+  },
+  {
+   "call": "397 probe_newpipe read_resource {\"name\": \"res/tN.xml\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "398 probe_newpipe read_resource {\"name\": \"res/t_.xml\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "399 probe_newpipe read_resource {\"name\": \"res/tg.xml\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "400 probe_newpipe read_resource {\"name\": \"res/th.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_ENUMS",
+    "RAW_WORD_IN_LAYOUT"
+   ],
+   "diffs": [
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<ScrollView\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:paddingTop=\\\"4dip\\\"\\n  andro...(17863 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<ScrollView\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:paddingTop=\\\"4dip\\\"\\n  andro...(17249 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 16662,
+     "ours": 16048
+    }
+   ]
+  },
+  {
+   "call": "401 probe_newpipe read_resource {\"name\": \"res/tk.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_ENUMS",
+    "FRAMEWORK_NAMES",
+    "RAW_WORD_IN_LAYOUT"
+   ],
+   "diffs": [
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<TextView\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:id=\\\"@android:id/title\\\"\\n  an...(292 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<TextView\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:id=\\\"@01020016\\\"\\n  android:la...(237 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 269,
+     "ours": 214
+    }
+   ]
+  },
+  {
+   "call": "402 probe_newpipe read_resource {\"name\": \"res/tq.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_ENUMS",
+    "FRAMEWORK_NAMES",
+    "RAW_WORD_IN_LAYOUT"
+   ],
+   "diffs": [
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<RelativeLayout\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:id=\\\"@7f0a01ec\\\"\\n  andr...(2270 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<RelativeLayout\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:id=\\\"@7f0a01ec\\\"\\n  andr...(2133 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 2104,
+     "ours": 1967
+    }
+   ]
+  },
+  {
+   "call": "403 probe_newpipe read_resource {\"name\": \"res/u0.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_ENUMS",
+    "FRAMEWORK_NAMES",
+    "RAW_WORD_IN_LAYOUT"
+   ],
+   "diffs": [
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<ScrollView\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:id=\\\"@7f0a0094\\\"\\n  android:...(1495 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<ScrollView\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:id=\\\"@7f0a0094\\\"\\n  android:...(1371 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 1381,
+     "ours": 1257
+    }
+   ]
+  },
+  {
+   "call": "404 probe_newpipe read_resource {\"name\": \"res/u01.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_ENUMS"
+   ],
+   "diffs": [
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<set xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\">\\n  <set android:ordering=\\\"sequentially\\\">\\n    ...(1032 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<set xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\">\\n  <set android:ordering=\\\"1\\\">\\n    <objectAnim...(1010 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 949,
+     "ours": 927
+    }
+   ]
+  },
+  {
+   "call": "405 probe_newpipe read_resource {\"name\": \"res/uJ.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_ENUMS",
+    "FRAMEWORK_NAMES",
+    "RAW_WORD_IN_LAYOUT"
+   ],
+   "diffs": [
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<FrameLayout\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:paddingLeft=\\\"16dip\\\"\\n  an...(694 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<FrameLayout\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:paddingLeft=\\\"16dip\\\"\\n  an...(640 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 639,
+     "ours": 585
+    }
+   ]
+  },
+  {
+   "call": "406 probe_newpipe read_resource {\"name\": \"res/uL.xml\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "407 probe_newpipe read_resource {\"name\": \"res/uR.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_ENUMS",
+    "NAMESPACES_KEPT",
+    "RAW_WORD_IN_LAYOUT"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 28,
+     "ours": 29
+    },
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<com.google.android.material.button.MaterialButtonToggleGroup\\n  xmlns:android=\\\"http://schemas.android.com/apk/res...(988 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<com.google.android.material.button.MaterialButtonToggleGroup\\n  xmlns:android=\\\"http://schemas.android.com/apk/res...(1011 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 908,
+     "ours": 928
+    }
+   ]
+  },
+  {
+   "call": "408 probe_newpipe read_resource {\"name\": \"res/ua.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_NAMES"
+   ],
+   "diffs": [
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<set\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:interpolator=\\\"@android:interpolato...(382 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<set\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:interpolator=\\\"@010c000f\\\"\\n  andro...(351 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 350,
+     "ours": 319
+    }
+   ]
+  },
+  {
+   "call": "409 probe_newpipe read_resource {\"name\": \"res/um.xml\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "410 probe_newpipe read_resource {\"name\": \"res/uo.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_ENUMS",
+    "FRAMEWORK_NAMES",
+    "RAW_WORD_IN_LAYOUT"
+   ],
+   "diffs": [
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<LinearLayout\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:orientation=\\\"vertical\\\"\\n...(1435 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<LinearLayout\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:orientation=\\\"1\\\"\\n  andro...(1273 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 1335,
+     "ours": 1173
+    }
+   ]
+  },
+  {
+   "call": "411 probe_newpipe read_resource {\"name\": \"res/v-.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_ENUMS",
+    "FRAMEWORK_NAMES",
+    "NAMESPACES_KEPT",
+    "RAW_WORD_IN_LAYOUT"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 17,
+     "ours": 18
+    },
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<CheckedTextView\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:ellipsize=\\\"marquee\\\"\\n...(720 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<CheckedTextView\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  xmlns:app=\\\"http://schemas.andr...(672 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 667,
+     "ours": 616
+    }
+   ]
+  },
+  {
+   "call": "412 probe_newpipe read_resource {\"name\": \"res/v9.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_ENUMS",
+    "NAMESPACES_KEPT"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 29,
+     "ours": 30
+    },
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<org.schabi.newpipe.views.FocusAwareDrawerLayout\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n ...(1255 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<org.schabi.newpipe.views.FocusAwareDrawerLayout\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n ...(1221 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 1180,
+     "ours": 1143
+    }
+   ]
+  },
+  {
+   "call": "413 probe_newpipe read_resource {\"name\": \"res/vG.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_ENUMS",
+    "FRAMEWORK_NAMES",
+    "RAW_WORD_IN_LAYOUT"
+   ],
+   "diffs": [
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<androidx.appcompat.view.menu.ListMenuItemView\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  a...(1423 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<androidx.appcompat.view.menu.ListMenuItemView\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  a...(1341 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 1326,
+     "ours": 1244
+    }
+   ]
+  },
+  {
+   "call": "414 probe_newpipe read_resource {\"name\": \"res/vJ.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_ENUMS",
+    "RAW_WORD_IN_LAYOUT"
+   ],
+   "diffs": [
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<CheckBox\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:layout_gravity=\\\"center_vertic...(375 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<CheckBox\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:layout_gravity=\\\"0x00000010\\\"\\...(358 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 343,
+     "ours": 326
+    }
+   ]
+  },
+  {
+   "call": "415 probe_newpipe read_resource {\"name\": \"res/vN.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_ENUMS",
+    "NAMESPACES_KEPT",
+    "RAW_WORD_IN_LAYOUT"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 62,
+     "ours": 63
+    },
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<androidx.constraintlayout.widget.ConstraintLayout\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\...(2442 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<androidx.constraintlayout.widget.ConstraintLayout\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\...(2384 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 2268,
+     "ours": 2207
+    }
+   ]
+  },
+  {
+   "call": "416 probe_newpipe read_resource {\"name\": \"res/vT.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_ENUMS",
+    "RAW_WORD_IN_LAYOUT"
+   ],
+   "diffs": [
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<FrameLayout\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:layout_width=\\\"4294967294\\\"...(206 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<FrameLayout\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:layout_width=\\\"-2\\\"\\n  andr...(189 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 189,
+     "ours": 172
+    }
+   ]
+  },
+  {
+   "call": "417 probe_newpipe read_resource {\"name\": \"res/vW.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_ENUMS",
+    "FRAMEWORK_NAMES",
+    "NAMESPACES_KEPT",
+    "RAW_WORD_IN_LAYOUT"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 105,
+     "ours": 106
+    },
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<RelativeLayout\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:background=\\\"?7f04015f\\\"...(4062 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<RelativeLayout\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  xmlns:app=\\\"http://schemas.andro...(3947 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 3773,
+     "ours": 3655
+    }
+   ]
+  },
+  {
+   "call": "418 probe_newpipe read_resource {\"name\": \"res/vX.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_ENUMS",
+    "FRAMEWORK_NAMES",
+    "RAW_WORD_IN_LAYOUT"
+   ],
+   "diffs": [
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<LinearLayout\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:orientation=\\\"vertical\\\"\\n...(811 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<LinearLayout\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:orientation=\\\"1\\\"\\n  andro...(758 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 750,
+     "ours": 697
+    }
+   ]
+  },
+  {
+   "call": "419 probe_newpipe read_resource {\"name\": \"res/vX1.xml\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "420 probe_newpipe read_resource {\"name\": \"res/vY.xml\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "421 probe_newpipe read_resource {\"name\": \"res/vZ.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_NAMES"
+   ],
+   "diffs": [
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<alpha\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:interpolator=\\\"@android:interpola...(272 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<alpha\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:interpolator=\\\"@010c0000\\\"\\n  and...(244 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 249,
+     "ours": 221
+    }
+   ]
+  },
+  {
+   "call": "422 probe_newpipe read_resource {\"name\": \"res/vi.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_ENUMS",
+    "RAW_WORD_IN_LAYOUT"
+   ],
+   "diffs": [
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<RelativeLayout\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:layout_width=\\\"fill_pare...(4916 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<RelativeLayout\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:layout_width=\\\"-1\\\"\\n  a...(4653 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 4550,
+     "ours": 4287
+    }
+   ]
+  },
+  {
+   "call": "423 probe_newpipe read_resource {\"name\": \"res/vq.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_ENUMS",
+    "NAMESPACES_KEPT"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 18,
+     "ours": 19
+    },
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<view\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:layout_gravity=\\\"start\\\"\\n  androi...(712 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<view\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  xmlns:app=\\\"http://schemas.android.com/apk...(727 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 656,
+     "ours": 668
+    }
+   ]
+  },
+  {
+   "call": "424 probe_newpipe read_resource {\"name\": \"res/vx.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_ENUMS",
+    "FRAMEWORK_NAMES",
+    "NAMESPACES_KEPT",
+    "RAW_WORD_IN_LAYOUT"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 49,
+     "ours": 50
+    },
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<RelativeLayout\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:id=\\\"@7f0a01ec\\\"\\n  andr...(1860 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<RelativeLayout\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  xmlns:app=\\\"http://schemas.andro...(1773 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 1721,
+     "ours": 1631
+    }
+   ]
+  },
+  {
+   "call": "425 probe_newpipe read_resource {\"name\": \"res/w9.xml\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "426 probe_newpipe read_resource {\"name\": \"res/w91.xml\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "427 probe_newpipe read_resource {\"name\": \"res/wJ.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_ENUMS",
+    "FRAMEWORK_NAMES",
+    "NAMESPACES_KEPT",
+    "RAW_WORD_IN_LAYOUT"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 48,
+     "ours": 49
+    },
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<FrameLayout\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:background=\\\"?7f040411\\\"\\n ...(1744 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<FrameLayout\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  xmlns:app=\\\"http://schemas.android....(1669 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 1614,
+     "ours": 1536
+    }
+   ]
+  },
+  {
+   "call": "428 probe_newpipe read_resource {\"name\": \"res/wP.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_ENUMS",
+    "NAMESPACES_KEPT"
+   ],
+   "diffs": [
+    {
+     "path": "/page/end_line",
+     "reference": 9,
+     "ours": 10
+    },
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<objectAnimator\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:interpolator=\\\"?7f040372...(326 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<objectAnimator\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  xmlns:aapt=\\\"http://schemas.andr...(368 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 297,
+     "ours": 336
+    }
+   ]
+  },
+  {
+   "call": "429 probe_newpipe read_resource {\"name\": \"res/wx.xml\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "430 probe_newpipe read_resource {\"name\": \"res/xA.xml\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "431 probe_newpipe read_resource {\"max_bytes\": 4096, \"name\": \"res/rj.9.png\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "432 probe_newpipe read_resource {\"max_bytes\": 4096, \"name\": \"res/rp.png\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "433 probe_newpipe read_resource {\"max_bytes\": 4096, \"name\": \"res/s0.png\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "434 probe_newpipe read_resource {\"max_bytes\": 4096, \"name\": \"res/s2.png\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "435 probe_newpipe read_resource {\"max_bytes\": 4096, \"name\": \"res/s3.9.png\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "436 probe_newpipe read_resource {\"max_bytes\": 4096, \"name\": \"res/s4.png\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "437 probe_newpipe read_resource {\"max_bytes\": 4096, \"name\": \"res/sA.9.png\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "438 probe_newpipe read_resource {\"max_bytes\": 4096, \"name\": \"res/sg.9.png\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "439 probe_newpipe read_resource {\"max_bytes\": 4096, \"name\": \"res/tG.png\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "440 probe_newpipe read_resource {\"max_bytes\": 4096, \"name\": \"res/tK.png\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "441 probe_newpipe read_resource {\"max_bytes\": 4096, \"name\": \"res/tS.png\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "442 probe_newpipe read_resource {\"max_bytes\": 4096, \"name\": \"res/tU.9.png\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "443 probe_newpipe read_resource {\"max_bytes\": 4096, \"name\": \"res/tV.png\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "444 probe_newpipe read_resource {\"max_bytes\": 4096, \"name\": \"res/tX.png\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "445 probe_newpipe read_resource {\"max_bytes\": 4096, \"name\": \"res/tZ.9.png\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "446 probe_newpipe read_resource {\"max_bytes\": 4096, \"name\": \"res/te.png\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "447 probe_newpipe read_resource {\"max_bytes\": 4096, \"name\": \"res/th.png\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "448 probe_newpipe read_resource {\"max_bytes\": 4096, \"name\": \"res/tj.png\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "449 probe_newpipe read_resource {\"max_bytes\": 4096, \"name\": \"res/u3.png\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "450 probe_newpipe read_resource {\"max_bytes\": 4096, \"name\": \"res/uA.png\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "451 probe_newpipe read_resource {\"max_bytes\": 4096, \"name\": \"res/uG.png\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "452 probe_newpipe read_resource {\"max_bytes\": 4096, \"name\": \"res/uL.9.png\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "453 probe_newpipe read_resource {\"max_bytes\": 4096, \"name\": \"res/uU.png\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "454 probe_newpipe read_resource {\"max_bytes\": 4096, \"name\": \"res/ua.png\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "455 probe_newpipe read_resource {\"max_bytes\": 4096, \"name\": \"res/uh.png\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "456 probe_newpipe read_resource {\"max_bytes\": 4096, \"name\": \"resources.arsc\"}",
+   "verdict": "match"
+  },
+  {
+   "call": "457 probe_newpipe read_resource {\"name\": \"AndroidManifest.xml\"}",
+   "verdict": "declared",
+   "classes": [
+    "FRAMEWORK_NAMES"
+   ],
+   "diffs": [
+    {
+     "path": "/page/text",
+     "reference": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:versionCode=\\\"1011\\\"\\n  androi...(24957 characters)",
+     "ours": "\"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<manifest\\n  xmlns:android=\\\"http://schemas.android.com/apk/res/android\\\"\\n  android:versionCode=\\\"1011\\\"\\n  androi...(24881 characters)"
+    },
+    {
+     "path": "/page/total_bytes",
+     "reference": 23574,
+     "ours": 23498
+    }
+   ]
+  }
+ ],
+ "newpipe": {
+  "records": 181,
+  "run": true,
+  "apk_sha256": "e56ef6280b700696172797f94513ffd3f9aae9349945a2f06e235ec24446be58",
+  "not_run": null
+ }
+}

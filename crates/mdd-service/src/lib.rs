@@ -8,6 +8,7 @@ pub mod dataset;
 pub mod decode;
 pub mod lines;
 pub mod manifest;
+pub mod resources;
 pub mod run;
 
 pub use dataset::{Dataset, Dialect, InputRequest, LayerIssue};

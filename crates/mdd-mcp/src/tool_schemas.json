@@ -445,6 +445,76 @@
    "type": "object"
   }
  },
+ "get_manifest_components": {
+  "annotations": {
+   "openWorldHint": false,
+   "readOnlyHint": true
+  },
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "additionalProperties": false,
+   "properties": {
+    "dataset_id": {
+     "type": "string"
+    },
+    "input_index": {
+     "format": "uint",
+     "minimum": 0,
+     "type": [
+      "integer",
+      "null"
+     ]
+    },
+    "kind": {
+     "description": "Optional activity, activity-alias, service, receiver, or provider filter.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "limit": {
+     "format": "uint",
+     "maximum": 200,
+     "minimum": 1,
+     "type": [
+      "integer",
+      "null"
+     ]
+    },
+    "max_bytes": {
+     "format": "uint",
+     "minimum": 0,
+     "type": [
+      "integer",
+      "null"
+     ]
+    },
+    "offset": {
+     "default": 0,
+     "format": "uint",
+     "minimum": 0,
+     "type": "integer"
+    },
+    "only_exported": {
+     "default": false,
+     "description": "Filter by manifest-derived exported state; does not imply runtime accessibility.",
+     "type": "boolean"
+    },
+    "timeout_ms": {
+     "format": "uint64",
+     "minimum": 0,
+     "type": [
+      "integer",
+      "null"
+     ]
+    }
+   },
+   "required": [
+    "dataset_id"
+   ],
+   "type": "object"
+  }
+ },
  "list_datasets": {
   "annotations": {
    "openWorldHint": false,
@@ -452,6 +522,71 @@
   },
   "inputSchema": {
    "properties": {},
+   "type": "object"
+  }
+ },
+ "list_resource_files": {
+  "annotations": {
+   "openWorldHint": false,
+   "readOnlyHint": true
+  },
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "additionalProperties": false,
+   "properties": {
+    "dataset_id": {
+     "type": "string"
+    },
+    "input_index": {
+     "format": "uint",
+     "minimum": 0,
+     "type": [
+      "integer",
+      "null"
+     ]
+    },
+    "limit": {
+     "format": "uint",
+     "maximum": 200,
+     "minimum": 1,
+     "type": [
+      "integer",
+      "null"
+     ]
+    },
+    "max_bytes": {
+     "format": "uint",
+     "minimum": 0,
+     "type": [
+      "integer",
+      "null"
+     ]
+    },
+    "offset": {
+     "default": 0,
+     "format": "uint",
+     "minimum": 0,
+     "type": "integer"
+    },
+    "prefix": {
+     "description": "Case-sensitive archive-entry prefix, for example res/layout/ or assets/.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "timeout_ms": {
+     "format": "uint64",
+     "minimum": 0,
+     "type": [
+      "integer",
+      "null"
+     ]
+    }
+   },
+   "required": [
+    "dataset_id"
+   ],
    "type": "object"
   }
  },
@@ -895,6 +1030,170 @@
     "diagnostics"
    ],
    "title": "QueryOutput",
+   "type": "object"
+  }
+ },
+ "query_resources": {
+  "annotations": {
+   "openWorldHint": false,
+   "readOnlyHint": true
+  },
+  "inputSchema": {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "additionalProperties": false,
+   "properties": {
+    "configuration": {
+     "description": "Exact qualifier string from a previous result. Empty string selects the default config.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "contains": {
+     "description": "Case-sensitive substring of the resource name.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "dataset_id": {
+     "type": "string"
+    },
+    "input_index": {
+     "format": "uint",
+     "minimum": 0,
+     "type": [
+      "integer",
+      "null"
+     ]
+    },
+    "limit": {
+     "format": "uint",
+     "maximum": 200,
+     "minimum": 1,
+     "type": [
+      "integer",
+      "null"
+     ]
+    },
+    "max_bytes": {
+     "format": "uint",
+     "minimum": 0,
+     "type": [
+      "integer",
+      "null"
+     ]
+    },
+    "name": {
+     "description": "Exact type/name or package:type/name, for example string/app_name.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "offset": {
+     "default": 0,
+     "format": "uint",
+     "minimum": 0,
+     "type": "integer"
+    },
+    "resource_id": {
+     "description": "Resource ID, for example 2130771968 (0x7f010000).",
+     "format": "uint32",
+     "minimum": 0,
+     "type": [
+      "integer",
+      "null"
+     ]
+    },
+    "resource_type": {
+     "description": "Resource type, for example string, layout, id, style, or array.",
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "timeout_ms": {
+     "format": "uint64",
+     "minimum": 0,
+     "type": [
+      "integer",
+      "null"
+     ]
+    }
+   },
+   "required": [
+    "dataset_id"
+   ],
+   "type": "object"
+  }
+ },
+ "read_resource": {
+  "annotations": {
+   "openWorldHint": false,
+   "readOnlyHint": true
+  },
+  "inputSchema": {
+   "$defs": {
+    "ResourceFormat": {
+     "description": "The `read_resource` output format: decide from the bytes, or force hex.\n\n`JsonSchema` is derived here for the same reason as `manifest::ManifestMode`: the MCP tool's\nparameter schema is generated from this type, which is re-exported as\n`cli::mcp::protocol::ResourceFormat`.",
+     "enum": [
+      "auto",
+      "hex"
+     ],
+     "type": "string"
+    }
+   },
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "additionalProperties": false,
+   "properties": {
+    "dataset_id": {
+     "type": "string"
+    },
+    "format": {
+     "$ref": "#/$defs/ResourceFormat",
+     "default": "auto"
+    },
+    "input_index": {
+     "format": "uint",
+     "minimum": 0,
+     "type": [
+      "integer",
+      "null"
+     ]
+    },
+    "max_bytes": {
+     "format": "uint",
+     "minimum": 0,
+     "type": [
+      "integer",
+      "null"
+     ]
+    },
+    "name": {
+     "description": "Exact archive entry name. No files are extracted to the filesystem.",
+     "type": "string"
+    },
+    "offset": {
+     "default": 0,
+     "description": "Byte offset in decoded UTF-8 text, or original bytes when encoding is hex.",
+     "format": "uint",
+     "minimum": 0,
+     "type": "integer"
+    },
+    "timeout_ms": {
+     "format": "uint64",
+     "minimum": 0,
+     "type": [
+      "integer",
+      "null"
+     ]
+    }
+   },
+   "required": [
+    "dataset_id",
+    "name"
+   ],
    "type": "object"
   }
  }

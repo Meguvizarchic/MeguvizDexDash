@@ -170,12 +170,16 @@ def lookup(results: dict, suffix: str) -> str:
     return hits[0][0] if len(hits[0]) == 1 else f"ambiguous({len(hits[0])})"
 
 
+EIGHT = {"open_dataset", "list_datasets", "close_dataset", "decode", "get_manifest", "list_tables", "describe_table", "query"}
+
+
 def schema_differences(binary: Path) -> list[str]:
     manifest = json.loads((ROOT / MANIFEST).read_text(encoding="utf-8"))
     recorded = {t["name"]: t for t in manifest["native_mcp"]["0.1.0"]}
     client = McpClient(binary)
     client.initialize()
-    served = client.tools()
+    # MDD-042's eight; the tools MDD-071 and MDD-072 completed are checked by their own records
+    served = [tool for tool in client.tools() if tool["name"] in EIGHT]
     client.close()
     problems = []
     for tool in served:

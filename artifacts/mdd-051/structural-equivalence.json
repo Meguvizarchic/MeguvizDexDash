@@ -5,7 +5,7 @@
       "crates/mdd-facts/src/hostlab/rules.rs"
     ],
     "core_files_with_application_literals": [],
-    "core_production_files_scanned": 123,
+    "core_production_files_scanned": 136,
     "known_exception": "crates/mdd-facts/src/hostlab/rules.rs (built before MDD-051) names FEATUREs in a core crate; AGENTS.md keeps FEATURE out of the generic core. It is pinned by test_structural_provider.py, not endorsed, and is not on the HostLab path this task adds.",
     "new_modules": {
       "native_session.py": {
@@ -833,22 +833,22 @@
       "build_id": "source-sha256:01143ac113f4e0bcad5cf66e5499523ac9d0cf05fba660121825439c5e51aff7",
       "engine_version": "0.1.0-dev",
       "platform": "Windows/AMD64",
-      "sha256": "028b66179e6ae3ae7a413598a055e2d4544e4e3ba313addf8036ec9629c31775"
+      "sha256": "79fb58158933145af98c1c27633d076337aea6e31206b0d50150b2b374b589d0"
     },
     "dataset": {
       "dex_count": 1,
       "layer_issues": [],
       "profile": "hostlab-contract-unqualified",
       "protocol": "mdd.cli-stream.v1",
-      "scope_id": "sha256:a157c8658c83b356df45f545858a2400b174bea0773a8529581e10ce033472a4",
-      "snapshot_id": "snapshot-eead2746061acf57890214ba0b565f0a5d40a3a0632c8aea8466cf273120c341",
+      "scope_id": "sha256:e4d414a125d9ac6e7e46eb43395405d9e04de759111c4079bb5362ddc6da46dd",
+      "snapshot_id": "snapshot-42053aa8c9da6cc86928edbab8ee23b20982395999ab9e0d292a1862c66bd60a",
       "sql_dialect": "dexsql-0.1.0"
     },
     "engine": {
       "backend": "meguvizdexdash",
-      "binary_sha256": "028b66179e6ae3ae7a413598a055e2d4544e4e3ba313addf8036ec9629c31775",
+      "binary_sha256": "79fb58158933145af98c1c27633d076337aea6e31206b0d50150b2b374b589d0",
       "build_id": "source-sha256:01143ac113f4e0bcad5cf66e5499523ac9d0cf05fba660121825439c5e51aff7",
-      "config_digest": "6f28463ea4b7b26ab67a67f33063aaf3213f091e01f04f5081b7b13e31941f05",
+      "config_digest": "d208319f466cce2b841c5c123c41b0a78e21f28f6022097820d11d06bb5c31e0",
       "dialect": {
         "engine": "dexsql-0.1.0",
         "hostlab": "dexsql",
@@ -856,7 +856,7 @@
       },
       "engine_version": "0.1.0-dev",
       "implementation_scope": "unqualified development build",
-      "mcp_tools_sha256": "41bb5c2397a7cfe7c89f653eac4479b4e25398739f9017529a2cf54b2e64def1",
+      "mcp_tools_sha256": "de862e9a9a39de0fc706d5a6366a46a84f0e87984b19c6caeda31d8204daf8c1",
       "platform": "Windows/AMD64",
       "product": "MeguvizDexDash",
       "profile": {

@@ -1,0 +1,141 @@
+{
+ "about": "The public contract of the resource tools and of the twelve-tool surface as MDD-072 completes it: what each tool takes, in which unit each number is, how a page ends, which refusals exist, what an input may be and what a tool does not claim. The published input schemas and annotations of all twelve tools are the reference's (conformance/manifests/tools-and-options.json, artifacts/mdd-072/a0-probe/tools-list.json) and are unchanged; everything this file adds is an additional key of an answer. artifacts/mdd-072/twelve-tool-conformance.json is the evidence for it.",
+ "tools": {
+  "open_dataset": "opens DEX and APK paths; an archive without any DEX is a valid input: has_dex is false, dex_count 0, and the code tools refuse it (see no_dex)",
+  "list_datasets": "unchanged (MDD-042)",
+  "close_dataset": "unchanged (MDD-042)",
+  "list_tables": "unchanged (MDD-042, MDD-070: the 56 frozen relations)",
+  "describe_table": "unchanged (MDD-042, MDD-070)",
+  "query": "unchanged (MDD-042); on a dataset without DEX it is refused as no_dex, never answered with an empty result",
+  "decode": "unchanged (MDD-071); on a dataset without DEX it is refused as no_dex",
+  "get_manifest": {
+   "modes": {
+    "summary": "the manifest, application and uses-sdk attributes, target SDK, component counts and the permission rows; offset and next_offset count permission rows, limit is rows per page (1..200)",
+    "xml": "the whole manifest as XML text; offset and next_offset count UTF-8 bytes of that text, max_bytes is 4096..131072 and a page holds at most a quarter of it"
+   },
+   "xml_text": "the XML declaration, two spaces per level, an element with two or more attributes (namespace declarations count) one attribute per line, an empty element closed with />; every namespace declaration and every namespaced attribute is written under the prefix the document gave it; typed values are spelled out; text nodes are kept; a character XML 1.0 cannot carry (a control character other than tab, line feed and carriage return) and tab, line feed and carriage return in a value are written as character references; a value with an unpaired surrogate is refused, naming the attribute",
+   "value_spelling": "integers decimal, hex integers as 0x and eight digits, booleans true/false, floats as the shortest decimal that reads back to the same f32 (inf, -inf, NaN), dimensions and fractions as mantissa times the platform's radix constant in f64 with the unit suffix (px dip sp pt in mm, % %p), colours as # and eight hex digits of the stored word, a reference as @ and eight hex digits (? for an attribute), null as <0xN, type Null>, an unknown type as <0xN, type Unknown(T)>, a dimension or fraction unit outside the platform's table as <0xN, type Dimension, unit U>",
+   "named_integers": "installLocation, launchMode and protectionLevel (a flag word, highest flag first, joined by |) by their framework names; any other attribute stays a number, and a string-typed value is always its string",
+   "summary_and_xml_agree": "the summary and the XML spell one value one way; the summary keeps characters exactly, the XML escapes them"
+  },
+  "get_manifest_components": {
+   "rows": "one per activity, activity-alias, service, receiver and provider under <application>, in document order",
+   "fields": [
+    "name",
+    "descriptor",
+    "kind",
+    "enabled",
+    "exported",
+    "exported_reason",
+    "launcher_intent",
+    "intent_filters (actions, categories, data, attributes)",
+    "metadata",
+    "target_activity",
+    "attributes"
+   ],
+   "exported": "the manifest's own android:exported when it is a boolean (reason explicit); otherwise the platform default at the target SDK: a provider is exported below API 17 (provider_target_sdk_default); a component without an intent filter is not (intent_filter_default); one with an intent filter is exported below API 31 (intent_filter_default); at API 31 and above, or with no target SDK, the state is null with the reason explicit_exported_required_or_target_sdk_unknown; an android:exported that is a reference this document cannot resolve is null with the reason exported_value_not_resolvable_here",
+   "exported_assumption": "Android API 17+; manifest configuration only, excluding runtime state and permission checks",
+   "filters": "kind (activity, activity-alias, service, receiver, provider) and only_exported (exported is true; null is not true)",
+   "paging": "offset, next_offset and total_rows count components; offset == total_rows is an empty page, offset above it is invalid_range"
+  },
+  "list_resource_files": {
+   "rows": "every member of the archive, directory entries included, in name order (byte order of the stored name; the central directory's order breaks a tie, so members that share a name are all listed)",
+   "fields": [
+    "name",
+    "entry_index",
+    "bytes",
+    "compressed_bytes",
+    "crc32",
+    "directory",
+    "raw_name_hex (only when the name is not UTF-8)"
+   ],
+   "prefix": "case-sensitive prefix of the name",
+   "paging": "offset, next_offset and total_rows count members; rows are added while the answer fits max_bytes"
+  },
+  "read_resource": {
+   "formats": {
+    "auto": "Android binary XML as XML text (kind android_xml, same rendering as get_manifest xml), valid UTF-8 as text (kind text), anything else as lower-case hex (kind binary)",
+    "hex": "the stored bytes as lower-case hex (kind binary), for any member, a damaged binary XML included"
+   },
+   "units": "text and android_xml: offset, next_offset and page.total_bytes count UTF-8 bytes of the text shown, a page holds whole lines up to a quarter of max_bytes (a first line longer than that is cut at a character boundary and the page says ends_mid_line); hex: offset, next_offset and total_bytes count bytes of the member as stored, a page holds an eighth of max_bytes; source_bytes is always the member's size",
+   "max_bytes": "4096..131072, 131072 when not given",
+   "integrity": "the bytes come from the dataset's own snapshot with the member's size and CRC-32 checked before any byte is shown; a failure is resource_error; source names the member (entry_index, member_id, content_id, sha256) and the snapshot",
+   "cap": "a member larger than 64 MiB (max_resource_bytes) is refused as quota_exceeded"
+  },
+  "query_resources": {
+   "rows": "one per resource and configuration, and for a map entry (style, array, plurals) one per item; the same resource in the default, en and zh-rCN configurations is three rows; configurations are never merged",
+   "fields": [
+    "configuration",
+    "name (type/key)",
+    "package",
+    "resource_id",
+    "resource_id_hex",
+    "raw_data",
+    "value",
+    "value_type",
+    "reference_id and reference_name (references and attribute references; reference_name null when this table does not define the id)",
+    "item_count, item_index, item_name, item_name_id, parent_id (map items)"
+   ],
+   "filters": {
+    "resource_id": "exact id",
+    "resource_type": "exact type name",
+    "name": "exact type/key, or package:type/key",
+    "configuration": "exact qualifier string; the empty string selects the default configuration only, leaving it out selects all",
+    "contains": "case-sensitive substring of type/key"
+   },
+   "configuration_strings": "the platform's qualifier order: mcc, mnc, locale (en, en-rUS, b+sr+Latn+RS), ldltr/ldrtl, swNNNdp, wNNNdp, hNNNdp, small..xlarge, long/notlong, round/notround, widecg, hdr, port/land/square, ui mode, night/notnight, density, touch, keys, nav, WxH, vN",
+   "references": "named, not followed: reference_policy says so in every answer",
+   "completeness": "skipped_chunks counts chunks of a type the reader does not know and passed over by their size; it is 0 for a table read whole",
+   "paging": "offset, next_offset and total_rows count rows"
+  }
+ },
+ "errors": {
+  "not_found": "no member of that name; an archive without resources.arsc for query_resources; an archive without AndroidManifest.xml for the manifest tools",
+  "invalid_input": "the name is a directory entry",
+  "ambiguous": "several members share the name",
+  "ambiguous_input": "several archives are open and input_index is not given; the answer lists archive_inputs",
+  "not_archive": "input_index names no archive input",
+  "invalid_range": "an offset past the end, or inside a character of a text",
+  "invalid_xml": "Android binary XML that does not parse (read it as hex), or a manifest that does not parse",
+  "invalid_resource_table": "resources.arsc that does not parse; the table is refused whole, never read as far as it goes",
+  "unsupported_capability": "resources.arsc that uses what this reader does not read yet (a compact entry); the error says so, it is not called invalid",
+  "resource_error": "a member whose CRC-32 or decompression fails",
+  "quota_exceeded": "a resource over 64 MiB, a table over its budgets, an answer that cannot hold one row within max_bytes",
+  "no_dex": "query or decode on a dataset that has resources but no DEX",
+  "unknown_dataset": "the dataset is not open",
+  "argument_range": "an argument outside its range (limit, max_bytes, kind, format, mode, resource_id above 32 bits) is a JSON-RPC invalid-params error; the reference answers an isError tool result"
+ },
+ "input_scope": {
+  "resource_only_apk": "opens (has_dex false); the resource tools read it; query and decode refuse it as no_dex",
+  "no_resources_arsc": "opens; list_resource_files and read_resource work; query_resources is not_found",
+  "corrupt_resources_arsc": "opens; query_resources is invalid_resource_table; read_resource reads the stored bytes",
+  "bad_member": "a member whose CRC fails is resource_error for that member only; the others stay readable",
+  "strictness": "a table with a wrong header type or a chunk reaching past its parent, binary XML with a namespace used but never declared, or with an attribute repeated on an element, is refused; the reference reads these leniently (declared)"
+ },
+ "not_claimed": [
+  "names of the framework's own resources (android:attr/theme, @android:string/ok): ids of the framework are written as ids",
+  "the declared type of an attribute: only installLocation, launchMode and protectionLevel are given names",
+  "style spans of a pool string: the text is shown, the spans are kept in the parsed table only",
+  "compact resource entries (a table using them is refused as unsupported_capability)",
+  "overlays, staged aliases and library chunks beyond counting them in skipped_chunks",
+  "decoded resources (drawables, fonts, layouts as views): read_resource shows the stored XML, it does not inflate anything",
+  "runtime accessibility of a component, signature checks, the real default of a value a resource reference stands for"
+ ],
+ "declared_differences": {
+  "about": "where this engine answers differently from the reference on purpose, found by replaying every recorded call (conformance/mcp/resources_replay.py); everything else is equal field by field",
+  "classes": {
+   "ARGUMENT_RANGE_SHAPE": "an argument outside its range is a JSON-RPC invalid-params error here, an isError tool result in the reference",
+   "CONTROL_CHARS": "the reference rewrites or drops control characters in attribute values; this engine keeps them exactly",
+   "ENUM_ON_STRING_TYPE": "the reference names a flag word from the data word of a string-typed protectionLevel; this engine shows the string",
+   "ERROR_WORDING": "both refuse with the same kind; the message is worded differently",
+   "FRAMEWORK_NAMES": "the reference names ids of the framework's own resources from an embedded table; this engine writes the id",
+   "LIST_TABLES_SHAPE": "list_tables answers objects here, names in the reference (declared in MDD-042)",
+   "NAMESPACES_KEPT": "the XML view here writes every namespace declaration and namespaced attribute under the prefix the document gave it; the reference writes the android namespace only, always as android",
+   "ROW_BUDGET": "the page ends one row earlier or later under a small max_bytes; the rows shown are the reference's rows",
+   "STRICT_INPUT": "a malformed input (wrong table magic, an AXML namespace not declared, a repeated attribute) is refused here and read leniently by the reference",
+   "STRING_VALUE_AS_INDEX": "in a layout the reference writes a string-typed android attribute as its pool index; this engine writes the string",
+   "UNKNOWN_UNIT": "a dimension or fraction unit outside the platform's table is written out in full here, as a bare number by the reference",
+   "XML_TEXT_NODES": "the XML view here keeps text nodes; the reference omits them"
+  }
+ }
+}

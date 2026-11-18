@@ -65,7 +65,12 @@ fn length16(data: &[u8], at: &mut usize) -> MddResult<usize> {
     Ok((((first & 0x7fff) as usize) << 16) | next as usize)
 }
 
-fn pool(chunk: &[u8], offset: usize, header: usize, build: &mut Builder) -> MddResult<()> {
+pub(super) fn pool(
+    chunk: &[u8],
+    offset: usize,
+    header: usize,
+    build: &mut Builder,
+) -> MddResult<()> {
     if header < 28 {
         return Err(invalid("string pool header is too small"));
     }

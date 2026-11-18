@@ -90,9 +90,9 @@
     {"where": "analysis_batch.py:186,369", "field": "error.kind", "values": ["invalid_query", "invalid_input", "impl_defined", "output_too_large"], "meaning": "a rejected read-only statement does not invalidate the dataset"}
   ],
   "discovery": {
-    "tools_list": "the eight registered tools carry the reference's published schemas (run_mcp_conformance.py: schemas)",
-    "not_registered": ["get_manifest_components", "list_resource_files", "read_resource", "query_resources"],
-    "why": "MDD-072; a tool that is not implemented is not listed"
+    "tools_list": "the twelve registered tools carry the reference's published schemas (run_mcp_conformance.py: schemas; artifacts/mdd-072/twelve-tool-conformance.json)",
+    "not_registered": ["find_refs", "apk_info"],
+    "why": "they belong to HostLab's sqlite backend and are not tools of the reference's MCP surface; a tool that is not implemented is not listed"
   },
   "not_used_by_hostlab_but_provided": ["list_datasets", "list_tables", "describe_table"],
   "not_called_in_the_dexsql_backend": ["find_refs", "apk_info"],

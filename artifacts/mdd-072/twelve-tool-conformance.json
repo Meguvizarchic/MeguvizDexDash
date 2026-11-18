@@ -1,0 +1,247 @@
+{
+ "schema_version": "mdd.twelve-tool-conformance.v1",
+ "task": "MDD-072",
+ "status": "all twelve tools are registered with the reference's published schemas; get_manifest answers its xml mode and get_manifest_components, list_resource_files, read_resource and query_resources answer; every call recorded from the reference engine (dexsql 0.1.0) was replayed against this build and compared field by field",
+ "kind": "development evidence; admits no profile",
+ "reference": {
+  "name": "dexsql",
+  "sha256": "f354ebcf715de9a66ef8ebe08b2b36807ab58e25cd5a1c0812e497fc1fcfc448",
+  "version": "0.1.0"
+ },
+ "schemas": {
+  "reference_tools": 12,
+  "served_tools": 12,
+  "extra_tools_served": [],
+  "missing_tools": [],
+  "equal": {
+   "close_dataset": {
+    "inputSchema": true,
+    "outputSchema": true,
+    "annotations": true
+   },
+   "decode": {
+    "inputSchema": true,
+    "outputSchema": true,
+    "annotations": true
+   },
+   "describe_table": {
+    "inputSchema": true,
+    "outputSchema": true,
+    "annotations": true
+   },
+   "get_manifest": {
+    "inputSchema": true,
+    "outputSchema": true,
+    "annotations": true
+   },
+   "get_manifest_components": {
+    "inputSchema": true,
+    "outputSchema": true,
+    "annotations": true
+   },
+   "list_datasets": {
+    "inputSchema": true,
+    "outputSchema": true,
+    "annotations": true
+   },
+   "list_resource_files": {
+    "inputSchema": true,
+    "outputSchema": true,
+    "annotations": true
+   },
+   "list_tables": {
+    "inputSchema": true,
+    "outputSchema": true,
+    "annotations": true
+   },
+   "open_dataset": {
+    "inputSchema": true,
+    "outputSchema": true,
+    "annotations": true
+   },
+   "query": {
+    "inputSchema": true,
+    "outputSchema": true,
+    "annotations": true
+   },
+   "query_resources": {
+    "inputSchema": true,
+    "outputSchema": true,
+    "annotations": true
+   },
+   "read_resource": {
+    "inputSchema": true,
+    "outputSchema": true,
+    "annotations": true
+   }
+  },
+  "all_equal": true
+ },
+ "replay": {
+  "file": "artifacts/mdd-072/resources-replay.json",
+  "script": "conformance/mcp/resources_replay.py",
+  "recorded_calls": "artifacts/mdd-072/a0-probe/calls.jsonl",
+  "calls": 458,
+  "match": 331,
+  "declared": 127,
+  "undeclared_differences": 0,
+  "errors": 0,
+  "real_application": {
+   "what": "the public NewPipe 0.28.6 APK: the manifest as XML, every component, every member, rows of every resource type, configurations and filters, 60 layouts and other XML, binary members",
+   "records": 181,
+   "run": true,
+   "apk_sha256": "e56ef6280b700696172797f94513ffd3f9aae9349945a2f06e235ec24446be58",
+   "not_run": null,
+   "recording": "artifacts/local/a0-probe/newpipe.jsonl (ignored: it holds the application's own strings and layouts); made by artifacts/mdd-072/probe/probe_newpipe.py against the pinned reference"
+  },
+  "declared_classes": {
+   "ARGUMENT_RANGE_SHAPE": {
+    "calls": 15,
+    "explanation": "an argument outside its range is a JSON-RPC invalid-params error here, an isError tool result in the reference"
+   },
+   "CONTROL_CHARS": {
+    "calls": 3,
+    "explanation": "the reference rewrites or drops control characters in attribute values; this engine keeps them exactly"
+   },
+   "ENUM_ON_STRING_TYPE": {
+    "calls": 5,
+    "explanation": "the reference names a flag word from the data word of a string-typed protectionLevel; this engine shows the string"
+   },
+   "ERROR_WORDING": {
+    "calls": 17,
+    "explanation": "both refuse with the same kind; the message is worded differently"
+   },
+   "FRAMEWORK_ENUMS": {
+    "calls": 34,
+    "explanation": "the reference names the enumerations and flags of the framework's layout attributes (fill_parent, horizontal, top|fill_horizontal) from an embedded table; this engine names only installLocation, launchMode, protectionLevel and foregroundServiceType, and writes the number for any other"
+   },
+   "FRAMEWORK_NAMES": {
+    "calls": 33,
+    "explanation": "the reference names ids of the framework's own resources from an embedded table; this engine writes the id"
+   },
+   "LIST_TABLES_SHAPE": {
+    "calls": 1,
+    "explanation": "list_tables answers objects here, names in the reference (declared in MDD-042)"
+   },
+   "NAMESPACES_KEPT": {
+    "calls": 21,
+    "explanation": "the XML view here writes every namespace declaration and namespaced attribute under the prefix the document gave it; the reference writes the android namespace only, always as android"
+   },
+   "NEGATIVE_DIMENSION": {
+    "calls": 3,
+    "explanation": "the reference reads the mantissa of a dimension as unsigned; a negative dimension is written -3dip here (the platform's reading) and 16777213dip there"
+   },
+   "RAW_WORD_IN_LAYOUT": {
+    "calls": 27,
+    "explanation": "in a layout (not the manifest) the reference writes the stored word of a typed value, a dimension, a reference, an integer or a boolean, as an unsigned decimal; this engine spells the typed value"
+   },
+   "ROW_BUDGET": {
+    "calls": 1,
+    "explanation": "the page ends one row earlier or later under a small max_bytes; the rows shown are the reference's rows"
+   },
+   "STRICT_INPUT": {
+    "calls": 9,
+    "explanation": "a malformed input (wrong table magic, an AXML namespace not declared, a repeated attribute) is refused here and read leniently by the reference"
+   },
+   "STRING_VALUE_AS_INDEX": {
+    "calls": 1,
+    "explanation": "in a layout the reference writes a string-typed android attribute as its pool index; this engine writes the string"
+   },
+   "UNKNOWN_UNIT": {
+    "calls": 1,
+    "explanation": "a dimension or fraction unit outside the platform's table is written out in full here, as a bare number by the reference"
+   },
+   "XML_TEXT_NODES": {
+    "calls": 26,
+    "explanation": "the XML view here keeps text nodes; the reference omits them"
+   }
+  }
+ },
+ "decode_replay_with_the_manifest_xml_records": {
+  "script": "conformance/decode/a0_replay.py",
+  "result": "cases: 257/257 equal (118 exactly, 139 with a declared difference), 1 not run; methods: 252/252 equal; unclean refusals: 0"
+ },
+ "contract": {
+  "file": "conformance/mcp/resources-full-contract.json",
+  "declared_classes_named": false
+ },
+ "controls": {
+  "script": "conformance/mcp/test_resources_replay.py",
+  "passed": true
+ },
+ "tests": {
+  "mdd-input lib": {
+   "exit_code": 0,
+   "passed": 63,
+   "failed": 0
+  },
+  "mdd-service lib": {
+   "exit_code": 0,
+   "passed": 16,
+   "failed": 0
+  },
+  "mdd-mcp lib": {
+   "exit_code": 0,
+   "passed": 22,
+   "failed": 0
+  },
+  "mdd-cli mcp": {
+   "exit_code": 0,
+   "passed": 53,
+   "failed": 0
+  }
+ },
+ "mutation_check": {
+  "file": "artifacts/mdd-072/mutation/results.txt",
+  "present": false,
+  "current": false,
+  "script": "artifacts/mdd-072/mutation/mutate_resources.py",
+  "status": "not run yet: it runs in .github/workflows/mutation-resources.yml on request; no result is claimed"
+ },
+ "inputs_sha256": {
+  "crates/mdd-input/src/resources/mod.rs": "dc317aa2d64af3a90acffec13457e12d8abfeb6d20ccdd96959063f83c985667",
+  "crates/mdd-input/src/resources/value.rs": "145eb8e80ae2a8de1b585e1a2f2421e61006772b1c1c51b286b230878ae87310",
+  "crates/mdd-input/src/resources/framework.rs": "821bad661f2eb4c8daec667c32ab6c3ddc71ceacdcb49ad9a7a2d875bd13c26d",
+  "crates/mdd-input/src/resources/xml.rs": "774f7738e6037dbee27eb8f57e77f7156a084f519de840ea683107c0de8403f0",
+  "crates/mdd-input/src/resources/config.rs": "ae18e648607d9d833d5cb730f27ad6e123789c8e8f7a45d8a414f5335a6047f6",
+  "crates/mdd-input/src/resources/arsc.rs": "a1e11d2fe6301f7bf1457b9171a35e8dab1ea06c2af0d1327dc54539af44c471",
+  "crates/mdd-input/src/resources/query.rs": "53afedb7c1002ee24220304a4ea647f73645fdd9ad06025ef00b5945b54d4e67",
+  "crates/mdd-input/src/resources/tests.rs": "81518df072f536f8d36d8dee39ca0741ad5f483e448e52d2136e4d06f78e8d1c",
+  "crates/mdd-input/src/manifest/mod.rs": "46696fba00a1eea12ffd02ec3240a02fb472c5d160566f6d419385f968b3ab31",
+  "crates/mdd-service/src/resources.rs": "1b99b2310e264f239d2894b355dd2fb13c30e4b0a876a3f2b6e14de3fca0b092",
+  "crates/mdd-service/src/manifest.rs": "bcd6a52d701eb28b0f74956ed5bf3471a941903691a9fc270a8562539aac66a4",
+  "crates/mdd-service/src/dataset.rs": "c4246ce7b5153730523635a729e5232522cfd5db49a1e5a1a0a0f17fcdb03e2a",
+  "crates/mdd-mcp/src/tools.rs": "7678eb4ffc512560ad945e0ad3735d2260275a4d81ba5876f64b9eb3381cedf8",
+  "crates/mdd-mcp/src/tool_schemas.json": "238137d77806250a7421ce7d79744220499c50cffeb0863e8df5a7203493b457",
+  "crates/mdd-mcp/src/resource_tools/mod.rs": "e7025428137ed0f2bf66d0d41c76e69fbc905262cbcf6d8a5b1ca35d73120f47",
+  "crates/mdd-mcp/src/resource_tools/files.rs": "01a29f43a77d80e1b84ae99db6ec4acd7e04216a72e73a563fb9f1b3043a4a8f",
+  "crates/mdd-mcp/src/resource_tools/components.rs": "a0b27a389ce4f5814d9c961d02bdfeac63a2f45c546bb4f6ac9b25a14242da25",
+  "crates/mdd-mcp/src/resource_tools/read.rs": "97031ad5151b9254bf31eb342def56c31fc2169f990e53b3d5d0fa01155a3d67",
+  "crates/mdd-mcp/src/resource_tools/query.rs": "c3cf946b2af9cddb2b1ffb1e2966a82b5eaf36a5b6883fb6e059f178f42af897",
+  "conformance/mcp/resources_replay.py": "14d7e4c8852c81adcb1a990db30f3744be52f54bb069aabcc5eca5ba2695e5e0",
+  "conformance/mcp/test_resources_replay.py": "5711cccc9fbd64dcd423a584fb1edca4bd27a0a446310945efa3a8fe4aa83a8e",
+  "conformance/mcp/resources-full-contract.json": "ca6bd6b3ef49914d4cd190626556231f085c9827659d340e64cebdaa9ffc992b",
+  "artifacts/mdd-072/a0-probe/tools-list.json": "7530c7fb4ae0fac55ac01e3c18700521ea8f838351c8974871f59cbbbdfa7318",
+  "artifacts/mdd-072/a0-probe/calls.jsonl": "9b320d58c6144e4ea96a5974d341941afa7da2ef1eda2bba3154f52285c9d107",
+  "tests/fixtures/resources/generate.py": "d83d7c929f8471abe39bae4aa633ad32c64e6afbf0a50c95156c0354c2c52be7",
+  "tests/fixtures/resources/manifest.json": "e91d3286d877e3777fbebc9d370db3a6b4720ac9d71ddc2dc19b3e689f2a40e6",
+  "artifacts/mdd-072/probe/probe_a0.py": "e10a4b037f1d6dff78af28115e28aada9220d23ace24fd1abe316a3510b57092",
+  "artifacts/mdd-072/mutation/mutate_resources.py": "94a14c9f187d34530f4f4687730463c1bca268fd86e9cbaca46caf365bf985d3",
+  ".github/workflows/mutation-resources.yml": "630adf7e6c5a314ff178a3d8cf97f2867072b8ed1443e20284d66fb8e7a02838"
+ },
+ "residual": [
+  "the recorded answers are those of dexsql 0.1.0, windows-amd64 build only; dexsql 0.1.1 was not probed for the resource tools",
+  "the inputs are small synthetic archives built by tests/fixtures/resources/generate.py and the probe scripts, plus the project's earlier fixtures; no real application was compared, and the NewPipe APK was not used for these tools",
+  "the reference leaves out text nodes, writes every android attribute under the prefix android, names ids of the framework's resources, and drops control characters; this engine keeps the first, second and fourth exactly and writes framework ids as ids (declared classes XML_TEXT_NODES, NAMESPACES_KEPT, FRAMEWORK_NAMES, CONTROL_CHARS), so a client that compares XML text with the reference's will see these differences",
+  "only installLocation, launchMode and protectionLevel are given framework names; every other android attribute is a number, because the binary XML does not carry the attribute's declared type and no framework table is embedded",
+  "the reference reads leniently a table with a wrong header type, binary XML with an undeclared namespace and an element with a repeated attribute; this engine refuses them (declared class STRICT_INPUT), so an application that relies on lenient reading is refused by the resource tools",
+  "compact resource entries, overlays and staged aliases are not read: a table with a compact entry is refused as unsupported_capability, the others are passed over and counted in skipped_chunks",
+  "style spans of pool strings are validated and kept in the parsed table but not shown",
+  "the 64 MiB resource cap and the table budgets are enforced by the same code paths as the others and are tested at small sizes only; no 64 MiB member was read here",
+  "the row budget of query_resources, list_resource_files and get_manifest_components counts the answer as sent (structured content and its text copy) and reproduces the reference's page sizes at one recorded point; page boundaries under a small max_bytes can differ by a row (declared class ROW_BUDGET)",
+  "the mutation check runs in .github/workflows/mutation-resources.yml, not on a developer machine; until its results.txt is committed no mutation result is claimed"
+ ],
+ "run": {
+  "finished_utc": "2026-11-18T03:59:33Z"
+ }
+}

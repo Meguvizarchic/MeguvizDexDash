@@ -63,6 +63,7 @@ impl Dataset {
     /// Run `sql` and deliver it to `sink`. Always returns a terminal envelope; the
     /// `Err` side is reserved for a failure to even build one.
     pub fn run(&self, sql: &str, options: &RunOptions, sink: &mut dyn Sink) -> MddResult<Outcome> {
+        self.require_dex()?;
         let mut run = Run::new(self, options);
         let result = run.execute(sql, sink);
         let output_lost = run.output_lost.take();
@@ -172,7 +173,7 @@ impl<'a> Run<'a> {
                 format!("batch rows must be between 1 and {MAX_BATCH_ROWS}"),
             ));
         }
-        let prepared = dataset.bridge().prepare(sql)?;
+        let prepared = dataset.bridge()?.prepare(sql)?;
         self.required_layers = prepared
             .required_layers()
             .iter()
@@ -191,9 +192,9 @@ impl<'a> Run<'a> {
         )?;
         self.query = Some(query.clone());
         let deadline = Instant::now().checked_add(Duration::from_millis(limits.deadline_ms));
-        let control = SqlControl::new(dataset.bridge().limits(), deadline);
+        let control = SqlControl::new(dataset.bridge()?.limits(), deadline);
         lifecycle.start_query(&dataset.session, &query, 1)?;
-        let result = dataset.bridge().execute(&prepared, control)?;
+        let result = dataset.bridge()?.execute(&prepared, control)?;
         lifecycle.checkpoint(&query)?;
         if !result.calculation_complete() {
             return Err(MddError::new(

@@ -9,6 +9,7 @@
 //! A tool is registered only when it is implemented. Not registered, and refused as
 //! unknown tools: `get_manifest_components`, `list_resource_files`, `read_resource`,
 //! `query_resources`.
+use crate::resource_tools;
 use mdd_facts::{
     smali,
     smali_required::{self, SmaliLimits, page_text},
@@ -90,11 +91,11 @@ impl From<MddError> for Failure {
     }
 }
 
-fn invalid(message: impl Into<String>) -> Failure {
+pub(crate) fn invalid(message: impl Into<String>) -> Failure {
     Failure::InvalidParams(message.into())
 }
 
-fn refuse(code: ErrorCode, message: &str) -> MddError {
+pub(crate) fn refuse(code: ErrorCode, message: &str) -> MddError {
     MddError::new(code, "mcp", message)
 }
 
@@ -127,7 +128,7 @@ impl Registry {
         &self.config
     }
 
-    fn find(&self, id: &str) -> Result<Arc<Dataset>, MddError> {
+    pub(crate) fn find(&self, id: &str) -> Result<Arc<Dataset>, MddError> {
         match self.open.iter().find(|e| e.id == id) {
             Some(entry) => Ok(Arc::clone(&entry.dataset)),
             None => Err(unknown_dataset(id)),
@@ -135,7 +136,7 @@ impl Registry {
     }
 
     /// Returns whether the dataset was open.
-    fn close(&mut self, id: &str) -> bool {
+    pub(crate) fn close(&mut self, id: &str) -> bool {
         let Some(position) = self.open.iter().position(|e| e.id == id) else {
             return false;
         };
@@ -167,15 +168,16 @@ const HINT_KIND: &str = "mcp.kind";
 const HINT_DECODE: &str = "mcp.decode";
 const HINT_DATASET_ID: &str = "mcp.dataset_id";
 const HINT_DATASET_CLOSED: &str = "mcp.dataset_closed";
+pub(crate) const HINT_ARCHIVE_INPUTS: &str = "mcp.archive_inputs";
 
 /// A `kind` the reference spells and a client may branch on. It travels in the error's
 /// details until the error is rendered, where it becomes `error.kind`.
-fn with_kind(error: MddError, kind: &str) -> MddError {
+pub(crate) fn with_kind(error: MddError, kind: &str) -> MddError {
     error.detail(HINT_KIND, kind)
 }
 
 /// The dataset an error belongs to; rendered beside `error`, as the reference does.
-fn for_dataset(error: MddError, dataset_id: &str) -> MddError {
+pub(crate) fn for_dataset(error: MddError, dataset_id: &str) -> MddError {
     error.detail(HINT_DATASET_ID, dataset_id)
 }
 
@@ -237,6 +239,7 @@ pub fn error_result(error: &MddError) -> Value {
     } else {
         Vec::new()
     };
+    let archive_inputs = details.remove(HINT_ARCHIVE_INPUTS);
     let dataset_id = details.remove(HINT_DATASET_ID);
     let dataset_closed = details
         .remove(HINT_DATASET_CLOSED)
@@ -257,6 +260,9 @@ pub fn error_result(error: &MddError) -> Value {
     for (key, value) in decode_fields {
         body.insert(key.to_owned(), value);
     }
+    if let Some(inputs) = archive_inputs {
+        body.insert("archive_inputs".to_owned(), inputs);
+    }
     body.insert("code".to_owned(), json!(error.code));
     body.insert("stage".to_owned(), json!(error.stage));
     body.insert("retryable".to_owned(), json!(error.retryable));
@@ -275,10 +281,10 @@ fn schemas() -> Value {
     serde_json::from_str(SCHEMAS).expect("the embedded tool schemas are JSON")
 }
 
-const DESCRIPTIONS: [(&str, &str); 8] = [
+const DESCRIPTIONS: [(&str, &str); 12] = [
     (
         "open_dataset",
-        "Open local DEX or APK paths as an isolated, reusable dataset. Returns its identifier, the inputs, their byte total, whether a DEX was found (`has_dex`), the indexes of archive inputs and the preparation time, plus this engine's snapshot identity. Archives without any DEX are not supported yet and are refused.",
+        "Open local DEX or APK paths as an isolated, reusable dataset. Returns its identifier, the inputs, their byte total, whether a DEX was found (`has_dex`), the indexes of archive inputs and the preparation time, plus this engine's snapshot identity. An archive with resources and no DEX opens with `has_dex` false: the resource tools read it, and `query` and `decode` refuse it as no_dex.",
     ),
     (
         "list_datasets",
@@ -294,7 +300,7 @@ const DESCRIPTIONS: [(&str, &str); 8] = [
     ),
     (
         "get_manifest",
-        "Read the AndroidManifest.xml of an APK input as a summary: the manifest, application and uses-sdk attributes, the target SDK, component counts and a paged list of permission elements (permission, uses-permission, uses-permission-sdk-23, uses-permission-sdk-m), in document order. `offset` and `next_offset` count permission rows, `limit` is rows per page (1..200, default 200). input_index is the position in open_dataset.inputs and is needed when several archive inputs are open. A reference the archive's resources would resolve is shown as @ and eight hex digits. The `xml` mode is not available yet and is refused.",
+        "Read the AndroidManifest.xml of an APK input as a summary: the manifest, application and uses-sdk attributes, the target SDK, component counts and a paged list of permission elements (permission, uses-permission, uses-permission-sdk-23, uses-permission-sdk-m), in document order. `offset` and `next_offset` count permission rows, `limit` is rows per page (1..200, default 200). input_index is the position in open_dataset.inputs and is needed when several archive inputs are open. A reference the archive's resources would resolve is shown as @ and eight hex digits. In mode `xml` the manifest is returned as XML text instead, paged by UTF-8 byte offset (`offset` and `next_offset` count bytes of the text; a page holds at most a quarter of `max_bytes`, 4096..131072, and ends on a line unless one line is longer): every namespace declaration and namespaced attribute is written, typed values are spelled out (floats, dimensions, fractions, colours, references), text nodes are kept, and a character that XML 1.0 cannot carry is written as a character reference.",
     ),
     (
         "list_tables",
@@ -307,6 +313,22 @@ const DESCRIPTIONS: [(&str, &str); 8] = [
     (
         "query",
         "Run read-only SQL statements with exact typed cells, a row window per statement and next_offset. Use a deterministic ORDER BY when paging: the statement runs again for each page. Rows are never clipped silently: a result over the byte budget is refused. A deadline that expires closes this dataset. With `timing`, the response reports `sql_wall_ms` and `total_ms` as measured here; the phases that happen once at open_dataset (`load_inputs_ms`, `parse_ms`, `table_build_ms`, `cache_total_ms`) are reported as 0.",
+    ),
+    (
+        "get_manifest_components",
+        "Page the components of the application (activity, activity-alias, service, receiver, provider) in document order: name, descriptor, enabled state, exported state, launcher flag, intent filters (actions, categories, data), metadata and, for an alias, its target activity. `exported` is what the manifest states or the platform's default gives at the target SDK (explicit, intent-filter default, provider default); it is null, with the reason `explicit_exported_required_or_target_sdk_unknown`, when a component with an intent filter has no explicit value at target SDK 31 or later or the target SDK is unknown. It is the manifest's configuration, not runtime accessibility. Filter by `kind` and `only_exported`; `offset`, `limit` (1..200) and `next_offset` count components.",
+    ),
+    (
+        "list_resource_files",
+        "List the members of an archive input, directory entries included, in name order, with size, compressed size, CRC-32 and the member's position in the archive (`entry_index`); members that share a name are all listed. `prefix` is a case-sensitive name prefix. `offset`, `limit` (1..200) and `next_offset` count members; rows are added while the answer fits `max_bytes`.",
+    ),
+    (
+        "read_resource",
+        "Read one archive member by its exact name, from the dataset's own snapshot, its size and CRC checked. Format `auto` shows Android binary XML as XML text (kind `android_xml`), UTF-8 as text (kind `text`) and anything else as lower-case hex (kind `binary`); `hex` forces the stored bytes as hex. Text is paged by UTF-8 byte offset of the text shown, hex by byte offset of the member; `max_bytes` is 4096..131072 and a page holds a quarter of it as text, an eighth as bytes. `source_bytes` is the member's size; `source` names the member and snapshot. A binary XML that does not parse is refused as invalid_xml, and can still be read as hex. Nothing is extracted to disk.",
+    ),
+    (
+        "query_resources",
+        "Query resources.arsc of an archive input: one row per resource, configuration and, for a style, array or plurals, item. The same resource in several configurations is several rows, each with its qualifier string (`configuration`, empty for the default). Filters: `resource_id`, `resource_type`, `name` (`type/name` or `package:type/name`), `configuration` (exact; empty selects the default), `contains` (case-sensitive substring of `type/name`). A reference is named, not followed. A table that does not parse is refused as invalid_resource_table; an archive without resources.arsc as not_found. `offset`, `limit` (1..200) and `next_offset` count rows.",
     ),
 ];
 
@@ -332,7 +354,7 @@ pub fn definitions() -> Vec<Value> {
 
 // ---- arguments ----------------------------------------------------------------
 
-fn arguments<T: for<'de> Deserialize<'de>>(value: Value) -> Result<T, Failure> {
+pub(crate) fn arguments<T: for<'de> Deserialize<'de>>(value: Value) -> Result<T, Failure> {
     let value = if value.is_null() { json!({}) } else { value };
     serde_json::from_value(value).map_err(|error| invalid(error.to_string()))
 }
@@ -384,7 +406,7 @@ struct QueryArgs {
 }
 
 /// A per-call deadline: shorter than the server's, never longer, never zero.
-fn deadline(asked: Option<u64>, config: &Config) -> Result<u64, Failure> {
+pub(crate) fn deadline(asked: Option<u64>, config: &Config) -> Result<u64, Failure> {
     match asked {
         None => Ok(config.operation_timeout_ms),
         Some(0) => Err(invalid("timeout_ms must be positive")),
@@ -396,7 +418,7 @@ fn deadline(asked: Option<u64>, config: &Config) -> Result<u64, Failure> {
     }
 }
 
-enum Outcome<T> {
+pub(crate) enum Outcome<T> {
     Done(T),
     TimedOut,
     Panicked,
@@ -405,7 +427,7 @@ enum Outcome<T> {
 /// Run `work` on its own thread and wait for it, at most `ms`. A thread that outlives
 /// its deadline cannot be stopped; it ends when the engine's own budgets end it, and its
 /// result is dropped.
-fn with_deadline<T: Send + 'static>(
+pub(crate) fn with_deadline<T: Send + 'static>(
     ms: u64,
     work: impl FnOnce() -> T + Send + 'static,
 ) -> Outcome<T> {
@@ -420,7 +442,7 @@ fn with_deadline<T: Send + 'static>(
     }
 }
 
-fn timed_out(what: &str, ms: u64) -> MddError {
+pub(crate) fn timed_out(what: &str, ms: u64) -> MddError {
     MddError::new(
         ErrorCode::DeadlineExceeded,
         "mcp",
@@ -429,12 +451,20 @@ fn timed_out(what: &str, ms: u64) -> MddError {
     .detail("deadline_ms", ms.to_string())
 }
 
-fn panicked(what: &str) -> MddError {
+pub(crate) fn panicked(what: &str) -> MddError {
     MddError::new(
         ErrorCode::InternalFault,
         "mcp",
         format!("{what} stopped unexpectedly"),
     )
+}
+
+/// Code tools (SQL, decode) on a dataset with resources and no DEX: refused, in the reference's
+/// words, never answered with an empty result.
+fn require_dex(dataset: &Dataset, dataset_id: &str) -> Result<(), Failure> {
+    dataset
+        .require_dex()
+        .map_err(|error| Failure::Execution(for_dataset(with_kind(error, "no_dex"), dataset_id)))
 }
 
 // ---- dispatch -----------------------------------------------------------------
@@ -449,6 +479,19 @@ pub fn call(registry: &mut Registry, name: &str, arguments_value: Value) -> Resu
         "close_dataset" => close_dataset(registry, arguments(arguments_value)?),
         "decode" => decode_method(registry, arguments(arguments_value)?),
         "get_manifest" => get_manifest(registry, arguments(arguments_value)?),
+        "get_manifest_components" => resource_tools::components::get_manifest_components(
+            registry,
+            arguments(arguments_value)?,
+        ),
+        "list_resource_files" => {
+            resource_tools::files::list_resource_files(registry, arguments(arguments_value)?)
+        }
+        "read_resource" => {
+            resource_tools::read::read_resource(registry, arguments(arguments_value)?)
+        }
+        "query_resources" => {
+            resource_tools::query::query_resources(registry, arguments(arguments_value)?)
+        }
         "list_tables" => {
             arguments::<NoArgs>(arguments_value)?;
             Ok(list_tables(registry.config().dialect.sql()))
@@ -524,7 +567,7 @@ fn open_dataset(registry: &mut Registry, args: OpenArgs) -> Result<Value, Failur
     let mut summary = json!({
         "archive_inputs": archive_inputs,
         "dataset_id": id,
-        "has_dex": true,
+        "has_dex": dataset.has_dex(),
         "input_bytes": input_bytes,
         "inputs": args.inputs,
         "prepare_ms": prepare_ms,
@@ -745,6 +788,7 @@ fn decode_method(registry: &mut Registry, args: DecodeArgs) -> Result<Value, Fai
         .into());
     }
     let dataset = registry.find(&args.dataset_id)?;
+    require_dex(&dataset, &args.dataset_id)?;
     let cached = registry.decode_cache(&id);
     let method = args.method.clone();
     let (file_id, method_idx) = (args.file_id, args.method_idx);
@@ -1023,6 +1067,7 @@ fn decode_class(
 ) -> Result<Value, Failure> {
     let id = args.dataset_id.clone();
     let dataset = registry.find(&args.dataset_id)?;
+    require_dex(&dataset, &args.dataset_id)?;
     let class = class.to_owned();
     let (file_id, method_offset, max_bytes) = (args.file_id, args.method_offset, args.max_bytes);
     let limit = args.method_limit.unwrap_or(DEFAULT_METHOD_LIMIT);
@@ -1245,20 +1290,32 @@ struct ManifestArgs {
     timeout_ms: Option<u64>,
 }
 
+/// The `xml` mode: the whole manifest as XML text, paged by UTF-8 byte offset.
+fn get_manifest_xml(registry: &mut Registry, args: ManifestArgs) -> Result<Value, Failure> {
+    // `limit` pages permission rows, which this mode has none of; its range is checked all the same
+    resource_tools::limit_of(args.limit)?;
+    let max_bytes = resource_tools::page_bytes_of(args.max_bytes)?;
+    let (input_index, text) = resource_tools::run(
+        registry,
+        "get_manifest",
+        &args.dataset_id,
+        args.input_index,
+        args.timeout_ms,
+        move |dataset, index| Ok(dataset.manifest_xml(index)?),
+    )?;
+    let answer = json!({
+        "dataset_id": args.dataset_id,
+        "input_index": input_index,
+        "page": resource_tools::text_page(&text, args.offset, max_bytes)?,
+    });
+    resource_tools::check_ceiling(registry, &answer)?;
+    Ok(answer)
+}
+
 fn get_manifest(registry: &mut Registry, args: ManifestArgs) -> Result<Value, Failure> {
     match args.mode.as_deref() {
         None | Some("summary") => {}
-        Some("xml") => {
-            return Err(with_kind(
-                refuse(
-                    ErrorCode::UnsupportedCapability,
-                    "the xml mode is not available yet; use summary",
-                ),
-                "not_implemented",
-            )
-            .detail("mcp.dataset_id", args.dataset_id.as_str())
-            .into());
-        }
+        Some("xml") => return get_manifest_xml(registry, args),
         Some(_) => return Err(invalid("mode must be summary or xml")),
     }
     let limit = args.limit.unwrap_or(MAX_MANIFEST_LIMIT);
@@ -1292,13 +1349,7 @@ fn get_manifest(registry: &mut Registry, args: ManifestArgs) -> Result<Value, Fa
                 "not_archive",
             ));
         }
-        (None, _) => {
-            return Err(wrong(
-                ErrorCode::InvalidArgument,
-                "input_index is required when several archive inputs are open",
-                "invalid_argument",
-            ));
-        }
+        (None, _) => return Err(resource_tools::ambiguous_input(&archives)),
     };
     let work = move || -> Result<manifest::Summary, ManifestFailure> {
         let document = dataset.manifest(input_index)?;
@@ -1599,6 +1650,7 @@ fn query(registry: &mut Registry, args: QueryArgs) -> Result<Value, Failure> {
             b.min(registry.config.max_result_bytes)
         });
     let dataset = registry.find(&args.dataset_id)?;
+    require_dex(&dataset, &args.dataset_id)?;
     let window = SqlWindow::new(args.offset, limit)?.counting_total();
     let id = args.dataset_id.clone();
     let work = {
@@ -1615,7 +1667,7 @@ fn query(registry: &mut Registry, args: QueryArgs) -> Result<Value, Failure> {
                 })
                 .collect();
             let texts = script_statements(&items)?;
-            let results = dataset.temp().execute_call(&items, &named, Some(window))?;
+            let results = dataset.temp()?.execute_call(&items, &named, Some(window))?;
             let statements = texts
                 .iter()
                 .zip(&results)

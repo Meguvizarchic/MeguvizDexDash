@@ -1,18 +1,20 @@
 //! The AndroidManifest.xml of an opened archive, presented the way `get_manifest` answers.
 //!
-//! The parse is `mdd_input::manifest`'s; this module only chooses what to show and how a
-//! value is spelled. The spelling follows the reference engine's recorded summary of a
-//! public APK (artifacts/mdd-025/manifest/a0): an attribute is `android:name` for the
-//! android namespace and `name` without one, integers are decimal text, booleans are
-//! `true`/`false`, a reference that was not resolved is `@` and eight lower-case hex
-//! digits (`?` for an attribute reference), `installLocation` and `protectionLevel` print
-//! their framework enum names. A value of a type the recording does not show is refused,
-//! naming the attribute, rather than written some other way.
+//! The parse is `mdd_input::manifest`'s; this module only chooses what to show. How a value is
+//! spelled is `mdd_input::resources::xml::attribute_text`'s, the same function the XML view
+//! uses, so the summary and the XML never spell one value two ways: integers are decimal text,
+//! booleans `true`/`false`, a reference `@` and eight lower-case hex digits (`?` for an attribute
+//! reference), floats, dimensions, fractions and colours as the reference engine writes them,
+//! `installLocation`, `launchMode` and `protectionLevel` by their framework names. A value that
+//! text cannot carry (an unpaired surrogate) is refused, naming the attribute.
 use crate::Dataset;
 use mdd_facts::raw_fingerprints::ResourceByteEvidence;
-use mdd_input::manifest::{
-    ManifestAttribute, ManifestDocument, ManifestLimits, ManifestNode, ManifestValue, TypedData,
-    parse_manifest,
+use mdd_input::{
+    manifest::{
+        ManifestAttribute, ManifestDocument, ManifestLimits, ManifestNode, ManifestValue,
+        TypedData, parse_manifest,
+    },
+    resources::xml::attribute_text,
 };
 use mdd_types::{ErrorCode, MddError, MddResult};
 use serde_json::{Map, Value, json};
@@ -94,6 +96,26 @@ impl Dataset {
     }
 }
 
+impl Dataset {
+    /// The Manifest as XML text, rendered once. A Manifest the XML view cannot carry (a value
+    /// with an unpaired surrogate) is refused with the attribute named.
+    pub fn manifest_xml(&self, input_index: usize) -> Result<Arc<str>, ManifestFailure> {
+        let document = self.manifest(input_index)?;
+        let mut cache = self.resources.lock().map_err(|_| {
+            ManifestFailure::Error(refuse(
+                ErrorCode::InternalFault,
+                "the resource cache is poisoned",
+            ))
+        })?;
+        if let Some(text) = cache.manifest_xml.get(&input_index) {
+            return Ok(Arc::clone(text));
+        }
+        let text: Arc<str> = Arc::from(mdd_input::resources::xml::render(&document)?);
+        cache.manifest_xml.insert(input_index, Arc::clone(&text));
+        Ok(text)
+    }
+}
+
 /// What the summary shows of one manifest.
 #[derive(Clone, Debug)]
 pub struct Summary {
@@ -105,86 +127,28 @@ pub struct Summary {
     pub permissions: Vec<Value>,
 }
 
-fn enum_name(local: &str, raw: u32) -> Option<&'static str> {
-    match (local, raw) {
-        ("installLocation", 0) => Some("auto"),
-        ("installLocation", 1) => Some("internalOnly"),
-        ("installLocation", 2) => Some("preferExternal"),
-        ("protectionLevel", 0) => Some("normal"),
-        ("protectionLevel", 1) => Some("dangerous"),
-        ("protectionLevel", 2) => Some("signature"),
-        ("protectionLevel", 3) => Some("signatureOrSystem"),
-        _ => None,
-    }
-}
-
-fn present(attribute: &ManifestAttribute) -> MddResult<String> {
-    let local = attribute.name.local_name.as_str();
-    let unrepresentable = |what: &str| {
-        refuse(
-            ErrorCode::UnsupportedCapability,
-            "an attribute has a value the summary does not present yet",
-        )
-        .detail("attribute", local.to_owned())
-        .detail("value_kind", what.to_owned())
-    };
-    match &attribute.value {
-        ManifestValue::Text { value } => value
-            .text
-            .clone()
-            .ok_or_else(|| unrepresentable("text with an unpaired surrogate")),
-        ManifestValue::Compiled {
-            raw_data, decoded, ..
-        } => {
-            if let Some(name) = enum_name(local, *raw_data) {
-                return Ok(name.to_owned());
+/// The key an attribute has in a map: `android:name` for the android namespace whatever
+/// prefix the document gave it, `name` without a namespace, `prefix:name` in another namespace
+/// with one prefix to name it, `{uri}name` when no single prefix does.
+fn attribute_key(attribute: &ManifestAttribute) -> String {
+    match attribute.name.namespace_uri.as_deref() {
+        None => attribute.name.local_name.clone(),
+        Some(ANDROID) => format!("android:{}", attribute.name.local_name),
+        Some(uri) => match attribute.prefix.as_deref() {
+            Some(prefix) if !prefix.is_empty() => {
+                format!("{prefix}:{}", attribute.name.local_name)
             }
-            match decoded {
-                TypedData::String { value, .. } => value
-                    .text
-                    .clone()
-                    .ok_or_else(|| unrepresentable("string with an unpaired surrogate")),
-                TypedData::IntDecimal { signed } => Ok(signed.to_string()),
-                TypedData::IntHex => Ok(format!("0x{raw_data:08x}")),
-                TypedData::Boolean { value } => {
-                    Ok(if *value { "true" } else { "false" }.to_owned())
-                }
-                TypedData::UnresolvedReference {
-                    resource_id,
-                    attribute,
-                    ..
-                } => Ok(format!(
-                    "{}{resource_id:08x}",
-                    if *attribute { '?' } else { '@' }
-                )),
-                TypedData::Null { .. } => Err(unrepresentable("null")),
-                TypedData::FloatBits => Err(unrepresentable("float")),
-                TypedData::Dimension { .. } => Err(unrepresentable("dimension")),
-                TypedData::Fraction { .. } => Err(unrepresentable("fraction")),
-                TypedData::Color => Err(unrepresentable("color")),
-                TypedData::Unknown => Err(unrepresentable("unknown type")),
-            }
-        }
+            _ => format!("{{{uri}}}{}", attribute.name.local_name),
+        },
     }
 }
 
 fn attributes(node: &ManifestNode) -> MddResult<Map<String, Value>> {
     let mut out = Map::new();
     for attribute in &node.attributes {
-        let key = match attribute.name.namespace_uri.as_deref() {
-            None => attribute.name.local_name.clone(),
-            Some(ANDROID) => format!("android:{}", attribute.name.local_name),
-            Some(other) => {
-                return Err(refuse(
-                    ErrorCode::UnsupportedCapability,
-                    "an attribute is in a namespace the summary does not name yet",
-                )
-                .detail("namespace", other.to_owned())
-                .detail("attribute", attribute.name.local_name.clone()));
-            }
-        };
+        let key = attribute_key(attribute);
         if out
-            .insert(key.clone(), json!(present(attribute)?))
+            .insert(key.clone(), json!(attribute_text(attribute)?))
             .is_some()
         {
             return Err(refuse(
@@ -247,6 +211,192 @@ pub fn summarize(document: &ManifestDocument) -> MddResult<Summary> {
     })
 }
 
+// ---- components ---------------------------------------------------------------
+
+/// Why a component is, or is not, exported: the manifest says so, or the platform's default
+/// decides (the reasons the reference engine names), or the manifest's value cannot be told.
+const REASON_EXPLICIT: &str = "explicit";
+const REASON_FILTER_DEFAULT: &str = "intent_filter_default";
+const REASON_PROVIDER_DEFAULT: &str = "provider_target_sdk_default";
+const REASON_REQUIRED: &str = "explicit_exported_required_or_target_sdk_unknown";
+const REASON_NOT_A_BOOLEAN: &str = "exported_value_not_resolvable_here";
+
+/// What the manifest alone says about the components. It is not a claim of runtime access.
+pub const EXPORTED_ASSUMPTION: &str =
+    "Android API 17+; manifest configuration only, excluding runtime state and permission checks";
+
+/// One component, with the two fields the tool filters by kept beside the row.
+#[derive(Clone, Debug)]
+pub struct Component {
+    pub kind: String,
+    pub exported: Option<bool>,
+    pub row: Value,
+}
+
+#[derive(Clone, Debug)]
+pub struct Components {
+    pub target_sdk: Option<i64>,
+    pub components: Vec<Component>,
+}
+
+/// A boolean attribute: its value when the manifest states one, `None` when it points at a
+/// resource this document cannot resolve.
+fn boolean(attribute: &ManifestAttribute) -> Option<bool> {
+    match &attribute.value {
+        ManifestValue::Compiled {
+            raw_data, decoded, ..
+        } => match decoded {
+            TypedData::Boolean { value } => Some(*value),
+            TypedData::IntDecimal { .. } | TypedData::IntHex => Some(*raw_data != 0),
+            _ => None,
+        },
+        ManifestValue::Text { value } => match value.text.as_deref() {
+            Some("true") => Some(true),
+            Some("false") => Some(false),
+            _ => None,
+        },
+    }
+}
+
+/// A class name as the manifest writes it, made absolute against the package: `.Main` and `Main`
+/// are in the package, a name with a dot inside is already absolute.
+fn absolute(package: Option<&str>, name: &str) -> String {
+    match package {
+        Some(package) if name.starts_with('.') => format!("{package}{name}"),
+        Some(package) if !name.contains('.') => format!("{package}.{name}"),
+        _ => name.to_owned(),
+    }
+}
+
+fn android_text(node: &ManifestNode, name: &str) -> MddResult<Option<String>> {
+    node.attribute(Some(ANDROID), name)
+        .map(attribute_text)
+        .transpose()
+}
+
+/// The exported state of a component and why: the manifest's own word, else the default the
+/// platform gives it at this target SDK.
+fn exported_state(
+    kind: &str,
+    node: &ManifestNode,
+    has_filter: bool,
+    target_sdk: Option<i64>,
+) -> (Option<bool>, &'static str) {
+    if let Some(attribute) = node.attribute(Some(ANDROID), "exported") {
+        return match boolean(attribute) {
+            Some(value) => (Some(value), REASON_EXPLICIT),
+            None => (None, REASON_NOT_A_BOOLEAN),
+        };
+    }
+    if kind == "provider" {
+        return match target_sdk {
+            Some(sdk) => (Some(sdk < 17), REASON_PROVIDER_DEFAULT),
+            None => (None, REASON_REQUIRED),
+        };
+    }
+    if !has_filter {
+        return (Some(false), REASON_FILTER_DEFAULT);
+    }
+    match target_sdk {
+        Some(sdk) if sdk < 31 => (Some(true), REASON_FILTER_DEFAULT),
+        _ => (None, REASON_REQUIRED),
+    }
+}
+
+/// Every component of the application, in document order, with its intent filters, metadata and
+/// the exported state the manifest gives it.
+pub fn components(document: &ManifestDocument) -> MddResult<Components> {
+    let nodes = document.nodes();
+    let summary = document.summary();
+    let target_sdk = match summary.target_sdk_version.as_ref() {
+        Some(ManifestValue::Compiled {
+            decoded: TypedData::IntDecimal { signed },
+            ..
+        }) => Some(i64::from(*signed)),
+        _ => None,
+    };
+    let package = nodes
+        .first()
+        .and_then(|root| root.attribute(None, "package"))
+        .map(attribute_text)
+        .transpose()?;
+    let mut children: Vec<Vec<usize>> = vec![Vec::new(); nodes.len()];
+    for (index, node) in nodes.iter().enumerate() {
+        if let Some(parent) = node.parent {
+            children[parent].push(index);
+        }
+    }
+    let direct = |parent: usize, name: &'static str| {
+        children[parent]
+            .iter()
+            .map(|i| (*i, &nodes[*i]))
+            .filter(move |(_, n)| n.name.namespace_uri.is_none() && n.name.local_name == name)
+    };
+    let mut out = Vec::new();
+    for component in &summary.components {
+        let node = &nodes[component.node];
+        let name = android_text(node, "name")?.map(|n| absolute(package.as_deref(), &n));
+        let mut filters = Vec::new();
+        let mut launcher = false;
+        for (filter_index, filter) in direct(component.node, "intent-filter") {
+            let named = |element: &'static str| -> MddResult<Vec<String>> {
+                direct(filter_index, element)
+                    .filter_map(|(_, n)| android_text(n, "name").transpose())
+                    .collect()
+            };
+            let actions = named("action")?;
+            let categories = named("category")?;
+            launcher |= actions.iter().any(|a| a == "android.intent.action.MAIN")
+                && categories
+                    .iter()
+                    .any(|c| c == "android.intent.category.LAUNCHER");
+            let data = direct(filter_index, "data")
+                .map(|(_, n)| attributes(n))
+                .collect::<MddResult<Vec<_>>>()?;
+            filters.push(json!({
+                "actions": actions,
+                "attributes": attributes(filter)?,
+                "categories": categories,
+                "data": data,
+            }));
+        }
+        let metadata = direct(component.node, "meta-data")
+            .map(|(_, n)| attributes(n))
+            .collect::<MddResult<Vec<_>>>()?;
+        let (exported, reason) =
+            exported_state(&component.kind, node, !filters.is_empty(), target_sdk);
+        let enabled = node
+            .attribute(Some(ANDROID), "enabled")
+            .map_or(Some(true), boolean);
+        let target_activity = if component.kind == "activity-alias" {
+            android_text(node, "targetActivity")?.map(|n| absolute(package.as_deref(), &n))
+        } else {
+            None
+        };
+        out.push(Component {
+            kind: component.kind.clone(),
+            exported,
+            row: json!({
+                "attributes": attributes(node)?,
+                "descriptor": name.as_ref().map(|n| format!("L{};", n.replace('.', "/"))),
+                "enabled": enabled,
+                "exported": exported,
+                "exported_reason": reason,
+                "intent_filters": filters,
+                "kind": component.kind,
+                "launcher_intent": launcher,
+                "metadata": metadata,
+                "name": name,
+                "target_activity": target_activity,
+            }),
+        });
+    }
+    Ok(Components {
+        target_sdk,
+        components: out,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -259,13 +409,18 @@ mod tests {
         }
     }
 
-    fn attribute(namespace: Option<&str>, name: &str, value: ManifestValue) -> ManifestAttribute {
+    fn attribute(
+        namespace: Option<&str>,
+        prefix: Option<&str>,
+        name: &str,
+        value: ManifestValue,
+    ) -> ManifestAttribute {
         ManifestAttribute {
             name: ExpandedName {
                 namespace_uri: namespace.map(str::to_owned),
                 local_name: name.to_owned(),
             },
-            prefix: None,
+            prefix: prefix.map(str::to_owned),
             prefix_provenance: PrefixProvenance::NoNamespace,
             raw_value: None,
             value,
@@ -275,134 +430,6 @@ mod tests {
                 length: 0,
             },
         }
-    }
-
-    fn compiled(raw_data: u32, decoded: TypedData) -> ManifestValue {
-        ManifestValue::Compiled {
-            data_type: 0,
-            raw_data,
-            decoded,
-        }
-    }
-
-    fn shown(name: &str, value: ManifestValue) -> MddResult<String> {
-        present(&attribute(Some(ANDROID), name, value))
-    }
-
-    #[test]
-    fn framework_enums_print_their_names_and_only_for_their_attributes() {
-        let int = |signed: i32| compiled(signed as u32, TypedData::IntDecimal { signed });
-        for (raw, name) in [(0, "auto"), (1, "internalOnly"), (2, "preferExternal")] {
-            assert_eq!(shown("installLocation", int(raw)).unwrap(), name);
-        }
-        for (raw, name) in [
-            (0, "normal"),
-            (1, "dangerous"),
-            (2, "signature"),
-            (3, "signatureOrSystem"),
-        ] {
-            assert_eq!(shown("protectionLevel", int(raw)).unwrap(), name);
-        }
-        // outside the table, or under another name, the number is a number
-        assert_eq!(shown("installLocation", int(3)).unwrap(), "3");
-        assert_eq!(shown("versionCode", int(2)).unwrap(), "2");
-    }
-
-    #[test]
-    fn values_are_spelled_as_the_recording_spells_them() {
-        let reference = |resource_id, attribute| {
-            compiled(
-                resource_id,
-                TypedData::UnresolvedReference {
-                    resource_id,
-                    attribute,
-                    dynamic: false,
-                },
-            )
-        };
-        assert_eq!(
-            shown("icon", reference(0x7f10_0002, false)).unwrap(),
-            "@7f100002"
-        );
-        assert_eq!(
-            shown("theme", reference(0x0101_0000, true)).unwrap(),
-            "?01010000"
-        );
-        assert_eq!(
-            shown(
-                "n",
-                compiled(0xffff_ffff, TypedData::IntDecimal { signed: -1 })
-            )
-            .unwrap(),
-            "-1"
-        );
-        assert_eq!(
-            shown("n", compiled(0xa, TypedData::IntHex)).unwrap(),
-            "0x0000000a"
-        );
-        assert_eq!(
-            shown(
-                "flag",
-                compiled(0xffff_ffff, TypedData::Boolean { value: true })
-            )
-            .unwrap(),
-            "true"
-        );
-        assert_eq!(
-            shown("flag", compiled(0, TypedData::Boolean { value: false })).unwrap(),
-            "false"
-        );
-        let string = compiled(
-            0,
-            TypedData::String {
-                value: text("example.test"),
-                string_index: 0,
-            },
-        );
-        assert_eq!(shown("package", string).unwrap(), "example.test");
-        assert_eq!(
-            shown(
-                "label",
-                ManifestValue::Text {
-                    value: text("plain")
-                }
-            )
-            .unwrap(),
-            "plain"
-        );
-    }
-
-    #[test]
-    fn a_value_the_recording_does_not_show_is_refused_naming_the_attribute_and_kind() {
-        for (decoded, kind) in [
-            (TypedData::FloatBits, "float"),
-            (TypedData::Dimension { unit: 0, radix: 0 }, "dimension"),
-            (TypedData::Fraction { unit: 0, radix: 0 }, "fraction"),
-            (TypedData::Color, "color"),
-            (TypedData::Null { empty: true }, "null"),
-            (TypedData::Unknown, "unknown type"),
-        ] {
-            let error = shown("ratio", compiled(5, decoded)).unwrap_err();
-            assert_eq!(error.code, ErrorCode::UnsupportedCapability);
-            assert_eq!(error.details["attribute"], "ratio");
-            assert_eq!(error.details["value_kind"], kind);
-        }
-        let lone = ResourceText {
-            utf16: vec![0xd800],
-            text: None,
-        };
-        let error = shown(
-            "label",
-            compiled(
-                0,
-                TypedData::String {
-                    value: lone,
-                    string_index: 0,
-                },
-            ),
-        )
-        .unwrap_err();
-        assert_eq!(error.code, ErrorCode::UnsupportedCapability);
     }
 
     fn node(attributes: Vec<ManifestAttribute>) -> ManifestNode {
@@ -424,32 +451,46 @@ mod tests {
         }
     }
 
-    #[test]
-    fn attribute_keys_carry_android_only_for_the_android_namespace() {
-        let string = |s: &str| ManifestValue::Text { value: text(s) };
-        let map = attributes(&node(vec![
-            attribute(Some(ANDROID), "name", string("a")),
-            attribute(None, "package", string("b")),
-        ]))
-        .unwrap();
-        let keys: Vec<&str> = map.keys().map(String::as_str).collect();
-        assert_eq!(keys, ["android:name", "package"]);
-        assert_eq!(map["android:name"], "a");
+    fn string(s: &str) -> ManifestValue {
+        ManifestValue::Text { value: text(s) }
     }
 
     #[test]
-    fn another_namespace_and_a_repeated_attribute_are_refused() {
-        let string = |s: &str| ManifestValue::Text { value: text(s) };
-        let other =
-            attributes(&node(vec![attribute(Some("urn:other"), "x", string("1"))])).unwrap_err();
-        assert_eq!(other.code, ErrorCode::UnsupportedCapability);
-        assert_eq!(other.details["namespace"], "urn:other");
+    fn keys_name_the_android_namespace_whatever_its_prefix_and_any_other_by_its_own() {
+        let map = attributes(&node(vec![
+            attribute(Some(ANDROID), Some("a"), "name", string("n")),
+            attribute(None, None, "package", string("p")),
+            attribute(Some("urn:other"), Some("o"), "x", string("1")),
+            attribute(Some("urn:other"), None, "y", string("2")),
+        ]))
+        .unwrap();
+        let keys: Vec<&str> = map.keys().map(String::as_str).collect();
+        // a JSON object keeps its keys sorted
+        assert_eq!(keys, ["android:name", "o:x", "package", "{urn:other}y"]);
+        assert_eq!(map["android:name"], "n");
+    }
+
+    #[test]
+    fn a_repeated_attribute_is_refused_naming_it() {
         let twice = attributes(&node(vec![
-            attribute(None, "x", string("1")),
-            attribute(None, "x", string("2")),
+            attribute(None, None, "x", string("1")),
+            attribute(None, None, "x", string("2")),
         ]))
         .unwrap_err();
         assert_eq!(twice.code, ErrorCode::InvalidInput);
         assert_eq!(twice.details["attribute"], "x");
+    }
+
+    #[test]
+    fn a_value_text_cannot_carry_is_refused_naming_the_attribute_and_kind() {
+        let lone = ManifestValue::Text {
+            value: ResourceText {
+                utf16: vec![0xd800],
+                text: None,
+            },
+        };
+        let error = attributes(&node(vec![attribute(None, None, "label", lone)])).unwrap_err();
+        assert_eq!(error.code, ErrorCode::UnsupportedCapability);
+        assert_eq!(error.details["attribute"], "label");
     }
 }

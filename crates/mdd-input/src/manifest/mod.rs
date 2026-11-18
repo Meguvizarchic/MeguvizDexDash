@@ -299,6 +299,50 @@ impl ManifestDocument {
 }
 
 pub fn parse_manifest(bytes: Arc<[u8]>, limits: ManifestLimits) -> MddResult<ManifestDocument> {
+    parse_document(bytes, limits, true)
+}
+
+/// Any Android binary XML (a layout, a drawable), read by the same strict parser as the
+/// Manifest. The only difference is that its root element is not required to be `<manifest>`;
+/// the summary it carries is meaningful for a Manifest only.
+pub fn parse_xml_resource(bytes: Arc<[u8]>, limits: ManifestLimits) -> MddResult<ManifestDocument> {
+    if !bytes.starts_with(&[3, 0, 8, 0]) {
+        return Err(invalid("not Android binary XML"));
+    }
+    parse_document(bytes, limits, false)
+}
+
+/// One `ResStringPool` chunk (the pools of `resources.arsc` have the layout of the binary XML's),
+/// read by the same strict reader. `chunk` is the whole chunk from its 8-byte header;
+/// `base_offset` is where it starts in the member, for the strings' source ranges.
+pub fn parse_string_pool(
+    chunk: &[u8],
+    base_offset: usize,
+    limits: ManifestLimits,
+) -> MddResult<Vec<PoolString>> {
+    let field = |at: usize, width: usize| {
+        chunk
+            .get(at..at + width)
+            .ok_or_else(|| invalid("string pool chunk is shorter than its header"))
+    };
+    let kind = u16::from_le_bytes(field(0, 2)?.try_into().expect("two bytes"));
+    let header = usize::from(u16::from_le_bytes(
+        field(2, 2)?.try_into().expect("two bytes"),
+    ));
+    let size = u32::from_le_bytes(field(4, 4)?.try_into().expect("four bytes")) as usize;
+    if kind != 1 || size != chunk.len() {
+        return Err(invalid("not a string pool chunk, or its size is wrong"));
+    }
+    let mut build = Builder::new(limits);
+    axml::pool(chunk, base_offset, header, &mut build)?;
+    Ok(build.strings)
+}
+
+fn parse_document(
+    bytes: Arc<[u8]>,
+    limits: ManifestLimits,
+    manifest_root: bool,
+) -> MddResult<ManifestDocument> {
     if bytes.len() > limits.max_bytes {
         return Err(quota("manifest bytes exceed budget"));
     }
@@ -319,9 +363,10 @@ pub fn parse_manifest(bytes: Arc<[u8]>, limits: ManifestLimits) -> MddResult<Man
         .nodes
         .first()
         .ok_or_else(|| invalid("Manifest has no root element"))?;
-    if root.parent.is_some()
-        || root.name.namespace_uri.is_some()
-        || root.name.local_name != "manifest"
+    if manifest_root
+        && (root.parent.is_some()
+            || root.name.namespace_uri.is_some()
+            || root.name.local_name != "manifest")
     {
         return Err(invalid(
             "Manifest root must be the unqualified manifest element",

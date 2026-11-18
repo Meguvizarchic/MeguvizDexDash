@@ -1,0 +1,31 @@
+{
+ "files": {
+  "resources-bad-crc.apk": {
+   "bytes": 7280,
+   "sha256": "5254721259a97a631552a0e779a51917b70270face66e395f816b32eefccbb33"
+  },
+  "resources-bad-magic.apk": {
+   "bytes": 7280,
+   "sha256": "77d865ca802d02ddd257fe0015ef88196c1c7330c5fbddf9deb6616c653a4a41"
+  },
+  "resources-corrupt.apk": {
+   "bytes": 5972,
+   "sha256": "87df92f3e444e17e03161c8cfdc8a7dbfa501682d09f32718958693b382db0a1"
+  },
+  "resources-no-arsc.apk": {
+   "bytes": 2792,
+   "sha256": "a53e9ecdd089b58be97678f9135b2f481c2132844d7765020d13af14b4ca4231"
+  },
+  "resources-only.apk": {
+   "bytes": 6734,
+   "sha256": "bcc26c474470ac2b3493b8ed7e93ea4a3d3a80a9f62ec3c6bfe4a1038c57a9ae"
+  },
+  "resources-small.apk": {
+   "bytes": 7287,
+   "sha256": "a4a73ce09773bbc1496cc40efb352f088f9fa84b3a3ff1421d5d9a7676aaf3c3"
+  }
+ },
+ "generator": "tests/fixtures/resources/generate.py",
+ "note": "synthetic layout fixtures, not installable APKs; resources.arsc and AXML are assembled here by hand",
+ "schema_version": "mdd.resources-fixtures.v1"
+}

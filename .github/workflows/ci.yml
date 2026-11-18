@@ -128,6 +128,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -I artifacts/mdd-070/build_record.py --check
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -I tests/fixtures/resources/generate.py --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -I conformance/mcp/test_resources_replay.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -I conformance/mcp/resources_replay.py --binary $binary --out artifacts/ci/resources-replay.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -I artifacts/mdd-072/build_record.py --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -I benchmarks/test_producer_consumer_pipeline.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python conformance/mcp/test_replays.py

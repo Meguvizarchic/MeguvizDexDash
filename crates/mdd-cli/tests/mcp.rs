@@ -225,7 +225,11 @@ fn exactly_the_implemented_tools_are_listed_with_their_published_schemas() {
             "get_manifest",
             "list_tables",
             "describe_table",
-            "query"
+            "query",
+            "get_manifest_components",
+            "list_resource_files",
+            "read_resource",
+            "query_resources"
         ]
     );
     for tool in tools.as_array().unwrap() {
@@ -240,22 +244,8 @@ fn exactly_the_implemented_tools_are_listed_with_their_published_schemas() {
         .find(|t| t["name"] == "query")
         .unwrap();
     assert_eq!(query["outputSchema"]["title"], "QueryOutput");
-    for absent in [
-        "get_manifest_components",
-        "list_resource_files",
-        "read_resource",
-        "query_resources",
-    ] {
-        assert!(
-            !names.contains(&absent),
-            "{absent} is not implemented and must not be listed"
-        );
-        assert_eq!(
-            server.refused(absent, json!({})),
-            -32602,
-            "{absent} is refused as an unknown tool"
-        );
-    }
+    // a tool nobody implemented is refused by name
+    assert_eq!(server.refused("get_resource_tree", json!({})), -32602);
 }
 
 // ---- argument checking ---------------------------------------------------------
@@ -1731,7 +1721,8 @@ fn the_manifest_tool_says_why_it_cannot_answer() {
     assert_eq!(two["archive_inputs"], json!([0, 1]));
     let (several, error) = server.tool("get_manifest", json!({"dataset_id":id}));
     assert!(error);
-    assert_eq!(several["error"]["kind"], "invalid_argument");
+    assert_eq!(several["error"]["kind"], "ambiguous_input");
+    assert_eq!(several["error"]["archive_inputs"], json!([0, 1]));
     assert!(
         several["error"]["message"]
             .as_str()
@@ -1768,8 +1759,14 @@ fn the_manifest_tool_says_why_it_cannot_answer() {
         "get_manifest",
         json!({"dataset_id":id,"input_index":0,"mode":"xml"}),
     );
-    assert!(error);
-    assert_eq!(xml["error"]["kind"], "not_implemented");
+    assert!(!error, "{xml}");
+    assert!(
+        xml["page"]["text"]
+            .as_str()
+            .unwrap()
+            .starts_with("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<manifest\n")
+    );
+    assert_eq!(xml["page"]["next_offset"], Value::Null);
     for arguments in [
         json!({"dataset_id":id,"limit":0}),
         json!({"dataset_id":id,"limit":201}),
@@ -1870,4 +1867,701 @@ fn the_server_does_not_run_without_a_contract_dialect() {
         assert_eq!(output.status.code(), Some(2), "{bad:?}");
         assert!(output.stdout.is_empty());
     }
+}
+
+// ---- the resource tools -------------------------------------------------------
+
+fn resource_fixture(directory: &str, name: &str) -> String {
+    fixture(&format!("tests/fixtures/resources/{directory}/{name}"))
+}
+
+fn probe_fixture(set: &str, name: &str) -> String {
+    resource_fixture(&format!("probe/{set}"), name)
+}
+
+/// Open one input and return its dataset id.
+fn open_one(server: &mut Mcp, path: String) -> String {
+    let (opened, error) = server.tool("open_dataset", json!({ "inputs": [path] }));
+    assert!(!error, "{opened}");
+    opened["dataset_id"].as_str().unwrap().to_owned()
+}
+
+fn names(files: &Value) -> Vec<&str> {
+    files["files"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| f["name"].as_str().unwrap())
+        .collect()
+}
+
+#[test]
+fn an_archive_without_dex_opens_for_the_resource_tools_and_the_code_tools_refuse_it() {
+    let mut server = Mcp::ready(&[]);
+    let (opened, error) = server.tool(
+        "open_dataset",
+        json!({ "inputs": [resource_fixture("generated", "resources-only.apk")] }),
+    );
+    assert!(!error, "{opened}");
+    assert_eq!(opened["has_dex"], false);
+    assert_eq!(opened["dex_count"], 0);
+    assert_eq!(opened["archive_inputs"], json!([0]));
+    let id = opened["dataset_id"].as_str().unwrap();
+    // the resource tools read it
+    let (files, error) = server.tool("list_resource_files", json!({ "dataset_id": id }));
+    assert!(!error, "{files}");
+    assert!(names(&files).contains(&"resources.arsc"));
+    let (summary, error) = server.tool("get_manifest", json!({ "dataset_id": id }));
+    assert!(!error, "{summary}");
+    // the tools that read code say why they cannot, and answer no empty result
+    for (tool, arguments) in [
+        (
+            "query",
+            json!({"dataset_id": id, "sql": ["SELECT file_id FROM dex_files"]}),
+        ),
+        ("decode", json!({"dataset_id": id, "class": "Lx;"})),
+    ] {
+        let (reply, error) = server.tool(tool, arguments);
+        assert!(error, "{tool}: {reply}");
+        assert_eq!(reply["error"]["kind"], "no_dex", "{tool}");
+        assert!(
+            reply["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("resources but no DEX")
+        );
+    }
+}
+
+#[test]
+fn list_resource_files_orders_by_name_filters_by_prefix_and_pages() {
+    let mut server = Mcp::ready(&[]);
+    let id = open_one(
+        &mut server,
+        resource_fixture("generated", "resources-small.apk"),
+    );
+    let (all, error) = server.tool("list_resource_files", json!({ "dataset_id": id }));
+    assert!(!error, "{all}");
+    assert_eq!(
+        names(&all),
+        [
+            "AndroidManifest.xml",
+            "assets/blob.bin",
+            "assets/hello.txt",
+            "classes.dex",
+            "res/layout/main.xml",
+            "res/raw/data.bin",
+            "resources.arsc"
+        ]
+    );
+    assert_eq!(all["total_rows"], 7);
+    assert_eq!(all["truncated"], false);
+    // the position in the archive is kept beside the name
+    let manifest = &all["files"][0];
+    assert_eq!(manifest["entry_index"], 0);
+    assert_eq!(manifest["bytes"], 1980);
+    assert_eq!(manifest["directory"], false);
+    // a prefix is case-sensitive
+    let (assets, _) = server.tool(
+        "list_resource_files",
+        json!({"dataset_id": id, "prefix": "assets/"}),
+    );
+    assert_eq!(names(&assets), ["assets/blob.bin", "assets/hello.txt"]);
+    let (none, _) = server.tool(
+        "list_resource_files",
+        json!({"dataset_id": id, "prefix": "ASSETS/"}),
+    );
+    assert_eq!(none["total_rows"], 0);
+    // pages: offset and next_offset count members
+    let mut seen = Vec::new();
+    let mut offset = 0;
+    loop {
+        let (page, error) = server.tool(
+            "list_resource_files",
+            json!({"dataset_id": id, "limit": 3, "offset": offset}),
+        );
+        assert!(!error, "{page}");
+        seen.extend(names(&page).iter().map(|n| (*n).to_owned()));
+        match page["next_offset"].as_u64() {
+            Some(next) => offset = next,
+            None => break,
+        }
+    }
+    assert_eq!(seen.len(), 7);
+    // the end of the list is an empty page; past it is a range error
+    let (end, error) = server.tool(
+        "list_resource_files",
+        json!({"dataset_id": id, "offset": 7}),
+    );
+    assert!(!error);
+    assert_eq!(end["files"], json!([]));
+    let (past, error) = server.tool(
+        "list_resource_files",
+        json!({"dataset_id": id, "offset": 8}),
+    );
+    assert!(error);
+    assert_eq!(past["error"]["kind"], "invalid_range");
+    for arguments in [
+        json!({"dataset_id": id, "limit": 0}),
+        json!({"dataset_id": id, "limit": 201}),
+        json!({"dataset_id": id, "max_bytes": 0}),
+        json!({"dataset_id": id, "bogus": 1}),
+    ] {
+        assert_eq!(
+            server.refused("list_resource_files", arguments.clone()),
+            -32602,
+            "{arguments}"
+        );
+    }
+}
+
+#[test]
+fn read_resource_counts_bytes_of_the_text_it_shows_or_of_the_member_it_hexes() {
+    let mut server = Mcp::ready(&[]);
+    let id = open_one(
+        &mut server,
+        resource_fixture("generated", "resources-small.apk"),
+    );
+    // UTF-8 text: units are bytes of the text
+    let (text, error) = server.tool(
+        "read_resource",
+        json!({"dataset_id": id, "name": "assets/hello.txt"}),
+    );
+    assert!(!error, "{text}");
+    assert_eq!(
+        (text["kind"].as_str(), text["encoding"].as_str()),
+        (Some("text"), Some("utf8"))
+    );
+    assert_eq!(text["page"]["text"], "hello 世界\nline two\n");
+    assert_eq!(text["page"]["total_bytes"], 22);
+    assert_eq!(text["source_bytes"], 22);
+    assert_eq!(text["source"]["entry_index"], 5);
+    // an offset inside a character is refused, one on a boundary is not
+    let (inside, error) = server.tool(
+        "read_resource",
+        json!({"dataset_id": id, "name": "assets/hello.txt", "offset": 7}),
+    );
+    assert!(error, "{inside}");
+    assert_eq!(inside["error"]["kind"], "invalid_range");
+    let (tail, error) = server.tool(
+        "read_resource",
+        json!({"dataset_id": id, "name": "assets/hello.txt", "offset": 13}),
+    );
+    assert!(!error, "{tail}");
+    assert_eq!(tail["page"]["text"], "line two\n");
+    assert_eq!(tail["page"]["starts_mid_line"], false);
+    assert_eq!(tail["page"]["start_line"], 1);
+    // hex of the stored bytes, paged by stored bytes: a page is an eighth of max_bytes
+    let (first, error) = server.tool(
+        "read_resource",
+        json!({"dataset_id": id, "name": "assets/blob.bin", "max_bytes": 4096, "format": "hex"}),
+    );
+    assert!(!error, "{first}");
+    assert_eq!(
+        (first["kind"].as_str(), first["encoding"].as_str()),
+        (Some("binary"), Some("hex"))
+    );
+    assert_eq!(first["content"].as_str().unwrap().len(), 512);
+    assert_eq!(first["next_offset"], Value::Null);
+    let (blob, _) = server.tool(
+        "read_resource",
+        json!({"dataset_id": id, "name": "assets/blob.bin"}),
+    );
+    assert_eq!(blob["kind"], "binary");
+    assert_eq!(&blob["content"].as_str().unwrap()[..8], "00010203");
+    assert_eq!(blob["total_bytes"], 256);
+    let (second, _) = server.tool(
+        "read_resource",
+        json!({"dataset_id": id, "name": "assets/blob.bin", "offset": 250}),
+    );
+    assert_eq!(second["content"], "fafbfcfdfeff");
+    let (end, error) = server.tool(
+        "read_resource",
+        json!({"dataset_id": id, "name": "assets/blob.bin", "offset": 256}),
+    );
+    assert!(!error);
+    assert_eq!(end["content"], "");
+    let (past, error) = server.tool(
+        "read_resource",
+        json!({"dataset_id": id, "name": "assets/blob.bin", "offset": 257}),
+    );
+    assert!(error);
+    assert_eq!(past["error"]["kind"], "invalid_range");
+    // binary XML is shown as XML; hex still gives the stored bytes
+    let (layout, _) = server.tool(
+        "read_resource",
+        json!({"dataset_id": id, "name": "res/layout/main.xml"}),
+    );
+    assert_eq!(layout["kind"], "android_xml");
+    assert!(
+        layout["page"]["text"]
+            .as_str()
+            .unwrap()
+            .contains("app:text=\"hello\"")
+    );
+    let (stored, _) = server.tool(
+        "read_resource",
+        json!({"dataset_id": id, "name": "res/layout/main.xml", "format": "hex"}),
+    );
+    assert!(stored["content"].as_str().unwrap().starts_with("03000800"));
+    assert_eq!(stored["source_bytes"], 928);
+    // names are exact; a missing one says so
+    let (missing, error) = server.tool(
+        "read_resource",
+        json!({"dataset_id": id, "name": "nope.txt"}),
+    );
+    assert!(error);
+    assert_eq!(missing["error"]["kind"], "not_found");
+    for arguments in [
+        json!({"dataset_id": id, "name": "assets/hello.txt", "max_bytes": 10}),
+        json!({"dataset_id": id, "name": "assets/hello.txt", "format": "base64"}),
+        json!({"dataset_id": id}),
+    ] {
+        assert_eq!(
+            server.refused("read_resource", arguments.clone()),
+            -32602,
+            "{arguments}"
+        );
+    }
+}
+
+#[test]
+fn a_long_text_pages_on_lines_and_a_long_line_pages_inside_itself() {
+    let mut server = Mcp::ready(&[]);
+    let id = open_one(&mut server, probe_fixture("probe_extra", "paging.apk"));
+    // 6000 bytes in lines of 10: a page of max_bytes 4096 holds whole lines up to a quarter of it
+    let mut text = String::new();
+    let mut offset = 0;
+    let mut pages = 0;
+    loop {
+        let (page, error) = server.tool(
+            "read_resource",
+            json!({"dataset_id": id, "name": "assets/big.txt", "max_bytes": 4096, "offset": offset}),
+        );
+        assert!(!error, "{page}");
+        let body = &page["page"];
+        assert_eq!(body["starts_mid_line"], false);
+        assert_eq!(body["ends_mid_line"], false);
+        assert!(body["text"].as_str().unwrap().len() <= 1024);
+        text.push_str(body["text"].as_str().unwrap());
+        pages += 1;
+        match body["next_offset"].as_u64() {
+            Some(next) => offset = next,
+            None => break,
+        }
+    }
+    assert_eq!(text.len(), 6000);
+    assert_eq!(pages, 6);
+    // one line longer than the page is cut inside, never inside a character
+    let mut rebuilt = String::new();
+    let mut offset = 0;
+    loop {
+        let (page, error) = server.tool(
+            "read_resource",
+            json!({"dataset_id": id, "name": "assets/multi.txt", "max_bytes": 4096, "offset": offset}),
+        );
+        assert!(!error, "{page}");
+        rebuilt.push_str(page["page"]["text"].as_str().unwrap());
+        match page["page"]["next_offset"].as_u64() {
+            Some(next) => {
+                assert_eq!(page["page"]["ends_mid_line"], true);
+                offset = next;
+            }
+            None => break,
+        }
+    }
+    assert_eq!(rebuilt.len(), 4201);
+    // a member that is a directory entry is not a file
+    let (dir, error) = server.tool("read_resource", json!({"dataset_id": id, "name": "res/"}));
+    assert!(error);
+    assert_eq!(dir["error"]["kind"], "invalid_input");
+    let (files, _) = server.tool(
+        "list_resource_files",
+        json!({"dataset_id": id, "prefix": "res/"}),
+    );
+    assert_eq!(files["files"][0]["directory"], true);
+    // an empty member is an empty page
+    let (empty, _) = server.tool(
+        "read_resource",
+        json!({"dataset_id": id, "name": "assets/empty.txt"}),
+    );
+    assert_eq!(empty["page"]["text"], "");
+    assert_eq!(empty["page"]["next_offset"], Value::Null);
+}
+
+#[test]
+fn damaged_members_are_refused_by_what_is_wrong_and_hex_still_reads_them() {
+    let mut server = Mcp::ready(&[]);
+    let crc = open_one(
+        &mut server,
+        resource_fixture("generated", "resources-bad-crc.apk"),
+    );
+    let (reply, error) = server.tool(
+        "read_resource",
+        json!({"dataset_id": crc, "name": "assets/hello.txt"}),
+    );
+    assert!(error, "{reply}");
+    assert_eq!(reply["error"]["kind"], "resource_error");
+    // the member next to it is whole
+    let (fine, error) = server.tool(
+        "read_resource",
+        json!({"dataset_id": crc, "name": "assets/blob.bin"}),
+    );
+    assert!(!error, "{fine}");
+    let bad_xml = open_one(&mut server, probe_fixture("probe_enums", "bad-axml.apk"));
+    let (reply, error) = server.tool(
+        "read_resource",
+        json!({"dataset_id": bad_xml, "name": "res/layout/bad.xml"}),
+    );
+    assert!(error, "{reply}");
+    assert_eq!(reply["error"]["kind"], "invalid_xml");
+    let (hex, error) = server.tool(
+        "read_resource",
+        json!({"dataset_id": bad_xml, "name": "res/layout/bad.xml", "format": "hex"}),
+    );
+    assert!(!error, "{hex}");
+    assert_eq!(hex["content"], "03000800700800");
+}
+
+#[test]
+fn query_resources_gives_one_row_per_resource_configuration_and_item() {
+    let mut server = Mcp::ready(&[]);
+    let id = open_one(
+        &mut server,
+        resource_fixture("generated", "resources-small.apk"),
+    );
+    let (all, error) = server.tool("query_resources", json!({"dataset_id": id}));
+    assert!(!error, "{all}");
+    // 13 plain entries and the 6 items of three map entries
+    assert_eq!(all["total_rows"], 19);
+    assert_eq!(all["skipped_chunks"], 0);
+    assert!(
+        all["reference_policy"]
+            .as_str()
+            .unwrap()
+            .contains("not recursively evaluated")
+    );
+    let strings = |reply: &Value| -> Vec<(String, String, String)> {
+        reply["values"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|r| {
+                (
+                    r["name"].as_str().unwrap().to_owned(),
+                    r["configuration"].as_str().unwrap().to_owned(),
+                    r["value"].as_str().unwrap().to_owned(),
+                )
+            })
+            .collect()
+    };
+    // configurations are rows, not a merge: the default, en and zh-rCN values all appear
+    let (app_name, _) = server.tool(
+        "query_resources",
+        json!({"dataset_id": id, "name": "example.test:string/app_name"}),
+    );
+    assert_eq!(
+        strings(&app_name),
+        [
+            (
+                "string/app_name".to_owned(),
+                "".to_owned(),
+                "Hello".to_owned()
+            ),
+            (
+                "string/app_name".to_owned(),
+                "en".to_owned(),
+                "Bonjour".to_owned()
+            ),
+            (
+                "string/app_name".to_owned(),
+                "zh-rCN".to_owned(),
+                "你好".to_owned()
+            ),
+        ]
+    );
+    assert_eq!(app_name["values"][0]["resource_id_hex"], "0x7f010000");
+    assert_eq!(app_name["values"][0]["resource_id"], 2130771968u64);
+    // the default configuration is selected by the empty string, not by leaving it out
+    let (default, _) = server.tool(
+        "query_resources",
+        json!({"dataset_id": id, "configuration": ""}),
+    );
+    assert_eq!(default["total_rows"], 13);
+    let (night, _) = server.tool(
+        "query_resources",
+        json!({"dataset_id": id, "configuration": "night"}),
+    );
+    assert_eq!(night["values"][0]["value"], "#ff112233");
+    assert_eq!(night["values"][0]["value_type"], "ColorArgb8");
+    let (land, _) = server.tool(
+        "query_resources",
+        json!({"dataset_id": id, "resource_type": "dimen", "configuration": "land"}),
+    );
+    assert_eq!(land["values"][0]["value"], "16dip");
+    // a style item names its parent, its attribute and, when it points at a resource, which
+    let (style, _) = server.tool(
+        "query_resources",
+        json!({"dataset_id": id, "resource_type": "style"}),
+    );
+    let item = &style["values"][0];
+    assert_eq!(item["parent_id"], 0x0103_0000u64);
+    assert_eq!(item["item_name_id"], 0x0101_0000u64);
+    assert_eq!(item["item_count"], 1);
+    assert_eq!(item["value"], "@example.test:color/accent");
+    assert_eq!(item["reference_name"], "example.test:color/accent");
+    // contains is a case-sensitive substring of the name, not of the value
+    let (contains, _) = server.tool(
+        "query_resources",
+        json!({"dataset_id": id, "contains": "app"}),
+    );
+    assert_eq!(contains["total_rows"], 3);
+    let (by_value, _) = server.tool(
+        "query_resources",
+        json!({"dataset_id": id, "contains": "Hello"}),
+    );
+    assert_eq!(by_value["total_rows"], 0);
+    // a page is rows; the end is an empty page, past it a range error
+    let (page, _) = server.tool(
+        "query_resources",
+        json!({"dataset_id": id, "limit": 5, "offset": 15}),
+    );
+    assert_eq!(page["values"].as_array().unwrap().len(), 4);
+    assert_eq!(page["next_offset"], Value::Null);
+    let (past, error) = server.tool("query_resources", json!({"dataset_id": id, "offset": 20}));
+    assert!(error);
+    assert_eq!(past["error"]["kind"], "invalid_range");
+    let (by_id, _) = server.tool(
+        "query_resources",
+        json!({"dataset_id": id, "resource_id": 2131296256u64}),
+    );
+    assert_eq!(by_id["total_rows"], 2);
+    assert_eq!(by_id["values"][1]["item_index"], 1);
+}
+
+#[test]
+fn query_resources_refuses_what_is_not_a_table_and_says_what_is_missing() {
+    let mut server = Mcp::ready(&[]);
+    let none = open_one(
+        &mut server,
+        resource_fixture("generated", "resources-no-arsc.apk"),
+    );
+    let (reply, error) = server.tool("query_resources", json!({"dataset_id": none}));
+    assert!(error);
+    assert_eq!(reply["error"]["kind"], "not_found");
+    for name in ["resources-corrupt.apk", "resources-bad-magic.apk"] {
+        let id = open_one(&mut server, resource_fixture("generated", name));
+        let (reply, error) = server.tool("query_resources", json!({"dataset_id": id}));
+        assert!(error, "{name}: {reply}");
+        assert_eq!(reply["error"]["kind"], "invalid_resource_table", "{name}");
+        // the raw table is still readable
+        let (raw, error) = server.tool(
+            "read_resource",
+            json!({"dataset_id": id, "name": "resources.arsc"}),
+        );
+        assert!(!error, "{name}: {raw}");
+        assert_eq!(raw["kind"], "binary");
+    }
+}
+
+#[test]
+fn components_report_the_exported_state_the_manifest_and_the_target_sdk_give() {
+    let mut server = Mcp::ready(&[]);
+    let id = open_one(&mut server, probe_fixture("probe_extra", "rich.apk"));
+    let (all, error) = server.tool("get_manifest_components", json!({"dataset_id": id}));
+    assert!(!error, "{all}");
+    assert_eq!(all["target_sdk"], 35);
+    assert_eq!(all["total_rows"], 6);
+    let rows = all["components"].as_array().unwrap();
+    let state: Vec<(&str, Value, &str)> = rows
+        .iter()
+        .map(|c| {
+            (
+                c["name"].as_str().unwrap(),
+                c["exported"].clone(),
+                c["exported_reason"].as_str().unwrap(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        state,
+        [
+            ("example.rich.Home", json!(true), "explicit"),
+            (
+                "example.rich.Other",
+                Value::Null,
+                "explicit_exported_required_or_target_sdk_unknown"
+            ),
+            ("example.rich.AliasHome", json!(false), "explicit"),
+            ("example.rich.Disabled", json!(true), "explicit"),
+            (
+                "example.rich.Boot",
+                Value::Null,
+                "explicit_exported_required_or_target_sdk_unknown"
+            ),
+            ("example.rich.Prov", json!(false), "explicit"),
+        ]
+    );
+    let home = &rows[0];
+    assert_eq!(home["launcher_intent"], true);
+    assert_eq!(home["descriptor"], "Lexample/rich/Home;");
+    assert_eq!(
+        home["intent_filters"][0]["actions"],
+        json!(["android.intent.action.MAIN"])
+    );
+    assert_eq!(home["metadata"][0]["android:value"], "meta.value");
+    assert_eq!(home["attributes"]["android:launchMode"], "singleTask");
+    assert_eq!(
+        rows[1]["intent_filters"][0]["data"][0]["android:scheme"],
+        "https"
+    );
+    assert_eq!(rows[2]["target_activity"], "example.rich.Home");
+    assert_eq!(rows[3]["enabled"], false);
+    // filters
+    let (exported, _) = server.tool(
+        "get_manifest_components",
+        json!({"dataset_id": id, "only_exported": true}),
+    );
+    assert_eq!(exported["total_rows"], 2);
+    let (aliases, _) = server.tool(
+        "get_manifest_components",
+        json!({"dataset_id": id, "kind": "activity-alias"}),
+    );
+    assert_eq!(aliases["total_rows"], 1);
+    let (page, _) = server.tool(
+        "get_manifest_components",
+        json!({"dataset_id": id, "limit": 2, "offset": 2}),
+    );
+    assert_eq!(page["components"][0]["name"], "example.rich.AliasHome");
+    assert_eq!(page["next_offset"], 4);
+    assert_eq!(
+        server.refused(
+            "get_manifest_components",
+            json!({"dataset_id": id, "kind": "bogus"})
+        ),
+        -32602
+    );
+    // an older target SDK gives the intent-filter components the old default
+    let old = open_one(&mut server, probe_fixture("probe_extra", "rich-old.apk"));
+    let (all, _) = server.tool("get_manifest_components", json!({"dataset_id": old}));
+    assert_eq!(all["target_sdk"], 16);
+    let rows = all["components"].as_array().unwrap();
+    assert_eq!(rows[1]["exported"], true);
+    assert_eq!(rows[1]["exported_reason"], "intent_filter_default");
+}
+
+#[test]
+fn the_manifest_as_xml_pages_by_bytes_and_keeps_every_typed_value() {
+    let mut server = Mcp::ready(&[]);
+    let id = open_one(&mut server, probe_fixture("probe_typed", "corner.apk"));
+    let (whole, error) = server.tool("get_manifest", json!({"dataset_id": id, "mode": "xml"}));
+    assert!(!error, "{whole}");
+    let text = whole["page"]["text"].as_str().unwrap();
+    assert_eq!(whole["page"]["next_offset"], Value::Null);
+    assert_eq!(whole["page"]["total_bytes"], text.len());
+    for expected in [
+        "android:f_one_point_five=\"1.5\"",
+        "android:f_inf=\"inf\"",
+        "android:d_radix1=\"0.09375000576dip\"",
+        "android:fr_u0r1=\"39.0625024%\"",
+        "android:c_rgb8=\"#00336699\"",
+        "android:i_hex=\"0x0000abcd\"",
+        "android:b_two=\"true\"",
+        "s_escape=\"a&quot;b&amp;c&lt;d&gt;e&apos;f\"",
+        "s_newline=\"line1&#xA;line2&#x9;tab\"",
+        "android:ref_app=\"@7f010000\"",
+        "android:null_1=\"&lt;0x1, type Null&gt;\"",
+        "android:unknown_99=\"&lt;0xdeadbeef, type Unknown(99)&gt;\"",
+    ] {
+        assert!(text.contains(expected), "{expected}");
+    }
+    // paged by bytes of the text it shows, the pages join to the whole
+    let mut joined = String::new();
+    let mut offset = 0;
+    let mut pages = 0;
+    loop {
+        let (page, error) = server.tool(
+            "get_manifest",
+            json!({"dataset_id": id, "mode": "xml", "max_bytes": 4096, "offset": offset}),
+        );
+        assert!(!error, "{page}");
+        joined.push_str(page["page"]["text"].as_str().unwrap());
+        pages += 1;
+        match page["page"]["next_offset"].as_u64() {
+            Some(next) => offset = next,
+            None => break,
+        }
+    }
+    assert_eq!(joined, text);
+    assert!(pages > 1);
+    let (inside, error) = server.tool(
+        "get_manifest",
+        json!({"dataset_id": id, "mode": "xml", "offset": 99999}),
+    );
+    assert!(error);
+    assert_eq!(inside["error"]["kind"], "invalid_range");
+    // the summary spells the same values the same way and keeps the characters exactly
+    let (summary, _) = server.tool("get_manifest", json!({"dataset_id": id}));
+    assert_eq!(
+        summary["application"]["android:d_radix1"],
+        "0.09375000576dip"
+    );
+    assert_eq!(summary["application"]["s_newline"], "line1\nline2\ttab");
+}
+
+#[test]
+fn with_two_archives_open_the_one_to_read_must_be_chosen() {
+    let mut server = Mcp::ready(&[]);
+    let (opened, error) = server.tool(
+        "open_dataset",
+        json!({"inputs": [probe_fixture("probe_extra", "multi-a.apk"), probe_fixture("probe_extra", "multi-b.apk")]}),
+    );
+    assert!(!error, "{opened}");
+    let id = opened["dataset_id"].as_str().unwrap();
+    for (tool, arguments) in [
+        ("list_resource_files", json!({"dataset_id": id})),
+        (
+            "read_resource",
+            json!({"dataset_id": id, "name": "assets/hello.txt"}),
+        ),
+        ("query_resources", json!({"dataset_id": id})),
+        ("get_manifest_components", json!({"dataset_id": id})),
+        ("get_manifest", json!({"dataset_id": id, "mode": "xml"})),
+    ] {
+        let (reply, error) = server.tool(tool, arguments);
+        assert!(error, "{tool}");
+        assert_eq!(reply["error"]["kind"], "ambiguous_input", "{tool}");
+        assert_eq!(reply["error"]["archive_inputs"], json!([0, 1]), "{tool}");
+    }
+    let (chosen, error) = server.tool(
+        "list_resource_files",
+        json!({"dataset_id": id, "input_index": 1}),
+    );
+    assert!(!error, "{chosen}");
+    assert_eq!(chosen["input_index"], 1);
+    // each archive has its own members: a name is looked up in the one chosen
+    let (a, error) = server.tool(
+        "read_resource",
+        json!({"dataset_id": id, "input_index": 0, "name": "assets/a.txt"}),
+    );
+    assert!(!error, "{a}");
+    assert_eq!(a["page"]["text"], "alpha\n");
+    let (elsewhere, error) = server.tool(
+        "read_resource",
+        json!({"dataset_id": id, "input_index": 1, "name": "assets/a.txt"}),
+    );
+    assert!(error);
+    assert_eq!(elsewhere["error"]["kind"], "not_found");
+    let (b, error) = server.tool(
+        "read_resource",
+        json!({"dataset_id": id, "input_index": 1, "name": "assets/hello.txt"}),
+    );
+    assert!(!error, "{b}");
+    assert_ne!(a["source"]["member_id"], b["source"]["member_id"]);
+    let (not_archive, error) = server.tool(
+        "list_resource_files",
+        json!({"dataset_id": id, "input_index": 7}),
+    );
+    assert!(error);
+    assert_eq!(not_archive["error"]["kind"], "not_archive");
 }

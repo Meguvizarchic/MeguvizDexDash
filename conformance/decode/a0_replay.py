@@ -43,7 +43,8 @@ DECLARED = [
     ("MALFORMED CODE", "a method whose invoke names a different number of registers than its prototype takes is rendered as the bytes say (the invoke is visible and wrong); "
                        "the reference refuses the whole method (invalid_input, with the offset of the invoke). Showing the code of a damaged or obfuscated method is the more useful answer."),
     ("SUMMARY", "the summary mode here also names the method's `declaration`."),
-    ("NOT IMPLEMENTED", "the xml mode of get_manifest (MDD-072) is refused as `not_implemented`; it is not compared."),
+    ("XML TEXT NODES", "the xml mode of get_manifest (MDD-072) keeps the text nodes of the document and the reference drops them; the fixture manifest has one, "
+                       "so its text is nine bytes longer here. The texts are compared with the lines that hold only character data removed from this server's."),
     ("TEXT FORMAT", "every decode answer that shows text names the version of its text (`text_format`); a context row also gives `source_total_lines`, the line count of the full text its `line N:` numbers index."),
     ("CLASS OBJECT", "a class page also carries `class`: the class's own facts (flags, superclass, source file, interfaces, field counts) and, in the text modes on the first page, its declaration, "
                      "fields and annotations as a text; and a method row may carry `omitted`, what its text leaves out. The reference has neither."),
@@ -68,12 +69,8 @@ KIND_ALIASES = {
 
 TEXT_FIELDS = ("smali", "total_bytes", "total_lines", "end_line", "start_line", "next_offset", "starts_mid_line", "ends_mid_line")
 
-NOT_IMPLEMENTED = {
-    **{i: "the xml mode of get_manifest (MDD-072)" for i in (
-        "manifest-mode-xml", "manifest-xml-offset-10", "manifest-xml-offset-huge", "manifest-xml-offset-0-bytes-4096", "manifest-xml-limit",
-        "manifest-no-manifest-xml", "manifest-combo-xml-limit-0", "manifest-combo-xml-max_bytes-0", "manifest-combo-xml-input_index-1",
-        "manifest-combo-xml-offset-past", "manifest-combo-xml-timeout-0")},
-}
+# Nothing is left unimplemented: the xml mode of get_manifest (MDD-072) answers and its records are compared.
+NOT_IMPLEMENTED: dict[str, str] = {}
 TIMING = {"decode-arg-timeout_ms-1": "a 1 ms deadline"}
 # An offset the reference accepts because its text is 329 bytes long; this server's text is shorter.
 TEXT_LENGTH = {"decode-page-switch-offset-total", "decode-method-context-offset-total", "decode-method-context-offset-past"}
@@ -357,6 +354,14 @@ def compare_case(case: dict, ours: dict) -> tuple[list[str], str | None]:
         if "dataset_id" in want and "dataset_id" not in got:
             problems.append("the reference names the dataset beside the error and this server does not")
         return problems, ("ERROR WORDING" if want["error"].get("message") != got["error"].get("message") else None)
+    page, ours_page = want.get("page"), got.get("page")
+    if case.get("tool") == "get_manifest" and isinstance(page, dict) and isinstance(ours_page, dict)             and page.get("text") != ours_page.get("text"):
+        # the first line of a page that starts inside a line is the rest of that line, whatever it holds
+        mid_line = bool(case["arguments"].get("offset"))
+        kept = "".join(line for number, line in enumerate(ours_page["text"].splitlines(keepends=True))
+                       if (number == 0 and mid_line) or "<" in line or ">" in line or '="' in line)
+        if kept == page["text"]:
+            return [], "XML TEXT NODES"
     return compare_ok_bodies(want, got), None
 
 
