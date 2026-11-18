@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MeguvizDexDash</title>
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <header id="top">
+    <img id="logo" src="logo.svg" alt="" width="28" height="28">
+    <h1>MeguvizDexDash</h1>
+    <span class="badge preview" title="功能预览：未获性能替代资格，不准入任何 profile">功能预览</span>
+    <span id="engine-chip" class="chip" data-state="unknown">引擎：检测中</span>
+    <span class="spacer"></span>
+    <label class="current-set">当前输入集
+      <select id="current-set"></select>
+    </label>
+  </header>
+  <div id="layout">
+    <nav id="nav" aria-label="视图"></nav>
+    <main id="main"></main>
+  </div>
+  <footer id="statusbar">
+    <span id="busy-text" class="idle">空闲</span>
+    <progress id="busy-progress" max="1" value="0" hidden></progress>
+    <button id="cancel-button" type="button" hidden>取消</button>
+    <span class="spacer"></span>
+    <span id="status-note"></span>
+  </footer>
+  <div id="toasts" aria-live="polite"></div>
+</body>
+</html>

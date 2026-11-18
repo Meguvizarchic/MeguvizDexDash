@@ -1,0 +1,9 @@
+{
+  "name": "mdd-desktop-ui",
+  "private": true,
+  "type": "module",
+  "description": "Marks ui/ as ES modules for Node's test runner. There are no npm dependencies and nothing to install: the window's front end is plain JavaScript.",
+  "scripts": {
+    "test": "node --test ui-tests/*.test.mjs"
+  }
+}

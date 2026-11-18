@@ -1,0 +1,26 @@
+{
+  "a.dex": {
+    "bytes": 540,
+    "sha256": "eea23777d2640cafcec8f1f2e78bd48cbac803d1905e68e18850f374637d16bb"
+  },
+  "b.dex": {
+    "bytes": 536,
+    "sha256": "4c51f205e055799692ea695e17b99ce2d6a01ec9afbd66c321720ca516fd3dc4"
+  },
+  "c.dex": {
+    "bytes": 384,
+    "sha256": "bb4cd8c55b7d22b1837f32040bc87db29b9edae0bec5ebde399f9c960b289bb9"
+  },
+  "ab1.dex": {
+    "bytes": 444,
+    "sha256": "09dc7bbc80353bc471986613e2337a0de2b32b3701ebd4c09f29b81217d18dd7"
+  },
+  "ab2.dex": {
+    "bytes": 424,
+    "sha256": "6b9980d8aa32e133a3507377c6c467b774ceb950af56053ceef9d41069c51cf7"
+  },
+  "long.dex": {
+    "bytes": 2396,
+    "sha256": "36fac356bef25645df4b254c481fb329e2f93e8967dd797cf473cd950dcd49f2"
+  }
+}

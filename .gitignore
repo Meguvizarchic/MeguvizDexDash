@@ -1,4 +1,8 @@
 /target/
+# the desktop workbench is its own Cargo workspace (apps/desktop/Cargo.toml)
+/apps/desktop/target/
+/apps/desktop/gen/
+/apps/desktop/dist/
 /.venv/
 /handoff/
 **/__pycache__/

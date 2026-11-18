@@ -1,0 +1,122 @@
+{
+  "schema_version": "mdd.desktop-user-flows.v1",
+  "task": "MDD-073",
+  "what": "Each case is a user flow driven through the real MeguvizDexDash window (WebView2 over the DevTools protocol on Windows, WebDriver on Linux) against the real meguvizdexdash engine process. A case passes only when every named check of it passed; a case that could not run is not_run, never passed.",
+  "acceptance_items": {
+    "1": "真实 UI 流程能打开受校验输入、查看覆盖/来源、完成查询/翻页/取消、导航引用和导出完整结果",
+    "2": "差异展示保留来源、重复、raw 指纹与 unknown/inference 边界，不把未加载页显示成完整无结果",
+    "3": "worker 长任务不阻塞界面；错误和预算有可理解反馈，取消后资源有界释放",
+    "4": "默认本地运行且无隐式 APK 上传；可用能力来自同一 capability ledger",
+    "5": "Linux/Windows 运行与打包可复验，不能只以 WebView 页面截图替代实际桌面集成"
+  },
+  "runner": "apps/desktop/e2e/run.mjs",
+  "implementations": "apps/desktop/e2e/flows.mjs",
+  "cases": [
+    {
+      "id": "open_input_shows_provenance",
+      "title": "Open an input and see where every fact comes from",
+      "acceptance": [1],
+      "steps": "type the path of a.dex, press Open",
+      "expects": "an input set card with the snapshot id, the input's sha256 (equal to the sha256 computed outside the app), its kind, the DEX member row, and the profile marked not admitted"
+    },
+    {
+      "id": "refuse_bad_inputs",
+      "title": "A text file and a missing path are refused with the engine's own error",
+      "acceptance": [1],
+      "steps": "open README.md, then a path that does not exist",
+      "expects": "INVALID_INPUT and INPUT_NOT_FOUND error boxes with the engine's message and a hint; no input set card appears"
+    },
+    {
+      "id": "query_pages_never_look_complete_when_they_are_not",
+      "title": "Paging a query: every page says whether the rest is loaded",
+      "acceptance": [1, 2],
+      "steps": "run a 216-row query at 50 rows per page, page forward to the end and back; run a query with no rows",
+      "expects": "pages 1-4 say more rows are not loaded, the last page says it is the last of 216 rows, an empty result says the engine confirmed it is empty, previous restores the first page"
+    },
+    {
+      "id": "query_errors_and_budgets_are_understandable",
+      "title": "A syntax error and an exhausted SQL budget",
+      "acceptance": [3],
+      "steps": "run invalid SQL; lower the SQL step budget in the engine settings and run a join; restore the default budgets",
+      "expects": "INVALID_ARGUMENT with the engine's parser message; QUOTA_EXCEEDED with the hint about the budget and no rows shown as a result; the same join works again after the reset"
+    },
+    {
+      "id": "long_query_does_not_block_the_window_and_cancels",
+      "title": "A long query keeps the window alive and can be cancelled",
+      "acceptance": [1, 3],
+      "steps": "start a query that would run for hours, switch views while it runs, press Cancel, then run a query again",
+      "expects": "the busy bar's elapsed time keeps advancing and the view switch works while the engine is busy; CANCELLED within 3 s of the press; the bar returns to idle; the next query succeeds on the same input set after the engine was started again"
+    },
+    {
+      "id": "browse_class_method_smali_and_xrefs",
+      "title": "Class to method to smali, following a reference and the cross-references",
+      "acceptance": [1],
+      "steps": "search 'demo', pick Ldemo/A;, pick foo, click the Ldemo/B;->bar()V reference, load callers and callees",
+      "expects": "smali text with clickable references; the click opens bar from the other DEX file; callers of bar lists foo; callees of bar lists foo; a click on a caller returns to foo"
+    },
+    {
+      "id": "smali_pages_say_what_is_not_loaded",
+      "title": "A 505-line method is shown in pages and the first page says it is partial",
+      "acceptance": [2],
+      "steps": "open long.dex, pick Ldemo/L;->long()V, press next, then previous",
+      "expects": "page 1 reports lines 0-300 of 505 and that the tail is not loaded, page 2 reaches the end, previous returns to page 1"
+    },
+    {
+      "id": "manifest_and_resources",
+      "title": "Manifest summary, components, XML, archive members and one member",
+      "acceptance": [1],
+      "steps": "open manifest-small.apk and visit each section",
+      "expects": "the package name, the XML text, the member list with its total, and a member read with its sha256"
+    },
+    {
+      "id": "export_complete_result",
+      "title": "Export a whole query result to CSV and cancel another export",
+      "acceptance": [1, 3],
+      "steps": "export the 216-row query as CSV and as JSON Lines; start a very large export and cancel it",
+      "expects": "the CSV has a header and exactly 216 rows, the JSON Lines file has a header record and 216 rows, the cancelled export leaves no file and no .partial file"
+    },
+    {
+      "id": "diff_two_inputs_keeps_provenance_and_limits",
+      "title": "Compare two input sets",
+      "acceptance": [2],
+      "steps": "open a.dex and b.dex+c.dex, compare, open the ops and same method pairs, compare their smali",
+      "expects": "5 differences; both sides shown as completely loaded with their sha256 and DEX member names; opcode-equal methods are labelled as not proving equal operands; the smali comparison finds the alpha/beta operand and proves the other pair identical"
+    },
+    {
+      "id": "capabilities_come_from_the_engine",
+      "title": "The tool list and the views' availability come from tools/list",
+      "acceptance": [4],
+      "steps": "open the engine page; restart the engine twice in a row through the settings buttons while sampling the view buttons for three seconds",
+      "expects": "the tools shown are exactly the engine's tools/list; every view whose tools are listed is enabled, and none is greyed out at any sample while the engine restarts (an empty list means unknown, not 'lists nothing'; an engine that was only busy is not 'cannot start'); the capabilities command output is shown verbatim and every profile is marked not admitted"
+    },
+    {
+      "id": "missing_engine_is_explained",
+      "title": "No engine: the window says so and offers nothing it cannot do",
+      "acceptance": [4],
+      "steps": "start the window with MDD_ENGINE pointing at a file that does not exist",
+      "expects": "the engine chip says it cannot start; views that need engine tools are disabled with the missing tool names; the engine page shows ENGINE_NOT_FOUND and the way to fix it"
+    },
+    {
+      "id": "nothing_leaves_the_machine",
+      "title": "The page cannot reach the network; opening an input sends nothing",
+      "acceptance": [4],
+      "steps": "from the page, try fetch, XMLHttpRequest and an image load to an external address",
+      "expects": "all three are blocked by the page's Content-Security-Policy"
+    },
+    {
+      "id": "closing_the_window_ends_the_engine",
+      "title": "Killing the application does not leave an engine process behind",
+      "acceptance": [3],
+      "steps": "open an input, note the engine process, kill the application process",
+      "expects": "the engine process is gone within 5 s"
+    },
+    {
+      "id": "real_application_newpipe",
+      "title": "The public NewPipe 0.28.6 APK end to end",
+      "acceptance": [1, 2, 3],
+      "requires_local_input": "artifacts/local/inputs/NewPipe_v0.28.6.apk",
+      "steps": "open it, count its methods, search App, read App.onCreate (two pages), load callers of a framework-facing method",
+      "expects": "2 DEX files, 63560 methods, a class list, a two-page smali, a callers answer or a budget error shown honestly"
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 # MeguvizDexDash 当前状态
 
-更新：2026-11-17（Asia/Shanghai）。唯一任务图：tasks/backlog.json；当前产品仍在实施，所有产品 profile admitted=false。
+更新：2026-11-18（Asia/Shanghai）。唯一任务图：tasks/backlog.json；当前产品仍在实施，所有产品 profile admitted=false。
 
 ## 2026-11-11 生产前资格推进（5 子代理 + 3 Step-Reviewer）
 
@@ -467,6 +467,28 @@
 **任务状态**：所有者于 2026-11-18 同意，标为 **done**，带着上面的声明差异和「没做 / 没证明」的限定：开发证据，不准入任何 profile；只探测了 dexsql 0.1.0；除 NewPipe 外没有别的真实应用（它的 APK 与录制是本地文件，Actions 上的回放只跑 277 条合成调用）。代码在分支 `claude/mdd-072-resources` 上经 Linux 与 Windows 的 CI 和五个变异检查后，于 `ce5c8f4` 让 `main` 快进。
 
 **测试**：整个工作区 1080 项通过，clippy 与 fmt 干净；CLI 进程测试新增 10 项；`mdd-input` 资源模块 39 项（含逐字节拼装的表与二进制 XML）。新增 CI 检查：资源夹具 `--check`、回放控制测试、回放、记录 `--check`。不准入任何 profile；这是开发证据。
+
+## 2026-11-18 MDD-073：桌面分析工作台（功能预览，in_progress）
+
+**做了什么**：`apps/desktop/` 是一个 Tauri 2 窗口加静态 HTML/CSS/ES 模块（没有 npm、没有打包；`tauri 2.12.6`、`tauri-plugin-dialog 2.8.4`、`tauri-build 2.7.5` 由所有者于 2026-11-18 确认，锁定在它自己的 `Cargo.lock`）。它是**独立的 Cargo 工作区**，不链接任何 `mdd-*` crate，只经子进程 `meguvizdexdash mcp` 的十二个工具取事实（决策与取舍见 `docs/adr/ADR-desktop-shell.md`）。六个视图：输入（来源、sha256、快照、成员、未准入标记）、查询（分页、取消、预算反馈、导出）、浏览（类/方法/Smali 分页、xref 跳转）、Manifest 与资源、差异、引擎与设置。监督层一次只放一个请求（第二个立即得 `ENGINE_BUSY` 并说明谁占着），看门狗，取消 = 结束引擎进程、句柄在下次调用时由壳重开，关窗结束引擎；状态轮询从不等会话锁。导出与差异用对账证明完整：先 `count(*)`，再分页，行数对得上才落盘，否则删半成品并报错；差异只比较定义，方法按操作码序列比，**操作码相同不等于操作数相同**，界面这样写。窗口 CSP 为 `default-src 'none'`，权限只有 `core:default`，三个目标的依赖图里没有 HTTP 客户端，APK 不会被上传。便携包由 `package.py` 生成（Windows zip 7.4 MB，含窗口、同目录引擎、README 与逐文件 sha256 的 manifest，确定性归档），明确标注为 preview。顺带修了 MDD-072 遗留的 `initialize` instructions 文本（把已实现的工具写成“未实现”，`crates/mdd-mcp/src/server.rs`，附测试），它是独立改动。
+
+**怎么验证的**（Windows，本机）：`cargo test` 39 项（库 18、差异 6、对真实引擎进程的壳测试 15）；前端 node 测试 41 项；**15 个真实窗口流程在从 zip 解包出来的包上 15/15 通过**（Chrome DevTools 协议驱动 WebView2，窗口里的真实点击与输入；覆盖验收 1–4，含公开的 NewPipe 0.28.6 端到端，该流程只在本地有那个被忽略的 APK 时运行）；包检查（`verify_package.py`）逐文件核对 manifest 的 sha256、引擎身份与运行用的是包内引擎；clippy `-D warnings`、fmt、边界检查（依赖图、CSP、窗口权限、未链接核心 crate）通过。记录：`artifacts/mdd-073/desktop-workflows.json`（由 `build_record.py` 重跑便宜的检查并读取昂贵检查的记录）、`artifacts/mdd-073/package-check-windows.json`、`conformance/desktop/user-flow-cases.json`（15 例，对应验收 1–5）。
+
+**变异检查**：70 个变异（`artifacts/mdd-073/mutation/mutate_desktop.py`，结果 `artifacts/mdd-073/mutation/results.txt`，覆盖壳的 Rust 逻辑与前端纯函数），**70/70 杀死**，每个杀死都对应一个点名的失败测试，干净树在变异前后各过一次。真实窗口流程不在变异检查里（对每个变异太慢）。
+
+**过程中发现并修复的，以及一次作废的结果**：
+- **第一轮变异结果无效，57/57 的数字作废。** 现象：运行结束时干净树的 `cargo test` 是失败的。根因：一个测试把系统临时目录本身当作“应被拒绝的文件夹”，而变异体“导出接受文件夹作目标”拿掉了守卫，导出就在工具 shell 里把系统临时目录换成了一个 9 字节的文件，此后每次 cargo 运行都因环境失败，后面的变异被误杀；脚本也只在最后才检查干净树。处理：测试改用自己的私有文件夹并放一个标记文件、断言导出被拒后它们还在；脚本改为先跑干净树（失败就不跑变异）、套件用独立的临时目录、只有点名的失败测试才算杀死、结束后再查一次干净树。删掉那个 9 字节文件后原目录恢复可见，没有观察到丢失；这是工具沙箱的覆盖层还是真的改了磁盘，没有证明。
+- **一个等价变异**（`next_offset` 缺省的处理已由参数默认值保证）被识别后删掉多余的检查，换成两个有效变异。
+- **包验证暴露的真实竞态。** 现象：在解包后的包上，`query_errors_and_budgets_are_understandable` 单独重复 5 次失败 4 次（此前的运行是 15/15）。根因：连续重启引擎时，壳的 `engine_info` 可能读到空的工具清单（设置变更把进程结束并清空了已发布的清单），或拿不到引擎租约（`ENGINE_BUSY`）；前端把空清单当成“引擎没有这些工具”、把 `ENGINE_BUSY` 当成“无法启动”，于是 0.5–1 秒内所有视图按钮置灰，期间的点击被忽略。处理：规则放进 `ui/lib/availability.js`——空清单表示未知，不停用视图；只有引擎真起不来、或列出了工具却缺所需工具才停用；`ENGINE_BUSY` 不覆盖已知的引擎信息。验证：9 个新单元测试、9 个新变异体，以及真实窗口里连点两次重启并每 25 毫秒采样按钮 3 秒的检查（把修复改回旧行为时它 3/3 失败，修复后通过）；原失败用例修复后连跑 10/10 通过。
+- 构建记录脚本此前没有完整跑过，统计测试数的正则有错，已修；记录里的 clippy 项因此第一次真正执行，揭出 `tests/engine.rs` 一处字段赋值写法，已改。解包包里引擎路径带本机临时目录，已改成位置无关的写法后再入库。
+
+**声明的差异与限定**：界面只有中文。窗口的默认 SQL 预算比引擎默认值宽（2 亿步、5 千万扫描行），因为浏览一个应用常要扫描它最大的关系，可在“引擎与设置”页调回。引擎的分页窗口最多 10 万行，超过它的输入只能在类前缀内比较。差异只比较定义，不比较操作数。这是功能预览：不准入任何 profile，没有任何性能声明或替代资格（性能发行仍需 MDD-082）。
+
+**没做 / 没证明**：**Linux 没有运行过**——`.github/workflows/desktop.yml` 已写好（Linux 用 xvfb 加 WebDriver 驱动 WebKitGTK），但 WebDriver 这条路径本机无法测，未经 CI 前不能算数；macOS 没有运行也不宣称；便携包未签名，没有安装器和更新器；原生打开/保存对话框不由流程驱动（流程直接输入路径），只证明了能编译并可从窗口命令到达；不支持拖放；无障碍（纯键盘、读屏）没有评估；NewPipe 流程在没有本地 APK 的环境里是 not_run。打包步骤是确定的（同样的二进制重新打包得到同一个 sha256，已验证），但**重建窗口 exe 不保证得到同一个归档**：本轮两次重建的归档哈希不同、长度相同，引擎 exe 两次哈希相同；原因没有查（Windows 链接器时间戳是可能的解释，未验证），所以只声称包可按 manifest 复验，不声称可按字节重现。
+
+**任务状态**：仍为 **in_progress**，**不标 done**：验收 5（Linux 与 Windows 运行与打包可复验）只有 Windows 一侧有证据，Linux 要等 Actions 上 `desktop.yml` 的记录；任务关闭也要所有者同意。改动尚未提交。MDD-072 的 instructions 修复改了 `server.rs` 与 `crates/mdd-cli/tests/mcp.rs`，它们是 042/070/071/072/084 五份变异结果哈希覆盖的文件，这五份结果因此过期，需要在批准推送后用 Actions 重跑。
+
+**测试**：`apps/desktop` 的 Rust 39、前端 41、窗口流程 15/15（解包包）、变异 70/70；核心工作区只跑了受影响的部分（本段只改了 `crates/mdd-mcp/src/server.rs` 的说明文本与 `crates/mdd-cli/tests/mcp.rs` 的一个测试）：`cargo fmt --all --check` 干净，`clippy -p mdd-mcp -p mdd-cli --all-targets -D warnings` 干净，`mdd-cli` 的 MCP 进程测试 54 项通过（含新增的说明文本测试），`mdd-mcp` 29 项通过，工作区边界检查与 `check_progress.py` 通过；**整个工作区的测试没有重跑**。
 
 ## Checkout 与交付
 
