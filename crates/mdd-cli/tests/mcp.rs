@@ -166,6 +166,36 @@ fn the_session_must_be_initialized_before_tools_and_may_be_initialized_once() {
 }
 
 #[test]
+fn the_instructions_name_exactly_the_tools_that_are_listed() {
+    let mut server = Mcp::start(&[]);
+    let init = server.request("initialize", json!({"protocolVersion":"2025-06-18"}));
+    let instructions = init["result"]["instructions"].as_str().unwrap().to_owned();
+    let listed = server.request("tools/list", json!({}));
+    let names: Vec<String> = listed["result"]["tools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|tool| tool["name"].as_str().unwrap().to_owned())
+        .collect();
+    assert_eq!(names.len(), 12);
+    // the sentence that lists the tools, between "Tools: " and the first full stop
+    let sentence = instructions
+        .strip_prefix("Tools: ")
+        .and_then(|rest| rest.split_once(". "))
+        .map(|(list, _)| list.to_owned())
+        .unwrap_or_else(|| panic!("no tool sentence in {instructions:?}"));
+    let mut named: Vec<String> = sentence.split(", ").map(str::to_owned).collect();
+    named.sort();
+    let mut expected = names;
+    expected.sort();
+    assert_eq!(named, expected, "{instructions}");
+    assert!(
+        !instructions.contains("not implemented"),
+        "no listed tool is described as missing: {instructions}"
+    );
+}
+
+#[test]
 fn an_unknown_protocol_revision_is_answered_with_the_newest() {
     let mut server = Mcp::start(&[]);
     let reply = server.request("initialize", json!({"protocolVersion":"1999-01-01"}));

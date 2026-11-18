@@ -12,8 +12,8 @@ pub use crate::tools::Config;
 /// The largest message accepted. A larger line is refused and skipped.
 pub const MAX_MESSAGE_BYTES: usize = 4 * 1024 * 1024;
 
-const INSTRUCTIONS: &str = "Tools: open_dataset, list_datasets, close_dataset, list_tables, describe_table, query, decode, get_manifest. \
-get_manifest_components and the resource tools are not implemented and are not listed. \
+const INSTRUCTIONS: &str = "Tools: open_dataset, list_datasets, close_dataset, list_tables, describe_table, query, decode, \
+get_manifest, get_manifest_components, list_resource_files, read_resource, query_resources. \
 Requests are served one at a time. A query that outlives its deadline closes its dataset.";
 
 #[derive(Clone, Copy, Eq, PartialEq)]
