@@ -452,7 +452,7 @@
 
 **测试**：`mdd-facts` 204、`mdd-sql` 259、进程测试 42、整个工作区通过，clippy 与 fmt 干净；CI 的回放与 SDK 测试本机都过。新增 CI 检查：夹具 `--check`、回放控制测试、两个方言的回放、两版本对比的 `--check`、资格记录与结论记录的 `--check`。不准入任何 profile；这是开发证据。
 
-## 2026-11-18 MDD-072：Manifest xml、资源查询与十二工具（in_progress，三项未了）
+## 2026-11-18 MDD-072：Manifest xml、资源查询与十二工具（done）
 
 **做了什么**：十二个工具现在都已注册，输入 schema 与注解和参考引擎发布的逐个相等。`get_manifest` 的 `xml` 模式不再被拒绝：整个 Manifest 以 XML 文本返回，按文本的 UTF-8 字节分页，所有命名空间声明和带命名空间的属性、所有 typed 值都写出来。新增四个工具：`get_manifest_components`（组件、导出状态及原因、intent-filter、launcher、metadata、alias 目标）、`list_resource_files`（归档全部成员，按名排序，同名成员都列）、`read_resource`（auto：二进制 XML 转 XML 文本、UTF-8 保持文本、其余小写 hex；hex 强制原字节；偏移单位随表示）、`query_resources`（`resources.arsc` 逐资源、逐配置、逐条目一行，配置不合并，引用只命名不展开）。代码在 `crates/mdd-input/src/resources/`（值的拼写、框架名、二进制 XML 转文本、`ResTable_config` 限定符、严格的 resources.arsc 读取器、查询）、`crates/mdd-service/src/resources.rs`、`crates/mdd-mcp/src/resource_tools/`。只含资源、没有 DEX 的 APK 现在能打开（`has_dex: false`），`query` 与 `decode` 对它明确拒绝为 `no_dex`，不返回空结果。`get_manifest` 摘要现在也能写出 float、dimension、fraction、color、null（MDD-042 当时拒绝），和 XML 共用同一个函数，同一个值只有一种写法。
 
@@ -464,7 +464,7 @@
 
 **变异检查**：118 个变异（`artifacts/mdd-072/mutation/mutate_resources.py`，`.github/workflows/mutation-resources.yml`，结果 `artifacts/mdd-072/mutation/results.txt`）。前几轮的存活者都是测试的缺口，不是引擎的错：第三轮 20 个、第四轮 1 个，各补了测试或夹具（同名两成员的归档、逐字节拼装的表与二进制 XML、导出规则的边界）。第五轮（44247914806）**118/118 杀死**，未变异树通过。它改了 `tools.rs`、`dataset.rs` 等文件，所以 MDD-042/070/071/084 的变异结果在同一份代码上重跑：**57/57、59/59、67/67、12/12**（四份 results.txt 只有哈希行变化）。第一次推送还漏了 43 个合成夹具 APK（`.gitignore` 的 `*.apk` 把它们静默跳过，分支 CI 与变异检查因此失败），已用明确的放行规则补上；HostLab 的引擎测试还写着 8 个工具，已改成 12 个。MDD-051 边界记录与 `provider-selection.json` 已重新生成。
 
-**任务状态**：保持 in_progress：所有者还没同意标 done（带着上面的声明差异和限定）。
+**任务状态**：所有者于 2026-11-18 同意，标为 **done**，带着上面的声明差异和「没做 / 没证明」的限定：开发证据，不准入任何 profile；只探测了 dexsql 0.1.0；除 NewPipe 外没有别的真实应用（它的 APK 与录制是本地文件，Actions 上的回放只跑 277 条合成调用）。代码在分支 `claude/mdd-072-resources` 上经 Linux 与 Windows 的 CI 和五个变异检查后，于 `ce5c8f4` 让 `main` 快进。
 
 **测试**：整个工作区 1080 项通过，clippy 与 fmt 干净；CLI 进程测试新增 10 项；`mdd-input` 资源模块 39 项（含逐字节拼装的表与二进制 XML）。新增 CI 检查：资源夹具 `--check`、回放控制测试、回放、记录 `--check`。不准入任何 profile；这是开发证据。
 
