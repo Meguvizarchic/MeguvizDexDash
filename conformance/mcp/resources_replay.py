@@ -511,6 +511,7 @@ def main() -> int:
     report = run(args.binary, args.show)
     print(json.dumps(report["counts"], sort_keys=True), json.dumps(report["classes"], sort_keys=True))
     if args.out:
+        args.out.parent.mkdir(parents=True, exist_ok=True)
         args.out.write_text(json.dumps(report, indent=1, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n")
     return 0 if not report["counts"].get("differs") and not report["counts"].get("error") else 1
 

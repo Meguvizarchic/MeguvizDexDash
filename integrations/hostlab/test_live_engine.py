@@ -125,7 +125,9 @@ class Live(unittest.TestCase):
         self.assertEqual((entry["engine_version"], entry["build_id"]), (version["engine_version"], version["build_id"]))
         self.assertEqual(entry["sha256"], installer.sha256(self.binary))
         self.assertEqual(entry["mcp_tools"], sorted(["open_dataset", "list_datasets", "close_dataset", "list_tables",
-                                                     "describe_table", "query", "decode", "get_manifest"]))
+                                                     "describe_table", "query", "decode", "get_manifest",
+                                                     "get_manifest_components", "list_resource_files",
+                                                     "read_resource", "query_resources"]))
         status = installer.status(self.binary, self.manifest, deep=True)
         self.assertTrue(status["available"], status)
         vendor = self.dir / "vendor" / "meguvizdexdash"

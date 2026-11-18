@@ -78,7 +78,7 @@ MUTANTS = [
     ("framework: foregroundServiceType is not named", FRAMEWORK, [('"foregroundServiceType" => flags(&FOREGROUND_SERVICE_TYPE, data),', '"foregroundServiceType" => None,')]),
     ("framework: mediaPlayback is dataSync", FRAMEWORK, [('(2, "mediaPlayback"),', '(2, "dataSync"),')]),
     ("framework: installLocation 1 is internal", FRAMEWORK, [('(1, "internalOnly")', '(1, "internal")')]),
-    ("framework: launchMode 4 is not named", FRAMEWORK, [('(4, "singleInstancePerTask"),', "")]),
+    ("framework: launchMode 4 is called singleInstance", FRAMEWORK, [('(4, "singleInstancePerTask"),', '(4, "singleInstance"),')]),
     ("framework: zero is the empty flag word", FRAMEWORK, [("(!names.is_empty()).then(|| names.join(\"|\"))", "Some(names.join(\"|\"))")]),
     # ---- binary XML written as text
     ("xml: indentation is three spaces", XML, [('let indent = "  ".repeat(depth);', 'let indent = "   ".repeat(depth);')]),
@@ -146,7 +146,7 @@ MUTANTS = [
     ("service: hex is read as text", SERVICE, [("let (kind, text) = if hex {", "let (kind, text) = if false {")]),
     ("service: a hex read and a text read share a cache entry", SERVICE, [("let key = (input_index, name.to_owned(), hex);", "let key = (input_index, name.to_owned(), false);")]),
     ("service: a name is looked up by prefix", SERVICE, [(".filter(|member| member.raw_name == name.as_bytes())", ".filter(|member| member.raw_name.starts_with(name.as_bytes()))")]),
-    ("service: several members of a name are not refused", SERVICE, [("many => {\n                return Err(ResourceFailure::Several(", "many if false => {\n                return Err(ResourceFailure::Several(")]),
+    ("service: several members of a name are read as the first", SERVICE, [("[one] => *one,", "[one, ..] => *one,")]),
     ("service: a table cache is shared by all inputs", SERVICE, [("self.cache()?.tables.get(&input_index)", "self.cache()?.tables.values().next()")]),
     # ---- the manifest's components
     ("components: a provider is exported at API 17", MANIFEST, [("Some(sdk) => (Some(sdk < 17), REASON_PROVIDER_DEFAULT),", "Some(sdk) => (Some(sdk <= 17), REASON_PROVIDER_DEFAULT),")]),

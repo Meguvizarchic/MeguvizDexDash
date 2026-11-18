@@ -218,7 +218,7 @@
   "crates/mdd-mcp/src/resource_tools/components.rs": "a0b27a389ce4f5814d9c961d02bdfeac63a2f45c546bb4f6ac9b25a14242da25",
   "crates/mdd-mcp/src/resource_tools/read.rs": "97031ad5151b9254bf31eb342def56c31fc2169f990e53b3d5d0fa01155a3d67",
   "crates/mdd-mcp/src/resource_tools/query.rs": "c3cf946b2af9cddb2b1ffb1e2966a82b5eaf36a5b6883fb6e059f178f42af897",
-  "conformance/mcp/resources_replay.py": "14d7e4c8852c81adcb1a990db30f3744be52f54bb069aabcc5eca5ba2695e5e0",
+  "conformance/mcp/resources_replay.py": "957f7e383a8ac1233c58db0f57a3fef4da01c186f87b918db0f32e717969a2e5",
   "conformance/mcp/test_resources_replay.py": "5711cccc9fbd64dcd423a584fb1edca4bd27a0a446310945efa3a8fe4aa83a8e",
   "conformance/mcp/resources-full-contract.json": "ca6bd6b3ef49914d4cd190626556231f085c9827659d340e64cebdaa9ffc992b",
   "artifacts/mdd-072/a0-probe/tools-list.json": "7530c7fb4ae0fac55ac01e3c18700521ea8f838351c8974871f59cbbbdfa7318",
@@ -226,7 +226,7 @@
   "tests/fixtures/resources/generate.py": "d83d7c929f8471abe39bae4aa633ad32c64e6afbf0a50c95156c0354c2c52be7",
   "tests/fixtures/resources/manifest.json": "e91d3286d877e3777fbebc9d370db3a6b4720ac9d71ddc2dc19b3e689f2a40e6",
   "artifacts/mdd-072/probe/probe_a0.py": "e10a4b037f1d6dff78af28115e28aada9220d23ace24fd1abe316a3510b57092",
-  "artifacts/mdd-072/mutation/mutate_resources.py": "94a14c9f187d34530f4f4687730463c1bca268fd86e9cbaca46caf365bf985d3"
+  "artifacts/mdd-072/mutation/mutate_resources.py": "65ea48ea262f6212bab89b943bf024ab6215d964df7fb589b492169b10d00dad"
  },
  "residual": [
   "the recorded answers are those of dexsql 0.1.0, windows-amd64 build only; dexsql 0.1.1 was not probed for the resource tools",
@@ -241,6 +241,6 @@
   "the mutation check runs in .github/workflows/mutation-resources.yml, not on a developer machine; until its results.txt is committed no mutation result is claimed"
  ],
  "run": {
-  "finished_utc": "2026-11-18T03:59:33Z"
+  "finished_utc": "2026-11-18T05:12:30Z"
  }
 }

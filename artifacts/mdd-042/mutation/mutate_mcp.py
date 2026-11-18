@@ -42,7 +42,7 @@ DIAGNOSE = os.environ.get("MUTATION_DIAGNOSE") == "1"
 CARGO = ["cargo", "test", "--offline", "--locked"]
 # one test at a time, output shown: the last "test x ..." line without a result names a hang
 TAIL = ["--", "--test-threads=1", "--nocapture"] if DIAGNOSE else []
-UNIT_MCP = [*CARGO, "-p", "mdd-mcp", "-p", "mdd-service", "--lib", *TAIL]
+UNIT_MCP = [*CARGO, "-p", "mdd-mcp", "-p", "mdd-service", "-p", "mdd-input", "--lib", *TAIL]
 UNIT_SMALI = [*CARGO, "-p", "mdd-facts", "--lib", "smali_required", *TAIL]
 PROCESS = [*CARGO, "-p", "mdd-cli", "--test", "mcp", *TAIL]
 # minutes a command may take; the whole process suite takes seconds and a replay under a minute
@@ -65,13 +65,15 @@ CONTROLS = [
 MCP = "crates/mdd-mcp/src/"
 TOOLS, SERVER, PROTOCOL = MCP + "tools.rs", MCP + "server.rs", MCP + "protocol.rs"
 SERVICE = "crates/mdd-service/src/"
+INPUT = "crates/mdd-input/src/resources/"
+FRAMEWORK, VALUE = INPUT + "framework.rs", INPUT + "value.rs"
 DECODE, DATASET, MANIFEST = SERVICE + "decode.rs", SERVICE + "dataset.rs", SERVICE + "manifest.rs"
 SMALI = "crates/mdd-facts/src/smali_required/"
 RENDER, PAGES = SMALI + "render.rs", SMALI + "mod.rs"
 
 SOURCES = [
     TOOLS, SERVER, PROTOCOL, MCP + "lib.rs", MCP + "tool_schemas.json", "crates/mdd-cli/tests/mcp.rs",
-    DECODE, DATASET, MANIFEST, SERVICE + "lib.rs", RENDER, PAGES, SMALI + "tests.rs",
+    DECODE, DATASET, MANIFEST, SERVICE + "lib.rs", RENDER, PAGES, SMALI + "tests.rs", FRAMEWORK, VALUE,
     "conformance/mcp/mcp_client.py", "conformance/mcp/golden_replay.py", "conformance/mcp/test_golden_replay.py",
     "conformance/mcp/lifecycle_replay.py", "conformance/mcp/manifest_replay.py", "conformance/mcp/test_replays.py",
     "conformance/mcp/tiny_dex.py", "conformance/decode/oracle.py", "conformance/decode/run_decode_conformance.py",
@@ -108,7 +110,7 @@ MUTANTS = [
     ("closing a dataset does not release it", TOOLS, [("        self.open.remove(position);\n", "        let _ = position;\n")]),
     ("a dataset that is not open is reported in other words", TOOLS,
      [(r'''is not open; call open_dataset first"),''', r'''is closed"),''')]),
-    ("open_dataset says the input has no DEX", TOOLS, [('        "has_dex": true,', '        "has_dex": false,')]),
+    ("open_dataset says the input has no DEX", TOOLS, [('        "has_dex": dataset.has_dex(),', '        "has_dex": false,')]),
     ("open_dataset forgets the archive inputs", TOOLS, [('        "archive_inputs": archive_inputs,', '        "archive_inputs": json!([]),')]),
     ("open_dataset reports no input bytes", TOOLS, [('        "input_bytes": input_bytes,', '        "input_bytes": 0,')]),
     ("layer diagnostics are dropped from open_dataset", TOOLS, [('        "diagnostics": diagnostics,', '        "diagnostics": json!([]),')]),
@@ -223,8 +225,8 @@ struct NoArgs {}''')]),
     ("a cut may land inside a character", PAGES, [("                while stop > end && !text.is_char_boundary(stop) {", "                while false && stop > end && !text.is_char_boundary(stop) {")]),
     # ---- get_manifest
     ("a permission element is not listed", MANIFEST, [('const PERMISSION_ELEMENTS: [&str; 4] = [\n    "permission",', 'const PERMISSION_ELEMENTS: [&str; 4] = [\n    "permissionx",')]),
-    ("a signature protection level is named otherwise", MANIFEST, [('        ("protectionLevel", 2) => Some("signature"),', '        ("protectionLevel", 2) => Some("signatureOrSystem"),')]),
-    ("an unresolved reference is not marked", MANIFEST, [("                    if *attribute { '?' } else { '@' }", "                    if *attribute { '@' } else { '?' }")]),
+    ("a signature protection level is named otherwise", FRAMEWORK, [('    (2, "signature"),', '    (2, "signatureOrSystem"),')]),
+    ("an unresolved reference is not marked", VALUE, [('ReferenceStyle::Compact => (format!("@{data:08x}"), format!("?{data:08x}")),', 'ReferenceStyle::Compact => (format!("?{data:08x}"), format!("@{data:08x}")),')]),
     ("a manifest page is one row too long", TOOLS, [("    let end = total.min(args.offset.saturating_add(limit));", "    let end = total.min(args.offset.saturating_add(limit + 1));")]),
     ("the last manifest page names a continuation", TOOLS, [("    let next_offset = (end < total).then_some(end);", "    let next_offset = Some(end);")]),
     ("a manifest page never says it is cut", TOOLS, [('        "truncated": next_offset.is_some(),', '        "truncated": false,')]),
@@ -240,7 +242,7 @@ struct NoArgs {}''')]),
             "the serialized result is over the byte budget",
         )
         .detail("budget", "max_bytes")''')]),
-    ("the xml mode answers with the summary", TOOLS, [('        Some("xml") => {\n            return Err(with_kind(', '        Some("xml") if false => {\n            return Err(with_kind(')]),
+    ("the xml mode answers with the summary", TOOLS, [('        Some("xml") => return get_manifest_xml(registry, args),', '        Some("xml") => {}')]),
 ]
 
 
