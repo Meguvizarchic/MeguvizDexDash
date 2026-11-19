@@ -1618,7 +1618,7 @@
       "id": "MDD-054",
       "phase": "M5",
       "title": "执行副作用隔离的完整 HostLab shadow 等价",
-      "status": "todo",
+      "status": "in_progress",
       "depends_on": [
         "MDD-005",
         "MDD-044",
@@ -1649,6 +1649,24 @@
       "references": [
         "docs/03_HOSTLAB_MIGRATION.md",
         "docs/04_VALIDATION_AND_PERFORMANCE.md"
+      ],
+      "implementation_notes": "2026-11-19, IN PROGRESS (a correctness shadow; no performance claim; nothing admitted). Started while MDD-005 is still in_progress: the work so far does not use MDD-005's outputs, and the task cannot be marked done before MDD-005 (tools/check_progress.py refuses it). Built: conformance/hostlab/compare_full_reports.py compares two complete HostLab audit runs in four layers (run identity; the report except a versioned ignore list that holds only engine identity and clocks; the published FEATURE rows byte for byte, so declaration order counts; the 20 evidence groups, six of them as bags that keep repetitions, NULL never an empty text, an integer never its text) and keeps the evidence of a difference (path, expected and observed value cut with length and SHA-256, bag missing/extra counts). 20 tests; 32 mutants of the comparator, all killed (artifacts/mdd-054/mutation/results-20261119.json). integrations/hostlab/run_shadow.py runs HostLab's own unmodified `analyze.main audit --mode full` for side A (reference engine) and side B (MeguvizDexDash: only native_session and install_dexsql replaced) in separate state, cache, TEMP and result folders under a Windows Job with the same memory/CPU/process limits, with secrets stripped from the environment, the config/remote/AI/publish entry points and Python sockets refused and every attempt recorded; 8 tests. Shown on real data (artifacts/mdd-054/full-equivalence.json): the harness reran A0 on the authorized input 9.16.1 and all four layers and all 20 group digests equal the 2026-10-29 recorded run (class count 310716, 635 queries, 27 FEATURE, zero fallback, no forbidden entry point reached); damaged copies of that real evidence (an element dropped, a source-local id moved, a fingerprint changed, two ordered items swapped, a gate flipped, two published rows swapped, a status/query count/coverage gap/fallback/input changed) were all detected, and two controls (a repeated element counted once, a NULL turned empty) were not applicable because that evidence has none. NOT achieved: side B (the new engine) did not complete on 9.16.1, twice. Dataset::open in the contract dialect builds the metadata, definition, code, annotation and reference facts of all 33 DEX in turn and keeps them; with a Job limit of 8 GiB and then 14 GiB the engine process died during the open ('memory allocation failed', peak commit equal to the limit); side A peaked at 1.5 GiB on the same input. Both attempts are in artifacts/mdd-054/shadow-manifest.json attempts and full-equivalence.json failed_engine_attempts; nothing in the engine, budgets or comparison was changed to pass, and the limit was not raised again on this machine (31.8 GiB, about 8 GiB free). So no A/B pair exists and no equivalence is claimed. The second authorized input (9.17.0) was not run.",
+      "implementation_evidence": [
+        "conformance/hostlab/compare_full_reports.py",
+        "integrations/hostlab/run_shadow.py",
+        "integrations/hostlab/make_full_equivalence.py",
+        "integrations/hostlab/test_compare_full_reports.py",
+        "integrations/hostlab/test_run_shadow.py",
+        "artifacts/mdd-054/shadow-manifest.json",
+        "artifacts/mdd-054/full-equivalence.json",
+        "artifacts/mdd-054/mutation/mutate_compare.py",
+        "artifacts/mdd-054/mutation/results-20261119.json"
+      ],
+      "blocking_reasons": [
+        "MDD-005 is not done (a dependency); the work here does not use its outputs but this task cannot be closed before it",
+        "The new engine cannot open the authorized 33-DEX input within 14 GiB: Dataset::open (contract dialect) builds and keeps every layer of every DEX. A complete B run needs either a machine kept free for a run well above 14 GiB, or an engine that builds layers on demand (an engine change, not part of this task's harness and comparator)",
+        "No A/B pair has been compared; the 20 hashes, 27 FEATURE, gates and verdict, raw fingerprints and the extra semantic checks are therefore not yet shown equal on any real input for the new engine",
+        "The second authorized input (9.17.0) and a real-HostLab-with-provider run through its own entry points are not done"
       ]
     },
     {

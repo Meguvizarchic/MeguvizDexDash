@@ -1,0 +1,320 @@
+{
+  "schema": "mdd.hostlab-full-equivalence.v1",
+  "task": "MDD-054",
+  "status": "engine_run_not_completed: the harness is validated against the reference engine; no A/B pair exists",
+  "runs": [],
+  "harness_validation": [
+    {
+      "run": "A0-rerun-9.16.1",
+      "side": "A",
+      "engine": {
+        "engine": "dexsql",
+        "version": "0.1.0",
+        "sha256": "f354ebcf715de9a66ef8ebe08b2b36807ab58e25cd5a1c0812e497fc1fcfc448"
+      },
+      "input": {
+        "sha256": "41efb1c9acb07badab5296953fb3da1def6925e2b34662120ca96df9d17bbfb2",
+        "version_code": 9161100
+      },
+      "against": "an earlier run of the same engine and input, made by the 2026-10-28 baseline driver (not by this harness)",
+      "equal": true,
+      "layers": [
+        {
+          "layer": "run",
+          "equal": true,
+          "difference_count": 0
+        },
+        {
+          "layer": "report",
+          "equal": true,
+          "difference_count": 0
+        },
+        {
+          "layer": "tsv",
+          "equal": true,
+          "difference_count": 0
+        },
+        {
+          "layer": "groups",
+          "equal": true,
+          "difference_count": 0
+        }
+      ],
+      "group_digests_equal": {
+        "class_records": true,
+        "discoveries": true,
+        "families": true,
+        "features": true,
+        "gates": true,
+        "home_probe_sha256": true,
+        "invoke_edges": true,
+        "limitations": true,
+        "page_path_matrix": true,
+        "protocol_definitions": true,
+        "protocol_paths": true,
+        "protocol_twins": true,
+        "resource_fingerprints": true,
+        "rule_sha256": true,
+        "rule_version": true,
+        "sample": true,
+        "scope": true,
+        "unclassified_protocol_callers": true,
+        "unknown_families": true,
+        "unregistered_protocols": true
+      },
+      "counts": {
+        "class_count": 310716,
+        "queries": 635,
+        "features": 27,
+        "evidence_groups": 20
+      },
+      "violations": [],
+      "fallback_count": 0,
+      "supervisor": {
+        "status": "completed",
+        "exit_code": 0,
+        "peak_job_commit_bytes": "1572528128",
+        "tree_empty_verified": true
+      },
+      "limits": {
+        "memory_commit_bytes": "8589934592",
+        "affinity_mask": "255",
+        "max_processes": 16,
+        "timeout_seconds": 2400,
+        "max_log_bytes": 16777216
+      },
+      "wall_seconds_not_a_measurement": 81.63831190000019,
+      "controls_on_real_evidence": [
+        {
+          "control": "one element of class_records dropped",
+          "layer": "groups",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "one repeated element of class_records counted once",
+          "layer": "groups",
+          "applied": false,
+          "reason": "this run has no element to edit"
+        },
+        {
+          "control": "one element of discoveries dropped",
+          "layer": "groups",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "one repeated element of discoveries counted once",
+          "layer": "groups",
+          "applied": false,
+          "reason": "this run has no element to edit"
+        },
+        {
+          "control": "one element of invoke_edges dropped",
+          "layer": "groups",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "one repeated element of invoke_edges counted once",
+          "layer": "groups",
+          "applied": false,
+          "reason": "this run has no element to edit"
+        },
+        {
+          "control": "one element of protocol_definitions dropped",
+          "layer": "groups",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "one repeated element of protocol_definitions counted once",
+          "layer": "groups",
+          "applied": false,
+          "reason": "this run has no element to edit"
+        },
+        {
+          "control": "one element of protocol_twins dropped",
+          "layer": "groups",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "one repeated element of protocol_twins counted once",
+          "layer": "groups",
+          "applied": false,
+          "reason": "this run has no element to edit"
+        },
+        {
+          "control": "one element of unclassified_protocol_callers dropped",
+          "layer": "groups",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "one repeated element of unclassified_protocol_callers counted once",
+          "layer": "groups",
+          "applied": false,
+          "reason": "this run has no element to edit"
+        },
+        {
+          "control": "a NULL in class_records became an empty text",
+          "layer": "groups",
+          "applied": false,
+          "reason": "this run has no element to edit"
+        },
+        {
+          "control": "a class attributed to the next DEX (source-local id)",
+          "layer": "groups",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "one resource fingerprint changed",
+          "layer": "groups",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "two limitations swapped (an ordered group)",
+          "layer": "groups",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "a gate exit code flipped",
+          "layer": "groups",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "two published FEATURE rows swapped (declaration order)",
+          "layer": "tsv",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "one FEATURE status changed",
+          "layer": "report",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "the query count changed",
+          "layer": "report",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "a coverage gap added",
+          "layer": "report",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "a fallback recorded",
+          "layer": "run",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "another input",
+          "layer": "run",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        }
+      ]
+    }
+  ],
+  "failed_engine_attempts": [
+    {
+      "attempt": "B-1-8GiB",
+      "side": "B",
+      "complete": false,
+      "memory_limit_bytes": "8589934592",
+      "status": "failed",
+      "exit_code": 1,
+      "reason": null,
+      "peak_job_commit_bytes": "8601247744",
+      "wall_seconds_not_a_measurement": 13.284658200000194,
+      "tree_empty_verified": true,
+      "ended_with": {
+        "error": "native_session.EngineLost",
+        "message": "native audit CLI exited before a complete result (exit status 3221226505): memory allocation of 12731520 bytes failed"
+      },
+      "report_written": false,
+      "compared_with_anything": false
+    },
+    {
+      "attempt": "B-2-14GiB",
+      "side": "B",
+      "complete": false,
+      "memory_limit_bytes": "15032385536",
+      "status": "failed",
+      "exit_code": 1,
+      "reason": null,
+      "peak_job_commit_bytes": "15039139840",
+      "wall_seconds_not_a_measurement": 28.460144300001048,
+      "tree_empty_verified": true,
+      "ended_with": {
+        "error": "native_session.EngineLost",
+        "message": "native audit CLI exited before a complete result (exit status 3221226505): memory allocation of 7077888 bytes failed"
+      },
+      "report_written": false,
+      "compared_with_anything": false
+    }
+  ],
+  "controls_not_detected": [],
+  "ignore_list": {
+    "schema": "mdd.hostlab-shadow-ignore.v1",
+    "version": 1,
+    "report_paths": [
+      "/native_audit/native",
+      "/native_audit/elapsed_ms",
+      "/native_audit/phases/prepare_ms",
+      "/native_audit/phases/structural_ms",
+      "/native_audit/phases/surface_ms"
+    ]
+  },
+  "scope": "what the shadow harness and comparator were shown to do, and how the engine runs ended; a correctness record, no timing, no profile qualification",
+  "not_proven": [
+    "that MeguvizDexDash gives the same complete HostLab audit as the reference engine on a real APK: no B run has completed, so no pair was compared",
+    "anything about the second authorized input (9.17.0): it was not run, because the first input already does not fit",
+    "that the engine can open an APK of this size in a bounded memory: it cannot in 14 GiB today (see failed_engine_attempts)",
+    "the repeated-element and NULL controls on real evidence: the real A evidence has no exactly repeated element in a bag group and no NULL in class_records, so those controls were not applicable here (the unit tests damage them on a synthetic run)",
+    "macOS, Linux or any machine but this Windows host; a Linux/WebKit or CI run of the shadow",
+    "that the audit conclusions are right: both sides run HostLab's own analyze.main, so a comparison shows the engines agree under that consumer, not that the consumer is correct"
+  ]
+}

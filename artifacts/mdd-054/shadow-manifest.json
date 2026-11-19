@@ -1,0 +1,102 @@
+{
+  "schema": "mdd.hostlab-shadow-manifest.v1",
+  "task": "MDD-054",
+  "purpose": "correctness shadow: the same complete HostLab audit over the reference engine (A) and MeguvizDexDash (B), compared; no timing claim",
+  "reference": {
+    "commit": "8782f43d537c442905123e35af325c412caa5188",
+    "source_manifest": "artifacts/mdd-005/preparation-20261028/reference-source-manifest-gitblobs.json",
+    "driver": "HostLab analyze.main audit --mode full, unmodified; B replaces only native_session and install_dexsql"
+  },
+  "inputs": [
+    {
+      "occurrence_id": "hostlab-9161100",
+      "sha256": "41efb1c9acb07badab5296953fb3da1def6925e2b34662120ca96df9d17bbfb2",
+      "bytes": "226519215",
+      "version_code": 9161100,
+      "dex_members": 33,
+      "expected_certificate_sha256": [
+        "93ba270f5521139ecafe4bb638ac5b1198bc548f62d9fd8f8580a079faf5910e"
+      ],
+      "visibility": "restricted"
+    },
+    {
+      "occurrence_id": "hostlab-9170100",
+      "sha256": "f0f880e841d017db335b3919e6d4792961f2e08aa9993da661b626d52cfcb955",
+      "bytes": "243687778",
+      "version_code": 9170100,
+      "dex_members": 35,
+      "expected_certificate_sha256": [
+        "93ba270f5521139ecafe4bb638ac5b1198bc548f62d9fd8f8580a079faf5910e"
+      ],
+      "visibility": "restricted"
+    }
+  ],
+  "sides": {
+    "A": {
+      "engine": "dexsql",
+      "version": "0.1.0",
+      "sha256": "f354ebcf715de9a66ef8ebe08b2b36807ab58e25cd5a1c0812e497fc1fcfc448"
+    },
+    "B": {
+      "engine": "meguvizdexdash",
+      "wire": "b0",
+      "profile_policy": "allow_unadmitted",
+      "sql_limits": null,
+      "sha256": null,
+      "note": "the binary is whatever the local build is; its sha256, build id and pin are written into every run record"
+    }
+  },
+  "resources": {
+    "job_memory_commit_bytes": "15032385536",
+    "cpu_affinity_mask": 255,
+    "max_processes": 16,
+    "native_timeout_seconds": 900,
+    "worker_timeout_seconds": 2400,
+    "note": "limits for both sides alike; a side that exceeds them fails closed and is recorded, it is not given more within the same attempt. Raised from 8 GiB after attempt 1 (see attempts)."
+  },
+  "isolation": {
+    "separate_per_side": [
+      "state root (reports, checkpoints, queue)",
+      "cache dir",
+      "TEMP",
+      "result dir"
+    ],
+    "forbidden": [
+      "hostlab.config",
+      "hostlab.api_private",
+      "hostlab.manifest",
+      "hostlab.select",
+      "Python network sockets"
+    ],
+    "never": [
+      "a second dispatch",
+      "AI",
+      "publishing an artifact as a result",
+      "changing a completed-cache of the primary"
+    ]
+  },
+  "ignore_list": "conformance/hostlab/compare_full_reports.py IGNORE_LIST (mdd.hostlab-shadow-ignore.v1 v1): engine identity and clocks only",
+  "performance": "not measured; wall times in the records are not a measurement and no exclusive window was used",
+  "attempts": [
+    {
+      "attempt": 1,
+      "input": "hostlab-9161100",
+      "side": "B",
+      "job_memory_commit_bytes": "8589934592",
+      "result": "failed closed",
+      "observed": "the engine process exited during the open of the dataset (exit status 3221226505) with 'memory allocation of 12731520 bytes failed'; Job peak commit 8601247744 bytes, 13 s; the harness recorded the side as incomplete and compared nothing",
+      "reading": "Dataset::open builds the facts of every selected DEX when the session opens, so the open needs memory for the whole APK; side A (DexSQL) peaked at 1572528128 bytes on the same input",
+      "action": "the limit for both sides alike is raised to 14 GiB; no other limit and no engine budget is changed"
+    },
+    {
+      "attempt": 2,
+      "input": "hostlab-9161100",
+      "side": "B",
+      "job_memory_commit_bytes": "15032385536",
+      "result": "failed closed",
+      "observed": "the engine process exited during the open of the dataset (exit status 3221226505) with 'memory allocation of 7077888 bytes failed'; Job peak commit 15039139840 bytes (the limit), 28 s; the side was recorded as incomplete and compared with nothing",
+      "reading": "Dataset::open (contract dialect) builds metadata, definitions, code, annotation and reference facts of every one of the 33 selected DEX in turn and keeps all of them for the session; on this input that does not fit in 14 GiB. Side A (DexSQL) peaked at 1572528128 bytes on the same input",
+      "action": "the limit is not raised again on this machine (31.8 GiB in all, about 8 GiB free when tried): a larger run needs either a machine kept free for it or an engine that builds layers on demand. Nothing in the engine, the budgets or the comparison was changed to make the run pass"
+    }
+  ]
+}

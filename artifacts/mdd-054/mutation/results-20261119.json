@@ -1,0 +1,140 @@
+{
+  "target": "conformance/hostlab/compare_full_reports.py",
+  "target_sha256": "7568fd7e6f8bec313877b40e5b3017a226025abadc588e1537a7833d867fa3fc",
+  "suite": "integrations/hostlab/test_compare_full_reports.py",
+  "suite_sha256": "3107c098f4509f7601eda40f02eacbab2db1ecb5f38073ee028d13286e83f64b",
+  "mutants": 32,
+  "killed": 32,
+  "survived": [],
+  "not_applied": [],
+  "results": [
+    {
+      "mutant": "a bag is compared as a set (repetitions dropped)",
+      "result": "killed"
+    },
+    {
+      "mutant": "a bag is compared in order, not as a bag",
+      "result": "killed"
+    },
+    {
+      "mutant": "an ordered group is treated as a bag",
+      "result": "killed"
+    },
+    {
+      "mutant": "the key order of an object matters",
+      "result": "killed"
+    },
+    {
+      "mutant": "NULL and empty text are the same",
+      "result": "killed"
+    },
+    {
+      "mutant": "the queries are ignored",
+      "result": "killed"
+    },
+    {
+      "mutant": "the whole native record is ignored",
+      "result": "killed"
+    },
+    {
+      "mutant": "the coverage gaps are ignored",
+      "result": "killed"
+    },
+    {
+      "mutant": "a layer is any, not all",
+      "result": "killed"
+    },
+    {
+      "mutant": "the published rows are not compared",
+      "result": "killed"
+    },
+    {
+      "mutant": "the report is not compared",
+      "result": "killed"
+    },
+    {
+      "mutant": "the groups are not compared",
+      "result": "killed"
+    },
+    {
+      "mutant": "a counted fallback is tolerated",
+      "result": "killed"
+    },
+    {
+      "mutant": "a recorded fallback reason is tolerated",
+      "result": "killed"
+    },
+    {
+      "mutant": "an incomplete audit is tolerated",
+      "result": "killed"
+    },
+    {
+      "mutant": "a truncated result is tolerated",
+      "result": "killed"
+    },
+    {
+      "mutant": "an unconsumed page is tolerated",
+      "result": "killed"
+    },
+    {
+      "mutant": "another input is tolerated",
+      "result": "killed"
+    },
+    {
+      "mutant": "other tools are tolerated",
+      "result": "killed"
+    },
+    {
+      "mutant": "another reference source is tolerated",
+      "result": "killed"
+    },
+    {
+      "mutant": "a missing feature is tolerated",
+      "result": "killed"
+    },
+    {
+      "mutant": "a missing or extra group is tolerated by the run layer",
+      "result": "killed"
+    },
+    {
+      "mutant": "a missing group is not a difference",
+      "result": "killed"
+    },
+    {
+      "mutant": "a row beyond the shorter file is not compared",
+      "result": "killed"
+    },
+    {
+      "mutant": "the group digest ignores a type",
+      "result": "killed"
+    },
+    {
+      "mutant": "a duplicate JSON key is accepted",
+      "result": "killed"
+    },
+    {
+      "mutant": "a non-finite number is accepted",
+      "result": "killed"
+    },
+    {
+      "mutant": "a bag that is not a list is compared anyway",
+      "result": "killed"
+    },
+    {
+      "mutant": "two reports in one run directory are accepted",
+      "result": "killed"
+    },
+    {
+      "mutant": "a long value is not cut",
+      "result": "killed"
+    },
+    {
+      "mutant": "the missing count of a bag is zero",
+      "result": "killed"
+    },
+    {
+      "mutant": "the first differing value is not kept",
+      "result": "killed"
+    }
+  ]
+}

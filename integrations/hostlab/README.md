@@ -40,6 +40,25 @@ python -I -m unittest discover -s integrations/hostlab -p "test_live_engine.py" 
 python -I integrations/hostlab/make_provider_selection.py --check
 ```
 
+## 完整审计 shadow（MDD-054）
+
+| 文件 | 作用 |
+|---|---|
+| `run_shadow.py` | 在独立的状态/缓存/TEMP/结果目录里，各用一个 Windows Job（同样的内存、CPU、进程限制）跑 HostLab 原样的 `analyze.main audit --mode full`：A 用参考引擎，B 用本引擎（只替换 `native_session` 和 `install_dexsql`）。禁止 HostLab 的 config/远程/AI/发布入口和 Python 网络访问，试图触碰即记录并失败。目录互相重叠就拒绝启动 |
+| `../../conformance/hostlab/compare_full_reports.py` | 两个完整运行的四层比较：运行身份、报告（只忽略引擎身份与时钟）、发布的 FEATURE 行、20 组证据（六组按多重集）。差异保留证据，不写“diff failed” |
+| `make_full_equivalence.py` | 从已完成的运行写 `artifacts/mdd-054/full-equivalence.json`（只含身份、计数、摘要，不含证据内容或本机路径），并在真实证据的副本上做负向对照 |
+| `test_compare_full_reports.py`、`test_run_shadow.py` | 不需要引擎也不需要 APK；变异检查 `artifacts/mdd-054/mutation/mutate_compare.py` |
+
+```bash
+# 需要隔离基线解释器（pywin32）、HostLab 参考源码、授权 APK；路径放在一个本地文件里，不入库
+<baseline-venv>/Scripts/python.exe -B integrations/hostlab/run_shadow.py --manifest artifacts/mdd-054/shadow-manifest.json --paths <本地路径文件> --sample hostlab-9161100 --sides A,B --out artifacts/local/<新目录>
+python -I -m unittest discover -s integrations/hostlab -p "test_compare_full_reports.py"
+python -I -m unittest discover -s integrations/hostlab -p "test_run_shadow.py"
+python -I artifacts/mdd-054/mutation/mutate_compare.py
+```
+
+状态：比较器和运行器已用参考引擎的真实运行验证；**新引擎在授权输入 9.16.1 上两次没跑完**（打开阶段内存不足，见 `shadow-manifest.json` 的 `attempts`），所以还没有 A/B 配对，也没有等价结论。
+
 ## 已知差异（对旧 dexsql 的调用方）
 
 - 新引擎没有全局 `--threads`；`provider.mcp_arguments` 不传它，线程数通过环境变量 `MDD_FACTS_THREADS` 传入。直接把 DexSQL 的参数表换成新二进制会被引擎以 `INVALID_ARGUMENT` 拒绝（`test_live_engine.py` 有断言）。
