@@ -54414,8 +54414,8 @@
     },
     {
       "path": "artifacts/mdd-042/mutation/mutate_mcp.py",
-      "bytes": 24318,
-      "sha256": "c5f79df34b7187d2498eaf8bb1a99c4503c55d05acec9ccede42ff0fa8a9bf93"
+      "bytes": 24326,
+      "sha256": "3870e8d7a8a3d128b2f255317091afe222c9e8bfa3b4be3b496a76fa816c5550"
     },
     {
       "path": "artifacts/mdd-042/mutation/results-before-071.txt",
@@ -54530,7 +54530,7 @@
     {
       "path": "artifacts/mdd-051/structural-equivalence.json",
       "bytes": 41074,
-      "sha256": "954f01e0675e4bd00538483706c6b17740d8a5b535119743edb2a9b550f14835"
+      "sha256": "d0800282d1be20fb3b5a4837d364794052dd32c3bb234a2edde39061f52f845c"
     },
     {
       "path": "artifacts/mdd-052/mutation/mutate_surface.py",

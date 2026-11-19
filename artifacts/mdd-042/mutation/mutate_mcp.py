@@ -171,7 +171,7 @@ MUTANTS = [
     ("the decode cache answers for another method", TOOLS,
      [("            && (cached_file, cached_idx) == (located.file_id, located.method_idx)", "            && true")]),
     ("the code layer is lost when another layer fails", DATASET,
-     [("                let kept_code = code.as_ref().ok().cloned();", "                let kept_code: Option<Arc<CodeFacts>> = None;")]),
+     [("                let kept_code = compact_code.as_ref().ok().cloned();", "                let kept_code: Option<Arc<CodeFacts>> = None;")]),
     # ---- decode and get_manifest: what a client reads when a request fails or has no text
     ("a summary has no next_offset", TOOLS,
      [('            fields.insert("next_offset".to_owned(), Value::Null);', '            let _ = &fields;')]),
