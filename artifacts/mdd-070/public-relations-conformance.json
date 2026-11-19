@@ -4,7 +4,7 @@
  "status": "all 56 relations of the frozen manifest are advertised, described and answered; every relation was compared cell by cell with the recorded answers of dexsql 0.1.0 and of dexsql 0.1.1 over the fixtures of the qualification record",
  "kind": "development evidence; admits no profile",
  "engine_under_test": {
-  "binary_sha256": "c8bb348b836041fc17e3e9ab52f43bdd763046d0675a9514be19839ed82520c7",
+  "binary_sha256": "b86df848b9188f1748f3f7944690bc97c78f157e91b9fedcc4e6aee2588d1235",
   "server": {
    "name": "meguvizdexdash",
    "title": "MeguvizDexDash",
@@ -65,12 +65,12 @@
  "tests": {
   "mdd-facts lib": {
    "exit_code": 0,
-   "passed": 206,
+   "passed": 210,
    "failed": 0
   },
   "mdd-sql lib": {
    "exit_code": 0,
-   "passed": 276,
+   "passed": 293,
    "failed": 0
   },
   "mdd-cli mcp": {
@@ -99,19 +99,19 @@
   "crates/mdd-facts/src/public_relations/debug.rs": "61fc220db547ef862522c2eb00ff655d07944f281c87773de64fd851f81b1051",
   "crates/mdd-facts/src/public_relations/annotations.rs": "9a9aec0322bcdb61a0daf7cce417ab3f621b6f5a0054dd9eaa050766ab650749",
   "crates/mdd-facts/src/public_relations/tests.rs": "76b0004a872d5862f11c2a6be68639dc931c3eef4f17d13ae60d7b1ab8a21993",
-  "crates/mdd-sql/src/provider/hostlab/public.rs": "4a134e6aa3cfc0d9deebb906e28960af0797e67381dff5b28087870573cbeb80",
+  "crates/mdd-sql/src/provider/hostlab/public.rs": "5dfa71290f933f9e96b1a9d2626bf36c8f4549b89407fda594ba591d26c53ff0",
   "crates/mdd-sql/src/provider/hostlab/public_tests.rs": "8bb527782fb82fec26463d7638247b3f3d99d3ab0c73e55743dc146d7500aeb8",
-  "crates/mdd-sql/src/provider/hostlab.rs": "7bfb40a9c7f918f3e9e0bde5d8e6dd106f1fc3deb94440d5ca49a68cea75502c",
+  "crates/mdd-sql/src/provider/hostlab.rs": "5dc27f39fc43e19c0f1f7d57e5c0d0994d7dc7f7f00ce93cf2bc6f69b54618f9",
   "crates/mdd-mcp/src/tools.rs": "7678eb4ffc512560ad945e0ad3735d2260275a4d81ba5876f64b9eb3381cedf8",
   "crates/mdd-sql/src/profiles/compatibility/mod.rs": "d5b05a66fc95d7aedd9e3e2507b6dacc9365b9e595ff66427c81e2a101d1ec36",
   "crates/mdd-sql/src/profiles/mod.rs": "537c4fb45dd3cbfe8c19875f930ce22efbc68b4b1599afe1891762c08fda245c",
   "conformance/relations/public_relations_diff.py": "f8a0975ee610cc5e7da788b553d8dc683477cdb1b767939b414bfe402a7b40db",
   "conformance/relations/test_public_relations_diff.py": "a06411377a0fde54431fdb64b86779f885f8e57ddcb17ac00e7744a34e40f742",
   "conformance/relations/build_qualification.py": "48eb8c2dcad274c0e3f5035632280d7665963a4f7996096b3b9d6d3e6ad2f583",
-  "artifacts/mdd-070/public-relations-diff.json": "0f94794dade9c27985c3e708f25e4a44d80320c70b319f29f8a8ad050e6cb45c",
-  "artifacts/mdd-070/public-relations-diff-0.1.1.json": "b3c3b50d94f606caa842d970a15fb2051affaf339b5d5b16c9e6e6a4f6b21d91",
+  "artifacts/mdd-070/public-relations-diff.json": "ff9f975dbf0108d7f377b562ab8996eaa888bc90001c5f3dcdd9b85910daf917",
+  "artifacts/mdd-070/public-relations-diff-0.1.1.json": "0900f40fe8e5e1fe3573cb825d5aeeabb61c7233b08b84dcca3010e7234b65d9",
   "artifacts/mdd-070/reference-versions.json": "cdc95f053b4ac006a5ded088ccff8b0fde3fbf2cec8255b813646a860003a91d",
-  "conformance/manifests/full-relation-qualification.json": "c7aacad89a85381ab4487349708c50d785bb9d37a30136f2b676fb1fc16232b0",
+  "conformance/manifests/full-relation-qualification.json": "742aac2a76b2545e67dd09949efd68a4c8d2cfd08ddcb74159e540e1f6f7f7b5",
   "conformance/relations/compare_references.py": "d75044ee0e567d35d051611db794a8accd742d014de4225ac27f3070766f81ef",
   "conformance/manifests/relations.json": "f416926d6da3467b5cfea625978c2e4faac08c914cf2930d2c64878c261bb82d",
   "artifacts/mdd-070/probe_a0.py": "a119ae3ec723534a62b653c26c3985d815367bc63640f736b11d44ef32de94fb",
@@ -131,6 +131,6 @@
   "the reference reads a DEX whose two classes share class data; the engine refuses it at open (declared)"
  ],
  "run": {
-  "finished_utc": "2026-11-19T08:44:49Z"
+  "finished_utc": "2026-11-19T13:28:56Z"
  }
 }

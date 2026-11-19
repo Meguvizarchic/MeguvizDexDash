@@ -59,7 +59,7 @@
    }
   },
   "after": {
-   "binary_sha256": "ef8159b3aa7035d1b6342fd791324964669881fe5c53cc706028c366299f707a",
+   "binary_sha256": "b86df848b9188f1748f3f7944690bc97c78f157e91b9fedcc4e6aee2588d1235",
    "cases": {
     "paren_depth_9": {
      "exit_code": 0,
@@ -114,7 +114,7 @@
   },
   "mdd-sql": {
    "exit_code": 0,
-   "passed": 255,
+   "passed": 293,
    "failed": 0
   }
  },
@@ -131,8 +131,8 @@
  },
  "inputs_sha256": {
   "crates/mdd-query/src/operators/mod.rs": "6ac2489ec20d274b23a2059d458024f4b36d4631df6ca416b989509a1cb8d1dd",
-  "crates/mdd-query/src/executor/tests.rs": "4fea46d83f6505726d1c250467d04bcca0f7fc0306e3b370e3b12020c4087fc2",
-  "crates/mdd-sql/src/dialects/ast.rs": "7c65321a67acd1c6420cfc04df3bb82c054740fdbeda5f970c1f8f82663d3bac",
+  "crates/mdd-query/src/executor/tests.rs": "d16e21ab2450532c3a34f00b9d1232b0f2364a40a9e37ace3ac880a381ea82eb",
+  "crates/mdd-sql/src/dialects/ast.rs": "26217e097bba5721b13ff0fef4d97b028cc313c56693e46441d0d62cbdd9a51b",
   "artifacts/mdd-084/repro_or_chain_overflow.py": "214418433e793c62f6e74fef08a6a4f46814ccbe4dcb0dd37f00ab528a9a2c2a",
   "artifacts/mdd-084/repro-pre.json": "01358b99ee4ec741bce325f482c206d0be03e68ca9e528d37ccbbffe0f7063b8",
   "artifacts/mdd-084/mutation/mutate_or_chain.py": "1ddef1166488b12f781b502eefc5d0a5a3191b8db0f79d40e231120a118af6c6",
@@ -145,6 +145,6 @@
   "the mutation check runs in .github/workflows/mutation-or-chain.yml, not on a developer machine"
  ],
  "run": {
-  "finished_utc": "2026-11-17T07:28:28Z"
+  "finished_utc": "2026-11-19T13:28:18Z"
  }
 }

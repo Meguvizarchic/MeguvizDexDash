@@ -2,7 +2,7 @@
   "task": "MDD-084",
   "phase": "post",
   "binary": "target/debug/meguvizdexdash.exe",
-  "binary_sha256": "ef8159b3aa7035d1b6342fd791324964669881fe5c53cc706028c366299f707a",
+  "binary_sha256": "b86df848b9188f1748f3f7944690bc97c78f157e91b9fedcc4e6aee2588d1235",
   "input": "tests/fixtures/annotations/generated/annotations-038.dex",
   "dialect": "dexsql-0.1.1",
   "stack_overflow_exit_code": 3221225725,

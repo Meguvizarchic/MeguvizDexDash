@@ -44,7 +44,7 @@ KILLED   service: a page has one method too many [unit]
 KILLED   service: a summary row takes the incoming registers [reference answers replay]
 KILLED   service: a method text is rendered without its annotation layer [process]
 KILLED   service: a class text is rendered without its annotation layer [process]
-KILLED   service: annotations wait for the references layer [reference answers replay]
+KILLED   service: the facts decode renders from lose the annotation layer [process]
 KILLED   tool: a class defaults to the smali mode [process]
 KILLED   tool: a class page accepts a text offset [process]
 KILLED   tool: the default method_limit is 21 [process]
@@ -67,4 +67,4 @@ KILLED   tool: a method decode deadline leaves the dataset open [decode replay]
 KILLED   tool: a class decode deadline leaves the dataset open [full decode replay]
 restored tree passes the unit and process tests, the replays and their controls: True
 public APK present for the manifest replay: False
-sources sha256: 79e1c09f7ca9d496401859296f2ba385cf971b443dfa1f5c95f632db79b14d78
+sources sha256: 2e06173bf2d1c3b770a0bb114715c0da312c6927349b3e5cc57f6725436f68af

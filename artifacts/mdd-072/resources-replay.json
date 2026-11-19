@@ -768,10 +768,10 @@
     "code": "INVALID_INPUT",
     "details": {
      "input_coverage": "partial",
-     "member_id": "snapshot-3098f623402724a2ef9134539c7b278a8630a10a20bb6fb81146c917de90814c:source:0:member:5",
+     "member_id": "snapshot-8bcbf9036f95c3f00816c2eec325889aa4b2733b320bd4156edc719769b9b5e1:source:0:member:5",
      "member_ordinal": "5",
      "reason": "CRC_OR_DECOMPRESSION_FAILURE",
-     "source_occurrence_id": "snapshot-3098f623402724a2ef9134539c7b278a8630a10a20bb6fb81146c917de90814c:source:0"
+     "source_occurrence_id": "snapshot-8bcbf9036f95c3f00816c2eec325889aa4b2733b320bd4156edc719769b9b5e1:source:0"
     },
     "kind": "resource_error",
     "message": "Invalid checksum",

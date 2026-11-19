@@ -172,7 +172,7 @@
  "tests": {
   "mdd-input lib": {
    "exit_code": 0,
-   "passed": 72,
+   "passed": 74,
    "failed": 0
   },
   "mdd-service lib": {
@@ -215,7 +215,7 @@
   "crates/mdd-input/src/manifest/mod.rs": "46696fba00a1eea12ffd02ec3240a02fb472c5d160566f6d419385f968b3ab31",
   "crates/mdd-service/src/resources.rs": "3043ac1705c615d2c58f14c68ea3c37c2bba19a85b0c3510ad2cda55b6a7c6aa",
   "crates/mdd-service/src/manifest.rs": "bcd6a52d701eb28b0f74956ed5bf3471a941903691a9fc270a8562539aac66a4",
-  "crates/mdd-service/src/dataset.rs": "332d06bb9af5aa9eaeed002a644140465a4348ab846b034a98c09c654182de4c",
+  "crates/mdd-service/src/dataset.rs": "996a0624e05f8bdb84f09a6d280241666d98c87c01d514480d6d325dfe9b6de2",
   "crates/mdd-mcp/src/tools.rs": "7678eb4ffc512560ad945e0ad3735d2260275a4d81ba5876f64b9eb3381cedf8",
   "crates/mdd-mcp/src/tool_schemas.json": "238137d77806250a7421ce7d79744220499c50cffeb0863e8df5a7203493b457",
   "crates/mdd-mcp/src/resource_tools/mod.rs": "6d3b486cbe543c2b29256d6a1a01caeaf484ee78b7451678f454b6b97ba8d30a",
@@ -246,6 +246,6 @@
   "the mutation check runs in .github/workflows/mutation-resources.yml, not on a developer machine. Its first runs found survivors that were gaps in the tests, not in the engine (20 in the third run, 1 in the fourth); each got a test, and the fifth run (44247914806) killed all 118 mutants and the unmutated tree passes. The mutation results of MDD-042, 070, 071 and 084 were rerun on the same code and killed 57/57, 59/59, 67/67 and 12/12. A mutant the replay kills is held only as well as the recorded inputs reach it, and the replay about the real application is not part of the Actions run (its APK is a local file)"
  ],
  "run": {
-  "finished_utc": "2026-11-19T08:49:24Z"
+  "finished_utc": "2026-11-19T13:29:32Z"
  }
 }
