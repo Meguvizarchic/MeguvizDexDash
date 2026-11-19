@@ -4,7 +4,7 @@
  "kind": "development evidence; admits no profile",
  "reference": "dexsql 0.1.0 (f354ebcf715de9a66ef8ebe08b2b36807ab58e25cd5a1c0812e497fc1fcfc448), recorded in artifacts/mdd-070/a0-probe/",
  "engine_under_test": {
-  "binary_sha256": "91f5a7db55a8a7a5512b5fe77172d9998d6a7f113a2db76a6e9444f56d828edb",
+  "binary_sha256": "c8bb348b836041fc17e3e9ab52f43bdd763046d0675a9514be19839ed82520c7",
   "server": {
    "name": "meguvizdexdash",
    "title": "MeguvizDexDash",
@@ -5095,8 +5095,8 @@
  ],
  "inputs_sha256": {
   "conformance/manifests/relations.json": "f416926d6da3467b5cfea625978c2e4faac08c914cf2930d2c64878c261bb82d",
-  "artifacts/mdd-070/public-relations-diff.json": "aac4ea6498afb99f6eb6914ccddcaaefea31e5c427089910cb358b21927c5fd4",
-  "artifacts/mdd-070/public-relations-diff-0.1.1.json": "0ca6e8935fd42c9cebfe8adb96148a91804988f3505825a9b2a95091bd3e2c8c",
+  "artifacts/mdd-070/public-relations-diff.json": "0f94794dade9c27985c3e708f25e4a44d80320c70b319f29f8a8ad050e6cb45c",
+  "artifacts/mdd-070/public-relations-diff-0.1.1.json": "b3c3b50d94f606caa842d970a15fb2051affaf339b5d5b16c9e6e6a4f6b21d91",
   "crates/mdd-sql/src/profiles/compatibility/mod.rs": "d5b05a66fc95d7aedd9e3e2507b6dacc9365b9e595ff66427c81e2a101d1ec36",
   "artifacts/mdd-070/reference-versions.json": "cdc95f053b4ac006a5ded088ccff8b0fde3fbf2cec8255b813646a860003a91d",
   "conformance/relations/public_relations_diff.py": "f8a0975ee610cc5e7da788b553d8dc683477cdb1b767939b414bfe402a7b40db",
