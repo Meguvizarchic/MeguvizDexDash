@@ -1,0 +1,44 @@
+{
+  "schema_version": "mdd.harness-test.v1",
+  "record_kind": "validation_tool_tests_not_engine_benchmark",
+  "recorded_date": "2026-11-19",
+  "supersedes_nothing": "artifacts/mdd-005/harness-self-test.json stays as the historical 10-test record",
+  "suites": [
+    {
+      "name": "harness self-test",
+      "command_argv": [
+        "python",
+        "benchmarks/run-existing-baselines.py",
+        "--self-test"
+      ],
+      "exit_code": 0,
+      "tests": 19,
+      "sources_sha256": {
+        "benchmarks/run-existing-baselines.py": "02157df1cfeeccefdf253471b9b2ef85184c8c98ec8f07045a04cc7b9496a3d8"
+      }
+    },
+    {
+      "name": "producer/consumer pipeline tests (isolated baseline interpreter)",
+      "command_argv": [
+        "<baseline-venv>/Scripts/python.exe",
+        "benchmarks/test_producer_consumer_pipeline.py"
+      ],
+      "exit_code": 0,
+      "tests": 67,
+      "sources_sha256": {
+        "benchmarks/test_producer_consumer_pipeline.py": "ceb010d1c251d7d48a0fd73106fa80f27a1b4ba9aba02fe55c8e47ce39f93014",
+        "benchmarks/producer-consumer-pipeline.py": "36ed880ff0280f566aaff0ed5bb9d8d8f0bb440dd9194ffeb383bea3cde17a60"
+      }
+    }
+  ],
+  "engine_executed": false,
+  "platform": "Windows-11-10.0.26300-SP0",
+  "log": "artifacts/mdd-005/harness-self-test-20261119.log",
+  "scope": "strict JSON, complete axes and rows, source/request/scope binding, identity and diagnostics shape, bag multiplicity, NULL against empty, and the producer/consumer pipeline's own checks",
+  "not_covered": [
+    "the observed_run contract (contracts/benchmark_result.schema.json is marked proposed-not-implemented and no code validates a record against it)",
+    "the prepare and overlap timing rules (no timing aggregation code exists yet; the rules are in docs/03 and docs/04 and in the contract's metric scope and method labels)",
+    "a POSIX execution primitive",
+    "the A2 candidate adapters beyond their syntax and synthetic checks"
+  ]
+}

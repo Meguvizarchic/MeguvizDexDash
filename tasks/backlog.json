@@ -174,7 +174,7 @@
         "artifacts/mdd-005/baseline-qualification.json"
       ],
       "acceptance": [
-        "记录每轮输入、引擎、源码、配置、缓存状态、线程预算与机器身份，并把交替或随机配对顺序与分块规则写入 manifest 与结果契约；静态资格运行按该记录留证",
+        "结果契约（contracts/benchmark_result.schema.json）规定每轮必须记录的 pair/block/round、引擎与源码身份、harness 与 manifest 指纹、环境（机器、缓存状态与控制、线程预算、并发作业、背景负载）、执行状态（含超时、失败、污染）和正确性范围；manifest 规定交替配对顺序与分块规则。静态资格运行记录其中的一部分（输入/引擎/源码指纹、资源限制、监督结果、证书与等价结论）；完整的逐轮环境记录与契约校验器是正式测量（MDD-060）的前提",
         "A0/A1 在完整结果等价（二十组）后才可成为后续速度样本；失败、超时与缺样本单列；A2 的处置有具体记录：目前只作组件对照、不作端到端基线、不进速度分母，写明具体原因与升格条件；最佳现成对照的速度选择留给 MDD-060，只在实际合格路径中选",
         "prepare 计时不冒充纯 parser 成本；CLI producer 与 Python consumer 的重叠不串行相加",
         "保留历史每个 APK 仅一轮的边界；没有真实运行的新基线标为 blocked/未测，不生成 p95 或置信承诺",
@@ -188,11 +188,13 @@
         "docs/04_VALIDATION_AND_PERFORMANCE.md"
       ],
       "blocking_reasons": [
-        "Closing is the owner's decision after the static verification is reconciled against the restated acceptance (identity fields in the contract and the static runs, where the prepare and overlap rules live, the A2 record); no exclusive measurement window is needed any more"
+        "Closing is the owner's decision: the reconciliation against the restated acceptance found no gap inside the restated scope (see reconciliation); the contract validator and the enforcement of the prepare and overlap rules are handed to MDD-060"
       ],
       "implementation_evidence": [
         "artifacts/mdd-005/baseline-qualification.json",
-        "artifacts/mdd-005/static-qualification-20261029.json"
+        "artifacts/mdd-005/static-qualification-20261029.json",
+        "artifacts/mdd-005/harness-self-test-20261119.json",
+        "artifacts/mdd-005/harness-self-test-20261119.log"
       ],
       "input_evidence": "artifacts/bootstrap/20261028/private-input-acquisition.json",
       "acceptance_original": [
@@ -229,7 +231,19 @@
         ],
         "not_changed": "37% and 47% stay conditional targets; no threshold is lowered; historical one-round-per-APK evidence keeps its meaning; MDD-054 and MDD-060 still depend on MDD-005 being closed"
       },
-      "implementation_notes": "2026-11-19 owner decision: MDD-005 is satisfied by static verification; formal performance quantification moves to MDD-060 and MDD-082 (see scope_decision; the original acceptance is kept in acceptance_original). Static evidence: four complete A0/A1 qualifications on two authorized inputs, all 20 evidence groups equal on both, zero fallback, complete delivery (artifacts/mdd-005/static-qualification-20261029.json); the harness self-test passes (19 tests). A2 is recorded as a component comparison only (not an end-to-end baseline, not in any speed denominator) because the fixed audit consumer is a CLI shape/hex/marker consumer without a compact switch and the full MCP adaptation with 20-group equality was not obtained. No performance claim, no p95, no measured run; 37%/47% remain conditional targets."
+      "implementation_notes": "2026-11-19 owner decision: MDD-005 is satisfied by static verification; formal performance quantification moves to MDD-060 and MDD-082 (see scope_decision; the original acceptance is kept in acceptance_original). Static evidence: four complete A0/A1 qualifications on two authorized inputs, all 20 evidence groups equal on both, zero fallback, complete delivery (artifacts/mdd-005/static-qualification-20261029.json); the harness self-test passes (19 tests). A2 is recorded as a component comparison only (not an end-to-end baseline, not in any speed denominator) because the fixed audit consumer is a CLI shape/hex/marker consumer without a compact switch and the full MCP adaptation with 20-group equality was not obtained. No performance claim, no p95, no measured run; 37%/47% remain conditional targets.",
+      "reconciliation": {
+        "date": "2026-11-19",
+        "against": "the restated acceptance of this task",
+        "item_1": "contract and manifest define the per-round fields, pairing order, blocks (pair_id/block_id/round; engine, harness, environment incl. machine_id, cache_state, engine_threads, concurrent_jobs; execution status incl. timeout and contaminated; manifest timing.run_order and formal_policy). The static runs record only a subset (input, engine and source fingerprints, Job limits, supervision, certificate, equivalence). The contract is marked proposed-not-implemented and no code validates a record against it. The restated wording was corrected to say exactly this; the validator is a precondition of MDD-060's first formal run.",
+        "item_2": "A0 and A1 were qualified by complete-result equivalence on both authorized inputs (20 groups, zero fallback); the contract's execution.status (completed, failed, cancelled, timeout) and contaminated flag keep failures separate; A2 is recorded as a component comparison only (artifacts/mdd-005/baseline-qualification.json a2_disposition). The speed selection is deferred to MDD-060.",
+        "item_3": "the rules are written down (docs/03 section on E budgets: P is the explicit prepare, R the unphased native remainder, O the mixed residual outside native; docs/04: overlapping producer and consumer time is not added up) and every contract metric carries an explicit scope and method, with null plus a reason instead of zero. No timing aggregation code exists yet, so nothing can violate them today; enforcement belongs in MDD-060's run-five-way-comparison.py.",
+        "item_4": "baseline-runs.jsonl is empty (observed runs only), baseline-qualification.json says measured_runs 0, performance_qualified false, historical_evidence_reused_as_new_measurement false; no p95 or confidence figure exists.",
+        "item_5": "benchmarks/baseline-manifest.json formal_policy preregisters 10 minimum pairs, 2 independent blocks, 10% key median reduction, 5% regression limit (status not_run); benchmarks/README.md keeps the version median ratio and the paired median ratio apart and forbids a p95 from few samples.",
+        "tests": "harness self-test 19 tests and the producer/consumer pipeline tests 67 (isolated baseline interpreter) pass: artifacts/mdd-005/harness-self-test-20261119.json (the 10-test record of 2026-10 stays as history)",
+        "not_rerun": "the preflight (artifacts/mdd-005/preflight.json is the older blocked record; the original manifest's interpreter path no longer exists after the workspace move, a path-adapted copy is in artifacts/local) and any qualification run; the static qualification evidence of 2026-10-29 is the evidence of record",
+        "result": "no gap inside the restated scope; two items are handed to MDD-060 (contract validator, enforcement of the timing rules); closing the task is the owner's decision"
+      }
     },
     {
       "id": "MDD-006",
@@ -1710,7 +1724,8 @@
         "B0 同 DTO/请求调度不等于纯 core 隔离，wire 与 producer 差异明确登记，lazy 事实建立不能全算入显式 prepare",
         "37%/47% 按同机完整 S/F 阶段条件重算；观察到的单查询或 decoder 加速不外推全审计",
         "正式测量按 benchmarks/baseline-manifest.json 的 formal_policy 执行：至少 10 对交替配对并在第二个独立时间块复测，独占窗口与 root lease；失败、超时、污染单列；最佳现成对照只在实际合格路径中按速度选择",
-        "同环境阈值先按实测噪声校准再交给 MDD-082；预注册的 10%/5% 阈值不降，调整须有事先 ADR 与依据"
+        "同环境阈值先按实测噪声校准再交给 MDD-082；预注册的 10%/5% 阈值不降，调整须有事先 ADR 与依据",
+        "在第一条正式记录之前实现并启用 observed_run 校验器：contracts/benchmark_result.schema.json 目前标记 proposed-not-implemented，仓库里没有代码按它校验记录；run-five-way-comparison.py 的汇总代码要强制 prepare 计时不冒充纯 parser 成本、producer 与 consumer 的重叠不串行相加（目前只在 docs/03、docs/04 与指标的 scope/method 标注里）"
       ],
       "evidence_required": true,
       "references": [
