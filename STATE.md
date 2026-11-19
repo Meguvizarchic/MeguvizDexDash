@@ -2,6 +2,17 @@
 
 更新：2026-11-19（Asia/Shanghai）。唯一任务图：tasks/backlog.json；当前产品仍在实施，所有产品 profile admitted=false。
 
+## 2026-11-19 MDD-005 范围决定（所有者）
+
+所有者决定：MDD-005 这道门槛只做**静态验证**，正式性能量化放到上线前最后一并做。依据是项目自己的门槛定义（`docs/04_VALIDATION_AND_PERFORMANCE.md` §14.1：G0 的基线产物是 A0/A1/A2 harness 设计，G5 才是同机配对的性能发布）和已有的任务划分（MDD-060 做五组同环境实测，MDD-082 签发性能资格）。落实方式——**没有删除任何验收要求，只是改归属**：
+
+- MDD-005 保留并已具备：A0/A1 静态资格（两个授权输入各做一次 A0 与 A1，二十组证据全部相等，零 fallback，完整交付，见 `artifacts/mdd-005/static-qualification-20261029.json`）；harness、manifest 与结果契约（manifest 的 `formal_policy` 已预注册：至少 10 对交替配对、两个独立块、关键降幅 10%、其余退化上限 5%）；harness 自检 19 项通过。
+- A2 的处置写成具体记录：目前只作**组件对照**，不作端到端基线，也不进任何速度分母。原因：固定的 HostLab 审计消费者是 CLI 的 shape/hex/marker 消费者且 CLI 没有 compact 开关，完整 MCP 适配与二十组等价没有取得；fixture 上的 compact 成功不是端到端基线。`docs/04` §10.1 允许这种“可作组件对照但不称可替换基线”的状态。升格条件（完整适配并在两个授权输入上等价）归 MDD-060。
+- 移到 MDD-060（正式测量）与 MDD-082（发布门槛）：至少 10 对交替配对与第二个独立时间块、独占窗口与 root lease、按速度从实际合格路径选最佳现成对照、同环境阈值校准。预注册的 10%/5% 阈值不降，37%/47% 仍只是条件目标。
+- 没有任何性能声明，没有 p95，没有实测轮次；A0/A1 的静态资格不是速度样本。原验收文字保留在 backlog 的 `acceptance_original`，决定、依据与去向记在 `scope_decision`；`artifacts/mdd-005/baseline-qualification.json` 的状态由 `blocked` 改为 `static_baselines_qualified_performance_deferred`，旧状态与旧阻塞项保留在 `previous`。
+
+**状态**：MDD-005 **仍为 in_progress，没有标 done**：还要把静态验证项对账一遍（结果契约与静态运行里的身份字段是否齐、prepare 计时与重叠规则落在哪里、A2 记录）后由所有者决定是否关闭。MDD-054 与 MDD-060 仍依赖 MDD-005 关闭（MDD-060 还依赖 MDD-055）；这一步之后，关闭它不再需要独占测量窗口。
+
 ## 2026-11-11 生产前资格推进（5 子代理 + 3 Step-Reviewer）
 
 依赖图核查：51 项任务中仅 MDD-005/026/031/034 未阻塞，其余 26 项全部下游；MDD-082（签发功能、正确性与性能发布资格）仍 todo，本轮不改变发行状态。

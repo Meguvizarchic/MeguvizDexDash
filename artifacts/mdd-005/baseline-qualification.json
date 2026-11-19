@@ -1,7 +1,7 @@
 {
   "schema_version": "mdd.baseline-qualification.v1",
   "task": "MDD-005",
-  "status": "blocked",
+  "status": "static_baselines_qualified_performance_deferred",
   "technical_preparation_ready": true,
   "measured_runs": 0,
   "qualification_runs": 4,
@@ -9,12 +9,42 @@
   "best_existing_baseline": null,
   "current_evidence": "artifacts/mdd-005/static-qualification-20261029.json",
   "observation": "four complete A0/A1 static qualifications passed delivery gates; both same-input comparisons equal in all20 groups, while all business exit codes were 1",
-  "blockers": [
-    "A2 full consumer transport adaptation/equivalence not admitted; fixture compact success is not an end-to-end baseline",
-    "formal10 paired trials/two independent blocks and best qualified existing comparison not run"
-  ],
+  "blockers": [],
   "memory_block_evidence": "artifacts/mdd-005/preparation-20261028/root-memory-denial.json",
   "historical_evidence_reused_as_new_measurement": false,
   "threshold_lowered": false,
-  "old_raw_records_untouched": true
+  "old_raw_records_untouched": true,
+  "previous": {
+    "status": "blocked",
+    "blockers": [
+      "A2 full consumer transport adaptation/equivalence not admitted; fixture compact success is not an end-to-end baseline",
+      "formal10 paired trials/two independent blocks and best qualified existing comparison not run"
+    ]
+  },
+  "scope_decision": "owner, 2026-11-19: MDD-005 is satisfied by static verification; formal performance quantification moves to MDD-060 and MDD-082 (tasks/backlog.json MDD-005 scope_decision)",
+  "static_baselines": {
+    "A0": "qualified on both authorized inputs (static, complete consumer)",
+    "A1": "qualified on both authorized inputs (static, complete consumer)",
+    "evidence": "artifacts/mdd-005/static-qualification-20261029.json",
+    "note": "static qualifications are not speed samples"
+  },
+  "a2_disposition": {
+    "status": "component_comparison_only_not_an_end_to_end_baseline",
+    "in_speed_denominators": false,
+    "reason": "the fixed HostLab audit consumer is a CLI shape/hex/marker consumer and the CLI has no compact switch; the A1 native MCP exposes twelve tools and a query compact parameter, but a complete MCP adaptation of the consumer with equality of the 20 evidence groups on the two authorized inputs was not obtained; compact successes on fixtures (benchmarks/a2_*.py candidates and their synthetic records) are not an end-to-end baseline",
+    "basis": "docs/04_VALIDATION_AND_PERFORMANCE.md section 10.1",
+    "to_admit_later": "full MCP consumer adaptation and 20-group equality on both inputs under a root lease, in MDD-060"
+  },
+  "deferred": {
+    "to": [
+      "MDD-060",
+      "MDD-082"
+    ],
+    "items": [
+      "formal paired trials (10 alternating pairs, second independent block, exclusive window)",
+      "choosing the best existing baseline by speed among qualified paths",
+      "same-environment threshold calibration (the preregistered 10% and 5% are not lowered)"
+    ]
+  },
+  "best_existing_baseline_note": "not selected: the speed comparison that would select it is deferred to MDD-060"
 }
