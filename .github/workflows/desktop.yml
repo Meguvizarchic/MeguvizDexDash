@@ -117,6 +117,19 @@ jobs:
         run: |
           archive=$(ls apps/desktop/dist/*.zip)
           python apps/desktop/verify_package.py "$archive" --run-flows --record "$RECORDS/package-check-Windows.json"
+      - name: Control, informational (Windows) - one flow with the port requested by the environment variable only
+        if: runner.os == 'Windows' && always()
+        continue-on-error: true
+        env:
+          MDD_DESKTOP_EXE: ${{ github.workspace }}/apps/desktop/target/release/mdd-desktop.exe
+          MDD_ENGINE: ${{ github.workspace }}/target/debug/meguvizdexdash.exe
+        run: |
+          # The flows above pass only through the machine policy value. This control runs one flow the old way, on
+          # this same elevated runner, so that the record says whether the environment variable still fails here
+          # (the cause is the elevated host) or works (the runtime or image changed). It never fails the job.
+          # First show that the driver removed its policy value, so that the control is not carried by a leftover.
+          reg query 'HKLM\SOFTWARE\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments' 2>&1 || echo "no policy value present"
+          node apps/desktop/e2e/run.mjs --only refuse_bad_inputs --record "$RECORDS/control-environment-variable-Windows.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
