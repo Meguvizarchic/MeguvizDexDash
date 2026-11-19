@@ -136,8 +136,10 @@ fn arc_graph_matches_serial_sharing() {
             std::ptr::eq(facts.references.code(), facts.code.as_ref()),
             "references must share the pipeline code Arc"
         );
-        // Annotations own a definition copy (the staged constructor requires one)
-        // but that copy must hold the same metadata Arc as every other layer.
+        // Annotations share the pipeline's definition Arc, and through it the
+        // metadata Arc, like every other layer. A private copy would hold every
+        // definition table of the occurrence twice for as long as the session
+        // keeps both layers (measured: about 40 MiB per 10 MiB DEX).
         assert!(
             std::ptr::eq(
                 facts.annotations.definitions().metadata(),
@@ -146,8 +148,8 @@ fn arc_graph_matches_serial_sharing() {
             "annotation definitions must share the pipeline metadata Arc"
         );
         assert!(
-            !std::ptr::eq(facts.annotations.definitions(), facts.definitions.as_ref()),
-            "annotations own the definition clone the staged builder requires"
+            std::ptr::eq(facts.annotations.definitions(), facts.definitions.as_ref()),
+            "annotations must share the pipeline definition Arc, not copy it"
         );
         // Every layer carries this occurrence's identity, not a neighbouring one.
         assert_eq!(

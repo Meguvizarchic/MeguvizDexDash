@@ -491,7 +491,9 @@ fn physical_annotation_of_type<'a>(
 /// fn alter(mut facts: mdd_facts::annotations::AnnotationFacts) { facts.data.values.clear(); }
 /// ```
 pub struct AnnotationFacts {
-    definitions: DefinitionFacts,
+    /// Shared with the definition layer the facts were built from, not a copy of it: a session that keeps both
+    /// would otherwise hold every definition table twice.
+    definitions: std::sync::Arc<DefinitionFacts>,
     data: DexAnnotations,
     signatures: Vec<SignatureFact>,
     completed_layers: Vec<String>,
@@ -762,6 +764,14 @@ fn owner_ref(
 
 impl AnnotationFacts {
     pub fn build(definitions: DefinitionFacts, limits: AnnotationLimits) -> MddResult<Self> {
+        Self::build_arc(std::sync::Arc::new(definitions), limits)
+    }
+
+    /// As `build`, over definitions that the caller already shares (a session holds them for its other layers).
+    pub fn build_arc(
+        definitions: std::sync::Arc<DefinitionFacts>,
+        limits: AnnotationLimits,
+    ) -> MddResult<Self> {
         let source = &definitions.metadata.source;
         let bind = |error: MddError| {
             error
@@ -3262,7 +3272,7 @@ mod tests {
 
         // Simulated partial definition lists preserve reference-only members;
         // the original physical fixture above always contains all four kinds.
-        let mut reference_only = definitions.clone();
+        let mut reference_only = DefinitionFacts::clone(definitions);
         reference_only.definitions.field_definitions.remove(1);
         reference_only.definitions.classes[0].instance_fields_count = 0;
         reference_only.definitions.method_definitions.remove(1);
@@ -3282,7 +3292,7 @@ mod tests {
 
         // Synthetic in-memory identities stress interleaved index domains:
         // the two individual lists are sorted, but their concatenation is not.
-        let mut interleaved = definitions.clone();
+        let mut interleaved = DefinitionFacts::clone(definitions);
         let field_static = interleaved.definitions.field_definitions[0].clone();
         let field_instance = interleaved.definitions.field_definitions[1].clone();
         let method_direct = interleaved.definitions.method_definitions[0].clone();
@@ -3366,7 +3376,7 @@ mod tests {
                 );
             }
         }
-        let mut empty = definitions.clone();
+        let mut empty = DefinitionFacts::clone(definitions);
         empty.definitions.classes.clear();
         empty.definitions.field_definitions.clear();
         empty.definitions.method_definitions.clear();
@@ -3376,7 +3386,7 @@ mod tests {
             ErrorCode::InternalFault
         );
 
-        let mut broken = definitions.clone();
+        let mut broken = DefinitionFacts::clone(definitions);
         broken.definitions.field_definitions.swap(0, 1);
         assert_eq!(
             validate_owner_definition_layout(&broken).unwrap_err().code,
@@ -3416,7 +3426,7 @@ mod tests {
             max_decoded_bytes: exact_total - 1,
             ..AnnotationLimits::default()
         };
-        let failure = AnnotationFacts::build(facts.definitions.clone(), limited)
+        let failure = AnnotationFacts::build_arc(facts.definitions.clone(), limited)
             .err()
             .expect("missing identity budget must not be admitted");
         assert_eq!(failure.code, ErrorCode::QuotaExceeded);
@@ -3427,7 +3437,7 @@ mod tests {
                 .and_then(|value| value.as_str()),
             Some("SIGNATURE_BYTE_BUDGET")
         );
-        let exact = AnnotationFacts::build(
+        let exact = AnnotationFacts::build_arc(
             facts.definitions.clone(),
             AnnotationLimits {
                 max_decoded_bytes: exact_total,

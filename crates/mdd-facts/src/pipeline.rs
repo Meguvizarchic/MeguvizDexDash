@@ -432,12 +432,12 @@ impl FactsPipeline {
         )?);
         timing.code = started.elapsed();
 
-        // `AnnotationFacts::build` owns a `DefinitionFacts`, exactly like the
-        // serial facade; the clone is per occurrence and never shared across
-        // DEX indexes.
+        // `build_arc` shares this occurrence's definitions instead of copying
+        // them, so the annotation layer does not hold every definition table a
+        // second time.
         let started = Instant::now();
-        let annotations = Arc::new(AnnotationFacts::build(
-            (*definitions).clone(),
+        let annotations = Arc::new(AnnotationFacts::build_arc(
+            Arc::clone(&definitions),
             self.limits.annotations,
         )?);
         timing.annotations = started.elapsed();

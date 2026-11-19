@@ -232,10 +232,9 @@ impl FactsSession {
             return Ok(Arc::clone(facts));
         }
         let definitions = self.definitions_locked(index, &mut layers)?;
-        // Annotations need an owned `DefinitionFacts`; the clone is ~66 ms on
-        // NewPipe, far below the `CodeFacts` clone that `references()` avoids.
-        let facts = Arc::new(AnnotationFacts::build(
-            (*definitions).clone(),
+        // The annotation layer shares the session's definitions: a copy would hold every definition table twice.
+        let facts = Arc::new(AnnotationFacts::build_arc(
+            Arc::clone(&definitions),
             self.limits.annotations,
         )?);
         layers.annotations = Some(Arc::clone(&facts));

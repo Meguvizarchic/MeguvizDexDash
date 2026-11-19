@@ -292,9 +292,11 @@ impl Dataset {
                 let kept_code = code.as_ref().ok().cloned();
                 // The annotation layer does not read the code or the references, so a fault in
                 // those must not take annotations (and static values) away from `decode`.
-                let annotation_layer =
-                    AnnotationFacts::build((*definitions).clone(), AnnotationLimits::default())
-                        .map(Arc::new);
+                let annotation_layer = AnnotationFacts::build_arc(
+                    Arc::clone(&definitions),
+                    AnnotationLimits::default(),
+                )
+                .map(Arc::new);
                 let upper = || -> MddResult<_> {
                     let code = Arc::clone(code.as_ref().map_err(Clone::clone)?);
                     let references = Arc::new(ReferenceFacts::build_arc(
