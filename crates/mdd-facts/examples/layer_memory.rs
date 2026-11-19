@@ -33,6 +33,15 @@ use std::{
 struct Counting;
 static LIVE: AtomicUsize = AtomicUsize::new(0);
 static PEAK: AtomicUsize = AtomicUsize::new(0);
+/// Live bytes and live allocation count by size class (power of two), to show whether memory sits in a few large
+/// tables or in very many small objects.
+const BUCKETS: usize = 40;
+static BUCKET_BYTES: [AtomicUsize; BUCKETS] = [const { AtomicUsize::new(0) }; BUCKETS];
+static BUCKET_COUNT: [AtomicUsize; BUCKETS] = [const { AtomicUsize::new(0) }; BUCKETS];
+
+fn bucket(size: usize) -> usize {
+    (usize::BITS - size.max(1).leading_zeros()) as usize
+}
 
 fn grow(by: usize) {
     let now = LIVE.fetch_add(by, Relaxed) + by;
@@ -45,12 +54,16 @@ unsafe impl GlobalAlloc for Counting {
         let pointer = unsafe { System.alloc(layout) };
         if !pointer.is_null() {
             grow(layout.size());
+            BUCKET_BYTES[bucket(layout.size())].fetch_add(layout.size(), Relaxed);
+            BUCKET_COUNT[bucket(layout.size())].fetch_add(1, Relaxed);
         }
         pointer
     }
     unsafe fn dealloc(&self, pointer: *mut u8, layout: Layout) {
         unsafe { System.dealloc(pointer, layout) };
         LIVE.fetch_sub(layout.size(), Relaxed);
+        BUCKET_BYTES[bucket(layout.size())].fetch_sub(layout.size(), Relaxed);
+        BUCKET_COUNT[bucket(layout.size())].fetch_sub(1, Relaxed);
     }
     unsafe fn realloc(&self, pointer: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
         let moved = unsafe { System.realloc(pointer, layout, new_size) };
@@ -60,6 +73,10 @@ unsafe impl GlobalAlloc for Counting {
             } else {
                 LIVE.fetch_sub(layout.size() - new_size, Relaxed);
             }
+            BUCKET_BYTES[bucket(layout.size())].fetch_sub(layout.size(), Relaxed);
+            BUCKET_COUNT[bucket(layout.size())].fetch_sub(1, Relaxed);
+            BUCKET_BYTES[bucket(new_size)].fetch_add(new_size, Relaxed);
+            BUCKET_COUNT[bucket(new_size)].fetch_add(1, Relaxed);
         }
         moved
     }
@@ -139,80 +156,17 @@ fn main() {
             DefinitionFacts::build_arc(Arc::clone(&metadata), DefinitionLimits::default()).unwrap(),
         );
         report(local, "definitions", before);
+        // The same steps, in the same order, as `Dataset::open` (contract dialect): the code layer is built in full,
+        // the session keeps its compact copy, and the full value is dropped once the reference sites are read.
         before = LIVE.load(Relaxed);
         let code = Arc::new(
             CodeFacts::build_all_code_items(&snapshot, &inventory, local, CodeLimits::default())
                 .unwrap(),
         );
-        report(local, "code", before);
-        {
-            // What the decoded instructions alone weigh, counted from their types: the instruction records, the heap their
-            // reference operands and spilled registers own, and the per-item vectors.
-            let (mut instructions, mut operand_heap, mut items_with_code) =
-                (0usize, 0usize, 0usize);
-            for item in code.items() {
-                let data = item.data();
-                instructions += data.instructions.len();
-                items_with_code += 1;
-                operand_heap += data
-                    .instructions
-                    .iter()
-                    .map(|i| i.references.capacity())
-                    .sum::<usize>()
-                    * std::mem::size_of::<mdd_dex::instructions::ReferenceOperand>();
-            }
-            let mut seen = std::collections::HashSet::new();
-            let (
-                mut payloads,
-                mut switch_units,
-                mut switches,
-                mut tries,
-                mut handlers,
-                mut events,
-                mut programs,
-                mut text,
-            ) = (
-                0usize, 0usize, 0usize, 0usize, 0usize, 0usize, 0usize, 0usize,
-            );
-            for item in code.items() {
-                let data = item.data();
-                payloads += data.payloads.len();
-                switches += data.switch_targets.len();
-                switch_units += data
-                    .switch_targets
-                    .iter()
-                    .map(|s| s.target_code_units.capacity())
-                    .sum::<usize>();
-                tries += data.tries.len();
-                handlers += data.handlers.len();
-                text += data.validation_scope.capacity() + item.code_item_id().len();
-                if let Some(debug) = data
-                    .debug_info
-                    .as_ref()
-                    .filter(|debug| seen.insert(std::sync::Arc::as_ptr(debug)))
-                {
-                    programs += 1;
-                    events += debug.events.iter().count();
-                    text += debug.validation_scope.capacity();
-                }
-            }
-            println!(
-                "{}",
-                json!({"dex": local, "layer": "code-rest", "payloads": payloads, "size_of_payload": std::mem::size_of::<mdd_dex::instructions::Payload>(),
-                       "switches": switches, "switch_target_units_mib": mib(switch_units * 4),
-                       "size_of_switch": std::mem::size_of::<mdd_dex::instructions::SwitchTargets>(), "tries": tries, "handlers": handlers,
-                       "debug_programs": programs, "debug_events": events, "size_of_event": std::mem::size_of::<mdd_dex::instructions::DebugEvent>(),
-                       "debug_events_mib": mib(events * std::mem::size_of::<mdd_dex::instructions::DebugEvent>()), "item_text_mib": mib(text)})
-            );
-            println!(
-                "{}",
-                json!({"dex": local, "layer": "code-detail", "code_items": items_with_code, "instructions": instructions,
-                       "size_of_instruction": std::mem::size_of::<mdd_dex::instructions::Instruction>(),
-                       "instruction_records_mib": mib(instructions * std::mem::size_of::<mdd_dex::instructions::Instruction>()),
-                       "operand_heap_mib": mib(operand_heap),
-                       "size_of_code_item": std::mem::size_of::<mdd_dex::instructions::CodeItem>()})
-            );
-        }
+        report(local, "code (full, transient)", before);
+        before = LIVE.load(Relaxed);
+        let compact = Arc::new(code.compacted().unwrap());
+        report(local, "code (compact copy)", before);
         before = LIVE.load(Relaxed);
         let annotations = Arc::new(
             AnnotationFacts::build_arc(Arc::clone(&definitions), AnnotationLimits::default())
@@ -226,11 +180,28 @@ fn main() {
                 Arc::clone(&code),
                 ReferenceLimits::default(),
             )
+            .unwrap()
+            .with_code(Arc::clone(&compact))
             .unwrap(),
         );
         report(local, "references", before);
-        kept.push((metadata, definitions, code, annotations, references));
+        before = LIVE.load(Relaxed);
+        drop(code);
+        // `added_mib` of this line is what releasing the full code value gave back; it is shown as 0 when it is
+        // negative, so read `live_mib`.
+        report(local, "full code dropped", before);
+        kept.push((metadata, definitions, compact, annotations, references));
     }
     report(usize::MAX, "all kept", 0);
+    if std::env::var_os("LAYER_MEMORY_HISTOGRAM").is_some() {
+        let rows: Vec<_> = (0..BUCKETS)
+            .filter(|b| BUCKET_COUNT[*b].load(Relaxed) > 0)
+            .map(|b| {
+                json!({"size_class_bytes": format!("{}..{}", if b == 0 { 0 } else { 1usize << (b - 1) }, 1usize << b),
+                       "live_mib": mib(BUCKET_BYTES[b].load(Relaxed)), "live_count": BUCKET_COUNT[b].load(Relaxed)})
+            })
+            .collect();
+        println!("{}", json!({"histogram": rows}));
+    }
     drop(kept);
 }

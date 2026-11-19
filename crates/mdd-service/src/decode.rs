@@ -16,6 +16,7 @@ use mdd_facts::{
     smali_required::{MethodView, RenderedMethod, SmaliLimits, method_declaration},
 };
 use mdd_types::{ErrorCode, MddError, MddResult};
+use std::borrow::Cow;
 use std::{collections::HashMap, sync::Arc};
 
 /// The facts of one DEX of a dataset, kept so a method can be decoded long after the
@@ -393,11 +394,12 @@ pub struct Decoded {
 }
 
 /// The facts of a located method: its definition and its code item.
-fn code_of<'a>(
+/// The code facts of an occurrence and the ordinal of the item a method body names, or `None` for a body without code.
+fn locate_code<'a>(
     occurrence: &'a Occurrence,
     index: &OccurrenceIndex,
     body: &MethodBody,
-) -> Result<Option<&'a CodeItem>, MddError> {
+) -> Result<Option<(&'a CodeFacts, usize)>, MddError> {
     let MethodBody::Present {
         code_byte_offset, ..
     } = body
@@ -423,7 +425,28 @@ fn code_of<'a>(
             )
             .detail("code_item_byte_offset", code_byte_offset.0.to_string())
         })?;
-    Ok(Some(code.items()[ordinal].data()))
+    Ok(Some((code.as_ref(), ordinal)))
+}
+
+/// The code item of a method with its instructions and debug program, for rendering. The facts an opened dataset
+/// keeps are compact (headers and opcodes), so this decodes that one item again; `Cow` is borrowed when they are not.
+fn code_of<'a>(
+    occurrence: &'a Occurrence,
+    index: &OccurrenceIndex,
+    body: &MethodBody,
+) -> Result<Option<Cow<'a, CodeItem>>, MddError> {
+    locate_code(occurrence, index, body)?
+        .map(|(code, ordinal)| code.decoded_item(ordinal))
+        .transpose()
+}
+
+/// The header of the code item of a method: registers, code units, tries. No instruction is read, so nothing is decoded.
+fn code_header_of<'a>(
+    occurrence: &'a Occurrence,
+    index: &OccurrenceIndex,
+    body: &MethodBody,
+) -> Result<Option<&'a CodeItem>, MddError> {
+    Ok(locate_code(occurrence, index, body)?.map(|(code, ordinal)| code.items()[ordinal].data()))
 }
 
 /// What a located method is, without its text: a method row of a class summary.
@@ -458,7 +481,7 @@ pub fn summarize(dataset: &Dataset, located: Located) -> MddResult<Summary> {
     let definitions = occurrence.definitions.definitions();
     let definition = &definitions.method_definitions[located.definition];
     let reference = &definitions.method_references[located.method_idx as usize];
-    let code = code_of(occurrence, index, &definition.body)?;
+    let code = code_header_of(occurrence, index, &definition.body)?;
     Ok(Summary {
         file_id: located.file_id,
         method_idx: located.method_idx,
@@ -498,13 +521,13 @@ pub fn render(dataset: &Dataset, located: Located, limits: SmaliLimits) -> MddRe
     let index = &dataset.decode_indexes()[position];
     let definitions = occurrence.definitions.definitions();
     let definition = &definitions.method_definitions[located.definition];
-    let code = code_of(occurrence, index, &definition.body)?;
+    let decoded = code_of(occurrence, index, &definition.body)?;
     let view = FullMethodView {
         method: MethodView {
             metadata: &occurrence.metadata,
             definitions,
             definition,
-            code,
+            code: decoded.as_deref(),
         },
         annotations: occurrence
             .annotations
@@ -600,12 +623,12 @@ mod tests {
         let index = &dataset.decode_indexes()[position];
         let definitions = occurrence.definitions.definitions();
         let definition = &definitions.method_definitions[located.definition];
-        let code = code_of(occurrence, index, &definition.body)?;
+        let decoded = code_of(occurrence, index, &definition.body)?;
         let view = MethodView {
             metadata: &occurrence.metadata,
             definitions,
             definition,
-            code,
+            code: decoded.as_deref(),
         };
         render_method_with(&view, SmaliLimits::default(), extras)
     }

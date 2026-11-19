@@ -474,6 +474,15 @@ impl ReferenceFacts {
                 "definition and code facts do not belong to the same immutable occurrence",
             )));
         }
+        // The sites are read out of the decoded instructions. A compact value does not hold them, and
+        // reading its empty instruction lists would give a layer with no references that looks complete.
+        if code.is_compact() {
+            return Err(bind(MddError::new(
+                ErrorCode::InvalidArgument,
+                "facts.references",
+                "reference facts are built from full code facts; hand them the compact copy afterwards with `with_code`",
+            )));
+        }
         if definitions.definition_coverage() != Completeness::Complete
             || code.code_layout_coverage() != Completeness::Complete
         {
@@ -814,6 +823,35 @@ impl ReferenceFacts {
     pub fn definitions(&self) -> &DefinitionFacts {
         &self.definitions
     }
+    /// The same facts reading `code` instead of the code facts they were built from, which must be the compact copy
+    /// of them (`CodeFacts::compacted`): same occurrence, same code items at the same offsets. The sites were read
+    /// out of the decoded instructions when the facts were built, so nothing here changes; what is released is the
+    /// decoded instructions and debug programs of every code item, once no other holder keeps the full value.
+    pub fn with_code(mut self, code: Arc<CodeFacts>) -> MddResult<Self> {
+        let refuse = |message: &'static str| {
+            MddError::new(ErrorCode::InvalidArgument, "facts.references", message)
+        };
+        if !code.is_compact() {
+            return Err(refuse("with_code takes the compact copy of the code facts"));
+        }
+        if !same_source(self.definitions.metadata().source(), code.source())
+            || code.items().len() != self.code.items().len()
+            || code
+                .items()
+                .iter()
+                .zip(self.code.items())
+                .any(|(left, right)| {
+                    left.data().raw_range.byte_offset.0 != right.data().raw_range.byte_offset.0
+                })
+        {
+            return Err(refuse(
+                "the code facts are not the compact copy of the ones these references were built from",
+            ));
+        }
+        self.code = code;
+        Ok(self)
+    }
+
     pub fn code(&self) -> &CodeFacts {
         &self.code
     }

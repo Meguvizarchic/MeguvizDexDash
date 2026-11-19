@@ -289,7 +289,16 @@ impl Dataset {
                     CodeLimits::default(),
                 )
                 .map(Arc::new);
-                let kept_code = code.as_ref().ok().cloned();
+                // What the session keeps of the code layer is the compact copy: the header of every code item and
+                // its opcodes. The decoded instructions and debug programs, which are most of the layer, are
+                // needed once, to read the reference sites, and are decoded again from the DEX bytes when a
+                // method is rendered or an instruction relation is asked for.
+                let compact_code = code
+                    .as_ref()
+                    .map_err(Clone::clone)
+                    .and_then(|full| full.compacted())
+                    .map(Arc::new);
+                let kept_code = compact_code.as_ref().ok().cloned();
                 // The annotation layer does not read the code or the references, so a fault in
                 // those must not take annotations (and static values) away from `decode`.
                 let annotation_layer = AnnotationFacts::build_arc(
@@ -298,19 +307,25 @@ impl Dataset {
                 )
                 .map(Arc::new);
                 let upper = || -> MddResult<_> {
-                    let code = Arc::clone(code.as_ref().map_err(Clone::clone)?);
-                    let references = Arc::new(ReferenceFacts::build_arc(
-                        Arc::clone(&definitions),
-                        Arc::clone(&code),
-                        ReferenceLimits::default(),
-                    )?);
+                    let full = Arc::clone(code.as_ref().map_err(Clone::clone)?);
+                    let compact = Arc::clone(compact_code.as_ref().map_err(Clone::clone)?);
+                    let references = Arc::new(
+                        ReferenceFacts::build_arc(
+                            Arc::clone(&definitions),
+                            full,
+                            ReferenceLimits::default(),
+                        )?
+                        .with_code(Arc::clone(&compact))?,
+                    );
                     let annotations = Arc::clone(annotation_layer.as_ref().map_err(Clone::clone)?);
-                    Ok((code, references, annotations))
+                    Ok((compact, references, annotations))
                 };
                 let file_id = u32::try_from(facts.len()).map_err(|_| {
                     MddError::new(ErrorCode::QuotaExceeded, "service", "too many DEX files")
                 })?;
                 let upper_result = upper();
+                // The decoded instructions of this DEX are released here; the session keeps the compact copy.
+                drop(code);
                 // The annotation layer is kept beside the code: a text shows annotations when
                 // it is built and says so when it is not.
                 let kept_annotations = annotation_layer.as_ref().ok().map(Arc::clone);

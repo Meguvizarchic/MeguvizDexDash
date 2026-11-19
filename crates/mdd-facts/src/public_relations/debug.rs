@@ -111,12 +111,15 @@ impl<'a> MethodCodeFactViews<'a> {
         &self,
         mut visit: impl FnMut(u32, u32, &DebugInfo) -> MddResult<()>,
     ) -> MddResult<()> {
+        let mut reader = self.code_reader();
         for view in self.iter() {
             let view = view?;
             let MethodCodeBody::Present { code, .. } = view.body else {
                 continue;
             };
-            let data = code.data();
+            // The debug program is decoded from the DEX bytes when the facts are compact.
+            let item = reader.fact(code)?;
+            let data: &mdd_dex::instructions::CodeItem = &item;
             let (Some(debug), Some(offset)) = (&data.debug_info, data.debug_info_byte_offset)
             else {
                 continue;

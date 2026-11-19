@@ -1174,3 +1174,81 @@ fn every_field_referencing_opcode_is_a_get_or_a_put() {
         assert_eq!(accessor, info.index == "kIndexFieldRef", "{}", info.name);
     }
 }
+
+#[test]
+fn a_single_item_decoded_later_equals_the_item_of_the_whole_section() {
+    // Every fixture whose section reads: each item decoded alone, in section order and then in reverse order (so the
+    // decoder's cache of debug programs cannot matter), equals the item read as part of the section.
+    let folder = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/instructions/generated");
+    let (mut files, mut items) = (0usize, 0usize);
+    let mut with_debug = 0usize;
+    for entry in std::fs::read_dir(folder).unwrap() {
+        let path = entry.unwrap().path();
+        if path.extension().and_then(|e| e.to_str()) != Some("dex") {
+            continue;
+        }
+        let bytes = std::fs::read(&path).unwrap();
+        let Ok(header) = crate::validate_header(&bytes) else {
+            continue;
+        };
+        for policy in [
+            DebugPolicy::EncodedFactsV1,
+            DebugPolicy::StrictSourceLinesV1,
+        ] {
+            let limits = CodeLimits {
+                debug_policy: policy,
+                ..CodeLimits::default()
+            };
+            let Ok((section, starts)) =
+                read_code_section_with_debug_starts(&bytes, &header, limits)
+            else {
+                continue;
+            };
+            let plain = read_code_section(&bytes, &header, limits).unwrap();
+            assert_eq!(
+                serde_json::to_value(&section).unwrap(),
+                serde_json::to_value(&plain).unwrap(),
+                "the section does not depend on which entry point read it"
+            );
+            let mut decoder = CodeItemDecoder::new(&bytes, header.clone(), limits, &starts);
+            for item in section.items.iter().chain(section.items.iter().rev()) {
+                let again = decoder.decode(item.raw_range.byte_offset.0).unwrap();
+                assert_eq!(
+                    serde_json::to_value(&again).unwrap(),
+                    serde_json::to_value(item).unwrap(),
+                    "{} item at {}",
+                    path.display(),
+                    item.raw_range.byte_offset.0
+                );
+                items += 1;
+                with_debug += usize::from(item.debug_info.is_some());
+            }
+            files += 1;
+        }
+    }
+    assert!(
+        files >= 20 && items >= 40 && with_debug >= 10,
+        "{files} files, {items} items, {with_debug} with debug"
+    );
+}
+
+#[test]
+fn decoding_an_offset_that_is_not_an_item_is_an_error_and_names_the_offset() {
+    let bytes = fixture("packed-switch.dex");
+    let header = crate::validate_header(&bytes).unwrap();
+    let (section, starts) =
+        read_code_section_with_debug_starts(&bytes, &header, CodeLimits::default()).unwrap();
+    let mut decoder = CodeItemDecoder::new(&bytes, header.clone(), CodeLimits::default(), &starts);
+    let at = section.items[0].raw_range.byte_offset.0;
+    let error = decoder.decode(at + 1).unwrap_err();
+    assert_eq!(
+        error
+            .details
+            .get("code_item_byte_offset")
+            .and_then(Value::as_str),
+        Some((at + 1).to_string().as_str())
+    );
+    // A failed decode leaves the decoder usable.
+    assert_eq!(decoder.decode(at).unwrap().raw_range.byte_offset.0, at);
+}

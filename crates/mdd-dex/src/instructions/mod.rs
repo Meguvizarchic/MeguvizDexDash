@@ -1000,15 +1000,28 @@ pub fn read_code_section(
     header: &DexHeader,
     limits: CodeLimits,
 ) -> MddResult<CodeSection> {
+    read_code_section_with_debug_starts(bytes, header, limits).map(|(section, _)| section)
+}
+
+/// As `read_code_section`, and the byte offsets at which the DEX's debug programs start. Those are what
+/// `CodeItemDecoder` needs to decode one code item later without reading the whole section again.
+pub fn read_code_section_with_debug_starts(
+    bytes: &[u8],
+    header: &DexHeader,
+    limits: CodeLimits,
+) -> MddResult<(CodeSection, Vec<u64>)> {
     let Some((start, end, count)) = section(header, 0x2001) else {
-        return Ok(CodeSection {
-            declared_code_item_count: 0,
-            declared_code_item_byte_offsets: Vec::new(),
-            items: Vec::new(),
-            scope: "complete-declared-code-map-v1".to_owned(),
-            completed_layers: vec!["code_layout".to_owned()],
-            full_dex_validation_complete: false,
-        });
+        return Ok((
+            CodeSection {
+                declared_code_item_count: 0,
+                declared_code_item_byte_offsets: Vec::new(),
+                items: Vec::new(),
+                scope: "complete-declared-code-map-v1".to_owned(),
+                completed_layers: vec!["code_layout".to_owned()],
+                full_dex_validation_complete: false,
+            },
+            Vec::new(),
+        ));
     };
     if count > limits.max_code_items {
         return Err(quota_items(start, u64::from(count), limits.max_code_items));
@@ -1018,6 +1031,7 @@ pub fn read_code_section(
     // Every debug item consumes at least one byte and starts are appended in walk
     // order, so the list is sorted and unique; direct indexing is therefore valid.
     debug_assert!(debug_starts.windows(2).all(|pair| pair[0] < pair[1]));
+    let returned_starts = debug_starts.clone();
     let mut debug_programs = DebugPrograms::new(debug_starts);
     let mut items = Vec::new();
     let mut at = start;
@@ -1042,17 +1056,62 @@ pub fn read_code_section(
         at = next;
         items.push(item);
     }
-    Ok(CodeSection {
-        declared_code_item_count: count,
-        declared_code_item_byte_offsets: items
-            .iter()
-            .map(|item| item.raw_range.byte_offset)
-            .collect(),
-        items,
-        scope: "complete-declared-code-map-v1".to_owned(),
-        completed_layers: vec!["code_layout".to_owned()],
-        full_dex_validation_complete: false,
-    })
+    Ok((
+        CodeSection {
+            declared_code_item_count: count,
+            declared_code_item_byte_offsets: items
+                .iter()
+                .map(|item| item.raw_range.byte_offset)
+                .collect(),
+            items,
+            scope: "complete-declared-code-map-v1".to_owned(),
+            completed_layers: vec!["code_layout".to_owned()],
+            full_dex_validation_complete: false,
+        },
+        returned_starts,
+    ))
+}
+
+/// Decodes single code items of a DEX whose code section `read_code_section_with_debug_starts` has already read
+/// and validated, without reading the section again.
+///
+/// An item decoded here is equal, field for field, to the item that call returned for the same offset: it is the same
+/// parser over the same bytes. What it does not repeat is the section-wide work (the debug-section walk, the
+/// cumulative budgets, the map membership check), so `offset` must be the byte offset of an item that call returned;
+/// any other offset is parsed as far as the bytes allow and is not checked against the map.
+///
+/// The decoder keeps the debug programs it has decoded, so decoding many items of one DEX does each program once.
+/// Drop the decoder to release them.
+pub struct CodeItemDecoder<B: AsRef<[u8]>> {
+    bytes: B,
+    header: DexHeader,
+    limits: CodeLimits,
+    programs: DebugPrograms,
+}
+
+impl<B: AsRef<[u8]>> CodeItemDecoder<B> {
+    /// `bytes` and `header` are the DEX the section was read from, `debug_starts` what
+    /// `read_code_section_with_debug_starts` returned with it.
+    pub fn new(bytes: B, header: DexHeader, limits: CodeLimits, debug_starts: &[u64]) -> Self {
+        Self {
+            bytes,
+            header,
+            limits,
+            programs: DebugPrograms::new(debug_starts.to_vec()),
+        }
+    }
+
+    pub fn decode(&mut self, code_item_byte_offset: u64) -> MddResult<CodeItem> {
+        parse_item(
+            self.bytes.as_ref(),
+            &self.header,
+            code_item_byte_offset,
+            self.limits,
+            &mut Used::default(),
+            &mut self.programs,
+        )
+        .map_err(|error| error.detail("code_item_byte_offset", code_item_byte_offset.to_string()))
+    }
 }
 
 fn quota_items(at: u64, count: u64, limit: u32) -> MddError {

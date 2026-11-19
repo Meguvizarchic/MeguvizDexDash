@@ -234,12 +234,15 @@ impl<'a> MethodCodeFactViews<'a> {
         mut visit: impl FnMut(&MethodReference, u8, &'static str, i64, Option<f64>),
     ) -> MddResult<()> {
         let mut seen = 0usize;
+        let mut reader = self.code_reader();
         for view in self.iter() {
             let view = view?;
             let MethodCodeBody::Present { code, .. } = view.body else {
                 continue;
             };
-            for instruction in &code.data().instructions {
+            // The instructions are decoded from the DEX bytes when the facts are compact.
+            let item = reader.fact(code)?;
+            for instruction in &item.instructions {
                 let Some(literal) = &instruction.literal else {
                     continue;
                 };

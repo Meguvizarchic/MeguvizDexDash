@@ -7,7 +7,8 @@ use crate::{
 use mdd_dex::{
     definitions::MethodBody,
     instructions::{
-        CodeItem, CodeLimits, CodeSection, DebugPolicy, read_code_offsets, read_code_section,
+        CodeItem, CodeItemDecoder, CodeLimits, CodeSection, DebugPolicy, read_code_offsets,
+        read_code_section_with_debug_starts,
     },
     validate_header,
 };
@@ -17,20 +18,73 @@ use mdd_input::{
 };
 use mdd_types::{Completeness, DecimalU64, ErrorCode, MddError, MddResult, content_id};
 use serde::Serialize;
-use std::sync::Arc;
+use std::{borrow::Cow, sync::Arc};
 
 #[derive(Clone, Serialize)]
 pub struct CodeFact {
     pub(crate) code_item_id: String,
     pub(crate) data: CodeItem,
+    /// The opcode of every ordinary instruction, in code-unit order: the one piece of the decoded
+    /// instructions the `methods` relation reads (`opcode_count`, `opcode_hex`). Kept for every fact so that
+    /// a compact fact answers it without decoding.
+    #[serde(skip)]
+    pub(crate) opcodes: Box<[u8]>,
 }
 
 impl CodeFact {
     pub fn code_item_id(&self) -> &str {
         &self.code_item_id
     }
+    /// The code item. On a fact of a compact `CodeFacts` (see `CodeFacts::compacted`) this is the header view:
+    /// `instructions`, `payloads`, `switch_targets` and `debug_info` are empty. Anything that reads those must get
+    /// the item from `CodeFacts::decoded_item` or a `CodeItemReader`, which give the same item on either kind.
     pub fn data(&self) -> &CodeItem {
         &self.data
+    }
+    /// The opcode of every ordinary instruction, in order. Equal to the opcodes of `data().instructions` on a
+    /// full fact, and available on a compact one.
+    pub fn opcodes(&self) -> &[u8] {
+        &self.opcodes
+    }
+}
+
+/// The part of a code item that is not derived from its instruction words or debug program: what a compact
+/// fact keeps. Listed field by field so that a field added to `CodeItem` stops compiling here until it is
+/// placed on one side or the other.
+fn header_view(item: &CodeItem) -> CodeItem {
+    let CodeItem {
+        raw_range,
+        insns_range,
+        registers_size,
+        ins_size,
+        outs_size,
+        insns_size_code_units,
+        debug_info_byte_offset,
+        instructions: _,
+        payloads: _,
+        switch_targets: _,
+        tries,
+        handlers,
+        debug_info: _,
+        validation_scope,
+        full_art_verification_complete,
+    } = item;
+    CodeItem {
+        raw_range: raw_range.clone(),
+        insns_range: insns_range.clone(),
+        registers_size: *registers_size,
+        ins_size: *ins_size,
+        outs_size: *outs_size,
+        insns_size_code_units: *insns_size_code_units,
+        debug_info_byte_offset: *debug_info_byte_offset,
+        instructions: Vec::new(),
+        payloads: Vec::new(),
+        switch_targets: Vec::new(),
+        tries: tries.clone(),
+        handlers: handlers.clone(),
+        debug_info: None,
+        validation_scope: validation_scope.clone(),
+        full_art_verification_complete: *full_art_verification_complete,
     }
 }
 
@@ -44,6 +98,177 @@ mod tests {
         snapshot::{CaptureLimits, InputKind, InputSpec},
     };
     use std::fs;
+
+    /// Every DEX fixture of the instruction layer whose code section reads, as complete code facts.
+    fn complete_facts_of_instruction_fixtures() -> Vec<(String, CodeFacts)> {
+        let folder = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/instructions/generated");
+        let mut out = Vec::new();
+        let mut paths: Vec<_> = fs::read_dir(folder)
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .filter(|path| path.extension().and_then(|e| e.to_str()) == Some("dex"))
+            .collect();
+        paths.sort();
+        for path in paths {
+            let input = InputSpec {
+                path: path.clone(),
+                kind: InputKind::RawDex,
+                expected_sha256: None,
+            };
+            let Ok(snapshot) = Snapshot::capture(&[input], CaptureLimits::default()) else {
+                continue;
+            };
+            let Ok(inventory) = ArchiveInventory::build(
+                &snapshot.sources()[0],
+                InventoryPolicy::default(),
+                ArchiveLimits::default(),
+            ) else {
+                continue;
+            };
+            let Ok(code) =
+                CodeFacts::build_all_code_items(&snapshot, &inventory, 0, CodeLimits::default())
+            else {
+                continue;
+            };
+            out.push((
+                path.file_name().unwrap().to_string_lossy().into_owned(),
+                code,
+            ));
+        }
+        out
+    }
+
+    #[test]
+    fn compact_code_facts_read_every_item_back_equal_to_the_full_ones() {
+        let (mut files, mut items, mut with_debug, mut with_payload) = (0, 0, 0, 0);
+        for (name, full) in complete_facts_of_instruction_fixtures() {
+            assert!(!full.is_compact(), "{name}");
+            let compact = full.compacted().unwrap();
+            assert!(compact.is_compact(), "{name}");
+            assert_eq!(compact.items().len(), full.items().len(), "{name}");
+            // Nothing but the instruction-derived parts is gone.
+            assert_eq!(compact.scope(), full.scope());
+            assert_eq!(compact.source().content_id, full.source().content_id);
+            assert_eq!(
+                compact.declared_code_item_byte_offsets(),
+                full.declared_code_item_byte_offsets()
+            );
+            assert_eq!(compact.code_layout_coverage(), full.code_layout_coverage());
+            let mut reader = compact.reader();
+            // Forwards and then backwards, so the decoder's cache of debug programs cannot decide the result.
+            let order: Vec<usize> = (0..full.items().len())
+                .chain((0..full.items().len()).rev())
+                .collect();
+            for ordinal in order {
+                let (whole, small) = (&full.items()[ordinal], &compact.items()[ordinal]);
+                assert_eq!(small.code_item_id(), whole.code_item_id(), "{name}");
+                assert_eq!(small.opcodes(), whole.opcodes(), "{name} opcodes");
+                let expected: Vec<u8> =
+                    whole.data().instructions.iter().map(|i| i.opcode).collect();
+                assert_eq!(
+                    whole.opcodes(),
+                    expected.as_slice(),
+                    "{name} opcode bytes are the instructions' opcodes"
+                );
+                // The compact fact is a header: the heavy parts are empty, the rest equals the full item.
+                let header = small.data();
+                assert!(header.instructions.is_empty() && header.payloads.is_empty());
+                assert!(header.switch_targets.is_empty() && header.debug_info.is_none());
+                assert_eq!(
+                    serde_json::to_value(&header.raw_range).unwrap(),
+                    serde_json::to_value(&whole.data().raw_range).unwrap()
+                );
+                assert_eq!(
+                    serde_json::to_value(&header.insns_range).unwrap(),
+                    serde_json::to_value(&whole.data().insns_range).unwrap()
+                );
+                assert_eq!(header.registers_size, whole.data().registers_size);
+                assert_eq!(
+                    header.insns_size_code_units,
+                    whole.data().insns_size_code_units
+                );
+                assert_eq!(
+                    header.debug_info_byte_offset,
+                    whole.data().debug_info_byte_offset
+                );
+                assert_eq!(
+                    serde_json::to_value(&header.tries).unwrap(),
+                    serde_json::to_value(&whole.data().tries).unwrap()
+                );
+                assert_eq!(
+                    serde_json::to_value(&header.handlers).unwrap(),
+                    serde_json::to_value(&whole.data().handlers).unwrap()
+                );
+                // The item decoded again is the full item.
+                let again = reader.get(ordinal).unwrap();
+                assert_eq!(
+                    serde_json::to_value(again.as_ref()).unwrap(),
+                    serde_json::to_value(whole.data()).unwrap(),
+                    "{name} item {ordinal}"
+                );
+                assert_eq!(
+                    serde_json::to_value(compact.decoded_item(ordinal).unwrap().as_ref()).unwrap(),
+                    serde_json::to_value(whole.data()).unwrap(),
+                    "{name} item {ordinal} through decoded_item"
+                );
+                // A full value hands out its own item, not a copy.
+                assert!(matches!(
+                    full.decoded_item(ordinal).unwrap(),
+                    Cow::Borrowed(_)
+                ));
+                items += 1;
+                with_debug += usize::from(whole.data().debug_info.is_some());
+                with_payload += usize::from(!whole.data().payloads.is_empty());
+            }
+            assert!(reader.get(full.items().len()).is_err(), "{name}");
+            assert!(compact.decoded_item(usize::MAX).is_err());
+            files += 1;
+        }
+        assert!(
+            files >= 15 && items >= 40 && with_debug >= 10 && with_payload >= 3,
+            "{files} files, {items} items, {with_debug} with debug, {with_payload} with payloads"
+        );
+    }
+
+    #[test]
+    fn compacting_is_refused_twice_and_for_a_scoped_build() {
+        let (_, full) = complete_facts_of_instruction_fixtures().remove(0);
+        let compact = full.compacted().unwrap();
+        let again = compact.compacted().err().expect("already compact");
+        assert_eq!(again.code, ErrorCode::InvalidArgument);
+
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/instructions/generated/unreferenced-two-code.dex");
+        let snapshot = Snapshot::capture(
+            &[InputSpec {
+                path,
+                kind: InputKind::RawDex,
+                expected_sha256: None,
+            }],
+            CaptureLimits::default(),
+        )
+        .unwrap();
+        let inventory = ArchiveInventory::build(
+            &snapshot.sources()[0],
+            InventoryPolicy::default(),
+            ArchiveLimits::default(),
+        )
+        .unwrap();
+        let all = CodeFacts::build_all_code_items(&snapshot, &inventory, 0, CodeLimits::default())
+            .unwrap();
+        let offset = u32::try_from(all.items()[0].data().raw_range.byte_offset.0).unwrap();
+        let scoped =
+            CodeFacts::build_offsets(&snapshot, &inventory, 0, &[offset], CodeLimits::default())
+                .unwrap();
+        let refused = scoped.compacted().err().expect("scoped build");
+        assert_eq!(refused.code, ErrorCode::InvalidArgument);
+        // The scoped value is still usable as it was.
+        assert_eq!(
+            scoped.decoded_item(0).unwrap().raw_range.byte_offset.0,
+            u64::from(offset)
+        );
+    }
 
     #[test]
     fn method_code_views_bind_exact_source_and_distinguish_body_states() {
@@ -936,6 +1161,16 @@ pub struct CodeFacts {
     pub(crate) full_dex_validation_complete: bool,
     #[serde(skip)]
     blob: MemberBlob,
+    /// The limits the items were decoded under; a later decode of one item uses the same ones.
+    #[serde(skip)]
+    limits: CodeLimits,
+    /// Where the DEX's debug programs start, from the same section read. Present for a complete build; a
+    /// scoped build (`build_offsets`) does not keep it and cannot be compacted.
+    #[serde(skip)]
+    debug_starts: Option<Arc<[u64]>>,
+    /// True for the result of `compacted`: the items hold headers and opcodes, not decoded instructions.
+    #[serde(skip)]
+    compact: bool,
 }
 
 impl CodeFacts {
@@ -1020,9 +1255,11 @@ impl CodeFacts {
             )));
         }
         let header = validate_header(candidate.blob.bytes()).map_err(bind)?;
-        let section: CodeSection = match offsets {
-            None => read_code_section(candidate.blob.bytes(), &header, limits),
-            Some(offsets) => read_code_offsets(candidate.blob.bytes(), &header, offsets, limits),
+        let (section, debug_starts): (CodeSection, Option<Arc<[u64]>>) = match offsets {
+            None => read_code_section_with_debug_starts(candidate.blob.bytes(), &header, limits)
+                .map(|(section, starts)| (section, Some(Arc::from(starts)))),
+            Some(offsets) => read_code_offsets(candidate.blob.bytes(), &header, offsets, limits)
+                .map(|section| (section, None)),
         }
         .map_err(bind)?;
         let items = section
@@ -1033,6 +1270,7 @@ impl CodeFacts {
                     "{}:code-byte:{}",
                     source.dex_occurrence_id, data.raw_range.byte_offset.0
                 ),
+                opcodes: data.instructions.iter().map(|i| i.opcode).collect(),
                 data,
             })
             .collect();
@@ -1054,7 +1292,77 @@ impl CodeFacts {
             source_positions_built: false,
             full_dex_validation_complete: false,
             blob: candidate.blob.clone(),
+            limits,
+            debug_starts,
+            compact: false,
         })
+    }
+
+    /// The same facts with the decoded instructions, payloads, switch tables and debug programs dropped from every
+    /// item: what is left is the header of each item, its tries and handlers, and its opcode bytes. They are
+    /// 20-25 times smaller, and the dropped parts come back, equal field for field, from `decoded_item` or a
+    /// `CodeItemReader`, which decode that one item again from the DEX bytes this value keeps leasing.
+    ///
+    /// Build, validation and coverage are unchanged: the instructions were decoded and checked when `self` was built.
+    /// Only a complete build can be compacted (a scoped one does not keep what a later decode needs), and a compact
+    /// value cannot be compacted again.
+    pub fn compacted(&self) -> MddResult<Self> {
+        let refuse = |message: &'static str| {
+            MddError::new(ErrorCode::InvalidArgument, "facts.code", message)
+        };
+        if self.compact {
+            return Err(refuse("code facts are already compact"));
+        }
+        if self.debug_starts.is_none() || !self.requested_code_byte_offsets.is_empty() {
+            return Err(refuse("only a complete code section can be compacted"));
+        }
+        let items = self
+            .items
+            .iter()
+            .map(|fact| CodeFact {
+                code_item_id: fact.code_item_id.clone(),
+                data: header_view(&fact.data),
+                opcodes: fact.opcodes.clone(),
+            })
+            .collect();
+        Ok(Self {
+            source: self.source.clone(),
+            scope: self.scope.clone(),
+            debug_policy: self.debug_policy,
+            declared_map_code_item_count: self.declared_map_code_item_count,
+            declared_code_item_byte_offsets: self.declared_code_item_byte_offsets.clone(),
+            requested_code_byte_offsets: self.requested_code_byte_offsets.clone(),
+            items,
+            code_layout_coverage: self.code_layout_coverage,
+            method_ownership_built: self.method_ownership_built,
+            references_built: self.references_built,
+            source_positions_built: self.source_positions_built,
+            full_dex_validation_complete: self.full_dex_validation_complete,
+            blob: self.blob.clone(),
+            limits: self.limits,
+            debug_starts: self.debug_starts.clone(),
+            compact: true,
+        })
+    }
+
+    /// True when the items hold headers and opcodes only (see `compacted`).
+    pub fn is_compact(&self) -> bool {
+        self.compact
+    }
+
+    /// The code item with its instructions, payloads, switch tables and debug program: borrowed from a full value,
+    /// decoded again from the DEX bytes for a compact one. Equal either way. For many items of one DEX, a
+    /// `CodeItemReader` keeps the decoder between calls.
+    pub fn decoded_item(&self, ordinal: usize) -> MddResult<Cow<'_, CodeItem>> {
+        self.reader().get(ordinal)
+    }
+
+    /// Reads decoded items, remembering the decoder (and the debug programs it has decoded) between calls.
+    pub fn reader(&self) -> CodeItemReader<'_> {
+        CodeItemReader {
+            facts: self,
+            decoder: None,
+        }
     }
 
     pub fn lease(&self) -> Arc<[u8]> {
@@ -1131,6 +1439,56 @@ impl CodeFacts {
     }
 }
 
+/// Decoded code items of one `CodeFacts`, with the decoder kept between calls. See `CodeFacts::reader`.
+/// Dropping it releases whatever debug programs it decoded.
+pub struct CodeItemReader<'a> {
+    facts: &'a CodeFacts,
+    decoder: Option<CodeItemDecoder<Arc<[u8]>>>,
+}
+
+impl<'a> CodeItemReader<'a> {
+    pub fn get(&mut self, ordinal: usize) -> MddResult<Cow<'a, CodeItem>> {
+        let facts = self.facts;
+        let fact = facts.items.get(ordinal).ok_or_else(|| {
+            MddError::new(
+                ErrorCode::InvalidArgument,
+                "facts.code",
+                "code ordinal outside scope",
+            )
+        })?;
+        self.fact(fact)
+    }
+
+    /// The decoded item of a fact of these code facts (the fact a `MethodCodeBody::Present` carries).
+    pub fn fact(&mut self, fact: &'a CodeFact) -> MddResult<Cow<'a, CodeItem>> {
+        let facts = self.facts;
+        if !facts.compact {
+            return Ok(Cow::Borrowed(&fact.data));
+        }
+        if self.decoder.is_none() {
+            let starts = facts.debug_starts.as_ref().ok_or_else(|| {
+                MddError::new(
+                    ErrorCode::InternalFault,
+                    "facts.code",
+                    "compact code facts lost their debug program starts",
+                )
+            })?;
+            let lease = facts.blob.lease();
+            let header = validate_header(&lease)?;
+            self.decoder = Some(CodeItemDecoder::new(lease, header, facts.limits, starts));
+        }
+        let decoder = self.decoder.as_mut().ok_or_else(|| {
+            MddError::new(ErrorCode::InternalFault, "facts.code", "decoder missing")
+        })?;
+        let mut item = decoder.decode(fact.data.raw_range.byte_offset.0)?;
+        // The retained header was read together with the whole section; keep it as the one source of truth for
+        // the fields that are not derived from the instruction words.
+        item.validation_scope
+            .clone_from(&fact.data.validation_scope);
+        Ok(Cow::Owned(item))
+    }
+}
+
 /// Logical join limits. These are not an allocator or process RSS bound.
 #[derive(Clone, Copy, Debug)]
 pub struct MethodCodeViewLimits {
@@ -1190,12 +1548,12 @@ impl MethodCodeBody<'_> {
     /// abstract and present-empty; a reference has no defined opcode sequence.
     /// This is not a legacy hexadecimal rendering or a profile qualification.
     pub fn decoded_opcode_bytes(&self) -> Option<impl ExactSizeIterator<Item = u8> + '_> {
-        let instructions: &[mdd_dex::instructions::Instruction] = match self {
+        let opcodes: &[u8] = match self {
             Self::ReferenceOnly => return None,
             Self::Native | Self::Abstract => &[],
-            Self::Present { code, .. } => &code.data().instructions,
+            Self::Present { code, .. } => code.opcodes(),
         };
-        Some(instructions.iter().map(|instruction| instruction.opcode))
+        Some(opcodes.iter().copied())
     }
 
     /// Render ordinary opcodes as two lower-case hex digits separated by a
@@ -1255,6 +1613,12 @@ pub struct MethodCodeFactViews<'a> {
     code_index: Vec<usize>,
 }
 impl<'a> MethodCodeFactViews<'a> {
+    /// Decoded items of the code these views were built over: borrowed from full facts, decoded again from the
+    /// DEX bytes (keeping the decoder between calls) for compact ones.
+    pub(crate) fn code_reader(&self) -> CodeItemReader<'a> {
+        self.code.reader()
+    }
+
     /// Bind complete same-occurrence definitions and code layout. A scoped code
     /// projection is accepted only when every present method body is included.
     pub fn build(
