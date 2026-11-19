@@ -22,7 +22,27 @@
         "export_complete_result": "passed",
         "real_application_newpipe": "passed"
       },
-      "status": "met_on_windows"
+      "status": "met_on_windows",
+      "cases_windows_ci": {
+        "open_input_shows_provenance": "passed",
+        "refuse_bad_inputs": "passed",
+        "query_pages_never_look_complete_when_they_are_not": "passed",
+        "long_query_does_not_block_the_window_and_cancels": "passed",
+        "browse_class_method_smali_and_xrefs": "passed",
+        "manifest_and_resources": "passed",
+        "export_complete_result": "passed",
+        "real_application_newpipe": "not_run"
+      },
+      "cases_linux_ci": {
+        "open_input_shows_provenance": "passed",
+        "refuse_bad_inputs": "passed",
+        "query_pages_never_look_complete_when_they_are_not": "passed",
+        "long_query_does_not_block_the_window_and_cancels": "passed",
+        "browse_class_method_smali_and_xrefs": "passed",
+        "manifest_and_resources": "passed",
+        "export_complete_result": "passed",
+        "real_application_newpipe": "not_run"
+      }
     },
     {
       "item": 2,
@@ -33,7 +53,19 @@
         "diff_two_inputs_keeps_provenance_and_limits": "passed",
         "real_application_newpipe": "passed"
       },
-      "status": "met_on_windows"
+      "status": "met_on_windows",
+      "cases_windows_ci": {
+        "query_pages_never_look_complete_when_they_are_not": "passed",
+        "smali_pages_say_what_is_not_loaded": "passed",
+        "diff_two_inputs_keeps_provenance_and_limits": "passed",
+        "real_application_newpipe": "not_run"
+      },
+      "cases_linux_ci": {
+        "query_pages_never_look_complete_when_they_are_not": "passed",
+        "smali_pages_say_what_is_not_loaded": "passed",
+        "diff_two_inputs_keeps_provenance_and_limits": "passed",
+        "real_application_newpipe": "not_run"
+      }
     },
     {
       "item": 3,
@@ -45,7 +77,21 @@
         "closing_the_window_ends_the_engine": "passed",
         "real_application_newpipe": "passed"
       },
-      "status": "met_on_windows"
+      "status": "met_on_windows",
+      "cases_windows_ci": {
+        "query_errors_and_budgets_are_understandable": "passed",
+        "long_query_does_not_block_the_window_and_cancels": "passed",
+        "export_complete_result": "passed",
+        "closing_the_window_ends_the_engine": "passed",
+        "real_application_newpipe": "not_run"
+      },
+      "cases_linux_ci": {
+        "query_errors_and_budgets_are_understandable": "passed",
+        "long_query_does_not_block_the_window_and_cancels": "passed",
+        "export_complete_result": "passed",
+        "closing_the_window_ends_the_engine": "passed",
+        "real_application_newpipe": "not_run"
+      }
     },
     {
       "item": 4,
@@ -55,16 +101,27 @@
         "missing_engine_is_explained": "passed",
         "nothing_leaves_the_machine": "passed"
       },
-      "status": "met_on_windows"
+      "status": "met_on_windows",
+      "cases_windows_ci": {
+        "capabilities_come_from_the_engine": "passed",
+        "missing_engine_is_explained": "passed",
+        "nothing_leaves_the_machine": "passed"
+      },
+      "cases_linux_ci": {
+        "capabilities_come_from_the_engine": "passed",
+        "missing_engine_is_explained": "passed",
+        "nothing_leaves_the_machine": "passed"
+      }
     },
     {
       "item": 5,
       "text": "Linux/Windows 运行与打包可复验，不能只以 WebView 页面截图替代实际桌面集成",
       "cases": {},
       "windows": "passed",
-      "linux": "not_run",
-      "status": "windows_only",
-      "note": "package and unpacked-package flows on each platform; Linux only counts once CI has run them"
+      "windows_ci": "passed",
+      "linux": "passed",
+      "status": "met",
+      "note": "the package is built and the flows are run from the unpacked package on Windows (this machine, and Actions) and on Linux (Actions); 'met' does not mean the archives are bit-identical across machines (the local and the Actions Windows archives differ), does not cover macOS, signing or an installer, and the Windows runs use different routes to the debugging port (see not_proven)"
     }
   ],
   "platforms": {
@@ -96,9 +153,61 @@
       },
       "problems": []
     },
+    "windows_ci": {
+      "status": "passed",
+      "package": {
+        "archive": "meguvizdexdash-desktop-preview-0.1.0-dev-windows-x86_64.zip",
+        "archive_sha256": "cf17d7fdf65a6198af985523ce80efe3a7c9898283157710b80ca44611158f19",
+        "archive_bytes": 7471990,
+        "files_checked": 3,
+        "engine_build_id": "source-sha256:5fc9e18a9cc952dcdb21f3dddde470018c611c86d1f375b06a860479c3866e6a",
+        "preview": true
+      },
+      "driver": "cdp",
+      "webview": "Edg/156.0.4314.58",
+      "flows": {
+        "passed": 14,
+        "failed": 0,
+        "not_run": 1
+      },
+      "engine_used": {
+        "binary": "<unpacked package>/meguvizdexdash.exe",
+        "version": {
+          "build_id": "source-sha256:5fc9e18a9cc952dcdb21f3dddde470018c611c86d1f375b06a860479c3866e6a",
+          "engine_version": "0.1.0-dev",
+          "implementation_scope": "unqualified development build",
+          "product": "MeguvizDexDash"
+        }
+      },
+      "problems": []
+    },
     "linux": {
-      "status": "not_run",
-      "reason": "package-check-linux.json does not exist: no Linux run of the packaged window has been recorded"
+      "status": "passed",
+      "package": {
+        "archive": "meguvizdexdash-desktop-preview-0.1.0-dev-linux-x86_64.tar.gz",
+        "archive_sha256": "fe7956d079db796bf49c006f4c20c3243b830e9d5586f1ec38c30d13f60568b3",
+        "archive_bytes": 7600209,
+        "files_checked": 3,
+        "engine_build_id": "source-sha256:dd8e46a74449486e6a134bf57a6d937a6d2ca2f6f8bb5a0701e7145e7213a430",
+        "preview": true
+      },
+      "driver": "webdriver",
+      "webview": "WebKitGTK (WebDriver)",
+      "flows": {
+        "passed": 14,
+        "failed": 0,
+        "not_run": 1
+      },
+      "engine_used": {
+        "binary": "<unpacked package>/meguvizdexdash",
+        "version": {
+          "engine_version": "0.1.0-dev",
+          "build_id": "source-sha256:dd8e46a74449486e6a134bf57a6d937a6d2ca2f6f8bb5a0701e7145e7213a430",
+          "product": "MeguvizDexDash",
+          "implementation_scope": "unqualified development build"
+        }
+      },
+      "problems": []
     }
   },
   "flows": {
@@ -770,7 +879,1346 @@
         "seconds": 4.6
       }
     ],
-    "linux": "not_run"
+    "windows_ci": [
+      {
+        "id": "open_input_shows_provenance",
+        "title": "Open an input and see where every fact comes from",
+        "acceptance": [
+          1
+        ],
+        "status": "passed",
+        "checks": [
+          {
+            "name": "the input set card appears",
+            "ok": true
+          },
+          {
+            "name": "the card carries the sha256 computed outside the app",
+            "ok": true
+          },
+          {
+            "name": "the input kind is shown",
+            "ok": true
+          },
+          {
+            "name": "the profile is marked not admitted",
+            "ok": true
+          },
+          {
+            "name": "a snapshot id is shown",
+            "ok": true
+          },
+          {
+            "name": "the DEX member row names a.dex",
+            "ok": true
+          },
+          {
+            "name": "the engine chip stays ok",
+            "ok": true
+          },
+          {
+            "name": "the page raised no errors",
+            "ok": true
+          }
+        ],
+        "seconds": 5.4
+      },
+      {
+        "id": "refuse_bad_inputs",
+        "title": "A text file and a missing path are refused with the engine's own error",
+        "acceptance": [
+          1
+        ],
+        "status": "passed",
+        "checks": [
+          {
+            "name": "a text file is INVALID_INPUT",
+            "ok": true
+          },
+          {
+            "name": "the hint says the input was not accepted as empty",
+            "ok": true
+          },
+          {
+            "name": "a missing path is INPUT_NOT_FOUND",
+            "ok": true
+          },
+          {
+            "name": "no input set was remembered",
+            "ok": true
+          },
+          {
+            "name": "the page raised no errors",
+            "ok": true
+          }
+        ],
+        "seconds": 3.2
+      },
+      {
+        "id": "query_pages_never_look_complete_when_they_are_not",
+        "title": "Paging a query: every page says whether the rest is loaded",
+        "acceptance": [
+          1,
+          2
+        ],
+        "status": "passed",
+        "checks": [
+          {
+            "name": "page 1 has 50 rows",
+            "ok": true
+          },
+          {
+            "name": "page 1 says more rows are not loaded",
+            "ok": true
+          },
+          {
+            "name": "page 1 text says so in words",
+            "ok": true
+          },
+          {
+            "name": "page 2 is still marked partial",
+            "ok": true
+          },
+          {
+            "name": "page 3 is still marked partial",
+            "ok": true
+          },
+          {
+            "name": "page 4 is still marked partial",
+            "ok": true
+          },
+          {
+            "name": "the last page has 16 rows",
+            "ok": true
+          },
+          {
+            "name": "the last page says it is complete with the total",
+            "ok": true
+          },
+          {
+            "name": "the last page marks complete",
+            "ok": true
+          },
+          {
+            "name": "next is disabled on the last page",
+            "ok": true
+          },
+          {
+            "name": "previous x4 restores page 1 with its first row",
+            "ok": true
+          },
+          {
+            "name": "an empty result says the engine confirmed it",
+            "ok": true
+          },
+          {
+            "name": "the page raised no errors",
+            "ok": true
+          }
+        ],
+        "seconds": 4.1
+      },
+      {
+        "id": "query_errors_and_budgets_are_understandable",
+        "title": "A syntax error and an exhausted SQL budget",
+        "acceptance": [
+          3
+        ],
+        "status": "passed",
+        "checks": [
+          {
+            "name": "invalid SQL is INVALID_ARGUMENT",
+            "ok": true
+          },
+          {
+            "name": "the engine parser message is shown",
+            "ok": true
+          },
+          {
+            "name": "no table is shown for an error",
+            "ok": true
+          },
+          {
+            "name": "an exhausted budget is QUOTA_EXCEEDED",
+            "ok": true
+          },
+          {
+            "name": "the hint points at the engine page",
+            "ok": true
+          },
+          {
+            "name": "it says the result was not returned as complete",
+            "ok": true
+          },
+          {
+            "name": "no rows are shown",
+            "ok": true
+          },
+          {
+            "name": "the step budget field is empty after the reset",
+            "ok": true
+          },
+          {
+            "name": "the same query works with a roomy budget",
+            "ok": true
+          },
+          {
+            "name": "the page raised no errors",
+            "ok": true
+          }
+        ],
+        "seconds": 5.5
+      },
+      {
+        "id": "long_query_does_not_block_the_window_and_cancels",
+        "title": "A long query keeps the window alive and can be cancelled",
+        "acceptance": [
+          1,
+          3
+        ],
+        "status": "passed",
+        "checks": [
+          {
+            "name": "the elapsed time keeps advancing",
+            "ok": true
+          },
+          {
+            "name": "a view switch while the engine is busy answers within 3 s",
+            "ok": true
+          },
+          {
+            "name": "the cancel button is shown while busy",
+            "ok": true
+          },
+          {
+            "name": "CANCELLED arrives within 3 s of the press",
+            "ok": true
+          },
+          {
+            "name": "the bar is idle again",
+            "ok": true
+          },
+          {
+            "name": "the cancel hint explains the engine was ended",
+            "ok": true
+          },
+          {
+            "name": "the input set is remembered but not live",
+            "ok": true
+          },
+          {
+            "name": "the next query works on the same input set",
+            "ok": true
+          },
+          {
+            "name": "the result notes the engine was started again",
+            "ok": true
+          },
+          {
+            "name": "the input set is live again",
+            "ok": true
+          },
+          {
+            "name": "the page raised no errors",
+            "ok": true
+          }
+        ],
+        "seconds": 5.1
+      },
+      {
+        "id": "browse_class_method_smali_and_xrefs",
+        "title": "Class to method to smali, following a reference and the cross-references",
+        "acceptance": [
+          1
+        ],
+        "status": "passed",
+        "checks": [
+          {
+            "name": "both classes are listed, in order",
+            "ok": true
+          },
+          {
+            "name": "the reference-only row is explained",
+            "ok": true
+          },
+          {
+            "name": "one row is a definition and one a reference (access_flags NULL)",
+            "ok": true
+          },
+          {
+            "name": "the smali shows the declaration",
+            "ok": true
+          },
+          {
+            "name": "the page says it reached the end",
+            "ok": true
+          },
+          {
+            "name": "the invoke target is a clickable method reference",
+            "ok": true
+          },
+          {
+            "name": "following the reference opened bar (defined in the other DEX file)",
+            "ok": true
+          },
+          {
+            "name": "the xref note names reflection and invoke-custom as unknown",
+            "ok": true
+          },
+          {
+            "name": "the caller of bar is foo",
+            "ok": true
+          },
+          {
+            "name": "the callers answer says it is complete",
+            "ok": true
+          },
+          {
+            "name": "the callee of bar is foo",
+            "ok": true
+          },
+          {
+            "name": "a click on a caller navigates back to foo",
+            "ok": true
+          },
+          {
+            "name": "the page raised no errors",
+            "ok": true
+          }
+        ],
+        "seconds": 3.6
+      },
+      {
+        "id": "smali_pages_say_what_is_not_loaded",
+        "title": "A 505-line method is shown in pages and the first page says it is partial",
+        "acceptance": [
+          2
+        ],
+        "status": "passed",
+        "checks": [
+          {
+            "name": "page 1 says the tail is not loaded",
+            "ok": true
+          },
+          {
+            "name": "page 1 names its lines and the total",
+            "ok": true
+          },
+          {
+            "name": "next is enabled",
+            "ok": true
+          },
+          {
+            "name": "previous is disabled on page 1",
+            "ok": true
+          },
+          {
+            "name": "the last page says it reached the end with the total",
+            "ok": true
+          },
+          {
+            "name": "the two pages together cover the method",
+            "ok": true
+          },
+          {
+            "name": "previous returns to page 1",
+            "ok": true
+          },
+          {
+            "name": "the page raised no errors",
+            "ok": true
+          }
+        ],
+        "seconds": 3.4
+      },
+      {
+        "id": "manifest_and_resources",
+        "title": "Manifest summary, components, XML, archive members and one member",
+        "acceptance": [
+          1
+        ],
+        "status": "passed",
+        "checks": [
+          {
+            "name": "the summary names the package",
+            "ok": true
+          },
+          {
+            "name": "the components table is shown",
+            "ok": true
+          },
+          {
+            "name": "the XML text starts with the manifest element",
+            "ok": true
+          },
+          {
+            "name": "the member list includes the manifest and the DEX",
+            "ok": true
+          },
+          {
+            "name": "the member total is shown",
+            "ok": true
+          },
+          {
+            "name": "the member read shows its sha256",
+            "ok": true
+          },
+          {
+            "name": "the page raised no errors",
+            "ok": true
+          }
+        ],
+        "seconds": 3.4
+      },
+      {
+        "id": "export_complete_result",
+        "title": "Export a whole query result to CSV and cancel another export",
+        "acceptance": [
+          1,
+          3
+        ],
+        "status": "passed",
+        "checks": [
+          {
+            "name": "the report says 216 rows exported",
+            "ok": true
+          },
+          {
+            "name": "the CSV has a header and 216 rows",
+            "ok": true
+          },
+          {
+            "name": "every row appears once",
+            "ok": true
+          },
+          {
+            "name": "the JSON Lines file has a header record and 216 rows",
+            "ok": true
+          },
+          {
+            "name": "the header record carries the snapshot ids",
+            "ok": true
+          },
+          {
+            "name": "a cancelled export is CANCELLED",
+            "ok": true
+          },
+          {
+            "name": "no file is left under the chosen name",
+            "ok": true
+          },
+          {
+            "name": "no half-written .partial file is left",
+            "ok": true
+          },
+          {
+            "name": "the page raised no errors",
+            "ok": true
+          }
+        ],
+        "seconds": 4.6
+      },
+      {
+        "id": "diff_two_inputs_keeps_provenance_and_limits",
+        "title": "Compare two input sets",
+        "acceptance": [
+          2
+        ],
+        "status": "passed",
+        "checks": [
+          {
+            "name": "the summary reports 5 differences",
+            "ok": true
+          },
+          {
+            "name": "both sides are shown as completely loaded",
+            "ok": true
+          },
+          {
+            "name": "side A shows the input sha256",
+            "ok": true
+          },
+          {
+            "name": "side B shows both DEX members",
+            "ok": true
+          },
+          {
+            "name": "the summary says equal opcodes do not prove equal operands",
+            "ok": true
+          },
+          {
+            "name": "the default list is exactly the five differences",
+            "ok": true
+          },
+          {
+            "name": "opcode-equal methods are listed with the cautious status",
+            "ok": true
+          },
+          {
+            "name": "the detail says operands were not compared",
+            "ok": true
+          },
+          {
+            "name": "the smali comparison finds one changed line",
+            "ok": true
+          },
+          {
+            "name": "it shows the alpha and beta operands",
+            "ok": true
+          },
+          {
+            "name": "the equal pair is proven identical by its smali",
+            "ok": true
+          },
+          {
+            "name": "the page raised no errors",
+            "ok": true
+          }
+        ],
+        "seconds": 3.4
+      },
+      {
+        "id": "capabilities_come_from_the_engine",
+        "title": "The tool list and the views' availability come from tools/list",
+        "acceptance": [
+          4
+        ],
+        "status": "passed",
+        "checks": [
+          {
+            "name": "the tools shown are exactly the engine tools/list",
+            "ok": true
+          },
+          {
+            "name": "the engine lists twelve tools",
+            "ok": true
+          },
+          {
+            "name": "no view is disabled when every tool is listed",
+            "ok": true
+          },
+          {
+            "name": "no view is greyed out while the engine restarts twice in a row",
+            "ok": true
+          },
+          {
+            "name": "after the restarts the engine chip is not \"cannot start\"",
+            "ok": true
+          },
+          {
+            "name": "the capabilities output is shown verbatim with every profile not admitted",
+            "ok": true
+          },
+          {
+            "name": "the page says the capabilities output lags the tool list",
+            "ok": true
+          },
+          {
+            "name": "the page raised no errors",
+            "ok": true
+          }
+        ],
+        "seconds": 6.2
+      },
+      {
+        "id": "missing_engine_is_explained",
+        "title": "No engine: the window says so and offers nothing it cannot do",
+        "acceptance": [
+          4
+        ],
+        "status": "passed",
+        "checks": [
+          {
+            "name": "the chip says the engine cannot start",
+            "ok": true
+          },
+          {
+            "name": "every view that needs an engine tool is disabled",
+            "ok": true
+          },
+          {
+            "name": "the engine page stays available",
+            "ok": true
+          },
+          {
+            "name": "a disabled view names the tool the engine did not list",
+            "ok": true
+          },
+          {
+            "name": "the engine page shows ENGINE_NOT_FOUND",
+            "ok": true
+          },
+          {
+            "name": "the hint says how to fix it",
+            "ok": true
+          }
+        ],
+        "seconds": 2
+      },
+      {
+        "id": "nothing_leaves_the_machine",
+        "title": "The page cannot reach the network; opening an input sends nothing",
+        "acceptance": [
+          4
+        ],
+        "status": "passed",
+        "checks": [
+          {
+            "name": "the page loaded nothing from outside its own origin while starting",
+            "ok": true
+          },
+          {
+            "name": "fetch to an external address is blocked",
+            "ok": true
+          },
+          {
+            "name": "XMLHttpRequest to an external address is blocked",
+            "ok": true
+          },
+          {
+            "name": "an external image is blocked",
+            "ok": true
+          },
+          {
+            "name": "the page raised no errors",
+            "ok": true
+          }
+        ],
+        "seconds": 2.6
+      },
+      {
+        "id": "closing_the_window_ends_the_engine",
+        "title": "Killing the application does not leave an engine process behind",
+        "acceptance": [
+          3
+        ],
+        "status": "passed",
+        "checks": [
+          {
+            "name": "the application has exactly one engine child process",
+            "ok": true
+          },
+          {
+            "name": "the page raised no errors before the window was killed",
+            "ok": true
+          },
+          {
+            "name": "the engine process is gone within 5 s of the application being killed",
+            "ok": true
+          }
+        ],
+        "seconds": 5.6
+      },
+      {
+        "id": "real_application_newpipe",
+        "title": "The public NewPipe 0.28.6 APK end to end",
+        "acceptance": [
+          1,
+          2,
+          3
+        ],
+        "status": "not_run",
+        "checks": [],
+        "reason": "artifacts/local/inputs/NewPipe_v0.28.6.apk is not present (a local, ignored file)"
+      }
+    ],
+    "linux": [
+      {
+        "id": "open_input_shows_provenance",
+        "title": "Open an input and see where every fact comes from",
+        "acceptance": [
+          1
+        ],
+        "status": "passed",
+        "checks": [
+          {
+            "name": "the input set card appears",
+            "ok": true
+          },
+          {
+            "name": "the card carries the sha256 computed outside the app",
+            "ok": true
+          },
+          {
+            "name": "the input kind is shown",
+            "ok": true
+          },
+          {
+            "name": "the profile is marked not admitted",
+            "ok": true
+          },
+          {
+            "name": "a snapshot id is shown",
+            "ok": true
+          },
+          {
+            "name": "the DEX member row names a.dex",
+            "ok": true
+          },
+          {
+            "name": "the engine chip stays ok",
+            "ok": true
+          },
+          {
+            "name": "the page raised no errors",
+            "ok": true
+          }
+        ],
+        "seconds": 2.7
+      },
+      {
+        "id": "refuse_bad_inputs",
+        "title": "A text file and a missing path are refused with the engine's own error",
+        "acceptance": [
+          1
+        ],
+        "status": "passed",
+        "checks": [
+          {
+            "name": "a text file is INVALID_INPUT",
+            "ok": true
+          },
+          {
+            "name": "the hint says the input was not accepted as empty",
+            "ok": true
+          },
+          {
+            "name": "a missing path is INPUT_NOT_FOUND",
+            "ok": true
+          },
+          {
+            "name": "no input set was remembered",
+            "ok": true
+          },
+          {
+            "name": "the page raised no errors",
+            "ok": true
+          }
+        ],
+        "seconds": 1.6
+      },
+      {
+        "id": "query_pages_never_look_complete_when_they_are_not",
+        "title": "Paging a query: every page says whether the rest is loaded",
+        "acceptance": [
+          1,
+          2
+        ],
+        "status": "passed",
+        "checks": [
+          {
+            "name": "page 1 has 50 rows",
+            "ok": true
+          },
+          {
+            "name": "page 1 says more rows are not loaded",
+            "ok": true
+          },
+          {
+            "name": "page 1 text says so in words",
+            "ok": true
+          },
+          {
+            "name": "page 2 is still marked partial",
+            "ok": true
+          },
+          {
+            "name": "page 3 is still marked partial",
+            "ok": true
+          },
+          {
+            "name": "page 4 is still marked partial",
+            "ok": true
+          },
+          {
+            "name": "the last page has 16 rows",
+            "ok": true
+          },
+          {
+            "name": "the last page says it is complete with the total",
+            "ok": true
+          },
+          {
+            "name": "the last page marks complete",
+            "ok": true
+          },
+          {
+            "name": "next is disabled on the last page",
+            "ok": true
+          },
+          {
+            "name": "previous x4 restores page 1 with its first row",
+            "ok": true
+          },
+          {
+            "name": "an empty result says the engine confirmed it",
+            "ok": true
+          },
+          {
+            "name": "the page raised no errors",
+            "ok": true
+          }
+        ],
+        "seconds": 3
+      },
+      {
+        "id": "query_errors_and_budgets_are_understandable",
+        "title": "A syntax error and an exhausted SQL budget",
+        "acceptance": [
+          3
+        ],
+        "status": "passed",
+        "checks": [
+          {
+            "name": "invalid SQL is INVALID_ARGUMENT",
+            "ok": true
+          },
+          {
+            "name": "the engine parser message is shown",
+            "ok": true
+          },
+          {
+            "name": "no table is shown for an error",
+            "ok": true
+          },
+          {
+            "name": "an exhausted budget is QUOTA_EXCEEDED",
+            "ok": true
+          },
+          {
+            "name": "the hint points at the engine page",
+            "ok": true
+          },
+          {
+            "name": "it says the result was not returned as complete",
+            "ok": true
+          },
+          {
+            "name": "no rows are shown",
+            "ok": true
+          },
+          {
+            "name": "the step budget field is empty after the reset",
+            "ok": true
+          },
+          {
+            "name": "the same query works with a roomy budget",
+            "ok": true
+          },
+          {
+            "name": "the page raised no errors",
+            "ok": true
+          }
+        ],
+        "seconds": 4.6
+      },
+      {
+        "id": "long_query_does_not_block_the_window_and_cancels",
+        "title": "A long query keeps the window alive and can be cancelled",
+        "acceptance": [
+          1,
+          3
+        ],
+        "status": "passed",
+        "checks": [
+          {
+            "name": "the elapsed time keeps advancing",
+            "ok": true
+          },
+          {
+            "name": "a view switch while the engine is busy answers within 3 s",
+            "ok": true
+          },
+          {
+            "name": "the cancel button is shown while busy",
+            "ok": true
+          },
+          {
+            "name": "CANCELLED arrives within 3 s of the press",
+            "ok": true
+          },
+          {
+            "name": "the bar is idle again",
+            "ok": true
+          },
+          {
+            "name": "the cancel hint explains the engine was ended",
+            "ok": true
+          },
+          {
+            "name": "the input set is remembered but not live",
+            "ok": true
+          },
+          {
+            "name": "the next query works on the same input set",
+            "ok": true
+          },
+          {
+            "name": "the result notes the engine was started again",
+            "ok": true
+          },
+          {
+            "name": "the input set is live again",
+            "ok": true
+          },
+          {
+            "name": "the page raised no errors",
+            "ok": true
+          }
+        ],
+        "seconds": 4.4
+      },
+      {
+        "id": "browse_class_method_smali_and_xrefs",
+        "title": "Class to method to smali, following a reference and the cross-references",
+        "acceptance": [
+          1
+        ],
+        "status": "passed",
+        "checks": [
+          {
+            "name": "both classes are listed, in order",
+            "ok": true
+          },
+          {
+            "name": "the reference-only row is explained",
+            "ok": true
+          },
+          {
+            "name": "one row is a definition and one a reference (access_flags NULL)",
+            "ok": true
+          },
+          {
+            "name": "the smali shows the declaration",
+            "ok": true
+          },
+          {
+            "name": "the page says it reached the end",
+            "ok": true
+          },
+          {
+            "name": "the invoke target is a clickable method reference",
+            "ok": true
+          },
+          {
+            "name": "following the reference opened bar (defined in the other DEX file)",
+            "ok": true
+          },
+          {
+            "name": "the xref note names reflection and invoke-custom as unknown",
+            "ok": true
+          },
+          {
+            "name": "the caller of bar is foo",
+            "ok": true
+          },
+          {
+            "name": "the callers answer says it is complete",
+            "ok": true
+          },
+          {
+            "name": "the callee of bar is foo",
+            "ok": true
+          },
+          {
+            "name": "a click on a caller navigates back to foo",
+            "ok": true
+          },
+          {
+            "name": "the page raised no errors",
+            "ok": true
+          }
+        ],
+        "seconds": 2.5
+      },
+      {
+        "id": "smali_pages_say_what_is_not_loaded",
+        "title": "A 505-line method is shown in pages and the first page says it is partial",
+        "acceptance": [
+          2
+        ],
+        "status": "passed",
+        "checks": [
+          {
+            "name": "page 1 says the tail is not loaded",
+            "ok": true
+          },
+          {
+            "name": "page 1 names its lines and the total",
+            "ok": true
+          },
+          {
+            "name": "next is enabled",
+            "ok": true
+          },
+          {
+            "name": "previous is disabled on page 1",
+            "ok": true
+          },
+          {
+            "name": "the last page says it reached the end with the total",
+            "ok": true
+          },
+          {
+            "name": "the two pages together cover the method",
+            "ok": true
+          },
+          {
+            "name": "previous returns to page 1",
+            "ok": true
+          },
+          {
+            "name": "the page raised no errors",
+            "ok": true
+          }
+        ],
+        "seconds": 2.3
+      },
+      {
+        "id": "manifest_and_resources",
+        "title": "Manifest summary, components, XML, archive members and one member",
+        "acceptance": [
+          1
+        ],
+        "status": "passed",
+        "checks": [
+          {
+            "name": "the summary names the package",
+            "ok": true
+          },
+          {
+            "name": "the components table is shown",
+            "ok": true
+          },
+          {
+            "name": "the XML text starts with the manifest element",
+            "ok": true
+          },
+          {
+            "name": "the member list includes the manifest and the DEX",
+            "ok": true
+          },
+          {
+            "name": "the member total is shown",
+            "ok": true
+          },
+          {
+            "name": "the member read shows its sha256",
+            "ok": true
+          },
+          {
+            "name": "the page raised no errors",
+            "ok": true
+          }
+        ],
+        "seconds": 2.3
+      },
+      {
+        "id": "export_complete_result",
+        "title": "Export a whole query result to CSV and cancel another export",
+        "acceptance": [
+          1,
+          3
+        ],
+        "status": "passed",
+        "checks": [
+          {
+            "name": "the report says 216 rows exported",
+            "ok": true
+          },
+          {
+            "name": "the CSV has a header and 216 rows",
+            "ok": true
+          },
+          {
+            "name": "every row appears once",
+            "ok": true
+          },
+          {
+            "name": "the JSON Lines file has a header record and 216 rows",
+            "ok": true
+          },
+          {
+            "name": "the header record carries the snapshot ids",
+            "ok": true
+          },
+          {
+            "name": "a cancelled export is CANCELLED",
+            "ok": true
+          },
+          {
+            "name": "no file is left under the chosen name",
+            "ok": true
+          },
+          {
+            "name": "no half-written .partial file is left",
+            "ok": true
+          },
+          {
+            "name": "the page raised no errors",
+            "ok": true
+          }
+        ],
+        "seconds": 4.2
+      },
+      {
+        "id": "diff_two_inputs_keeps_provenance_and_limits",
+        "title": "Compare two input sets",
+        "acceptance": [
+          2
+        ],
+        "status": "passed",
+        "checks": [
+          {
+            "name": "the summary reports 5 differences",
+            "ok": true
+          },
+          {
+            "name": "both sides are shown as completely loaded",
+            "ok": true
+          },
+          {
+            "name": "side A shows the input sha256",
+            "ok": true
+          },
+          {
+            "name": "side B shows both DEX members",
+            "ok": true
+          },
+          {
+            "name": "the summary says equal opcodes do not prove equal operands",
+            "ok": true
+          },
+          {
+            "name": "the default list is exactly the five differences",
+            "ok": true
+          },
+          {
+            "name": "opcode-equal methods are listed with the cautious status",
+            "ok": true
+          },
+          {
+            "name": "the detail says operands were not compared",
+            "ok": true
+          },
+          {
+            "name": "the smali comparison finds one changed line",
+            "ok": true
+          },
+          {
+            "name": "it shows the alpha and beta operands",
+            "ok": true
+          },
+          {
+            "name": "the equal pair is proven identical by its smali",
+            "ok": true
+          },
+          {
+            "name": "the page raised no errors",
+            "ok": true
+          }
+        ],
+        "seconds": 2.1
+      },
+      {
+        "id": "capabilities_come_from_the_engine",
+        "title": "The tool list and the views' availability come from tools/list",
+        "acceptance": [
+          4
+        ],
+        "status": "passed",
+        "checks": [
+          {
+            "name": "the tools shown are exactly the engine tools/list",
+            "ok": true
+          },
+          {
+            "name": "the engine lists twelve tools",
+            "ok": true
+          },
+          {
+            "name": "no view is disabled when every tool is listed",
+            "ok": true
+          },
+          {
+            "name": "no view is greyed out while the engine restarts twice in a row",
+            "ok": true
+          },
+          {
+            "name": "after the restarts the engine chip is not \"cannot start\"",
+            "ok": true
+          },
+          {
+            "name": "the capabilities output is shown verbatim with every profile not admitted",
+            "ok": true
+          },
+          {
+            "name": "the page says the capabilities output lags the tool list",
+            "ok": true
+          },
+          {
+            "name": "the page raised no errors",
+            "ok": true
+          }
+        ],
+        "seconds": 4.9
+      },
+      {
+        "id": "missing_engine_is_explained",
+        "title": "No engine: the window says so and offers nothing it cannot do",
+        "acceptance": [
+          4
+        ],
+        "status": "passed",
+        "checks": [
+          {
+            "name": "the chip says the engine cannot start",
+            "ok": true
+          },
+          {
+            "name": "every view that needs an engine tool is disabled",
+            "ok": true
+          },
+          {
+            "name": "the engine page stays available",
+            "ok": true
+          },
+          {
+            "name": "a disabled view names the tool the engine did not list",
+            "ok": true
+          },
+          {
+            "name": "the engine page shows ENGINE_NOT_FOUND",
+            "ok": true
+          },
+          {
+            "name": "the hint says how to fix it",
+            "ok": true
+          }
+        ],
+        "seconds": 1.2
+      },
+      {
+        "id": "nothing_leaves_the_machine",
+        "title": "The page cannot reach the network; opening an input sends nothing",
+        "acceptance": [
+          4
+        ],
+        "status": "passed",
+        "checks": [
+          {
+            "name": "the page loaded nothing from outside its own origin while starting",
+            "ok": true
+          },
+          {
+            "name": "fetch to an external address is blocked",
+            "ok": true
+          },
+          {
+            "name": "XMLHttpRequest to an external address is blocked",
+            "ok": true
+          },
+          {
+            "name": "an external image is blocked",
+            "ok": true
+          },
+          {
+            "name": "the page raised no errors",
+            "ok": true
+          }
+        ],
+        "seconds": 1.6
+      },
+      {
+        "id": "closing_the_window_ends_the_engine",
+        "title": "Killing the application does not leave an engine process behind",
+        "acceptance": [
+          3
+        ],
+        "status": "passed",
+        "checks": [
+          {
+            "name": "the application has exactly one engine child process",
+            "ok": true
+          },
+          {
+            "name": "the page raised no errors before the window was killed",
+            "ok": true
+          },
+          {
+            "name": "the engine process is gone within 5 s of the application being killed",
+            "ok": true
+          }
+        ],
+        "seconds": 2
+      },
+      {
+        "id": "real_application_newpipe",
+        "title": "The public NewPipe 0.28.6 APK end to end",
+        "acceptance": [
+          1,
+          2,
+          3
+        ],
+        "status": "not_run",
+        "checks": [],
+        "reason": "artifacts/local/inputs/NewPipe_v0.28.6.apk is not present (a local, ignored file)"
+      }
+    ]
+  },
+  "ci": {
+    "runs": [
+      {
+        "run": 44289279048,
+        "commit": "637ad09",
+        "linux": "13 passed, 1 failed (the runner asked a dead WebDriver session for page errors after the window was killed on purpose; fixed), 1 not_run",
+        "windows": "stopped in check_boundaries.py (cargo output decoded with the runner's cp1252 code page; fixed)"
+      },
+      {
+        "run": 44293339284,
+        "commit": "c77eaf5",
+        "linux": "14 passed, 0 failed, 1 not_run",
+        "windows": "build, tests, boundaries and packaging passed; 0 of 14 flows could open a page (environment-variable route)"
+      },
+      {
+        "run": 44297494288,
+        "commit": "82fefd1",
+        "linux": "14 passed, 0 failed, 1 not_run",
+        "windows": "0 of 14 flows; the driver's failure report added (runtime 156.0.4314.58 installed, window alive)"
+      },
+      {
+        "run": 44302297155,
+        "commit": "ef71c37",
+        "linux": "14 passed, 0 failed, 1 not_run",
+        "windows": "0 of 14 flows; no Edge policy or WEBVIEW2_* variable on the runner, nothing listening"
+      },
+      {
+        "run": 44435988796,
+        "commit": "292e261",
+        "linux": "14 passed, 0 failed, 1 not_run",
+        "windows": "0 of 14 flows; the browser process had no --remote-debugging-port among its flags"
+      },
+      {
+        "run": 44440042565,
+        "commit": "04c6e32",
+        "linux": "14 passed, 0 failed, 1 not_run",
+        "windows": "14 passed, 0 failed, 1 not_run through the machine policy route; runner image 20261116.315.1, WebView2 Runtime 157.0.4341.46; core CI passed"
+      },
+      {
+        "run": 44444607511,
+        "commit": "e734e7c",
+        "linux": "14 passed, 0 failed, 1 not_run (package-check-linux.json)",
+        "windows": "14 passed, 0 failed, 1 not_run through the machine policy route (package-check-windows-ci.json); runner image 20261103.298.1, WebView2 Runtime 156.0.4314.58; the control with the environment variable only failed (windows-ci-control.json); core CI passed"
+      }
+    ],
+    "windows_environment_variable_control": {
+      "status": "failed",
+      "summary": "windows-ci-control.json",
+      "run": 44444607511,
+      "webview2_runtime": "156.0.4314.58",
+      "driver_process_elevated": true,
+      "reading": "On this elevated runner with WebView2 Runtime 156.0.4314.58 the environment variable does not reach the browser process, and a machine policy value named after the host exe does. This matches Microsoft's documented behaviour for an elevated host (concepts/security, 'For an elevated host app, use appropriate override flags'). It was observed for the environment variable on 156 only: an earlier run on Runtime 157.0.4341.46 passed with the policy route and has no environment-variable control."
+    }
   },
   "checks": {
     "rustfmt": {
@@ -843,13 +2291,15 @@
     "not_covered": "the real-window user flows are not part of the mutation check (too slow per mutant); the check covers the Rust and front-end logic they rest on"
   },
   "not_proven": [
-    "Linux: no run of the packaged window exists until CI produces package-check-linux.json; nothing is inferred from Windows",
+    "Windows: this machine (non-elevated, WebView2 Runtime 140) drives the window through the WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS variable; Actions (elevated, Runtime 156.0.4314.58 and 157.0.4341.46) through a machine policy value, because WebView2 ignores the variable for an elevated host. No single route has been run in both places; the variable route on Actions was exercised by one control flow on 156 only (it failed), never on 157",
+    "Linux: one Actions environment only (ubuntu-24.04, xvfb, WebKitGTK through tauri-driver); other distributions and WebKitGTK versions are untested",
+    "the archives are not bit-identical across machines: the local and the Actions Windows archives have different sha256; only the manifest's per-file hashes are claimed to be re-checkable",
     "macOS: no run, not advertised",
     "performance: none measured or claimed; MDD-082 is the gate for a performance release",
     "inputs larger than the engine's 100000-row paging window can only be compared inside a class prefix",
     "the packaged window is unsigned and has no installer or updater",
     "accessibility (keyboard-only use, screen readers) was not evaluated; the interface is Chinese only",
-    "the NewPipe flow runs only where the public APK exists as a local, ignored file; elsewhere it is not_run",
+    "the NewPipe flow runs only where the public APK exists as a local, ignored file: it ran on this machine and is not_run on Actions, so the only end-to-end run on a real application is the local Windows one",
     "the native open/save dialogs are not driven by the flows (they type paths instead); they are only known to compile and to be reachable from the window's commands",
     "dropping files onto the window is not implemented"
   ]

@@ -1,0 +1,40 @@
+{
+  "schema_version": "mdd.desktop-ci-control.v1",
+  "task": "MDD-073",
+  "purpose": "Say whether the WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS environment variable still fails to open the window's debugging port on the same elevated Windows runner where the policy-value route passes",
+  "source": {
+    "workflow": "Desktop workbench (.github/workflows/desktop.yml)",
+    "run": 44444607511,
+    "commit": "e734e7c93ac97ff37364b572ee6617afd4bb8643",
+    "job": "desktop (windows-latest)",
+    "step": "Control, informational (Windows) - one flow with the port requested by the environment variable only",
+    "artifact": "desktop-Windows/desktop-records/control-environment-variable-Windows.json",
+    "artifact_sha256": "d59cf8403fff07f3b8031116f718ecb04072438c69009ba710420a1f9e3ef8a2",
+    "note": "this file is a summary of that artifact; the artifact itself holds runner temp paths and is kept as an Actions artifact, not committed"
+  },
+  "runner": {
+    "image": "windows-2025-vs2026 20261103.298.1",
+    "webview2_runtime": "156.0.4314.58",
+    "driver_process_elevated": true
+  },
+  "method": "Same job, right after the package flows. One flow (refuse_bad_inputs) from the release build, with MDD_WEBVIEW2_POLICY unset, so the driver asks for the port only through the environment variable. The driver first printed that its own policy value was already removed.",
+  "same_job_policy_route": {
+    "flows": {
+      "passed": 14,
+      "failed": 0,
+      "not_run": 1
+    },
+    "result": "passed",
+    "record": "artifacts/mdd-073/package-check-windows-ci.json"
+  },
+  "control_outcome": {
+    "status": "failed",
+    "error_first_line": "Error: no page target on port 9401 within 30 s (the port was requested through the WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS environment variable)",
+    "application_still_running_with_window": true,
+    "browser_process_started_with_remote_debugging_port": false,
+    "sockets_listened_on_by_webview2_processes": "none",
+    "loopback_probe": "127.0.0.1, [::1] and localhost all refused the connection",
+    "devtools_active_port_file": "absent"
+  },
+  "reading": "On this elevated runner with WebView2 Runtime 156.0.4314.58 the environment variable does not reach the browser process, and a machine policy value named after the host exe does. This matches Microsoft's documented behaviour for an elevated host (concepts/security, 'For an elevated host app, use appropriate override flags'). It was observed for the environment variable on 156 only: an earlier run on Runtime 157.0.4341.46 passed with the policy route and has no environment-variable control."
+}
