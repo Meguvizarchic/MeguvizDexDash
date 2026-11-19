@@ -165,11 +165,24 @@ function userDataFacts(userData) {
 
 /** Read-only: what the WebView2 browser process was started with (the flags only) and which sockets WebView2
  *  processes listen on. Tells "the flag never arrived" from "the port opened somewhere the driver did not look". */
-function webviewDetails() {
+function webviewDetails(pid) {
+  // every WebView2 process with its parent, its kind and, for a browser process, the flags it was started with;
+  // the first diagnostic run matched on the host's name inside the command line and found nothing to print
   const script = [
-    "$procs = @(Get-CimInstance Win32_Process -Filter \"Name='msedgewebview2.exe'\")",
-    "foreach ($p in $procs) { if ($p.CommandLine -and $p.CommandLine -match 'webview-exe-name=mdd-desktop' -and $p.CommandLine -notmatch '--type=') { 'browser process ' + $p.ProcessId + ' started with: ' + (([regex]::Matches($p.CommandLine, '--[A-Za-z0-9-]+(=[^ ]*)?') | ForEach-Object { $_.Value }) -join ' ') } }",
-    '$ids = @($procs | ForEach-Object { $_.ProcessId })',
+    `$app = ${Number(pid)}`,
+    "$all = @(Get-CimInstance Win32_Process -Filter \"Name='msedgewebview2.exe'\")",
+    '$mine = @($all | Where-Object { $_.ParentProcessId -eq $app })',
+    '$tree = @($all | Where-Object { $_.ParentProcessId -eq $app -or ($mine.ProcessId -contains $_.ParentProcessId) })',
+    "'WebView2 processes: ' + $all.Count + ' on the machine, ' + $mine.Count + ' started directly by the application (pid ' + $app + '), ' + $tree.Count + ' in its tree'",
+    // the application's own tree; when it has none, a sample of what the machine does have
+    '$show = if ($tree.Count) { $tree } else { @($all | Select-Object -First 8) }',
+    'foreach ($p in $show) {',
+    '  $cl = $p.CommandLine',
+    "  $kind = if (-not $cl) { 'command line unreadable' } elseif ($cl -match '--type=([a-z-]+)') { $Matches[1] } else { 'browser' }",
+    "  $flags = if ($cl -and $kind -eq 'browser') { ' flags: ' + (([regex]::Matches($cl, '--[A-Za-z0-9-]+(=[^ ]*)?') | ForEach-Object { $_.Value }) -join ' ') } else { '' }",
+    "  'process ' + $p.ProcessId + ' parent ' + $p.ParentProcessId + ' ' + $kind + $flags",
+    '}',
+    '$ids = @($show | ForEach-Object { $_.ProcessId })',
     "$listen = @(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object { $ids -contains $_.OwningProcess } | ForEach-Object { $_.LocalAddress + ':' + $_.LocalPort + ' (pid ' + $_.OwningProcess + ')' })",
     "'sockets WebView2 processes listen on: ' + $(if ($listen.Count) { $listen -join ', ' } else { 'none' })",
   ].join('\n');
@@ -177,7 +190,7 @@ function webviewDetails() {
     const out = execFileSync('powershell', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')], {
       encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 30_000,
     });
-    return out.split(/\r?\n/).filter(Boolean).map((line) => (line.length > 1_500 ? `${line.slice(0, 1_500)}…` : line));
+    return out.split(/\r?\n/).filter(Boolean).slice(0, 24).map((line) => (line.length > 1_500 ? `${line.slice(0, 1_500)}…` : line));
   } catch (error) {
     return [`WebView2 process details unavailable (${error.code ?? error.message})`];
   }
@@ -192,7 +205,7 @@ async function launchFacts({ child, port, stderr, userData, probe }) {
     `WebView2 Runtime: ${registeredRuntimes()}; msedgewebview2.exe processes on the machine: ${webviewProcesses()}`,
     userDataFacts(userData),
     `loopback probe of /json/version: ${await otherHosts(port)}`,
-    ...webviewDetails(),
+    ...webviewDetails(child.pid),
     `stderr: ${stderr.trim() || '(empty)'}`,
   ].join('\n');
 }
