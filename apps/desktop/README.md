@@ -51,6 +51,8 @@ python verify_package.py dist/<包> --run-flows
 
 用户流程的定义在 `conformance/desktop/user-flow-cases.json`，实现在 `e2e/flows.mjs`；一条流程只有它的所有检查都通过才算通过，跑不了的记 `not_run`。依赖本地被忽略文件的流程（公开的 NewPipe APK）在文件不在时记 `not_run`，不会被算作通过。
 
+Windows 上驱动窗口靠 WebView2 的调试端口，驱动默认用环境变量 `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` 请求它。WebView2 Runtime 150 起，**提升权限（管理员）的宿主进程会忽略 `WEBVIEW2_*` 环境变量**（GitHub 托管 Windows runner 的每一步都是提升的），端口就开不起来。设 `MDD_WEBVIEW2_POLICY=1` 时驱动改为写机器策略值 `HKLM\SOFTWARE\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments\<宿主 exe 名>`，窗口结束后删除；这需要提升权限，所以 CI 设它、本机开发不设（非提升的本机用环境变量就行）。
+
 ## 已知限制
 
 - 引擎一次只处理一个请求；取消就是结束进程，下次操作要重新打开输入（NewPipe 约 3 秒）。

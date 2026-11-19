@@ -5,17 +5,55 @@
 import { execFileSync, spawn } from 'node:child_process';
 import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { AppBase } from './app-base.mjs';
 
+// How the debugging port is requested from WebView2.
+//
+// Normally through the WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS environment variable of the process that starts the
+// window. WebView2 Runtime 150 and later ignores that variable (and HKCU policy values) when the HOST process is
+// elevated, which is what every step of a GitHub-hosted Windows runner is: the first CI runs found the window
+// and its WebView2 processes alive, no --remote-debugging-port in the browser process's flags, and nothing
+// listening. A machine policy value named after the host exe is still honoured for an elevated host
+// (https://learn.microsoft.com/microsoft-edge/webview2/concepts/security, "For an elevated host app, use
+// appropriate override flags"). MDD_WEBVIEW2_POLICY=1 selects that route; the CI workflow sets it, a developer's
+// own machine does not, because it writes under HKLM\SOFTWARE\Policies (needs elevation, and Edge treats an
+// existing Edge policy key as "managed"). The value is removed again when the window ends.
+const POLICY_KEY = 'HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge\\WebView2\\AdditionalBrowserArguments';
+const viaPolicy = process.env.MDD_WEBVIEW2_POLICY === '1';
+const installed = new Set();
+
+function installPolicy(key, exeName, args) {
+  try {
+    execFileSync('reg', ['add', key, '/v', exeName, '/t', 'REG_SZ', '/d', args, '/f'], { stdio: ['ignore', 'ignore', 'pipe'], timeout: 15_000 });
+  } catch (error) {
+    throw new Error(`cannot write the WebView2 policy value ${key}\\${exeName} (the process must be elevated): ${String(error.stderr ?? error.message).trim()}`);
+  }
+  installed.add(`${key}\u0000${exeName}`);
+}
+
+function removePolicy(key, exeName) {
+  if (!installed.delete(`${key}\u0000${exeName}`)) return;
+  try { execFileSync('reg', ['delete', key, '/v', exeName, '/f'], { stdio: 'ignore', timeout: 15_000 }); } catch { /* already gone */ }
+}
+
+// a driver that dies between launching and closing must not leave the value behind
+process.once('exit', () => {
+  for (const entry of [...installed]) {
+    const [key, exeName] = entry.split('\u0000');
+    removePolicy(key, exeName);
+  }
+});
+
 export class App extends AppBase {
-  constructor(child, socket, userData, port) {
+  constructor(child, socket, userData, port, policyExe = null) {
     super();
     this.child = child;
     this.socket = socket;
     this.userData = userData;
     this.port = port;
+    this.policyExe = policyExe;
     this.nextId = 0;
     this.pending = new Map();
     this.consoleErrors = [];
@@ -87,6 +125,7 @@ export class App extends AppBase {
     }
     await sleep(300);
     rmSync(this.userData, { recursive: true, force: true });
+    if (this.policyExe) removePolicy(POLICY_KEY, this.policyExe);
   }
 }
 
@@ -170,6 +209,7 @@ function webviewDetails(pid) {
   // the first diagnostic run matched on the host's name inside the command line and found nothing to print
   const script = [
     `$app = ${Number(pid)}`,
+    "'driver process elevated (WebView2 ignores WEBVIEW2_* variables for an elevated host): ' + ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)",
     "$all = @(Get-CimInstance Win32_Process -Filter \"Name='msedgewebview2.exe'\")",
     '$mine = @($all | Where-Object { $_.ParentProcessId -eq $app })',
     '$tree = @($all | Where-Object { $_.ParentProcessId -eq $app -or ($mine.ProcessId -contains $_.ParentProcessId) })',
@@ -198,9 +238,9 @@ function webviewDetails(pid) {
 
 /** What a window that never appeared leaves behind, for the error message: a runtime that cannot start
  *  (nothing in the user data folder, no helper processes) looks different from a port that never opened. */
-async function launchFacts({ child, port, stderr, userData, probe }) {
+async function launchFacts({ child, port, stderr, userData, probe, policyExe }) {
   return [
-    `no page target on port ${port} within 30 s`,
+    `no page target on port ${port} within 30 s (the port was requested through ${policyExe ? `the machine policy value ${policyExe}` : 'the WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS environment variable'})`,
     `application: ${child.exitCode === null ? `pid ${child.pid}, still running, window title "${windowTitle(child.pid)}"` : `exited with ${child.exitCode}`}; debugging port: ${probe.answered ? probe.last : `never answered (${probe.last})`}`,
     `WebView2 Runtime: ${registeredRuntimes()}; msedgewebview2.exe processes on the machine: ${webviewProcesses()}`,
     userDataFacts(userData),
@@ -210,25 +250,29 @@ async function launchFacts({ child, port, stderr, userData, probe }) {
   ].join('\n');
 }
 
-/** A launch that failed must not leave the application, or its user data folder, behind. */
-async function abandon(child, userData) {
+/** A launch that failed must not leave the application, its user data folder or its policy value behind. */
+async function abandon(child, userData, policyExe) {
   if (child.exitCode === null) {
     child.kill();
     await new Promise((resolve) => { if (child.exitCode !== null) resolve(); else child.once('exit', resolve); });
   }
   await sleep(300);
   try { rmSync(userData, { recursive: true, force: true, maxRetries: 5 }); } catch { /* still in use: the temp folder is cleaned with the machine */ }
+  if (policyExe) removePolicy(POLICY_KEY, policyExe);
 }
 
 /** Start the application and connect to its window. */
 export async function launch({ exe, port = 9333, env = {} }) {
+  const policyExe = viaPolicy ? basename(exe) : null;
+  if (policyExe) installPolicy(POLICY_KEY, policyExe, `--remote-debugging-port=${port}`);
   const userData = mkdtempSync(join(tmpdir(), 'mdd-desktop-e2e-'));
   const child = spawn(exe, [], {
     env: {
       ...process.env,
       ...env,
       WEBVIEW2_USER_DATA_FOLDER: userData,
-      WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${port}`,
+      // in policy mode the policy value alone must carry the port, so that a pass proves that route
+      ...(policyExe ? {} : { WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${port}` }),
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -239,7 +283,7 @@ export async function launch({ exe, port = 9333, env = {} }) {
   const started = Date.now();
   while (!page && Date.now() - started < 30_000) {
     if (child.exitCode !== null) {
-      await abandon(child, userData);
+      await abandon(child, userData, policyExe);
       throw new Error(`the application exited with ${child.exitCode}: ${stderr}`);
     }
     try {
@@ -253,8 +297,8 @@ export async function launch({ exe, port = 9333, env = {} }) {
     if (!page) await sleep(200);
   }
   if (!page) {
-    const message = await launchFacts({ child, port, stderr, userData, probe });
-    await abandon(child, userData);
+    const message = await launchFacts({ child, port, stderr, userData, probe, policyExe });
+    await abandon(child, userData, policyExe);
     throw new Error(message);
   }
   const socket = new WebSocket(page.webSocketDebuggerUrl);
@@ -262,7 +306,7 @@ export async function launch({ exe, port = 9333, env = {} }) {
     socket.addEventListener('open', resolve, { once: true });
     socket.addEventListener('error', () => reject(new Error('cannot connect to the page')), { once: true });
   });
-  const app = new App(child, socket, userData, port);
+  const app = new App(child, socket, userData, port, policyExe);
   await app.send('Runtime.enable');
   await app.send('Page.enable');
   return app;

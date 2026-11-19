@@ -97,7 +97,7 @@ jobs:
           foreach ($dir in "${env:ProgramFiles(x86)}\Microsoft\EdgeWebView\Application", "$env:ProgramFiles\Microsoft\EdgeWebView\Application") {
             if (Test-Path $dir) { "$dir : $((Get-ChildItem $dir -Name) -join ', ')" } else { "$dir : absent" }
           }
-          "OS: $([Environment]::OSVersion.VersionString); interactive session: $([Environment]::UserInteractive); user: $env:USERNAME"
+          "OS: $([Environment]::OSVersion.VersionString); interactive session: $([Environment]::UserInteractive); user: $env:USERNAME; elevated: $(([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))"
           # The runtime is installed (first diagnostic run) yet the debugging port never opens: look for a policy
           # or an environment setting that could switch remote debugging off or change the browser's arguments.
           foreach ($key in 'HKLM\SOFTWARE\Policies\Microsoft\Edge', 'HKLM\SOFTWARE\Policies\Microsoft\EdgeWebView', 'HKCU\SOFTWARE\Policies\Microsoft\Edge') {
@@ -109,6 +109,11 @@ jobs:
           "== end"
       - name: Verify the package and run the user flows against the unpacked copy (Windows)
         if: runner.os == 'Windows'
+        env:
+          # The runner's steps are elevated, and WebView2 Runtime 150+ ignores WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS for
+          # an elevated host (the debugging port never opened). The driver asks for the port through a machine
+          # policy value instead, which an elevated host honours, and removes it again; see e2e/cdp.mjs.
+          MDD_WEBVIEW2_POLICY: '1'
         run: |
           archive=$(ls apps/desktop/dist/*.zip)
           python apps/desktop/verify_package.py "$archive" --run-flows --record "$RECORDS/package-check-Windows.json"
