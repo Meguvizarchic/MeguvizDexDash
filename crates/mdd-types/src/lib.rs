@@ -4,7 +4,10 @@ use sha2::{Digest, Sha256};
 use std::fmt;
 
 pub mod result;
+pub mod shared_id;
 pub mod source_identity;
+
+pub use shared_id::SharedId;
 
 pub type MddResult<T> = Result<T, MddError>;
 

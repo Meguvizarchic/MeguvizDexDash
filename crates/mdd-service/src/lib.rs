@@ -6,6 +6,7 @@
 //! statement means or how it ends.
 pub mod dataset;
 pub mod decode;
+mod layers;
 pub mod lines;
 pub mod manifest;
 pub mod resources;

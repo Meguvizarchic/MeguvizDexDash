@@ -1,7 +1,7 @@
 //! Immutable source-bound annotation relations and ordered Signature fragments.
 use crate::{
     definitions::DefinitionFacts,
-    metadata::{EntityKind, EntityRef, MetadataSource},
+    metadata::{EntityKind, EntityRef, MetadataSource, SharedId},
 };
 use mdd_dex::annotations::{
     AnnotationItem, AnnotationLimits, AnnotationOwnerBinding, AnnotationOwnerKind, AnnotationSet,
@@ -18,8 +18,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct AnnotationRef {
-    pub snapshot_id: String,
-    pub dex_occurrence_id: String,
+    pub snapshot_id: SharedId,
+    pub dex_occurrence_id: SharedId,
     pub annotation_byte_offset: u32,
 }
 
@@ -32,8 +32,8 @@ pub enum AnnotationCollectionKind {
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct AnnotationCollectionRef {
-    pub snapshot_id: String,
-    pub dex_occurrence_id: String,
+    pub snapshot_id: SharedId,
+    pub dex_occurrence_id: SharedId,
     pub byte_offset: u32,
     pub kind: AnnotationCollectionKind,
 }
@@ -2438,14 +2438,14 @@ impl AnnotationFacts {
                     .checked_mul(32)
                     .ok_or_else(quota)?,
             )?;
-            for text in [
-                &item.annotation.snapshot_id,
-                &item.annotation.dex_occurrence_id,
-                &item.owner.reference.snapshot_id,
-                &item.owner.reference.dex_occurrence_id,
-                &item.string_pool_id,
+            for length in [
+                item.annotation.snapshot_id.len(),
+                item.annotation.dex_occurrence_id.len(),
+                item.owner.reference.snapshot_id.len(),
+                item.owner.reference.dex_occurrence_id.len(),
+                item.string_pool_id.len(),
             ] {
-                account(u64::try_from(text.len()).map_err(|_| quota())?)?;
+                account(u64::try_from(length).map_err(|_| quota())?)?;
             }
             if let Some(definition) = &item.owner.definition {
                 account(u64::try_from(definition.snapshot_id.len()).map_err(|_| quota())?)?;
@@ -4049,7 +4049,7 @@ mod tests {
             occurrences[1].source().dex_occurrence_id
         );
         let from_second = AnnotationRef {
-            snapshot_id: snapshot.manifest().snapshot_id.clone(),
+            snapshot_id: snapshot.manifest().snapshot_id.clone().into(),
             dex_occurrence_id: occurrences[1].source().dex_occurrence_id.clone(),
             annotation_byte_offset: 1120,
         };
@@ -4079,8 +4079,8 @@ mod tests {
         let array_offset = fixture["array_offset"].as_u64().unwrap() as u32;
         let section_offset = fixture["call_site_ids_offset"].as_u64().unwrap() as usize;
         let make = |call_site_idx| EncodedCallSiteRef {
-            snapshot_id: facts.source().snapshot_id.clone(),
-            dex_occurrence_id: facts.source().dex_occurrence_id.clone(),
+            snapshot_id: facts.source().snapshot_id.to_string(),
+            dex_occurrence_id: facts.source().dex_occurrence_id.to_string(),
             call_site_idx,
         };
         let limits = AnnotationOwnerViewLimits {
@@ -4113,8 +4113,8 @@ mod tests {
             assert_eq!(view.binding.method_type_idx, u32::from(view.raw_encoded[6]));
         }
         let array_ref = EncodedArrayRef {
-            snapshot_id: facts.source().snapshot_id.clone(),
-            dex_occurrence_id: facts.source().dex_occurrence_id.clone(),
+            snapshot_id: facts.source().snapshot_id.to_string(),
+            dex_occurrence_id: facts.source().dex_occurrence_id.to_string(),
             byte_offset: array_offset,
         };
         let reverse = facts
@@ -4188,8 +4188,8 @@ mod tests {
         ))
         .unwrap();
         let make = |field: &str| EncodedArrayRef {
-            snapshot_id: facts.source().snapshot_id.clone(),
-            dex_occurrence_id: facts.source().dex_occurrence_id.clone(),
+            snapshot_id: facts.source().snapshot_id.to_string(),
+            dex_occurrence_id: facts.source().dex_occurrence_id.to_string(),
             byte_offset: expected[field].as_u64().unwrap() as u32,
         };
         let first = make("first_array_offset");
@@ -4259,8 +4259,8 @@ mod tests {
         ))
         .unwrap();
         let array_ref = EncodedArrayRef {
-            snapshot_id: facts.source().snapshot_id.clone(),
-            dex_occurrence_id: facts.source().dex_occurrence_id.clone(),
+            snapshot_id: facts.source().snapshot_id.to_string(),
+            dex_occurrence_id: facts.source().dex_occurrence_id.to_string(),
             byte_offset: expected["array_offset"].as_u64().unwrap() as u32,
         };
         let all = facts
@@ -4402,8 +4402,8 @@ mod tests {
         .unwrap();
         let offset = expected["array_offset"].as_u64().unwrap() as u32;
         let reference = EncodedArrayRef {
-            snapshot_id: facts.source().snapshot_id.clone(),
-            dex_occurrence_id: facts.source().dex_occurrence_id.clone(),
+            snapshot_id: facts.source().snapshot_id.to_string(),
+            dex_occurrence_id: facts.source().dex_occurrence_id.to_string(),
             byte_offset: offset,
         };
         let result = facts
@@ -4485,8 +4485,8 @@ mod tests {
 
         let orphan = build("tests/fixtures/annotations/generated/valid-orphan-arrays.dex");
         let orphan_ref = EncodedArrayRef {
-            snapshot_id: orphan.source().snapshot_id.clone(),
-            dex_occurrence_id: orphan.source().dex_occurrence_id.clone(),
+            snapshot_id: orphan.source().snapshot_id.to_string(),
+            dex_occurrence_id: orphan.source().dex_occurrence_id.to_string(),
             byte_offset: orphan.data.encoded_arrays[0].byte_offset,
         };
         assert!(
@@ -4499,8 +4499,8 @@ mod tests {
 
         let call = build("tests/fixtures/annotations/generated/valid-call-site-array.dex");
         let call_ref = EncodedArrayRef {
-            snapshot_id: call.source().snapshot_id.clone(),
-            dex_occurrence_id: call.source().dex_occurrence_id.clone(),
+            snapshot_id: call.source().snapshot_id.to_string(),
+            dex_occurrence_id: call.source().dex_occurrence_id.to_string(),
             byte_offset: call.data.encoded_arrays[0].byte_offset,
         };
         let result = call
@@ -4527,8 +4527,8 @@ mod tests {
         let facts = build("tests/fixtures/annotations/generated/valid-orphan-arrays.dex");
         assert_eq!(facts.data.encoded_arrays.len(), 2);
         let reference = |offset| EncodedArrayRef {
-            snapshot_id: facts.source().snapshot_id.clone(),
-            dex_occurrence_id: facts.source().dex_occurrence_id.clone(),
+            snapshot_id: facts.source().snapshot_id.to_string(),
+            dex_occurrence_id: facts.source().dex_occurrence_id.to_string(),
             byte_offset: offset,
         };
         let empty = reference(facts.data.encoded_arrays[0].byte_offset);
@@ -4636,8 +4636,8 @@ mod tests {
         let call = build("tests/fixtures/annotations/generated/valid-call-site-array.dex");
         let item = &call.data.encoded_arrays[0];
         let reference = EncodedArrayRef {
-            snapshot_id: call.source().snapshot_id.clone(),
-            dex_occurrence_id: call.source().dex_occurrence_id.clone(),
+            snapshot_id: call.source().snapshot_id.to_string(),
+            dex_occurrence_id: call.source().dex_occurrence_id.to_string(),
             byte_offset: item.byte_offset,
         };
         let view = call
@@ -4699,7 +4699,7 @@ mod tests {
         let mut occurrences = Vec::new();
         for item in &facts {
             let annotation = AnnotationRef {
-                snapshot_id: snapshot.manifest().snapshot_id.clone(),
+                snapshot_id: snapshot.manifest().snapshot_id.clone().into(),
                 dex_occurrence_id: item.source().dex_occurrence_id.clone(),
                 annotation_byte_offset: 1012,
             };

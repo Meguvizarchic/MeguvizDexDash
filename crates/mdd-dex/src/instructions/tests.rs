@@ -1252,3 +1252,136 @@ fn decoding_an_offset_that_is_not_an_item_is_an_error_and_names_the_offset() {
     // A failed decode leaves the decoder usable.
     assert_eq!(decoder.decode(at).unwrap().raw_range.byte_offset.0, at);
 }
+
+/// The streaming walk hands over the items of the full walk, one at a time, and stops with the full walk's error where
+/// that fails; letting a program go after the one item that named it changes neither the items nor the budgets.
+#[test]
+fn the_streaming_walk_gives_the_items_of_the_full_walk_and_its_errors() {
+    let folder = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/instructions/generated");
+    let mut names: Vec<String> = std::fs::read_dir(folder)
+        .unwrap()
+        .filter_map(|entry| {
+            let name = entry.unwrap().file_name().to_string_lossy().into_owned();
+            name.ends_with(".dex").then_some(name)
+        })
+        .collect();
+    names.sort();
+    let (mut walked, mut failed, mut shared) = (0, 0, 0);
+    for name in names {
+        let bytes = fixture(&name);
+        let Ok(header) = crate::validate_header(&bytes) else {
+            continue;
+        };
+        for limits in [
+            CodeLimits::default(),
+            // a budget the section is likely to cross, so the error order is part of what is compared
+            CodeLimits {
+                max_debug_operations: 10,
+                ..CodeLimits::default()
+            },
+        ] {
+            let full = read_code_section_with_debug_starts(&bytes, &header, limits);
+            let mut handed = Vec::new();
+            let streamed = read_code_section_streaming(&bytes, &header, limits, |item| {
+                handed.push(item);
+                Ok(())
+            });
+            match (full, streamed) {
+                (Ok((full, full_starts)), Ok((streamed, streamed_starts))) => {
+                    assert!(streamed.items.is_empty(), "{name}");
+                    assert_eq!(streamed_starts, full_starts, "{name}");
+                    assert_eq!(
+                        streamed.declared_code_item_byte_offsets,
+                        full.declared_code_item_byte_offsets,
+                        "{name}"
+                    );
+                    assert_eq!(
+                        streamed.declared_code_item_count, full.declared_code_item_count,
+                        "{name}"
+                    );
+                    assert_eq!(handed.len(), full.items.len(), "{name}");
+                    for (index, (left, right)) in handed.iter().zip(&full.items).enumerate() {
+                        assert_eq!(
+                            serde_json::to_value(left).unwrap(),
+                            serde_json::to_value(right).unwrap(),
+                            "{name} item {index}"
+                        );
+                    }
+                    let offsets: Vec<_> = full
+                        .items
+                        .iter()
+                        .filter_map(|i| i.debug_info_byte_offset)
+                        .collect();
+                    let mut sorted = offsets.clone();
+                    sorted.sort_by_key(|offset| offset.0);
+                    sorted.dedup_by_key(|offset| offset.0);
+                    shared += offsets.len() - sorted.len();
+                    walked += 1;
+                }
+                (Err(full), Err(streamed)) => {
+                    assert_eq!(
+                        serde_json::to_value(&streamed).unwrap(),
+                        serde_json::to_value(&full).unwrap(),
+                        "{name}"
+                    );
+                    failed += 1;
+                }
+                (Ok(_), Err(error)) => panic!("{name}: only the streaming walk fails: {error:?}"),
+                (Err(error), Ok(_)) => panic!("{name}: only the full walk fails: {error:?}"),
+            }
+        }
+    }
+    assert!(
+        walked >= 20 && failed >= 4 && shared >= 2,
+        "{walked} walked, {failed} failed, {shared} items sharing a program"
+    );
+}
+
+/// An error from the visitor ends the walk with that error, and nothing after the failing item is read.
+#[test]
+fn an_error_from_the_visitor_ends_the_streaming_walk() {
+    let bytes = fixture("pc-to-pc-shared-base-0.dex");
+    let header = crate::validate_header(&bytes).unwrap();
+    let mut seen = 0;
+    let error = read_code_section_streaming(&bytes, &header, CodeLimits::default(), |_| {
+        seen += 1;
+        Err(MddError::new(ErrorCode::Cancelled, "test", "stop"))
+    })
+    .unwrap_err();
+    assert_eq!(seen, 1);
+    assert_eq!(error.code, ErrorCode::Cancelled);
+}
+
+/// Instructions decoded without the debug program are the item without it.
+#[test]
+fn an_item_decoded_for_its_instructions_alone_has_no_debug_program_and_the_same_rest() {
+    let bytes = fixture("pc-to-pc-shared-base-0.dex");
+    let header = crate::validate_header(&bytes).unwrap();
+    let (section, starts) =
+        read_code_section_with_debug_starts(&bytes, &header, CodeLimits::default()).unwrap();
+    let mut decoder = CodeItemDecoder::new(
+        bytes.as_slice(),
+        header.clone(),
+        CodeLimits::default(),
+        &starts,
+    );
+    for item in &section.items {
+        let bare = decoder
+            .decode_instructions(item.raw_range.byte_offset.0)
+            .unwrap();
+        assert!(bare.debug_info.is_none());
+        let mut expected = item.clone();
+        expected.debug_info = None;
+        assert_eq!(
+            serde_json::to_value(&bare).unwrap(),
+            serde_json::to_value(&expected).unwrap()
+        );
+        // and the decoder with its program still gives the whole item
+        let whole = decoder.decode(item.raw_range.byte_offset.0).unwrap();
+        assert_eq!(
+            serde_json::to_value(&whole).unwrap(),
+            serde_json::to_value(item).unwrap()
+        );
+    }
+}

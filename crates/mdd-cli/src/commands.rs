@@ -133,12 +133,13 @@ pub fn inspect(kind: InputKind, paths: &[std::ffi::OsString]) -> Result<Value, M
                 .detail("budget", "max_fact_rows")
                 .detail("limit", "256"));
             }
-            let header = mdd_dex::validate_header(candidate.blob.bytes()).map_err(|error| {
-                error
-                    .detail("snapshot_id", snapshot.manifest().snapshot_id.clone())
-                    .detail("dex_occurrence_id", candidate.dex_occurrence_id.clone())
-                    .detail("content_id", candidate.blob.content_id.clone())
-            })?;
+            let header =
+                mdd_dex::validate_header(&candidate.blob.try_lease()?).map_err(|error| {
+                    error
+                        .detail("snapshot_id", snapshot.manifest().snapshot_id.clone())
+                        .detail("dex_occurrence_id", candidate.dex_occurrence_id.clone())
+                        .detail("content_id", candidate.blob.content_id.clone())
+                })?;
             rows.push(json!({"dex_occurrence_id":candidate.dex_occurrence_id,
                 "physical_dex_id":candidate.physical_dex_id,
                 "logical_header_byte_offset":candidate.logical_header_byte_offset,

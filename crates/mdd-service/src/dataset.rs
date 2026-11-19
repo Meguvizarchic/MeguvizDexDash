@@ -14,18 +14,12 @@
 //!   over every fact layer. A layer that cannot be built is not an empty table: the
 //!   relations that need it refuse with the layer's own error, and the dataset says
 //!   which layer is missing and why in `layer_issues`.
-use crate::decode::{Occurrence, OccurrenceIndex};
-use mdd_dex::{
-    annotations::AnnotationLimits, definitions::DefinitionLimits, instructions::CodeLimits,
-    strings::StringLimits,
+use crate::{
+    decode::{DecodeState, Occurrence, OccurrenceIndex},
+    layers::LayerBuilder,
 };
-use mdd_facts::{
-    DefinitionFacts, MetadataFacts,
-    annotations::AnnotationFacts,
-    code::CodeFacts,
-    indexes::SelectedScope,
-    references::{ReferenceFacts, ReferenceLimits},
-};
+use mdd_dex::{definitions::DefinitionLimits, strings::StringLimits};
+use mdd_facts::{DefinitionFacts, MetadataFacts, indexes::SelectedScope};
 use mdd_input::{
     archive::{ArchiveInventory, ArchiveLimits, InventoryPolicy},
     manifest::ManifestDocument,
@@ -37,7 +31,7 @@ use mdd_sql::{
     control::SqlLimits,
     dialects::SqlDialect,
     provider::{
-        hostlab::{HostLabOccurrenceFacts, HostLabSqlProvider},
+        hostlab::{HostLabSqlProvider, OccurrenceLoader},
         metadata::{CombinedSqlProvider, DefinitionSqlProvider, MetadataSqlProvider},
     },
     temp::TempSqlSession,
@@ -126,11 +120,13 @@ pub struct Dataset {
     pub(crate) limits: ResourceLimits,
     layer_issues: Vec<LayerIssue>,
     dex_count: usize,
-    /// The facts of each DEX, for `decode`. Empty for the native dialect.
-    occurrences: Vec<Occurrence>,
-    decode_indexes: OnceLock<Vec<OccurrenceIndex>>,
+    /// Builds the layers of one DEX on request; `None` for the native dialect. The dataset keeps no layer of its own: the
+    /// SQL relations were filled from them at open, and `decode` builds the facts it renders from on its first call.
+    layers: Option<Arc<LayerBuilder>>,
+    /// What `decode` reads, built on the first decode; empty for the native dialect.
+    decode: OnceLock<MddResult<DecodeState>>,
     /// One inventory per input, in the order given; `get_manifest` reads from them.
-    pub(crate) inventories: Vec<ArchiveInventory>,
+    pub(crate) inventories: Arc<Vec<ArchiveInventory>>,
     /// Parsed manifests by input position, so paging the permissions parses once.
     pub(crate) manifests: Mutex<HashMap<usize, Arc<ManifestDocument>>>,
     /// Resources read, rendered or parsed, so paging through one reads it once.
@@ -165,6 +161,9 @@ impl Dataset {
                 source,
                 InventoryPolicy {
                     require_dex: false,
+                    // The decompressed DEX of a large archive are as big as the archive again, and the facts built from
+                    // them hold what they need: they are read from the archive when a layer is built.
+                    hold_dex_bytes: false,
                     ..InventoryPolicy::default()
                 },
                 ArchiveLimits::default(),
@@ -172,12 +171,13 @@ impl Dataset {
         }
         let refs: Vec<&ArchiveInventory> = inventories.iter().collect();
         let scope = SelectedScope::from_inventories(&snapshot, &refs)?;
+        let inventories = Arc::new(inventories);
         let dex_count: usize = inventories.iter().map(|i| i.selected_dexes().len()).sum();
         // No DEX, no SQL: the facts every relation reads do not exist, and an empty provider
         // would answer "no rows" where the truth is "nothing to ask".
         let built = (dex_count > 0).then(|| match dialect {
             Dialect::NativeV1 => Self::native_bridge(&snapshot, &inventories, sql_limits)
-                .map(|bridge| (bridge, Vec::new(), Vec::new())),
+                .map(|bridge| (bridge, Vec::new(), None)),
             Dialect::DexSql010 | Dialect::DexSql011 => {
                 Self::contract_bridge(dialect, &snapshot, &inventories, &scope, sql_limits)
             }
@@ -193,17 +193,17 @@ impl Dataset {
         })?);
         let snapshot_handle = lifecycle.register_snapshot(Arc::clone(&snapshot))?;
         let session = lifecycle.open_session(&snapshot_handle, limits)?;
-        let (temp, layer_issues, occurrences) = match built {
-            Some((bridge, layer_issues, occurrences)) => (
+        let (temp, layer_issues, layers) = match built {
+            Some((bridge, layer_issues, layers)) => (
                 Some(TempSqlSession::new(
                     Arc::clone(&lifecycle),
                     session.clone(),
                     bridge,
                 )?),
                 layer_issues,
-                occurrences,
+                layers,
             ),
-            None => (None, Vec::new(), Vec::new()),
+            None => (None, Vec::new(), None),
         };
         Ok(Self {
             lifecycle,
@@ -216,8 +216,8 @@ impl Dataset {
             limits,
             layer_issues,
             dex_count,
-            occurrences,
-            decode_indexes: OnceLock::new(),
+            layers,
+            decode: OnceLock::new(),
             inventories,
             manifests: Mutex::new(HashMap::new()),
             resources: Mutex::new(crate::resources::ResourceCache::default()),
@@ -254,112 +254,31 @@ impl Dataset {
         SqlBridge::new(Arc::new(provider), SqlDialect::NativeV1, sql_limits)
     }
 
+    /// The SQL front over the contract relations (and the public ones beyond them). The seventeen the HostLab queries read
+    /// are filled in one pass over the DEX: each is built, the relations take their rows from it, and its layers are let
+    /// go before the next is built. The other public relations are built when a statement first asks for one.
     fn contract_bridge(
         dialect: Dialect,
         snapshot: &Arc<Snapshot>,
-        inventories: &[ArchiveInventory],
+        inventories: &Arc<Vec<ArchiveInventory>>,
         scope: &SelectedScope,
         sql_limits: SqlLimits,
-    ) -> MddResult<(SqlBridge, Vec<LayerIssue>, Vec<Occurrence>)> {
-        let mut facts = Vec::new();
-        let mut issues = Vec::new();
-        let mut occurrences = Vec::new();
-        for inventory in inventories {
-            for local in 0..inventory.selected_dexes().len() {
-                let occurrence = inventory.selected_dexes()[local].dex_occurrence_id.clone();
-                // Metadata and definitions are the base of every relation: without
-                // them there is nothing to answer from, so they are not optional.
-                let metadata = Arc::new(MetadataFacts::build(
-                    snapshot,
-                    inventory,
-                    local,
-                    StringLimits::default(),
-                )?);
-                let definitions = Arc::new(DefinitionFacts::build_arc(
-                    Arc::clone(&metadata),
-                    DefinitionLimits::default(),
-                )?);
-                // The code layer is built first and kept on its own: a DEX whose references or
-                // annotations cannot be validated can still show its instructions, and `decode`
-                // must not lose every method body to a fault in one other layer.
-                let code = CodeFacts::build_all_code_items(
-                    snapshot,
-                    inventory,
-                    local,
-                    CodeLimits::default(),
-                )
-                .map(Arc::new);
-                // What the session keeps of the code layer is the compact copy: the header of every code item and
-                // its opcodes. The decoded instructions and debug programs, which are most of the layer, are
-                // needed once, to read the reference sites, and are decoded again from the DEX bytes when a
-                // method is rendered or an instruction relation is asked for.
-                let compact_code = code
-                    .as_ref()
-                    .map_err(Clone::clone)
-                    .and_then(|full| full.compacted())
-                    .map(Arc::new);
-                let kept_code = compact_code.as_ref().ok().cloned();
-                // The annotation layer does not read the code or the references, so a fault in
-                // those must not take annotations (and static values) away from `decode`.
-                let annotation_layer = AnnotationFacts::build_arc(
-                    Arc::clone(&definitions),
-                    AnnotationLimits::default(),
-                )
-                .map(Arc::new);
-                let upper = || -> MddResult<_> {
-                    let full = Arc::clone(code.as_ref().map_err(Clone::clone)?);
-                    let compact = Arc::clone(compact_code.as_ref().map_err(Clone::clone)?);
-                    let references = Arc::new(
-                        ReferenceFacts::build_arc(
-                            Arc::clone(&definitions),
-                            full,
-                            ReferenceLimits::default(),
-                        )?
-                        .with_code(Arc::clone(&compact))?,
-                    );
-                    let annotations = Arc::clone(annotation_layer.as_ref().map_err(Clone::clone)?);
-                    Ok((compact, references, annotations))
-                };
-                let file_id = u32::try_from(facts.len()).map_err(|_| {
-                    MddError::new(ErrorCode::QuotaExceeded, "service", "too many DEX files")
-                })?;
-                let upper_result = upper();
-                // The decoded instructions of this DEX are released here; the session keeps the compact copy.
-                drop(code);
-                // The annotation layer is kept beside the code: a text shows annotations when
-                // it is built and says so when it is not.
-                let kept_annotations = annotation_layer.as_ref().ok().map(Arc::clone);
-                occurrences.push(Occurrence {
-                    file_id,
-                    metadata: Arc::clone(&metadata),
-                    definitions: Arc::clone(&definitions),
-                    code: kept_code,
-                    annotations: kept_annotations,
-                });
-                match upper_result {
-                    Ok((code, references, annotations)) => {
-                        facts.push(HostLabOccurrenceFacts::complete(
-                            metadata,
-                            definitions,
-                            code,
-                            references,
-                            annotations,
-                        ));
-                    }
-                    Err(error) => {
-                        issues.push(LayerIssue {
-                            dex_occurrence_id: occurrence,
-                            layers: "code,references,annotations",
-                            error,
-                        });
-                        facts.push(HostLabOccurrenceFacts::structural(metadata, definitions));
-                    }
-                }
-            }
-        }
-        let provider = HostLabSqlProvider::from_scope(scope, facts, DecimalU64(0))?;
-        let bridge = SqlBridge::new(Arc::new(provider), dialect.sql(), sql_limits)?;
-        Ok((bridge, issues, occurrences))
+    ) -> MddResult<(SqlBridge, Vec<LayerIssue>, Option<Arc<LayerBuilder>>)> {
+        let layers = Arc::new(LayerBuilder::new(
+            Arc::clone(snapshot),
+            Arc::clone(inventories),
+        ));
+        let provider = Arc::new(HostLabSqlProvider::from_loader(
+            scope,
+            Arc::clone(&layers) as Arc<dyn OccurrenceLoader>,
+            DecimalU64(0),
+        )?);
+        // Metadata and definitions are the base of every relation, so a DEX that cannot build them fails the open. A layer
+        // above them that cannot be built is not an error here: the relations that need it refuse with its error, and the
+        // dataset names it in `layer_issues`.
+        provider.prepare_required(None)?;
+        let bridge = SqlBridge::new(provider, dialect.sql(), sql_limits)?;
+        Ok((bridge, layers.issues(), Some(layers)))
     }
 
     /// The session's SQL front, for callers that run TEMP definitions and windows. A dataset
@@ -408,19 +327,29 @@ impl Dataset {
         &self.layer_issues
     }
 
-    /// The facts of each DEX, in `file_id` order; empty for the native dialect.
-    pub fn occurrences(&self) -> &[Occurrence] {
-        &self.occurrences
+    /// The facts of each DEX, in `file_id` order; empty for the native dialect. Built on the first call and kept.
+    pub fn occurrences(&self) -> MddResult<&[Occurrence]> {
+        Ok(&self.decode_state()?.occurrences)
     }
 
-    /// Built on the first decode, once.
-    pub(crate) fn decode_indexes(&self) -> &[OccurrenceIndex] {
-        self.decode_indexes.get_or_init(|| {
-            self.occurrences
-                .iter()
-                .map(OccurrenceIndex::build)
-                .collect()
-        })
+    /// What `decode` reads: the facts of each DEX and the indexes over them. Built on the first decode, once.
+    pub(crate) fn decode_state(&self) -> MddResult<&DecodeState> {
+        self.decode
+            .get_or_init(|| {
+                let Some(layers) = &self.layers else {
+                    return Ok(DecodeState::default());
+                };
+                let occurrences = (0..self.dex_count)
+                    .map(|position| layers.occurrence(position))
+                    .collect::<MddResult<Vec<_>>>()?;
+                let indexes = occurrences.iter().map(OccurrenceIndex::build).collect();
+                Ok(DecodeState {
+                    occurrences,
+                    indexes,
+                })
+            })
+            .as_ref()
+            .map_err(Clone::clone)
     }
 
     /// The bytes captured from all inputs: what the snapshot holds, not what a later

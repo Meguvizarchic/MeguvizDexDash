@@ -814,7 +814,7 @@ fn typed_string_reference_query_preserves_raw_text_sources_and_sites() {
                 panic!("expected code-unit PC");
             };
             by_source
-                .entry(caller.dex_occurrence_id.clone())
+                .entry(caller.dex_occurrence_id.to_string())
                 .or_default()
                 .push(pc);
         }
@@ -918,7 +918,7 @@ fn typed_method_call_query_preserves_oracle_sites_and_occurrences() {
                 panic!("missing PC")
             };
             by_source
-                .entry(caller.dex_occurrence_id.clone())
+                .entry(caller.dex_occurrence_id.to_string())
                 .or_default()
                 .push(pc);
         }
@@ -1053,7 +1053,7 @@ fn typed_type_reference_query_preserves_oracle_sites_and_occurrences() {
                     panic!("expected encoded site coordinates")
                 };
                 by_source
-                    .entry(caller.dex_occurrence_id.clone())
+                    .entry(caller.dex_occurrence_id.to_string())
                     .or_default()
                     .push((u64::from(caller.local_index), *pc, *operand, *opcode));
             }
@@ -1188,7 +1188,7 @@ fn typed_field_reference_query_preserves_oracle_sites_and_occurrences() {
                 panic!("expected encoded PC and opcode");
             };
             by_source
-                .entry(caller.dex_occurrence_id.clone())
+                .entry(caller.dex_occurrence_id.to_string())
                 .or_default()
                 .push((*pc, *opcode));
         }

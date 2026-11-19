@@ -679,8 +679,8 @@ fn queued_row_resident_bytes(row: &Row) -> MddResult<u64> {
                 .ok_or_else(|| quota("QUEUE_ROW_SIZE_OVERFLOW"))?,
             Value::Bytes(bytes) => count(bytes.0.capacity())?,
             Value::Entity(entity) => add(
-                count(entity.snapshot_id.capacity())?,
-                count(entity.dex_occurrence_id.capacity())?,
+                count(entity.snapshot_id.len())?,
+                count(entity.dex_occurrence_id.len())?,
             )?,
             Value::Null | Value::Bool(_) | Value::I64(_) | Value::U64(_) => 0,
         };

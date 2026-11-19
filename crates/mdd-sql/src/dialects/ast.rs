@@ -20,6 +20,8 @@ pub(crate) struct Adapted {
     pub required_relations: Vec<String>,
     pub cte_names: BTreeSet<String>,
     pub display_overrides: BTreeMap<String, String>,
+    /// Relation (lower case) to the value its partition column must have for a row to matter to the statement.
+    pub partition_hints: BTreeMap<String, u64>,
 }
 #[derive(Clone)]
 enum Dependency {
@@ -1162,6 +1164,7 @@ pub(crate) fn adapt(
     parameters: &[SqlValue],
     relations: &[crate::provider::SqlRelation],
     dialect_policy: super::SqlDialect,
+    partition_columns: &BTreeMap<String, String>,
 ) -> MddResult<Adapted> {
     // MDD-084: run the recursive AST rewrite on a stack proven sufficient for the
     // validated depth (see AST_REWRITE_STACK_BYTES). A scoped thread borrows the inputs
@@ -1172,7 +1175,14 @@ pub(crate) fn adapt(
         let worker = std::thread::Builder::new()
             .stack_size(AST_REWRITE_STACK_BYTES)
             .spawn_scoped(scope, move || {
-                adapt_on_stack(sql, limits, parameters, relations, dialect_policy)
+                adapt_on_stack(
+                    sql,
+                    limits,
+                    parameters,
+                    relations,
+                    dialect_policy,
+                    partition_columns,
+                )
             })
             .map_err(|_| {
                 MddError::new(
@@ -1197,6 +1207,7 @@ fn adapt_on_stack(
     parameters: &[SqlValue],
     relations: &[crate::provider::SqlRelation],
     dialect_policy: super::SqlDialect,
+    partition_columns: &BTreeMap<String, String>,
 ) -> MddResult<Adapted> {
     if sql.len() > limits.max_sql_bytes {
         return Err(quota("SQL_TEXT_BYTES"));
@@ -1256,6 +1267,8 @@ fn adapt_on_stack(
     let Statement::Query(query) = &mut statements[0] else {
         return Err(invalid("SQL_STATEMENT_NOT_READ_ONLY_QUERY"));
     };
+    // read before the rewrite turns `file_id = 0` into a function call
+    let partition_hints = super::pushdown::partition_hints(query, &tokens, partition_columns);
     let mut reserved = relations
         .iter()
         .flat_map(|r| {
@@ -1365,6 +1378,7 @@ fn adapt_on_stack(
         required_relations,
         cte_names: rewrite.cte_names,
         display_overrides: rewrite.display_overrides,
+        partition_hints,
     })
 }
 struct Rewrite<'a> {
@@ -4701,6 +4715,7 @@ mod mdd084_rewrite_tests {
                     &[],
                     &[relation],
                     crate::dialects::SqlDialect::NativeV1,
+                    &BTreeMap::new(),
                 )
             })
             .unwrap()

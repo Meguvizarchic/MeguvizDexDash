@@ -63,7 +63,7 @@ fn run() -> MddResult<serde_json::Value> {
     for index in 0..inventory.selected_dexes().len() {
         let facts = MetadataFacts::build(&snapshot, &inventory, index, StringLimits::default())?;
         dexes.push(DexSummary {
-            dex_occurrence_id: facts.source().dex_occurrence_id.clone(),
+            dex_occurrence_id: facts.source().dex_occurrence_id.to_string(),
             content_id: facts.source().content_id.clone(),
             version: facts.header().version.clone(),
             strings: facts.strings().len(),

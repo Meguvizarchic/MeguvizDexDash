@@ -129,8 +129,8 @@ impl BudgetedMember {
     pub fn blob(&self) -> &MemberBlob {
         &self.blob
     }
-    pub fn bytes(&self) -> &[u8] {
-        self.blob.bytes()
+    pub fn bytes(&self) -> Arc<[u8]> {
+        self.blob.lease()
     }
 }
 impl BudgetedInventory {
@@ -184,7 +184,7 @@ impl BudgetedInventory {
         };
         let blob = self.owner.inventory.read_member(member_id)?;
         if let Some(admission) = admission {
-            admission.commit(blob.bytes().len() as u64)?;
+            admission.commit(blob.len() as u64)?;
         }
         drop(workspace);
         let result = BudgetedMember {
@@ -279,7 +279,7 @@ pub fn inventory(
     let actual = result
         .selected_dexes()
         .iter()
-        .try_fold(0u64, |n, d| n.checked_add(d.blob.bytes().len() as u64))
+        .try_fold(0u64, |n, d| n.checked_add(d.blob.len() as u64))
         .ok_or_else(|| invalid("selected member total overflow"))?;
     admitted.commit(actual)?;
     members.commit(result.manifest().members.len() as u64)?;

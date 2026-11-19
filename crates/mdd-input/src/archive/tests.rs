@@ -29,6 +29,7 @@ fn generic() -> InventoryPolicy {
         dex_selection: DexSelection::AllDexMembers,
         reject_duplicate_selected_names: false,
         require_dex: true,
+        hold_dex_bytes: true,
     }
 }
 fn temporary(bytes: &[u8]) -> PathBuf {
@@ -72,6 +73,7 @@ fn raw_policy() -> InventoryPolicy {
         dex_selection: DexSelection::ResourcesOnly,
         reject_duplicate_selected_names: false,
         require_dex: false,
+        hold_dex_bytes: true,
     }
 }
 
@@ -122,7 +124,7 @@ fn fixtures_match_independent_physical_inventory_and_raw_content() {
         }
         for selected in result.selected_dexes() {
             assert_eq!(selected.logical_header_byte_offset, DecimalU64(0));
-            assert_eq!(selected.blob.bytes().get(..4), Some(b"dex\n".as_slice()));
+            assert_eq!(selected.blob.lease().get(..4), Some(b"dex\n".as_slice()));
         }
         if name.starts_with("multidex-") {
             let dexes = result.selected_dexes();
@@ -142,7 +144,7 @@ fn fixtures_match_independent_physical_inventory_and_raw_content() {
                 .find(|m| m.raw_name == b"assets/raw.bin")
                 .unwrap();
             assert_eq!(
-                result.read_member(&resource.member_id).unwrap().bytes(),
+                &*result.read_member(&resource.member_id).unwrap().lease(),
                 b"\0\xffresource"
             );
         }
@@ -226,6 +228,7 @@ fn selection_scope_resource_only_and_raw_dex_are_explicit() {
         dex_selection: DexSelection::ResourcesOnly,
         reject_duplicate_selected_names: false,
         require_dex: false,
+        hold_dex_bytes: true,
     };
     let resources =
         ArchiveInventory::build(&snapshot.sources()[0], policy, ArchiveLimits::default()).unwrap();
@@ -234,7 +237,8 @@ fn selection_scope_resource_only_and_raw_dex_are_explicit() {
         resources
             .read_member(&resources.manifest().members[0].member_id)
             .unwrap()
-            .bytes(),
+            .lease()
+            .as_ref(),
         b"\0\xffresource"
     );
     assert_eq!(
@@ -257,7 +261,7 @@ fn selection_scope_resource_only_and_raw_dex_are_explicit() {
     .unwrap();
     assert_eq!(result.manifest().members[0].archive_member_ordinal, None);
     assert_eq!(
-        result.selected_dexes()[0].blob.bytes(),
+        &*result.selected_dexes()[0].blob.lease(),
         raw.sources()[0].bytes()
     );
     assert_eq!(
@@ -318,7 +322,7 @@ fn all_reads_use_owned_capture_and_member_identity() {
     );
     let resource = one.manifest().members[3].member_id.clone();
     assert_eq!(
-        one.read_member(&resource).unwrap().bytes(),
+        &*one.read_member(&resource).unwrap().lease(),
         b"\0\xffresource"
     );
     assert_eq!(
@@ -327,7 +331,7 @@ fn all_reads_use_owned_capture_and_member_identity() {
     );
     drop(snapshot);
     assert_eq!(
-        one.read_member(&resource).unwrap().bytes(),
+        &*one.read_member(&resource).unwrap().lease(),
         b"\0\xffresource"
     );
 }
@@ -425,6 +429,7 @@ fn data_descriptor_and_lazy_resource_crc_are_checked() {
         dex_selection: DexSelection::ResourcesOnly,
         reject_duplicate_selected_names: false,
         require_dex: false,
+        hold_dex_bytes: true,
     };
     let source = capture(temporary(&transformed), InputKind::Apk);
     let result =
@@ -433,7 +438,8 @@ fn data_descriptor_and_lazy_resource_crc_are_checked() {
         result
             .read_member(&result.manifest().members[0].member_id)
             .unwrap()
-            .bytes(),
+            .lease()
+            .as_ref(),
         b"\0\xffresource"
     );
     transformed[central + 4] ^= 1;
@@ -470,6 +476,7 @@ fn raw_member_names_and_malformed_declared_sizes_are_not_normalized() {
         dex_selection: DexSelection::ResourcesOnly,
         reject_duplicate_selected_names: false,
         require_dex: false,
+        hold_dex_bytes: true,
     };
     let mut bytes = one_resource();
     let end = bytes.len() - 22;
@@ -485,7 +492,8 @@ fn raw_member_names_and_malformed_declared_sizes_are_not_normalized() {
         result
             .read_member(&result.manifest().members[0].member_id)
             .unwrap()
-            .bytes(),
+            .lease()
+            .as_ref(),
         b"\0\xffresource"
     );
     let mut bytes = one_resource();
@@ -533,7 +541,7 @@ fn preallocated_reads_fill_exactly_declared_bytes_for_stored_and_deflated() {
         let blob = result
             .read_member(&result.manifest().members[0].member_id)
             .unwrap();
-        assert_eq!(blob.bytes(), payload.as_slice(), "{method:?}");
+        assert_eq!(&*blob.lease(), payload.as_slice(), "{method:?}");
         assert_eq!(blob.content_id, content_id(&payload));
     }
 }
@@ -556,7 +564,7 @@ fn empty_and_single_byte_members_keep_crc_semantics() {
             let blob = result
                 .read_member(&result.manifest().members[0].member_id)
                 .unwrap();
-            assert_eq!(blob.bytes(), payload, "{method:?}");
+            assert_eq!(&*blob.lease(), payload, "{method:?}");
         }
     }
 }
@@ -689,4 +697,90 @@ fn partially_overlapping_physical_members_are_rejected() {
             .unwrap();
     assert_eq!(error.code, ErrorCode::InvalidInput);
     assert_eq!(error.message, "physical member ranges partially overlap");
+}
+
+/// An inventory that does not hold its DEX hands out the same bytes, reads them again only when nobody holds them, and
+/// lets them go with the last lease.
+#[test]
+fn a_dex_the_inventory_does_not_hold_is_read_again_when_leased_and_let_go_with_the_lease() {
+    for name in ["multidex-deflated.apk", "multidex-stored.apk"] {
+        a_dex_the_inventory_does_not_hold(name);
+    }
+}
+
+fn a_dex_the_inventory_does_not_hold(name: &str) {
+    let snapshot = capture(fixture(name), InputKind::Apk);
+    let build = |policy| {
+        ArchiveInventory::build(&snapshot.sources()[0], policy, ArchiveLimits::default()).unwrap()
+    };
+    let held = build(generic());
+    let not_held = build(InventoryPolicy {
+        hold_dex_bytes: false,
+        ..generic()
+    });
+    assert_eq!(held.selected_dexes().len(), 2);
+    assert_eq!(not_held.selected_dexes().len(), 2);
+    for (one, other) in held.selected_dexes().iter().zip(not_held.selected_dexes()) {
+        assert!(one.blob.is_held() && !other.blob.is_held());
+        assert_eq!(one.blob.content_id, other.blob.content_id);
+        assert_eq!(one.dex_occurrence_id, other.dex_occurrence_id);
+        assert_eq!(one.physical_dex_id, other.physical_dex_id);
+        assert_eq!(one.blob.len(), other.blob.len());
+        // nothing is held until someone asks
+        assert!(other.blob.held_lease().is_none());
+        let first = other.blob.try_lease().unwrap();
+        assert_eq!(&*first, &*one.blob.lease());
+        // until the blob lets go, every lease is the same allocation, clones of the blob included
+        let second = other.blob.lease();
+        assert!(Arc::ptr_eq(&first, &second));
+        assert!(Arc::ptr_eq(&first, &other.blob.held_lease().unwrap()));
+        let clone = other.blob.clone();
+        assert!(Arc::ptr_eq(&first, &clone.lease()));
+        // letting go keeps the leases that are out, and the next lease reads the member again
+        other.blob.release();
+        assert!(other.blob.held_lease().is_none());
+        assert_eq!(&*first, &*one.blob.lease());
+        let again = clone.lease();
+        assert!(!Arc::ptr_eq(&first, &again));
+        assert_eq!(&*again, &*first);
+        // a member the inventory holds is never let go
+        one.blob.release();
+        assert!(one.blob.held_lease().is_some());
+        // the allocation goes with the last lease once the blob has let go
+        let weak = Arc::downgrade(&first);
+        drop((first, second));
+        assert!(weak.upgrade().is_none(), "the last lease let the bytes go");
+        clone.release();
+        assert!(other.blob.held_lease().is_none());
+    }
+    // a member that was never selected is read as before, held by the blob it is returned in
+    let resource = not_held
+        .manifest()
+        .members
+        .iter()
+        .find(|m| m.raw_name == b"assets/raw.bin")
+        .unwrap();
+    let blob = not_held.read_member(&resource.member_id).unwrap();
+    assert!(blob.is_held());
+    assert_eq!(&*blob.lease(), b"\0\xffresource");
+}
+
+/// A raw DEX input is the captured bytes themselves: nothing to read again, so nothing is released.
+#[test]
+fn a_raw_dex_is_held_whatever_the_policy() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/instructions/generated/unreferenced-two-code.dex");
+    let snapshot = capture(path, InputKind::RawDex);
+    let inventory = ArchiveInventory::build(
+        &snapshot.sources()[0],
+        InventoryPolicy {
+            hold_dex_bytes: false,
+            ..InventoryPolicy::default()
+        },
+        ArchiveLimits::default(),
+    )
+    .unwrap();
+    let blob = &inventory.selected_dexes()[0].blob;
+    assert!(blob.is_held());
+    assert!(Arc::ptr_eq(&blob.lease(), &snapshot.sources()[0].lease()));
 }

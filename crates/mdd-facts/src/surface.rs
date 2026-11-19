@@ -615,7 +615,7 @@ pub fn resource_fingerprints(
             .detail("limit", limits.max_resource_members.to_string()));
         }
         let blob = inventory.read_member(&member.member_id)?;
-        let length = blob.bytes().len() as u64;
+        let length = blob.len() as u64;
         bytes_hashed = bytes_hashed.checked_add(length).ok_or_else(|| {
             failure(
                 ErrorCode::QuotaExceeded,
@@ -629,7 +629,7 @@ pub fn resource_fingerprints(
             )
             .detail("limit", limits.max_resource_bytes.to_string()));
         }
-        let digest = sha256(blob.bytes());
+        let digest = sha256(&blob.try_lease()?);
         if blob.content_id != format!("sha256:{digest}") {
             return Err(failure(
                 ErrorCode::InternalFault,

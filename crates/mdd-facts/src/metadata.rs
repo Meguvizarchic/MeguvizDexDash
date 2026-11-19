@@ -4,10 +4,8 @@ use mdd_dex::{
     types::{DexPrototype, DexType, parse_type_descriptor, read_types_and_prototypes},
     validate_header,
 };
-use mdd_input::{
-    archive::{ArchiveInventory, MemberBlob},
-    snapshot::Snapshot,
-};
+use mdd_input::{archive::ArchiveInventory, snapshot::Snapshot};
+pub use mdd_types::SharedId;
 use mdd_types::{Completeness, DecimalU64, ErrorCode, MddError, MddResult, content_id};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -28,16 +26,16 @@ pub enum EntityKind {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct EntityRef {
-    pub snapshot_id: String,
-    pub dex_occurrence_id: String,
+    pub snapshot_id: SharedId,
+    pub dex_occurrence_id: SharedId,
     pub kind: EntityKind,
     pub local_index: u32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MetadataSource {
-    pub snapshot_id: String,
-    pub dex_occurrence_id: String,
+    pub snapshot_id: SharedId,
+    pub dex_occurrence_id: SharedId,
     pub physical_dex_id: String,
     pub member_id: String,
     pub source_occurrence_id: String,
@@ -57,7 +55,7 @@ pub struct StringPoolIdentity {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StringFact {
     pub entity: EntityRef,
-    pub string_pool_id: String,
+    pub string_pool_id: SharedId,
     pub data: DexString,
 }
 
@@ -185,8 +183,10 @@ pub struct MetadataFacts {
     pub(crate) metadata_coverage: Completeness,
     pub(crate) completed_layers: Vec<String>,
     pub(crate) unbuilt_layers: Vec<String>,
+    /// The DEX bytes the facts were read from, leased from the inventory's blob: the facts keep them alive for as long as
+    /// they live, and an inventory that does not hold its DEX reads them again only when no facts hold them.
     #[serde(skip)]
-    blob: MemberBlob,
+    bytes: Arc<[u8]>,
 }
 
 impl MetadataFacts {
@@ -287,8 +287,8 @@ impl MetadataFacts {
             )
         })?;
         let source = MetadataSource {
-            snapshot_id: snapshot.manifest().snapshot_id.clone(),
-            dex_occurrence_id: candidate.dex_occurrence_id.clone(),
+            snapshot_id: snapshot.manifest().snapshot_id.as_str().into(),
+            dex_occurrence_id: candidate.dex_occurrence_id.as_str().into(),
             physical_dex_id: candidate.physical_dex_id.clone(),
             member_id: candidate.blob.identity.member_id.clone(),
             source_occurrence_id: source_manifest.occurrence_id.clone(),
@@ -310,17 +310,18 @@ impl MetadataFacts {
                 "unsupported logical offset or mismatched occurrence",
             )));
         }
-        if content_id(candidate.blob.bytes()) != source.content_id {
+        let bytes = candidate.blob.try_lease().map_err(bind)?;
+        if content_id(&bytes) != source.content_id {
             return Err(bind(MddError::new(
                 ErrorCode::InternalFault,
                 "facts.metadata",
                 "held blob differs from captured content identity",
             )));
         }
-        let header = validate_header(candidate.blob.bytes()).map_err(bind)?;
-        let pool = read_string_pool(candidate.blob.bytes(), &header, limits).map_err(bind)?;
+        let header = validate_header(&bytes).map_err(bind)?;
+        let pool = read_string_pool(&bytes, &header, limits).map_err(bind)?;
         let (types, prototypes) =
-            read_types_and_prototypes(candidate.blob.bytes(), &header, &pool).map_err(bind)?;
+            read_types_and_prototypes(&bytes, &header, &pool).map_err(bind)?;
         let string_table = header
             .tables
             .iter()
@@ -341,7 +342,7 @@ impl MetadataFacts {
             content_id: source.content_id.clone(),
             string_ids_byte_offset: string_table.range.byte_offset,
             string_count: string_table.count,
-            dex_occurrence_id: source.dex_occurrence_id.clone(),
+            dex_occurrence_id: source.dex_occurrence_id.to_string(),
         };
         let entity = |kind, local_index| EntityRef {
             snapshot_id: source.snapshot_id.clone(),
@@ -349,11 +350,12 @@ impl MetadataFacts {
             kind,
             local_index,
         };
+        let pool_id = SharedId::from(&string_pool.string_pool_id);
         let strings = pool
             .into_iter()
             .map(|data| StringFact {
                 entity: entity(EntityKind::String, data.string_idx),
-                string_pool_id: string_pool.string_pool_id.clone(),
+                string_pool_id: pool_id.clone(),
                 data,
             })
             .collect();
@@ -402,15 +404,15 @@ impl MetadataFacts {
             .into_iter()
             .map(str::to_owned)
             .collect(),
-            blob: candidate.blob.clone(),
+            bytes,
         })
     }
 
     pub fn bytes(&self) -> &[u8] {
-        self.blob.bytes()
+        &self.bytes
     }
     pub fn lease(&self) -> Arc<[u8]> {
-        self.blob.lease()
+        Arc::clone(&self.bytes)
     }
 
     pub fn entity(&self, kind: EntityKind, local_index: u32) -> MddResult<EntityRef> {

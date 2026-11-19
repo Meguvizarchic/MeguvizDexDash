@@ -443,7 +443,8 @@ impl ResourceByteEvidence {
             ));
         }
         let blob = inventory.read_member(member_id)?;
-        let digest = sha256(blob.bytes());
+        let bytes = blob.try_lease()?;
+        let digest = sha256(&bytes);
         if blob.identity.source_occurrence_id != manifest.source_occurrence_id
             || blob.content_id != format!("sha256:{digest}")
         {
@@ -459,8 +460,8 @@ impl ResourceByteEvidence {
             member: blob.identity.clone(),
             content_id: blob.content_id.clone(),
             sha256: digest,
-            byte_length: DecimalU64(blob.bytes().len() as u64),
-            bytes: blob.lease(),
+            byte_length: DecimalU64(bytes.len() as u64),
+            bytes,
         })
     }
     pub fn snapshot_id(&self) -> &str {

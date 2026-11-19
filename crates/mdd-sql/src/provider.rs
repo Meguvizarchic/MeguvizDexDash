@@ -175,10 +175,48 @@ pub trait SqlFactProvider: Send + Sync {
         relation: &str,
         control: SqlControl,
     ) -> MddResult<Box<dyn SqlFactCursor>>;
+    /// The column of `relation` whose value picks one contiguous group of its rows (for the HostLab relations, `file_id`:
+    /// the rows of a DEX are stored together), if the provider can read just that group. `None` for a provider that
+    /// cannot. Metadata only, like the rest of the optimizer's questions.
+    fn partition_column(&self, _relation: &str) -> Option<&'static str> {
+        None
+    }
+    /// `open_cursor`, for a statement that cannot use any row whose partition column is not `key`. The cursor may return
+    /// only those rows or all of them: the statement filters either way, so the answer is the same and only the time
+    /// differs. The default returns all of them.
+    fn open_cursor_for_partition(
+        self: Arc<Self>,
+        relation: &str,
+        control: SqlControl,
+        _key: u64,
+    ) -> MddResult<Box<dyn SqlFactCursor>> {
+        self.open_cursor(relation, control)
+    }
 }
 /// Own the Arc and ordinal/iterator state. No self-referential borrowed scan.
 pub trait SqlFactCursor {
     fn next_row(&mut self) -> MddResult<Option<SqlRow>>;
+    /// A cursor that can be read cell by cell, without building the rest of the row, says so here. The default is a
+    /// cursor that only hands out whole rows.
+    fn positioned(&mut self) -> Option<&mut dyn PositionedCursor> {
+        None
+    }
+    /// `positioned`, to read a cell while the cursor is only borrowed.
+    fn positioned_ref(&self) -> Option<&dyn PositionedCursor> {
+        None
+    }
+}
+/// A cursor that stands on a row and gives a column of it when asked. A statement that reads two columns of a
+/// ten-column row builds two cells.
+pub trait PositionedCursor {
+    /// Move to the next row; `false` when there is none. Each row counts against the statement's budget as `next_row`'s
+    /// does.
+    fn advance(&mut self) -> MddResult<bool>;
+    /// The cell of `column` in the row the cursor stands on.
+    fn value(&self, column: usize) -> MddResult<SqlValue>;
+    /// An upper bound on the size of any cell the cursor will give. A caller that limits the size of a cell and finds the
+    /// bound within the limit need not look at each cell.
+    fn max_cell_bytes(&self) -> u64;
 }
 
 pub(crate) fn validate_row(row: &SqlRow, columns: &[SqlColumn]) -> MddResult<()> {

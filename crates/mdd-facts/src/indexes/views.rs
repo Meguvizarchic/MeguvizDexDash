@@ -16,9 +16,9 @@ pub struct FactView<'a> {
     pub(crate) raw_code: Option<&'a RawCodeEvidence>,
 }
 impl<'a> FactView<'a> {
-    pub fn unbuilt(occurrence: impl Into<String>) -> Self {
+    pub fn unbuilt(occurrence: impl AsRef<str>) -> Self {
         Self {
-            occurrence: occurrence.into(),
+            occurrence: occurrence.as_ref().to_owned(),
             metadata: None,
             definitions: None,
             code: None,

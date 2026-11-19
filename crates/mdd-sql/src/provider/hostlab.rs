@@ -183,7 +183,10 @@ impl HostLabRelation {
     }
 }
 
+mod lazy;
 mod public;
+mod stream;
+pub use lazy::{LayerNeeds, OccurrenceLoader};
 pub use public::PublicRelation;
 
 /// One relation of the frozen manifest that this provider answers: a contract relation the seventeen HostLab
@@ -695,7 +698,12 @@ impl HostLabOccurrence {
 /// Contract-name provider over one immutable snapshot generation.
 pub struct HostLabSqlProvider {
     binding: SqlBinding,
+    /// The layers of every selected DEX, for a provider made by `from_scope`; empty for one made by `from_loader`.
     occurrences: Vec<HostLabOccurrence>,
+    /// How many DEX are selected, whichever way the provider was made.
+    count: usize,
+    /// Set for a provider made by `from_loader`: the relations are served from stores built one DEX at a time.
+    lazy: Option<lazy::LazyStores>,
     /// The selected scope the coverage ledger is bound to.
     scope: SelectedScope,
     /// One coverage verdict per contract relation, computed on first use. The
@@ -808,9 +816,11 @@ impl HostLabSqlProvider {
         Ok(Self {
             binding: SqlBinding {
                 provider_identity: mdd_types::opaque_id("sql-hostlab-provider")?,
-                snapshot_id,
+                snapshot_id: snapshot_id.to_string(),
                 catalog_epoch: epoch,
             },
+            count: occurrences.len(),
+            lazy: None,
             occurrences,
             scope: scope.clone(),
             coverage: std::array::from_fn(|_| std::sync::OnceLock::new()),
@@ -818,7 +828,7 @@ impl HostLabSqlProvider {
     }
 
     pub fn occurrence_count(&self) -> usize {
-        self.occurrences.len()
+        self.count
     }
 
     fn relation(name: ContractRelation) -> SqlRelation {
@@ -847,6 +857,9 @@ impl HostLabSqlProvider {
     /// metadata-only provider could not even answer `dex_files`. The hard gate
     /// stays in [`Self::require_layer`], which runs when the relation is opened.
     fn estimated_rows(&self, relation: HostLabRelation) -> MddResult<Option<u64>> {
+        if let Some(lazy) = &self.lazy {
+            return Ok(lazy.stored_rows(ContractRelation::Required(relation)));
+        }
         let mut total = 0u64;
         for occurrence in &self.occurrences {
             let add =
@@ -1376,30 +1389,37 @@ impl HostLabSqlProvider {
     }
 
     fn evaluate_coverage(&self, relation: HostLabRelation) -> MddResult<()> {
-        let views: Vec<FactView<'_>> = self
-            .occurrences
-            .iter()
-            .map(|occurrence| {
-                let mut view = FactView::unbuilt(occurrence.source().dex_occurrence_id.clone())
-                    .with_metadata(occurrence.facts.metadata.as_ref());
-                if let Some(definitions) = occurrence.facts.definitions.as_deref() {
-                    view = view.with_definitions(definitions);
-                }
-                if let Some(code) = occurrence.facts.code.as_deref() {
-                    view = view.with_code(code);
-                }
-                if let Some(annotations) = occurrence.facts.annotations.as_deref() {
-                    view = view.with_annotations(annotations);
-                }
-                if let Some(references) = occurrence.facts.references.as_deref() {
-                    view = view.with_references(references);
-                }
-                view
-            })
-            .collect();
+        let views: Vec<FactView<'_>> = self.occurrences.iter().map(Self::view_of).collect();
         let ledger = CoverageLedger::new(self.scope.clone(), &views)?;
         let request = CoverageRequest::for_relations(&self.scope, &[relation.name()])?;
         let report = ledger.evaluate(&request)?;
+        Self::coverage_verdict(&report, relation)
+    }
+
+    /// The view of one occurrence's attached layers for the coverage ledger.
+    fn view_of(occurrence: &HostLabOccurrence) -> FactView<'_> {
+        let mut view = FactView::unbuilt(occurrence.source().dex_occurrence_id.clone())
+            .with_metadata(occurrence.facts.metadata.as_ref());
+        if let Some(definitions) = occurrence.facts.definitions.as_deref() {
+            view = view.with_definitions(definitions);
+        }
+        if let Some(code) = occurrence.facts.code.as_deref() {
+            view = view.with_code(code);
+        }
+        if let Some(annotations) = occurrence.facts.annotations.as_deref() {
+            view = view.with_annotations(annotations);
+        }
+        if let Some(references) = occurrence.facts.references.as_deref() {
+            view = view.with_references(references);
+        }
+        view
+    }
+
+    /// Accept a complete report; refuse an incomplete one with the ledger's error and the first blocking issues.
+    fn coverage_verdict(
+        report: &mdd_facts::coverage::CoverageReport,
+        relation: HostLabRelation,
+    ) -> MddResult<()> {
         report.require_complete().map_err(|error| {
             // The ledger's own error does not say which column stopped it; name
             // the first blocking issues so a refusal is diagnosable.
@@ -1427,6 +1447,14 @@ impl HostLabSqlProvider {
     /// Fail closed when a relation's fact layer is absent or incomplete.
     fn require_layer(&self, relation: HostLabRelation) -> MddResult<()> {
         for occurrence in &self.occurrences {
+            Self::check_layer(relation, occurrence)?;
+        }
+        Ok(())
+    }
+
+    /// `require_layer` for one occurrence.
+    fn check_layer(relation: HostLabRelation, occurrence: &HostLabOccurrence) -> MddResult<()> {
+        {
             let complete = match relation {
                 HostLabRelation::DexFiles | HostLabRelation::Strings | HostLabRelation::Types => {
                     occurrence.facts.metadata.metadata_coverage() == Completeness::Complete
@@ -1548,6 +1576,35 @@ impl SqlFactProvider for HostLabSqlProvider {
         self.require_contract_relation(relation)
     }
 
+    /// The rows of the relations built from stores are kept DEX by DEX, so those with a `file_id` can be read for one DEX.
+    fn partition_column(&self, relation: &str) -> Option<&'static str> {
+        self.lazy.as_ref()?;
+        let relation = ContractRelation::parse(relation)?;
+        Self::relation(relation)
+            .columns
+            .iter()
+            .any(|column| column.name == "file_id" && column.data_type == SqlType::U64)
+            .then_some("file_id")
+    }
+
+    fn open_cursor_for_partition(
+        self: Arc<Self>,
+        relation: &str,
+        control: SqlControl,
+        key: u64,
+    ) -> MddResult<Box<dyn SqlFactCursor>> {
+        if self.lazy.is_some() {
+            let parsed = ContractRelation::parse(relation).ok_or_else(|| {
+                invalid("UNKNOWN_HOSTLAB_RELATION").detail("relation", relation.to_owned())
+            })?;
+            return Ok(Box::new(
+                self.ensure_store(parsed, Some(&control))?
+                    .cursor_for_partition(key, control),
+            ));
+        }
+        self.open_cursor(relation, control)
+    }
+
     fn open_cursor(
         self: Arc<Self>,
         relation: &str,
@@ -1556,6 +1613,11 @@ impl SqlFactProvider for HostLabSqlProvider {
         let relation = ContractRelation::parse(relation).ok_or_else(|| {
             invalid("UNKNOWN_HOSTLAB_RELATION").detail("relation", relation.to_owned())
         })?;
+        if self.lazy.is_some() {
+            return Ok(Box::new(
+                self.ensure_store(relation, Some(&control))?.cursor(control),
+            ));
+        }
         self.require_contract_relation(relation)?;
         Ok(Box::new(HostLabCursor {
             provider: self,
@@ -1571,6 +1633,9 @@ impl HostLabSqlProvider {
     /// The seventeen contract relations are proven column by column by the coverage ledger; the public relations
     /// beyond them are gated by the layers that build them.
     fn require_contract_relation(&self, relation: ContractRelation) -> MddResult<()> {
+        if self.lazy.is_some() {
+            return self.ensure_store(relation, None).map(|_| ());
+        }
         match relation {
             ContractRelation::Required(relation) => {
                 self.require_layer(relation)?;
@@ -1583,6 +1648,8 @@ impl HostLabSqlProvider {
 
 #[cfg(test)]
 mod combo_tests;
+#[cfg(test)]
+mod lazy_tests;
 #[cfg(test)]
 mod public_tests;
 #[cfg(test)]

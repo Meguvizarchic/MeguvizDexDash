@@ -47,6 +47,9 @@ pub(crate) struct Source {
     pub relation: SqlRelation,
     pub binding: SqlBinding,
     pub control: SqlControl,
+    /// The value of the relation's partition column that the statement requires, when it requires one: the cursor may
+    /// read only the rows that have it.
+    pub partition_key: Option<u64>,
 }
 /// Pushdown behaviour shared by the fact vtab and the bridge's reported policy.
 /// `omit` and `order_by_consumed` are the two fields this vtab actually reports
@@ -170,6 +173,8 @@ unsafe impl<'vtab> VTab<'vtab> for FactTable {
             cursor: None,
             row: None,
             ordinal: 0,
+            positioned: false,
+            on_row: false,
             _lease: lease,
         })
     }
@@ -181,12 +186,33 @@ struct Cursor {
     cursor: Option<Box<dyn SqlFactCursor>>,
     row: Option<SqlRow>,
     ordinal: i64,
+    /// The cursor gives cells one at a time and none of them can be over the size limit: `row` is not used, and
+    /// `on_row` says whether the cursor stands on a row.
+    positioned: bool,
+    on_row: bool,
     _lease: Option<mdd_query::budget::Reservation>,
 }
 impl Cursor {
     fn advance(&mut self) -> Result<()> {
         check(&self.source)?;
         self.source.control.checkpoint(1, false).map_err(error)?;
+        if self.positioned {
+            let more = self
+                .cursor
+                .as_mut()
+                .and_then(|cursor| cursor.positioned())
+                .ok_or_else(|| error(crate::invalid("CURSOR_NOT_FILTERED")))?
+                .advance()
+                .map_err(|e| error(self.source.control.fail(e)))?;
+            if more {
+                self.source.control.checkpoint(0, true).map_err(error)?;
+                self.ordinal = self.ordinal.checked_add(1).ok_or_else(|| {
+                    error(self.source.control.fail(crate::quota("SQL_ROWID_OVERFLOW")))
+                })?;
+            }
+            self.on_row = more;
+            return Ok(());
+        }
         let row = self
             .cursor
             .as_mut()
@@ -219,35 +245,67 @@ impl Cursor {
 unsafe impl VTabCursor for Cursor {
     fn filter(&mut self, _: c_int, _: Option<&str>, _: &Filters<'_>) -> Result<()> {
         check(&self.source)?;
-        self.cursor = Some(
-            Arc::clone(&self.source.provider)
-                .open_cursor(&self.source.relation.name, self.source.control.clone())
-                .map_err(|e| error(self.source.control.fail(e)))?,
-        );
+        let provider = Arc::clone(&self.source.provider);
+        let (name, control) = (&self.source.relation.name, self.source.control.clone());
+        let mut cursor = match self.source.partition_key {
+            Some(key) => provider.open_cursor_for_partition(name, control, key),
+            None => provider.open_cursor(name, control),
+        }
+        .map_err(|e| error(self.source.control.fail(e)))?;
+        // A cursor that reads cell by cell is used so only if no cell can break the size limit; otherwise every row is
+        // looked at whole, as the limit has always been checked.
+        self.positioned = cursor.positioned().is_some_and(|positioned| {
+            positioned.max_cell_bytes() <= self.source.control.inner.limits.max_cell_bytes
+        });
+        self.cursor = Some(cursor);
         self.ordinal = 0;
+        self.on_row = false;
+        self.row = None;
         self.advance()
     }
     fn next(&mut self) -> Result<()> {
         self.advance()
     }
     fn eof(&self) -> bool {
-        self.row.is_none()
+        if self.positioned {
+            !self.on_row
+        } else {
+            self.row.is_none()
+        }
     }
     fn column(&self, context: &mut Context, column: c_int) -> Result<()> {
         check(&self.source)?;
-        let value = usize::try_from(column)
-            .ok()
-            .and_then(|i| self.row.as_ref()?.get(i))
-            .ok_or_else(|| {
-                error(
-                    self.source
-                        .control
-                        .fail(crate::invalid("CURSOR_COORDINATE")),
-                )
-            })?;
+        let coordinate = || {
+            error(
+                self.source
+                    .control
+                    .fail(crate::invalid("CURSOR_COORDINATE")),
+            )
+        };
+        let index = usize::try_from(column).map_err(|_| coordinate())?;
+        let max_cell_bytes = self.source.control.inner.limits.max_cell_bytes;
+        if self.positioned {
+            let value = self
+                .cursor
+                .as_ref()
+                .and_then(|cursor| cursor.positioned_ref())
+                .ok_or_else(coordinate)?
+                .value(index)
+                .map_err(|e| error(self.source.control.fail(e)))?;
+            return context.set_result(
+                &value
+                    .sqlite(max_cell_bytes)
+                    .map_err(|e| error(self.source.control.fail(e)))?,
+            );
+        }
+        let value = self
+            .row
+            .as_ref()
+            .and_then(|row| row.get(index))
+            .ok_or_else(coordinate)?;
         context.set_result(
             &value
-                .sqlite(self.source.control.inner.limits.max_cell_bytes)
+                .sqlite(max_cell_bytes)
                 .map_err(|e| error(self.source.control.fail(e)))?,
         )
     }

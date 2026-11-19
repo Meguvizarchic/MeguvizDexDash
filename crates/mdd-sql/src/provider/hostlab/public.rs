@@ -647,9 +647,21 @@ impl HostLabSqlProvider {
     /// Fail closed when the layers of a public relation are absent or incomplete.
     pub(super) fn require_public_layer(&self, relation: PublicRelation) -> MddResult<()> {
         // Every refusal names the relation that was asked for, whichever layer stopped it.
+        for occurrence in &self.occurrences {
+            self.check_public_layer(relation, occurrence)?;
+        }
+        Ok(())
+    }
+
+    /// `require_public_layer` for one occurrence.
+    pub(super) fn check_public_layer(
+        &self,
+        relation: PublicRelation,
+        occurrence: &HostLabOccurrence,
+    ) -> MddResult<()> {
         let named = |error: MddError| error.detail("relation", relation.name());
         let layers = relation.required_layers();
-        for occurrence in &self.occurrences {
+        {
             if layers.contains(&FactLayer::Metadata)
                 && occurrence.facts.metadata.metadata_coverage() != Completeness::Complete
             {

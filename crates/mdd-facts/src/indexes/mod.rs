@@ -1612,7 +1612,7 @@ impl<'a> SnapshotFactIndex<'a> {
         }
         entities.sort_by_key(|entity| {
             (
-                self.by_occurrence[&entity.dex_occurrence_id],
+                self.by_occurrence[&*entity.dex_occurrence_id],
                 entity.local_index,
             )
         });
@@ -1963,7 +1963,7 @@ impl<'a> SnapshotFactIndex<'a> {
         }
         let view = *self
             .by_occurrence
-            .get(&owner.dex_occurrence_id)
+            .get(&*owner.dex_occurrence_id)
             .ok_or_else(|| {
                 MddError::new(
                     ErrorCode::InvalidArgument,
@@ -2535,7 +2535,7 @@ impl<'a> SnapshotFactIndex<'a> {
         self.require(FactLayer::References)?;
         let view = *self
             .by_occurrence
-            .get(&target.dex_occurrence_id)
+            .get(&*target.dex_occurrence_id)
             .ok_or_else(|| {
                 MddError::new(
                     ErrorCode::InvalidArgument,
@@ -2589,7 +2589,7 @@ impl<'a> SnapshotFactIndex<'a> {
         self.check_site_budget(&sites)?;
         sites.sort_by_key(|site| {
             (
-                self.by_occurrence[&site.caller_method_definition.dex_occurrence_id],
+                self.by_occurrence[&*site.caller_method_definition.dex_occurrence_id],
                 site.caller_method_definition.local_index,
                 site.code_unit_pc,
                 site.operand_ordinal,
@@ -2728,7 +2728,7 @@ impl<'a> SnapshotFactIndex<'a> {
         let coverage = self.require(FactLayer::References)?;
         let view = *self
             .by_occurrence
-            .get(&caller.dex_occurrence_id)
+            .get(&*caller.dex_occurrence_id)
             .ok_or_else(|| {
                 MddError::new(
                     ErrorCode::InvalidArgument,
@@ -2861,7 +2861,7 @@ impl<'a> SnapshotFactIndex<'a> {
         }
         let view = *self
             .by_occurrence
-            .get(&target.dex_occurrence_id)
+            .get(&*target.dex_occurrence_id)
             .ok_or_else(|| {
                 MddError::new(
                     ErrorCode::InvalidArgument,
@@ -2898,7 +2898,7 @@ impl<'a> SnapshotFactIndex<'a> {
             .map_err(|_| quota("INDEX_RESULT_ALLOCATION"))?;
         encoded_array.extend_from_slice(bytes);
         Ok(CallSiteEncodedKey {
-            snapshot_id: facts.source().snapshot_id.clone(),
+            snapshot_id: facts.source().snapshot_id.to_string(),
             dex_content_id: facts.source().content_id.clone(),
             encoded_array,
         })

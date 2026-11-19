@@ -137,6 +137,7 @@ fn main() {
         &snapshot.sources()[0],
         InventoryPolicy {
             require_dex: false,
+            hold_dex_bytes: false,
             ..InventoryPolicy::default()
         },
         ArchiveLimits::default(),
@@ -156,17 +157,19 @@ fn main() {
             DefinitionFacts::build_arc(Arc::clone(&metadata), DefinitionLimits::default()).unwrap(),
         );
         report(local, "definitions", before);
-        // The same steps, in the same order, as `Dataset::open` (contract dialect): the code layer is built in full,
-        // the session keeps its compact copy, and the full value is dropped once the reference sites are read.
+        // The same steps, in the same order, as `Dataset::open` (contract dialect): the code layer is built compact, one
+        // code item at a time, and the references decode the callers' instructions again from the DEX bytes.
         before = LIVE.load(Relaxed);
-        let code = Arc::new(
-            CodeFacts::build_all_code_items(&snapshot, &inventory, local, CodeLimits::default())
-                .unwrap(),
+        let compact = Arc::new(
+            CodeFacts::build_all_code_items_compact(
+                &snapshot,
+                &inventory,
+                local,
+                CodeLimits::default(),
+            )
+            .unwrap(),
         );
-        report(local, "code (full, transient)", before);
-        before = LIVE.load(Relaxed);
-        let compact = Arc::new(code.compacted().unwrap());
-        report(local, "code (compact copy)", before);
+        report(local, "code (compact, streamed)", before);
         before = LIVE.load(Relaxed);
         let annotations = Arc::new(
             AnnotationFacts::build_arc(Arc::clone(&definitions), AnnotationLimits::default())
@@ -177,19 +180,15 @@ fn main() {
         let references = Arc::new(
             ReferenceFacts::build_arc(
                 Arc::clone(&definitions),
-                Arc::clone(&code),
+                Arc::clone(&compact),
                 ReferenceLimits::default(),
             )
-            .unwrap()
-            .with_code(Arc::clone(&compact))
             .unwrap(),
         );
         report(local, "references", before);
-        before = LIVE.load(Relaxed);
-        drop(code);
-        // `added_mib` of this line is what releasing the full code value gave back; it is shown as 0 when it is
-        // negative, so read `live_mib`.
-        report(local, "full code dropped", before);
+        // the DEX bytes were read for this DEX only: the inventory lets its copy go, the layers keep theirs
+        inventory.selected_dexes()[local].blob.release();
+        report(local, "inventory copy released", LIVE.load(Relaxed));
         kept.push((metadata, definitions, compact, annotations, references));
     }
     report(usize::MAX, "all kept", 0);

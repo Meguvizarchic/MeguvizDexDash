@@ -627,7 +627,7 @@ fn long_entity_text_is_chunked_without_changing_json() {
     let id = format!("{}😀\\\"\n{}雪", "x".repeat(1023), "y".repeat(5000));
     let row = vec![Value::Entity(mdd_facts::EntityRef {
         snapshot_id: "snapshot".into(),
-        dex_occurrence_id: id.clone(),
+        dex_occurrence_id: id.clone().into(),
         kind: mdd_facts::EntityKind::MethodDefinition,
         local_index: u32::MAX,
     })];
@@ -1011,7 +1011,6 @@ fn oversized_owned_row_is_rejected_before_json_counting() {
 enum SparseInnerKind {
     Utf16,
     Bytes,
-    Entity,
 }
 struct SparseInner<'a> {
     source: &'a MemoryCatalog,
@@ -1049,18 +1048,6 @@ impl FactSource for SparseInner<'_> {
                 v.push(65);
                 Value::Bytes(Bytes(v))
             }
-            SparseInnerKind::Entity => {
-                let mut snapshot_id = String::with_capacity(self.capacity);
-                snapshot_id.push_str(self.source.snapshot_id());
-                let mut dex_occurrence_id = String::with_capacity(self.capacity);
-                dex_occurrence_id.push_str("source");
-                Value::Entity(mdd_facts::EntityRef {
-                    snapshot_id,
-                    dex_occurrence_id,
-                    kind: mdd_facts::EntityKind::String,
-                    local_index: 0,
-                })
-            }
         };
         Ok(Box::new(std::iter::once(Ok(vec![value]))))
     }
@@ -1074,7 +1061,8 @@ fn queue_counts_owned_text_bytes_and_entity_capacities_on_real_rows() {
     for (kind, data_type) in [
         (SparseInnerKind::Utf16, DataType::Utf16),
         (SparseInnerKind::Bytes, DataType::Bytes),
-        (SparseInnerKind::Entity, DataType::Entity),
+        // An entity is not in this list on purpose: its snapshot and occurrence ids are `SharedId`, one allocation of
+        // exactly their length shared by every entity of a DEX, so a row has no spare capacity of its own to hide.
     ] {
         let f = setup_with_schema(
             BudgetLimits::default().with(Resource::QueryWorkspaceBytes, 8192),
@@ -2950,7 +2938,7 @@ fn json_consumer_rejects_incorrect_partial_error_without_processing() {
 fn json_consumer_rejects_unknown_entity_in_same_snapshot() {
     let f = setup_with_schema(BudgetLimits::default(), DataType::Entity, vec![]);
     let entity = mdd_facts::EntityRef {
-        snapshot_id: f.prepared.snapshot_id().to_owned(),
+        snapshot_id: f.prepared.snapshot_id().to_owned().into(),
         dex_occurrence_id: "not-in-catalog".into(),
         kind: mdd_facts::EntityKind::MethodReference,
         local_index: 0,

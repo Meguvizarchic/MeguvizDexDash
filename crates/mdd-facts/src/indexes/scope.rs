@@ -1171,7 +1171,10 @@ impl SelectedScope {
                     member_name: dex.blob.identity.name_utf8.clone(),
                     archive_member_ordinal: dex.blob.identity.archive_member_ordinal,
                 });
-                leases.push(dex.blob.lease());
+                // A DEX the inventory does not hold is not read here: the scope holds the archive it is read from.
+                if let Some(lease) = dex.blob.held_lease() {
+                    leases.push(lease);
+                }
             }
         }
         let scope_content_key = content_id(&canonical);

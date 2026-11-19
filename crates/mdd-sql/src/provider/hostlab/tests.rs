@@ -119,59 +119,73 @@ impl Harness {
         cached
     }
 
+    /// The facts of one selected DEX with the layers asked for, as a session would hand them out.
+    pub(super) fn facts_at(
+        &self,
+        position: usize,
+        code: bool,
+        references: bool,
+        annotations: bool,
+    ) -> HostLabOccurrenceFacts {
+        let base = self.layers(position);
+        let metadata = base.metadata.clone().unwrap();
+        let definitions = base.definitions.clone().unwrap();
+        let (inventory, local) = self.locate(position);
+        let code_facts = if code || references {
+            Some(Arc::new(
+                CodeFacts::build_all_code_items(
+                    &self.snapshot,
+                    inventory,
+                    local,
+                    CodeLimits::default(),
+                )
+                .unwrap(),
+            ))
+        } else {
+            None
+        };
+        let reference_facts = if references {
+            Some(Arc::new(
+                ReferenceFacts::build_arc(
+                    Arc::clone(&definitions),
+                    Arc::clone(code_facts.as_ref().unwrap()),
+                    ReferenceLimits::default(),
+                )
+                .unwrap(),
+            ))
+        } else {
+            None
+        };
+        let annotation_facts = if annotations {
+            Some(Arc::new(
+                AnnotationFacts::build_arc(Arc::clone(&definitions), AnnotationLimits::default())
+                    .unwrap(),
+            ))
+        } else {
+            None
+        };
+        HostLabOccurrenceFacts {
+            metadata,
+            definitions: Some(definitions),
+            code: code_facts,
+            references: reference_facts,
+            annotations: annotation_facts,
+        }
+    }
+
+    pub(super) fn scope(&self) -> &SelectedScope {
+        &self.scope
+    }
+
     pub(super) fn provider(
         &self,
         code: bool,
         references: bool,
         annotations: bool,
     ) -> Arc<HostLabSqlProvider> {
-        let mut facts = Vec::new();
-        for position in 0..self.scope.dexes().len() {
-            let base = self.layers(position);
-            let metadata = base.metadata.clone().unwrap();
-            let definitions = base.definitions.clone().unwrap();
-            let (inventory, local) = self.locate(position);
-            let code_facts = if code || references {
-                Some(Arc::new(
-                    CodeFacts::build_all_code_items(
-                        &self.snapshot,
-                        inventory,
-                        local,
-                        CodeLimits::default(),
-                    )
-                    .unwrap(),
-                ))
-            } else {
-                None
-            };
-            let reference_facts = if references {
-                Some(Arc::new(
-                    ReferenceFacts::build_arc(
-                        Arc::clone(&definitions),
-                        Arc::clone(code_facts.as_ref().unwrap()),
-                        ReferenceLimits::default(),
-                    )
-                    .unwrap(),
-                ))
-            } else {
-                None
-            };
-            let annotation_facts = if annotations {
-                Some(Arc::new(
-                    AnnotationFacts::build((*definitions).clone(), AnnotationLimits::default())
-                        .unwrap(),
-                ))
-            } else {
-                None
-            };
-            facts.push(HostLabOccurrenceFacts {
-                metadata,
-                definitions: Some(definitions),
-                code: code_facts,
-                references: reference_facts,
-                annotations: annotation_facts,
-            });
-        }
+        let facts = (0..self.scope.dexes().len())
+            .map(|position| self.facts_at(position, code, references, annotations))
+            .collect();
         Arc::new(HostLabSqlProvider::from_scope(&self.scope, facts, DecimalU64(0)).unwrap())
     }
 

@@ -5,7 +5,7 @@
       "crates/mdd-facts/src/hostlab/rules.rs"
     ],
     "core_files_with_application_literals": [],
-    "core_production_files_scanned": 137,
+    "core_production_files_scanned": 142,
     "known_exception": "crates/mdd-facts/src/hostlab/rules.rs (built before MDD-051) names FEATUREs in a core crate; AGENTS.md keeps FEATURE out of the generic core. It is pinned by test_structural_provider.py, not endorsed, and is not on the HostLab path this task adds.",
     "new_modules": {
       "native_session.py": {
@@ -830,25 +830,25 @@
   "task": "MDD-051",
   "volatile": {
     "binary_manifest_entry": {
-      "build_id": "source-sha256:f3109ff1ac4dff090a8025301f7006eed26cda3a9b5d9d50c9134e8789cd8b7e",
+      "build_id": "source-sha256:1015621189458ae56e46126d03025ec44eca49c0c3b3fff223171bf58e6ca5c9",
       "engine_version": "0.1.0-dev",
       "platform": "Windows/AMD64",
-      "sha256": "c8bb348b836041fc17e3e9ab52f43bdd763046d0675a9514be19839ed82520c7"
+      "sha256": "b86df848b9188f1748f3f7944690bc97c78f157e91b9fedcc4e6aee2588d1235"
     },
     "dataset": {
       "dex_count": 1,
       "layer_issues": [],
       "profile": "hostlab-contract-unqualified",
       "protocol": "mdd.cli-stream.v1",
-      "scope_id": "sha256:0c0e1e6bb84774631ba48e037bb9ef2fe65d10f47b1f7b54430fdbb335f15953",
-      "snapshot_id": "snapshot-8326c2eaa5dc06c330e419bd7846bfafa93e385eb5a0d4d12782f6e723e7e9f0",
+      "scope_id": "sha256:3171d62c84e9d7cb3b2752735eae74f21a2999613ee9323831cfa521fc93419e",
+      "snapshot_id": "snapshot-36de37291c9d0b06f41481bc6a55fce2afb086c7dc6ea3e2f6cab54765d149e8",
       "sql_dialect": "dexsql-0.1.0"
     },
     "engine": {
       "backend": "meguvizdexdash",
-      "binary_sha256": "c8bb348b836041fc17e3e9ab52f43bdd763046d0675a9514be19839ed82520c7",
-      "build_id": "source-sha256:f3109ff1ac4dff090a8025301f7006eed26cda3a9b5d9d50c9134e8789cd8b7e",
-      "config_digest": "125756dec7f646577801c7dc3d2c7f57277f324c62bff4a2d4bb1bc99a9d7bb9",
+      "binary_sha256": "b86df848b9188f1748f3f7944690bc97c78f157e91b9fedcc4e6aee2588d1235",
+      "build_id": "source-sha256:1015621189458ae56e46126d03025ec44eca49c0c3b3fff223171bf58e6ca5c9",
+      "config_digest": "05626919d5d310c676181a658a5cf049825c5a8c4071a174a5d899d5673d402d",
       "dialect": {
         "engine": "dexsql-0.1.0",
         "hostlab": "dexsql",

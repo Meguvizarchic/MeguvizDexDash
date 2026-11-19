@@ -2064,7 +2064,7 @@ mod tests {
             Ok(Box::new(self.base.scan(relation)?.map(|result| {
                 result.map(|mut row| {
                     if let Some(Value::Entity(entity)) = row.first_mut() {
-                        entity.dex_occurrence_id = self.occurrence.clone();
+                        entity.dex_occurrence_id = self.occurrence.clone().into();
                     }
                     row
                 })
@@ -2135,7 +2135,7 @@ mod tests {
             .checked_source_with_runtime(source, &plan, &runtime, entity_check_limits())
             .unwrap();
         let entity = EntityRef {
-            snapshot_id: snapshot.manifest().snapshot_id.clone(),
+            snapshot_id: snapshot.manifest().snapshot_id.clone().into(),
             dex_occurrence_id: authority.occurrences[0]
                 .metadata
                 .source()
@@ -2199,7 +2199,7 @@ mod tests {
             .checked_source_with_runtime(source, &plan, &runtime, entity_check_limits())
             .unwrap();
         let entity = EntityRef {
-            snapshot_id: snapshot.manifest().snapshot_id.clone(),
+            snapshot_id: snapshot.manifest().snapshot_id.clone().into(),
             dex_occurrence_id: authority.occurrences[0]
                 .metadata
                 .source()
@@ -2346,7 +2346,7 @@ mod tests {
             }
         }
         let entity = EntityRef {
-            snapshot_id: snapshot.manifest().snapshot_id.clone(),
+            snapshot_id: snapshot.manifest().snapshot_id.clone().into(),
             dex_occurrence_id: metadata[0].source().dex_occurrence_id.clone(),
             kind: EntityKind::String,
             local_index: u32::MAX,
@@ -2508,7 +2508,7 @@ mod tests {
             .checked_source(catalog.base.source(), entity_check_limits())
             .unwrap();
         let entity = |kind, local_index| EntityRef {
-            snapshot_id: snapshot.manifest().snapshot_id.clone(),
+            snapshot_id: snapshot.manifest().snapshot_id.clone().into(),
             dex_occurrence_id: metadata.source().dex_occurrence_id.clone(),
             kind,
             local_index,

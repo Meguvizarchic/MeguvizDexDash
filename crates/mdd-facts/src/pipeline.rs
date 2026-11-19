@@ -375,9 +375,7 @@ impl FactsPipeline {
     /// inventory order, so the schedule is reproducible.
     fn claim_order(&self, start: usize, end: usize) -> Vec<usize> {
         let mut order: Vec<usize> = (start..end).collect();
-        order.sort_by_key(|index| {
-            Reverse(self.inventory.selected_dexes()[*index].blob.bytes().len())
-        });
+        order.sort_by_key(|index| Reverse(self.inventory.selected_dexes()[*index].blob.len()));
         order
     }
 

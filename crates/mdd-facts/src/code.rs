@@ -7,15 +7,12 @@ use crate::{
 use mdd_dex::{
     definitions::MethodBody,
     instructions::{
-        CodeItem, CodeItemDecoder, CodeLimits, CodeSection, DebugPolicy, read_code_offsets,
-        read_code_section_with_debug_starts,
+        CodeItem, CodeItemDecoder, CodeLimits, CodeSection, DebugPolicy, ReferenceKind,
+        read_code_offsets, read_code_section_streaming, read_code_section_with_debug_starts,
     },
     validate_header,
 };
-use mdd_input::{
-    archive::{ArchiveInventory, MemberBlob},
-    snapshot::Snapshot,
-};
+use mdd_input::{archive::ArchiveInventory, snapshot::Snapshot};
 use mdd_types::{Completeness, DecimalU64, ErrorCode, MddError, MddResult, content_id};
 use serde::Serialize;
 use std::{borrow::Cow, sync::Arc};
@@ -29,9 +26,42 @@ pub struct CodeFact {
     /// a compact fact answers it without decoding.
     #[serde(skip)]
     pub(crate) opcodes: Box<[u8]>,
+    /// Which tables of the DEX the item's instructions read besides the ones every reference reads, as the
+    /// `NAMES_*` bits: kept for every fact, so the reference layer can tell what it needs to load before it decodes
+    /// any instruction of a compact one.
+    #[serde(skip)]
+    pub(crate) reference_kinds: u8,
+}
+
+/// An instruction of the item names a call site (`invoke-custom`).
+const NAMES_CALL_SITE: u8 = 1;
+/// An instruction of the item names a method handle.
+const NAMES_METHOD_HANDLE: u8 = 2;
+
+fn reference_kinds_of(item: &CodeItem) -> u8 {
+    let mut kinds = 0;
+    for instruction in &item.instructions {
+        for reference in &instruction.references {
+            match reference.kind {
+                ReferenceKind::CallSite => kinds |= NAMES_CALL_SITE,
+                ReferenceKind::MethodHandle => kinds |= NAMES_METHOD_HANDLE,
+                _ => {}
+            }
+        }
+    }
+    kinds
 }
 
 impl CodeFact {
+    /// An instruction of the item names a call site, so the reference layer reads the DEX's call-site arrays for it.
+    pub fn names_call_site(&self) -> bool {
+        self.reference_kinds & NAMES_CALL_SITE != 0
+    }
+    /// An instruction of the item names a method handle.
+    pub fn names_method_handle(&self) -> bool {
+        self.reference_kinds & NAMES_METHOD_HANDLE != 0
+    }
+
     pub fn code_item_id(&self) -> &str {
         &self.code_item_id
     }
@@ -85,6 +115,53 @@ fn header_view(item: &CodeItem) -> CodeItem {
         debug_info: None,
         validation_scope: validation_scope.clone(),
         full_art_verification_complete: *full_art_verification_complete,
+    }
+}
+
+fn bind_source(source: &MetadataSource, error: MddError) -> MddError {
+    error
+        .detail("source_binding", "snapshot_member_lease")
+        .detail("snapshot_id", source.snapshot_id.clone())
+        .detail("dex_occurrence_id", source.dex_occurrence_id.clone())
+        .detail("member_id", source.member_id.clone())
+        .detail("content_id", source.content_id.clone())
+}
+
+/// `header_view` of an item that is not needed any more: the parts it keeps are moved, not copied.
+fn into_header_view(item: CodeItem) -> CodeItem {
+    let CodeItem {
+        raw_range,
+        insns_range,
+        registers_size,
+        ins_size,
+        outs_size,
+        insns_size_code_units,
+        debug_info_byte_offset,
+        instructions: _,
+        payloads: _,
+        switch_targets: _,
+        tries,
+        handlers,
+        debug_info: _,
+        validation_scope,
+        full_art_verification_complete,
+    } = item;
+    CodeItem {
+        raw_range,
+        insns_range,
+        registers_size,
+        ins_size,
+        outs_size,
+        insns_size_code_units,
+        debug_info_byte_offset,
+        instructions: Vec::new(),
+        payloads: Vec::new(),
+        switch_targets: Vec::new(),
+        tries,
+        handlers,
+        debug_info: None,
+        validation_scope,
+        full_art_verification_complete,
     }
 }
 
@@ -228,6 +305,115 @@ mod tests {
         assert!(
             files >= 15 && items >= 40 && with_debug >= 10 && with_payload >= 3,
             "{files} files, {items} items, {with_debug} with debug, {with_payload} with payloads"
+        );
+    }
+
+    /// The compact build reads the section once and keeps no decoded item. It must give exactly what the full build
+    /// followed by `compacted` gives, and fail with the same error where that fails.
+    #[test]
+    fn the_streamed_compact_build_is_the_full_build_compacted() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures");
+        let (mut built, mut refused, mut shared_debug) = (0, 0, 0);
+        for folder in [
+            "instructions/generated",
+            "definitions/generated",
+            "references/generated",
+        ] {
+            let mut paths: Vec<_> = fs::read_dir(root.join(folder))
+                .unwrap()
+                .map(|entry| entry.unwrap().path())
+                .filter(|path| path.extension().and_then(|e| e.to_str()) == Some("dex"))
+                .collect();
+            paths.sort();
+            for path in paths {
+                let name = format!("{folder}/{}", path.file_name().unwrap().to_string_lossy());
+                let Ok(snapshot) = Snapshot::capture(
+                    &[InputSpec {
+                        path: path.clone(),
+                        kind: InputKind::RawDex,
+                        expected_sha256: None,
+                    }],
+                    CaptureLimits::default(),
+                ) else {
+                    continue;
+                };
+                let Ok(inventory) = ArchiveInventory::build(
+                    &snapshot.sources()[0],
+                    InventoryPolicy::default(),
+                    ArchiveLimits::default(),
+                ) else {
+                    continue;
+                };
+                let limits = CodeLimits::default();
+                let whole = CodeFacts::build_all_code_items(&snapshot, &inventory, 0, limits);
+                let streamed =
+                    CodeFacts::build_all_code_items_compact(&snapshot, &inventory, 0, limits);
+                match (whole, streamed) {
+                    (Ok(whole), Ok(streamed)) => {
+                        let compacted = whole.compacted().unwrap();
+                        assert!(streamed.is_compact(), "{name}");
+                        assert_eq!(
+                            serde_json::to_value(&streamed).unwrap(),
+                            serde_json::to_value(&compacted).unwrap(),
+                            "{name}"
+                        );
+                        assert_eq!(streamed.items().len(), whole.items().len(), "{name}");
+                        let (mut left, mut right) = (streamed.reader(), whole.reader());
+                        let order: Vec<usize> = (0..whole.items().len())
+                            .chain((0..whole.items().len()).rev())
+                            .collect();
+                        for ordinal in order {
+                            let (a, b) = (&streamed.items()[ordinal], &whole.items()[ordinal]);
+                            assert_eq!(a.opcodes(), b.opcodes(), "{name} opcodes {ordinal}");
+                            assert_eq!(
+                                a.names_call_site(),
+                                b.names_call_site(),
+                                "{name} call site {ordinal}"
+                            );
+                            assert_eq!(
+                                a.names_method_handle(),
+                                b.names_method_handle(),
+                                "{name} handle {ordinal}"
+                            );
+                            // The item decoded again from the streamed value is the full item, program and all.
+                            assert_eq!(
+                                serde_json::to_value(left.get(ordinal).unwrap().as_ref()).unwrap(),
+                                serde_json::to_value(right.get(ordinal).unwrap().as_ref()).unwrap(),
+                                "{name} item {ordinal}"
+                            );
+                            // Without its debug program it is the same item without it.
+                            let mut bare = left.instructions(ordinal).unwrap().into_owned();
+                            assert!(bare.debug_info.is_none(), "{name} {ordinal}");
+                            let mut expected = right.get(ordinal).unwrap().into_owned();
+                            shared_debug += usize::from(expected.debug_info.is_some());
+                            expected.debug_info = None;
+                            bare.debug_info = None;
+                            assert_eq!(
+                                serde_json::to_value(&bare).unwrap(),
+                                serde_json::to_value(&expected).unwrap(),
+                                "{name} instructions {ordinal}"
+                            );
+                        }
+                        built += 1;
+                    }
+                    (Err(whole), Err(streamed)) => {
+                        assert_eq!(
+                            serde_json::to_value(&streamed).unwrap(),
+                            serde_json::to_value(&whole).unwrap(),
+                            "{name}"
+                        );
+                        refused += 1;
+                    }
+                    (Ok(_), Err(error)) => {
+                        panic!("{name}: only the streamed build fails: {error:?}")
+                    }
+                    (Err(error), Ok(_)) => panic!("{name}: only the full build fails: {error:?}"),
+                }
+            }
+        }
+        assert!(
+            built >= 30 && shared_debug >= 10,
+            "{built} built, {refused} refused, {shared_debug} items with a debug program"
         );
     }
 
@@ -1159,8 +1345,9 @@ pub struct CodeFacts {
     pub(crate) references_built: bool,
     pub(crate) source_positions_built: bool,
     pub(crate) full_dex_validation_complete: bool,
+    /// The DEX bytes the items were read from (see `MetadataFacts`).
     #[serde(skip)]
-    blob: MemberBlob,
+    bytes: Arc<[u8]>,
     /// The limits the items were decoded under; a later decode of one item uses the same ones.
     #[serde(skip)]
     limits: CodeLimits,
@@ -1193,13 +1380,13 @@ impl CodeFacts {
         Self::build(snapshot, inventory, dex_index, Some(offsets), limits)
     }
 
-    fn build(
+    /// The source of the DEX and its validated header, after the checks that tie the inventory to the snapshot and the
+    /// held bytes to the identity they were captured under. Every error after the source is known carries it.
+    fn prepare(
         snapshot: &Snapshot,
         inventory: &ArchiveInventory,
         dex_index: usize,
-        offsets: Option<&[u32]>,
-        limits: CodeLimits,
-    ) -> MddResult<Self> {
+    ) -> MddResult<(MetadataSource, Arc<[u8]>, mdd_dex::DexHeader)> {
         let source_entry = snapshot
             .manifest()
             .sources
@@ -1223,45 +1410,59 @@ impl CodeFacts {
             )
         })?;
         let source = MetadataSource {
-            snapshot_id: snapshot.manifest().snapshot_id.clone(),
-            dex_occurrence_id: candidate.dex_occurrence_id.clone(),
+            snapshot_id: snapshot.manifest().snapshot_id.as_str().into(),
+            dex_occurrence_id: candidate.dex_occurrence_id.as_str().into(),
             physical_dex_id: candidate.physical_dex_id.clone(),
             member_id: candidate.blob.identity.member_id.clone(),
             source_occurrence_id: source_entry.occurrence_id.clone(),
             content_id: candidate.blob.content_id.clone(),
         };
-        let bind = |error: MddError| {
-            error
-                .detail("source_binding", "snapshot_member_lease")
-                .detail("snapshot_id", source.snapshot_id.clone())
-                .detail("dex_occurrence_id", source.dex_occurrence_id.clone())
-                .detail("member_id", source.member_id.clone())
-                .detail("content_id", source.content_id.clone())
-        };
         if candidate.logical_header_byte_offset.0 != 0
             || candidate.blob.identity.source_occurrence_id != source_entry.occurrence_id
         {
-            return Err(bind(MddError::new(
-                ErrorCode::InvalidArgument,
-                "facts.code",
-                "unsupported logical offset or mismatched source",
-            )));
+            return Err(bind_source(
+                &source,
+                MddError::new(
+                    ErrorCode::InvalidArgument,
+                    "facts.code",
+                    "unsupported logical offset or mismatched source",
+                ),
+            ));
         }
-        if content_id(candidate.blob.bytes()) != source.content_id {
-            return Err(bind(MddError::new(
-                ErrorCode::InternalFault,
-                "facts.code",
-                "held bytes differ from content identity",
-            )));
+        let bytes = candidate
+            .blob
+            .try_lease()
+            .map_err(|error| bind_source(&source, error))?;
+        if content_id(&bytes) != source.content_id {
+            return Err(bind_source(
+                &source,
+                MddError::new(
+                    ErrorCode::InternalFault,
+                    "facts.code",
+                    "held bytes differ from content identity",
+                ),
+            ));
         }
-        let header = validate_header(candidate.blob.bytes()).map_err(bind)?;
+        let header = validate_header(&bytes).map_err(|error| bind_source(&source, error))?;
+        Ok((source, bytes, header))
+    }
+
+    fn build(
+        snapshot: &Snapshot,
+        inventory: &ArchiveInventory,
+        dex_index: usize,
+        offsets: Option<&[u32]>,
+        limits: CodeLimits,
+    ) -> MddResult<Self> {
+        let (source, bytes, header) = Self::prepare(snapshot, inventory, dex_index)?;
         let (section, debug_starts): (CodeSection, Option<Arc<[u64]>>) = match offsets {
-            None => read_code_section_with_debug_starts(candidate.blob.bytes(), &header, limits)
+            None => read_code_section_with_debug_starts(&bytes, &header, limits)
                 .map(|(section, starts)| (section, Some(Arc::from(starts)))),
-            Some(offsets) => read_code_offsets(candidate.blob.bytes(), &header, offsets, limits)
-                .map(|section| (section, None)),
+            Some(offsets) => {
+                read_code_offsets(&bytes, &header, offsets, limits).map(|section| (section, None))
+            }
         }
-        .map_err(bind)?;
+        .map_err(|error| bind_source(&source, error))?;
         let items = section
             .items
             .into_iter()
@@ -1271,6 +1472,7 @@ impl CodeFacts {
                     source.dex_occurrence_id, data.raw_range.byte_offset.0
                 ),
                 opcodes: data.instructions.iter().map(|i| i.opcode).collect(),
+                reference_kinds: reference_kinds_of(&data),
                 data,
             })
             .collect();
@@ -1291,10 +1493,56 @@ impl CodeFacts {
             references_built: false,
             source_positions_built: false,
             full_dex_validation_complete: false,
-            blob: candidate.blob.clone(),
+            bytes,
             limits,
             debug_starts,
             compact: false,
+        })
+    }
+
+    /// The compact facts of every code item (`build_all_code_items` and then `compacted`), without the full ones in
+    /// between: each item is read and validated by the same walk, kept as its header and opcodes, and let go. Equal to
+    /// what the two steps give, error for error; the difference is that the decoded instructions of the whole section
+    /// are never alive together, which for a large DEX is most of a gigabyte.
+    pub fn build_all_code_items_compact(
+        snapshot: &Snapshot,
+        inventory: &ArchiveInventory,
+        dex_index: usize,
+        limits: CodeLimits,
+    ) -> MddResult<Self> {
+        let (source, bytes, header) = Self::prepare(snapshot, inventory, dex_index)?;
+        let mut items = Vec::new();
+        let (section, debug_starts) =
+            read_code_section_streaming(&bytes, &header, limits, |data| {
+                items.push(CodeFact {
+                    code_item_id: format!(
+                        "{}:code-byte:{}",
+                        source.dex_occurrence_id, data.raw_range.byte_offset.0
+                    ),
+                    opcodes: data.instructions.iter().map(|i| i.opcode).collect(),
+                    reference_kinds: reference_kinds_of(&data),
+                    data: into_header_view(data),
+                });
+                Ok(())
+            })
+            .map_err(|error| bind_source(&source, error))?;
+        Ok(Self {
+            source,
+            scope: section.scope,
+            debug_policy: limits.debug_policy,
+            declared_map_code_item_count: section.declared_code_item_count,
+            declared_code_item_byte_offsets: section.declared_code_item_byte_offsets,
+            requested_code_byte_offsets: Vec::new(),
+            items,
+            code_layout_coverage: Completeness::Complete,
+            method_ownership_built: false,
+            references_built: false,
+            source_positions_built: false,
+            full_dex_validation_complete: false,
+            bytes,
+            limits,
+            debug_starts: Some(Arc::from(debug_starts)),
+            compact: true,
         })
     }
 
@@ -1323,6 +1571,7 @@ impl CodeFacts {
                 code_item_id: fact.code_item_id.clone(),
                 data: header_view(&fact.data),
                 opcodes: fact.opcodes.clone(),
+                reference_kinds: fact.reference_kinds,
             })
             .collect();
         Ok(Self {
@@ -1338,7 +1587,7 @@ impl CodeFacts {
             references_built: self.references_built,
             source_positions_built: self.source_positions_built,
             full_dex_validation_complete: self.full_dex_validation_complete,
-            blob: self.blob.clone(),
+            bytes: Arc::clone(&self.bytes),
             limits: self.limits,
             debug_starts: self.debug_starts.clone(),
             compact: true,
@@ -1366,7 +1615,7 @@ impl CodeFacts {
     }
 
     pub fn lease(&self) -> Arc<[u8]> {
-        self.blob.lease()
+        Arc::clone(&self.bytes)
     }
 
     pub fn source(&self) -> &MetadataSource {
@@ -1412,7 +1661,7 @@ impl CodeFacts {
     }
 
     fn bytes_in(&self, range: &mdd_dex::DexRange) -> MddResult<&[u8]> {
-        mdd_dex::checked_reader::CheckedReader::new(self.blob.bytes())
+        mdd_dex::checked_reader::CheckedReader::new(&self.bytes)
             .range(range.byte_offset.0, range.byte_length.0)
     }
 
@@ -1461,6 +1710,25 @@ impl<'a> CodeItemReader<'a> {
 
     /// The decoded item of a fact of these code facts (the fact a `MethodCodeBody::Present` carries).
     pub fn fact(&mut self, fact: &'a CodeFact) -> MddResult<Cow<'a, CodeItem>> {
+        self.item_of(fact, true)
+    }
+
+    /// As `get`, with the instructions, payloads and switch tables but without the debug program: `debug_info` is
+    /// `None` on a compact value. For a reader of the instructions, which then does not decode the debug programs or
+    /// keep them. A full value hands out its own item, which has its program.
+    pub fn instructions(&mut self, ordinal: usize) -> MddResult<Cow<'a, CodeItem>> {
+        let facts = self.facts;
+        let fact = facts.items.get(ordinal).ok_or_else(|| {
+            MddError::new(
+                ErrorCode::InvalidArgument,
+                "facts.code",
+                "code ordinal outside scope",
+            )
+        })?;
+        self.item_of(fact, false)
+    }
+
+    fn item_of(&mut self, fact: &'a CodeFact, debug: bool) -> MddResult<Cow<'a, CodeItem>> {
         let facts = self.facts;
         if !facts.compact {
             return Ok(Cow::Borrowed(&fact.data));
@@ -1473,14 +1741,19 @@ impl<'a> CodeItemReader<'a> {
                     "compact code facts lost their debug program starts",
                 )
             })?;
-            let lease = facts.blob.lease();
+            let lease = Arc::clone(&facts.bytes);
             let header = validate_header(&lease)?;
             self.decoder = Some(CodeItemDecoder::new(lease, header, facts.limits, starts));
         }
         let decoder = self.decoder.as_mut().ok_or_else(|| {
             MddError::new(ErrorCode::InternalFault, "facts.code", "decoder missing")
         })?;
-        let mut item = decoder.decode(fact.data.raw_range.byte_offset.0)?;
+        let offset = fact.data.raw_range.byte_offset.0;
+        let mut item = if debug {
+            decoder.decode(offset)?
+        } else {
+            decoder.decode_instructions(offset)?
+        };
         // The retained header was read together with the whole section; keep it as the one source of truth for
         // the fields that are not derived from the instruction words.
         item.validation_scope
@@ -1874,6 +2147,64 @@ impl<'a> MethodCodeFactViews<'a> {
         Ok(rows)
     }
 
+    /// The rows of `method_rows`, each handed to `each` as it is made and not kept: a caller that stores the rows somewhere
+    /// else holds one at a time, not every row of a DEX with its text. The same rows in the same order, refused as
+    /// `method_rows` refuses them; the text of the identity columns is borrowed from the facts, and the two derived texts
+    /// (`param_descriptors`, `opcode_hex`) live for the one call of `each`.
+    pub fn for_each_method_row(
+        &self,
+        each: &mut dyn FnMut(&MethodCodeRowRef<'_>) -> MddResult<()>,
+    ) -> MddResult<()> {
+        Self::require_method_columns(MethodCodeRow::COLUMNS)?;
+        for view in self.iter() {
+            let view = view?;
+            let reference = view.method.reference;
+            let param_count =
+                u32::try_from(reference.parameter_descriptors.len()).map_err(|_| {
+                    MddError::new(
+                        ErrorCode::InternalFault,
+                        "facts.method_code",
+                        "validated parameter count exceeds UInt32",
+                    )
+                    .detail("method_idx", u64::from(reference.method_idx))
+                })?;
+            let (opcode_count, opcode_hex) =
+                match view.body.opcode_text(OpcodeTextLimits::default()) {
+                    Ok(Some(text)) => (Some(text.count), Some(text.text)),
+                    Ok(None) => (None, None),
+                    Err(error) => {
+                        return Err(error
+                            .detail("method_idx", u64::from(reference.method_idx))
+                            .detail("column", "opcode_hex"));
+                    }
+                };
+            let param_descriptors =
+                crate::definitions::parameter_descriptors_text(&reference.parameter_descriptors)?;
+            each(&MethodCodeRowRef {
+                method_idx: reference.method_idx,
+                class_idx: reference.class_idx,
+                class_descriptor: &reference.class_descriptor,
+                proto_idx: reference.proto_idx,
+                name: &reference.method_name,
+                descriptor: &reference.descriptor,
+                return_descriptor: &reference.return_descriptor,
+                param_count,
+                param_descriptors: &param_descriptors,
+                access_flags: view
+                    .method
+                    .definition
+                    .map(|definition| definition.access_flags),
+                opcode_count,
+                opcode_hex: opcode_hex.as_deref(),
+                method_kind: view
+                    .method
+                    .definition
+                    .map(|definition| definition.kind.as_str()),
+            })?;
+        }
+        Ok(())
+    }
+
     /// Project one `code_items` row per method-owned present body, in
     /// `method_idx` order. A physical code item with no declaring method is not
     /// a row of this relation because `method_idx` is NOT NULL; a shared body
@@ -2056,6 +2387,25 @@ impl CodeItemRow {
 /// reference-only method (no definition body at all); native, abstract and
 /// present-empty definitions report `0` and `""`, matching the reference.
 /// Payload pseudo-instructions are not counted and are not rendered.
+/// A `methods` row (with the opcode columns) without its `file_id`, its text borrowed from the facts or from the call that
+/// hands it out: what `for_each_method_row` gives.
+#[derive(Clone, Copy, Debug)]
+pub struct MethodCodeRowRef<'a> {
+    pub method_idx: u32,
+    pub class_idx: u32,
+    pub class_descriptor: &'a str,
+    pub proto_idx: u32,
+    pub name: &'a str,
+    pub descriptor: &'a str,
+    pub return_descriptor: &'a str,
+    pub param_count: u32,
+    pub param_descriptors: &'a str,
+    pub access_flags: Option<u32>,
+    pub opcode_count: Option<u32>,
+    pub opcode_hex: Option<&'a str>,
+    pub method_kind: Option<&'static str>,
+}
+
 #[derive(Clone, Debug, Serialize)]
 pub struct MethodCodeRow {
     pub file_id: u32,

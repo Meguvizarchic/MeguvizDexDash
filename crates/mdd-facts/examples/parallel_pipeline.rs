@@ -189,7 +189,7 @@ fn run_once(options: &Options, samples: &mut Vec<Sample>) -> MddResult<Value> {
     let decompressed: u64 = inventory
         .selected_dexes()
         .iter()
-        .map(|dex| dex.blob.bytes().len() as u64)
+        .map(|dex| dex.blob.len() as u64)
         .sum();
     samples.push(Sample {
         stage: "inventory+selected_dex_read",

@@ -54,6 +54,28 @@ pub struct ClassFieldRow {
     pub kind: String,
     pub access_flags: u32,
 }
+/// A `class_fields` row whose text is borrowed from the facts, without its `file_id`: what `for_each_class_field` hands out.
+#[derive(Clone, Copy, Debug)]
+pub struct ClassFieldRef<'a> {
+    pub class_idx: u32,
+    pub class_descriptor: &'a str,
+    pub field_idx: u32,
+    pub field_name: &'a str,
+    pub field_descriptor: &'a str,
+    pub kind: &'static str,
+    pub access_flags: u32,
+}
+/// A `class_methods` row whose text is borrowed from the facts, without its `file_id`: what `for_each_class_method` hands out.
+#[derive(Clone, Copy, Debug)]
+pub struct ClassMethodRef<'a> {
+    pub class_idx: u32,
+    pub class_descriptor: &'a str,
+    pub method_idx: u32,
+    pub method_name: &'a str,
+    pub method_descriptor: &'a str,
+    pub kind: &'static str,
+    pub access_flags: u32,
+}
 #[derive(Clone, Debug, Serialize)]
 pub struct ClassMethodRow {
     pub file_id: u32,
@@ -1372,6 +1394,44 @@ impl DefinitionFacts {
         Ok(())
     }
 
+    /// The rows of `class_field_rows`, each handed to `each` as it is made and not kept.
+    pub fn for_each_class_field(
+        &self,
+        each: &mut dyn FnMut(&ClassFieldRef<'_>) -> MddResult<()>,
+    ) -> MddResult<()> {
+        for d in &self.definitions.field_definitions {
+            let r = &self.definitions.field_references[d.field_idx as usize];
+            each(&ClassFieldRef {
+                class_idx: d.class_idx,
+                class_descriptor: &r.class_descriptor,
+                field_idx: d.field_idx,
+                field_name: &r.field_name,
+                field_descriptor: &r.descriptor,
+                kind: d.kind.as_str(),
+                access_flags: d.access_flags,
+            })?;
+        }
+        Ok(())
+    }
+    /// The rows of `class_method_rows`, each handed to `each` as it is made and not kept.
+    pub fn for_each_class_method(
+        &self,
+        each: &mut dyn FnMut(&ClassMethodRef<'_>) -> MddResult<()>,
+    ) -> MddResult<()> {
+        for d in &self.definitions.method_definitions {
+            let r = &self.definitions.method_references[d.method_idx as usize];
+            each(&ClassMethodRef {
+                class_idx: d.class_idx,
+                class_descriptor: &r.class_descriptor,
+                method_idx: d.method_idx,
+                method_name: &r.method_name,
+                method_descriptor: &r.descriptor,
+                kind: d.kind.as_str(),
+                access_flags: d.access_flags,
+            })?;
+        }
+        Ok(())
+    }
     pub fn class_field_rows(&self, file_id: u32) -> Vec<ClassFieldRow> {
         self.definitions
             .field_definitions
@@ -1501,13 +1561,18 @@ impl DefinitionFacts {
                     "class row allocation failed",
                 )
             })?;
+        // One pass over the interfaces instead of one pass for each class.
+        let mut interface_counts: std::collections::HashMap<u32, usize> =
+            std::collections::HashMap::new();
+        for interface in &self.definitions.interfaces {
+            *interface_counts.entry(interface.class_def_idx).or_default() += 1;
+        }
         for class in &self.definitions.classes {
             let interface_count = u32::try_from(
-                self.definitions
-                    .interfaces
-                    .iter()
-                    .filter(|interface| interface.class_def_idx == class.class_def_idx)
-                    .count(),
+                interface_counts
+                    .get(&class.class_def_idx)
+                    .copied()
+                    .unwrap_or(0),
             )
             .map_err(|_| {
                 MddError::new(

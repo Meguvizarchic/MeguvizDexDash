@@ -4,7 +4,7 @@ use serde::Serialize;
 use std::{
     collections::{BTreeMap, BTreeSet},
     io::Read,
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 
 mod central;
@@ -23,6 +23,15 @@ pub struct InventoryPolicy {
     pub dex_selection: DexSelection,
     pub reject_duplicate_selected_names: bool,
     pub require_dex: bool,
+    /// Keep the decompressed bytes of every selected DEX for as long as the inventory lives. Without it a selected DEX of
+    /// an archive is read, checked and let go at build, and decompressed again from the captured archive whenever
+    /// something leases its bytes; the copy lives as long as a holder of the lease does. The archive's own bytes are held
+    /// either way, so the choice is memory (all the DEX at once, a quarter to a half of the archive again) against the
+    /// time to decompress a DEX each time it is needed.
+    ///
+    /// Whoever leases a DEX of an inventory that does not hold them lets the inventory's copy go with
+    /// `MemberBlob::release` when it has taken what it needs, or the copy stays for as long as the inventory lives.
+    pub hold_dex_bytes: bool,
 }
 
 impl InventoryPolicy {
@@ -38,6 +47,7 @@ impl Default for InventoryPolicy {
             dex_selection: DexSelection::TopLevelClasses,
             reject_duplicate_selected_names: true,
             require_dex: true,
+            hold_dex_bytes: true,
         }
     }
 }
@@ -83,16 +93,115 @@ pub struct MemberBlob {
     pub identity: MemberIdentity,
     pub content_id: String,
     #[serde(skip)]
-    bytes: Arc<[u8]>,
+    len: usize,
+    #[serde(skip)]
+    bytes: BlobBytes,
+}
+
+/// The bytes of a member: held, or decompressed from the captured archive when someone asks.
+#[derive(Clone)]
+enum BlobBytes {
+    Held(Arc<[u8]>),
+    Lazy(Arc<LazyBytes>),
+}
+
+struct LazyBytes {
+    /// The bytes read for the leases that are out, so that everyone who asks meanwhile gets the same allocation; dropped by
+    /// `MemberBlob::release`. It is a strong reference on purpose: a weak one would keep the whole allocation (the bytes
+    /// are stored inline with the counts) until the last weak reference went, whoever dropped the last lease.
+    cache: Mutex<Option<Arc<[u8]>>>,
+    content_id: String,
+    reader: MemberReader,
+}
+
+impl LazyBytes {
+    fn get(&self) -> MddResult<Arc<[u8]>> {
+        // One reader at a time: two threads that want the same member wait for one decompression and share its result.
+        let mut cache = self
+            .cache
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(bytes) = cache.as_ref() {
+            return Ok(Arc::clone(bytes));
+        }
+        let bytes: Arc<[u8]> = Arc::from(self.reader.read()?);
+        if content_id(&bytes) != self.content_id {
+            return Err(MddError::new(
+                ErrorCode::InternalFault,
+                "archive.member_bytes",
+                "member bytes read again differ from the identity they were first read under",
+            ));
+        }
+        *cache = Some(Arc::clone(&bytes));
+        Ok(bytes)
+    }
 }
 
 impl MemberBlob {
-    pub fn bytes(&self) -> &[u8] {
-        &self.bytes
+    pub fn len(&self) -> usize {
+        self.len
     }
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+    /// The member's bytes. For a member the inventory did not hold (`InventoryPolicy::hold_dex_bytes` off) they are
+    /// decompressed from the archive unless a lease is out already (see `release`); use `try_lease` where a failure can be
+    /// reported.
+    ///
+    /// # Panics
+    /// If the member cannot be read again: it was read and checked when the inventory was built, from bytes that cannot
+    /// change since, so that is a broken invariant (or an allocation that fails), not an input error.
     pub fn lease(&self) -> Arc<[u8]> {
-        Arc::clone(&self.bytes)
+        match self.try_lease() {
+            Ok(bytes) => bytes,
+            Err(error) => panic!(
+                "member {} was read at inventory build but cannot be read again: {error:?}",
+                self.identity.member_id
+            ),
+        }
     }
+    pub fn try_lease(&self) -> MddResult<Arc<[u8]>> {
+        match &self.bytes {
+            BlobBytes::Held(bytes) => Ok(Arc::clone(bytes)),
+            BlobBytes::Lazy(lazy) => lazy.get(),
+        }
+    }
+    /// The bytes if they are held: always for a member the inventory held, and for one it did not from the first lease until
+    /// `release`. Never reads the archive.
+    pub fn held_lease(&self) -> Option<Arc<[u8]>> {
+        match &self.bytes {
+            BlobBytes::Held(bytes) => Some(Arc::clone(bytes)),
+            BlobBytes::Lazy(lazy) => lazy
+                .cache
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .clone(),
+        }
+    }
+    /// Let go of the bytes a member the inventory did not hold was read into. Leases already given stay valid and keep the
+    /// bytes alive; the next lease reads the member again. Does nothing for a member the inventory holds.
+    pub fn release(&self) {
+        if let BlobBytes::Lazy(lazy) = &self.bytes {
+            lazy.cache
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .take();
+        }
+    }
+    /// Whether the bytes are held by the blob itself, not read on demand.
+    pub fn is_held(&self) -> bool {
+        matches!(self.bytes, BlobBytes::Held(_))
+    }
+}
+
+/// Everything needed to decompress one archive member again.
+#[derive(Clone)]
+struct MemberReader {
+    source: CapturedSource,
+    entry: central::Entry,
+    directory_start: usize,
+    limits: ArchiveLimits,
+    member_id: String,
 }
 
 #[derive(Clone, Serialize)]
@@ -304,8 +413,9 @@ impl ArchiveInventory {
             )));
         }
         for id in selected_ids {
-            let blob = result.read_member(&id).map_err(context)?;
-            let bytes = blob.bytes();
+            let mut blob = result.read_member(&id).map_err(context)?;
+            let lease = blob.lease();
+            let bytes: &[u8] = &lease;
             if bytes.len() < 8
                 || &bytes[..4] != b"dex\n"
                 || bytes[7] != 0
@@ -339,6 +449,20 @@ impl ArchiveInventory {
                     .detail("member_id", id)
                     .detail("detected_version", version),
                 ));
+            }
+            drop(lease);
+            if !policy.hold_dex_bytes
+                && !matches!(result.source.kind(), InputKind::RawDex)
+                && let Some(index) = result.member_index.get(&id).copied()
+            {
+                // Checked once, above; from here on the member is decompressed again when something leases it.
+                blob = blob.released(MemberReader {
+                    source: result.source.clone(),
+                    entry: result.entries[index].clone(),
+                    directory_start: result.directory_start,
+                    limits: result.limits,
+                    member_id: id.clone(),
+                });
             }
             result.selected.push(DexCandidate {
                 physical_dex_id: format!("{}:physical-dex:0", blob.content_id),
@@ -381,10 +505,46 @@ impl ArchiveInventory {
             return Ok(MemberBlob {
                 identity,
                 content_id: self.source.identity().content_id.clone(),
-                bytes: self.source.lease(),
+                len: self.source.bytes().len(),
+                bytes: BlobBytes::Held(self.source.lease()),
             });
         }
-        let entry = &self.entries[index];
+        let reader = MemberReader {
+            source: self.source.clone(),
+            entry: self.entries[index].clone(),
+            directory_start: self.directory_start,
+            limits: self.limits,
+            member_id: member_id.to_owned(),
+        };
+        let output = reader.read()?;
+        Ok(MemberBlob {
+            identity,
+            content_id: content_id(&output),
+            len: output.len(),
+            bytes: BlobBytes::Held(Arc::from(output)),
+        })
+    }
+}
+
+impl MemberBlob {
+    /// The same member, its bytes let go and read again from `reader` when asked for.
+    fn released(self, reader: MemberReader) -> Self {
+        Self {
+            bytes: BlobBytes::Lazy(Arc::new(LazyBytes {
+                cache: Mutex::new(None),
+                content_id: self.content_id.clone(),
+                reader,
+            })),
+            ..self
+        }
+    }
+}
+
+impl MemberReader {
+    /// The member's decompressed bytes, checked against its declared size and CRC.
+    fn read(&self) -> MddResult<Vec<u8>> {
+        let entry = &self.entry;
+        let member_id = self.member_id.as_str();
         let context = |e: MddError| {
             e.detail(
                 "source_occurrence_id",
@@ -502,11 +662,7 @@ impl ArchiveInventory {
                 "actual decompressed length differs from declared size",
             )));
         }
-        Ok(MemberBlob {
-            identity,
-            content_id: content_id(&output),
-            bytes: Arc::from(output),
-        })
+        Ok(output)
     }
 }
 

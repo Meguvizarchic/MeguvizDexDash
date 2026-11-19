@@ -26,6 +26,7 @@ fn policy(empty: bool) -> InventoryPolicy {
         },
         reject_duplicate_selected_names: false,
         require_dex: !empty,
+        hold_dex_bytes: true,
     }
 }
 
@@ -93,7 +94,7 @@ fn real_zip64_and_python_force_local_members_are_fully_consumed() {
             } else {
                 b"\0\xffresource"
             };
-            assert_eq!(blob.bytes(), expected, "{name}/{ordinal}");
+            assert_eq!(&*blob.lease(), expected, "{name}/{ordinal}");
             assert_eq!(blob.content_id, content_id(expected));
         }
         if name == "duplicate-name" || name == "duplicate-content" {

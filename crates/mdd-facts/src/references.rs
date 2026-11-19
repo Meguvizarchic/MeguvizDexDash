@@ -2,7 +2,9 @@
 use crate::{
     code::CodeFacts,
     definitions::DefinitionFacts,
-    metadata::{EntityKind, EntityRef, MetadataSource, StringFact, StringPoolIdentity, TypeFact},
+    metadata::{
+        EntityKind, EntityRef, MetadataSource, SharedId, StringFact, StringPoolIdentity, TypeFact,
+    },
 };
 use mdd_dex::{
     DexRange,
@@ -69,8 +71,8 @@ impl TargetKind {
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct ReferenceTargetId {
-    pub snapshot_id: String,
-    pub dex_occurrence_id: String,
+    pub snapshot_id: SharedId,
+    pub dex_occurrence_id: SharedId,
     pub kind: TargetKind,
     pub local_index: u32,
 }
@@ -414,7 +416,9 @@ fn argument_words(definitions: &DefinitionFacts, proto_idx: u32) -> MddResult<u3
             .ok_or_else(|| failure("REFERENCE_PARAMETER_WORD_OVERFLOW"))
         })
 }
-fn type_name(descriptor: &str) -> String {
+/// The Java-style name of a type descriptor (`Ljava/lang/String;` is `java.lang.String`, `[I` is `int[]`), which the
+/// type-use relation carries beside the descriptor.
+pub fn type_name(descriptor: &str) -> String {
     let dimensions = descriptor.bytes().take_while(|byte| *byte == b'[').count();
     let rest = &descriptor[dimensions..];
     let base = match rest {
@@ -474,15 +478,9 @@ impl ReferenceFacts {
                 "definition and code facts do not belong to the same immutable occurrence",
             )));
         }
-        // The sites are read out of the decoded instructions. A compact value does not hold them, and
-        // reading its empty instruction lists would give a layer with no references that looks complete.
-        if code.is_compact() {
-            return Err(bind(MddError::new(
-                ErrorCode::InvalidArgument,
-                "facts.references",
-                "reference facts are built from full code facts; hand them the compact copy afterwards with `with_code`",
-            )));
-        }
+        // The sites are read out of the decoded instructions. A compact value does not hold them: its items are
+        // decoded again, one caller at a time, from the DEX bytes it leases (`CodeItemReader::instructions`), and
+        // let go as soon as their sites are taken. The result is the one the full value gives.
         if definitions.definition_coverage() != Completeness::Complete
             || code.code_layout_coverage() != Completeness::Complete
         {
@@ -565,15 +563,9 @@ impl ReferenceFacts {
         let mut needs_arrays = false;
         let mut needs_handles = false;
         for index in &used_code {
-            for instruction in &code.items()[*index].data().instructions {
-                for reference in &instruction.references {
-                    if reference.kind == ReferenceKind::CallSite {
-                        needs_arrays = true;
-                    } else if reference.kind == ReferenceKind::MethodHandle {
-                        needs_handles = true;
-                    }
-                }
-            }
+            let item = &code.items()[*index];
+            needs_arrays |= item.names_call_site();
+            needs_handles |= item.names_method_handle();
             if needs_arrays && needs_handles {
                 break;
             }
@@ -624,8 +616,9 @@ impl ReferenceFacts {
         let mut sites = Vec::new();
         let mut dynamic_calls = Vec::new();
         let mut distinct_targets = BTreeSet::new();
+        let mut reader = code.reader();
         for (method_idx, class_def_idx, class_idx, code_index) in callers.iter().copied() {
-            let item = code.items()[code_index].data();
+            let item = reader.instructions(code_index).map_err(bind)?;
             for instruction in &item.instructions {
                 if let Some(invoke) = &instruction.invoke_kind {
                     let target = instruction
@@ -781,6 +774,7 @@ impl ReferenceFacts {
                 }
             }
         }
+        drop(reader);
         let target_index = TargetIndex::from_sites(&sites, &distinct_targets).map_err(bind)?;
         let coverage = ReferenceCoverage {
             required_layer_scope:
@@ -1508,11 +1502,11 @@ impl<'a> DefinitionWorld<'a> {
         })?;
         let occurrences = facts
             .iter()
-            .map(|fact| fact.metadata().source().dex_occurrence_id.clone())
+            .map(|fact| fact.metadata().source().dex_occurrence_id.to_string())
             .collect();
         Self::build(
             facts,
-            first.metadata().source().snapshot_id.clone(),
+            first.metadata().source().snapshot_id.to_string(),
             DefinitionSearchScope::WithinProvidedFacts {
                 dex_occurrences: occurrences,
             },
@@ -1919,6 +1913,57 @@ pub struct MethodTypeRow {
     pub method_idx: u32,
     pub type_idx: u32,
 }
+/// The columns of a `method_strings` row that come from the facts, borrowed from them; the caller adds the file.
+#[derive(Clone, Copy, Debug)]
+pub struct MethodStringRef<'a> {
+    pub method: &'a str,
+    pub method_class: &'a str,
+    pub method_name: &'a str,
+    pub value: &'a str,
+    pub class_idx: u32,
+    pub method_idx: u32,
+    pub string_idx: u32,
+}
+/// The columns of a `method_calls` row that come from the facts, borrowed from them.
+#[derive(Clone, Copy, Debug)]
+pub struct MethodCallRef<'a> {
+    pub method: &'a str,
+    pub method_class: &'a str,
+    pub method_name: &'a str,
+    pub callee: &'a str,
+    pub callee_class: &'a str,
+    pub callee_name: &'a str,
+    pub class_idx: u32,
+    pub method_idx: u32,
+    pub callee_method_idx: u32,
+}
+/// The columns of a `method_field_accesses` row that come from the facts, borrowed from them.
+#[derive(Clone, Copy, Debug)]
+pub struct MethodFieldRef<'a> {
+    pub method: &'a str,
+    pub method_class: &'a str,
+    pub method_name: &'a str,
+    pub field: &'a str,
+    pub field_class: &'a str,
+    pub field_name: &'a str,
+    pub field_type: &'a str,
+    pub using_type: Option<&'a str>,
+    pub class_idx: u32,
+    pub method_idx: u32,
+    pub field_idx: u32,
+}
+/// The columns of a `method_used_types` row that come from the facts, borrowed from them.
+#[derive(Clone, Copy, Debug)]
+pub struct MethodTypeRef<'a> {
+    pub method: &'a str,
+    pub method_class: &'a str,
+    pub method_name: &'a str,
+    pub type_descriptor: &'a str,
+    pub type_name: &'a str,
+    pub class_idx: u32,
+    pub method_idx: u32,
+    pub type_idx: u32,
+}
 #[derive(Clone, Copy, Debug)]
 pub enum ReferenceRelation {
     MethodStrings,
@@ -2017,12 +2062,16 @@ impl ReferenceFacts {
         }
         Ok(())
     }
-    pub fn method_string_rows(&self, file_id: u32) -> MddResult<Vec<MethodStringRow>> {
+    /// The string-use sites as rows, each handed to `each` as it is made and not kept: a caller that stores the rows
+    /// somewhere else holds one of them at a time, not all of a DEX. Refused and budgeted as `method_string_rows` is.
+    pub fn for_each_method_string(
+        &self,
+        each: &mut dyn FnMut(&MethodStringRef<'_>) -> MddResult<()>,
+    ) -> MddResult<()> {
         self.require_complete()?;
         let mut budget = ProjectionBudget {
             remaining: self.limits.max_projection_bytes,
         };
-        let mut rows = Vec::new();
         let mut texts: BTreeMap<u32, String> = BTreeMap::new();
         for site in self
             .sites
@@ -2048,25 +2097,44 @@ impl ReferenceFacts {
                 text,
             ])?;
             budget.row::<MethodStringRow>()?;
-            rows.push(MethodStringRow {
-                method: caller.descriptor.clone(),
-                method_class: caller.class_descriptor.clone(),
-                method_name: caller.method_name.clone(),
-                value: text.clone(),
-                file_id,
+            each(&MethodStringRef {
+                method: &caller.descriptor,
+                method_class: &caller.class_descriptor,
+                method_name: &caller.method_name,
+                value: text,
                 class_idx: site.class_idx,
                 method_idx: site.caller_method_idx,
                 string_idx: site.target_local_index,
-            });
+            })?;
         }
+        Ok(())
+    }
+    pub fn method_string_rows(&self, file_id: u32) -> MddResult<Vec<MethodStringRow>> {
+        let mut rows = Vec::new();
+        self.for_each_method_string(&mut |row| {
+            rows.push(MethodStringRow {
+                method: row.method.to_owned(),
+                method_class: row.method_class.to_owned(),
+                method_name: row.method_name.to_owned(),
+                value: row.value.to_owned(),
+                file_id,
+                class_idx: row.class_idx,
+                method_idx: row.method_idx,
+                string_idx: row.string_idx,
+            });
+            Ok(())
+        })?;
         Ok(rows)
     }
-    pub fn method_call_rows(&self, file_id: u32) -> MddResult<Vec<MethodCallRow>> {
+    /// The call sites as rows, handed to `each` one at a time (see `for_each_method_string`).
+    pub fn for_each_method_call(
+        &self,
+        each: &mut dyn FnMut(&MethodCallRef<'_>) -> MddResult<()>,
+    ) -> MddResult<()> {
         self.require_complete()?;
         let mut budget = ProjectionBudget {
             remaining: self.limits.max_projection_bytes,
         };
-        let mut rows = Vec::new();
         for site in self
             .sites
             .iter()
@@ -2085,27 +2153,48 @@ impl ReferenceFacts {
                 &target.method_name,
             ])?;
             budget.row::<MethodCallRow>()?;
-            rows.push(MethodCallRow {
-                method: caller.descriptor.clone(),
-                method_class: caller.class_descriptor.clone(),
-                method_name: caller.method_name.clone(),
-                callee: target.descriptor.clone(),
-                callee_class: target.class_descriptor.clone(),
-                callee_name: target.method_name.clone(),
-                file_id,
+            each(&MethodCallRef {
+                method: &caller.descriptor,
+                method_class: &caller.class_descriptor,
+                method_name: &caller.method_name,
+                callee: &target.descriptor,
+                callee_class: &target.class_descriptor,
+                callee_name: &target.method_name,
                 class_idx: site.class_idx,
                 method_idx: site.caller_method_idx,
                 callee_method_idx: site.target_local_index,
-            });
+            })?;
         }
+        Ok(())
+    }
+    pub fn method_call_rows(&self, file_id: u32) -> MddResult<Vec<MethodCallRow>> {
+        let mut rows = Vec::new();
+        self.for_each_method_call(&mut |row| {
+            rows.push(MethodCallRow {
+                method: row.method.to_owned(),
+                method_class: row.method_class.to_owned(),
+                method_name: row.method_name.to_owned(),
+                callee: row.callee.to_owned(),
+                callee_class: row.callee_class.to_owned(),
+                callee_name: row.callee_name.to_owned(),
+                file_id,
+                class_idx: row.class_idx,
+                method_idx: row.method_idx,
+                callee_method_idx: row.callee_method_idx,
+            });
+            Ok(())
+        })?;
         Ok(rows)
     }
-    pub fn method_field_rows(&self, file_id: u32) -> MddResult<Vec<MethodFieldRow>> {
+    /// The field-access sites as rows, handed to `each` one at a time (see `for_each_method_string`).
+    pub fn for_each_method_field(
+        &self,
+        each: &mut dyn FnMut(&MethodFieldRef<'_>) -> MddResult<()>,
+    ) -> MddResult<()> {
         self.require_complete()?;
         let mut budget = ProjectionBudget {
             remaining: self.limits.max_projection_bytes,
         };
-        let mut rows = Vec::new();
         for site in self
             .sites
             .iter()
@@ -2116,9 +2205,9 @@ impl ReferenceFacts {
             let target =
                 &self.definitions.definitions().field_references[site.target_local_index as usize];
             let using = if site.mnemonic.starts_with("iget") || site.mnemonic.starts_with("sget") {
-                Some("get".to_owned())
+                Some("get")
             } else if site.mnemonic.starts_with("iput") || site.mnemonic.starts_with("sput") {
-                Some("put".to_owned())
+                Some("put")
             } else {
                 None
             };
@@ -2132,30 +2221,53 @@ impl ReferenceFacts {
                 &target.type_descriptor,
             ])?;
             budget.row::<MethodFieldRow>()?;
-            budget.text(&[using.as_deref().unwrap_or("")])?;
-            rows.push(MethodFieldRow {
-                method: caller.descriptor.clone(),
-                method_class: caller.class_descriptor.clone(),
-                method_name: caller.method_name.clone(),
-                field: target.descriptor.clone(),
-                field_class: target.class_descriptor.clone(),
-                field_name: target.field_name.clone(),
-                field_type: target.type_descriptor.clone(),
+            budget.text(&[using.unwrap_or("")])?;
+            each(&MethodFieldRef {
+                method: &caller.descriptor,
+                method_class: &caller.class_descriptor,
+                method_name: &caller.method_name,
+                field: &target.descriptor,
+                field_class: &target.class_descriptor,
+                field_name: &target.field_name,
+                field_type: &target.type_descriptor,
                 using_type: using,
-                file_id,
                 class_idx: site.class_idx,
                 method_idx: site.caller_method_idx,
                 field_idx: site.target_local_index,
-            });
+            })?;
         }
+        Ok(())
+    }
+    pub fn method_field_rows(&self, file_id: u32) -> MddResult<Vec<MethodFieldRow>> {
+        let mut rows = Vec::new();
+        self.for_each_method_field(&mut |row| {
+            rows.push(MethodFieldRow {
+                method: row.method.to_owned(),
+                method_class: row.method_class.to_owned(),
+                method_name: row.method_name.to_owned(),
+                field: row.field.to_owned(),
+                field_class: row.field_class.to_owned(),
+                field_name: row.field_name.to_owned(),
+                field_type: row.field_type.to_owned(),
+                using_type: row.using_type.map(str::to_owned),
+                file_id,
+                class_idx: row.class_idx,
+                method_idx: row.method_idx,
+                field_idx: row.field_idx,
+            });
+            Ok(())
+        })?;
         Ok(rows)
     }
-    pub fn method_type_rows(&self, file_id: u32) -> MddResult<Vec<MethodTypeRow>> {
+    /// The type-use sites as rows, handed to `each` one at a time (see `for_each_method_string`).
+    pub fn for_each_method_type(
+        &self,
+        each: &mut dyn FnMut(&MethodTypeRef<'_>) -> MddResult<()>,
+    ) -> MddResult<()> {
         self.require_complete()?;
         let mut budget = ProjectionBudget {
             remaining: self.limits.max_projection_bytes,
         };
-        let mut rows = Vec::new();
         for site in self
             .sites
             .iter()
@@ -2174,18 +2286,35 @@ impl ReferenceFacts {
                 &name,
             ])?;
             budget.row::<MethodTypeRow>()?;
-            rows.push(MethodTypeRow {
-                method: caller.descriptor.clone(),
-                method_class: caller.class_descriptor.clone(),
-                method_name: caller.method_name.clone(),
-                type_descriptor: target.descriptor.clone(),
-                type_name: name,
-                file_id,
+            each(&MethodTypeRef {
+                method: &caller.descriptor,
+                method_class: &caller.class_descriptor,
+                method_name: &caller.method_name,
+                type_descriptor: &target.descriptor,
+                type_name: &name,
                 class_idx: site.class_idx,
                 method_idx: site.caller_method_idx,
                 type_idx: site.target_local_index,
-            });
+            })?;
         }
+        Ok(())
+    }
+    pub fn method_type_rows(&self, file_id: u32) -> MddResult<Vec<MethodTypeRow>> {
+        let mut rows = Vec::new();
+        self.for_each_method_type(&mut |row| {
+            rows.push(MethodTypeRow {
+                method: row.method.to_owned(),
+                method_class: row.method_class.to_owned(),
+                method_name: row.method_name.to_owned(),
+                type_descriptor: row.type_descriptor.to_owned(),
+                type_name: row.type_name.to_owned(),
+                file_id,
+                class_idx: row.class_idx,
+                method_idx: row.method_idx,
+                type_idx: row.type_idx,
+            });
+            Ok(())
+        })?;
         Ok(rows)
     }
 }
@@ -2262,6 +2391,107 @@ mod tests {
             .collect::<Vec<_>>();
         values.sort();
         values
+    }
+
+    /// References built from the compact code (the instructions of each caller decoded again, one at a time) are the
+    /// references built from the full code, and fail with the same error where those fail.
+    #[test]
+    fn references_from_compact_code_are_the_references_from_full_code() {
+        let folder = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/references/generated");
+        let mut cases: Vec<String> = std::fs::read_dir(folder)
+            .unwrap()
+            .filter_map(|entry| {
+                let path = entry.unwrap().path();
+                (path.extension()?.to_str()? == "dex")
+                    .then(|| path.file_stem().unwrap().to_string_lossy().into_owned())
+            })
+            .collect();
+        cases.sort();
+        let (mut built, mut refused, mut dynamic) = (0, 0, 0);
+        for case in cases {
+            let Ok(data) = setup(&case, 1) else { continue };
+            let definitions = Arc::new(data.definitions[0].clone());
+            let full = ReferenceFacts::build_arc(
+                Arc::clone(&definitions),
+                Arc::new(data.code[0].clone()),
+                ReferenceLimits::default(),
+            );
+            let streamed = CodeFacts::build_all_code_items_compact(
+                &data.snapshot,
+                &data.inventories[0],
+                0,
+                CodeLimits::default(),
+            )
+            .unwrap();
+            for compact in [
+                Arc::new(data.code[0].compacted().unwrap()),
+                Arc::new(streamed),
+            ] {
+                let from_compact = ReferenceFacts::build_arc(
+                    Arc::clone(&definitions),
+                    compact,
+                    ReferenceLimits::default(),
+                );
+                match (&full, &from_compact) {
+                    (Ok(full), Ok(compact)) => {
+                        assert!(compact.code().is_compact(), "{case}");
+                        for (name, left, right) in [
+                            (
+                                "sites",
+                                serde_json::to_value(compact.sites()).unwrap(),
+                                serde_json::to_value(full.sites()).unwrap(),
+                            ),
+                            (
+                                "dynamic calls",
+                                serde_json::to_value(compact.dynamic_calls()).unwrap(),
+                                serde_json::to_value(full.dynamic_calls()).unwrap(),
+                            ),
+                            (
+                                "coverage",
+                                serde_json::to_value(compact.coverage()).unwrap(),
+                                serde_json::to_value(full.coverage()).unwrap(),
+                            ),
+                            (
+                                "usage",
+                                serde_json::to_value(compact.usage()).unwrap(),
+                                serde_json::to_value(full.usage()).unwrap(),
+                            ),
+                        ] {
+                            assert_eq!(left, right, "{case}: {name}");
+                        }
+                        assert_eq!(
+                            compact.call_site_metadata().is_some(),
+                            full.call_site_metadata().is_some(),
+                            "{case}"
+                        );
+                        assert_eq!(
+                            compact.method_handle_metadata().is_some(),
+                            full.method_handle_metadata().is_some(),
+                            "{case}"
+                        );
+                        dynamic += compact.dynamic_calls().len();
+                        built += 1;
+                    }
+                    (Err(full), Err(compact)) => {
+                        assert_eq!(
+                            serde_json::to_value(compact).unwrap(),
+                            serde_json::to_value(full).unwrap(),
+                            "{case}"
+                        );
+                        refused += 1;
+                    }
+                    (Ok(_), Err(error)) => {
+                        panic!("{case}: only the compact build fails: {error:?}")
+                    }
+                    (Err(error), Ok(_)) => panic!("{case}: only the full build fails: {error:?}"),
+                }
+            }
+        }
+        assert!(
+            built >= 10 && refused >= 6 && dynamic >= 1,
+            "{built} built, {refused} refused, {dynamic} dynamic calls"
+        );
     }
 
     #[test]

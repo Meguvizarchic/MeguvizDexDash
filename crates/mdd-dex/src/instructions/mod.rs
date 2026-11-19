@@ -755,12 +755,45 @@ fn valid_target(target: i64, size: u32, starts: &BTreeSet<u32>, at: u64) -> MddR
 struct DebugPrograms {
     starts: Vec<u64>,
     decoded: Vec<Option<debug::ProgramSlot>>,
+    /// Set for a walk that hands every item on and keeps none: a program that only one item has named is let go when
+    /// that item is done, so the programs of a whole section are never alive together. A program that a second item
+    /// names is kept from then on, so programs that many items share are still decoded once.
+    transient: bool,
+    uses: Vec<u8>,
+    last: Option<usize>,
 }
 
 impl DebugPrograms {
     fn new(starts: Vec<u64>) -> Self {
         let decoded = starts.iter().map(|_| None).collect();
-        Self { starts, decoded }
+        Self {
+            starts,
+            decoded,
+            transient: false,
+            uses: Vec::new(),
+            last: None,
+        }
+    }
+
+    fn transient(starts: Vec<u64>) -> Self {
+        let decoded = starts.iter().map(|_| None).collect();
+        let uses = vec![0; starts.len()];
+        Self {
+            starts,
+            decoded,
+            transient: true,
+            uses,
+            last: None,
+        }
+    }
+
+    /// The item that named a program is done: let the program go if no other item has named it.
+    fn release(&mut self) {
+        if let Some(index) = self.last.take()
+            && self.uses[index] < 2
+        {
+            self.decoded[index] = None;
+        }
     }
 
     /// Resolve one program, decoding it at most once per `read_code_section` call.
@@ -783,6 +816,10 @@ impl DebugPrograms {
             let program = debug::parse_program(bytes, header, offset, counts).ok()?;
             self.decoded[index] = Some(debug::ProgramSlot::new(std::sync::Arc::new(program)));
         }
+        if self.transient {
+            self.uses[index] = self.uses[index].saturating_add(1);
+            self.last = Some(index);
+        }
         self.decoded[index].as_mut()
     }
 }
@@ -794,6 +831,7 @@ fn parse_item(
     limits: CodeLimits,
     used: &mut Used,
     debug_programs: &mut DebugPrograms,
+    attach_debug: bool,
 ) -> MddResult<CodeItem> {
     let reader = CheckedReader::new(bytes);
     let (start, end, _) =
@@ -955,7 +993,7 @@ fn parse_item(
             ));
         }
     }
-    let debug_info = if debug_offset == 0 {
+    let debug_info = if debug_offset == 0 || !attach_debug {
         None
     } else {
         let Some(index) = debug_programs
@@ -1010,18 +1048,71 @@ pub fn read_code_section_with_debug_starts(
     header: &DexHeader,
     limits: CodeLimits,
 ) -> MddResult<(CodeSection, Vec<u64>)> {
+    let mut items = Vec::new();
+    let walked = walk_code_section(bytes, header, limits, false, |item| {
+        items.push(item);
+        Ok(())
+    })?;
+    Ok((
+        CodeSection {
+            declared_code_item_count: walked.declared_code_item_count,
+            declared_code_item_byte_offsets: walked.declared_code_item_byte_offsets,
+            items,
+            scope: "complete-declared-code-map-v1".to_owned(),
+            completed_layers: vec!["code_layout".to_owned()],
+            full_dex_validation_complete: false,
+        },
+        walked.debug_starts,
+    ))
+}
+
+/// As `read_code_section_with_debug_starts`, but every item is handed to `visit` as soon as it is read and validated,
+/// and the section keeps none of them: the returned `CodeSection` has no items. The items, the order they come in, the
+/// budgets they are charged and the errors that stop the walk are those of `read_code_section_with_debug_starts`,
+/// because it is the same walk; only what is alive at once differs. An error from `visit` ends the walk with it.
+///
+/// A debug program that one item names is let go when that item has been visited, so the programs of the whole section
+/// are never held together; the items visited are equal to the ones the full reader gives, but two items that name the
+/// same program are not guaranteed to share one `Arc` of it.
+pub fn read_code_section_streaming(
+    bytes: &[u8],
+    header: &DexHeader,
+    limits: CodeLimits,
+    visit: impl FnMut(CodeItem) -> MddResult<()>,
+) -> MddResult<(CodeSection, Vec<u64>)> {
+    let walked = walk_code_section(bytes, header, limits, true, visit)?;
+    Ok((
+        CodeSection {
+            declared_code_item_count: walked.declared_code_item_count,
+            declared_code_item_byte_offsets: walked.declared_code_item_byte_offsets,
+            items: Vec::new(),
+            scope: "complete-declared-code-map-v1".to_owned(),
+            completed_layers: vec!["code_layout".to_owned()],
+            full_dex_validation_complete: false,
+        },
+        walked.debug_starts,
+    ))
+}
+
+struct Walked {
+    declared_code_item_count: u32,
+    declared_code_item_byte_offsets: Vec<DecimalU64>,
+    debug_starts: Vec<u64>,
+}
+
+fn walk_code_section(
+    bytes: &[u8],
+    header: &DexHeader,
+    limits: CodeLimits,
+    transient: bool,
+    mut visit: impl FnMut(CodeItem) -> MddResult<()>,
+) -> MddResult<Walked> {
     let Some((start, end, count)) = section(header, 0x2001) else {
-        return Ok((
-            CodeSection {
-                declared_code_item_count: 0,
-                declared_code_item_byte_offsets: Vec::new(),
-                items: Vec::new(),
-                scope: "complete-declared-code-map-v1".to_owned(),
-                completed_layers: vec!["code_layout".to_owned()],
-                full_dex_validation_complete: false,
-            },
-            Vec::new(),
-        ));
+        return Ok(Walked {
+            declared_code_item_count: 0,
+            declared_code_item_byte_offsets: Vec::new(),
+            debug_starts: Vec::new(),
+        });
     };
     if count > limits.max_code_items {
         return Err(quota_items(start, u64::from(count), limits.max_code_items));
@@ -1032,44 +1123,49 @@ pub fn read_code_section_with_debug_starts(
     // order, so the list is sorted and unique; direct indexing is therefore valid.
     debug_assert!(debug_starts.windows(2).all(|pair| pair[0] < pair[1]));
     let returned_starts = debug_starts.clone();
-    let mut debug_programs = DebugPrograms::new(debug_starts);
-    let mut items = Vec::new();
+    let mut debug_programs = if transient {
+        DebugPrograms::transient(debug_starts)
+    } else {
+        DebugPrograms::new(debug_starts)
+    };
+    let mut offsets = Vec::new();
     let mut at = start;
     for _ in 0..count {
         at = at
             .checked_add(3)
             .map(|n| n & !3)
             .ok_or_else(|| fail("CODE_ALIGNMENT_OVERFLOW", at, 0))?;
-        let item = parse_item(bytes, header, at, limits, &mut used, &mut debug_programs).map_err(
-            |error| {
-                let mut error = error.detail("code_item_byte_offset", at.to_string());
-                if let Ok(debug_offset) = CheckedReader::new(bytes).u32(at + 8) {
-                    error = error.detail("debug_info_byte_offset", debug_offset.to_string());
-                }
-                error
-            },
-        )?;
+        let parsed = parse_item(
+            bytes,
+            header,
+            at,
+            limits,
+            &mut used,
+            &mut debug_programs,
+            true,
+        )
+        .map_err(|error| {
+            let mut error = error.detail("code_item_byte_offset", at.to_string());
+            if let Ok(debug_offset) = CheckedReader::new(bytes).u32(at + 8) {
+                error = error.detail("debug_info_byte_offset", debug_offset.to_string());
+            }
+            error
+        });
+        debug_programs.release();
+        let item = parsed?;
         let next = item.raw_range.byte_offset.0 + item.raw_range.byte_length.0;
         if next <= at || next > end {
             return Err(fail("CODE_SECTION_PROGRESS", at, next.saturating_sub(at)));
         }
         at = next;
-        items.push(item);
+        offsets.push(item.raw_range.byte_offset);
+        visit(item)?;
     }
-    Ok((
-        CodeSection {
-            declared_code_item_count: count,
-            declared_code_item_byte_offsets: items
-                .iter()
-                .map(|item| item.raw_range.byte_offset)
-                .collect(),
-            items,
-            scope: "complete-declared-code-map-v1".to_owned(),
-            completed_layers: vec!["code_layout".to_owned()],
-            full_dex_validation_complete: false,
-        },
-        returned_starts,
-    ))
+    Ok(Walked {
+        declared_code_item_count: count,
+        declared_code_item_byte_offsets: offsets,
+        debug_starts: returned_starts,
+    })
 }
 
 /// Decodes single code items of a DEX whose code section `read_code_section_with_debug_starts` has already read
@@ -1109,6 +1205,22 @@ impl<B: AsRef<[u8]>> CodeItemDecoder<B> {
             self.limits,
             &mut Used::default(),
             &mut self.programs,
+            true,
+        )
+        .map_err(|error| error.detail("code_item_byte_offset", code_item_byte_offset.to_string()))
+    }
+
+    /// As `decode`, without the debug program: `debug_info` is `None` whatever the item names. For a reader of the
+    /// instructions, which does not need the program and would otherwise decode it and keep it in this decoder.
+    pub fn decode_instructions(&mut self, code_item_byte_offset: u64) -> MddResult<CodeItem> {
+        parse_item(
+            self.bytes.as_ref(),
+            &self.header,
+            code_item_byte_offset,
+            self.limits,
+            &mut Used::default(),
+            &mut self.programs,
+            false,
         )
         .map_err(|error| error.detail("code_item_byte_offset", code_item_byte_offset.to_string()))
     }

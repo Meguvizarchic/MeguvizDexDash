@@ -49,6 +49,8 @@ pub struct PreparedSql {
     dialect: SqlDialect,
     limits: SqlLimits,
     display_overrides: std::collections::BTreeMap<String, String>,
+    /// Relation (lower case) to the value of its partition column that the statement requires.
+    partition_hints: std::collections::BTreeMap<String, u64>,
     execution_binding: Option<crate::runtime::SqlExecutionBinding>,
     profile: Option<CompatibilityProfile>,
     profiles: Option<Arc<CompatibilityProfileRegistry>>,
@@ -717,12 +719,23 @@ impl SqlBridge {
                 }
             }
         }
+        let partition_columns: std::collections::BTreeMap<String, String> = relations
+            .iter()
+            .filter_map(|relation| {
+                let column = self.provider.partition_column(&relation.name)?;
+                Some((
+                    relation.name.to_ascii_lowercase(),
+                    column.to_ascii_lowercase(),
+                ))
+            })
+            .collect();
         let adapted = match crate::dialects::ast::adapt(
             sql,
             self.limits,
             parameters,
             &relations,
             self.dialect,
+            &partition_columns,
         ) {
             Ok(adapted) => adapted,
             Err(error)
@@ -787,6 +800,7 @@ impl SqlBridge {
             dialect: self.dialect,
             limits: self.limits,
             display_overrides: adapted.display_overrides,
+            partition_hints: adapted.partition_hints,
             execution_binding: None,
             profile: self.profile.clone(),
             profiles: self.profiles.clone(),
@@ -933,6 +947,10 @@ impl SqlBridge {
                     relation: relation.clone(),
                     binding: prepared.binding.clone(),
                     control: control.clone(),
+                    partition_key: prepared
+                        .partition_hints
+                        .get(&relation.name.to_ascii_lowercase())
+                        .copied(),
                 }),
             )
             .map_err(sqlite_error)?;
@@ -1238,6 +1256,7 @@ impl SqlBridge {
                     relation: relation.clone(),
                     binding: self.provider.binding().clone(),
                     control: control.clone(),
+                    partition_key: None,
                 }),
             )
             .map_err(sqlite_error)?;
@@ -1552,6 +1571,7 @@ mod tests {
                     relation: relation.clone(),
                     binding: prepared.binding.clone(),
                     control: control.clone(),
+                    partition_key: None,
                 }),
             )
             .unwrap();

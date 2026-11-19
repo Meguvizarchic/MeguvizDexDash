@@ -31,7 +31,7 @@ FACTS = "crates/mdd-facts/src/"
 SMALI = FACTS + "smali/"
 CONTEXT, VALUE, ANNOTATION, METHOD, CLASS = (SMALI + n for n in ("context.rs", "value.rs", "annotation.rs", "method.rs", "class.rs"))
 CORE = FACTS + "smali_required/render.rs"
-TOOLS, DECODE, DATASET = base.TOOLS, base.DECODE, base.DATASET
+TOOLS, DECODE, DATASET, LAYERS = base.TOOLS, base.DECODE, base.DATASET, base.LAYERS
 
 # the smali modules of mdd-facts: both directories (the filter matches smali:: and smali_required::)
 base.UNIT_SMALI = [*base.CARGO, "-p", "mdd-facts", "--lib", "smali", *base.TAIL]
@@ -107,7 +107,7 @@ MUTANTS = [
     ("service: a summary row takes the incoming registers", DECODE, [("registers: code.map(|c| c.registers_size),", "registers: code.map(|c| c.ins_size),")]),
     ("service: a method text is rendered without its annotation layer", DECODE, [("        annotations: occurrence\n            .annotations\n            .as_deref()\n            .zip(index.annotation_index.as_ref()),\n    };\n    let full = render_method_full", "        annotations: None,\n    };\n    let full = render_method_full")]),
     ("service: a class text is rendered without its annotation layer", DECODE, [("        annotations: occurrence\n            .annotations\n            .as_deref()\n            .zip(index.annotation_index.as_ref()),\n    };\n    render_class(", "        annotations: None,\n    };\n    render_class(")]),
-    ("service: annotations wait for the references layer", DATASET, [("let kept_annotations = annotation_layer.as_ref().ok().map(Arc::clone);", "let kept_annotations = upper_result.as_ref().ok().and_then(|_| annotation_layer.as_ref().ok().map(Arc::clone));")]),
+    ("service: the facts decode renders from lose the annotation layer", LAYERS, [("            annotations: annotations.ok(),", "            annotations: annotations.ok().and(None),")]),
     # ---- the tool
     ("tool: a class defaults to the smali mode", TOOLS, [("let mode = requested.unwrap_or(if args.class.is_some() {\n        DecodeMode::Summary", "let mode = requested.unwrap_or(if args.class.is_some() {\n        DecodeMode::Smali")]),
     ("tool: a class page accepts a text offset", TOOLS, [("        if args.offset != 0 {\n            return Err(refuse_here(ErrorCode::InvalidArgument, CLASS_TEXT_PAGE).into());", "        if false {\n            return Err(refuse_here(ErrorCode::InvalidArgument, CLASS_TEXT_PAGE).into());")]),

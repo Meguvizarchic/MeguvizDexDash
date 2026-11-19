@@ -33,6 +33,13 @@ pub struct Occurrence {
     pub annotations: Option<Arc<AnnotationFacts>>,
 }
 
+/// What a decode reads: the facts of each DEX of the dataset, in `file_id` order, and the indexes over them.
+#[derive(Default)]
+pub(crate) struct DecodeState {
+    pub(crate) occurrences: Vec<Occurrence>,
+    pub(crate) indexes: Vec<OccurrenceIndex>,
+}
+
 /// What `select` takes.
 #[derive(Clone, Copy, Debug)]
 pub enum Selector<'a> {
@@ -177,8 +184,8 @@ pub fn select_class(
     descriptor: &str,
     file_id: Option<u32>,
 ) -> Result<LocatedClass, Failure> {
-    let occurrences = dataset.occurrences();
-    let indexes = dataset.decode_indexes();
+    let state = dataset.decode_state()?;
+    let (occurrences, indexes) = (&state.occurrences, &state.indexes);
     let mut found = Vec::new();
     for (occurrence, index) in occurrences.iter().zip(indexes) {
         if file_id.is_some_and(|wanted| wanted != occurrence.file_id) {
@@ -228,7 +235,8 @@ pub fn class_page(
     offset: u64,
     limit: u64,
 ) -> MddResult<ClassPage> {
-    let occurrences = dataset.occurrences();
+    let state = dataset.decode_state()?;
+    let occurrences = &state.occurrences;
     let position = occurrences
         .iter()
         .position(|o| o.file_id == class.file_id)
@@ -240,7 +248,7 @@ pub fn class_page(
             )
         })?;
     let occurrence = &occurrences[position];
-    let index = &dataset.decode_indexes()[position];
+    let index = &state.indexes[position];
     let definitions = occurrence.definitions.definitions();
     let class_def = &definitions.classes[class.class];
     let all = index
@@ -306,8 +314,8 @@ fn not_defined(file_id: u32, method_idx: u32) -> Failure {
 
 /// Find the method `selector` names.
 pub fn select(dataset: &Dataset, selector: Selector<'_>) -> Result<Located, Failure> {
-    let occurrences = dataset.occurrences();
-    let indexes = dataset.decode_indexes();
+    let state = dataset.decode_state()?;
+    let (occurrences, indexes) = (&state.occurrences, &state.indexes);
     match selector {
         Selector::Key {
             file_id,
@@ -465,7 +473,8 @@ pub struct Summary {
 /// The facts of the located method that need no text. A method without a body has `None`
 /// for registers, code units and tries, as opposed to a body that is empty.
 pub fn summarize(dataset: &Dataset, located: Located) -> MddResult<Summary> {
-    let occurrences = dataset.occurrences();
+    let state = dataset.decode_state()?;
+    let occurrences = &state.occurrences;
     let position = occurrences
         .iter()
         .position(|o| o.file_id == located.file_id)
@@ -477,7 +486,7 @@ pub fn summarize(dataset: &Dataset, located: Located) -> MddResult<Summary> {
             )
         })?;
     let occurrence = &occurrences[position];
-    let index = &dataset.decode_indexes()[position];
+    let index = &state.indexes[position];
     let definitions = occurrence.definitions.definitions();
     let definition = &definitions.method_definitions[located.definition];
     let reference = &definitions.method_references[located.method_idx as usize];
@@ -506,7 +515,8 @@ pub fn summarize(dataset: &Dataset, located: Located) -> MddResult<Summary> {
 
 /// Render the located method.
 pub fn render(dataset: &Dataset, located: Located, limits: SmaliLimits) -> MddResult<Decoded> {
-    let occurrences = dataset.occurrences();
+    let state = dataset.decode_state()?;
+    let occurrences = &state.occurrences;
     let position = occurrences
         .iter()
         .position(|o| o.file_id == located.file_id)
@@ -518,7 +528,7 @@ pub fn render(dataset: &Dataset, located: Located, limits: SmaliLimits) -> MddRe
             )
         })?;
     let occurrence = &occurrences[position];
-    let index = &dataset.decode_indexes()[position];
+    let index = &state.indexes[position];
     let definitions = occurrence.definitions.definitions();
     let definition = &definitions.method_definitions[located.definition];
     let decoded = code_of(occurrence, index, &definition.body)?;
@@ -550,7 +560,8 @@ pub fn render(dataset: &Dataset, located: Located, limits: SmaliLimits) -> MddRe
 /// The text of a class without its methods: declaration, superclass, source file, interfaces,
 /// class annotations and fields with their initial values.
 pub fn render_class_text(dataset: &Dataset, class: LocatedClass) -> MddResult<RenderedClass> {
-    let occurrences = dataset.occurrences();
+    let state = dataset.decode_state()?;
+    let occurrences = &state.occurrences;
     let position = occurrences
         .iter()
         .position(|o| o.file_id == class.file_id)
@@ -562,7 +573,7 @@ pub fn render_class_text(dataset: &Dataset, class: LocatedClass) -> MddResult<Re
             )
         })?;
     let occurrence = &occurrences[position];
-    let index = &dataset.decode_indexes()[position];
+    let index = &state.indexes[position];
     let definitions = occurrence.definitions.definitions();
     let view = ClassView {
         metadata: &occurrence.metadata,
@@ -614,13 +625,14 @@ mod tests {
             },
         )
         .expect("the method is defined");
-        let occurrences = dataset.occurrences();
+        let state = dataset.decode_state().unwrap();
+        let occurrences = &state.occurrences;
         let position = occurrences
             .iter()
             .position(|o| o.file_id == located.file_id)
             .unwrap();
         let occurrence = &occurrences[position];
-        let index = &dataset.decode_indexes()[position];
+        let index = &state.indexes[position];
         let definitions = occurrence.definitions.definitions();
         let definition = &definitions.method_definitions[located.definition];
         let decoded = code_of(occurrence, index, &definition.body)?;

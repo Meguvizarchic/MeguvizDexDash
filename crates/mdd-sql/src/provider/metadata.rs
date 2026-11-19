@@ -30,7 +30,7 @@ impl MetadataSqlProvider {
         Ok(Self {
             binding: SqlBinding {
                 provider_identity: opaque_id("sql-metadata-provider")?,
-                snapshot_id: snapshot,
+                snapshot_id: snapshot.to_string(),
                 catalog_epoch: epoch,
             },
             occurrences,
@@ -523,7 +523,7 @@ impl DefinitionSqlProvider {
         Ok(Self {
             binding: SqlBinding {
                 provider_identity: opaque_id("sql-definition-provider")?,
-                snapshot_id: snapshot,
+                snapshot_id: snapshot.to_string(),
                 catalog_epoch: epoch,
             },
             occurrences,
@@ -1256,7 +1256,7 @@ impl AnnotationSqlProvider {
         Ok(Self {
             binding: SqlBinding {
                 provider_identity: opaque_id("sql-annotation-provider")?,
-                snapshot_id: snapshot,
+                snapshot_id: snapshot.to_string(),
                 catalog_epoch: epoch,
             },
             occurrences,
@@ -1869,7 +1869,7 @@ impl CodeSqlProvider {
         Ok(Self {
             binding: SqlBinding {
                 provider_identity: opaque_id("sql-code-provider")?,
-                snapshot_id: snapshot,
+                snapshot_id: snapshot.to_string(),
                 catalog_epoch: epoch,
             },
             occurrences,
@@ -2185,7 +2185,7 @@ impl ReferenceSqlProvider {
         Ok(Self {
             binding: SqlBinding {
                 provider_identity: opaque_id("sql-reference-provider")?,
-                snapshot_id: snapshot,
+                snapshot_id: snapshot.to_string(),
                 catalog_epoch: epoch,
             },
             occurrences,
@@ -2533,7 +2533,7 @@ mod tests {
                     class_offset.to_string()
                 };
                 expected[0].push(vec![
-                    source.clone(),
+                    source.to_string(),
                     directory.byte_offset.to_string(),
                     nullable,
                     field.to_string(),
@@ -2550,7 +2550,7 @@ mod tests {
                         "parameter"
                     };
                     expected[1].push(vec![
-                        source.clone(),
+                        source.to_string(),
                         directory.byte_offset.to_string(),
                         i.to_string(),
                         kind.into(),
@@ -2568,7 +2568,7 @@ mod tests {
                 if directory != 0 {
                     *offsets.entry(directory).or_insert(0usize) += 1;
                     expected[2].push(vec![
-                        source.clone(),
+                        source.to_string(),
                         i.to_string(),
                         read(at).to_string(),
                         directory.to_string(),
@@ -2664,14 +2664,14 @@ mod tests {
                     assert_eq!(read_u32(start + 4 + ordinal * 4), *value);
                 }
                 expected[0].push(vec![
-                    source.clone(),
+                    source.to_string(),
                     set.byte_offset.to_string(),
                     set.annotation_offsets.len().to_string(),
                     set.encoded_range.byte_length.0.to_string(),
                 ]);
                 for (ordinal, offset) in set.annotation_offsets.iter().enumerate() {
                     expected[1].push(vec![
-                        source.clone(),
+                        source.to_string(),
                         set.byte_offset.to_string(),
                         ordinal.to_string(),
                         offset.to_string(),
@@ -2685,14 +2685,14 @@ mod tests {
                     assert_eq!(read_u32(start + 4 + ordinal * 4), value.unwrap_or(0));
                 }
                 expected[2].push(vec![
-                    source.clone(),
+                    source.to_string(),
                     list.byte_offset.to_string(),
                     list.annotation_set_offsets.len().to_string(),
                     list.encoded_range.byte_length.0.to_string(),
                 ]);
                 for (ordinal, offset) in list.annotation_set_offsets.iter().enumerate() {
                     expected[3].push(vec![
-                        source.clone(),
+                        source.to_string(),
                         list.byte_offset.to_string(),
                         ordinal.to_string(),
                         offset.map_or("<NULL>".to_owned(), |v| v.to_string()),
@@ -2706,7 +2706,7 @@ mod tests {
                     Completeness::Unknown => "unknown",
                 };
                 expected[4].push(vec![
-                    source.clone(),
+                    source.to_string(),
                     list.class_def_idx.to_string(),
                     list.method_idx.to_string(),
                     list.ref_list_byte_offset.to_string(),
@@ -2756,7 +2756,7 @@ mod tests {
         // alone is not a proof of an absent or mapped prototype parameter.
         let short_sources: std::collections::BTreeSet<_> = facts[facts.len() - 2..]
             .iter()
-            .map(|f| f.source().dex_occurrence_id.clone())
+            .map(|f| f.source().dex_occurrence_id.to_string())
             .collect();
         assert_eq!(short_sources.len(), 2);
         let joined = bridge.query("SELECT o.dex_occurrence_id,o.class_def_idx,o.local_index,o.kind,o.parameter_ordinal,o.parameter_position_in_prototype,p.dex_occurrence_id,p.class_def_idx,p.method_idx,p.prototype_position_coverage FROM native_annotation_owners o JOIN native_annotation_parameter_lists p ON o.dex_occurrence_id=p.dex_occurrence_id AND o.class_def_idx=p.class_def_idx AND o.local_index=p.method_idx").unwrap();
@@ -2973,7 +2973,7 @@ mod tests {
                     mdd_dex::annotations::AnnotationOwnerKind::Parameter => "parameter",
                 };
                 expected_owners.push((
-                    fact.source().dex_occurrence_id.clone(),
+                    fact.source().dex_occurrence_id.to_string(),
                     kind.to_string(),
                     owner.local_index.into(),
                     owner.parameter_ordinal.map(u64::from),
@@ -3045,7 +3045,7 @@ mod tests {
                     })
                     .unwrap();
                 expected.push((
-                    refs.source().dex_occurrence_id.clone(),
+                    refs.source().dex_occurrence_id.to_string(),
                     u64::from(site.caller_method_idx),
                     site.code_item_byte_offset.0,
                     u64::from(site.code_unit_pc),
@@ -3224,7 +3224,7 @@ mod tests {
                         .position(|item| item.data().raw_range.byte_offset == code_byte_offset)
                         .unwrap();
                     expected.push((
-                        facts.source().dex_occurrence_id.clone(),
+                        facts.source().dex_occurrence_id.to_string(),
                         u64::from(method.method_idx),
                         code_byte_offset.0,
                         facts.raw_insns(ordinal).unwrap().to_vec(),
@@ -3644,7 +3644,7 @@ mod tests {
             .flat_map(|facts| {
                 facts.sites().iter().map(move |site| {
                     (
-                        facts.source().dex_occurrence_id.clone(),
+                        facts.source().dex_occurrence_id.to_string(),
                         u64::from(site.site_ordinal),
                     )
                 })
@@ -3702,7 +3702,7 @@ mod tests {
                 source
                     .sites()
                     .iter()
-                    .map(move |site| (source.source().dex_occurrence_id.clone(), site))
+                    .map(move |site| (source.source().dex_occurrence_id.to_string(), site))
             })
             .collect();
         assert_eq!(result.rows().len(), expected.len());
@@ -3880,8 +3880,8 @@ mod tests {
         for fact in &facts {
             for string in fact.strings() {
                 expected.insert((
-                    fact.source().dex_occurrence_id.clone(),
-                    string.string_pool_id.clone(),
+                    fact.source().dex_occurrence_id.to_string(),
+                    string.string_pool_id.to_string(),
                     u64::from(string.data.string_idx),
                 ));
             }
@@ -3928,8 +3928,8 @@ mod tests {
                 MetadataFacts::build(&snapshot, &inventory, 0, StringLimits::default()).unwrap();
             let id = metadata.source();
             expected.insert(vec![
-                id.snapshot_id.clone(),
-                id.dex_occurrence_id.clone(),
+                id.snapshot_id.to_string(),
+                id.dex_occurrence_id.to_string(),
                 id.physical_dex_id.clone(),
                 id.member_id.clone(),
                 id.source_occurrence_id.clone(),
@@ -4344,7 +4344,7 @@ mod tests {
         .unwrap();
         let mut expected = Vec::new();
         for item in &facts {
-            let occurrence = item.metadata().source().dex_occurrence_id.clone();
+            let occurrence = item.metadata().source().dex_occurrence_id.to_string();
             for triple in oracle["definitions-035"]["interfaces"].as_array().unwrap() {
                 expected.push((
                     occurrence.clone(),
@@ -4429,7 +4429,7 @@ mod tests {
                 expected_classes.insert(owner.to_owned());
                 for item in &metadata {
                     expected_methods.push((
-                        item.source().dex_occurrence_id.clone(),
+                        item.source().dex_occurrence_id.to_string(),
                         owner.to_owned(),
                         name.to_owned(),
                     ));
@@ -4522,7 +4522,7 @@ mod tests {
         assert!(matches!(duplicate, Err(error) if error.code == ErrorCode::InvalidArgument));
         let source_ids: Vec<_> = occurrences
             .iter()
-            .map(|facts| facts.metadata().source().dex_occurrence_id.clone())
+            .map(|facts| facts.metadata().source().dex_occurrence_id.to_string())
             .collect();
         let classes: usize = occurrences
             .iter()
@@ -4848,6 +4848,7 @@ mod tests {
                 relation,
                 binding,
                 control: control.clone(),
+                partition_key: None,
             }),
         )
         .unwrap();

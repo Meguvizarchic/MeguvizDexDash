@@ -240,6 +240,43 @@ mod error_detail_tests {
         assert_eq!(returned.details["coverage_scope_id_1"], "actual");
     }
 }
+/// A state a layer or a column is in for one occurrence, with the reason and error that explain it when it is not complete.
+type State = (Completeness, Option<String>, Option<MddError>);
+
+/// What one logical occurrence contributes to a coverage report: the state of each required layer and of each required
+/// column, in the order of the request. It holds no reference to the occurrence's facts, so a caller that builds the
+/// facts of one DEX at a time can keep these and let the facts go (see `CoverageLedger::evaluate_from_states`).
+#[derive(Clone, Debug)]
+pub struct OccurrenceStates {
+    occurrence: String,
+    layers: Vec<State>,
+    /// `None` for a required column the frozen specs do not know; that is reported once for the request, not per DEX.
+    columns: Vec<Option<State>>,
+    /// Whether this occurrence's view proves a standard DEX header, which is what `ValidatedStandardDex` input needs of
+    /// every occurrence of the scope.
+    standard_header_proven: bool,
+}
+
+impl OccurrenceStates {
+    pub fn occurrence(&self) -> &str {
+        &self.occurrence
+    }
+
+    /// True when every required layer and every required column is complete for this occurrence, and the frozen
+    /// specs know every required column. A caller that would only produce rows for an occurrence the ledger accepts
+    /// can skip the work for one it will refuse.
+    pub fn is_complete(&self) -> bool {
+        self.layers
+            .iter()
+            .all(|(state, ..)| *state == Completeness::Complete)
+            && self.columns.iter().all(|column| {
+                column
+                    .as_ref()
+                    .is_some_and(|(state, ..)| *state == Completeness::Complete)
+            })
+    }
+}
+
 pub struct CoverageLedger<'a> {
     scope: SelectedScope,
     views: BTreeMap<String, FactView<'a>>,
@@ -422,7 +459,11 @@ impl<'a> CoverageLedger<'a> {
             .insert(resource.member().member_id.clone(), resource);
         Ok(())
     }
-    fn input_state(&self, need: InputNeed) -> Completeness {
+    fn input_state(
+        &self,
+        need: InputNeed,
+        standard_header_proven: &dyn Fn(&str) -> bool,
+    ) -> Completeness {
         if self.input_failure.is_some() {
             return Completeness::Partial;
         }
@@ -443,11 +484,12 @@ impl<'a> CoverageLedger<'a> {
             InputNeed::ValidatedStandardDex => {
                 if !self.scope.roster_complete() {
                     Completeness::Unknown
-                } else if self.scope.dexes().iter().all(|dex| {
-                    self.views
-                        .get(&dex.dex_occurrence_id)
-                        .is_some_and(FactView::standard_header_proven)
-                }) {
+                } else if self
+                    .scope
+                    .dexes()
+                    .iter()
+                    .all(|dex| standard_header_proven(&dex.dex_occurrence_id))
+                {
                     Completeness::Complete
                 } else {
                     Completeness::Unknown
@@ -957,7 +999,78 @@ impl<'a> CoverageLedger<'a> {
             ),
         }
     }
+    /// The state of every required layer and column for one logical occurrence of the scope, read from this ledger's
+    /// view of it. A ledger built over a single view answers for that view alone.
+    pub fn occurrence_states(
+        &self,
+        request: &CoverageRequest,
+        occurrence: &str,
+    ) -> OccurrenceStates {
+        OccurrenceStates {
+            occurrence: occurrence.to_owned(),
+            standard_header_proven: self
+                .views
+                .get(occurrence)
+                .is_some_and(FactView::standard_header_proven),
+            layers: request
+                .required_layers
+                .iter()
+                .map(|layer| self.layer_state(occurrence, *layer))
+                .collect(),
+            columns: request
+                .required_columns
+                .iter()
+                .map(|required| {
+                    column_specs()
+                        .iter()
+                        .find(|spec| {
+                            spec.relation == required.relation && spec.column == required.column
+                        })
+                        .map(|spec| self.column_state(occurrence, spec, required.domain))
+                })
+                .collect(),
+        }
+    }
+
     pub fn evaluate(&self, request: &CoverageRequest) -> MddResult<CoverageReport> {
+        let states: Vec<OccurrenceStates> = self
+            .scope
+            .dexes()
+            .iter()
+            .map(|dex| self.occurrence_states(request, &dex.dex_occurrence_id))
+            .collect();
+        self.evaluate_from_states(request, &states)
+    }
+
+    /// The report for `request` from the per-occurrence states of every DEX of the scope, in any order. `evaluate` is this
+    /// over the states of this ledger's own views; a caller that cannot hold every DEX's facts at once computes each
+    /// DEX's states with a ledger over that DEX's view alone and hands them all here, and gets the same report.
+    pub fn evaluate_from_states(
+        &self,
+        request: &CoverageRequest,
+        states: &[OccurrenceStates],
+    ) -> MddResult<CoverageReport> {
+        let by_occurrence: BTreeMap<&str, &OccurrenceStates> = states
+            .iter()
+            .map(|state| (state.occurrence.as_str(), state))
+            .collect();
+        if by_occurrence.len() != states.len() {
+            return Err(MddError::new(
+                ErrorCode::InvalidArgument,
+                "facts.coverage",
+                "two states for one logical occurrence",
+            ));
+        }
+        for dex in self.scope.dexes() {
+            if !by_occurrence.contains_key(dex.dex_occurrence_id.as_str()) {
+                return Err(MddError::new(
+                    ErrorCode::InvalidArgument,
+                    "facts.coverage",
+                    "no state for a logical occurrence of the scope",
+                )
+                .detail("dex_occurrence_id", dex.dex_occurrence_id.clone()));
+            }
+        }
         if request.scope_id != self.scope.scope_id() {
             return Err(MddError::new(
                 ErrorCode::InvalidArgument,
@@ -1009,7 +1122,11 @@ impl<'a> CoverageLedger<'a> {
                 "coverage check matrix exceeds budget; split explicit scopes",
             ));
         }
-        let input = self.input_state(request.input);
+        let input = self.input_state(request.input, &|occurrence| {
+            by_occurrence
+                .get(occurrence)
+                .is_some_and(|state| state.standard_header_proven)
+        });
         let mut issues = Vec::new();
         if input != Completeness::Complete {
             issues.push(issue(
@@ -1054,7 +1171,7 @@ impl<'a> CoverageLedger<'a> {
                 ));
             }
         }
-        for layer in &request.required_layers {
+        for (layer_position, layer) in request.required_layers.iter().enumerate() {
             if self.scope.dexes().is_empty()
                 && (!self.scope.roster_complete()
                     || matches!(
@@ -1072,7 +1189,8 @@ impl<'a> CoverageLedger<'a> {
                 ));
             }
             for dex in self.scope.dexes() {
-                let (state, reason, error) = self.layer_state(&dex.dex_occurrence_id, *layer);
+                let (state, reason, error) =
+                    by_occurrence[dex.dex_occurrence_id.as_str()].layers[layer_position].clone();
                 values.push(state);
                 if let Some(reason) = reason {
                     issues.push(issue(
@@ -1085,7 +1203,7 @@ impl<'a> CoverageLedger<'a> {
                 }
             }
         }
-        for required in &request.required_columns {
+        for (column_position, required) in request.required_columns.iter().enumerate() {
             let key = format!("{}.{}", required.relation, required.column);
             let Some(spec) = column_specs()
                 .iter()
@@ -1116,8 +1234,16 @@ impl<'a> CoverageLedger<'a> {
                 ));
             }
             for dex in self.scope.dexes() {
-                let (state, reason, error) =
-                    self.column_state(&dex.dex_occurrence_id, spec, required.domain);
+                let (state, reason, error) = by_occurrence[dex.dex_occurrence_id.as_str()].columns
+                    [column_position]
+                    .clone()
+                    .unwrap_or_else(|| {
+                        (
+                            Completeness::Unknown,
+                            Some("unknown_relation_or_column".into()),
+                            None,
+                        )
+                    });
                 values.push(state);
                 if let Some(reason) = reason {
                     issues.push(issue(
@@ -1230,6 +1356,92 @@ mod coverage_column_gate_tests {
             domain: ColumnDomain::FrozenProjection,
         });
         request
+    }
+
+    /// The report from per-occurrence states, each computed with a ledger that sees only that DEX's facts, is the report
+    /// of the ledger that sees them all: same completeness, same issues in the same order, same errors.
+    #[test]
+    fn states_computed_one_occurrence_at_a_time_give_the_whole_ledgers_report() {
+        let (snapshot, inventories) = fixture("references/generated/classic-035.dex", 3);
+        let refs: Vec<&ArchiveInventory> = inventories.iter().collect();
+        let scope = SelectedScope::from_inventories(&snapshot, &refs).unwrap();
+        // one DEX with metadata only, one with definitions too, one with nothing built
+        let meta = metadata(&snapshot, &inventories[0]);
+        let defs = definitions(&snapshot, &inventories[1]);
+        let ids: Vec<String> = scope
+            .dexes()
+            .iter()
+            .map(|d| d.dex_occurrence_id.clone())
+            .collect();
+        let views = [
+            FactView::unbuilt(&ids[0]).with_metadata(&meta),
+            FactView::unbuilt(&ids[1])
+                .with_metadata(defs.metadata())
+                .with_definitions(&defs),
+            FactView::unbuilt(&ids[2]),
+        ];
+        let whole = CoverageLedger::new(scope.clone(), &views).unwrap();
+        let shell = CoverageLedger::new(scope.clone(), &[]).unwrap();
+        let requests = [
+            CoverageRequest::for_relations(&scope, &["strings"]).unwrap(),
+            CoverageRequest::for_relations(&scope, &["classes", "methods"]).unwrap(),
+            CoverageRequest::for_relations(&scope, &["code_items"]).unwrap(),
+            CoverageRequest::for_relations(&scope, &["method_calls", "annotation_elements"])
+                .unwrap(),
+            column_request(&scope, "strings", "value"),
+            column_request(&scope, "strings", "no_such_column"),
+            column_request(&scope, "no_such_relation", "value"),
+        ];
+        for (n, request) in requests.iter().enumerate() {
+            let expected = whole.evaluate(request).unwrap();
+            let states: Vec<OccurrenceStates> = views
+                .iter()
+                .map(|view| {
+                    CoverageLedger::new(scope.clone(), std::slice::from_ref(view))
+                        .unwrap()
+                        .occurrence_states(request, view.occurrence())
+                })
+                .collect();
+            let assembled = shell.evaluate_from_states(request, &states).unwrap();
+            assert_eq!(
+                serde_json::to_value(&assembled).unwrap(),
+                serde_json::to_value(&expected).unwrap(),
+                "request {n}"
+            );
+            // the order the states are handed in does not matter
+            let mut reversed = states.clone();
+            reversed.reverse();
+            assert_eq!(
+                serde_json::to_value(shell.evaluate_from_states(request, &reversed).unwrap())
+                    .unwrap(),
+                serde_json::to_value(&expected).unwrap(),
+                "request {n} reversed"
+            );
+        }
+        // an incomplete scope is incomplete either way, and says so
+        let incomplete = shell
+            .evaluate_from_states(
+                &requests[1],
+                &[CoverageLedger::new(scope.clone(), &views[..1])
+                    .unwrap()
+                    .occurrence_states(&requests[1], &ids[0])],
+            )
+            .expect_err("two occurrences have no state");
+        assert_eq!(incomplete.code, ErrorCode::InvalidArgument);
+    }
+
+    #[test]
+    fn two_states_for_one_occurrence_are_refused() {
+        let (snapshot, inventories) = fixture("references/generated/classic-035.dex", 1);
+        let scope = SelectedScope::from_inventories(&snapshot, &[&inventories[0]]).unwrap();
+        let id = scope.dexes()[0].dex_occurrence_id.clone();
+        let shell = CoverageLedger::new(scope.clone(), &[]).unwrap();
+        let request = CoverageRequest::for_relations(&scope, &["classes"]).unwrap();
+        let one = shell.occurrence_states(&request, &id);
+        let refused = shell
+            .evaluate_from_states(&request, &[one.clone(), one])
+            .expect_err("duplicate state");
+        assert_eq!(refused.code, ErrorCode::InvalidArgument);
     }
 
     /// Every column of the six newly assembled relations reports `Complete`

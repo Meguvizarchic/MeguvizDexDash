@@ -50,6 +50,7 @@ fn run() -> MddResult<serde_json::Value> {
             dex_selection: DexSelection::ResourcesOnly,
             require_dex: false,
             reject_duplicate_selected_names: false,
+            hold_dex_bytes: true,
         },
         ArchiveLimits::default(),
     )?;
