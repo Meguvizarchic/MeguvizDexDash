@@ -41,9 +41,14 @@
       "engine": "meguvizdexdash",
       "wire": "b0",
       "profile_policy": "allow_unadmitted",
-      "sql_limits": null,
+      "sql_limits": {
+        "steps": 4000000000,
+        "scanned_rows": 400000000,
+        "result_rows": 4000000
+      },
       "sha256": null,
-      "note": "the binary is whatever the local build is; its sha256, build id and pin are written into every run record"
+      "note": "the binary is whatever the local build is; its sha256, build id and pin are written into every run record",
+      "sql_limits_note": "explicit and finite; chosen after attempt 3 to be above any relation of the authorized inputs, not tuned down to the smallest value that passes"
     }
   },
   "resources": {
@@ -97,6 +102,17 @@
       "observed": "the engine process exited during the open of the dataset (exit status 3221226505) with 'memory allocation of 7077888 bytes failed'; Job peak commit 15039139840 bytes (the limit), 28 s; the side was recorded as incomplete and compared with nothing",
       "reading": "Dataset::open (contract dialect) builds metadata, definitions, code, annotation and reference facts of every one of the 33 selected DEX in turn and keeps all of them for the session; on this input that does not fit in 14 GiB. Side A (DexSQL) peaked at 1572528128 bytes on the same input",
       "action": "the limit is not raised again on this machine (31.8 GiB in all, about 8 GiB free when tried): a larger run needs either a machine kept free for it or an engine that builds layers on demand. Nothing in the engine, the budgets or the comparison was changed to make the run pass"
+    },
+    {
+      "attempt": 3,
+      "input": "hostlab-9161100",
+      "side": "B",
+      "job_memory_commit_bytes": "15032385536",
+      "engine": "the build with the compact code layer (instructions and debug programs decoded again per method) and the annotation layer sharing the definitions",
+      "result": "failed closed, further than before",
+      "observed": "the dataset opened (Job peak commit 9475121152 bytes, inside the 14 GiB limit) and the audit ran for 34 s, then the engine rejected a statement with SQL_WORK_BUDGET",
+      "reading": "the memory failure of attempts 1 and 2 is gone. The engine's default SQL work budgets (steps 5000000, scanned rows 1000000, result rows 100000) are smaller than the relations of an APK with 33 DEX and 310716 classes; the structural configuration's sql_limits is the knob for this and was left at the default, as the README said the size a real APK needs was unknown",
+      "action": "attempt 4 sets sql_limits for side B (below); side A (DexSQL) has no such budget. A limit only decides whether a statement may finish or fails closed, so it cannot change a result that is produced"
     }
   ]
 }

@@ -673,6 +673,10 @@ impl SqlBridge {
     pub fn provider_binding(&self) -> &SqlBinding {
         self.provider.binding()
     }
+    /// The provider itself, for callers that read a relation's rows without going through a statement.
+    pub fn provider(&self) -> &Arc<dyn SqlFactProvider> {
+        &self.provider
+    }
     pub fn prepare_with_parameters(
         &self,
         sql: &str,

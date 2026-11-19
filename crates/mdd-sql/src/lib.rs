@@ -1,6 +1,7 @@
 //! Read-only SQLite access to immutable, generation-bound providers.
 //! Dialect conformance is separate from bridge availability.
 mod bridge;
+pub mod column_store;
 pub mod control;
 pub mod dialects;
 pub mod profiles;
