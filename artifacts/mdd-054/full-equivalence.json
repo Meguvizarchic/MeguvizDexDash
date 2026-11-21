@@ -1,22 +1,54 @@
 {
   "schema": "mdd.hostlab-full-equivalence.v1",
   "task": "MDD-054",
-  "status": "engine_run_not_completed: the harness is validated against the reference engine; no A/B pair exists",
-  "runs": [],
-  "harness_validation": [
+  "status": "equivalence_shown_on_the_runs_listed",
+  "runs": [
     {
-      "run": "A0-rerun-9.16.1",
-      "side": "A",
-      "engine": {
-        "engine": "dexsql",
-        "version": "0.1.0",
-        "sha256": "f354ebcf715de9a66ef8ebe08b2b36807ab58e25cd5a1c0812e497fc1fcfc448"
-      },
+      "run": "ab-9161100",
       "input": {
         "sha256": "41efb1c9acb07badab5296953fb3da1def6925e2b34662120ca96df9d17bbfb2",
         "version_code": 9161100
       },
-      "against": "an earlier run of the same engine and input, made by the 2026-10-28 baseline driver (not by this harness)",
+      "reference_source_commit": "8782f43d537c442905123e35af325c412caa5188",
+      "engines": {
+        "A": {
+          "engine": "dexsql",
+          "version": "0.1.0",
+          "sha256": "f354ebcf715de9a66ef8ebe08b2b36807ab58e25cd5a1c0812e497fc1fcfc448"
+        },
+        "B": {
+          "engine": "meguvizdexdash",
+          "version": "0.1.0-dev",
+          "build_id": "source-sha256:df1ab73e8d4dcddd609e301e199882420895cbc3852afc63cc0c5072145efdf7",
+          "sha256": "dd81f064164fa679ef52dd0c8e07a0c41d282d50947fd18fdb5b9f2528201e43",
+          "wire": "b0",
+          "implementation_scope": "unqualified development build"
+        }
+      },
+      "complete": {
+        "A": true,
+        "B": true
+      },
+      "counts": {
+        "features": 27,
+        "evidence_groups": 20,
+        "class_count": [
+          310716,
+          310716
+        ],
+        "queries": [
+          635,
+          635
+        ]
+      },
+      "fallback_count": [
+        0,
+        0
+      ],
+      "violations": [
+        [],
+        []
+      ],
       "equal": true,
       "layers": [
         {
@@ -40,50 +72,630 @@
           "difference_count": 0
         }
       ],
-      "group_digests_equal": {
-        "class_records": true,
-        "discoveries": true,
-        "families": true,
-        "features": true,
-        "gates": true,
-        "home_probe_sha256": true,
-        "invoke_edges": true,
-        "limitations": true,
-        "page_path_matrix": true,
-        "protocol_definitions": true,
-        "protocol_paths": true,
-        "protocol_twins": true,
-        "resource_fingerprints": true,
-        "rule_sha256": true,
-        "rule_version": true,
-        "sample": true,
-        "scope": true,
-        "unclassified_protocol_callers": true,
-        "unknown_families": true,
-        "unregistered_protocols": true
+      "groups": {
+        "class_records": {
+          "equal": true,
+          "kind": "multiset",
+          "count_A": 31798,
+          "count_B": 31798,
+          "sha256_A": "983680de6c586133e68e89c9aa0589fceafe69b874a1661edbd2eedeeb1d4960",
+          "sha256_B": "983680de6c586133e68e89c9aa0589fceafe69b874a1661edbd2eedeeb1d4960"
+        },
+        "discoveries": {
+          "equal": true,
+          "kind": "multiset",
+          "count_A": 4,
+          "count_B": 4,
+          "sha256_A": "0f996c7a19d24829e6297ee4f44aa8b207d25eeecdd389c69886b380a6d12f9a",
+          "sha256_B": "0f996c7a19d24829e6297ee4f44aa8b207d25eeecdd389c69886b380a6d12f9a"
+        },
+        "families": {
+          "equal": true,
+          "kind": "ordered",
+          "count_A": 39,
+          "count_B": 39,
+          "sha256_A": "a3d3038f3cdcba3d93adb5307efde1810a3d7c435ea1bb2cbc6aaee9020d914d",
+          "sha256_B": "a3d3038f3cdcba3d93adb5307efde1810a3d7c435ea1bb2cbc6aaee9020d914d"
+        },
+        "features": {
+          "equal": true,
+          "kind": "ordered",
+          "count_A": 27,
+          "count_B": 27,
+          "sha256_A": "d89359e7bdf0a596c0fac0790f7cca2b1a8b06e2663e1c7ca078f8ad283a0c57",
+          "sha256_B": "d89359e7bdf0a596c0fac0790f7cca2b1a8b06e2663e1c7ca078f8ad283a0c57"
+        },
+        "gates": {
+          "equal": true,
+          "kind": "ordered",
+          "count_A": 3,
+          "count_B": 3,
+          "sha256_A": "c76ebd107182f2d1e04741c814b449881267f5dbbb74ae84f98c874dfbfd37f7",
+          "sha256_B": "c76ebd107182f2d1e04741c814b449881267f5dbbb74ae84f98c874dfbfd37f7"
+        },
+        "home_probe_sha256": {
+          "equal": true,
+          "kind": "ordered",
+          "count_A": null,
+          "count_B": null,
+          "sha256_A": "815df1c4f87983c28edcda2eda942aeb08c362b834b518c341d72501cec87e16",
+          "sha256_B": "815df1c4f87983c28edcda2eda942aeb08c362b834b518c341d72501cec87e16"
+        },
+        "invoke_edges": {
+          "equal": true,
+          "kind": "multiset",
+          "count_A": 133345,
+          "count_B": 133345,
+          "sha256_A": "a9caeb77f0dc75b0432c1e7b50e282f5d787869d3fae9b43b7e1e4e17c3fbe85",
+          "sha256_B": "a9caeb77f0dc75b0432c1e7b50e282f5d787869d3fae9b43b7e1e4e17c3fbe85"
+        },
+        "limitations": {
+          "equal": true,
+          "kind": "ordered",
+          "count_A": 4,
+          "count_B": 4,
+          "sha256_A": "f7f94e34f2fe73b01dff2f2b64733da7c6d1e0f862b24ddf6e6bb9f74a9ad419",
+          "sha256_B": "f7f94e34f2fe73b01dff2f2b64733da7c6d1e0f862b24ddf6e6bb9f74a9ad419"
+        },
+        "page_path_matrix": {
+          "equal": true,
+          "kind": "ordered",
+          "count_A": 10,
+          "count_B": 10,
+          "sha256_A": "8b6fe2bd72bd04ee7cc669cf43c46a21aade18252636714566ac46f6fb238cde",
+          "sha256_B": "8b6fe2bd72bd04ee7cc669cf43c46a21aade18252636714566ac46f6fb238cde"
+        },
+        "protocol_definitions": {
+          "equal": true,
+          "kind": "multiset",
+          "count_A": 5221,
+          "count_B": 5221,
+          "sha256_A": "3f5b547ee911579b13a0bb179cbe261816a985affab5e715fcfae98aae466527",
+          "sha256_B": "3f5b547ee911579b13a0bb179cbe261816a985affab5e715fcfae98aae466527"
+        },
+        "protocol_paths": {
+          "equal": true,
+          "kind": "ordered",
+          "count_A": 141,
+          "count_B": 141,
+          "sha256_A": "b7320a6b27d1f6059224941537151f104d130db85b0fc4bc7c1212341ba5970d",
+          "sha256_B": "b7320a6b27d1f6059224941537151f104d130db85b0fc4bc7c1212341ba5970d"
+        },
+        "protocol_twins": {
+          "equal": true,
+          "kind": "multiset",
+          "count_A": 40,
+          "count_B": 40,
+          "sha256_A": "dda12236fc6fa06b2abc0531f53d61425d21025292e670e833be9f96582b2d5a",
+          "sha256_B": "dda12236fc6fa06b2abc0531f53d61425d21025292e670e833be9f96582b2d5a"
+        },
+        "resource_fingerprints": {
+          "equal": true,
+          "kind": "ordered",
+          "count_A": 17755,
+          "count_B": 17755,
+          "sha256_A": "05e734dabb5bc7b6790ccdee01282276752da213b54d2e4052b4abb3b3e8d485",
+          "sha256_B": "05e734dabb5bc7b6790ccdee01282276752da213b54d2e4052b4abb3b3e8d485"
+        },
+        "rule_sha256": {
+          "equal": true,
+          "kind": "ordered",
+          "count_A": null,
+          "count_B": null,
+          "sha256_A": "e062c3a18f3cdc6d215167ccefd6f98727392fa4aa7a99ec017f313114d182b4",
+          "sha256_B": "e062c3a18f3cdc6d215167ccefd6f98727392fa4aa7a99ec017f313114d182b4"
+        },
+        "rule_version": {
+          "equal": true,
+          "kind": "ordered",
+          "count_A": null,
+          "count_B": null,
+          "sha256_A": "4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a",
+          "sha256_B": "4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a"
+        },
+        "sample": {
+          "equal": true,
+          "kind": "ordered",
+          "count_A": 9,
+          "count_B": 9,
+          "sha256_A": "494e020e3246bada723ad87029cb0e1c855fd00222489fc282d4050a83124a6f",
+          "sha256_B": "494e020e3246bada723ad87029cb0e1c855fd00222489fc282d4050a83124a6f"
+        },
+        "scope": {
+          "equal": true,
+          "kind": "ordered",
+          "count_A": null,
+          "count_B": null,
+          "sha256_A": "c2a280f7d074b3bac20f46463093b1b0f939f7b9abd50dd6798d21c26c4f64f6",
+          "sha256_B": "c2a280f7d074b3bac20f46463093b1b0f939f7b9abd50dd6798d21c26c4f64f6"
+        },
+        "unclassified_protocol_callers": {
+          "equal": true,
+          "kind": "multiset",
+          "count_A": 1388,
+          "count_B": 1388,
+          "sha256_A": "831dd3b05b75da7ab6bbf08150065f1e7080db9035b4ed87f6245c462ea7d123",
+          "sha256_B": "831dd3b05b75da7ab6bbf08150065f1e7080db9035b4ed87f6245c462ea7d123"
+        },
+        "unknown_families": {
+          "equal": true,
+          "kind": "ordered",
+          "count_A": 14,
+          "count_B": 14,
+          "sha256_A": "fc5d7defbc961522c86a064d64ed2ade76d3325428568b10af93767de753ca01",
+          "sha256_B": "fc5d7defbc961522c86a064d64ed2ade76d3325428568b10af93767de753ca01"
+        },
+        "unregistered_protocols": {
+          "equal": true,
+          "kind": "ordered",
+          "count_A": 127,
+          "count_B": 127,
+          "sha256_A": "c1c750963004c981039ace27903c88cb88d0b3d65af75b54c56144ec0ce376e4",
+          "sha256_B": "c1c750963004c981039ace27903c88cb88d0b3d65af75b54c56144ec0ce376e4"
+        }
+      },
+      "supervisor": {
+        "A": {
+          "status": "completed",
+          "exit_code": 0,
+          "peak_job_commit_bytes": "1652006912",
+          "tree_empty_verified": true
+        },
+        "B": {
+          "status": "completed",
+          "exit_code": 0,
+          "peak_job_commit_bytes": "1353809920",
+          "tree_empty_verified": true
+        }
+      },
+      "wall_seconds_not_a_measurement": {
+        "A": 65.66273089999959,
+        "B": 142.32569650000005
+      },
+      "published_rows": {
+        "bytes_equal": true,
+        "lines": [
+          34,
+          34
+        ]
+      },
+      "files": {
+        "A_evidence_sha256": "66fb6f640531ae77dbcbe4f0ab09350fb315121d8a9a39d49a081e84461d8f85",
+        "B_evidence_sha256": "66fb6f640531ae77dbcbe4f0ab09350fb315121d8a9a39d49a081e84461d8f85"
+      },
+      "controls_on_real_evidence": [
+        {
+          "control": "one element of class_records dropped",
+          "layer": "groups",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "one repeated element of class_records counted once",
+          "layer": "groups",
+          "applied": false,
+          "reason": "this run has no element to edit"
+        },
+        {
+          "control": "one element of discoveries dropped",
+          "layer": "groups",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "one repeated element of discoveries counted once",
+          "layer": "groups",
+          "applied": false,
+          "reason": "this run has no element to edit"
+        },
+        {
+          "control": "one element of invoke_edges dropped",
+          "layer": "groups",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "one repeated element of invoke_edges counted once",
+          "layer": "groups",
+          "applied": false,
+          "reason": "this run has no element to edit"
+        },
+        {
+          "control": "one element of protocol_definitions dropped",
+          "layer": "groups",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "one repeated element of protocol_definitions counted once",
+          "layer": "groups",
+          "applied": false,
+          "reason": "this run has no element to edit"
+        },
+        {
+          "control": "one element of protocol_twins dropped",
+          "layer": "groups",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "one repeated element of protocol_twins counted once",
+          "layer": "groups",
+          "applied": false,
+          "reason": "this run has no element to edit"
+        },
+        {
+          "control": "one element of unclassified_protocol_callers dropped",
+          "layer": "groups",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "one repeated element of unclassified_protocol_callers counted once",
+          "layer": "groups",
+          "applied": false,
+          "reason": "this run has no element to edit"
+        },
+        {
+          "control": "a NULL in class_records became an empty text",
+          "layer": "groups",
+          "applied": false,
+          "reason": "this run has no element to edit"
+        },
+        {
+          "control": "a class attributed to the next DEX (source-local id)",
+          "layer": "groups",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "one resource fingerprint changed",
+          "layer": "groups",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "two limitations swapped (an ordered group)",
+          "layer": "groups",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "a gate exit code flipped",
+          "layer": "groups",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "two published FEATURE rows swapped (declaration order)",
+          "layer": "tsv",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "one FEATURE status changed",
+          "layer": "report",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "the query count changed",
+          "layer": "report",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "a coverage gap added",
+          "layer": "report",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "a fallback recorded",
+          "layer": "run",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "another input",
+          "layer": "run",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        }
+      ]
+    },
+    {
+      "run": "ab-9170100",
+      "input": {
+        "sha256": "f0f880e841d017db335b3919e6d4792961f2e08aa9993da661b626d52cfcb955",
+        "version_code": 9170100
+      },
+      "reference_source_commit": "8782f43d537c442905123e35af325c412caa5188",
+      "engines": {
+        "A": {
+          "engine": "dexsql",
+          "version": "0.1.0",
+          "sha256": "f354ebcf715de9a66ef8ebe08b2b36807ab58e25cd5a1c0812e497fc1fcfc448"
+        },
+        "B": {
+          "engine": "meguvizdexdash",
+          "version": "0.1.0-dev",
+          "build_id": "source-sha256:df1ab73e8d4dcddd609e301e199882420895cbc3852afc63cc0c5072145efdf7",
+          "sha256": "dd81f064164fa679ef52dd0c8e07a0c41d282d50947fd18fdb5b9f2528201e43",
+          "wire": "b0",
+          "implementation_scope": "unqualified development build"
+        }
+      },
+      "complete": {
+        "A": true,
+        "B": true
       },
       "counts": {
-        "class_count": 310716,
-        "queries": 635,
         "features": 27,
-        "evidence_groups": 20
+        "evidence_groups": 20,
+        "class_count": [
+          345907,
+          345907
+        ],
+        "queries": [
+          647,
+          647
+        ]
       },
-      "violations": [],
-      "fallback_count": 0,
+      "fallback_count": [
+        0,
+        0
+      ],
+      "violations": [
+        [],
+        []
+      ],
+      "equal": true,
+      "layers": [
+        {
+          "layer": "run",
+          "equal": true,
+          "difference_count": 0
+        },
+        {
+          "layer": "report",
+          "equal": true,
+          "difference_count": 0
+        },
+        {
+          "layer": "tsv",
+          "equal": true,
+          "difference_count": 0
+        },
+        {
+          "layer": "groups",
+          "equal": true,
+          "difference_count": 0
+        }
+      ],
+      "groups": {
+        "class_records": {
+          "equal": true,
+          "kind": "multiset",
+          "count_A": 32518,
+          "count_B": 32518,
+          "sha256_A": "afdaf24369cb67433b535ec6e2a88d5d56c0687248eddc6f8571719216a94785",
+          "sha256_B": "afdaf24369cb67433b535ec6e2a88d5d56c0687248eddc6f8571719216a94785"
+        },
+        "discoveries": {
+          "equal": true,
+          "kind": "multiset",
+          "count_A": 3,
+          "count_B": 3,
+          "sha256_A": "c42ebd37d32a2f9992f41d93dc32014ed5009fcfdd646aeac02b722aafd974b0",
+          "sha256_B": "c42ebd37d32a2f9992f41d93dc32014ed5009fcfdd646aeac02b722aafd974b0"
+        },
+        "families": {
+          "equal": true,
+          "kind": "ordered",
+          "count_A": 39,
+          "count_B": 39,
+          "sha256_A": "f2ba9ea514b9be9536e43eb35fcb2650d1eed78873db872ff70f11d8a29e4e24",
+          "sha256_B": "f2ba9ea514b9be9536e43eb35fcb2650d1eed78873db872ff70f11d8a29e4e24"
+        },
+        "features": {
+          "equal": true,
+          "kind": "ordered",
+          "count_A": 27,
+          "count_B": 27,
+          "sha256_A": "49b7434cb13dfe27e305ea5009fdcd145c165ce51a4cc15b1c0b9cfe03a9f1a8",
+          "sha256_B": "49b7434cb13dfe27e305ea5009fdcd145c165ce51a4cc15b1c0b9cfe03a9f1a8"
+        },
+        "gates": {
+          "equal": true,
+          "kind": "ordered",
+          "count_A": 3,
+          "count_B": 3,
+          "sha256_A": "c76ebd107182f2d1e04741c814b449881267f5dbbb74ae84f98c874dfbfd37f7",
+          "sha256_B": "c76ebd107182f2d1e04741c814b449881267f5dbbb74ae84f98c874dfbfd37f7"
+        },
+        "home_probe_sha256": {
+          "equal": true,
+          "kind": "ordered",
+          "count_A": null,
+          "count_B": null,
+          "sha256_A": "d6dabb1491099dae623d2233f4a68c8606295ccd00fe8f47fad4e34ca21374be",
+          "sha256_B": "d6dabb1491099dae623d2233f4a68c8606295ccd00fe8f47fad4e34ca21374be"
+        },
+        "invoke_edges": {
+          "equal": true,
+          "kind": "multiset",
+          "count_A": 137216,
+          "count_B": 137216,
+          "sha256_A": "929917ccf783f4559e01e9e363b158903a3ca1f1ac865949e0cc3bb0821ea452",
+          "sha256_B": "929917ccf783f4559e01e9e363b158903a3ca1f1ac865949e0cc3bb0821ea452"
+        },
+        "limitations": {
+          "equal": true,
+          "kind": "ordered",
+          "count_A": 4,
+          "count_B": 4,
+          "sha256_A": "f7f94e34f2fe73b01dff2f2b64733da7c6d1e0f862b24ddf6e6bb9f74a9ad419",
+          "sha256_B": "f7f94e34f2fe73b01dff2f2b64733da7c6d1e0f862b24ddf6e6bb9f74a9ad419"
+        },
+        "page_path_matrix": {
+          "equal": true,
+          "kind": "ordered",
+          "count_A": 10,
+          "count_B": 10,
+          "sha256_A": "83f859996cfff07862de2570c4119a27cab4c5f1576e1c8f5cfeae014cc9982b",
+          "sha256_B": "83f859996cfff07862de2570c4119a27cab4c5f1576e1c8f5cfeae014cc9982b"
+        },
+        "protocol_definitions": {
+          "equal": true,
+          "kind": "multiset",
+          "count_A": 5523,
+          "count_B": 5523,
+          "sha256_A": "b9602fd870a5b36f299a323758bca6dd958884f1657b541a05e075e790ca8a8e",
+          "sha256_B": "b9602fd870a5b36f299a323758bca6dd958884f1657b541a05e075e790ca8a8e"
+        },
+        "protocol_paths": {
+          "equal": true,
+          "kind": "ordered",
+          "count_A": 148,
+          "count_B": 148,
+          "sha256_A": "bbb68cc4d1ac573c64b62c61e3199d496632bb2afe89f931abb9edc96212d464",
+          "sha256_B": "bbb68cc4d1ac573c64b62c61e3199d496632bb2afe89f931abb9edc96212d464"
+        },
+        "protocol_twins": {
+          "equal": true,
+          "kind": "multiset",
+          "count_A": 47,
+          "count_B": 47,
+          "sha256_A": "4ea02417fa251d55563c47034c7252773dfc698cb7a230960a157df6133b2db8",
+          "sha256_B": "4ea02417fa251d55563c47034c7252773dfc698cb7a230960a157df6133b2db8"
+        },
+        "resource_fingerprints": {
+          "equal": true,
+          "kind": "ordered",
+          "count_A": 17770,
+          "count_B": 17770,
+          "sha256_A": "052fc3e4b1da8a7ab51ed7ee8c5f85b58b80dfa6426201b237e5e0e3241ffbc9",
+          "sha256_B": "052fc3e4b1da8a7ab51ed7ee8c5f85b58b80dfa6426201b237e5e0e3241ffbc9"
+        },
+        "rule_sha256": {
+          "equal": true,
+          "kind": "ordered",
+          "count_A": null,
+          "count_B": null,
+          "sha256_A": "e062c3a18f3cdc6d215167ccefd6f98727392fa4aa7a99ec017f313114d182b4",
+          "sha256_B": "e062c3a18f3cdc6d215167ccefd6f98727392fa4aa7a99ec017f313114d182b4"
+        },
+        "rule_version": {
+          "equal": true,
+          "kind": "ordered",
+          "count_A": null,
+          "count_B": null,
+          "sha256_A": "4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a",
+          "sha256_B": "4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a"
+        },
+        "sample": {
+          "equal": true,
+          "kind": "ordered",
+          "count_A": 9,
+          "count_B": 9,
+          "sha256_A": "040ae003dd95a7deb9faf3ba01ad04573348102fa5c824f736490ddf76637e32",
+          "sha256_B": "040ae003dd95a7deb9faf3ba01ad04573348102fa5c824f736490ddf76637e32"
+        },
+        "scope": {
+          "equal": true,
+          "kind": "ordered",
+          "count_A": null,
+          "count_B": null,
+          "sha256_A": "c2a280f7d074b3bac20f46463093b1b0f939f7b9abd50dd6798d21c26c4f64f6",
+          "sha256_B": "c2a280f7d074b3bac20f46463093b1b0f939f7b9abd50dd6798d21c26c4f64f6"
+        },
+        "unclassified_protocol_callers": {
+          "equal": true,
+          "kind": "multiset",
+          "count_A": 1509,
+          "count_B": 1509,
+          "sha256_A": "afcf2c936977c59f867e73efa9ebec6d079f2126ee00ea43f74fb704ff469c61",
+          "sha256_B": "afcf2c936977c59f867e73efa9ebec6d079f2126ee00ea43f74fb704ff469c61"
+        },
+        "unknown_families": {
+          "equal": true,
+          "kind": "ordered",
+          "count_A": 14,
+          "count_B": 14,
+          "sha256_A": "fc5d7defbc961522c86a064d64ed2ade76d3325428568b10af93767de753ca01",
+          "sha256_B": "fc5d7defbc961522c86a064d64ed2ade76d3325428568b10af93767de753ca01"
+        },
+        "unregistered_protocols": {
+          "equal": true,
+          "kind": "ordered",
+          "count_A": 134,
+          "count_B": 134,
+          "sha256_A": "849307b0d314100631a0361aa7bc34e9133277b7a1d45f077212ba6c89c3440d",
+          "sha256_B": "849307b0d314100631a0361aa7bc34e9133277b7a1d45f077212ba6c89c3440d"
+        }
+      },
       "supervisor": {
-        "status": "completed",
-        "exit_code": 0,
-        "peak_job_commit_bytes": "1572528128",
-        "tree_empty_verified": true
+        "A": {
+          "status": "completed",
+          "exit_code": 0,
+          "peak_job_commit_bytes": "1752424448",
+          "tree_empty_verified": true
+        },
+        "B": {
+          "status": "completed",
+          "exit_code": 0,
+          "peak_job_commit_bytes": "1459486720",
+          "tree_empty_verified": true
+        }
       },
-      "limits": {
-        "memory_commit_bytes": "8589934592",
-        "affinity_mask": "255",
-        "max_processes": 16,
-        "timeout_seconds": 2400,
-        "max_log_bytes": 16777216
+      "wall_seconds_not_a_measurement": {
+        "A": 72.25147859999925,
+        "B": 148.94841749999978
       },
-      "wall_seconds_not_a_measurement": 81.63831190000019,
+      "published_rows": {
+        "bytes_equal": true,
+        "lines": [
+          33,
+          33
+        ]
+      },
+      "files": {
+        "A_evidence_sha256": "81751b97a9d5b4d1c22bc762ff127ab2fe48cba317e0022c54d67473b56ee90f",
+        "B_evidence_sha256": "81751b97a9d5b4d1c22bc762ff127ab2fe48cba317e0022c54d67473b56ee90f"
+      },
       "controls_on_real_evidence": [
         {
           "control": "one element of class_records dropped",
@@ -258,7 +870,516 @@
       ]
     }
   ],
-  "failed_engine_attempts": [
+  "harness_validation": [
+    {
+      "run": "a0-9161100",
+      "side": "A",
+      "engine": {
+        "engine": "dexsql",
+        "version": "0.1.0",
+        "sha256": "f354ebcf715de9a66ef8ebe08b2b36807ab58e25cd5a1c0812e497fc1fcfc448"
+      },
+      "input": {
+        "sha256": "41efb1c9acb07badab5296953fb3da1def6925e2b34662120ca96df9d17bbfb2",
+        "version_code": 9161100
+      },
+      "against": "an earlier run of the same engine and input, made by the 2026-10-28 baseline driver (not by this harness)",
+      "equal": true,
+      "layers": [
+        {
+          "layer": "run",
+          "equal": true,
+          "difference_count": 0
+        },
+        {
+          "layer": "report",
+          "equal": true,
+          "difference_count": 0
+        },
+        {
+          "layer": "tsv",
+          "equal": true,
+          "difference_count": 0
+        },
+        {
+          "layer": "groups",
+          "equal": true,
+          "difference_count": 0
+        }
+      ],
+      "group_digests_equal": {
+        "class_records": true,
+        "discoveries": true,
+        "families": true,
+        "features": true,
+        "gates": true,
+        "home_probe_sha256": true,
+        "invoke_edges": true,
+        "limitations": true,
+        "page_path_matrix": true,
+        "protocol_definitions": true,
+        "protocol_paths": true,
+        "protocol_twins": true,
+        "resource_fingerprints": true,
+        "rule_sha256": true,
+        "rule_version": true,
+        "sample": true,
+        "scope": true,
+        "unclassified_protocol_callers": true,
+        "unknown_families": true,
+        "unregistered_protocols": true
+      },
+      "counts": {
+        "class_count": 310716,
+        "queries": 635,
+        "features": 27,
+        "evidence_groups": 20
+      },
+      "violations": [],
+      "fallback_count": 0,
+      "supervisor": {
+        "status": "completed",
+        "exit_code": 0,
+        "peak_job_commit_bytes": "1652006912",
+        "tree_empty_verified": true
+      },
+      "limits": {
+        "memory_commit_bytes": "15032385536",
+        "affinity_mask": "255",
+        "max_processes": 16,
+        "timeout_seconds": 2400,
+        "max_log_bytes": 16777216
+      },
+      "wall_seconds_not_a_measurement": 65.66273089999959,
+      "controls_on_real_evidence": [
+        {
+          "control": "one element of class_records dropped",
+          "layer": "groups",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "one repeated element of class_records counted once",
+          "layer": "groups",
+          "applied": false,
+          "reason": "this run has no element to edit"
+        },
+        {
+          "control": "one element of discoveries dropped",
+          "layer": "groups",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "one repeated element of discoveries counted once",
+          "layer": "groups",
+          "applied": false,
+          "reason": "this run has no element to edit"
+        },
+        {
+          "control": "one element of invoke_edges dropped",
+          "layer": "groups",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "one repeated element of invoke_edges counted once",
+          "layer": "groups",
+          "applied": false,
+          "reason": "this run has no element to edit"
+        },
+        {
+          "control": "one element of protocol_definitions dropped",
+          "layer": "groups",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "one repeated element of protocol_definitions counted once",
+          "layer": "groups",
+          "applied": false,
+          "reason": "this run has no element to edit"
+        },
+        {
+          "control": "one element of protocol_twins dropped",
+          "layer": "groups",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "one repeated element of protocol_twins counted once",
+          "layer": "groups",
+          "applied": false,
+          "reason": "this run has no element to edit"
+        },
+        {
+          "control": "one element of unclassified_protocol_callers dropped",
+          "layer": "groups",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "one repeated element of unclassified_protocol_callers counted once",
+          "layer": "groups",
+          "applied": false,
+          "reason": "this run has no element to edit"
+        },
+        {
+          "control": "a NULL in class_records became an empty text",
+          "layer": "groups",
+          "applied": false,
+          "reason": "this run has no element to edit"
+        },
+        {
+          "control": "a class attributed to the next DEX (source-local id)",
+          "layer": "groups",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "one resource fingerprint changed",
+          "layer": "groups",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "two limitations swapped (an ordered group)",
+          "layer": "groups",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "a gate exit code flipped",
+          "layer": "groups",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "two published FEATURE rows swapped (declaration order)",
+          "layer": "tsv",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "one FEATURE status changed",
+          "layer": "report",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "the query count changed",
+          "layer": "report",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "a coverage gap added",
+          "layer": "report",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "a fallback recorded",
+          "layer": "run",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "another input",
+          "layer": "run",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        }
+      ]
+    },
+    {
+      "run": "a0-9170100",
+      "side": "A",
+      "engine": {
+        "engine": "dexsql",
+        "version": "0.1.0",
+        "sha256": "f354ebcf715de9a66ef8ebe08b2b36807ab58e25cd5a1c0812e497fc1fcfc448"
+      },
+      "input": {
+        "sha256": "f0f880e841d017db335b3919e6d4792961f2e08aa9993da661b626d52cfcb955",
+        "version_code": 9170100
+      },
+      "against": "an earlier run of the same engine and input, made by the 2026-10-28 baseline driver (not by this harness)",
+      "equal": true,
+      "layers": [
+        {
+          "layer": "run",
+          "equal": true,
+          "difference_count": 0
+        },
+        {
+          "layer": "report",
+          "equal": true,
+          "difference_count": 0
+        },
+        {
+          "layer": "tsv",
+          "equal": true,
+          "difference_count": 0
+        },
+        {
+          "layer": "groups",
+          "equal": true,
+          "difference_count": 0
+        }
+      ],
+      "group_digests_equal": {
+        "class_records": true,
+        "discoveries": true,
+        "families": true,
+        "features": true,
+        "gates": true,
+        "home_probe_sha256": true,
+        "invoke_edges": true,
+        "limitations": true,
+        "page_path_matrix": true,
+        "protocol_definitions": true,
+        "protocol_paths": true,
+        "protocol_twins": true,
+        "resource_fingerprints": true,
+        "rule_sha256": true,
+        "rule_version": true,
+        "sample": true,
+        "scope": true,
+        "unclassified_protocol_callers": true,
+        "unknown_families": true,
+        "unregistered_protocols": true
+      },
+      "counts": {
+        "class_count": 345907,
+        "queries": 647,
+        "features": 27,
+        "evidence_groups": 20
+      },
+      "violations": [],
+      "fallback_count": 0,
+      "supervisor": {
+        "status": "completed",
+        "exit_code": 0,
+        "peak_job_commit_bytes": "1752424448",
+        "tree_empty_verified": true
+      },
+      "limits": {
+        "memory_commit_bytes": "15032385536",
+        "affinity_mask": "255",
+        "max_processes": 16,
+        "timeout_seconds": 2400,
+        "max_log_bytes": 16777216
+      },
+      "wall_seconds_not_a_measurement": 72.25147859999925,
+      "controls_on_real_evidence": [
+        {
+          "control": "one element of class_records dropped",
+          "layer": "groups",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "one repeated element of class_records counted once",
+          "layer": "groups",
+          "applied": false,
+          "reason": "this run has no element to edit"
+        },
+        {
+          "control": "one element of discoveries dropped",
+          "layer": "groups",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "one repeated element of discoveries counted once",
+          "layer": "groups",
+          "applied": false,
+          "reason": "this run has no element to edit"
+        },
+        {
+          "control": "one element of invoke_edges dropped",
+          "layer": "groups",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "one repeated element of invoke_edges counted once",
+          "layer": "groups",
+          "applied": false,
+          "reason": "this run has no element to edit"
+        },
+        {
+          "control": "one element of protocol_definitions dropped",
+          "layer": "groups",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "one repeated element of protocol_definitions counted once",
+          "layer": "groups",
+          "applied": false,
+          "reason": "this run has no element to edit"
+        },
+        {
+          "control": "one element of protocol_twins dropped",
+          "layer": "groups",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "one repeated element of protocol_twins counted once",
+          "layer": "groups",
+          "applied": false,
+          "reason": "this run has no element to edit"
+        },
+        {
+          "control": "one element of unclassified_protocol_callers dropped",
+          "layer": "groups",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "one repeated element of unclassified_protocol_callers counted once",
+          "layer": "groups",
+          "applied": false,
+          "reason": "this run has no element to edit"
+        },
+        {
+          "control": "a NULL in class_records became an empty text",
+          "layer": "groups",
+          "applied": false,
+          "reason": "this run has no element to edit"
+        },
+        {
+          "control": "a class attributed to the next DEX (source-local id)",
+          "layer": "groups",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "one resource fingerprint changed",
+          "layer": "groups",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "two limitations swapped (an ordered group)",
+          "layer": "groups",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "a gate exit code flipped",
+          "layer": "groups",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "two published FEATURE rows swapped (declaration order)",
+          "layer": "tsv",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "one FEATURE status changed",
+          "layer": "report",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "the query count changed",
+          "layer": "report",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "a coverage gap added",
+          "layer": "report",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "a fallback recorded",
+          "layer": "run",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        },
+        {
+          "control": "another input",
+          "layer": "run",
+          "applied": true,
+          "comparison_equal": false,
+          "layer_equal": false,
+          "detected": true
+        }
+      ]
+    }
+  ],
+  "failed_engine_attempts": [],
+  "historical_engine_attempts": [
     {
       "attempt": "B-1-8GiB",
       "side": "B",
@@ -294,6 +1415,78 @@
       },
       "report_written": false,
       "compared_with_anything": false
+    },
+    {
+      "attempt": "B-3-sql-budget",
+      "side": "B",
+      "complete": false,
+      "memory_limit_bytes": "15032385536",
+      "status": "failed",
+      "exit_code": 1,
+      "reason": null,
+      "peak_job_commit_bytes": "9475121152",
+      "wall_seconds_not_a_measurement": 34.39062440000089,
+      "tree_empty_verified": true,
+      "ended_with": {
+        "error": "native_session.EngineRejected",
+        "message": "SQL_WORK_BUDGET"
+      },
+      "report_written": false,
+      "compared_with_anything": false
+    },
+    {
+      "attempt": "B-4-strict-nonscalar",
+      "side": "B",
+      "complete": false,
+      "memory_limit_bytes": "15032385536",
+      "status": "failed",
+      "exit_code": 1,
+      "reason": null,
+      "peak_job_commit_bytes": "9476481024",
+      "wall_seconds_not_a_measurement": 227.57343000000037,
+      "tree_empty_verified": true,
+      "ended_with": {
+        "error": "native_session.EngineIncomplete",
+        "message": "required input/fact/column scope is not complete"
+      },
+      "report_written": false,
+      "compared_with_anything": false
+    },
+    {
+      "attempt": "B-5-unindexed-join",
+      "side": "B",
+      "complete": false,
+      "memory_limit_bytes": "15032385536",
+      "status": "failed",
+      "exit_code": 1,
+      "reason": null,
+      "peak_job_commit_bytes": "1268228096",
+      "wall_seconds_not_a_measurement": 902.1403451999995,
+      "tree_empty_verified": true,
+      "ended_with": {
+        "error": "TimeoutError",
+        "message": "native audit CLI response timed out"
+      },
+      "report_written": false,
+      "compared_with_anything": false
+    },
+    {
+      "attempt": "B-6-flat-or-depth",
+      "side": "B",
+      "complete": false,
+      "memory_limit_bytes": "15032385536",
+      "status": "failed",
+      "exit_code": 1,
+      "reason": null,
+      "peak_job_commit_bytes": "1261977600",
+      "wall_seconds_not_a_measurement": 26.314935999998852,
+      "tree_empty_verified": true,
+      "ended_with": {
+        "error": "native_session.EngineRejected",
+        "message": "EMITTED_AST_NODE_OR_DEPTH"
+      },
+      "report_written": false,
+      "compared_with_anything": false
     }
   ],
   "controls_not_detected": [],
@@ -310,11 +1503,10 @@
   },
   "scope": "what the shadow harness and comparator were shown to do, and how the engine runs ended; a correctness record, no timing, no profile qualification",
   "not_proven": [
-    "that MeguvizDexDash gives the same complete HostLab audit as the reference engine on a real APK: no B run has completed, so no pair was compared",
-    "anything about the second authorized input (9.17.0): it was not run, because the first input already does not fit",
-    "that the engine can open an APK of this size in a bounded memory: it cannot in 14 GiB today (see failed_engine_attempts)",
+    "performance or wall-time replacement qualification (MDD-082): wall_seconds_not_a_measurement was not collected in an exclusive benchmark window",
     "the repeated-element and NULL controls on real evidence: the real A evidence has no exactly repeated element in a bag group and no NULL in class_records, so those controls were not applicable here (the unit tests damage them on a synthetic run)",
     "macOS, Linux or any machine but this Windows host; a Linux/WebKit or CI run of the shadow",
-    "that the audit conclusions are right: both sides run HostLab's own analyze.main, so a comparison shows the engines agree under that consumer, not that the consumer is correct"
+    "that the audit conclusions are right: both sides run HostLab's own analyze.main, so a comparison shows the engines agree under that consumer, not that the consumer is correct",
+    "strict non-scalar UTF-16 rejection on APKs containing lone surrogates: this shadow explicitly configures non_scalar_text=lossy-replacement to match A0's U+FFFD projection while keeping reject as engine default"
   ]
 }

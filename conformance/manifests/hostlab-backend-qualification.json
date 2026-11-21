@@ -1,0 +1,120 @@
+{
+  "schema_version": "mdd.hostlab-backend-qualification.v1",
+  "task": "MDD-055",
+  "phase": "M5",
+  "qualification_scope": "switchable_hostlab_backend_functional_preview_only",
+  "default_production_cutover": false,
+  "performance_replacement_qualified": false,
+  "performance_37pct_target_claimed": false,
+  "mdd_082_status": "not_qualified",
+  "full_sql_or_desktop_admitted": false,
+  "upstream_qualifications": {
+    "MDD-026": {
+      "manifest": "conformance/manifests/hostlab-fact-qualification.json",
+      "scope": "17 HostLab contract relations (156 columns) native atom and coverage qualification"
+    },
+    "MDD-035": {
+      "manifest": "conformance/manifests/query-profile-qualification.json",
+      "scope": "hostlab-audit-v1 query layer Q01..Q14 equal_to_a0 (profiles remain unadmitted)"
+    },
+    "MDD-044": {
+      "verifier": "conformance/mcp/check_hostlab_required_tools.py",
+      "scope": "HostLab-MVP required MCP tools protocol conformance"
+    },
+    "MDD-050": {
+      "evidence": "artifacts/mdd-050/provider-selection.json",
+      "scope": "provider routing, namespace isolation under state/mdd-engine, fail-closed fallback=none"
+    },
+    "MDD-051": {
+      "evidence": "artifacts/mdd-051/structural-equivalence.json",
+      "scope": "NativeSession b0/mcp structural transport equivalence"
+    },
+    "MDD-052": {
+      "evidence": "artifacts/mdd-052/surface-equivalence.json",
+      "scope": "locate, decode, info, and refs surface equivalence"
+    },
+    "MDD-053": {
+      "evidence": "artifacts/mdd-053/remote-and-resume-equivalence.json",
+      "scope": "cross-version and remote-state isolation contracts"
+    },
+    "MDD-054": {
+      "evidence": "artifacts/mdd-054/full-equivalence.json",
+      "manifest": "artifacts/mdd-054/shadow-manifest.json",
+      "status": "equivalence_shown_on_the_runs_listed",
+      "scope": "complete unmodified analyze.main audit --mode full A/B equivalence across all 4 layers (run, report, byte-identical tsv, 20 evidence groups, 27 FEATURE) with 0 fallbacks and 0 violations"
+    },
+    "MDD-055": {
+      "evidence": "artifacts/mdd-055/cutover-rehearsal.json",
+      "enablement_example": "integrations/hostlab/enablement-config.example.json",
+      "rollback_runbook": "integrations/hostlab/ROLLBACK.md",
+      "scope": "end-to-end cutover rehearsal, report provenance reconstruction, cross-engine checkpoint refusal, and single-step rollback without polluting legacy HostLab directories"
+    }
+  },
+  "qualified_engine_build": {
+    "engine_version": "0.1.0-dev",
+    "build_id": "source-sha256:df1ab73e8d4dcddd609e301e199882420895cbc3852afc63cc0c5072145efdf7",
+    "binary_sha256": "dd81f064164fa679ef52dd0c8e07a0c41d282d50947fd18fdb5b9f2528201e43",
+    "platform": "Windows/AMD64",
+    "hostlab_reference_commit": "8782f43d537c442905123e35af325c412caa5188"
+  },
+  "qualified_workloads": [
+    {
+      "occurrence_id": "hostlab-9161100",
+      "version_code": 9161100,
+      "sha256": "41efb1c9acb07badab5296953fb3da1def6925e2b34662120ca96df9d17bbfb2",
+      "bytes": "226519215",
+      "dex_members": 33,
+      "class_count": 310716,
+      "queries": 635,
+      "equal_to_a0": true,
+      "fallback_count": 0
+    },
+    {
+      "occurrence_id": "hostlab-9170100",
+      "version_code": 9170100,
+      "sha256": "f0f880e841d017db335b3919e6d4792961f2e08aa9993da661b626d52cfcb955",
+      "bytes": "243687778",
+      "dex_members": 35,
+      "class_count": 345907,
+      "queries": 647,
+      "equal_to_a0": true,
+      "fallback_count": 0
+    }
+  ],
+  "required_enablement_config": {
+    "native_engine": "meguvizdexdash",
+    "fallback": "none",
+    "dialect": "dexsql-0.1.0",
+    "profile": "mdd-native-v1",
+    "profile_policy": "allow_unadmitted",
+    "wire": "b0",
+    "non_scalar_text": "lossy-replacement",
+    "non_scalar_text_default_note": "Engine default stays strict reject everywhere; lossy-replacement is an explicit opt-in matching DexSQL U+FFFD surrogate projection with non-blocking coverage diagnostics.",
+    "sql_limits": {
+      "steps": 4000000000,
+      "scanned_rows": 400000000,
+      "result_rows": 4000000
+    }
+  },
+  "completeness_invariants": {
+    "operation_status": "ok",
+    "execution_complete": true,
+    "truncated": false,
+    "more_available": false,
+    "next_cursor": null,
+    "abandoned": 0,
+    "coverage_input": "complete",
+    "coverage_facts": "complete"
+  },
+  "scope_boundaries": [
+    "M5 keeps independent Python SQLite gates in HostLab (such as refs-sites on sqlite).",
+    "Full 12 MCP tools, remaining 39 public relations beyond HostLab-MVP, and CLI/Python/C-ABI SDK contracts are separately qualified in M7 (MDD-060..MDD-065).",
+    "Desktop preview UI stays separately scoped in MDD-073 / MDD-074.",
+    "Formal performance replacement (~37%/47% conditional target) and exclusive-window benchmarking remain blocked on MDD-080..MDD-082; this manifest authorizes functional review and opt-in switching only."
+  ],
+  "rollback_contract": {
+    "single_config_switch": "Set native_engine='dexsql' or unset HOSTLAB_PROVIDER_CONFIG / HOSTLAB_STRUCTURAL_CONFIG",
+    "legacy_state_untouched": true,
+    "cross_engine_checkpoint_refused": true
+  }
+}

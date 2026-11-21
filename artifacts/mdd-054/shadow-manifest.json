@@ -46,9 +46,11 @@
         "scanned_rows": 400000000,
         "result_rows": 4000000
       },
+      "non_scalar_text": "lossy-replacement",
       "sha256": null,
       "note": "the binary is whatever the local build is; its sha256, build id and pin are written into every run record",
-      "sql_limits_note": "explicit and finite; chosen after attempt 3 to be above any relation of the authorized inputs, not tuned down to the smallest value that passes"
+      "sql_limits_note": "explicit and finite; chosen after attempt 3 to be above any relation of the authorized inputs, not tuned down to the smallest value that passes",
+      "non_scalar_text_note": "strict reject remains the engine default everywhere; attempt 4 proved real APKs contain legal lone UTF-16 surrogates that side A projects as U+FFFD, so shadow parity sets explicit opt-in lossy-replacement with non-blocking coverage diagnostics"
     }
   },
   "resources": {
@@ -113,6 +115,56 @@
       "observed": "the dataset opened (Job peak commit 9475121152 bytes, inside the 14 GiB limit) and the audit ran for 34 s, then the engine rejected a statement with SQL_WORK_BUDGET",
       "reading": "the memory failure of attempts 1 and 2 is gone. The engine's default SQL work budgets (steps 5000000, scanned rows 1000000, result rows 100000) are smaller than the relations of an APK with 33 DEX and 310716 classes; the structural configuration's sql_limits is the knob for this and was left at the default, as the README said the size a real APK needs was unknown",
       "action": "attempt 4 sets sql_limits for side B (below); side A (DexSQL) has no such budget. A limit only decides whether a statement may finish or fails closed, so it cannot change a result that is produced"
+    },
+    {
+      "attempt": 4,
+      "input": "hostlab-9161100",
+      "side": "B",
+      "job_memory_commit_bytes": "15032385536",
+      "engine": "the build with increased structural sql_limits under strict UTF-8 rejection",
+      "result": "failed closed with complete coverage refusal",
+      "observed": "the dataset opened and queries ran for 228 s (Job peak commit 9476481024 bytes), then HostLab queried strings.value and the engine failed closed with INCOMPLETE_FACTS (native_session.EngineIncomplete: required input/fact/column scope is not complete)",
+      "reading": "authorized real DEX inputs contain legal unpaired UTF-16 surrogates; A0 emits one U+FFFD per lone surrogate (verified on nonscalar-string-035 probe), whereas MeguvizDexDash's strict default rejects non-scalar strings rather than silently altering text",
+      "action": "attempt 5 keeps strict reject as default and enables explicit opt-in --non-scalar-text lossy-replacement with non-blocking coverage diagnostics for A0 shadow parity"
+    },
+    {
+      "attempt": 5,
+      "input": "hostlab-9161100",
+      "side": "B",
+      "job_memory_commit_bytes": "15032385536",
+      "engine": "the build with opt-in non-scalar lossy-replacement before indexed candidate scans and semi-join pushdown",
+      "result": "failed closed at session deadline (900 s)",
+      "observed": "peak job commit stayed at 1268228096 bytes (~1.18 GiB) and strings queries passed, then native_graph load_meta (class_interfaces JOIN classes WHERE c.descriptor IN (...)) burned 869.23 s user CPU and timed out at 902.14 s",
+      "reading": "B0 wrapper subqueries bypassed outer-SELECT partition_hints, unbuilt relation estimated_rows stayed None during SQLite join planning, and mdd_eq/mdd_key virtual table scans lacked lazy column indexes and semi-join key propagation",
+      "action": "attempt 6 adds lazy CSR ColumnIndex, wrapper-unwrapping query_hints, post-require estimated_rows refresh, and small-set EquiJoinEdge semi-join propagation in mdd-sql while preserving VTB_POLICY (omit=false)"
+    },
+    {
+      "attempt": 6,
+      "input": "hostlab-9161100",
+      "side": "B",
+      "job_memory_commit_bytes": "15032385536",
+      "engine": "the build with lazy CSR ColumnIndex, wrapper-unwrapping query_hints, and small-set semi-join propagation",
+      "result": "structural audit completed; native_surface scan failed closed with EMITTED_AST_NODE_OR_DEPTH",
+      "observed": "peak job commit 1261977600 bytes (~1.17 GiB); all 635 Rules structural queries + joins + COUNT(*) completed within 26 s, then native_surface.py:77 emitted an unparenthesized 32-term OR LIKE chain that exceeded default max_ast_depth=48 after mdd_truth_input wrapping (wall 26.31 s)",
+      "reading": "Rewrite::expr wrapped every AND/OR operand in mdd_truth_input(...), doubling the AST height of flat OR chains from ~35 to ~70 while parenthesized nesting was <= 4",
+      "action": "attempt 7 rebalances contiguous unparenthesized AND/OR spines in Rewrite::expr without altering Expr::Nested lexical depth and adds batched RowFilter::LikeAsciiPrefix CSR/dict candidate scanning plus LIMIT 0 short-circuit"
+    },
+    {
+      "attempt": 7,
+      "inputs": [
+        "hostlab-9161100",
+        "hostlab-9170100"
+      ],
+      "sides": [
+        "A",
+        "B"
+      ],
+      "job_memory_commit_bytes": "15032385536",
+      "engine": "meguvizdexdash 0.1.0-dev (build source-sha256:df1ab73e8d4dcddd609e301e199882420895cbc3852afc63cc0c5072145efdf7, sha256 dd81f064164fa679ef52dd0c8e07a0c41d282d50947fd18fdb5b9f2528201e43)",
+      "result": "completed equal on both authorized inputs",
+      "observed": "hostlab-9161100: Side A peak 1652006912 B (wall 68.73 s), Side B peak 1353809920 B (wall 145.29 s), equal=true across all 4 layers (run, report, byte-identical tsv, 20 groups), class_count=310716, queries=635, fallback_count=[0,0], violations=[[],[]]. hostlab-9170100: Side A peak 1752424448 B (wall 75.39 s), Side B peak 1459486720 B (wall 152.02 s), equal=true across all 4 layers and 20 groups, class_count=345907, queries=647, fallback_count=[0,0], violations=[[],[]].",
+      "reading": "all 20 evidence groups, 27 FEATURE rows, gates, verdicts, raw code fingerprints, NULLs, multiplicity, source-local ids, declaration order, and complete coverage matched Side A on both inputs with zero fallback and lower peak Job commit than A0",
+      "action": "record full equivalence in artifacts/mdd-054/full-equivalence.json and cross-check both Side A runs against 2026-10-29 historical A0 baselines"
     }
   ]
 }

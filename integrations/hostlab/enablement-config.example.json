@@ -1,0 +1,48 @@
+{
+  "schema": "mdd.hostlab-enablement-example.v1",
+  "task": "MDD-055",
+  "note": "默认不启用；仅在明确设置 HOSTLAB_PROVIDER_CONFIG 与 HOSTLAB_STRUCTURAL_CONFIG 指向从本示例导出的独立配置文件后，HostLab 的 auto 请求才会切换到 meguvizdexdash。",
+  "default_production_cutover": false,
+  "provider_config": {
+    "schema": "mdd.hostlab-provider-config.v1",
+    "native_engine": "meguvizdexdash",
+    "meguvizdexdash": {
+      "manifest": "<PATH_TO_ENGINE_PIN_MANIFEST>",
+      "dialect": "dexsql-0.1.0",
+      "profile": "mdd-native-v1",
+      "profile_policy": "allow_unadmitted",
+      "cache_dir": null,
+      "max_datasets": 1,
+      "fallback": {
+        "to": "none",
+        "on": []
+      }
+    }
+  },
+  "structural_config": {
+    "schema": "mdd.hostlab-structural-config.v1",
+    "wire": "b0",
+    "non_scalar_text": "lossy-replacement",
+    "sql_limits": {
+      "steps": 4000000000,
+      "scanned_rows": 400000000,
+      "result_rows": 4000000
+    }
+  },
+  "rollback_provider_config": {
+    "schema": "mdd.hostlab-provider-config.v1",
+    "native_engine": "dexsql",
+    "meguvizdexdash": {
+      "manifest": "<PATH_TO_ENGINE_PIN_MANIFEST>",
+      "dialect": "dexsql-0.1.0",
+      "profile": "mdd-native-v1",
+      "profile_policy": "allow_unadmitted",
+      "cache_dir": null,
+      "max_datasets": 1,
+      "fallback": {
+        "to": "none",
+        "on": []
+      }
+    }
+  }
+}

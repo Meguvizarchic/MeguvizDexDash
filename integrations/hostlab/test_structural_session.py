@@ -210,14 +210,20 @@ class ConfigTests(unittest.TestCase):
     def test_defaults_and_choices(self):
         self.assertEqual(ns.parse_structural_config(self.good()), ns.StructuralConfig())
         self.assertEqual(ns.StructuralConfig().wire, "b0")
-        config = ns.parse_structural_config(self.good(wire="b1", sql_limits={"result_rows": 5, "steps": 7}, max_line_bytes=2048))
-        self.assertEqual((config.wire, config.limits(), config.max_line_bytes), ("b1", {"steps": 7, "result_rows": 5}, 2048))
+        self.assertEqual(ns.StructuralConfig().non_scalar_text, "reject")
+        config = ns.parse_structural_config(
+            self.good(wire="b1", sql_limits={"result_rows": 5, "steps": 7}, max_line_bytes=2048,
+                      non_scalar_text="lossy-replacement"))
+        self.assertEqual(
+            (config.wire, config.limits(), config.max_line_bytes, config.non_scalar_text),
+            ("b1", {"steps": 7, "result_rows": 5}, 2048, "lossy-replacement"))
 
     def test_refused(self):
         bad = [None, [], "b1", {}, {"schema": "x"}, self.good(extra=1), self.good(wire="b2"), self.good(wire=None),
                self.good(sql_limits=[]), self.good(sql_limits={"rows": 1}), self.good(sql_limits={"steps": 0}),
                self.good(sql_limits={"steps": True}), self.good(sql_limits={"steps": "5"}), self.good(max_line_bytes=10),
-               self.good(max_line_bytes=True), self.good(max_line_bytes=1 << 40)]
+               self.good(max_line_bytes=True), self.good(max_line_bytes=1 << 40),
+               self.good(non_scalar_text=None), self.good(non_scalar_text=1), self.good(non_scalar_text="ignore")]
         for document in bad:
             with self.subTest(document=document):
                 with self.assertRaises(provider.ConfigError):
@@ -253,6 +259,15 @@ class ServeCommandTests(unittest.TestCase):
     def test_unknown_limit_names_are_not_passed(self):
         command = ns.serve_command("e", ["x"], dialect="d", timeout_seconds=1, sql_limits={"surprise": 1})
         self.assertFalse(any("surprise" in part for part in command))
+
+    def test_non_scalar_text_flag_is_passed_only_for_opt_in(self):
+        default_cmd = ns.serve_command("e", ["x"], dialect="d", timeout_seconds=1, non_scalar_text="reject")
+        self.assertNotIn("--non-scalar-text", default_cmd)
+        opt_in_cmd = ns.serve_command("e", ["x"], dialect="d", timeout_seconds=1, non_scalar_text="lossy-replacement")
+        self.assertEqual(opt_in_cmd, ["e", "serve", "--dialect", "d", "--deadline-ms", "1000",
+                                      "--non-scalar-text", "lossy-replacement", "--input", "x"])
+        with self.assertRaises(provider.ConfigError):
+            ns.serve_command("e", ["x"], dialect="d", timeout_seconds=1, non_scalar_text="invalid")
 
 
 class CellTests(unittest.TestCase):

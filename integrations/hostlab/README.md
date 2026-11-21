@@ -57,7 +57,20 @@ python -I -m unittest discover -s integrations/hostlab -p "test_run_shadow.py"
 python -I artifacts/mdd-054/mutation/mutate_compare.py
 ```
 
-状态：比较器和运行器已用参考引擎的真实运行验证；**新引擎在授权输入 9.16.1 上两次没跑完**（打开阶段内存不足，见 `shadow-manifest.json` 的 `attempts`），所以还没有 A/B 配对，也没有等价结论。
+状态：已完成两个授权真实样本（`9.16.1 / 9161100` 33 DEX 与 `9.17.0 / 9170100` 35 DEX）的完整 HostLab A/B shadow 审计并签发等价结论，详见 [full-equivalence.json](../../artifacts/mdd-054/full-equivalence.json)（`status = "equivalence_shown_on_the_runs_listed"`，`run`/`report`/逐字节 `tsv`/全部 20 组证据与 27 项 FEATURE 差异数为 0，`fallback_count = 0`，`violations = []`，并与 2026-10-29 历史 A0 基线交叉验证一致）。该结果是在 `non_scalar_text = "lossy-replacement"`（对非法单独代理项投影为 `U+FFFD` 以对齐 A0，引擎默认严格模式仍为 `reject`）及 `allow_unadmitted` 下取得，仅声明功能等价，不构成 `MDD-082` 性能替代资格。
+
+## 可切换后端配置与单一配置回退（MDD-055）
+
+| 文件 | 作用 |
+|---|---|
+| `enablement-config.example.json` | 显式启用与回退配置示例（`default_production_cutover = false`） |
+| `ROLLBACK.md` | 启用前校验、报告溯源还原及单一配置回退操作手册 |
+| `rehearse_cutover.py`、`test_rehearse_cutover.py` | 复演基线 `dexsql` → 显式切换 `meguvizdexdash` → 报告溯源还原 → 单步回退且不污染旧 cache |
+
+```bash
+python -I integrations/hostlab/rehearse_cutover.py --output artifacts/mdd-055/cutover-rehearsal.json
+python -I -m unittest discover -s integrations/hostlab -p "test_*.py"
+```
 
 ## 已知差异（对旧 dexsql 的调用方）
 

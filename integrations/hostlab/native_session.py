@@ -49,6 +49,7 @@ BATCH_SCHEMA = "mdd.sdk-batch.v1"
 STRUCTURAL_SCHEMA = "mdd.hostlab-structural-config.v1"
 ENV_STRUCTURAL = "HOSTLAB_STRUCTURAL_CONFIG"
 WIRES = ("b0", "b1")
+NON_SCALAR_POLICIES = ("reject", "lossy-replacement")
 MAX_SQL_BYTES = 256 * 1024          # HostLab's statement budget (native_cli.CliSession.write)
 MAX_LINE_BYTES = 64 * 1024 * 1024   # one frame; HostLab's budget is 4 MiB per table row, a frame holds a batch of rows
 MAX_RESPONSE_BYTES = 512 * 1024 * 1024
@@ -169,6 +170,7 @@ class StructuralConfig:
     wire: str = "b0"
     sql_limits: tuple = ()          # (("steps", n), ...) in key order
     max_line_bytes: int = MAX_LINE_BYTES
+    non_scalar_text: str = "reject"
 
     def limits(self) -> dict:
         return dict(self.sql_limits)
@@ -178,7 +180,7 @@ def parse_structural_config(obj: Any) -> StructuralConfig:
     """Strict: an unknown key or a wrong type is an error, never a default."""
     if not isinstance(obj, dict):
         raise provider.ConfigError("structural config must be an object")
-    extra = set(obj) - {"schema", "wire", "sql_limits", "max_line_bytes"}
+    extra = set(obj) - {"schema", "wire", "sql_limits", "max_line_bytes", "non_scalar_text"}
     if extra:
         raise provider.ConfigError(f"structural config has unsupported keys: {sorted(extra)}")
     if obj.get("schema") != STRUCTURAL_SCHEMA:
@@ -195,7 +197,10 @@ def parse_structural_config(obj: Any) -> StructuralConfig:
     line = obj.get("max_line_bytes", MAX_LINE_BYTES)
     if type(line) is not int or not 1024 <= line <= (1 << 31):
         raise provider.ConfigError("structural config.max_line_bytes must be an integer 1024..2^31")
-    return StructuralConfig(wire, tuple((key, limits[key]) for key in SQL_LIMIT_KEYS if key in limits), line)
+    non_scalar = obj.get("non_scalar_text", "reject")
+    if type(non_scalar) is not str or non_scalar not in NON_SCALAR_POLICIES:
+        raise provider.ConfigError(f"structural config.non_scalar_text must be one of {list(NON_SCALAR_POLICIES)}")
+    return StructuralConfig(wire, tuple((key, limits[key]) for key in SQL_LIMIT_KEYS if key in limits), line, non_scalar)
 
 
 def load_structural_config(source: "dict | str | os.PathLike[str] | None" = None,
@@ -698,12 +703,17 @@ class EngineLaunch:
     config: "provider.Config | None" = None
 
 
-def serve_command(binary: str, inputs: list, *, dialect: str, timeout_seconds: float, sql_limits: "dict | None" = None) -> list:
+def serve_command(binary: str, inputs: list, *, dialect: str, timeout_seconds: float,
+                  sql_limits: "dict | None" = None, non_scalar_text: str = "reject") -> list:
     """`serve` takes its inputs, dialect, deadline and SQL budgets as options; there is no global --threads."""
+    if type(non_scalar_text) is not str or non_scalar_text not in NON_SCALAR_POLICIES:
+        raise provider.ConfigError(f"non_scalar_text must be one of {list(NON_SCALAR_POLICIES)}")
     command = [str(binary), "serve", "--dialect", dialect, "--deadline-ms", str(max(1, int(timeout_seconds * 1000)))]
     for key in SQL_LIMIT_KEYS:
         if sql_limits and key in sql_limits:
             command += ["--sql-max-" + key.replace("_", "-"), str(sql_limits[key])]
+    if non_scalar_text != "reject":
+        command += ["--non-scalar-text", non_scalar_text]
     for path in inputs:
         command += ["--input", str(path)]
     return command
@@ -715,7 +725,7 @@ def engine_launch(config: "provider.Config", inputs: list, *, timeout: float, th
     launched = provider.launch(config, threads=threads, timeout_seconds=max(1, int(timeout)), state=Path(state),
                                runner=runner, environ=environ)
     command = serve_command(launched.command, inputs, dialect=config.engine.dialect, timeout_seconds=timeout,
-                            sql_limits=settings.limits())
+                            sql_limits=settings.limits(), non_scalar_text=settings.non_scalar_text)
     return EngineLaunch(command, launched.env, launched.identity, launched.namespaces, config)
 
 

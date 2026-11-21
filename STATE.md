@@ -1,6 +1,21 @@
 # MeguvizDexDash 当前状态
 
-更新：2026-11-21（Asia/Shanghai）。唯一任务图：tasks/backlog.json（52 项：done 39、in_progress 1、todo 12）；当前产品仍在实施，所有产品 profile admitted=false。
+更新：2026-11-21（Asia/Shanghai）。唯一任务图：tasks/backlog.json（52 项：done 41、in_progress 0、todo 11；剩余待办 `MDD-060..065`、`074`、`080..083`）；M5 可切换 HostLab-MVP 功能预览已收口（`preview=true`、`performance_replacement_qualified=false`、`default_production_cutover=false`），所有产品 profile `admitted=false`。
+
+## 2026-11-21 MDD-054 完整 Shadow 等价与 MDD-055 可切换后端预览收口（Wave B）
+
+- **引擎真实负载阻塞打通（不弱化任何契约、默认严格拒绝与 VTB_POLICY）**：
+  - `crates/mdd-facts` / `crates/mdd-service` / `crates/mdd-cli`：新增显式 opt-in `--non-scalar-text lossy-replacement`（默认仍严格 `reject`），对齐 A0 `dexsql` 对非法单独 UTF-16 代理项的 `U+FFFD` 投影语义并产出非阻塞覆盖诊断（`blocking: false`）。
+  - `crates/mdd-sql`：新增懒加载 CSR `ColumnIndex`、`TextDict::lookup_str` 与并行分片 ASCII 前缀过滤 `filter_ids_by_ascii_prefixes_ci`、外层包装解包与 `LIMIT 0` 短路 `query_hints`（支持 `Eq`/`In`/`Between`/`LikeAsciiPrefix` 与 `And`/`Or` 批量检索）、`HostLabSqlProvider::plan_scans` 2 轮 `EquiJoinEdge` 半连接传递，以及 `Rewrite::expr` 对连续无括号 `AND`/`OR` 链的平衡重构（保留 `Expr::Nested` 词法深度与 `MDD-084` 全部变异锚点），保持 `VTB_POLICY`（`omit=false`）不变。
+- **`MDD-054` 完整 shadow 等价签发（-> `done`）**：
+  - 在隔离状态/缓存/TEMP/Job 限额（14 GiB、900 s 原生超时、禁网与禁发布入口）下完成 HostLab 原样 `analyze.main audit --mode full` 的 A/B 顺序完整对比：
+    - `hostlab-9161100`（9.16.1，33 DEX，310,716 类，635 查询）：A 峰值 1.54 GiB / 68.73 s，B 峰值 **1.26 GiB** / 145.29 s（635 条结构规则仅 2.36 s）；
+    - `hostlab-9170100`（9.17.0，35 DEX，345,907 类，647 查询）：A 峰值 1.63 GiB / 75.39 s，B 峰值 **1.36 GiB** / 152.02 s（647 条结构规则仅 2.45 s）。
+  - 两个样本在 `run` / `report` / 逐字节 `tsv` / 全部 20 组证据与 27 项 FEATURE 四层比较中均为 `equal: true`（差异数为 `0`，`fallback_count = 0`，`violations = []`）；双方 Side A 亦与 2026-10-29 历史 A0 基线一致，真实证据损伤对照 `controls_not_detected = []`。结果固存于 [artifacts/mdd-054/full-equivalence.json](artifacts/mdd-054/full-equivalence.json)（第 1–6 次历史失败记录保留于 `shadow-manifest.json` 与 `historical_attempts`）。
+- **`MDD-055` 可切换后端资格与预览交付（-> `done`）**：
+  - 产出 `conformance/manifests/hostlab-backend-qualification.json`、`integrations/hostlab/enablement-config.example.json`、`integrations/hostlab/ROLLBACK.md`、`integrations/hostlab/rehearse_cutover.py` 与 `test_rehearse_cutover.py`，实测演练 `artifacts/mdd-055/cutover-rehearsal.json` 完整验证基线 `dexsql` → 显式启用 `meguvizdexdash` → 报告溯源还原 → 单步回退（不污染旧目录、拒绝跨引擎 resume）。
+  - 生成可审查功能预览包 `artifacts/previews/0.1.0-dev-hostlab/{preview-manifest.json,capabilities.json,README.md}`（显式标记 `preview=true`、`performance_replacement_qualified=false`、`default_production_cutover=false`，`MDD-082` 仍为 `todo`），不宣称 37%/47% 性能替代资格。
+- **下一步里程碑**：进入 Wave C（M6/M7：`MDD-060..065` 正式五路测量与性能优化/缓存复用，及 M7 公开扩展与全能力资格）与后续 `MDD-074` / `MDD-080..083`。
 
 ## 2026-11-21 门禁去重收敛、代码结构精简与 MDD-005/073 收口
 

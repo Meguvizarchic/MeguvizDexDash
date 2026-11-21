@@ -141,6 +141,8 @@ def write_b_configuration(side_dir: Path, pin_manifest: Path, plan: dict) -> dic
     body = {"schema": "mdd.hostlab-structural-config.v1", "wire": side["wire"]}
     if side.get("sql_limits"):
         body["sql_limits"] = side["sql_limits"]
+    if side.get("non_scalar_text"):
+        body["non_scalar_text"] = side["non_scalar_text"]
     write_json(structural, body)
     return {"HOSTLAB_PROVIDER_CONFIG": str(provider), "HOSTLAB_STRUCTURAL_CONFIG": str(structural)}
 

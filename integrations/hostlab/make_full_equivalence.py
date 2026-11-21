@@ -163,8 +163,7 @@ def describe_run(label: str, directory: Path) -> dict:
     groups = comparison["layers"][3]["detail"]["groups"]
     entry = {
         "run": label,
-        "input": {"sha256": ca["input_sha256"], "version_code": a["summary"]["sample"].get("version_code"),
-                  "package": a["summary"]["sample"].get("package")},
+        "input": {"sha256": ca["input_sha256"], "version_code": a["summary"]["sample"].get("version_code")},
         "reference_source_commit": ca["reference_source_commit"],
         "engines": {"A": {k: ca["engine"].get(k) for k in ("engine", "version", "sha256")},
                     "B": {k: cb["engine"].get(k) for k in ("engine", "version", "build_id", "sha256", "wire", "implementation_scope")}},
@@ -240,6 +239,7 @@ def main(argv: "list[str] | None" = None) -> int:
     parser.add_argument("--run", action="append", default=[], help="LABEL=RUN_DIR")
     parser.add_argument("--validation", action="append", default=[], help="LABEL=RUN_DIR:HISTORICAL_DIR")
     parser.add_argument("--attempt", action="append", default=[], help="LABEL=RUN_DIR")
+    parser.add_argument("--historical-attempt", action="append", default=[], help="LABEL=RUN_DIR for superseded pre-fix attempts")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
     if not (args.run or args.validation or args.attempt):
@@ -251,6 +251,7 @@ def main(argv: "list[str] | None" = None) -> int:
         directory, _, historical = rest.partition("::")
         validations.append(describe_validation(label, Path(directory), Path(historical)))
     attempts = [describe_attempt(label, Path(directory)) for label, _, directory in (item.partition("=") for item in args.attempt)]
+    historical_attempts = [describe_attempt(label, Path(directory)) for label, _, directory in (item.partition("=") for item in args.historical_attempt)]
     undetected = [f"{run.get('run')}: {c['control']}" for run in runs + validations for c in run["controls_on_real_evidence"] if c["applied"] and not c["detected"]]
     if runs and all(run["equal"] for run in runs) and not attempts:
         status = "equivalence_shown_on_the_runs_listed"
@@ -258,18 +259,29 @@ def main(argv: "list[str] | None" = None) -> int:
         status = "partial: some pairs completed, some did not"
     else:
         status = "engine_run_not_completed: the harness is validated against the reference engine; no A/B pair exists"
+    if status == "equivalence_shown_on_the_runs_listed":
+        not_proven = [
+            "performance or wall-time replacement qualification (MDD-082): wall_seconds_not_a_measurement was not collected in an exclusive benchmark window",
+            "the repeated-element and NULL controls on real evidence: the real A evidence has no exactly repeated element in a bag group and no NULL in class_records, so those controls were not applicable here (the unit tests damage them on a synthetic run)",
+            "macOS, Linux or any machine but this Windows host; a Linux/WebKit or CI run of the shadow",
+            "that the audit conclusions are right: both sides run HostLab's own analyze.main, so a comparison shows the engines agree under that consumer, not that the consumer is correct",
+            "strict non-scalar UTF-16 rejection on APKs containing lone surrogates: this shadow explicitly configures non_scalar_text=lossy-replacement to match A0's U+FFFD projection while keeping reject as engine default",
+        ]
+    else:
+        not_proven = [
+            "that MeguvizDexDash gives the same complete HostLab audit as the reference engine on a real APK: no B run has completed, so no pair was compared",
+            "anything about the second authorized input (9.17.0): it was not run, because the first input already does not fit",
+            "that the engine can open an APK of this size in a bounded memory: it cannot in 14 GiB today (see failed_engine_attempts)",
+            "the repeated-element and NULL controls on real evidence: the real A evidence has no exactly repeated element in a bag group and no NULL in class_records, so those controls were not applicable here (the unit tests damage them on a synthetic run)",
+            "macOS, Linux or any machine but this Windows host; a Linux/WebKit or CI run of the shadow",
+            "that the audit conclusions are right: both sides run HostLab's own analyze.main, so a comparison shows the engines agree under that consumer, not that the consumer is correct",
+        ]
     record = {"schema": SCHEMA, "task": "MDD-054", "status": status, "runs": runs, "harness_validation": validations,
-              "failed_engine_attempts": attempts, "controls_not_detected": undetected,
+              "failed_engine_attempts": attempts, "historical_engine_attempts": historical_attempts,
+              "controls_not_detected": undetected,
               "ignore_list": {k: C.IGNORE_LIST[k] for k in ("schema", "version", "report_paths")},
               "scope": "what the shadow harness and comparator were shown to do, and how the engine runs ended; a correctness record, no timing, no profile qualification",
-              "not_proven": [
-                  "that MeguvizDexDash gives the same complete HostLab audit as the reference engine on a real APK: no B run has completed, so no pair was compared",
-                  "anything about the second authorized input (9.17.0): it was not run, because the first input already does not fit",
-                  "that the engine can open an APK of this size in a bounded memory: it cannot in 14 GiB today (see failed_engine_attempts)",
-                  "the repeated-element and NULL controls on real evidence: the real A evidence has no exactly repeated element in a bag group and no NULL in class_records, so those controls were not applicable here (the unit tests damage them on a synthetic run)",
-                  "macOS, Linux or any machine but this Windows host; a Linux/WebKit or CI run of the shadow",
-                  "that the audit conclusions are right: both sides run HostLab's own analyze.main, so a comparison shows the engines agree under that consumer, not that the consumer is correct",
-              ]}
+              "not_proven": not_proven}
     args.output.write_text(json.dumps(record, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
     print(json.dumps({"status": status, "controls_not_detected": undetected,
                       "validation": [{"run": v["run"], "equal": v["equal"]} for v in validations],

@@ -1,0 +1,96 @@
+{
+  "schema": "mdd.hostlab-cutover-rehearsal.v1",
+  "task": "MDD-055",
+  "qualification_claim": "functional_cutover_and_rollback_rehearsal_only",
+  "performance_replacement_qualified": false,
+  "default_production_cutover": false,
+  "fixture": {
+    "path": "tests/fixtures/generated/multidex-stored.apk",
+    "sha256": "6b88277747a49dfddcc91900c171ae6420449cc424d57ffd46f896891ad26098"
+  },
+  "engine_pin": {
+    "engine_version": "0.1.0-dev",
+    "build_id": "source-sha256:df1ab73e8d4dcddd609e301e199882420895cbc3852afc63cc0c5072145efdf7",
+    "binary_sha256": "dd81f064164fa679ef52dd0c8e07a0c41d282d50947fd18fdb5b9f2528201e43",
+    "platform": "Windows/AMD64"
+  },
+  "stage_1_baseline": {
+    "native_engine": "dexsql",
+    "backends": {
+      "q": "dexsql",
+      "l": "dexsql",
+      "d": "dexsql",
+      "i": "dexsql",
+      "r": "dexsql",
+      "rs": "sqlite"
+    },
+    "forced_mdd_rejected_when_off": true
+  },
+  "stage_2_cutover": {
+    "native_engine": "meguvizdexdash",
+    "structural_wire": "b0",
+    "non_scalar_text": "lossy-replacement",
+    "backends": {
+      "q": "meguvizdexdash",
+      "l": "meguvizdexdash",
+      "d": "meguvizdexdash",
+      "i": "meguvizdexdash",
+      "r": "meguvizdexdash",
+      "rs": "sqlite"
+    },
+    "session": {
+      "wire": "b0",
+      "dex_count": 2,
+      "strings_count": 7,
+      "classes_count": 1,
+      "methods_count": 4,
+      "statements": 11,
+      "abandoned": 0,
+      "coverage_input": "complete",
+      "coverage_facts": "complete",
+      "operation_status": "ok",
+      "execution_complete": true,
+      "truncated": false,
+      "more_available": false,
+      "next_cursor": null,
+      "completeness_verdict": {
+        "complete": true,
+        "partial": false,
+        "failed": false,
+        "reasons": []
+      }
+    },
+    "reconstructed_provenance": {
+      "backend": "meguvizdexdash",
+      "engine_version": "0.1.0-dev",
+      "build_id": "source-sha256:df1ab73e8d4dcddd609e301e199882420895cbc3852afc63cc0c5072145efdf7",
+      "binary_sha256": "dd81f064164fa679ef52dd0c8e07a0c41d282d50947fd18fdb5b9f2528201e43",
+      "profile": "mdd-native-v1",
+      "profile_admitted": false,
+      "dialect": "dexsql-0.1.0",
+      "config_digest": "e526289eb0008a5735c0e7d9c024185522900e6e0069e8c93836dae51b24f011",
+      "run_id": "6defa5e195628ef4752e5db52c525ca3",
+      "source_sha256": "6b88277747a49dfddcc91900c171ae6420449cc424d57ffd46f896891ad26098",
+      "fallback_count": 0
+    },
+    "namespace_markers_present": true,
+    "legacy_tree_file_count": 11,
+    "legacy_tree_unchanged": true
+  },
+  "stage_3_rollback": {
+    "config_rollback_native_engine": "dexsql",
+    "env_unset_native_engine": "dexsql",
+    "backends": {
+      "q": "dexsql",
+      "l": "dexsql",
+      "d": "dexsql",
+      "i": "dexsql",
+      "r": "dexsql",
+      "rs": "sqlite"
+    },
+    "matches_baseline_plan": true,
+    "cross_engine_checkpoint_refused": true,
+    "delegated_to_legacy_session": true,
+    "legacy_tree_unchanged_after_rollback": true
+  }
+}

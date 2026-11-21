@@ -54545,7 +54545,7 @@
     {
       "path": "artifacts/mdd-051/structural-equivalence.json",
       "bytes": 41074,
-      "sha256": "c55c18477576976cde1c0557899aa349656a65c9a4ccf3be5df2296e1a89daac"
+      "sha256": "09c5a41b596b289bb8124beee8b1cdfdd101683e6339ff4fad1fc6b7b00eeed5"
     },
     {
       "path": "artifacts/mdd-052/mutation/mutate_surface.py",
@@ -54599,8 +54599,8 @@
     },
     {
       "path": "artifacts/mdd-054/full-equivalence.json",
-      "bytes": 10427,
-      "sha256": "c9ee7a628e85a81f3af3644391f2807da166fa879bf67b80c1a0eb93163bc6a8"
+      "bytes": 48491,
+      "sha256": "9a0fc7e776dbb1ef19a61627c624cfab2bfc0186bffb585cb84268b2ab025908"
     },
     {
       "path": "artifacts/mdd-054/mutation/mutate_compare.py",
@@ -54614,8 +54614,13 @@
     },
     {
       "path": "artifacts/mdd-054/shadow-manifest.json",
-      "bytes": 6083,
-      "sha256": "e342671d54f1bf867b2ef89dddc76d004b0a73a0ca8ba2c970a1d3ec1b3df4a9"
+      "bytes": 10954,
+      "sha256": "ec912924657db4191b150d08aec5160af463782f4454e0a13580f01d66d98848"
+    },
+    {
+      "path": "artifacts/mdd-055/cutover-rehearsal.json",
+      "bytes": 3013,
+      "sha256": "7931eae77798bbfad1c725edac06b7792b3ebecb74bba0fbb6b62775f42abc39"
     },
     {
       "path": "artifacts/mdd-070/a0-probe/all-debug-opcodes.json",
@@ -55341,6 +55346,21 @@
       "path": "artifacts/mdd-084/repro_or_chain_overflow.py",
       "bytes": 7231,
       "sha256": "214418433e793c62f6e74fef08a6a4f46814ccbe4dcb0dd37f00ab528a9a2c2a"
+    },
+    {
+      "path": "artifacts/previews/0.1.0-dev-hostlab/README.md",
+      "bytes": 1777,
+      "sha256": "0a74e2b85e84e7a09ea69be12e9ab6dce63c64eda5ee0d803c394606a27efd86"
+    },
+    {
+      "path": "artifacts/previews/0.1.0-dev-hostlab/capabilities.json",
+      "bytes": 3510,
+      "sha256": "775669e020a7d5dd3247d81b69dea1401fd989d67f4e4a1fd5b5aa39fc24449d"
+    },
+    {
+      "path": "artifacts/previews/0.1.0-dev-hostlab/preview-manifest.json",
+      "bytes": 2722,
+      "sha256": "6677f9a6e781da8d361230771b0bf028d1cc1e73ddad0eeafc7ce7795433b6df"
     },
     {
       "path": "artifacts/public-progress-20261104/merge-validation.json",

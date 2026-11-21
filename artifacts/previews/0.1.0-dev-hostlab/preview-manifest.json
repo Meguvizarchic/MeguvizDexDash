@@ -1,0 +1,62 @@
+{
+  "schema_version": "mdd.hostlab-preview-manifest.v1",
+  "task": "MDD-055",
+  "product": "MeguvizDexDash",
+  "preview": true,
+  "performance_replacement_qualified": false,
+  "qualification_blocker": "MDD-082",
+  "default_production_cutover": false,
+  "engine_build": {
+    "engine_version": "0.1.0-dev",
+    "build_id": "source-sha256:df1ab73e8d4dcddd609e301e199882420895cbc3852afc63cc0c5072145efdf7",
+    "binary_sha256": "dd81f064164fa679ef52dd0c8e07a0c41d282d50947fd18fdb5b9f2528201e43",
+    "platform": "Windows/AMD64"
+  },
+  "qualification_manifest": "conformance/manifests/hostlab-backend-qualification.json",
+  "full_equivalence_record": "artifacts/mdd-054/full-equivalence.json",
+  "cutover_rehearsal_record": "artifacts/mdd-055/cutover-rehearsal.json",
+  "capabilities": [
+    {
+      "id": "hostlab_required_facts_17_relations",
+      "status": "verified",
+      "summary": "17 项 HostLab 契约关系（156 列）惰性按 DEX 物化，完整保留物理重复与来源作用域"
+    },
+    {
+      "id": "hostlab_query_profile_q01_q14",
+      "status": "verified",
+      "summary": "Q01..Q14 查询族、hex CAST/三值逻辑/BETWEEN/LIKE/半连接下推及列索引候选扫描与 A0 对等"
+    },
+    {
+      "id": "hostlab_shadow_full_audit_9161100_9170100",
+      "status": "verified",
+      "summary": "hostlab-9161100 (33 DEX) 与 hostlab-9170100 (35 DEX) 完整审计四层（run/report/逐字节 TSV/20 组证据/27 FEATURE）完全一致，零 fallback，零违规"
+    },
+    {
+      "id": "b0_and_mcp_transports_with_complete_coverage",
+      "status": "verified",
+      "summary": "支持 b0 NDJSON (meguvizdexdash serve) 与 mcp stdio 传输，强制校验 operation_status=ok、execution.complete=true、无截断无剩余页/cursor 及完整输入/事实覆盖率"
+    },
+    {
+      "id": "opt_in_non_scalar_lossy_replacement",
+      "status": "verified",
+      "summary": "引擎默认维持严格非标量 UTF-16 拒绝 (reject)；提供显式 --non-scalar-text lossy-replacement 对齐 A0 的 U+FFFD 投影，并记录非阻塞覆盖诊断"
+    },
+    {
+      "id": "isolated_cutover_and_single_config_rollback",
+      "status": "verified",
+      "summary": "状态/缓存/完成标记隔离在 state/mdd-engine/，报告完整记录 backend/build_id/sha256/profile/config_digest，单一配置或环境变量清空即可回退 dexsql 且拒绝跨引擎 resume"
+    }
+  ],
+  "files": [
+    {
+      "path": "capabilities.json",
+      "bytes": 3510,
+      "sha256": "775669e020a7d5dd3247d81b69dea1401fd989d67f4e4a1fd5b5aa39fc24449d"
+    },
+    {
+      "path": "README.md",
+      "bytes": 1777,
+      "sha256": "0a74e2b85e84e7a09ea69be12e9ab6dce63c64eda5ee0d803c394606a27efd86"
+    }
+  ]
+}
