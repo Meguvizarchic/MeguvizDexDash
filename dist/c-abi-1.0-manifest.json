@@ -1,0 +1,54 @@
+{
+  "schema_version": "mdd.c-abi-distribution.v1",
+  "abi_major": 1,
+  "abi_minor": 0,
+  "symbol_count": 29,
+  "windows_shared_lib": {
+    "filename": "mdd_ffi.dll",
+    "bytes": 8359936,
+    "sha256": "241d9cb3ed515ed5d3c5638fffbef030dbdd1b0a85828b697491e640af57332a"
+  },
+  "linux_evidence_ref": "artifacts/mdd-080/linux-x86_64-results.json",
+  "source_files": [
+    {
+      "path": "crates/mdd-ffi/Cargo.toml",
+      "bytes": 579,
+      "sha256": "d81c9b530a6d7a75f38376c1086659ac952e9de9618e148fc08e7fbe0c306042"
+    },
+    {
+      "path": "crates/mdd-ffi/src/abi.rs",
+      "bytes": 18645,
+      "sha256": "2315af74f5efd81b7db009b31c23797d365243607b48c0bad8def252350a6642"
+    },
+    {
+      "path": "crates/mdd-ffi/src/codec.rs",
+      "bytes": 9404,
+      "sha256": "437c22bf3faf6e3c6a50e6365601a48cad5e61f29c29add212c66dab2ae6d555"
+    },
+    {
+      "path": "crates/mdd-ffi/src/engine.rs",
+      "bytes": 30555,
+      "sha256": "d92e4b7b55019ef48740c842ea36bc54d3e8d07e04279cb30d72444b2414bb42"
+    },
+    {
+      "path": "crates/mdd-ffi/src/error.rs",
+      "bytes": 4456,
+      "sha256": "23b462f2e317b0c1eacd4c3b94bb8c7da4b3257f42648dc636e7e1009a42a855"
+    },
+    {
+      "path": "crates/mdd-ffi/src/handle.rs",
+      "bytes": 12236,
+      "sha256": "e315469f272f9201282d3ac5f6b114121cdc2bfe53d0d42a8dc615cacf5698ea"
+    },
+    {
+      "path": "crates/mdd-ffi/src/lib.rs",
+      "bytes": 335,
+      "sha256": "b4cbdcc80ea0e0678a5606788206bcf98dcdabacc39c23d73f66a4b36fbecd8c"
+    },
+    {
+      "path": "include/mdd.h",
+      "bytes": 12283,
+      "sha256": "2ea595cfa6d04c426f4ad52260b144bf4284c286e0e5778efda0bf95d28e2d6a"
+    }
+  ]
+}

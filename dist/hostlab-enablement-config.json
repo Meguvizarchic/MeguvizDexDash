@@ -1,0 +1,45 @@
+{
+  "schema": "mdd.hostlab-release-enablement.v1",
+  "task_id": "MDD-083",
+  "default_production_cutover": false,
+  "external_production_cutover_authorized": false,
+  "rollback_default": {
+    "native_engine": "dexsql",
+    "audit_gate_mode": "legacy_independent"
+  },
+  "opt_in_provider_config": {
+    "schema": "mdd.hostlab-provider-config.v1",
+    "native_engine": "meguvizdexdash",
+    "meguvizdexdash": {
+      "manifest": "<STATE_ROOT>/vendor/meguvizdexdash/manifest.json",
+      "expected_binary_sha256": "7a89484c6474b7fe4eb0bc8af97b813e56a0685511cc461b8bd16f54926c0053",
+      "expected_build_id": "source-sha256:8829a2218df097d58ed1283c4c87429d283a815f54a9f132c0a7f2c9c42940a3",
+      "dialect": "dexsql-0.1.0",
+      "profile": "hostlab-audit-v1",
+      "profile_policy": "allow_unadmitted",
+      "cache_dir": null,
+      "max_datasets": 1,
+      "fallback": {
+        "to": "none",
+        "on": []
+      }
+    }
+  },
+  "opt_in_structural_config": {
+    "schema": "mdd.hostlab-structural-config.v1",
+    "wire": "b1",
+    "fallback_conservative_wire": "b0",
+    "non_scalar_text": "lossy-replacement",
+    "sql_limits": {
+      "steps": 4000000000,
+      "scanned_rows": 400000000,
+      "result_rows": 4000000
+    }
+  },
+  "opt_in_audit_data_provider": {
+    "default_mode": "legacy_independent",
+    "opt_in_mode": "mdd_fact_reuse",
+    "allow_mid_run_fallback": false,
+    "mdd_062_evidence": "artifacts/mdd-062/gate-equivalence-and-timing.json"
+  }
+}

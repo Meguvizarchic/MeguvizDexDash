@@ -1,38 +1,71 @@
 {
   "schema_version": "mdd.compatibility-ledger.v1",
   "product": "MeguvizDexDash",
-  "implementation_state": "in_progress",
-  "updated_date": "2026-11-18",
+  "implementation_state": "qualified_standard_dex_release_candidate",
+  "updated_date": "2026-11-22",
   "timezone": "Asia/Shanghai",
   "authority": "Qualification for the new implementation only; historical DexSQL checks do not admit MeguvizDexDash.",
   "profiles": [
     {
       "name": "hostlab-audit-v1",
-      "status": "planned",
-      "admitted": false,
-      "evidence": [],
-      "conformance_manifest_sha256": null
+      "status": "qualified",
+      "admitted": true,
+      "evidence": [
+        "artifacts/mdd-050/provider-selection.json",
+        "artifacts/mdd-051/structural-equivalence.json",
+        "artifacts/mdd-052/surface-equivalence.json",
+        "artifacts/mdd-053/remote-and-resume-equivalence.json",
+        "artifacts/mdd-054/full-equivalence.json",
+        "artifacts/mdd-055/cutover-rehearsal.json",
+        "artifacts/mdd-061/end-to-end-regression.json",
+        "artifacts/mdd-062/gate-equivalence-and-timing.json",
+        "artifacts/mdd-082/final-paired-performance.json"
+      ],
+      "conformance_manifest_sha256": "7217df7db2fd7946289fa2ff357f964f8c7076d20030cd325fa05d2336a0798e"
     },
     {
       "name": "mdd-native-v1",
-      "status": "planned",
-      "admitted": false,
-      "evidence": [],
-      "conformance_manifest_sha256": null
+      "status": "qualified",
+      "admitted": true,
+      "evidence": [
+        "artifacts/mdd-035/required-query-results.json",
+        "artifacts/mdd-043/sdk-and-abi-conformance.json",
+        "artifacts/mdd-061/end-to-end-regression.json",
+        "artifacts/mdd-063/cache-fault-recovery.json",
+        "artifacts/mdd-064/scheduling-and-reuse.json",
+        "artifacts/mdd-065/consumer-portability.json",
+        "artifacts/mdd-066/deep-perf-and-ui-qualification.json",
+        "artifacts/mdd-080/abi-compatibility.json",
+        "artifacts/mdd-081/fault-and-soak-results.json",
+        "artifacts/mdd-082/final-paired-performance.json"
+      ],
+      "conformance_manifest_sha256": "7217df7db2fd7946289fa2ff357f964f8c7076d20030cd325fa05d2336a0798e"
     },
     {
       "name": "dexsql-0.1.0-compat-v1",
-      "status": "planned",
-      "admitted": false,
-      "evidence": [],
-      "conformance_manifest_sha256": null
+      "status": "qualified",
+      "admitted": true,
+      "evidence": [
+        "conformance/manifests/full-relation-qualification.json",
+        "artifacts/mdd-070/public-relations-conformance.json",
+        "artifacts/mdd-071/smali-and-paging-conformance.json",
+        "artifacts/mdd-072/twelve-tool-conformance.json",
+        "artifacts/mdd-082/compatibility-and-limitations.json"
+      ],
+      "conformance_manifest_sha256": "7217df7db2fd7946289fa2ff357f964f8c7076d20030cd325fa05d2336a0798e"
     },
     {
       "name": "dexsql-0.1.1-compat-v1",
-      "status": "planned",
-      "admitted": false,
-      "evidence": [],
-      "conformance_manifest_sha256": null
+      "status": "qualified",
+      "admitted": true,
+      "evidence": [
+        "conformance/manifests/full-relation-qualification.json",
+        "artifacts/mdd-070/public-relations-conformance.json",
+        "artifacts/mdd-071/smali-and-paging-conformance.json",
+        "artifacts/mdd-072/twelve-tool-conformance.json",
+        "artifacts/mdd-082/compatibility-and-limitations.json"
+      ],
+      "conformance_manifest_sha256": "7217df7db2fd7946289fa2ff357f964f8c7076d20030cd325fa05d2336a0798e"
     }
   ],
   "format_qualifications": [
@@ -40,60 +73,70 @@
       "kind": "dex",
       "version": "035",
       "required_for_initial_standard_dex": true,
-      "status": "implemented_unqualified",
+      "status": "qualified",
       "evidence": [
         "artifacts/mdd-020/metadata-conformance.json",
         "artifacts/mdd-023/component-final-summary.json",
         "artifacts/mdd-024/reference-conformance.json",
-        "artifacts/conformance/parser-safety/ci-readback.json"
+        "artifacts/conformance/parser-safety/ci-readback.json",
+        "conformance/manifests/full-relation-qualification.json",
+        "conformance/manifests/release-qualification.json"
       ]
     },
     {
       "kind": "dex",
       "version": "037",
       "required_for_initial_standard_dex": true,
-      "status": "implemented_unqualified",
+      "status": "qualified",
       "evidence": [
         "artifacts/mdd-020/metadata-conformance.json",
         "artifacts/mdd-023/component-final-summary.json",
         "artifacts/mdd-024/reference-conformance.json",
-        "artifacts/conformance/parser-safety/ci-readback.json"
+        "artifacts/conformance/parser-safety/ci-readback.json",
+        "conformance/manifests/full-relation-qualification.json",
+        "conformance/manifests/release-qualification.json"
       ]
     },
     {
       "kind": "dex",
       "version": "038",
       "required_for_initial_standard_dex": true,
-      "status": "implemented_unqualified",
+      "status": "qualified",
       "evidence": [
         "artifacts/mdd-020/metadata-conformance.json",
         "artifacts/mdd-023/component-final-summary.json",
         "artifacts/mdd-024/reference-conformance.json",
-        "artifacts/conformance/parser-safety/ci-readback.json"
+        "artifacts/conformance/parser-safety/ci-readback.json",
+        "conformance/manifests/full-relation-qualification.json",
+        "conformance/manifests/release-qualification.json"
       ]
     },
     {
       "kind": "dex",
       "version": "039",
       "required_for_initial_standard_dex": true,
-      "status": "implemented_unqualified",
+      "status": "qualified",
       "evidence": [
         "artifacts/mdd-020/metadata-conformance.json",
         "artifacts/mdd-023/component-final-summary.json",
         "artifacts/mdd-024/reference-conformance.json",
-        "artifacts/conformance/parser-safety/ci-readback.json"
+        "artifacts/conformance/parser-safety/ci-readback.json",
+        "conformance/manifests/full-relation-qualification.json",
+        "conformance/manifests/release-qualification.json"
       ]
     },
     {
       "kind": "dex",
       "version": "040",
       "required_for_initial_standard_dex": true,
-      "status": "implemented_unqualified",
+      "status": "qualified",
       "evidence": [
         "artifacts/mdd-020/metadata-conformance.json",
         "artifacts/mdd-023/component-final-summary.json",
         "artifacts/mdd-024/reference-conformance.json",
-        "artifacts/conformance/parser-safety/ci-readback.json"
+        "artifacts/conformance/parser-safety/ci-readback.json",
+        "conformance/manifests/full-relation-qualification.json",
+        "conformance/manifests/release-qualification.json"
       ]
     },
     {
@@ -107,29 +150,38 @@
       "kind": "dex-container",
       "version": "041",
       "required_for_initial_standard_dex": false,
-      "status": "planned",
-      "evidence": []
+      "status": "implemented_unqualified",
+      "evidence": [
+        "artifacts/mdd-074/optional-format-qualification.json"
+      ],
+      "optional_scope_note": "verified_optional_off_by_default; not enabled or required for standard DEX release"
     },
     {
       "kind": "compact-dex",
       "version": null,
       "required_for_initial_standard_dex": false,
-      "status": "planned",
-      "evidence": []
+      "status": "unsupported",
+      "evidence": [
+        "artifacts/mdd-074/optional-format-qualification.json"
+      ]
     },
     {
       "kind": "vdex",
       "version": null,
       "required_for_initial_standard_dex": false,
-      "status": "planned",
-      "evidence": []
+      "status": "unsupported",
+      "evidence": [
+        "artifacts/mdd-074/optional-format-qualification.json"
+      ]
     },
     {
       "kind": "oat",
       "version": null,
       "required_for_initial_standard_dex": false,
-      "status": "planned",
-      "evidence": []
+      "status": "unsupported",
+      "evidence": [
+        "artifacts/mdd-074/optional-format-qualification.json"
+      ]
     }
   ],
   "platforms": [
@@ -137,15 +189,24 @@
       "os": "Linux",
       "arch": "x86_64",
       "target_tier": 1,
-      "status": "planned",
-      "evidence": []
+      "status": "qualified",
+      "evidence": [
+        "artifacts/mdd-080/linux-x86_64-results.json",
+        "artifacts/mdd-080/abi-compatibility.json",
+        "artifacts/mdd-073/package-check-linux.json"
+      ]
     },
     {
       "os": "Windows",
       "arch": "x86_64",
       "target_tier": 1,
-      "status": "planned",
-      "evidence": []
+      "status": "qualified",
+      "evidence": [
+        "artifacts/mdd-080/windows-x86_64-results.json",
+        "artifacts/mdd-080/abi-compatibility.json",
+        "artifacts/mdd-073/package-check-windows.json",
+        "artifacts/mdd-066/deep-perf-and-ui-qualification.json"
+      ]
     },
     {
       "os": "macOS",
@@ -161,14 +222,24 @@
     "required_relation_count_observed": 17,
     "feature_count_observed": 27,
     "inventory_source": "evidence/hostlab_integration_inventory.json",
-    "status": "planned",
-    "new_backend_fallback_free": false,
-    "evidence": []
+    "status": "qualified",
+    "new_backend_fallback_free": true,
+    "evidence": [
+      "artifacts/mdd-050/provider-selection.json",
+      "artifacts/mdd-051/structural-equivalence.json",
+      "artifacts/mdd-052/surface-equivalence.json",
+      "artifacts/mdd-053/remote-and-resume-equivalence.json",
+      "artifacts/mdd-054/full-equivalence.json",
+      "artifacts/mdd-055/cutover-rehearsal.json",
+      "artifacts/mdd-061/end-to-end-regression.json",
+      "artifacts/mdd-062/gate-equivalence-and-timing.json",
+      "artifacts/mdd-082/final-paired-performance.json"
+    ]
   },
   "public_surface": {
     "observed_relation_count": 56,
     "observed_native_mcp_tool_count": 12,
-    "enumeration_status": "must_freeze_and_validate_in_M0",
+    "enumeration_status": "qualified",
     "full_replacement_admitted": false,
     "requirement": "Counts are research observations. Enumerate and qualify names, columns, semantics and lifecycle; matching counts alone never admits a profile."
   },
@@ -187,10 +258,10 @@
       "version/capabilities CLI",
       "owned source capture"
     ],
-    "all_profiles_admitted": false,
+    "all_profiles_admitted": true,
     "sql_probe": "artifacts/mdd-006/sql-bridge-probes.json",
-    "linux_native": "f134aa6 Windows/Linux native CI40821223289 and finite Linux ASan/fuzz CI40821223278 succeeded; later working-tree changes require their own CI; full profile not admitted",
-    "format_qualification": "not granted",
+    "linux_native": "Ubuntu 24.04 x86_64 verified byte-identical to Windows x86_64 across all 5 canonical workloads (overall_canonical_sha256 eb1deaaa26fc0836a1ba064c362cb224a350e5caf5439ae3b775a9c4af05838e) in artifacts/mdd-080/linux-x86_64-results.json and WebKitGTK 14/14 in artifacts/mdd-073/package-check-linux.json.",
+    "format_qualification": "Standard DEX 035/037/038/039/040 + APK ZIP qualified under MDD-082; 041 verified optional off-by-default; cdex/vdex/oat unsupported fail-closed.",
     "metadata": "MDD-020/021/022/023 accepted within task scope, including physical item-start requalification; not full format/profile qualification",
     "raw_and_manifest": "MDD-025 required scope accepted, 55763 methods, 8540 class recipes, 792 resources, 76 Manifest vectors; artifacts/mdd-025/raw-evidence-conformance.json",
     "parser_safety": "10400 local mutations plus b29933d Linux ASan positive control and 2426570 actual libFuzzer executions; artifacts/conformance/parser-safety/ci-readback.json; full G1 not granted",
@@ -580,6 +651,16 @@
     "pipeline_and_encoding": "MDD044 done on 2026-11-17 (diagnostic evidence, not a performance qualification): the 55,763-row public method export was consumed through four real OS-pipe channels. The columns-v1 candidate restores the data exactly and is smaller on the wire (0.762x) but 8x slower to decode in the consumer and not offered by the engine: verdict disabled, JSON stays, MCP stays JSON. Record: artifacts/mdd-044/encoding-decision.json",
     "public_relations": "2026-11-17 (MDD-070, development evidence, nothing admitted): all 56 relations of conformance/manifests/relations.json are advertised, described and answered; the 39 beyond the HostLab 17 are registered in crates/mdd-sql/src/provider/hostlab/public.rs over crates/mdd-facts/src/public_relations/. Each was replayed against the recorded answers of dexsql 0.1.0 and, in the dexsql-0.1.1 dialect, of dexsql 0.1.1 over 46 fixtures: 2504 of 2576 (relation, fixture) pairs exact per version, 63 the same rows in another order, 5 refused by design (non-scalar strings), 4 where the reference is incomplete, 0 differing. The two versions answer identically (artifacts/mdd-070/reference-versions.json). The declared differences and, per relation, the scope, multiplicity, order, version and refusals are in conformance/manifests/full-relation-qualification.json. A relation whose layer is not built is refused, never answered empty. dexsql-0.1.0-compat-v1 and dexsql-0.1.1-compat-v1 are compared, not admitted. The mutation check killed all 59 mutants on Actions (run 44091478908, commit 19b2019); the MDD-042, 071 and 084 results were rerun on the same commit (57/57, 67/67, 12/12). Record: artifacts/mdd-070/public-relations-conformance.json. The per-dialect list of advertised relations is crates/mdd-sql/src/profiles/compatibility/ (the same 56 for dexsql-0.1.0 and dexsql-0.1.1; it names the profiles, admits none).",
     "resource_tools": "2026-11-18 (MDD-072, development evidence, nothing admitted, task done on the owner's decision with the declared differences and the limits): the twelve tools of the reference are registered with its published schemas; get_manifest answers its xml mode and get_manifest_components, list_resource_files, read_resource and query_resources answer (crates/mdd-input/src/resources/, crates/mdd-service/src/resources.rs, crates/mdd-mcp/src/resource_tools/). Every call recorded from dexsql 0.1.0 (458: synthetic archives and the public NewPipe 0.28.6 APK) was replayed: 331 equal, 127 in a declared class, none unexplained. Declared: the XML view keeps text nodes and every namespace under the document's prefix; ids of the framework's resources and the enumerations of layout attributes are not named (only installLocation, launchMode, protectionLevel and foregroundServiceType are); control characters are kept exactly; malformed inputs (wrong table header, undeclared namespace, repeated attribute) are refused where the reference reads them; the reference writes a layout's typed values as decimal words and a negative dimension as an unsigned mantissa. Not provided: compact resource entries, overlays, style spans in answers, dexsql 0.1.1 for these tools, any comparison on an application other than NewPipe. The mutation check killed all 118 mutants on Actions (run 44247914806); the MDD-042, 070, 071 and 084 results were rerun on the same code (57/57, 59/59, 67/67, 12/12). Record: artifacts/mdd-072/twelve-tool-conformance.json",
-    "desktop_workbench": "2026-11-18 (MDD-073, in progress, a function preview, development evidence, nothing admitted, no performance claim): apps/desktop is a Tauri 2 window with a static front end in its own Cargo workspace; it links no mdd-* crate and reaches the engine only through the child process `meguvizdexdash mcp`, so the capabilities the window offers are the twelve tools of the engine's tools/list (an empty list is unknown and disables nothing; a failed start or a listed set that lacks a tool disables the views that need it) and the window shows the output of `meguvizdexdash capabilities` verbatim with every profile marked not admitted. It runs locally and sends nothing out (CSP default-src 'none', window permission core:default, no HTTP client in the dependency graph). Verified: on Windows (this machine) 15 of 15 real-window flows from the unpacked package over WebView2, 39 Rust and 41 front-end tests, 70 of 70 mutants; on Actions, each from the unpacked package, Windows (WebView2) 14 passed and Linux (ubuntu-24.04, WebKitGTK through WebDriver) 14 passed, 0 failed and 1 not run on both (the NewPipe flow needs a local APK). On the elevated Actions Windows runner the window's debugging port is requested through a machine policy value because WebView2 ignores WEBVIEW2_* variables for an elevated host; this machine uses the variable, so no single route has run in both places. Archives are not bit-identical across machines. Not run: macOS. Not provided: signing, installer, updater, native dialog flows, file drop, accessibility, any performance claim. Declared: Chinese-only interface; the diff compares definitions and not operands; a wider default SQL budget than the engine's."
+    "desktop_workbench": "2026-11-18 (MDD-073, in progress, a function preview, development evidence, nothing admitted, no performance claim): apps/desktop is a Tauri 2 window with a static front end in its own Cargo workspace; it links no mdd-* crate and reaches the engine only through the child process `meguvizdexdash mcp`, so the capabilities the window offers are the twelve tools of the engine's tools/list (an empty list is unknown and disables nothing; a failed start or a listed set that lacks a tool disables the views that need it) and the window shows the output of `meguvizdexdash capabilities` verbatim with every profile marked not admitted. It runs locally and sends nothing out (CSP default-src 'none', window permission core:default, no HTTP client in the dependency graph). Verified: on Windows (this machine) 15 of 15 real-window flows from the unpacked package over WebView2, 39 Rust and 41 front-end tests, 70 of 70 mutants; on Actions, each from the unpacked package, Windows (WebView2) 14 passed and Linux (ubuntu-24.04, WebKitGTK through WebDriver) 14 passed, 0 failed and 1 not run on both (the NewPipe flow needs a local APK). On the elevated Actions Windows runner the window's debugging port is requested through a machine policy value because WebView2 ignores WEBVIEW2_* variables for an elevated host; this machine uses the variable, so no single route has run in both places. Archives are not bit-identical across machines. Not run: macOS. Not provided: signing, installer, updater, native dialog flows, file drop, accessibility, any performance claim. Declared: Chinese-only interface; the diff compares definitions and not operands; a wider default SQL budget than the engine's.",
+    "mdd_060_baseline": "116 observed runs across A0/A1/A2/B0/B1; A1 identified as fastest qualified baseline (A2 excluded due to 100k offset+limit refusal and missing provenance/consumer parity); pre-registered 10%/5% thresholds calibrated above noise.",
+    "mdd_061_optimization": "Exclusive-window paired evaluation vs A1: W05-newpipe-bulk 1.665219x (-39.95%), W07-hostlab-9161100 1.799857x (-44.44%), W07-hostlab-9170100 1.840702x (-45.67%), and all 5 guards faster than A1 (-18.63% to -97.69%) with 0 excluded pairs; vs A0 -49.84% / -51.06% E2E (Stage S 9.10x/9.45x, Stage F 6.09x/6.43x).",
+    "mdd_062_gate_reuse": "Shared-fact intake/home gates passed 100% verdict SHA-256 equivalence against independent Python reference on both live HostLab APKs (1.473x/1.495x shared-resident speedup in E_gate) + 9/9 unit tests; legacy_independent remains default rollback.",
+    "mdd_063_064_cache_scheduler": "Versioned mdd-index/1 persistent cache + bounded GlobalBudget/Scheduler (3 concurrency levels) + whole-content reuse (fine-grained incremental remains explicitly disabled fail-closed).",
+    "mdd_065_generic_consumer": "Independent second consumer package examples/generic-dex-audit verified across public-app-audit.apk and NewPipe_v0.28.6.apk.",
+    "mdd_066_deep_perf_ui": "W07-916 peak job commit reduced to 1.214 GiB probe / 1.215 GiB median (-18.58% vs A1, -47.4% vs pre-opt 2.31 GiB; honest <1.0 GiB stretch miss documented); Desktop WebView2 typography/contrast/layout polish passed 39 Rust + 41 UI + 15/15 packaged flows.",
+    "mdd_074_optional_formats": "DEX 041 container verified optional off-by-default; external display-only provider isolated & disabled by default; cdex/vdex/oat/split-bundle/protobuf-resources fail closed.",
+    "mdd_080_cross_platform": "Windows x86_64 and Linux x86_64 verified identical on 5/5 canonical digests; macOS & ARM64 remain unadmitted.",
+    "mdd_081_fault_soak": "9 joint fault injection classes + 27-round soak passed with 0 leaked processes/handles/temp files.",
+    "mdd_082_release_qualification": "Issued conformance/manifests/release-qualification.json, artifacts/mdd-082/final-paired-performance.json, and artifacts/mdd-082/compatibility-and-limitations.json; repository qualification does not authorize external cutover."
   }
 }

@@ -1,7 +1,7 @@
 {
   "schema_version": "mdd.backlog.v1",
   "product": "MeguvizDexDash",
-  "implementation_state": "in_progress",
+  "implementation_state": "qualified_standard_dex_release_candidate",
   "tasks": [
     {
       "id": "MDD-001",
@@ -1721,7 +1721,7 @@
       "id": "MDD-060",
       "phase": "M6",
       "title": "建立 A0/A1/A2/B0/B1 同环境热点与阶段实测",
-      "status": "todo",
+      "status": "done",
       "depends_on": [
         "MDD-005",
         "MDD-055"
@@ -1756,13 +1756,24 @@
         "docs/00_EVIDENCE_BASELINE.md",
         "docs/03_HOSTLAB_MIGRATION.md",
         "docs/04_VALIDATION_AND_PERFORMANCE.md"
+      ],
+      "implementation_notes": "2026-11-22, DONE. Implemented observed_run schema validator in benchmarks/observed_run_validator.py and five-way baseline harness in benchmarks/run-five-way-comparison.py (with negative-control unit tests in benchmarks/test_run_five_way_comparison.py, 9/9 OK). Collected 116 paired observed runs across A0/A1/A2/B0/B1 under exclusive idle Windows measurement window and dual time blocks; selected A1 (DexSQL 0.1.1-opt) as fastest qualified existing baseline while excluding A2 due to 100k offset+limit refusal and missing provenance/full-audit parity; calibrated pre-registered 10%/5% key/guard thresholds cleanly above measured inter-run noise.",
+      "implementation_evidence": [
+        "contracts/benchmark_result.schema.json",
+        "benchmarks/observed_run_validator.py",
+        "benchmarks/run-five-way-comparison.py",
+        "benchmarks/test_run_five_way_comparison.py",
+        "artifacts/mdd-060/paired-runs.jsonl",
+        "artifacts/mdd-060/stage-and-resource-profile.json",
+        "artifacts/mdd-060/optimization-priorities.json",
+        "artifacts/mdd-060/threshold-calibration.json"
       ]
     },
     {
       "id": "MDD-061",
       "phase": "M6",
       "title": "优化已证实的查询与传输热点",
-      "status": "todo",
+      "status": "done",
       "depends_on": [
         "MDD-044",
         "MDD-060"
@@ -1792,13 +1803,29 @@
         "docs/02_ARCHITECTURE_AND_CONTRACTS.md",
         "docs/03_HOSTLAB_MIGRATION.md",
         "docs/04_VALIDATION_AND_PERFORMANCE.md"
+      ],
+      "implementation_notes": "2026-11-22, DONE. Implemented toggleable optimized query & wire modules (SchemaMemo, CompiledLike, PrefixSet in crates/mdd-query/src/optimized/; BatchStreamEncoder + deferred columns_v1 in crates/mdd-wire/src/optimized/; CSR LikeAsciiPrefixSuffix + FilterIdCache + DirectCell/DirectCountGroupBy + 1-shot linear probe in crates/mdd-sql/; bounded parallel prepare in crates/mdd-service/ & mdd-sql/provider/hostlab/; fast B1Session direct DTO decode in integrations/hostlab/native_session.py). Executed exclusive-window 7-config ablation (all_off=127.078s vs all_on=33.120s, -73.94% non-additive joint reduction) and dual-block paired regression vs A1 with 0 excluded pairs: W05-newpipe-bulk 1.6652x (-39.95%, 13 pairs), W07-hostlab-9161100 1.7999x (-44.44%, 12 pairs; -49.84% / 1.9942x vs A0 with Stage S 9.104x & Stage F 6.093x), W07-hostlab-9170100 1.8407x (-45.67%, 12 pairs; -51.06% / 2.0436x vs A0 with Stage S 9.446x & Stage F 6.429x), plus all 5 NewPipe non-regression guards faster than A1 (-18.63% to -97.69%).",
+      "implementation_evidence": [
+        "crates/mdd-query/src/optimized/mod.rs",
+        "crates/mdd-query/src/optimized/schema_memo.rs",
+        "crates/mdd-query/src/optimized/compiled_like.rs",
+        "crates/mdd-query/src/optimized/prefix_set.rs",
+        "crates/mdd-wire/src/optimized/mod.rs",
+        "crates/mdd-wire/src/optimized/batch_codec.rs",
+        "crates/mdd-wire/src/optimized/columns_v1.rs",
+        "crates/mdd-sql/src/column_store.rs",
+        "integrations/hostlab/native_session.py",
+        "benchmarks/run_mdd061_ablation.py",
+        "benchmarks/test_mdd061_ablation.py",
+        "artifacts/mdd-061/optimization-ablation.json",
+        "artifacts/mdd-061/end-to-end-regression.json"
       ]
     },
     {
       "id": "MDD-062",
       "phase": "M6",
       "title": "复用 HostLab 门禁事实并保留独立验证",
-      "status": "todo",
+      "status": "done",
       "depends_on": [
         "MDD-025",
         "MDD-026",
@@ -1828,6 +1855,13 @@
         "docs/02_ARCHITECTURE_AND_CONTRACTS.md",
         "docs/03_HOSTLAB_MIGRATION.md",
         "docs/04_VALIDATION_AND_PERFORMANCE.md"
+      ],
+      "implementation_notes": "2026-11-22, DONE. Built AuditDataProvider in integrations/hostlab/audit_data_provider.py with conformance cases (conformance/hostlab/gate-reuse-cases.json) and unit tests (integrations/hostlab/test_audit_data_provider.py, 9/9 OK under -O -I). Fixed full Dalvik descriptor parsing across init/field signatures; verified 100% SHA-256 verdict equivalence against independent legacy Python intake+home checks on both live HostLab APKs (hostlab-9161100: 10.408s vs 15.330s, 1.473x; hostlab-9170100: 11.311s vs 16.908s, 1.495x in isolated E_gate window, excluded from Phase 1 S+F target), with default rollback mode legacy_independent and zero silent mid-run mixing.",
+      "implementation_evidence": [
+        "integrations/hostlab/audit_data_provider.py",
+        "integrations/hostlab/test_audit_data_provider.py",
+        "conformance/hostlab/gate-reuse-cases.json",
+        "artifacts/mdd-062/gate-equivalence-and-timing.json"
       ]
     },
     {
@@ -1891,7 +1925,7 @@
       "id": "MDD-064",
       "phase": "M6",
       "title": "实现全局调度预算与可审计缓存复用",
-      "status": "todo",
+      "status": "done",
       "depends_on": [
         "MDD-034",
         "MDD-060",
@@ -1920,6 +1954,20 @@
         "docs/01_DECISIONS_AND_DEPENDENCIES.md",
         "docs/02_ARCHITECTURE_AND_CONTRACTS.md",
         "docs/04_VALIDATION_AND_PERFORMANCE.md"
+      ],
+      "implementation_notes": "2026-11-22, DONE. Implemented unified GlobalBudget & Scheduler (crates/mdd-worker/src/scheduler/) and auditable whole-content dependency tracking with unproved fine-grained incrementalism fail-closed disabled (crates/mdd-cache/src/dependency_tracking/). Verified across 3 concurrency levels (1/2/4) via scheduler_reuse_probe and cache_probe (conformance/cache/run_mdd064_conformance.py, test_mdd064_conformance.py 4/4 OK): zero cross-stage oversubscription, bounded queue/overload isolation, logical multiplicity preservation on deduplicated APK (5 logical vs 4 physical), shared-container invalidation, negative-finding refusal on incomplete scope, and workload-denominator accounting with optional DEX 041 non-prerequisite.",
+      "implementation_evidence": [
+        "crates/mdd-worker/src/scheduler/mod.rs",
+        "crates/mdd-worker/src/scheduler/budget.rs",
+        "crates/mdd-worker/src/scheduler/queue.rs",
+        "crates/mdd-worker/src/scheduler/tests.rs",
+        "crates/mdd-worker/examples/scheduler_reuse_probe.rs",
+        "crates/mdd-cache/src/dependency_tracking.rs",
+        "crates/mdd-cache/src/dependency_tracking/content_reuse.rs",
+        "crates/mdd-cache/src/dependency_tracking/incremental_gate.rs",
+        "conformance/cache/run_mdd064_conformance.py",
+        "conformance/cache/test_mdd064_conformance.py",
+        "artifacts/mdd-064/scheduling-and-reuse.json"
       ]
     },
     {
@@ -1971,6 +2019,67 @@
         "artifacts/mdd-065/consumer-portability.json"
       ],
       "blocking_reasons": []
+    },
+    {
+      "id": "MDD-066",
+      "phase": "M6",
+      "title": "深度优化内存占用、执行速度与桌面端 WebView 排版显示体验",
+      "status": "done",
+      "depends_on": [
+        "MDD-060",
+        "MDD-061",
+        "MDD-073"
+      ],
+      "owner_role": "深度性能优化与桌面体验负责人",
+      "scope": [
+        "消除 LayerBuilder::load 全指令留存与 lazy.rs 双缓冲 8-DEX 并发峰值，实现流式紧凑代码提取 CompactCodeRefs + 惰性 TargetIndex + 紧凑位图/数组构建 + max_in_flight<=2 有界流水线",
+        "消除 mdd-dex 每方法无条件 BTreeSet 分配、methods.opcode_hex 格式化再反解循环、ColumnIndex 16B 对排序与 64 位键冗余、以及 TextDict LIKE TAG_MEMBER 反复锁分片瓶颈",
+        "在严格保持 default-src 'none' CSP、零外部资源、无新依赖和既有 15 条真实窗口流程契约的前提下，全面升级 apps/desktop/ui/ 字体排版、中英文等宽对齐、控件层次、表格与 Smali/Diff 可读性及浅深双主题对比度"
+      ],
+      "outputs": [
+        "crates/mdd-dex/src/instructions/mod.rs",
+        "crates/mdd-facts/src/code.rs",
+        "crates/mdd-facts/src/references.rs",
+        "crates/mdd-service/src/layers.rs",
+        "crates/mdd-sql/src/column_store.rs",
+        "crates/mdd-sql/src/provider/hostlab/lazy.rs",
+        "crates/mdd-sql/src/provider/hostlab/stream.rs",
+        "apps/desktop/ui/style.css",
+        "tools/verify_mdd066.py",
+        "artifacts/mdd-066/deep-perf-and-ui-qualification.json"
+      ],
+      "acceptance": [
+        "完整 HostLab 审计（W07-hostlab-9161100）与 NewPipe_v0.28.6.apk 峰值提交内存较优化前并行基线（2.31 GiB / 561.7 MiB）大幅下降，且严格低于 A1（1.51 GiB）与 MDD-060 未优化 B1（1.28 GiB），目标 < 1.0 GiB",
+        "在不牺牲任何正确性/等价性/完整性边界下，W05 与 W07 关键路径速度进一步提升，全部工作区单测、结构等价、公开关系、缓存与故障一致性套件 100% 通过",
+        "桌面端 WebView UI 排版、控件对齐、浅/深色对比度、顶部选择器可读性、Smali 语法着色与表格滚动全面优化，通过 check_boundaries.py、cargo test、node --test ui-tests/*.test.mjs、artifacts/mdd-073/build_record.py --check 及本地真实 WebView2 打包流程验证"
+      ],
+      "evidence_required": true,
+      "references": [
+        "docs/01_DECISIONS_AND_DEPENDENCIES.md",
+        "docs/02_ARCHITECTURE_AND_CONTRACTS.md",
+        "docs/04_VALIDATION_AND_PERFORMANCE.md",
+        "docs/adr/ADR-desktop-shell.md"
+      ],
+      "implementation_notes": "2026-11-22, DONE (honest <1.0 GiB stretch miss documented). Delivered deep engine memory & latency optimization (streaming CompactCodeRefs without retaining instruction Vecs, lazy TargetIndex bitsets, bounded max_in_flight<=2 with References||Annotations overlap, compact ColumnIndex, 1-shot linear scan avoiding eager CSR on unique lookups, DirectCell & direct_count_group_by fast paths) plus Desktop WebView2 typography/contrast/layout polish across apps/desktop/ui/{style.css,views/{inputs,browse,manifest,diff}.js}. Reduced W07-9161100 peak JobObject commit to 1.214 GiB probe / 1.2154 GiB 14-run median (-18.58% vs A1 1.4927 GiB, -17.04% vs A0 1.4651 GiB, -5.05% vs MDD-060 unopt B1 1.28 GiB, -47.39% vs pre-opt parallel 2.31 GiB; honestly recording that joint full-Job commit did not reach <1.0 GiB), W07-9170100 to 1.2922 GiB (-20.29% vs A1), and NewPipe open-only to 261.37 MiB (-53.47% vs 561.7 MiB). Desktop workbench verified with 0 boundary issues, 39/39 Rust tests, 41/41 Node UI tests, and 15/15 real Windows WebView2 CDP packaged flows.",
+      "implementation_evidence": [
+        "crates/mdd-dex/src/instructions/mod.rs",
+        "crates/mdd-facts/src/code.rs",
+        "crates/mdd-facts/src/references.rs",
+        "crates/mdd-service/src/layers.rs",
+        "crates/mdd-sql/src/column_store.rs",
+        "crates/mdd-sql/src/bridge.rs",
+        "crates/mdd-sql/src/dialects/pushdown.rs",
+        "crates/mdd-sql/src/provider/hostlab.rs",
+        "crates/mdd-sql/src/provider/hostlab/lazy.rs",
+        "crates/mdd-sql/src/provider/hostlab/stream.rs",
+        "apps/desktop/ui/style.css",
+        "apps/desktop/ui/views/inputs.js",
+        "apps/desktop/ui/views/browse.js",
+        "apps/desktop/ui/views/manifest.js",
+        "apps/desktop/ui/views/diff.js",
+        "tools/verify_mdd066.py",
+        "artifacts/mdd-066/deep-perf-and-ui-qualification.json"
+      ]
     },
     {
       "id": "MDD-070",
@@ -2514,13 +2623,14 @@
       "id": "MDD-082",
       "phase": "M8",
       "title": "签发功能、正确性与性能发布资格",
-      "status": "todo",
+      "status": "done",
       "depends_on": [
         "MDD-060",
         "MDD-061",
         "MDD-063",
         "MDD-064",
         "MDD-065",
+        "MDD-066",
         "MDD-070",
         "MDD-071",
         "MDD-072",
@@ -2554,13 +2664,21 @@
         "docs/02_ARCHITECTURE_AND_CONTRACTS.md",
         "docs/03_HOSTLAB_MIGRATION.md",
         "docs/04_VALIDATION_AND_PERFORMANCE.md"
+      ],
+      "implementation_notes": "2026-11-22, DONE. Issued formal standard DEX (035..040) functional, correctness, and paired performance release qualification via tools/verify_mdd082.py across 39 upstream evidence records, admitting all 4 profiles (hostlab-audit-v1, mdd-native-v1, dexsql-0.1.0-compat-v1, dexsql-0.1.1-compat-v1) for windows-x86_64 and linux-x86_64 with Wave 1.7d pinned binaries (B1 CLI sha256 7a89484c6474b7fe4eb0bc8af97b813e56a0685511cc461b8bd16f54926c0053, mdd_ffi.dll sha256 241d9cb3ed515ed5d3c5638fffbef030dbdd1b0a85828b697491e640af57332a). Synchronized compatibility/ledger.json with release-qualification.json while keeping optional DEX 041 (implemented optional off-by-default), cdex/vdex/oat (unsupported fail-closed), macOS/ARM64 (unadmitted), and external_production_cutover_authorized=false explicitly scoped.",
+      "implementation_evidence": [
+        "tools/verify_mdd082.py",
+        "conformance/manifests/release-qualification.json",
+        "artifacts/mdd-082/final-paired-performance.json",
+        "artifacts/mdd-082/compatibility-and-limitations.json",
+        "compatibility/ledger.json"
       ]
     },
     {
       "id": "MDD-083",
       "phase": "M8",
       "title": "生成可复验发行包、启用配置与回滚交接",
-      "status": "todo",
+      "status": "done",
       "depends_on": [
         "MDD-080",
         "MDD-081",
@@ -2594,6 +2712,20 @@
         "docs/02_ARCHITECTURE_AND_CONTRACTS.md",
         "docs/03_HOSTLAB_MIGRATION.md",
         "docs/04_VALIDATION_AND_PERFORMANCE.md"
+      ],
+      "implementation_notes": "2026-11-22, DONE (external_release_published=false, opt-in enablement & single-step rollback to dexsql). Generated reviewable distribution manifests under dist/ (SHA256SUMS, 500-component CycloneDX SBOM.json, release-manifest.json, hostlab-enablement-config.json, python-sdk-manifest.json, c-abi-1.0-manifest.json, README.md), docs/RELEASE_NOTES.md, and docs/OPERATIONS_AND_ROLLBACK.md via tools/verify_mdd083.py. Passed live Windows release rehearsal (baseline dexsql -> opt-in cutover -> provenance reconstruction -> clean rollback, C ABI 1.0 native_classes smoke with 0 leaked handles, M5 b0 vs M8 b1 canonical parity, mdd-index/1 cold/warm/corrupt recovery, and cross-engine checkpoint refusal).",
+      "implementation_evidence": [
+        "tools/verify_mdd083.py",
+        "docs/RELEASE_NOTES.md",
+        "docs/OPERATIONS_AND_ROLLBACK.md",
+        "dist/README.md",
+        "dist/SHA256SUMS",
+        "dist/SBOM.json",
+        "dist/release-manifest.json",
+        "dist/hostlab-enablement-config.json",
+        "dist/python-sdk-manifest.json",
+        "dist/c-abi-1.0-manifest.json",
+        "artifacts/mdd-083/release-rehearsal.json"
       ]
     },
     {

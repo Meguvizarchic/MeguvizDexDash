@@ -1,0 +1,252 @@
+{
+  "schema_version": "mdd.final-paired-performance.v1",
+  "task_id": "MDD-082",
+  "generated_utc": "2026-11-21T22:15:29.719139Z",
+  "engine": {
+    "product": "MeguvizDexDash",
+    "version": "0.1.0-dev",
+    "build_id": "source-sha256:8829a2218df097d58ed1283c4c87429d283a815f54a9f132c0a7f2c9c42940a3",
+    "binary_sha256": "7a89484c6474b7fe4eb0bc8af97b813e56a0685511cc461b8bd16f54926c0053",
+    "baselines": {
+      "A0_sha256": "f354ebcf715de9a66ef8ebe08b2b36807ab58e25cd5a1c0812e497fc1fcfc448",
+      "A1_sha256": "602105c98232120c14d6124fb33574f2f95f12e50e51d25b8834f893925f28d6",
+      "A2_disposition": "excluded_unqualified_see_mdd060"
+    }
+  },
+  "calibration_policy": {
+    "source": "artifacts/mdd-060/threshold-calibration.json",
+    "thresholds_unchanged_and_above_noise": true,
+    "key_min_reduction_vs_fastest_qualified_existing_a": 0.1,
+    "other_required_max_regression_vs_a": 0.05
+  },
+  "key_workloads_vs_fastest_qualified_baseline_a1": {
+    "W05-newpipe-bulk": {
+      "baseline_variant": "A1",
+      "qualified_pair_count": 13,
+      "excluded_pair_count": 0,
+      "a1_median_wall_seconds": 2.41247,
+      "b1_median_wall_seconds": 1.469399,
+      "paired_median_speedup_vs_a1": 1.665219,
+      "paired_median_reduction_fraction_vs_a1": 0.399478,
+      "block1_reduction_fraction": 0.399724,
+      "block2_reduction_fraction": 0.384886,
+      "threshold_min_reduction_fraction": 0.1,
+      "threshold_passed": true
+    },
+    "W07-hostlab-9161100": {
+      "baseline_variant": "A1",
+      "qualified_pair_count": 12,
+      "excluded_pair_count": 0,
+      "a1_median_wall_seconds": 59.093761,
+      "b1_median_wall_seconds": 32.764675,
+      "paired_median_speedup_vs_a1": 1.799857,
+      "paired_median_reduction_fraction_vs_a1": 0.4444,
+      "block1_reduction_fraction": 0.44404,
+      "block2_reduction_fraction": 0.446254,
+      "threshold_min_reduction_fraction": 0.1,
+      "threshold_passed": true
+    },
+    "W07-hostlab-9170100": {
+      "baseline_variant": "A1",
+      "qualified_pair_count": 12,
+      "excluded_pair_count": 0,
+      "a1_median_wall_seconds": 65.032058,
+      "b1_median_wall_seconds": 35.319152,
+      "paired_median_speedup_vs_a1": 1.840702,
+      "paired_median_reduction_fraction_vs_a1": 0.456729,
+      "block1_reduction_fraction": 0.456729,
+      "block2_reduction_fraction": 0.456311,
+      "threshold_min_reduction_fraction": 0.1,
+      "threshold_passed": true
+    }
+  },
+  "required_non_regression_guards_vs_a1": {
+    "W01-newpipe-intake": {
+      "same_scope_metric": "resident_query_seconds",
+      "qualified_pair_count": 5,
+      "excluded_pair_count": 0,
+      "a1_median_seconds": 0.014716,
+      "b1_median_seconds": 0.008138,
+      "paired_median_speedup_vs_a1": 1.850647,
+      "paired_median_reduction_fraction_vs_a1": 0.459648,
+      "threshold_max_regression_fraction": 0.05,
+      "threshold_passed": true
+    },
+    "W02-newpipe-lookup": {
+      "same_scope_metric": "resident_query_seconds",
+      "qualified_pair_count": 5,
+      "excluded_pair_count": 0,
+      "a1_median_seconds": 0.007438,
+      "b1_median_seconds": 0.005791,
+      "paired_median_speedup_vs_a1": 1.229015,
+      "paired_median_reduction_fraction_vs_a1": 0.18634,
+      "threshold_max_regression_fraction": 0.05,
+      "threshold_passed": true
+    },
+    "W03-newpipe-xref": {
+      "same_scope_metric": "resident_query_seconds",
+      "qualified_pair_count": 5,
+      "excluded_pair_count": 0,
+      "a1_median_seconds": 0.064533,
+      "b1_median_seconds": 0.029281,
+      "paired_median_speedup_vs_a1": 2.203921,
+      "paired_median_reduction_fraction_vs_a1": 0.546263,
+      "threshold_max_regression_fraction": 0.05,
+      "threshold_passed": true
+    },
+    "W04-newpipe-joins-agg": {
+      "same_scope_metric": "resident_query_seconds",
+      "qualified_pair_count": 5,
+      "excluded_pair_count": 0,
+      "a1_median_seconds": 0.028917,
+      "b1_median_seconds": 0.020758,
+      "paired_median_speedup_vs_a1": 1.382359,
+      "paired_median_reduction_fraction_vs_a1": 0.276599,
+      "threshold_max_regression_fraction": 0.05,
+      "threshold_passed": true
+    },
+    "W06-newpipe-smali": {
+      "same_scope_metric": "warm_decode_seconds",
+      "qualified_pair_count": 5,
+      "excluded_pair_count": 0,
+      "a1_median_seconds": 0.01255,
+      "b1_median_seconds": 0.000295,
+      "paired_median_speedup_vs_a1": 43.366667,
+      "paired_median_reduction_fraction_vs_a1": 0.976941,
+      "threshold_max_regression_fraction": 0.05,
+      "threshold_passed": true
+    }
+  },
+  "conditional_37_47_target_accounting_vs_a0": {
+    "attribution_rule": "Separates upstream DexSQL 0.1.0->0.1.1 (A0->A1) gain from MeguvizDexDash B1 gain vs A1 and reports Stage P/S/F honestly without additive overlap summation or folding E_gate into S/F.",
+    "w07_samples": {
+      "W07-hostlab-9161100": {
+        "a0_median_wall_seconds": 65.697725,
+        "b1_median_wall_seconds": 32.946064,
+        "paired_median_speedup_vs_a0": 1.994177,
+        "paired_median_reduction_fraction_vs_a0": 0.498401,
+        "a0_median_s_seconds": 9.8825,
+        "b1_median_s_seconds": 1.0855,
+        "s_speedup_vs_a0": 9.1041,
+        "a0_median_f_seconds": 38.9845,
+        "b1_median_f_seconds": 6.398,
+        "f_speedup_vs_a0": 6.0932,
+        "historical_37_47_conditional_target_met": true
+      },
+      "W07-hostlab-9170100": {
+        "a0_median_wall_seconds": 71.962913,
+        "b1_median_wall_seconds": 35.212989,
+        "paired_median_speedup_vs_a0": 2.043553,
+        "paired_median_reduction_fraction_vs_a0": 0.510614,
+        "a0_median_s_seconds": 10.7735,
+        "b1_median_s_seconds": 1.1405,
+        "s_speedup_vs_a0": 9.4463,
+        "a0_median_f_seconds": 43.0935,
+        "b1_median_f_seconds": 6.703,
+        "f_speedup_vs_a0": 6.429,
+        "historical_37_47_conditional_target_met": true
+      }
+    }
+  },
+  "conditional_gate_reuse_e_gate": {
+    "source": "artifacts/mdd-062/gate-equivalence-and-timing.json",
+    "counted_in_phase1_sf_target": false,
+    "hostlab-9161100": {
+      "name": "E_gate",
+      "counted_in_phase1_sf_target": false,
+      "legacy_seconds": 15.288515799999004,
+      "legacy_intake_seconds": 13.764999999999418,
+      "legacy_home_seconds": 1.5160000000032596,
+      "reuse_seconds": 22.916550499998266,
+      "reuse_intake_seconds": 2.56105080000998,
+      "reuse_home_seconds": 8.290417799988063,
+      "wall_saved_seconds": -7.628034699999262,
+      "speedup": 0.667138616695395,
+      "legacy_median_seconds": 15.32972609999706,
+      "fresh_session_reuse_median_seconds": 22.983732699998654,
+      "shared_resident_reuse_median_seconds": 10.407505700000911,
+      "shared_resident_median_saved_seconds": 4.922220399996149,
+      "shared_resident_median_speedup": 1.472949094805273
+    },
+    "hostlab-9170100": {
+      "name": "E_gate",
+      "counted_in_phase1_sf_target": false,
+      "legacy_seconds": 16.893856100010453,
+      "legacy_intake_seconds": 15.203000000008615,
+      "legacy_home_seconds": 1.6719999999913853,
+      "reuse_seconds": 25.257125100004487,
+      "reuse_intake_seconds": 2.8516692999983206,
+      "reuse_home_seconds": 9.131504600009066,
+      "wall_saved_seconds": -8.363268999994034,
+      "speedup": 0.6688748633551905,
+      "legacy_median_seconds": 16.907753099992988,
+      "fresh_session_reuse_median_seconds": 25.035033699998166,
+      "shared_resident_reuse_median_seconds": 11.311396499993862,
+      "shared_resident_median_saved_seconds": 5.596356599999126,
+      "shared_resident_median_speedup": 1.494753817532801
+    }
+  },
+  "memory_summary": {
+    "source": "artifacts/mdd-066/deep-perf-and-ui-qualification.json",
+    "w07_9161100": {
+      "b1_probe_peak_job_commit_bytes": 1303957504,
+      "b1_probe_peak_job_commit_gib": 1.2144,
+      "b1_median_peak_job_commit_bytes": 1305010176,
+      "b1_median_peak_job_commit_gib": 1.2154,
+      "a1_median_peak_job_commit_bytes": 1602772992,
+      "a1_median_peak_job_commit_gib": 1.4927,
+      "a0_median_peak_job_commit_bytes": 1573122048,
+      "a0_median_peak_job_commit_gib": 1.4651,
+      "reduction_vs_a1_pct": -18.58,
+      "reduction_vs_a0_pct": -17.04,
+      "reduction_vs_pre_opt_parallel_pct": -47.39,
+      "reduction_vs_mdd060_unopt_b1_pct": -5.05,
+      "run_counts": {
+        "A0": 2,
+        "A1": 12,
+        "B1": 14
+      }
+    },
+    "w07_9170100": {
+      "b1_median_peak_job_commit_bytes": 1387460608,
+      "b1_median_peak_job_commit_gib": 1.2922,
+      "a1_median_peak_job_commit_bytes": 1740681216,
+      "a1_median_peak_job_commit_gib": 1.6211,
+      "a0_median_peak_job_commit_bytes": 1759111168,
+      "a0_median_peak_job_commit_gib": 1.6383,
+      "reduction_vs_a1_pct": -20.29,
+      "reduction_vs_a0_pct": -21.13,
+      "run_counts": {
+        "A0": 2,
+        "A1": 12,
+        "B1": 14
+      }
+    },
+    "newpipe_open_only": {
+      "b1_open_wall_seconds": 0.43165,
+      "b1_prepare_ms": 437.9999999946449,
+      "b1_producer_peak_ws_bytes": 251351040,
+      "b1_producer_peak_ws_mib": 239.71,
+      "b1_peak_job_commit_bytes": 274063360,
+      "b1_peak_job_commit_mib": 261.37,
+      "reduction_vs_pre_opt_parallel_561_7mib_pct": -53.47
+    },
+    "w05_newpipe_bulk": {
+      "b1_probe_producer_peak_ws_bytes": 252538880,
+      "b1_probe_producer_peak_ws_mib": 240.84,
+      "b1_probe_consumer_ws_bytes": 172187648,
+      "b1_median_producer_peak_ws_bytes": 252207104,
+      "a1_median_producer_peak_ws_bytes": 111935488,
+      "resident_dict_store_tradeoff_note": "B1 retains shared TextDict and columnar RelationStore arrays in resident engine RSS (~240.5 MiB vs A1 ~106.7 MiB on 2-DEX NewPipe), enabling -39.95% bulk wall-time speedup and -18.6% to -97.7% resident query guard improvements while cutting multi-DEX W07 peak commit by -18.58% to -20.29% vs A1."
+    },
+    "honest_stretch_goal_assessment": {
+      "stretch_goal_under_1_0_gib": "< 1.0 GiB process commit for full 33-DEX HostLab audit",
+      "stretch_goal_under_1_gib_met": false,
+      "w07_9161100_probe_peak_job_commit_bytes": 1303957504,
+      "w07_9161100_probe_peak_job_commit_gib": 1.2144,
+      "breakdown_and_explanation": "Full W07 JobObject peak commit is 1.214 GiB (median 1.215 GiB across 14 runs), breaking down across the joint Python consumer process (~0.17 GiB), steady-state shared TextDict + 17 RelationStore columnar arrays, and the bounded transient single-DEX layer preparation buffer (max_in_flight<=2); well below A1 (1.493 GiB, -18.58%), A0 (1.465 GiB, -17.04%), MDD-060 unoptimized B1 (1.28 GiB, -5.05%), and pre-optimization parallel B1 (2.31 GiB, -47.4%), while honestly noting the <1.0 GiB stretch target was not reached for joint full-Job commit."
+    }
+  },
+  "non_additive_overlap_enforced": true,
+  "all_passed": true
+}

@@ -1,0 +1,42 @@
+{
+  "schema_version": "mdd.python-sdk-distribution.v1",
+  "package": "mdd",
+  "version": "0.1.0-dev",
+  "dependencies": [],
+  "transports": [
+    "in-process (ctypes ABI 1.0)",
+    "worker (mdd.cli-stream.v1)"
+  ],
+  "files": [
+    {
+      "path": "python/mdd/__init__.py",
+      "bytes": 1096,
+      "sha256": "52b55ebc752909540eb13b4886a2923162e86bf694fbc40bd1511dcba619db45"
+    },
+    {
+      "path": "python/mdd/_cells.py",
+      "bytes": 2108,
+      "sha256": "f9e939466abf80709856cfdb137cdf9c60cf36f83aa59c99161c0ba7ded88568"
+    },
+    {
+      "path": "python/mdd/_ffi.py",
+      "bytes": 6785,
+      "sha256": "22af8dcd2ca640376897d917a4f7422f06881157fe8dd0894ecccd2b2632f109"
+    },
+    {
+      "path": "python/mdd/core.py",
+      "bytes": 10519,
+      "sha256": "38475d3b0c7aa677c557b66eb91ec66b652e1b66f2215fd9373114ed2f7fd534"
+    },
+    {
+      "path": "python/mdd/errors.py",
+      "bytes": 3421,
+      "sha256": "773f97f30e923cbdff24aa5040ffd6683c61c4c724fc29dc78af13cec77b1916"
+    },
+    {
+      "path": "python/mdd/worker.py",
+      "bytes": 23130,
+      "sha256": "695e7676a4178493615e9a3eadf3c6956e20da8cbe65565bf4807376cab82441"
+    }
+  ]
+}

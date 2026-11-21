@@ -1,0 +1,64 @@
+{
+  "schema_version": "mdd.release-manifest.v1",
+  "task_id": "MDD-083",
+  "generated_utc": "2026-11-21T22:25:13.165068Z",
+  "product": "MeguvizDexDash",
+  "version": "0.1.0-dev",
+  "external_release_published": false,
+  "release_qualification_manifest": {
+    "path": "conformance/manifests/release-qualification.json",
+    "sha256": "7217df7db2fd7946289fa2ff357f964f8c7076d20030cd325fa05d2336a0798e"
+  },
+  "compatibility_ledger": {
+    "path": "compatibility/ledger.json",
+    "sha256": "b66f4a12b79ac1d80679a377eac1d6f008ac241a3c35a1beacaebd67af06e773"
+  },
+  "toolchain_and_lockfiles": {
+    "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
+    "Cargo.lock": "044361cbb4c154c297dfa8901a097945ae55804636c1c91927abafc5c06e3174",
+    "apps/desktop/Cargo.lock": "909c53e7a60726b4387cbc4f7580c0b63cd1b836ebd0526a13628d32f1243ccd",
+    "requirements-dev.lock": "3107420d2bf63c170ce47025f3738f8c6d0f9a927a70912affb5e194f5ba1048"
+  },
+  "verified_windows_x86_64_release_artifacts": {
+    "cli_binary": {
+      "filename": "meguvizdexdash.exe",
+      "bytes": 11951616,
+      "sha256": "7a89484c6474b7fe4eb0bc8af97b813e56a0685511cc461b8bd16f54926c0053",
+      "build_id": "source-sha256:8829a2218df097d58ed1283c4c87429d283a815f54a9f132c0a7f2c9c42940a3"
+    },
+    "c_abi_shared_library": {
+      "filename": "mdd_ffi.dll",
+      "bytes": 8359936,
+      "sha256": "241d9cb3ed515ed5d3c5638fffbef030dbdd1b0a85828b697491e640af57332a"
+    },
+    "desktop_portable_zip": {
+      "filename": "meguvizdexdash-desktop-preview-0.1.0-dev-windows-x86_64.zip",
+      "bytes": 7881162,
+      "sha256": "1e3c14e43518fc8ae33327527b5abce45e29871d1f09f9732f3ea28c7694cc3e",
+      "webview_flows_passed": 15
+    },
+    "reproduction_commands": [
+      "cargo build --offline --locked --release -p mdd-cli",
+      "cargo build --offline --locked --release -p mdd-ffi",
+      "python -I apps/desktop/package.py"
+    ]
+  },
+  "verified_linux_x86_64_evidence": {
+    "native_ci_evidence": {
+      "path": "artifacts/mdd-080/linux-x86_64-results.json",
+      "sha256": "cdcbffbe88efb4dd39176a55b5681316bbeaad407649169175816d08272868c1"
+    },
+    "desktop_ci_evidence": {
+      "path": "artifacts/mdd-073/package-check-linux.json",
+      "sha256": "f399c9a9a28b8bfef710062a782fa5019bd55813a67e14fe2152ce1163cf759f"
+    },
+    "reproduction_commands": [
+      "cargo build --locked --release -p mdd-cli -p mdd-ffi",
+      "python apps/desktop/package.py"
+    ]
+  },
+  "docs": {
+    "docs/RELEASE_NOTES.md": "5efa714a95abc57410d8a30a31ba3a0cdf0cd685cbbffb54fb73bbf7569ecf26",
+    "docs/OPERATIONS_AND_ROLLBACK.md": "6f527505e21d02e33fce93c5151a8dcfb4f9d6443b49fe0026a466663b23c490"
+  }
+}

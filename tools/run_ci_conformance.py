@@ -95,6 +95,17 @@ def build_groups(binary: str, out_dir: Path) -> dict[str, list[tuple[str, list[s
             ("faults-conformance", [*py, "conformance/faults/run-fault-suite.py", "--binary", binary, "--out", str(out_dir / "fault-and-soak-results.json")]),
             ("mdd-081-record", [*py, "conformance/faults/run-fault-suite.py", "--check"]),
         ],
+        "qualification": [
+            ("mdd-060-controls", [*py, "-m", "unittest", "discover", "-s", "benchmarks", "-p", "test_run_five_way_comparison.py", "-t", "benchmarks"]),
+            ("mdd-061-controls", [*py, "-m", "unittest", "discover", "-s", "benchmarks", "-p", "test_mdd061_ablation.py", "-t", "benchmarks"]),
+            ("mdd-061-record", [*py, "benchmarks/run_mdd061_ablation.py", "--check"]),
+            ("mdd-062-record", [*py, "integrations/hostlab/audit_data_provider.py", "--check"]),
+            ("mdd-064-controls", [*py, "-m", "unittest", "discover", "-s", "conformance/cache", "-p", "test_mdd064_conformance.py", "-t", "conformance/cache"]),
+            ("mdd-064-record", [*py, "conformance/cache/run_mdd064_conformance.py", "--check"]),
+            ("mdd-066-record", [*py, "tools/verify_mdd066.py", "--check"]),
+            ("mdd-082-record", [*py, "tools/verify_mdd082.py", "--check"]),
+            ("mdd-083-record", [*py, "tools/verify_mdd083.py", "--check"]),
+        ],
     }
 
 
@@ -102,7 +113,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=Path, default=DEFAULT_BINARY)
     parser.add_argument("--out-dir", type=Path, default=ROOT / "artifacts/local/ci")
-    parser.add_argument("--group", default="all", help="all, or comma-separated group names: cli,mcp-decode,resources,hostlab,relations,generic-consumer,platform,cache,optional-formats,faults")
+    parser.add_argument("--group", default="all", help="all, or comma-separated group names: cli,mcp-decode,resources,hostlab,relations,generic-consumer,platform,cache,optional-formats,faults,qualification")
     args = parser.parse_args(argv)
 
     binary = args.binary.resolve()

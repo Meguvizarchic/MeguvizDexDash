@@ -1,0 +1,126 @@
+{
+  "schema_version": "mdd.release-rehearsal.v1",
+  "task_id": "MDD-083",
+  "generated_utc": "2026-11-21T22:25:13.165068Z",
+  "platform": "windows-x86_64",
+  "external_release_published": false,
+  "dist_sha256sums_verified": true,
+  "dist_files_count": 6,
+  "cutover_and_rollback_rehearsal": {
+    "engine_pin": {
+      "engine_version": "0.1.0-dev",
+      "build_id": "source-sha256:8829a2218df097d58ed1283c4c87429d283a815f54a9f132c0a7f2c9c42940a3",
+      "binary_sha256": "7a89484c6474b7fe4eb0bc8af97b813e56a0685511cc461b8bd16f54926c0053",
+      "platform": "Windows/AMD64"
+    },
+    "fixture": {
+      "path": "tests/fixtures/generated/multidex-stored.apk",
+      "sha256": "6b88277747a49dfddcc91900c171ae6420449cc424d57ffd46f896891ad26098"
+    },
+    "stage_1_baseline": {
+      "native_engine": "dexsql",
+      "backends": {
+        "q": "dexsql",
+        "l": "dexsql",
+        "d": "dexsql",
+        "i": "dexsql",
+        "r": "dexsql",
+        "rs": "sqlite"
+      },
+      "forced_mdd_rejected_when_off": true
+    },
+    "stage_2_cutover": {
+      "native_engine": "meguvizdexdash",
+      "structural_wire": "b0",
+      "non_scalar_text": "lossy-replacement",
+      "backends": {
+        "q": "meguvizdexdash",
+        "l": "meguvizdexdash",
+        "d": "meguvizdexdash",
+        "i": "meguvizdexdash",
+        "r": "meguvizdexdash",
+        "rs": "sqlite"
+      },
+      "session": {
+        "wire": "b0",
+        "dex_count": 2,
+        "strings_count": 7,
+        "classes_count": 1,
+        "methods_count": 4,
+        "statements": 11,
+        "abandoned": 0,
+        "coverage_input": "complete",
+        "coverage_facts": "complete",
+        "operation_status": "ok",
+        "execution_complete": true,
+        "truncated": false,
+        "more_available": false,
+        "next_cursor": null,
+        "completeness_verdict": {
+          "complete": true,
+          "partial": false,
+          "failed": false,
+          "reasons": []
+        }
+      },
+      "reconstructed_provenance": {
+        "backend": "meguvizdexdash",
+        "engine_version": "0.1.0-dev",
+        "build_id": "source-sha256:8829a2218df097d58ed1283c4c87429d283a815f54a9f132c0a7f2c9c42940a3",
+        "binary_sha256": "7a89484c6474b7fe4eb0bc8af97b813e56a0685511cc461b8bd16f54926c0053",
+        "profile": "mdd-native-v1",
+        "profile_admitted": false,
+        "dialect": "dexsql-0.1.0",
+        "config_digest": "30d21f25022fe26e688d9f5be70b9f5893b8aae0ee2dea50122de5c77a6bc52a",
+        "run_id": "cf3db4f2bad2b1fb5fda9164977f1a84",
+        "source_sha256": "6b88277747a49dfddcc91900c171ae6420449cc424d57ffd46f896891ad26098",
+        "fallback_count": 0
+      },
+      "namespace_markers_present": true,
+      "legacy_tree_file_count": 11,
+      "legacy_tree_unchanged": true
+    },
+    "stage_3_rollback": {
+      "config_rollback_native_engine": "dexsql",
+      "env_unset_native_engine": "dexsql",
+      "backends": {
+        "q": "dexsql",
+        "l": "dexsql",
+        "d": "dexsql",
+        "i": "dexsql",
+        "r": "dexsql",
+        "rs": "sqlite"
+      },
+      "matches_baseline_plan": true,
+      "cross_engine_checkpoint_refused": true,
+      "delegated_to_legacy_session": true,
+      "legacy_tree_unchanged_after_rollback": true
+    }
+  },
+  "c_abi_release_dll_smoke": {
+    "passed": true,
+    "library_sha256": "241d9cb3ed515ed5d3c5638fffbef030dbdd1b0a85828b697491e640af57332a",
+    "abi_major": 1,
+    "abi_minor": 0,
+    "row_count": 1,
+    "live_handles_after_close": 0,
+    "canonical_sha256": "bb99fb88aec001430fa08615f237dea915321687dd81d5503b5ab38cb6ac2397"
+  },
+  "upgrade_migration_and_cache_isolation": {
+    "m5_b0_vs_m8_b1_equal": true,
+    "m8_canonical_sha256": "275c7513425da1816a68036942e9c659ce75aad60b69d51f18861cd25056938b",
+    "m8_classes_count": 1,
+    "cache_cold_outcome": "built_cold",
+    "cache_warm_outcome": "hit_warm",
+    "cache_corrupt_rejected_code": "CACHE_CORRUPT",
+    "cross_engine_resume_refused": true,
+    "cross_engine_resume_reason": "checkpoint_engine_identity_changed"
+  },
+  "desktop_webview2_release_check": {
+    "archive": "meguvizdexdash-desktop-preview-0.1.0-dev-windows-x86_64.zip",
+    "archive_sha256": "1e3c14e43518fc8ae33327527b5abce45e29871d1f09f9732f3ea28c7694cc3e",
+    "flows_passed": 15,
+    "flows_failed": 0
+  },
+  "all_passed": true
+}

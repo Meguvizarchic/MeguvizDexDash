@@ -1,0 +1,99 @@
+{
+  "schema_version": "mdd.compatibility-and-limitations.v1",
+  "task_id": "MDD-082",
+  "generated_utc": "2026-11-21T22:15:29.719139Z",
+  "engine_version": "0.1.0-dev",
+  "engine_build_id": "source-sha256:8829a2218df097d58ed1283c4c87429d283a815f54a9f132c0a7f2c9c42940a3",
+  "engine_binary_sha256": "7a89484c6474b7fe4eb0bc8af97b813e56a0685511cc461b8bd16f54926c0053",
+  "admitted_surfaces": {
+    "standard_dex_formats": [
+      "dex-035",
+      "dex-037",
+      "dex-038",
+      "dex-039",
+      "dex-040",
+      "apk-zip"
+    ],
+    "hostlab_required_relations": 17,
+    "hostlab_required_columns": 156,
+    "public_relations": 56,
+    "native_mcp_tools": 12,
+    "c_abi_major_version": 1,
+    "c_abi_symbol_count": 29,
+    "python_sdk_transports": [
+      "in_process_ctypes",
+      "worker_mdd_cli_stream_v1"
+    ],
+    "desktop_workbench_platforms": {
+      "windows-x86_64": {
+        "webview": "WebView2 (CDP)",
+        "flows_passed": 15,
+        "flows_total": 15
+      },
+      "linux-x86_64": {
+        "webview": "WebKitGTK (WebDriver)",
+        "flows_passed": 14,
+        "flows_total": 15,
+        "not_run_public_apk": "real_application_newpipe requires local APK"
+      }
+    },
+    "persistent_fact_cache": "mdd-index/1 (standalone & thin content-addressed modes, MDD-063)"
+  },
+  "declared_and_pinned_differences": [
+    "Non-scalar UTF-16 surrogates reject strictly by default; explicit opt-in non_scalar_text='lossy-replacement' matches DexSQL U+FFFD replacement on plain UTF-8 columns while emitting non-blocking diagnostics.",
+    "COUNT(*) ordering, original MUTF-8 preservation in text values, and trailing backslash escaping in LIKE follow frozen MDD-035/MDD-070 declared conventions.",
+    "TEMP catalog redefinition before compatible offset paging fails closed with SOURCE_CHANGED instead of silently stitching two TEMP definitions.",
+    "Desktop workbench diff compares definitions without instruction operands and uses Chinese UI copy."
+  ],
+  "open_fail_closed_gaps": [
+    {
+      "id": "q16-unlabelled-corpus",
+      "status": "unqualified",
+      "detail": "Q16 named_temp_queries matches A0 in scenario tests (MDD-033), but dexsql-0.1.0/0.1.1 full compatibility lacks a labelled Q16 HostLab corpus."
+    },
+    {
+      "id": "unsupported-sql-operators",
+      "status": "fail_closed",
+      "detail": "GLOB and recursive CTEs fail closed (BINARY_OPERATOR_NOT_IMPLEMENTED / RECURSIVE_CTE_NOT_YET_QUALIFIED)."
+    },
+    {
+      "id": "sqlite-double-quoted-string-literals",
+      "status": "fail_closed",
+      "detail": "SQLite DQS unknown double-quoted identifiers are rejected instead of coerced to string literals."
+    }
+  ],
+  "excluded_optional_capabilities": {
+    "mdd_074_optional_formats": {
+      "dex-041-container": "verified_optional",
+      "cdex": "disabled",
+      "vdex": "disabled",
+      "oat": "disabled",
+      "apk-split-bundle": "disabled",
+      "protobuf-resources": "disabled",
+      "jadx-optional-view-provider": "isolated_display_only"
+    },
+    "mdd_075_optional_local_analysis": "Optional method-local CFG/def-use only; whole-program call graphs/taint not claimed.",
+    "a2_dexsql_011_mcp_compact": [
+      "DexSQL 0.1.1 MCP query refuses offset+limit > 100000 (verified directly on real binary), whereas hostlab-9161100 classes has 310,716 rows, hostlab-9170100 has 345,907 rows, and method_calls exceeds 1,000,000 rows.",
+      "MCP open_dataset/query does not expose an immutable snapshot_id/source SHA-256 generation binding proof or deterministic tie-breaking outer ORDER BY rewrite guarantee for HostLab arbitrary projections.",
+      "Original HostLab native_audit consumes CLI query --interactive (which has no compact switch) + shape/hex/sentinel marker; no 20-group qualified MCP audit consumer is deployed in HostLab."
+    ],
+    "columns_v1_ipc": {
+      "artifact": "crates/mdd-wire/src/optimized/columns_v1.rs",
+      "format_magic": "MDDCOLL1",
+      "status": "opt_in_evaluated_deferred_for_default_b1",
+      "rationale": "Direct streaming UTF-8 JSON framing (BatchStreamEncoder + B1Session._decode_direct_batches) already delivers >=15% W05 speedup over A1 while speaking standard JSON Lines consumed directly by the Python SDK/workbench without a custom binary wire negotiation split; columns-v1 remains cleanly isolated and unit-tested as an opt-in IPC building block."
+    }
+  },
+  "unadmitted_platforms": [
+    "macos-arm64",
+    "macos-x86_64",
+    "linux-aarch64",
+    "windows-aarch64"
+  ],
+  "residual_notes": [
+    "Joint Windows JobObject peak commit on 33-DEX W07-hostlab-9161100 reaches 1.214 GiB (probe) / 1.215 GiB (median), cutting pre-opt parallel 2.31 GiB by -47.4% and beating A1 (1.493 GiB) and MDD-060 unoptimized B1 (1.28 GiB), while remaining above the <1.0 GiB stretch target.",
+    "HostLab production APKs (hostlab-9161100, hostlab-9170100) are Windows-local private inputs; cross-platform byte parity between Windows x86_64 and Linux x86_64 is proved on all 5 standard public workloads (MDD-080) with HostLab live shadow audits executed on Windows x86_64.",
+    "Repository qualification under MDD-082 does not execute or authorize external production cutover or deployment."
+  ]
+}

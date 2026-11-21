@@ -1,0 +1,343 @@
+{
+  "schema_version": "mdd.release-qualification.v1",
+  "task_id": "MDD-082",
+  "phase": "M8",
+  "generated_utc": "2026-11-21T22:15:29.719139Z",
+  "status": "qualified_within_declared_scope",
+  "external_production_cutover_authorized": false,
+  "engine_identity": {
+    "product": "MeguvizDexDash",
+    "version": "0.1.0-dev",
+    "build_id": "source-sha256:8829a2218df097d58ed1283c4c87429d283a815f54a9f132c0a7f2c9c42940a3",
+    "binary_sha256": "7a89484c6474b7fe4eb0bc8af97b813e56a0685511cc461b8bd16f54926c0053",
+    "mdd_ffi_release_sha256": "241d9cb3ed515ed5d3c5638fffbef030dbdd1b0a85828b697491e640af57332a",
+    "rust_toolchain": "1.99.0",
+    "sqlite_version": "3.53.2"
+  },
+  "profile_qualifications": {
+    "hostlab-audit-v1": {
+      "qualified": true,
+      "platforms": [
+        "windows-x86_64"
+      ],
+      "scope": "Complete unmodified analyze.main audit --mode full equivalence + paired performance gain over fastest baseline A1 and conditional A0 S/F target",
+      "evidence": [
+        "artifacts/mdd-050/provider-selection.json",
+        "artifacts/mdd-051/structural-equivalence.json",
+        "artifacts/mdd-052/surface-equivalence.json",
+        "artifacts/mdd-053/remote-and-resume-equivalence.json",
+        "artifacts/mdd-054/full-equivalence.json",
+        "artifacts/mdd-055/cutover-rehearsal.json",
+        "artifacts/mdd-061/end-to-end-regression.json",
+        "artifacts/mdd-062/gate-equivalence-and-timing.json",
+        "artifacts/mdd-082/final-paired-performance.json"
+      ]
+    },
+    "mdd-native-v1": {
+      "qualified": true,
+      "platforms": [
+        "windows-x86_64",
+        "linux-x86_64"
+      ],
+      "scope": "Byte-identical cross-platform CLI/MCP/C-ABI-1.0/Python SDK/mdd-index/1 persistent cache and scheduler isolation",
+      "evidence": [
+        "artifacts/mdd-035/required-query-results.json",
+        "artifacts/mdd-043/sdk-and-abi-conformance.json",
+        "artifacts/mdd-061/end-to-end-regression.json",
+        "artifacts/mdd-063/cache-fault-recovery.json",
+        "artifacts/mdd-064/scheduling-and-reuse.json",
+        "artifacts/mdd-065/consumer-portability.json",
+        "artifacts/mdd-066/deep-perf-and-ui-qualification.json",
+        "artifacts/mdd-080/abi-compatibility.json",
+        "artifacts/mdd-081/fault-and-soak-results.json",
+        "artifacts/mdd-082/final-paired-performance.json"
+      ]
+    },
+    "dexsql-0.1.0-compat-v1": {
+      "qualified_within_declared_scope": true,
+      "platforms": [
+        "windows-x86_64",
+        "linux-x86_64"
+      ],
+      "scope": "All 56 relations and 12 MCP tools verified with pinned differences; open fail-closed gaps declared",
+      "evidence": [
+        "conformance/manifests/full-relation-qualification.json",
+        "artifacts/mdd-070/public-relations-conformance.json",
+        "artifacts/mdd-071/smali-and-paging-conformance.json",
+        "artifacts/mdd-072/twelve-tool-conformance.json",
+        "artifacts/mdd-082/compatibility-and-limitations.json"
+      ]
+    },
+    "dexsql-0.1.1-compat-v1": {
+      "qualified_within_declared_scope": true,
+      "platforms": [
+        "windows-x86_64",
+        "linux-x86_64"
+      ],
+      "scope": "All 56 relations verified equal across 0.1.0/0.1.1 probe corpus with pinned differences and fail-closed gaps",
+      "evidence": [
+        "conformance/manifests/full-relation-qualification.json",
+        "artifacts/mdd-070/public-relations-conformance.json",
+        "artifacts/mdd-071/smali-and-paging-conformance.json",
+        "artifacts/mdd-072/twelve-tool-conformance.json",
+        "artifacts/mdd-082/compatibility-and-limitations.json"
+      ]
+    }
+  },
+  "conditional_mdd062_gate_reuse_qualification": {
+    "qualified_opt_in": true,
+    "default_rollback_mode": "legacy_independent",
+    "allow_mid_run_fallback": false,
+    "timing_window": "E_gate",
+    "counted_in_phase1_sf_target": false,
+    "independent_oracle_retained": "legacy_independent (analysis/run_intake.py + analysis/home_frame_audit.py)",
+    "evidence": "artifacts/mdd-062/gate-equivalence-and-timing.json"
+  },
+  "generic_consumer_portability": {
+    "qualified": false,
+    "evidence": "artifacts/mdd-065/consumer-portability.json"
+  },
+  "cross_platform_and_fault_resilience": {
+    "overall_canonical_sha256": "eb1deaaa26fc0836a1ba064c362cb224a350e5caf5439ae3b775a9c4af05838e",
+    "platforms_verified": [
+      "windows-x86_64",
+      "linux-x86_64"
+    ],
+    "fault_soak_passed": true,
+    "evidence": [
+      "artifacts/mdd-080/abi-compatibility.json",
+      "artifacts/mdd-081/fault-and-soak-results.json"
+    ]
+  },
+  "evidence_categories_declared_separately": {
+    "build": [
+      "meguvizdexdash.exe release SHA-256 7a89484c6474b7fe4eb0bc8af97b813e56a0685511cc461b8bd16f54926c0053",
+      "mdd_ffi.dll release SHA-256 241d9cb3ed515ed5d3c5638fffbef030dbdd1b0a85828b697491e640af57332a",
+      "Linux & Windows cargo build/clippy/test in GitHub Actions ci.yml and desktop.yml"
+    ],
+    "functional_differential": [
+      "56/56 public relations & 12/12 MCP tools (MDD-070/071/072)",
+      "4-layer full HostLab shadow audit equivalence + 0 fallbacks (MDD-054)",
+      "2/2 live HostLab APK intake/home gate verdict equivalence (MDD-062)",
+      "Windows x86_64 vs Linux x86_64 byte-identical canonical digests (MDD-080)",
+      "54/54 tools/run_ci_conformance.py + post-edit qualification group"
+    ],
+    "static_analysis": [
+      "cargo fmt --all -- --check & clippy --workspace --all-targets -- -D warnings",
+      "Workspace & Desktop boundary checks + AST depth/stack mutation anchors (MDD-084)",
+      "Strict FORBIDDEN_PUBLIC_RE redaction gate across all public outputs"
+    ],
+    "performance": [
+      "artifacts/mdd-061/end-to-end-regression.json (paired exclusive-window benchmarks vs A1 & A0)",
+      "artifacts/mdd-061/optimization-ablation.json (7-config non-additive ablation)",
+      "artifacts/mdd-082/final-paired-performance.json",
+      "artifacts/mdd-066/deep-perf-and-ui-qualification.json"
+    ],
+    "device_ui": [
+      "Windows 11 WebView2 15/15 flows passed (Edg/140.0.3485.94, Wave 1.7d packaged zip)",
+      "Ubuntu 24.04 WebKitGTK 14/14 flows passed + 1 not_run NewPipe local APK (MDD-073 CI)"
+    ]
+  },
+  "upstream_records": {
+    "MDD-026": {
+      "path": "conformance/manifests/hostlab-fact-qualification.json",
+      "sha256": "f681791c1d699cb23a22239ac516770feebe3d8c36f77bf7f0586108e9dce61d",
+      "bytes": 8749
+    },
+    "MDD-026-diff": {
+      "path": "artifacts/mdd-026/facts-differential.json",
+      "sha256": "5a2ae3e489b314210fdb04ded5680ad7145e9d6e705486b7c49cdda65dbe138b",
+      "bytes": 8127
+    },
+    "MDD-035": {
+      "path": "artifacts/mdd-035/required-query-results.json",
+      "sha256": "8db46024c6740301ba8024024d7298e5f31e54fd91521901b50e985447a85b89",
+      "bytes": 11406
+    },
+    "MDD-035-manifest": {
+      "path": "conformance/manifests/query-profile-qualification.json",
+      "sha256": "fdf03bb8ff4f61e2381071286bc441840e4fefd874d36d98cef5a34e6bc2d9fe",
+      "bytes": 4282
+    },
+    "MDD-041": {
+      "path": "artifacts/mdd-041/cli-pipeline-conformance.json",
+      "sha256": "2c3d1c9f39425b0a11fa300b81e09cbea6d5480e6f9b9aed5f6e0b461b777fc4",
+      "bytes": 15382
+    },
+    "MDD-042": {
+      "path": "artifacts/mdd-042/mcp-required-conformance.json",
+      "sha256": "283ed73b677cf1a93309b72ae2998a0af28d16094d4688fdf022f1ce73eef608",
+      "bytes": 41508
+    },
+    "MDD-043": {
+      "path": "artifacts/mdd-043/sdk-and-abi-conformance.json",
+      "sha256": "abc14348b075c42faeb6e8225e0dae6ef2849162054961150cabe9d5d8e8ece7",
+      "bytes": 14113
+    },
+    "MDD-044": {
+      "path": "artifacts/mdd-044/encoding-decision.json",
+      "sha256": "62bed4b8c44839261aa9aace18d7466edd958d819d0fba1b26285fcf07104881",
+      "bytes": 7555
+    },
+    "MDD-050": {
+      "path": "artifacts/mdd-050/provider-selection.json",
+      "sha256": "1dab2ac5d41d3f00e12aae6e93f2d4d9b67fc5b44506b496aa1f080380490306",
+      "bytes": 38733
+    },
+    "MDD-051": {
+      "path": "artifacts/mdd-051/structural-equivalence.json",
+      "sha256": "dff29238add11a05908c768ef3f5acbcc5a28702accee340f3dbed90dbba5f41",
+      "bytes": 41074
+    },
+    "MDD-052": {
+      "path": "artifacts/mdd-052/surface-equivalence.json",
+      "sha256": "f5df2d67f3f935ccfae1f60142bfe730b2cfca43f216f08693c5061e449f1cf5",
+      "bytes": 21929
+    },
+    "MDD-053": {
+      "path": "artifacts/mdd-053/remote-and-resume-equivalence.json",
+      "sha256": "1d949137e2511f645be3c7e33124cd6c4d3143468dbbfc5490a6dc335c554841",
+      "bytes": 40009
+    },
+    "MDD-054": {
+      "path": "artifacts/mdd-054/full-equivalence.json",
+      "sha256": "9a0fc7e776dbb1ef19a61627c624cfab2bfc0186bffb585cb84268b2ab025908",
+      "bytes": 48491
+    },
+    "MDD-055": {
+      "path": "artifacts/mdd-055/cutover-rehearsal.json",
+      "sha256": "7931eae77798bbfad1c725edac06b7792b3ebecb74bba0fbb6b62775f42abc39",
+      "bytes": 3013
+    },
+    "MDD-055-manifest": {
+      "path": "conformance/manifests/hostlab-backend-qualification.json",
+      "sha256": "8b99944e56d648379f0fa482af03e18f44d12cca5a22514b7c0255ecb20a00c0",
+      "bytes": 5173
+    },
+    "MDD-060-profile": {
+      "path": "artifacts/mdd-060/stage-and-resource-profile.json",
+      "sha256": "25dd59aeb9bf2343a014f82a21d4966ada65139e5f56c6847a4d78126d8d8450",
+      "bytes": 53164
+    },
+    "MDD-060-priorities": {
+      "path": "artifacts/mdd-060/optimization-priorities.json",
+      "sha256": "9e63e25d6af2702c4fa4339dd747952645905090c31ccd00abb2ba3994938c71",
+      "bytes": 4099
+    },
+    "MDD-060-calibration": {
+      "path": "artifacts/mdd-060/threshold-calibration.json",
+      "sha256": "3282992e527dd2ea74c8644d84b9480147c75219455a1921481e1f11bae3489f",
+      "bytes": 1027
+    },
+    "MDD-061-ablation": {
+      "path": "artifacts/mdd-061/optimization-ablation.json",
+      "sha256": "22a93ab846d1dc4ccd940153ca7025de9645e1de7f03daa365eb02c48a779590",
+      "bytes": 13585
+    },
+    "MDD-061-regression": {
+      "path": "artifacts/mdd-061/end-to-end-regression.json",
+      "sha256": "45a4873403d680a506ee54bf5f920431f19e54a891899715a847f3846a22c330",
+      "bytes": 55956
+    },
+    "MDD-062": {
+      "path": "artifacts/mdd-062/gate-equivalence-and-timing.json",
+      "sha256": "3213c56547876b1f970d31ea19a5727ab481889550faba9d326caed72f1184aa",
+      "bytes": 9964
+    },
+    "MDD-063": {
+      "path": "artifacts/mdd-063/cache-fault-recovery.json",
+      "sha256": "80f41ca7fd5191dafbadbffbf529a4245287f4b6f0b2d134248b1549347c8ec2",
+      "bytes": 4091
+    },
+    "MDD-064": {
+      "path": "artifacts/mdd-064/scheduling-and-reuse.json",
+      "sha256": "fa0afbbe66091ff212269dab476cec789adb60e20d07585f1c3a06e0ea359942",
+      "bytes": 18432
+    },
+    "MDD-065": {
+      "path": "artifacts/mdd-065/consumer-portability.json",
+      "sha256": "95cee6d769a1898847799ce78ba2cbe46e16f0856e6ad85fac0ac40a07523c72",
+      "bytes": 8143
+    },
+    "MDD-066": {
+      "path": "artifacts/mdd-066/deep-perf-and-ui-qualification.json",
+      "sha256": "9e8e7bce96610447bc02c88ee8080c97ccd6e106a656cd440799e4ae699f9eb8",
+      "bytes": 13842
+    },
+    "MDD-070": {
+      "path": "artifacts/mdd-070/public-relations-conformance.json",
+      "sha256": "7101566f4bfe5eb9f35d6058a37ffb893e9faae474622c5d8cbdc5cbd5f19c97",
+      "bytes": 8336
+    },
+    "MDD-070-manifest": {
+      "path": "conformance/manifests/full-relation-qualification.json",
+      "sha256": "742aac2a76b2545e67dd09949efd68a4c8d2cfd08ddcb74159e540e1f6f7f7b5",
+      "bytes": 125278
+    },
+    "MDD-071": {
+      "path": "artifacts/mdd-071/smali-and-paging-conformance.json",
+      "sha256": "e155282779ddd869656f9f9681df4b1846382ff1b7f3e4c519dd1fb7e46fcde2",
+      "bytes": 30686
+    },
+    "MDD-072": {
+      "path": "artifacts/mdd-072/twelve-tool-conformance.json",
+      "sha256": "32ef88ef9ce1874adbafbf605ca0e4643f24c360799eda11be26a4c324cdfbbd",
+      "bytes": 12813
+    },
+    "MDD-073": {
+      "path": "artifacts/mdd-073/preview-manifest.json",
+      "sha256": "7d8bfdba309f0043b57f228d5106794f9b157dc75d6d59b16aa1f9bc7641b6e1",
+      "bytes": 3982
+    },
+    "MDD-074": {
+      "path": "artifacts/mdd-074/optional-format-qualification.json",
+      "sha256": "d687cdf9324273e4cc63d2c09649fdfca5f0657c9c19c4fd1e4944b72dfe980a",
+      "bytes": 3492
+    },
+    "MDD-074-manifest": {
+      "path": "conformance/manifests/optional-capabilities.json",
+      "sha256": "3644ff97613f2a7ba86aac4957c6e2f432f03df1f1d8a7d087d77ed40c42885c",
+      "bytes": 2971
+    },
+    "MDD-075": {
+      "path": "artifacts/mdd-075/analysis-capability-qualification.json",
+      "sha256": "ac6763a2e0b4c41b68107477a4b1ff932c8029f237c5be3683b38a5bdf20aec4",
+      "bytes": 9458
+    },
+    "MDD-080-abi": {
+      "path": "artifacts/mdd-080/abi-compatibility.json",
+      "sha256": "d58d44320ebddadf01c23860d419076084adce15ae54d6814c7caaca631d2236",
+      "bytes": 2566
+    },
+    "MDD-080-linux": {
+      "path": "artifacts/mdd-080/linux-x86_64-results.json",
+      "sha256": "cdcbffbe88efb4dd39176a55b5681316bbeaad407649169175816d08272868c1",
+      "bytes": 2975
+    },
+    "MDD-080-windows": {
+      "path": "artifacts/mdd-080/windows-x86_64-results.json",
+      "sha256": "0b8c36a6cddae02fa60e4a11cba649d3232c8371eaa37755d5f84069b8034765",
+      "bytes": 3028
+    },
+    "MDD-080-matrix": {
+      "path": "conformance/platform/platform-matrix.json",
+      "sha256": "483e45662854b7630096d040bab465c254d403fd1667f27f16126e33cd7df4af",
+      "bytes": 5090
+    },
+    "MDD-081": {
+      "path": "artifacts/mdd-081/fault-and-soak-results.json",
+      "sha256": "92c1d21095fce751984bb4d87635034c1d882a8807f288ad3a3f88db43c2b37e",
+      "bytes": 4138
+    },
+    "MDD-084": {
+      "path": "artifacts/mdd-084/or-chain-overflow.json",
+      "sha256": "d4eea77b8bbc1fc573b53ec11b98c098fd1daeee4681c212da76206fe35d5e0c",
+      "bytes": 5785
+    }
+  },
+  "outputs_sha256": {
+    "artifacts/mdd-082/final-paired-performance.json": "3fa2d9e91170ed1a5692bb5fc565ca2e929f940b166f22a3d962addd30a9ccb1",
+    "artifacts/mdd-082/compatibility-and-limitations.json": "8e4f4e91242874051332699185b28d1ff219060fc84de82388783bf15b9e26c3"
+  },
+  "all_passed": true
+}
