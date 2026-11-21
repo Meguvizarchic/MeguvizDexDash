@@ -2,7 +2,7 @@
   "schema_version": "mdd.release-qualification.v1",
   "task_id": "MDD-082",
   "phase": "M8",
-  "generated_utc": "2026-11-21T22:15:29.719139Z",
+  "generated_utc": "2026-11-21T22:46:47.613069Z",
   "status": "qualified_within_declared_scope",
   "external_production_cutover_authorized": false,
   "engine_identity": {
@@ -336,8 +336,8 @@
     }
   },
   "outputs_sha256": {
-    "artifacts/mdd-082/final-paired-performance.json": "3fa2d9e91170ed1a5692bb5fc565ca2e929f940b166f22a3d962addd30a9ccb1",
-    "artifacts/mdd-082/compatibility-and-limitations.json": "8e4f4e91242874051332699185b28d1ff219060fc84de82388783bf15b9e26c3"
+    "artifacts/mdd-082/final-paired-performance.json": "e3f55e29b9bc75881cfe3a8908c1b7829b0d1e695b991b7e284002a6c6139db7",
+    "artifacts/mdd-082/compatibility-and-limitations.json": "f047ac2e7dd358f7c97828e5454bb9dc25b164cb06eab76fe64b8637b5187890"
   },
   "all_passed": true
 }

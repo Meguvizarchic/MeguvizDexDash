@@ -1,7 +1,7 @@
 {
   "schema_version": "mdd.release-rehearsal.v1",
   "task_id": "MDD-083",
-  "generated_utc": "2026-11-21T22:25:13.165068Z",
+  "generated_utc": "2026-11-21T22:46:47.807377Z",
   "platform": "windows-x86_64",
   "external_release_published": false,
   "dist_sha256sums_verified": true,
@@ -71,8 +71,8 @@
         "profile": "mdd-native-v1",
         "profile_admitted": false,
         "dialect": "dexsql-0.1.0",
-        "config_digest": "30d21f25022fe26e688d9f5be70b9f5893b8aae0ee2dea50122de5c77a6bc52a",
-        "run_id": "cf3db4f2bad2b1fb5fda9164977f1a84",
+        "config_digest": "57767ddedc9236676a36e9bb2b119dd9c374ee748b0f5fc1e832c3683c7530b6",
+        "run_id": "eb339b381472af758c805658431bf29d",
         "source_sha256": "6b88277747a49dfddcc91900c171ae6420449cc424d57ffd46f896891ad26098",
         "fallback_count": 0
       },
@@ -104,7 +104,7 @@
     "abi_minor": 0,
     "row_count": 1,
     "live_handles_after_close": 0,
-    "canonical_sha256": "bb99fb88aec001430fa08615f237dea915321687dd81d5503b5ab38cb6ac2397"
+    "canonical_sha256": "236fe7da3181079c96eea6df09ff8c714b3ff0104578a7054ed259e655a7d8a2"
   },
   "upgrade_migration_and_cache_isolation": {
     "m5_b0_vs_m8_b1_equal": true,

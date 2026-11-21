@@ -1,17 +1,17 @@
 {
   "schema_version": "mdd.release-manifest.v1",
   "task_id": "MDD-083",
-  "generated_utc": "2026-11-21T22:25:13.165068Z",
+  "generated_utc": "2026-11-21T22:46:47.807377Z",
   "product": "MeguvizDexDash",
   "version": "0.1.0-dev",
   "external_release_published": false,
   "release_qualification_manifest": {
     "path": "conformance/manifests/release-qualification.json",
-    "sha256": "7217df7db2fd7946289fa2ff357f964f8c7076d20030cd325fa05d2336a0798e"
+    "sha256": "b2263d4faa3a937b93663c8460e833ef25aad6e45b1dec7dd9c550e2a62d0f7b"
   },
   "compatibility_ledger": {
     "path": "compatibility/ledger.json",
-    "sha256": "b66f4a12b79ac1d80679a377eac1d6f008ac241a3c35a1beacaebd67af06e773"
+    "sha256": "caea37f1c0faeb7ba71f5605d021272c82464ee7767e97f594d4087709c7a1ac"
   },
   "toolchain_and_lockfiles": {
     "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",

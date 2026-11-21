@@ -418,10 +418,10 @@ def generate() -> dict[str, Any]:
     ledger["implementation_state"] = "qualified_standard_dex_release_candidate"
 
     profile_map = {
-        "hostlab-audit-v1": (True, HOSTLAB_EVIDENCE_LIST),
-        "mdd-native-v1": (True, NATIVE_EVIDENCE_LIST),
-        "dexsql-0.1.0-compat-v1": (True, COMPAT_EVIDENCE_LIST),
-        "dexsql-0.1.1-compat-v1": (True, COMPAT_EVIDENCE_LIST),
+        "hostlab-audit-v1": (False, HOSTLAB_EVIDENCE_LIST),
+        "mdd-native-v1": (False, NATIVE_EVIDENCE_LIST),
+        "dexsql-0.1.0-compat-v1": (False, COMPAT_EVIDENCE_LIST),
+        "dexsql-0.1.1-compat-v1": (False, COMPAT_EVIDENCE_LIST),
     }
     for entry in ledger.get("profiles", []):
         name = entry.get("name")
@@ -429,6 +429,7 @@ def generate() -> dict[str, Any]:
             admitted, ev_list = profile_map[name]
             entry["status"] = "qualified"
             entry["admitted"] = admitted
+            entry["admission_policy"] = "qualified_in_release_manifest_runtime_admitted_false_until_external_cutover_authorization"
             entry["evidence"] = list(ev_list)
             entry["conformance_manifest_sha256"] = manifest_sha
 
@@ -477,7 +478,9 @@ def generate() -> dict[str, Any]:
     ledger["public_surface"]["enumeration_status"] = "qualified"
 
     dev_scope = ledger.setdefault("development_scope", {})
-    dev_scope["all_profiles_admitted"] = True
+    dev_scope["all_profiles_qualified"] = True
+    dev_scope["all_profiles_admitted"] = False
+    dev_scope["runtime_admission_policy"] = "All 4 standard DEX profiles are status=qualified with pinned conformance_manifest_sha256; ledger and compiled binaries keep admitted=false while external_production_cutover_authorized=false."
     dev_scope["format_qualification"] = "Standard DEX 035/037/038/039/040 + APK ZIP qualified under MDD-082; 041 verified optional off-by-default; cdex/vdex/oat unsupported fail-closed."
     dev_scope["linux_native"] = "Ubuntu 24.04 x86_64 verified byte-identical to Windows x86_64 across all 5 canonical workloads (overall_canonical_sha256 eb1deaaa26fc0836a1ba064c362cb224a350e5caf5439ae3b775a9c4af05838e) in artifacts/mdd-080/linux-x86_64-results.json and WebKitGTK 14/14 in artifacts/mdd-073/package-check-linux.json."
     dev_scope["mdd_060_baseline"] = "116 observed runs across A0/A1/A2/B0/B1; A1 identified as fastest qualified baseline (A2 excluded due to 100k offset+limit refusal and missing provenance/consumer parity); pre-registered 10%/5% thresholds calibrated above noise."
@@ -535,7 +538,7 @@ def check() -> int:
 
     manifest_sha = sha256_file(MANIFEST_PATH)
     for prof in ledger.get("profiles", []):
-        require(prof.get("status") == "qualified" and prof.get("admitted") is True, f"profile not synchronized in ledger: {prof.get('name')}")
+        require(prof.get("status") == "qualified" and prof.get("admitted") is False, f"profile not synchronized in ledger: {prof.get('name')}")
         require(prof.get("conformance_manifest_sha256") == manifest_sha, f"ledger profile conformance_manifest_sha256 drift: {prof.get('name')}")
         for ev in prof.get("evidence", []):
             require((ROOT / ev).is_file(), f"missing ledger profile evidence: {ev}")

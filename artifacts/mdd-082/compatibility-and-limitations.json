@@ -1,7 +1,7 @@
 {
   "schema_version": "mdd.compatibility-and-limitations.v1",
   "task_id": "MDD-082",
-  "generated_utc": "2026-11-21T22:15:29.719139Z",
+  "generated_utc": "2026-11-21T22:46:47.613069Z",
   "engine_version": "0.1.0-dev",
   "engine_build_id": "source-sha256:8829a2218df097d58ed1283c4c87429d283a815f54a9f132c0a7f2c9c42940a3",
   "engine_binary_sha256": "7a89484c6474b7fe4eb0bc8af97b813e56a0685511cc461b8bd16f54926c0053",
