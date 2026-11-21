@@ -47,17 +47,18 @@ async function loadList(offset = 0) {
   if (!reply.ok) return replace(listHolder, errorBox(reply.data.error));
   const d = reply.data;
   replace(listHolder,
-    h('table', { class: 'grid', id: 'diff-table' },
-      h('thead', {}, h('tr', {}, ['', '键', '状态', 'A', 'B', '说明'].map((t) => h('th', {}, t)))),
-      h('tbody', {}, d.entries.map((e) => h('tr', {
-        class: 'pick', dataset: { key: e.key, status: e.status },
-        onclick: () => showEntry(e),
-      },
-      h('td', {}, e.kind === 'class' ? '类' : '方法'),
-      h('td', { class: 'text', title: e.key }, e.key),
-      h('td', {}, h('span', { class: isAgreement(e.status) ? 'pill ok' : 'pill warn' }, statusLabel(e.status))),
-      h('td', { class: 'num' }, e.a.length), h('td', { class: 'num' }, e.b.length),
-      h('td', {}, e.notes.join('；')))))),
+    h('div', { class: 'scroll' },
+      h('table', { class: 'grid', id: 'diff-table' },
+        h('thead', {}, h('tr', {}, ['', '键', '状态', 'A', 'B', '说明'].map((t) => h('th', {}, t)))),
+        h('tbody', {}, d.entries.map((e) => h('tr', {
+          class: 'pick', dataset: { key: e.key, status: e.status },
+          onclick: () => showEntry(e),
+        },
+        h('td', {}, e.kind === 'class' ? '类' : '方法'),
+        h('td', { class: 'text', title: e.key }, e.key),
+        h('td', {}, h('span', { class: isAgreement(e.status) ? 'pill ok' : 'pill warn' }, statusLabel(e.status))),
+        h('td', { class: 'num' }, e.a.length), h('td', { class: 'num' }, e.b.length),
+        h('td', {}, e.notes.join('；'))))))),
     h('div', { class: 'row pager' },
       h('button', { type: 'button', disabled: offset === 0, onclick: () => loadList(Math.max(0, offset - PAGE)) }, '上一页'),
       h('button', { type: 'button', disabled: d.next_offset === null, onclick: () => loadList(d.next_offset) }, '下一页'),
@@ -101,7 +102,7 @@ async function compareSmali(entry) {
     h('p', { class: d.identical ? 'state-ok' : 'state-warn', id: 'smali-diff-state' },
       d.identical ? `两边的 smali 完全相同（${number(d.lines_a)} 行）` : `不同：+${d.added} 行，-${d.removed} 行（A ${number(d.lines_a)} 行，B ${number(d.lines_b)} 行）`),
     d.identical ? null : h('pre', { class: 'code' }, withContext(d.lines).map((line) => (line.op === 'gap'
-      ? h('div', { class: 'diff-line' }, `… ${line.skipped} 行相同 …`)
+      ? h('div', { class: 'diff-line gap' }, `… ${line.skipped} 行相同 …`)
       : h('div', { class: `diff-line ${line.op === '+' ? 'add' : line.op === '-' ? 'del' : ''}` }, `${line.op} ${line.text}`)))));
 }
 

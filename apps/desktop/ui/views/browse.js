@@ -202,10 +202,10 @@ export const view = {
     root.append(
       h('h2', {}, '类与 Smali'),
       h('div', { class: 'split' },
-        h('div', {},
+        h('div', { class: 'panel' },
           h('div', { class: 'row' }, searchBox, h('button', { type: 'button', id: 'search-classes', class: 'primary', onclick: () => searchClasses(0) }, '搜索')),
           classHolder),
-        h('div', {}, methodHolder)),
+        h('div', { class: 'panel' }, methodHolder)),
       h('div', { class: 'panel' },
         h('div', { class: 'row' }, h('strong', {}, 'Smali'), modeSelect),
         smaliHolder),

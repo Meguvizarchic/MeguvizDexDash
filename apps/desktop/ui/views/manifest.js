@@ -42,12 +42,13 @@ function inputIndex() {
 }
 
 function permissionsTable(data) {
-  return h('table', { class: 'grid' },
-    h('thead', {}, h('tr', {}, ['元素', '名称', '其它属性'].map((t) => h('th', {}, t)))),
-    h('tbody', {}, (data.permissions ?? []).map((p) => {
-      const { 'android:name': name, ...rest } = p.attributes ?? {};
-      return h('tr', {}, h('td', {}, p.kind), h('td', { class: 'text' }, name ?? ''), h('td', { class: 'text' }, JSON.stringify(rest) === '{}' ? '' : JSON.stringify(rest)));
-    })));
+  return h('div', { class: 'scroll' },
+    h('table', { class: 'grid' },
+      h('thead', {}, h('tr', {}, ['元素', '名称', '其它属性'].map((t) => h('th', {}, t)))),
+      h('tbody', {}, (data.permissions ?? []).map((p) => {
+        const { 'android:name': name, ...rest } = p.attributes ?? {};
+        return h('tr', {}, h('td', {}, p.kind), h('td', { class: 'text' }, name ?? ''), h('td', { class: 'text' }, JSON.stringify(rest) === '{}' ? '' : JSON.stringify(rest)));
+      }))));
 }
 
 function summarySection() {
@@ -79,12 +80,13 @@ function componentsSection() {
       return call('get_manifest_components', args, { label: '读取组件' });
     },
     show: (d) => ({
-      body: h('table', { class: 'grid' },
-        h('thead', {}, h('tr', {}, ['种类', '名称', 'exported', '原因', 'enabled', 'launcher', 'intent-filter'].map((t) => h('th', {}, t)))),
-        h('tbody', {}, (d.components ?? []).map((c) => h('tr', {},
-          h('td', {}, c.kind), h('td', { class: 'text', title: c.descriptor }, c.name),
-          h('td', {}, c.exported === null ? '未知' : String(c.exported)), h('td', {}, c.exported_reason ?? ''),
-          h('td', {}, String(c.enabled)), h('td', {}, c.launcher_intent ? '是' : ''), h('td', { class: 'num' }, (c.intent_filters ?? []).length))))),
+      body: h('div', { class: 'scroll' },
+        h('table', { class: 'grid' },
+          h('thead', {}, h('tr', {}, ['种类', '名称', 'exported', '原因', 'enabled', 'launcher', 'intent-filter'].map((t) => h('th', {}, t)))),
+          h('tbody', {}, (d.components ?? []).map((c) => h('tr', {},
+            h('td', {}, c.kind), h('td', { class: 'text', title: c.descriptor }, c.name),
+            h('td', {}, c.exported === null ? '未知' : String(c.exported)), h('td', {}, c.exported_reason ?? ''),
+            h('td', {}, String(c.enabled)), h('td', {}, c.launcher_intent ? '是' : ''), h('td', { class: 'num' }, (c.intent_filters ?? []).length)))))),
       next: d.next_offset,
       text: describePage({ offset: d.offset ?? 0, rows: (d.components ?? []).length, nextOffset: d.next_offset, truncated: d.truncated }).text,
       complete: true,
@@ -112,11 +114,12 @@ function membersSection() {
   const p = panel('archive-members', {
     fetch: (offset) => call('list_resource_files', { input_index: inputIndex(), prefix: prefix.value || undefined, limit: 100, offset }, { label: '列出归档成员' }),
     show: (d) => ({
-      body: h('table', { class: 'grid' },
-        h('thead', {}, h('tr', {}, ['名称', '字节', '压缩后', 'CRC-32', 'entry_index'].map((t) => h('th', {}, t)))),
-        h('tbody', {}, (d.files ?? []).map((f) => h('tr', { class: f.directory ? '' : 'pick', onclick: f.directory ? null : () => readMember(f.name) },
-          h('td', { class: 'text' }, f.name), h('td', { class: 'num' }, number(f.bytes)), h('td', { class: 'num' }, number(f.compressed_bytes)),
-          h('td', { class: 'num' }, f.crc32), h('td', { class: 'num' }, f.entry_index))))),
+      body: h('div', { class: 'scroll' },
+        h('table', { class: 'grid' },
+          h('thead', {}, h('tr', {}, ['名称', '字节', '压缩后', 'CRC-32', 'entry_index'].map((t) => h('th', {}, t)))),
+          h('tbody', {}, (d.files ?? []).map((f) => h('tr', { class: f.directory ? '' : 'pick', onclick: f.directory ? null : () => readMember(f.name) },
+            h('td', { class: 'text' }, f.name), h('td', { class: 'num' }, number(f.bytes)), h('td', { class: 'num' }, number(f.compressed_bytes)),
+            h('td', { class: 'num' }, f.crc32), h('td', { class: 'num' }, f.entry_index)))))),
       next: d.next_offset,
       text: `${describePage({ offset: d.offset ?? 0, rows: (d.files ?? []).length, nextOffset: d.next_offset, truncated: d.truncated }).text}；成员共 ${number(d.total_rows)} 个（同名成员都会列出）`,
       complete: true,
@@ -131,11 +134,12 @@ function resourcesSection() {
   const p = panel('resource-table', {
     fetch: (offset) => call('query_resources', { input_index: inputIndex(), contains: contains.value || undefined, limit: 100, offset }, { label: '查询资源' }),
     show: (d) => ({
-      body: h('table', { class: 'grid' },
-        h('thead', {}, h('tr', {}, ['名称', 'id', '配置', '类型', '值'].map((t) => h('th', {}, t)))),
-        h('tbody', {}, (d.values ?? []).map((v) => h('tr', {},
-          h('td', { class: 'text' }, v.name), h('td', { class: 'text' }, v.resource_id_hex), h('td', {}, v.configuration || '（默认）'),
-          h('td', {}, v.value_type), h('td', { class: 'text', title: String(v.value) }, v.value === null ? '∅' : String(v.value)))))),
+      body: h('div', { class: 'scroll' },
+        h('table', { class: 'grid' },
+          h('thead', {}, h('tr', {}, ['名称', 'id', '配置', '类型', '值'].map((t) => h('th', {}, t)))),
+          h('tbody', {}, (d.values ?? []).map((v) => h('tr', {},
+            h('td', { class: 'text' }, v.name), h('td', { class: 'text' }, v.resource_id_hex), h('td', {}, v.configuration || '（默认）'),
+            h('td', {}, v.value_type), h('td', { class: 'text', title: String(v.value) }, v.value === null ? '∅' : String(v.value))))))),
       next: d.next_offset,
       text: `${describePage({ offset: d.offset ?? 0, rows: (d.values ?? []).length, nextOffset: d.next_offset, truncated: d.truncated }).text}；共 ${number(d.total_rows)} 行（每个配置一行）`,
       complete: true,
