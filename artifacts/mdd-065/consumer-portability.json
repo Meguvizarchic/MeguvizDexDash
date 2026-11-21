@@ -1,0 +1,166 @@
+{
+  "schema": "mdd.consumer-portability.v1",
+  "task": "MDD-065",
+  "kind": "development evidence; generic consumer portability qualification (does not admit HostLab or performance replacement)",
+  "recorded_utc": "2026-11-21T09:10:57.656964+00:00",
+  "consumer": {
+    "path": "examples/generic-dex-audit/audit.py",
+    "package": "examples/generic-dex-audit/pyproject.toml",
+    "version": "0.1.0",
+    "transports": [
+      "in-process (C ABI 1.0)",
+      "worker (mdd.cli-stream.v1)",
+      "mcp (stdio JSON-RPC 2.0)"
+    ]
+  },
+  "commands_run": [
+    "python -I conformance/generic-consumer/make_public_sample.py --check",
+    "python -I conformance/generic-consumer/test_generic_consumer.py",
+    "examples/generic-dex-audit/audit.py --input conformance/generic-consumer/fixtures/public-app-audit.apk --transport in-process|worker|mcp",
+    "examples/generic-dex-audit/audit.py --input tests/fixtures/desktop/generated/ab1.dex --input tests/fixtures/desktop/generated/ab2.dex --transport in-process|worker|mcp",
+    "examples/generic-dex-audit/audit.py --input artifacts/local/inputs/NewPipe_v0.28.6.apk --entrypoint-prefix Lorg/schabi/newpipe/MainActivity; --max-hops 1 --transport worker|mcp"
+  ],
+  "boundary_and_ownership": {
+    "status": "passed",
+    "forbidden_tokens_checked": [
+      "integrations",
+      "hostlab",
+      "tv.danmaku",
+      "tv/danmaku",
+      "bilibili",
+      "feature_",
+      "dexmeguviz",
+      "dexkit"
+    ],
+    "violations": [],
+    "consumer_package_version": "0.1.0",
+    "abi_contract": "include/mdd.h (1.0)",
+    "reuses_shared_rust_core_without_fork": true
+  },
+  "samples": {
+    "public_app_audit_apk": {
+      "path": "conformance/generic-consumer/fixtures/public-app-audit.apk",
+      "sha256": "a7f3c7a0dabd5b742dcaa26f3b95309d355b96fa9fb4de155ffc3543621a674b",
+      "bytes": 4518,
+      "in_hostlab_corpus": false,
+      "snapshot_content_key": "sha256:b0b5a58494ca15f979dd5790b47928e3c0051f472f67fa0d586df7d30f7df7a6",
+      "occurrence_count": 5,
+      "distinct_content_count": 4,
+      "class_count": 5,
+      "defined_method_count": 6,
+      "reachable_method_count": 5,
+      "distinct_edge_count": 4,
+      "total_call_site_count": 5,
+      "cross_dex_edge_count": 4,
+      "transports_equal": [
+        "in-process",
+        "worker(native-v1)",
+        "worker(dexsql-0.1.1)",
+        "mcp(dexsql-0.1.1)"
+      ],
+      "oracle_verified": true
+    },
+    "desktop_cross_dex_pair": {
+      "paths": [
+        "tests/fixtures/desktop/generated/ab1.dex",
+        "tests/fixtures/desktop/generated/ab2.dex"
+      ],
+      "sha256": [
+        "09dc7bbc80353bc471986613e2337a0de2b32b3701ebd4c09f29b81217d18dd7",
+        "6b9980d8aa32e133a3507377c6c467b774ceb950af56053ceef9d41069c51cf7"
+      ],
+      "in_hostlab_corpus": false,
+      "snapshot_content_key": "sha256:55315b0197ecc2c21e127895561e94f841aebfa5a235a91cdd33689916807afc",
+      "occurrence_count": 2,
+      "distinct_content_count": 2,
+      "class_count": 2,
+      "defined_method_count": 2,
+      "reachable_method_count": 2,
+      "distinct_edge_count": 2,
+      "total_call_site_count": 2,
+      "cross_dex_edge_count": 2,
+      "transports_equal": [
+        "in-process",
+        "worker(native-v1)",
+        "worker(dexsql-0.1.1)",
+        "mcp(dexsql-0.1.1)"
+      ],
+      "oracle_verified": true
+    },
+    "real_public_newpipe": {
+      "status": "passed",
+      "apk_name": "NewPipe_v0.28.6.apk",
+      "apk_bytes": 10885562,
+      "apk_sha256": "e56ef6280b700696172797f94513ffd3f9aae9349945a2f06e235ec24446be58",
+      "in_hostlab_corpus": false,
+      "entrypoint_prefix": "Lorg/schabi/newpipe/MainActivity;",
+      "max_hops": 1,
+      "snapshot_content_key": "sha256:e404d3f52d4c89c07ed4c3130841a3efaa5137b52372633c4f634ab375fd0eee",
+      "dex_occurrences": 2,
+      "distinct_content_count": 2,
+      "main_activity_defined_methods": 22,
+      "reachable_methods_checked_against_oracle": 55,
+      "distinct_edges": 104,
+      "total_call_sites": 166,
+      "cross_dex_edges": 7,
+      "exported_components_via_mcp": 9,
+      "c_abi_boundary_note": "mdd-ffi 1.0 serves native-v1 with fixed SqlLimits::default() (5M steps); snapshot_content_key and filtered native_classes agree identically with MCP/Worker, while multi-table unfiltered native_method_definitions joins on large multi-DEX APKs require bounded queries or dexsql-0.1.1 indexed views."
+    }
+  },
+  "cancellation_and_completeness": {
+    "in_process": {
+      "status": "passed",
+      "batches_before_cancel": 1,
+      "error_code": "CANCELLED",
+      "partial_rows_returned_as_complete": false
+    },
+    "worker": {
+      "status": "passed",
+      "batches_before_cancel": 1,
+      "error_code": "CANCELLED",
+      "partial_rows_returned_as_complete": false
+    },
+    "non_hardcoded_dynamic_nonce_test": "passed (fresh uuid4 DEX literal + computed code_items digest)"
+  },
+  "acceptance": [
+    {
+      "clause": "\u7b2c\u4e8c\u6d88\u8d39\u8005\u4ec5\u4f9d\u8d56\u516c\u5f00 SDK/\u534f\u8bae\uff0c\u4e0d\u5bfc\u5165 HostLab\u3001BIL FEATURE\u3001\u4e1a\u52a1\u76ee\u5f55\u6216 DexMeguviz \u9879\u76ee",
+      "passed": true,
+      "evidence": "conformance/generic-consumer/test_generic_consumer.py::BoundaryAndOwnershipTests"
+    },
+    {
+      "clause": "\u80fd\u5bf9\u672a\u51fa\u73b0\u4e8e HostLab corpus \u7684\u516c\u5f00\u6837\u672c\u5b8c\u6210\u81f3\u5c11\u4e00\u79cd\u6709\u7528\u5173\u7cfb/\u5f15\u7528\u5206\u6790\u5e76\u6838\u9a8c\u5b8c\u6574\u7ed3\u679c",
+      "passed": true,
+      "evidence": "public-app-audit.apk (5 DEX, cross-DEX reachability + multiplicity 2 vs 1 + MUTF-8 NUL) & NewPipe_v0.28.6.apk (local real APK, 55 reachable methods oracle-verified)"
+    },
+    {
+      "clause": "\u76f8\u540c snapshot \u4e0e schema \u89c4\u5219\u8de8\u6d88\u8d39\u8005\u4e00\u81f4\uff0c\u4e0d\u80fd\u4e3a\u901a\u7528\u793a\u4f8b\u53e6\u5199\u89e3\u6790\u6838\u5fc3",
+      "passed": true,
+      "evidence": "in-process C ABI, worker native-v1/dexsql-0.1.1, and MCP produce identical snapshot_content_key and structure_audit; worker and MCP produce identical reachability_audit"
+    },
+    {
+      "clause": "\u4ec5\u53ef\u590d\u7528\u5b9e\u73b0\u6709\u72ec\u7acb\u7248\u672c\u4e0e\u6240\u6709\u6743\u8fb9\u754c\uff1b\u65e0\u53ef\u7528\u5171\u4eab\u4ee3\u7801\u65f6\u4e0d\u963b\u585e\u81ea\u8eab\u5b9e\u73b0",
+      "passed": true,
+      "evidence": "examples/generic-dex-audit/pyproject.toml (0.1.0, dependencies=[], ABI 1.0 contract)"
+    },
+    {
+      "clause": "\u8bb0\u5f55\u5b9e\u9645\u6784\u5efa/\u8fd0\u884c\u547d\u4ee4\u4e0e\u8f93\u5165\u6458\u8981\uff0c\u793a\u4f8b\u8f93\u51fa\u4e0d\u662f\u624b\u5de5\u786c\u7f16\u7801",
+      "passed": true,
+      "evidence": "commands_run, SHA-256 digests, and dynamic per-run nonce DEX test in test_generic_consumer.py"
+    }
+  ],
+  "overall_passed": true,
+  "inputs_sha256": {
+    "examples/generic-dex-audit/pyproject.toml": "733d38e88db551a278d19a23a49d459b9a1b2d426a1ef072a1fe601661e80f04",
+    "examples/generic-dex-audit/README.md": "a4ce0caafcbe833f4cde8b40e31aa60fa7d786121f31f05b4a25421a4ecb238b",
+    "examples/generic-dex-audit/audit.py": "2e13abe374a81363db338bee11b9d8ab45145f7326fd519be22d2f485ecea493",
+    "conformance/generic-consumer/make_public_sample.py": "078e6e944207db28007b0b02d0deda04786eb978abd0e6888ca0e452db14307c",
+    "conformance/generic-consumer/fixtures/public-app-audit.apk": "a7f3c7a0dabd5b742dcaa26f3b95309d355b96fa9fb4de155ffc3543621a674b",
+    "conformance/generic-consumer/fixtures/manifest.json": "a01bb31bc5db742b5f86433d9bb21053433bef09c41f921389ef23b8a718f450",
+    "conformance/generic-consumer/oracle.py": "e3555176281fb9823099becabdbdbe2cce604f5eac48a0308957d32c908ab96b",
+    "conformance/generic-consumer/test_generic_consumer.py": "42480d31c8dfacf6281b8229577a27a7df4f06e74db356be76e83cf720405e9c",
+    "conformance/generic-consumer/run_generic_consumer_conformance.py": "599abb2f671e9dcd3ae1cfaf3ab34dfb0453d4b29e8f3d56947b128351d2a290",
+    "include/mdd.h": "2ea595cfa6d04c426f4ad52260b144bf4284c286e0e5778efda0bf95d28e2d6a",
+    "python/mdd/__init__.py": "52b55ebc752909540eb13b4886a2923162e86bf694fbc40bd1511dcba619db45"
+  }
+}

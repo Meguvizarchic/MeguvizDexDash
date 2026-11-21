@@ -1,0 +1,34 @@
+{
+  "schema": "mdd.generic-consumer-fixture-manifest.v1",
+  "apk": "public-app-audit.apk",
+  "apk_bytes": 4518,
+  "apk_sha256": "a7f3c7a0dabd5b742dcaa26f3b95309d355b96fa9fb4de155ffc3543621a674b",
+  "dex_members": [
+    {
+      "entry_name": "classes.dex",
+      "bytes": 596,
+      "sha256": "496d5fbcbba3c958ca9a1db21eaa9cda41306638df6fc18911d8b91f2b2e2927"
+    },
+    {
+      "entry_name": "classes2.dex",
+      "bytes": 500,
+      "sha256": "9db77227e2e5b4dc272d32fe89c7c97cbc7088011f16d731b2d24bb8962f651d"
+    },
+    {
+      "entry_name": "classes3.dex",
+      "bytes": 492,
+      "sha256": "1b2a4aa8d930dcb19377f7657960d2f089badfd813f2dfe278d12af1745f1298"
+    },
+    {
+      "entry_name": "classes4.dex",
+      "bytes": 492,
+      "sha256": "1b2a4aa8d930dcb19377f7657960d2f089badfd813f2dfe278d12af1745f1298"
+    },
+    {
+      "entry_name": "classes5.dex",
+      "bytes": 424,
+      "sha256": "4d320ef49dfa0476677e9509e8c1cc0be7136eac663c35ac84456a89935f9b8f"
+    }
+  ],
+  "unique_dex_digests": 4
+}

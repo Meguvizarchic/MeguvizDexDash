@@ -1,0 +1,136 @@
+{
+  "schema": "mdd.platform-matrix.v1",
+  "task": "MDD-080",
+  "kind": "development platform qualification matrix; does not admit performance replacement",
+  "performance_replacement_qualified": false,
+  "qualification_blocker_for_performance": "MDD-082",
+  "depends_on_mdd_074": false,
+  "tier1_platforms": {
+    "linux-x86_64": {
+      "os": "linux",
+      "arch": "x86_64",
+      "status": "runtime_verified_after_ci_evidence",
+      "advertised_functional_preview": true,
+      "performance_replacement_qualified": false,
+      "cross_compile_substitutes_runtime": false,
+      "surfaces": {
+        "cli": "meguvizdexdash",
+        "c_abi": "libmdd_ffi.so (ABI 1.0)",
+        "python_sdk": ["in-process (ctypes)", "Worker (mdd.cli-stream.v1)"],
+        "mcp_tools": 12,
+        "desktop_preview": {
+          "package": "meguvizdexdash-desktop-preview-0.1.0-dev-linux-x86_64.tar.gz",
+          "webview": "WebKitGTK (Xvfb webdriver)",
+          "evidence": "artifacts/mdd-073/package-check-linux.json"
+        }
+      },
+      "evidence": "artifacts/mdd-080/linux-x86_64-results.json"
+    },
+    "windows-x86_64": {
+      "os": "windows",
+      "arch": "x86_64",
+      "status": "runtime_verified",
+      "advertised_functional_preview": true,
+      "performance_replacement_qualified": false,
+      "cross_compile_substitutes_runtime": false,
+      "surfaces": {
+        "cli": "meguvizdexdash.exe",
+        "c_abi": "mdd_ffi.dll (ABI 1.0)",
+        "python_sdk": ["in-process (ctypes)", "Worker (mdd.cli-stream.v1)"],
+        "mcp_tools": 12,
+        "desktop_preview": {
+          "package": "meguvizdexdash-desktop-preview-0.1.0-dev-windows-x86_64.zip",
+          "webview": "WebView2 (CDP)",
+          "evidence": [
+            "artifacts/mdd-073/package-check-windows.json",
+            "artifacts/mdd-073/package-check-windows-ci.json"
+          ]
+        }
+      },
+      "evidence": "artifacts/mdd-080/windows-x86_64-results.json"
+    }
+  },
+  "unadmitted_platforms": [
+    {
+      "id": "macos-arm64",
+      "target": "aarch64-apple-darwin",
+      "status": "not_admitted",
+      "advertised": false,
+      "runtime_verified": false,
+      "cross_compile_substitutes_runtime": false,
+      "reason": "no native runtime qualification run executed"
+    },
+    {
+      "id": "macos-x86_64",
+      "target": "x86_64-apple-darwin",
+      "status": "not_admitted",
+      "advertised": false,
+      "runtime_verified": false,
+      "cross_compile_substitutes_runtime": false,
+      "reason": "no native runtime qualification run executed"
+    },
+    {
+      "id": "linux-aarch64",
+      "target": "aarch64-unknown-linux-gnu",
+      "status": "not_admitted",
+      "advertised": false,
+      "runtime_verified": false,
+      "cross_compile_substitutes_runtime": false,
+      "reason": "no native runtime qualification run executed"
+    },
+    {
+      "id": "windows-aarch64",
+      "target": "aarch64-pc-windows-msvc",
+      "status": "not_admitted",
+      "advertised": false,
+      "runtime_verified": false,
+      "cross_compile_substitutes_runtime": false,
+      "reason": "no native runtime qualification run executed"
+    }
+  ],
+  "format_scope_boundary": {
+    "standard_formats_qualified_here": [
+      "dex-035",
+      "dex-037",
+      "dex-038",
+      "dex-039",
+      "dex-040",
+      "apk-zip",
+      "apk-zip64",
+      "axml",
+      "resources-arsc"
+    ],
+    "optional_formats_separate_qualification": [
+      {"id": "dex-041", "status": "separate_qualification_mdd_074", "advertised": false},
+      {"id": "cdex", "status": "separate_qualification_mdd_074", "advertised": false},
+      {"id": "vdex", "status": "separate_qualification_mdd_074", "advertised": false},
+      {"id": "oat", "status": "separate_qualification_mdd_074", "advertised": false},
+      {"id": "jadx-provider", "status": "separate_qualification_mdd_074", "advertised": false}
+    ]
+  },
+  "allowed_platform_differences": [
+    {
+      "id": "EXECUTABLE_AND_SHARED_LIB_NAMES",
+      "description": "Windows uses .exe and mdd_ffi.dll; Linux uses bare executable name and libmdd_ffi.so."
+    },
+    {
+      "id": "HOST_SOURCE_PATH_SYNTAX",
+      "description": "Raw OS file paths echoed in dex_files.source_path and snapshot origin_display differ by filesystem separator and host directory root; canonical_workloads normalize paths to POSIX repo-relative strings while keeping archive entry_name exact."
+    },
+    {
+      "id": "FORCED_WORKER_KILL_EXIT_CODE",
+      "description": "Killing a hung or mid-stream worker yields SIGKILL signal status (-9/137) on Linux and a non-zero Win32 termination code on Windows; Python SDK maps both to WORKER_LOST."
+    },
+    {
+      "id": "DESKTOP_WEBVIEW_RUNTIME",
+      "description": "Desktop shell uses WebKitGTK (+ Xvfb in CI) on Linux and WebView2 CDP on Windows; both drive the exact same 12-tool MCP stdio subprocess protocol."
+    }
+  ],
+  "canonical_workload_ids": [
+    "public_apk_facts_digest",
+    "decode_smali_and_context_digest",
+    "resources_and_manifest_digest",
+    "mutf8_and_scalar_cells_digest",
+    "c_abi_batch_codec_digest"
+  ]
+}

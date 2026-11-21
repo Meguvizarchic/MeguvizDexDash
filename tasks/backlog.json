@@ -1908,7 +1908,7 @@
       "id": "MDD-065",
       "phase": "M6",
       "title": "交付第二个通用消费者并核验核心可复用性",
-      "status": "todo",
+      "status": "done",
       "depends_on": [
         "MDD-035",
         "MDD-043",
@@ -1938,7 +1938,21 @@
         "docs/01_DECISIONS_AND_DEPENDENCIES.md",
         "docs/02_ARCHITECTURE_AND_CONTRACTS.md",
         "docs/04_VALIDATION_AND_PERFORMANCE.md"
-      ]
+      ],
+      "implementation_notes": "2026-11-21, DONE (development evidence; admits no HostLab or performance profile). Delivered the second generic DEX/APK audit consumer package `examples/generic-dex-audit/` (`pyproject.toml` v0.1.0, `dependencies = []`, `audit.py`, `README.md`), depending exclusively on public C ABI 1.0 (`mdd.open_snapshot`), Worker (`mdd.Worker` over `mdd.cli-stream.v1`), and MCP stdio (`meguvizdexdash mcp`, 12 tools), with zero imports or strings referencing BIL, HostLab, FEATUREs, or external engines (`conformance/generic-consumer/test_generic_consumer.py::BoundaryAndOwnershipTests`, plus negative controls catching coupled snippets). Performs structural inventory preserving duplicate physical occurrences, bounded multi-hop cross-DEX call-graph reachability distinguishing total call sites from distinct edges, MUTF-8/NUL string literal inspection, raw `code_items` / `opcode_hex` SHA-256 verification, optional display-only MCP Smali preview, and streaming cancellation/completeness refusal (`--cancel-probe` -> `CANCELLED`, rejecting partial/truncated terminals). Verified across `public-app-audit.apk` (5 DEX, 4 distinct digests; `in-process`, `worker native-v1`, `worker dexsql-0.1.1`, `mcp dexsql-0.1.1` match on `snapshot_content_key`, `structure_audit`, and `reachability_audit`), `tests/fixtures/desktop/generated/{ab1,ab2}.dex`, fresh random `uuid4` dynamic DEX anti-hardcoding test, and real public `NewPipe_v0.28.6.apk` (`sha256: e56ef628...be58`, local non-HostLab sample: 55 reachable methods from `MainActivity;`, 104 distinct edges / 166 call sites / 7 cross-DEX edges verified cell-for-cell including bytecode SHA-256 against independent Python DEX reader `conformance/generic-consumer/oracle.py`, plus C ABI `1.0` `snapshot_content_key` and `native_classes` agreement; honest C ABI 1.0 boundary recorded for unfiltered multi-table `native-v1` joins under fixed default 5M step limit).",
+      "implementation_evidence": [
+        "examples/generic-dex-audit/pyproject.toml",
+        "examples/generic-dex-audit/README.md",
+        "examples/generic-dex-audit/audit.py",
+        "conformance/generic-consumer/make_public_sample.py",
+        "conformance/generic-consumer/fixtures/public-app-audit.apk",
+        "conformance/generic-consumer/fixtures/manifest.json",
+        "conformance/generic-consumer/oracle.py",
+        "conformance/generic-consumer/test_generic_consumer.py",
+        "conformance/generic-consumer/run_generic_consumer_conformance.py",
+        "artifacts/mdd-065/consumer-portability.json"
+      ],
+      "blocking_reasons": []
     },
     {
       "id": "MDD-070",
@@ -2368,7 +2382,7 @@
       "id": "MDD-080",
       "phase": "M8",
       "title": "完成 Linux/Windows 运行、ABI 与桌面平台资格",
-      "status": "todo",
+      "status": "in_progress",
       "depends_on": [
         "MDD-044",
         "MDD-055",

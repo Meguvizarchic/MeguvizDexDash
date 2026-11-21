@@ -1,6 +1,16 @@
 # MeguvizDexDash 当前状态
 
-更新：2026-11-21（Asia/Shanghai）。唯一任务图：tasks/backlog.json（52 项：done 41、in_progress 0、todo 11；剩余待办 `MDD-060..065`、`074`、`080..083`）；M5 可切换 HostLab-MVP 功能预览已收口（`preview=true`、`performance_replacement_qualified=false`、`default_production_cutover=false`），所有产品 profile `admitted=false`。
+更新：2026-11-21（Asia/Shanghai）。唯一任务图：tasks/backlog.json（52 项：done 42、in_progress 1 [`MDD-080`]、todo 9；待办含 `MDD-060..064`、`074`、`081..083`）；M5 可切换 HostLab-MVP 功能预览已收口（`preview=true`、`performance_replacement_qualified=false`、`default_production_cutover=false`），所有产品 profile `admitted=false`。
+
+## 2026-11-21 MDD-065 通用消费者可移植性与 MDD-080 Windows 平台实测（Wave C1 阶段 1）
+
+- **`MDD-065` 完成交付与可复用性核验（-> `done`）**：
+  - 新增完全独立于 HostLab / BIL / DexMeguviz / DexKit 的第二个通用消费者包 `examples/generic-dex-audit/`（`pyproject.toml` `0.1.0`，`dependencies = []`，`README.md`，`audit.py`），仅消费公开 `python/mdd`（C ABI `1.0`）、`mdd.Worker`（`mdd.cli-stream.v1`）与 `meguvizdexdash mcp`（12 工具 / `dexsql-0.1.1`），采用分段单表索引下推查询避免大表无索引全表扫描。
+  - 新增公开多 DEX 样本生成器 `conformance/generic-consumer/make_public_sample.py`（产出含重复物理 DEX 成员 `classes3.dex`/`classes4.dex`、跨 DEX 调用链与含 NUL 的 MUTF-8 文本的 `public-app-audit.apk`）、独立纯 Python 读者 `oracle.py`（核对 256 指令宽度矩阵）、正负边界与随机 `uuid4` 防硬编码测试 `test_generic_consumer.py`、以及支持 `--write-committed` / `--check` 的一致性检验器 `run_generic_consumer_conformance.py`。
+  - 在 `public-app-audit.apk`（5 DEX / 4 去重内容摘要，调用点数 5 vs 去重边数 4）、`ab1.dex` + `ab2.dex` 以及本地非 HostLab 公开应用 `NewPipe_v0.28.6.apk`（55 个可达方法、104 条边 / 166 调用点 / 7 条跨 DEX 边、`opcode_sha256` 全量核对与 9 个导出组件）上完成跨传输与独立 oracle 核验；记录 [artifacts/mdd-065/consumer-portability.json](artifacts/mdd-065/consumer-portability.json)。
+- **`MDD-080` 平台/ABI 套件上线与 Windows 原生实测（-> `in_progress`）**：
+  - 新增 `conformance/platform/platform-matrix.json`、`run_platform_qualification.py`、`verify_cross_platform.py` 与 `test_platform_qualification.py`，并接入 `tools/run_ci_conformance.py`；明确 `macos-arm64` 等未实测架构保持 `not_admitted`、`041/CDex/VDEX/OAT/JADX` 归 `MDD-074` 独立资格、且不取代 `MDD-082` 性能资格。
+  - 在 Windows x86_64 原生实测全部 CLI、MCP 12 工具、Python SDK、MDD-073 桌面 preview 证据与 6 项生命周期边界探针（Unicode 路径、捕获后源替换与删除、强杀 worker `WORKER_LOST` 与线程清零、关闭 stdin/stdout 管道退出码 0/4 与零 panic、C ABI 29 符号 / `OUTSTANDING_BATCH` / retained batch 跨越父句柄释放 / double-release 与 stale handle、以及多线程并发会话隔离），生成 [artifacts/mdd-080/windows-x86_64-results.json](artifacts/mdd-080/windows-x86_64-results.json)（`overall_canonical_sha256 = eb1deaaa26fc0836a1ba064c362cb224a350e5caf5439ae3b775a9c4af05838e`）；下一步由 GitHub Actions `ubuntu-24.04` 实跑取回 Linux 结果完成双平台闭环。
 
 ## 2026-11-21 MDD-054 完整 Shadow 等价与 MDD-055 可切换后端预览收口（Wave B）
 

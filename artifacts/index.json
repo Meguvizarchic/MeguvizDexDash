@@ -54623,6 +54623,11 @@
       "sha256": "7931eae77798bbfad1c725edac06b7792b3ebecb74bba0fbb6b62775f42abc39"
     },
     {
+      "path": "artifacts/mdd-065/consumer-portability.json",
+      "bytes": 8143,
+      "sha256": "95cee6d769a1898847799ce78ba2cbe46e16f0856e6ad85fac0ac40a07523c72"
+    },
+    {
       "path": "artifacts/mdd-070/a0-probe/all-debug-opcodes.json",
       "bytes": 56931,
       "sha256": "bfda97e7b47a14312f7dbfb7f758f1e55518fa28906399e7afaec865a279e65d"
@@ -55311,6 +55316,11 @@
       "path": "artifacts/mdd-075/mutation/results.txt",
       "bytes": 964,
       "sha256": "be8f44ceab3b49e22aaa9fa9eefd28da67559b579c3176d4f03c92898d1a8cc3"
+    },
+    {
+      "path": "artifacts/mdd-080/windows-x86_64-results.json",
+      "bytes": 3028,
+      "sha256": "bdc7b77bab20e1c694b1333e1ec44523acc16e1bc64c0f0005064535dd15000e"
     },
     {
       "path": "artifacts/mdd-084/build_record.py",

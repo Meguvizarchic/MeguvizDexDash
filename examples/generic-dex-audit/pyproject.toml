@@ -1,0 +1,12 @@
+[project]
+name = "mdd-generic-dex-audit"
+version = "0.1.0"
+description = "Independent generic DEX/APK structural and cross-DEX reachability auditor built solely on MeguvizDexDash public SDK, worker, and MCP contracts."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.mdd_consumer_boundary]
+core_contract = "include/mdd.h (ABI 1.0) & python/mdd & meguvizdexdash serve/mcp"
+forbidden_couplings = ["integrations.hostlab", "bil", "FEATURE_*", "dexmeguviz", "dexkit"]
+ownership = "examples/generic-dex-audit (independent consumer package; separate from engine core)"

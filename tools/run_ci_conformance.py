@@ -69,6 +69,17 @@ def build_groups(binary: str, out_dir: Path) -> dict[str, list[tuple[str, list[s
             ("mdd-070-record-and-anchors", [*py, "artifacts/mdd-070/build_record.py", "--check"]),
             ("producer-consumer-pipeline-tests", [*py, "benchmarks/test_producer_consumer_pipeline.py"]),
         ],
+        "generic-consumer": [
+            ("generic-sample-fixture", [*py, "conformance/generic-consumer/make_public_sample.py", "--check"]),
+            ("generic-consumer-controls", [*py, "conformance/generic-consumer/test_generic_consumer.py"]),
+            ("generic-consumer-conformance", [*py, "conformance/generic-consumer/run_generic_consumer_conformance.py", "--binary", binary, "--out", str(out_dir / "consumer-portability.json")]),
+            ("mdd-065-record", [*py, "conformance/generic-consumer/run_generic_consumer_conformance.py", "--check"]),
+        ],
+        "platform": [
+            ("platform-controls", [*py, "conformance/platform/test_platform_qualification.py"]),
+            ("platform-native-qualification", [*py, "conformance/platform/run_platform_qualification.py", "--binary", binary, "--out", str(out_dir / "platform-results.json")]),
+            ("platform-matrix-check", [*py, "conformance/platform/verify_cross_platform.py", "--check"]),
+        ],
     }
 
 
@@ -76,7 +87,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=Path, default=DEFAULT_BINARY)
     parser.add_argument("--out-dir", type=Path, default=ROOT / "artifacts/local/ci")
-    parser.add_argument("--group", default="all", help="all, or comma-separated group names: cli,mcp-decode,resources,hostlab,relations")
+    parser.add_argument("--group", default="all", help="all, or comma-separated group names: cli,mcp-decode,resources,hostlab,relations,generic-consumer,platform")
     args = parser.parse_args(argv)
 
     binary = args.binary.resolve()
