@@ -1,33 +1,20 @@
 #!/usr/bin/env python3
-"""Mutation check for MDD-070: the 39 public relations beyond the seventeen contract names must stay what the recorded
-answers of the reference engine say, and a layer that is not built must still refuse.
+"""Mutation check for MDD-070: the 39 public relations beyond the seventeen contract names and their layer gate.
 
-It uses the machinery of artifacts/mdd-042/mutation/mutate_mcp.py (one source file edited in place per mutant, the
-suites run, the original bytes written back in a finally block, commands with time limits, parts, assembly) with this
-task's mutants and suites. A mutant is killed when the unit tests of mdd-facts and mdd-sql, the MCP process tests or a
-replay fails; the replays include the comparison with the recorded reference answers
-(conformance/relations/public_relations_diff.py) against the mutated build.
-
-Usage: the same as mutate_mcp.py
-  mutate_public_relations.py                     every mutant, then the clean-tree check
-  mutate_public_relations.py --part K/N          the mutants whose position is K-1 modulo N
-  mutate_public_relations.py --clean-only        only the clean-tree check and the hash
-  mutate_public_relations.py --assemble FILE...  merge the parts and the clean-tree output
-  mutate_public_relations.py --anchors           only say which mutants' anchors are not unique in their file
-  mutate_public_relations.py NAME...             only the mutants whose name contains one of the words
+Uses tools/mutation_harness.py with only the public relations sources, fixtures and suites.
 """
 from __future__ import annotations
 
-import importlib.util
+import json
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
-_spec = importlib.util.spec_from_file_location("mutate_mcp", ROOT / "artifacts/mdd-042/mutation/mutate_mcp.py")
-base = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(base)
+sys.path.insert(0, str(ROOT / "tools"))
 
-PY = base.PY
+import mutation_harness as H  # noqa: E402
+
+PY = H.PY
 FACTS = "crates/mdd-facts/src/public_relations/"
 TABLES, CODE, VALUES, DEBUG, ANNOTATIONS = (FACTS + n for n in ("tables.rs", "code.rs", "values.rs", "debug.rs", "annotations.rs"))
 PUBLIC = "crates/mdd-sql/src/provider/hostlab/public.rs"
@@ -35,24 +22,22 @@ REGISTRY = "crates/mdd-sql/src/provider/hostlab.rs"
 PROFILES = "crates/mdd-sql/src/profiles/compatibility/mod.rs"
 BRIDGE = "crates/mdd-sql/src/bridge.rs"
 
-# the suites of this task: the crates that hold the projections and the registry, the process tests, the replays
-base.UNIT_MCP = [*base.CARGO, "-p", "mdd-facts", "-p", "mdd-sql", "--lib", *base.TAIL]
-base.UNIT_SMALI = [*base.CARGO, "-p", "mdd-service", "--lib", *base.TAIL]
-BINARY = "target/debug/meguvizdexdash" + (".exe" if sys.platform == "win32" else "")
-base.REPLAYS = [
-    *base.REPLAYS,
-    ("public relations", [PY, "-I", "conformance/relations/public_relations_diff.py", "--binary", BINARY,
-                          "--out", "artifacts/local/mdd-070-mutation-diff.json", "--quiet"]),
-]
-base.CONTROLS = [*base.CONTROLS, [PY, "-I", "conformance/relations/test_public_relations_diff.py"]]
-base.SOURCES = [
-    *base.SOURCES, TABLES, CODE, VALUES, DEBUG, ANNOTATIONS, FACTS + "mod.rs", FACTS + "tests.rs", PUBLIC, REGISTRY,
-    "crates/mdd-sql/src/provider/hostlab/public_tests.rs", "crates/mdd-facts/src/annotations.rs", PROFILES,
+SOURCES = [
+    TABLES, CODE, VALUES, DEBUG, ANNOTATIONS, FACTS + "mod.rs", FACTS + "tests.rs", PUBLIC, REGISTRY,
+    "crates/mdd-sql/src/provider/hostlab/schemas.rs",
+    "crates/mdd-sql/src/provider/hostlab/public_tests.rs", "crates/mdd-facts/src/annotations.rs",
+    "crates/mdd-facts/src/annotations/views.rs", "crates/mdd-facts/src/annotations/parameters.rs",
+    "crates/mdd-facts/src/annotations/rows.rs", PROFILES,
     "crates/mdd-sql/src/profiles/mod.rs", BRIDGE, "crates/mdd-service/src/dataset.rs",
+    "crates/mdd-mcp/src/tools.rs", "crates/mdd-mcp/src/tools/decode.rs",
+    "crates/mdd-mcp/src/tools/manifest.rs", "crates/mdd-mcp/src/tools/sql.rs", "crates/mdd-cli/tests/mcp.rs",
     "conformance/relations/public_relations_diff.py", "conformance/relations/test_public_relations_diff.py",
     "conformance/manifests/relations.json", "tests/fixtures/public_relations/generate.py",
     "tests/fixtures/public_relations/manifest.json",
 ]
+
+_PR_MANIFEST = json.loads((ROOT / "tests/fixtures/public_relations/manifest.json").read_text(encoding="utf-8"))
+FIXTURES = sorted("tests/fixtures/public_relations/generated/" + item["path"] for item in _PR_MANIFEST.get("files", []))
 
 MUTANTS = [
     # ---- header and index tables
@@ -160,24 +145,27 @@ MUTANTS = [
      [(".filter_map(|name| Self::parse(name))", ".filter_map(|name| HostLabRelation::parse(name).map(Self::Required))")]),
 ]
 
-base.MUTANTS = MUTANTS
+SUITE = H.MutationSuite(
+    name="MDD-070",
+    sources=SOURCES,
+    fixtures=FIXTURES,
+    unit_suites=[
+        ("unit", [*H.CARGO, "-p", "mdd-facts", "-p", "mdd-sql", "-p", "mdd-service", "--lib", *H.TAIL]),
+        ("process", [*H.CARGO, "-p", "mdd-cli", "--test", "mcp", *H.TAIL]),
+    ],
+    replays=[
+        ("public relations", [PY, "-I", "conformance/relations/public_relations_diff.py", "--binary", H.BINARY,
+                              "--out", "artifacts/local/mdd-070-mutation-diff.json", "--quiet"]),
+    ],
+    controls=[[PY, "-I", "conformance/relations/test_public_relations_diff.py"]],
+    mutants=MUTANTS,
+)
+base = SUITE
 
 
-def anchors() -> int:
-    """Which anchors are not unique in their file (no build, no run)."""
-    bad = 0
-    for name, relative, edits in MUTANTS:
-        text = (ROOT / relative).read_text(encoding="utf-8")
-        for old, _new in edits:
-            count = text.count(old)
-            if count != 1:
-                bad += 1
-                print(f"ANCHOR {count}x  {name}  [{relative}]")
-    print(f"{len(MUTANTS)} mutants, {bad} anchors that are not unique")
-    return 1 if bad else 0
+def sources_sha256() -> str:
+    return SUITE.sources_sha256()
 
 
 if __name__ == "__main__":
-    if sys.argv[1:] == ["--anchors"]:
-        sys.exit(anchors())
-    sys.exit(base.main())
+    sys.exit(SUITE.main())

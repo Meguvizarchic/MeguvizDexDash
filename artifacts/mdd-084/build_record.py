@@ -21,6 +21,9 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "tools"))
+import mutation_harness as H  # noqa: E402
+
 RECORD = "artifacts/mdd-084/or-chain-overflow.json"
 MUTATION = "artifacts/mdd-084/mutation/results.txt"
 BINARY = "target/debug/meguvizdexdash" + (".exe" if sys.platform == "win32" else "")
@@ -28,6 +31,11 @@ SOURCES = [
     "crates/mdd-query/src/operators/mod.rs",
     "crates/mdd-query/src/executor/tests.rs",
     "crates/mdd-sql/src/dialects/ast.rs",
+    "crates/mdd-sql/src/dialects/ast/binding.rs",
+    "crates/mdd-sql/src/dialects/ast/affinity.rs",
+    "crates/mdd-sql/src/dialects/ast/compound.rs",
+    "crates/mdd-sql/src/dialects/ast/rewrite.rs",
+    "crates/mdd-sql/src/dialects/ast/validate.rs",
     "artifacts/mdd-084/repro_or_chain_overflow.py",
     "artifacts/mdd-084/repro-pre.json",
     "artifacts/mdd-084/mutation/mutate_or_chain.py",
@@ -64,24 +72,30 @@ def mutation_summary() -> dict:
             "restored_tree_passes": any("passes the unit and process tests, the replays and their controls: True" in line for line in lines)}
 
 
-def check() -> int:
+def check(strict_provenance: bool = False) -> int:
+    spec = importlib.util.spec_from_file_location("mutate_or_chain", ROOT / "artifacts/mdd-084/mutation/mutate_or_chain.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    issues = H.check_evidence(RECORD, module.SUITE, MUTATION, "artifacts/mdd-084/mutation/mutate_or_chain.py", strict_provenance=strict_provenance)
     record = json.loads((ROOT / RECORD).read_text(encoding="utf-8"))
-    stale = [path for path, digest in record["inputs_sha256"].items() if sha256(path) != digest]
-    mutation = mutation_summary()
-    if mutation["present"] and not mutation["current"]:
-        stale.append(MUTATION)
-    for path in stale:
-        print("STALE:", path)
-    print("committed record current:", not stale)
-    return 1 if stale else 0
+    if any(t.get("failed", 1) != 0 for t in record.get("tests", {}).values()):
+        issues.append("RECORD_TESTS_FAILED")
+    after_cases = record.get("reproduction", {}).get("after", {}).get("cases", {})
+    if not after_cases or any(c.get("stack_overflow") for c in after_cases.values()):
+        issues.append("REPRO_AFTER_STACK_OVERFLOW")
+    for path in issues:
+        print("CHECK_FAIL:", path)
+    print("committed record current:", not issues)
+    return 1 if issues else 0
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--check", action="store_true")
+    parser.add_argument("--strict-provenance", action="store_true")
     args = parser.parse_args()
     if args.check:
-        return check()
+        return check(strict_provenance=args.strict_provenance)
 
     post_path = "artifacts/mdd-084/repro-post.json"
     code, text = run([sys.executable, "-I", "artifacts/mdd-084/repro_or_chain_overflow.py", "--binary", BINARY, "--phase", "post", "--out", post_path])

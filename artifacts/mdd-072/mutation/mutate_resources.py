@@ -1,57 +1,43 @@
 #!/usr/bin/env python3
-"""Mutation check for MDD-072: the resource tools must stay what the recorded answers of the reference engine say, and
-what the contract says where the two differ on purpose.
+"""Mutation check for MDD-072: the resource tools, binary XML, resources.arsc and manifest components.
 
-It uses the machinery of artifacts/mdd-042/mutation/mutate_mcp.py (one source file edited in place per mutant, the
-suites run, the original bytes written back in a finally block, commands with time limits, parts, assembly) with this
-task's mutants and suites. A mutant is killed when the unit tests of mdd-input, mdd-service and mdd-mcp, the MCP
-process tests or a replay fails; the replays include the comparison with the recorded reference answers
-(conformance/mcp/resources_replay.py) against the mutated build and the controls that show that comparison can fail.
-
-Usage: the same as mutate_mcp.py
-  mutate_resources.py                     every mutant, then the clean-tree check
-  mutate_resources.py --part K/N          the mutants whose position is K-1 modulo N
-  mutate_resources.py --clean-only        only the clean-tree check and the hash
-  mutate_resources.py --assemble FILE...  merge the parts and the clean-tree output
-  mutate_resources.py --anchors           only say which mutants' anchors are not unique in their file
-  mutate_resources.py NAME...             only the mutants whose name contains one of the words
+Uses tools/mutation_harness.py with only the resource/manifest sources, fixtures and suites.
 """
 from __future__ import annotations
 
-import importlib.util
+import json
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
-_spec = importlib.util.spec_from_file_location("mutate_mcp", ROOT / "artifacts/mdd-042/mutation/mutate_mcp.py")
-base = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(base)
+sys.path.insert(0, str(ROOT / "tools"))
 
-PY = base.PY
+import mutation_harness as H  # noqa: E402
+
+PY = H.PY
 INPUT = "crates/mdd-input/src/resources/"
 VALUE, FRAMEWORK, XML, CONFIG, ARSC, QUERY = (INPUT + n for n in ("value.rs", "framework.rs", "xml.rs", "config.rs", "arsc.rs", "query.rs"))
 SERVICE = "crates/mdd-service/src/resources.rs"
 MANIFEST = "crates/mdd-service/src/manifest.rs"
 TOOLS = "crates/mdd-mcp/src/resource_tools/"
 COMMON, FILES, COMPONENTS, READ, QUERY_TOOL = (TOOLS + n for n in ("mod.rs", "files.rs", "components.rs", "read.rs", "query.rs"))
-BINARY = "target/debug/meguvizdexdash" + (".exe" if sys.platform == "win32" else "")
 
-# the suites of this task: the crates that hold the readers and the tools, the process tests, the replays
-base.UNIT_MCP = [*base.CARGO, "-p", "mdd-input", "-p", "mdd-mcp", "-p", "mdd-service", "--lib", *base.TAIL]
-base.REPLAYS = [
-    *base.REPLAYS,
-    ("resources", [PY, "-I", "conformance/mcp/resources_replay.py", "--binary", BINARY,
-                   "--out", "artifacts/local/mdd-072-mutation-replay.json"]),
-]
-base.CONTROLS = [*base.CONTROLS, [PY, "-I", "conformance/mcp/test_resources_replay.py"]]
-base.SOURCES = [
-    *base.SOURCES, VALUE, FRAMEWORK, XML, CONFIG, ARSC, QUERY, INPUT + "mod.rs", INPUT + "tests.rs", INPUT + "arsc_tests.rs", INPUT + "xml_tests.rs", SERVICE,
-    "crates/mdd-service/src/resources_tests.rs", "crates/mdd-service/src/components_tests.rs", COMMON, FILES,
-    COMPONENTS, READ, QUERY_TOOL, "crates/mdd-input/src/manifest/mod.rs", "crates/mdd-input/src/manifest/axml.rs",
-    "crates/mdd-mcp/src/tool_schemas.json", "conformance/mcp/resources_replay.py", "conformance/mcp/test_resources_replay.py",
+SOURCES = [
+    VALUE, FRAMEWORK, XML, CONFIG, ARSC, QUERY, INPUT + "mod.rs", INPUT + "tests.rs", INPUT + "arsc_tests.rs", INPUT + "xml_tests.rs",
+    SERVICE, "crates/mdd-service/src/resources_tests.rs", "crates/mdd-service/src/components_tests.rs",
+    MANIFEST, "crates/mdd-service/src/dataset.rs",
+    "crates/mdd-input/src/manifest/mod.rs", "crates/mdd-input/src/manifest/axml.rs",
+    COMMON, FILES, COMPONENTS, READ, QUERY_TOOL,
+    "crates/mdd-mcp/src/tools.rs", "crates/mdd-mcp/src/tools/decode.rs",
+    "crates/mdd-mcp/src/tools/manifest.rs", "crates/mdd-mcp/src/tools/sql.rs",
+    "crates/mdd-mcp/src/tool_schemas.json", "crates/mdd-cli/tests/mcp.rs",
+    "conformance/mcp/mcp_client.py", "conformance/mcp/resources_replay.py", "conformance/mcp/test_resources_replay.py",
     "conformance/mcp/resources-full-contract.json", "artifacts/mdd-072/a0-probe/calls.jsonl",
     "tests/fixtures/resources/generate.py", "tests/fixtures/resources/manifest.json",
 ]
+
+_RES_MANIFEST = json.loads((ROOT / "tests/fixtures/resources/manifest.json").read_text(encoding="utf-8"))
+FIXTURES = sorted("tests/fixtures/resources/generated/" + name for name in _RES_MANIFEST.get("files", {}))
 
 MUTANTS = [
     # ---- how a compiled value is spelled
@@ -178,29 +164,32 @@ MUTANTS = [
     ("tools: an attribute reference row has no reference id", QUERY_TOOL, [("            | data_type::ATTRIBUTE\n", "")]),
     ("tools: a row has no item count", QUERY_TOOL, [('out.insert("item_count".to_owned(), json!(item.count));', "")]),
     ("tools: the default configuration is every configuration", QUERY_TOOL, [("configuration: args.configuration.clone(),", "configuration: args.configuration.clone().filter(|c| !c.is_empty()),")]),
-    ("tools: the manifest xml ignores max_bytes", "crates/mdd-mcp/src/tools.rs", [("let max_bytes = resource_tools::page_bytes_of(args.max_bytes)?;\n    let (input_index, text)", "let max_bytes = resource_tools::DEFAULT_MAX_BYTES;\n    let (input_index, text)")]),
+    ("tools: the manifest xml ignores max_bytes", "crates/mdd-mcp/src/tools/manifest.rs", [("let max_bytes = resource_tools::page_bytes_of(args.max_bytes)?;\n    let (input_index, text)", "let max_bytes = resource_tools::DEFAULT_MAX_BYTES;\n    let (input_index, text)")]),
     ("tools: a dataset without DEX says it has DEX", "crates/mdd-mcp/src/tools.rs", [('"has_dex": dataset.has_dex(),', '"has_dex": true,')]),
-    ("tools: query runs on a dataset without DEX", "crates/mdd-mcp/src/tools.rs", [("    require_dex(&dataset, &args.dataset_id)?;\n    let window = SqlWindow::new(", "    let window = SqlWindow::new(")]),
+    ("tools: query runs on a dataset without DEX", "crates/mdd-mcp/src/tools/sql.rs", [("    require_dex(&dataset, &args.dataset_id)?;\n    let window = SqlWindow::new(", "    let window = SqlWindow::new(")]),
 ]
 
-base.MUTANTS = MUTANTS
+SUITE = H.MutationSuite(
+    name="MDD-072",
+    sources=SOURCES,
+    fixtures=FIXTURES,
+    unit_suites=[
+        ("unit", [*H.CARGO, "-p", "mdd-input", "-p", "mdd-mcp", "-p", "mdd-service", "--lib", *H.TAIL]),
+        ("process", [*H.CARGO, "-p", "mdd-cli", "--test", "mcp", *H.TAIL]),
+    ],
+    replays=[
+        ("resources", [PY, "-I", "conformance/mcp/resources_replay.py", "--binary", H.BINARY,
+                       "--out", "artifacts/local/mdd-072-mutation-replay.json"]),
+    ],
+    controls=[[PY, "-I", "conformance/mcp/test_resources_replay.py"]],
+    mutants=MUTANTS,
+)
+base = SUITE
 
 
-def anchors() -> int:
-    """Which anchors are not unique in their file (no build, no run)."""
-    bad = 0
-    for name, relative, edits in MUTANTS:
-        text = (ROOT / relative).read_text(encoding="utf-8")
-        for old, _new in edits:
-            count = text.count(old)
-            if count != 1:
-                bad += 1
-                print(f"ANCHOR {count}x  {name}  [{relative}]")
-    print(f"{len(MUTANTS)} mutants, {bad} anchors that are not unique")
-    return 1 if bad else 0
+def sources_sha256() -> str:
+    return SUITE.sources_sha256()
 
 
 if __name__ == "__main__":
-    if sys.argv[1:] == ["--anchors"]:
-        sys.exit(anchors())
-    sys.exit(base.main())
+    sys.exit(SUITE.main())

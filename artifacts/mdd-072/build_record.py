@@ -22,7 +22,10 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "tools"))
 sys.path.insert(0, str(ROOT / "conformance" / "mcp"))
+import mutation_harness as H  # noqa: E402
+
 RECORD = "artifacts/mdd-072/twelve-tool-conformance.json"
 REPLAY = "artifacts/mdd-072/resources-replay.json"
 TOOLS_LIST = "artifacts/mdd-072/a0-probe/tools-list.json"
@@ -37,7 +40,8 @@ SOURCES = [
     "crates/mdd-input/src/resources/query.rs", "crates/mdd-input/src/resources/tests.rs",
     "crates/mdd-input/src/manifest/mod.rs", "crates/mdd-service/src/resources.rs",
     "crates/mdd-service/src/manifest.rs", "crates/mdd-service/src/dataset.rs",
-    "crates/mdd-mcp/src/tools.rs", "crates/mdd-mcp/src/tool_schemas.json",
+    "crates/mdd-mcp/src/tools.rs", "crates/mdd-mcp/src/tools/decode.rs",
+    "crates/mdd-mcp/src/tools/manifest.rs", "crates/mdd-mcp/src/tools/sql.rs", "crates/mdd-mcp/src/tool_schemas.json",
     "crates/mdd-mcp/src/resource_tools/mod.rs", "crates/mdd-mcp/src/resource_tools/files.rs",
     "crates/mdd-mcp/src/resource_tools/components.rs", "crates/mdd-mcp/src/resource_tools/read.rs",
     "crates/mdd-mcp/src/resource_tools/query.rs",
@@ -98,17 +102,25 @@ def schema_comparison() -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--check", action="store_true")
+    parser.add_argument("--strict-provenance", action="store_true")
     args = parser.parse_args()
     if args.check:
+        spec = importlib.util.spec_from_file_location("mutate_resources", ROOT / "artifacts/mdd-072/mutation/mutate_resources.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        issues = H.check_evidence(RECORD, module.SUITE, MUTATION, "artifacts/mdd-072/mutation/mutate_resources.py", strict_provenance=args.strict_provenance)
         record = json.loads((ROOT / RECORD).read_text(encoding="utf-8"))
-        stale = [path for path, digest in record["inputs_sha256"].items() if sha256(path) != digest]
-        mutation = mutation_summary()
-        if mutation["present"] and not mutation["current"]:
-            stale.append(MUTATION)
-        for path in stale:
-            print("STALE:", path)
-        print("committed record current:", not stale)
-        return 1 if stale else 0
+        if not record.get("schemas", {}).get("all_equal"):
+            issues.append("SCHEMAS_NOT_EQUAL")
+        replay = record.get("replay", {})
+        if replay.get("undeclared_differences") != 0 or replay.get("errors") != 0:
+            issues.append("REPLAY_DIFFERENCES_OR_ERRORS")
+        if any(t.get("failed", 1) != 0 for t in record.get("tests", {}).values()):
+            issues.append("RECORD_TESTS_FAILED")
+        for path in issues:
+            print("CHECK_FAIL:", path)
+        print("committed record current:", not issues)
+        return 1 if issues else 0
 
     schemas = schema_comparison()
     if not schemas["all_equal"]:

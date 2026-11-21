@@ -1,54 +1,55 @@
 #!/usr/bin/env python3
 """Mutation check for MDD-071: the complete decode (classes, the three modes, annotations, debug lines, fields, context, paging).
 
-It uses the machinery of artifacts/mdd-042/mutation/mutate_mcp.py (one source file edited in place per mutant, the suites run,
-the original bytes written back in a finally block, commands with time limits, parts, assembly) with this task's mutants,
-sources and suites. A mutant is killed when the Rust unit tests (mdd-mcp, mdd-service, the smali modules of mdd-facts), the MCP
-process tests, or any replay or conformance run fails: the reference replay, the decode conformance of MDD-042, the full decode
-conformance, the contract check and the A0 query/lifecycle/manifest replays.
-
-Usage: the same as mutate_mcp.py
-  mutate_decode.py                     every mutant, then the clean-tree check
-  mutate_decode.py --part K/N          the mutants whose position is K-1 modulo N
-  mutate_decode.py --clean-only        only the clean-tree check and the hash
-  mutate_decode.py --assemble FILE...  merge the parts and the clean-tree output
-  mutate_decode.py --anchors           only say which mutants' anchors are not unique in their file (no build, no run)
-  mutate_decode.py NAME...             only the mutants whose name contains one of the words
+Uses tools/mutation_harness.py with only the decode/smali sources, fixtures and suites.
 """
 from __future__ import annotations
 
-import importlib.util
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
-_spec = importlib.util.spec_from_file_location("mutate_mcp", ROOT / "artifacts/mdd-042/mutation/mutate_mcp.py")
-base = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(base)
+sys.path.insert(0, str(ROOT / "tools"))
 
-PY = base.PY
+import mutation_harness as H  # noqa: E402
+
+PY = H.PY
 FACTS = "crates/mdd-facts/src/"
 SMALI = FACTS + "smali/"
 CONTEXT, VALUE, ANNOTATION, METHOD, CLASS = (SMALI + n for n in ("context.rs", "value.rs", "annotation.rs", "method.rs", "class.rs"))
 CORE = FACTS + "smali_required/render.rs"
-TOOLS, DECODE, DATASET, LAYERS = base.TOOLS, base.DECODE, base.DATASET, base.LAYERS
+MCP = "crates/mdd-mcp/src/"
+SERVICE = "crates/mdd-service/src/"
+TOOLS, DECODE, DATASET, LAYERS = MCP + "tools.rs", SERVICE + "decode.rs", SERVICE + "dataset.rs", SERVICE + "layers.rs"
+TOOLS_DECODE, TOOLS_MANIFEST, TOOLS_SQL = MCP + "tools/decode.rs", MCP + "tools/manifest.rs", MCP + "tools/sql.rs"
 
-# the smali modules of mdd-facts: both directories (the filter matches smali:: and smali_required::)
-base.UNIT_SMALI = [*base.CARGO, "-p", "mdd-facts", "--lib", "smali", *base.TAIL]
-base.REPLAYS = [
-    *base.REPLAYS,
-    ("full decode", [PY, "-I", "conformance/decode/run_decode_full.py"]),
-    ("decode contract", [PY, "-I", "conformance/decode/build_decode_contract.py", "--check"]),
-]
-base.CONTROLS = [*base.CONTROLS, [PY, "-I", "conformance/decode/test_decode_full.py"]]
-base.SOURCES = [
-    *base.SOURCES,
+SOURCES = [
     SMALI + "mod.rs", CONTEXT, VALUE, ANNOTATION, METHOD, CLASS,
-    "conformance/decode/oracle_class.py", "conformance/decode/run_decode_full.py", "conformance/decode/test_decode_full.py",
-    "conformance/decode/hand-expected-class.txt", "conformance/decode/build_decode_contract.py", "conformance/mcp/decode-full-contract.json",
+    FACTS + "smali_required/mod.rs", CORE, FACTS + "smali_required/tests.rs",
+    DECODE, DATASET, LAYERS, SERVICE + "lib.rs",
+    TOOLS, TOOLS_DECODE, TOOLS_MANIFEST, TOOLS_SQL, MCP + "server.rs", MCP + "protocol.rs", MCP + "lib.rs", MCP + "tool_schemas.json",
+    "crates/mdd-cli/tests/mcp.rs",
+    "conformance/mcp/mcp_client.py",
+    "conformance/decode/oracle.py", "conformance/decode/oracle_class.py",
+    "conformance/decode/run_decode_conformance.py", "conformance/decode/hand-expected.txt",
+    "conformance/decode/run_decode_full.py", "conformance/decode/test_decode_full.py",
+    "conformance/decode/hand-expected-class.txt", "conformance/decode/build_decode_contract.py",
+    "conformance/mcp/decode-full-contract.json",
+    "conformance/decode/a0_cases.py", "conformance/decode/a0_replay.py", "conformance/decode/test_a0_replay.py",
+    "conformance/decode/a0-golden.json",
+    "tests/fixtures/decode/generate.py", "tests/fixtures/decode/manifest.json",
     "tests/fixtures/decode/generate_class.py", "tests/fixtures/decode/class-manifest.json",
 ]
-base.FIXTURES = [*base.FIXTURES, "tests/fixtures/decode/generated/decode-class.dex", "tests/fixtures/annotations/generated/annotations-038.dex"]
+
+FIXTURES = [
+    "tests/fixtures/decode/generated/decode-all.dex",
+    "tests/fixtures/decode/generated/decode-v035.dex",
+    "tests/fixtures/decode/generated/decode-bad-invoke.dex",
+    "tests/fixtures/decode/generated/decode-class.dex",
+    "tests/fixtures/decode/generated/manifest-small.apk",
+    "tests/fixtures/decode/generated/no-manifest.apk",
+    "tests/fixtures/annotations/generated/annotations-038.dex",
+]
 
 MUTANTS = [
     # ---- the context view
@@ -79,9 +80,6 @@ MUTANTS = [
     ("method: the method's own annotations are not written", METHOD, [(".extend(index.set_lines(data, &context, set, 4)?);", ".extend(Vec::<String>::new());")]),
     ("method: the prologue directive is misspelled", METHOD, [('7 => ".prologue".to_owned(),\n        8', '7 => ".prolog".to_owned(),\n        8')]),
     ("method: a local with a signature loses its comma", METHOD, [('                line.push_str(", ");\n                line.push_str(&context.string_literal(index)?);', '                line.push(\' \');\n                line.push_str(&context.string_literal(index)?);')]),
-    # No engine input tells this one from the original: the debug layer fills `source_line` only for a usable position, so the guard
-    # repeats what `Some(line)` already says. It is a defence against an event built another way, and the unit test
-    # `only_a_position_the_debug_layer_calls_usable_is_written_as_a_line` builds exactly such an event.
     ("method: a position that is no source line is written", METHOD, [("Some(line) if event.source_line_usable => format!", "Some(line) => format!")]),
     ("method: an event at the end of the code is lost", METHOD, [("            DebugAddressScope::AtCodeEnd => insns_size,\n", "")]),
     ("method: an event inside an instruction is placed at it", METHOD, [("                if instruction_starts.contains(&event.address_code_units) =>", "                if true =>")]),
@@ -109,25 +107,24 @@ MUTANTS = [
     ("service: a class text is rendered without its annotation layer", DECODE, [("        annotations: occurrence\n            .annotations\n            .as_deref()\n            .zip(index.annotation_index.as_ref()),\n    };\n    render_class(", "        annotations: None,\n    };\n    render_class(")]),
     ("service: the facts decode renders from lose the annotation layer", LAYERS, [("            annotations: annotations.ok(),", "            annotations: annotations.ok().and(None),")]),
     # ---- the tool
-    ("tool: a class defaults to the smali mode", TOOLS, [("let mode = requested.unwrap_or(if args.class.is_some() {\n        DecodeMode::Summary", "let mode = requested.unwrap_or(if args.class.is_some() {\n        DecodeMode::Smali")]),
-    ("tool: a class page accepts a text offset", TOOLS, [("        if args.offset != 0 {\n            return Err(refuse_here(ErrorCode::InvalidArgument, CLASS_TEXT_PAGE).into());", "        if false {\n            return Err(refuse_here(ErrorCode::InvalidArgument, CLASS_TEXT_PAGE).into());")]),
-    ("tool: the default method_limit is 21", TOOLS, [("pub const DEFAULT_METHOD_LIMIT: u64 = 20;", "pub const DEFAULT_METHOD_LIMIT: u64 = 21;")]),
-    ("tool: the last page names a continuation", TOOLS, [("(next_method_offset < page.total_methods).then_some(next_method_offset)", "Some(next_method_offset)")]),
-    ("tool: the byte budget of a class page is not spent", TOOLS, [("                *left -= text_page.text.len() as u64;", "                let _ = left;")]),
-    ("tool: a used-up budget fails the page instead of ending it", TOOLS, [('Err(error) if error.message == "MAX_BYTES_TOO_SMALL" && !rows.is_empty() => break,', 'Err(error) if error.message == "MAX_BYTES_TOO_SMALL" && false => break,')]),
-    ("tool: every page of a class repeats the class text", TOOLS, [("let class_text = if mode != DecodeMode::Summary && method_offset == 0 {", "let class_text = if mode != DecodeMode::Summary {")]),
-    ("tool: a context names the wrong line count of the full text", TOOLS, [("source_lines: Some(full.split_terminator('\\n').count() as u64),", "source_lines: Some(full.split_terminator('\\n').count() as u64 + 1),")]),
-    ("tool: a context is labelled with the smali format", TOOLS, [("Self::Context => Some(smali::CONTEXT_FORMAT),", "Self::Context => Some(smali::SMALI_FORMAT),")]),
-    ("tool: a method row hides what its text leaves out", TOOLS, [("        fields.extend(text_fields(&page, shown.source_lines));\n        if let Some(left_out) = omitted(&decoded.report) {", "        fields.extend(text_fields(&page, shown.source_lines));\n        if let Some(left_out) = omitted(&decoded.report).filter(|_| false) {")]),
-    ("tool: a class row hides what its text leaves out", TOOLS, [("                fields.extend(text_fields(&text_page, shown.source_lines));\n                if let Some(left_out) = omitted(&decoded.report) {", "                fields.extend(text_fields(&text_page, shown.source_lines));\n                if let Some(left_out) = omitted(&decoded.report).filter(|_| false) {")]),
-    ("tool: an offset past the methods is not a range error", TOOLS, [('(error.message == decode::METHOD_OFFSET_PAST_END).then_some("invalid_range")', '(error.message == decode::METHOD_OFFSET_PAST_END).then_some("invalid_input")')]),
-    ("tool: an ambiguous class is worded as a method", TOOLS, [('"class occurs in multiple DEX files; supply file_id from {}",', '"method occurs in multiple DEX files; supply file_id from {}",')]),
-    ("tool: a class that is not found does not echo its file_id", TOOLS, [("            if let Some(file_id) = args.file_id {\n                error = error.detail(\"file_id\", file_id.to_string());\n            }\n            return Err(error.into());\n        }\n        Err(decode::Failure::Ambiguous { file_ids }) => {\n            return Err(with_kind(\n                decode_error(", "            return Err(error.into());\n        }\n        Err(decode::Failure::Ambiguous { file_ids }) => {\n            return Err(with_kind(\n                decode_error(")]),
-    ("tool: a class page does not say the class text is cut", TOOLS, [('("truncated", json!(truncated)),', '("truncated", json!(false)),')]),
-    ("tool: a summary of a class is limited by its text budget in the wrong unit", TOOLS, [("let size = row.to_string().len() as u64;", "let size = 1;")]),
+    ("tool: a class defaults to the smali mode", TOOLS_DECODE, [("let mode = requested.unwrap_or(if args.class.is_some() {\n        DecodeMode::Summary", "let mode = requested.unwrap_or(if args.class.is_some() {\n        DecodeMode::Smali")]),
+    ("tool: a class page accepts a text offset", TOOLS_DECODE, [("        if args.offset != 0 {\n            return Err(refuse_here(ErrorCode::InvalidArgument, CLASS_TEXT_PAGE).into());", "        if false {\n            return Err(refuse_here(ErrorCode::InvalidArgument, CLASS_TEXT_PAGE).into());")]),
+    ("tool: the default method_limit is 21", TOOLS_DECODE, [("pub const DEFAULT_METHOD_LIMIT: u64 = 20;", "pub const DEFAULT_METHOD_LIMIT: u64 = 21;")]),
+    ("tool: the last page names a continuation", TOOLS_DECODE, [("(next_method_offset < page.total_methods).then_some(next_method_offset)", "Some(next_method_offset)")]),
+    ("tool: the byte budget of a class page is not spent", TOOLS_DECODE, [("                *left -= text_page.text.len() as u64;", "                let _ = left;")]),
+    ("tool: a used-up budget fails the page instead of ending it", TOOLS_DECODE, [('Err(error) if error.message == "MAX_BYTES_TOO_SMALL" && !rows.is_empty() => break,', 'Err(error) if error.message == "MAX_BYTES_TOO_SMALL" && false => break,')]),
+    ("tool: every page of a class repeats the class text", TOOLS_DECODE, [("let class_text = if mode != DecodeMode::Summary && method_offset == 0 {", "let class_text = if mode != DecodeMode::Summary {")]),
+    ("tool: a context names the wrong line count of the full text", TOOLS_DECODE, [("source_lines: Some(full.split_terminator('\\n').count() as u64),", "source_lines: Some(full.split_terminator('\\n').count() as u64 + 1),")]),
+    ("tool: a context is labelled with the smali format", TOOLS_DECODE, [("Self::Context => Some(smali::CONTEXT_FORMAT),", "Self::Context => Some(smali::SMALI_FORMAT),")]),
+    ("tool: a method row hides what its text leaves out", TOOLS_DECODE, [("        fields.extend(text_fields(&page, shown.source_lines));\n        if let Some(left_out) = omitted(&decoded.report) {", "        fields.extend(text_fields(&page, shown.source_lines));\n        if let Some(left_out) = omitted(&decoded.report).filter(|_| false) {")]),
+    ("tool: a class row hides what its text leaves out", TOOLS_DECODE, [("                fields.extend(text_fields(&text_page, shown.source_lines));\n                if let Some(left_out) = omitted(&decoded.report) {", "                fields.extend(text_fields(&text_page, shown.source_lines));\n                if let Some(left_out) = omitted(&decoded.report).filter(|_| false) {")]),
+    ("tool: an offset past the methods is not a range error", TOOLS_DECODE, [('(error.message == decode::METHOD_OFFSET_PAST_END).then_some("invalid_range")', '(error.message == decode::METHOD_OFFSET_PAST_END).then_some("invalid_input")')]),
+    ("tool: an ambiguous class is worded as a method", TOOLS_DECODE, [('"class occurs in multiple DEX files; supply file_id from {}",', '"method occurs in multiple DEX files; supply file_id from {}",')]),
+    ("tool: a class that is not found does not echo its file_id", TOOLS_DECODE, [("            if let Some(file_id) = args.file_id {\n                error = error.detail(\"file_id\", file_id.to_string());\n            }\n            return Err(error.into());\n        }\n        Err(decode::Failure::Ambiguous { file_ids }) => {\n            return Err(with_kind(\n                decode_error(", "            return Err(error.into());\n        }\n        Err(decode::Failure::Ambiguous { file_ids }) => {\n            return Err(with_kind(\n                decode_error(")]),
+    ("tool: a class page does not say the class text is cut", TOOLS_DECODE, [('("truncated", json!(truncated)),', '("truncated", json!(false)),')]),
+    ("tool: a summary of a class is limited by its text budget in the wrong unit", TOOLS_DECODE, [("let size = row.to_string().len() as u64;", "let size = 1;")]),
 ]
 
-# The deadline handling of a decode is written twice (a method, a class): the same block, told apart by what follows it.
 _DEADLINE = """        Outcome::TimedOut => {
             registry.close(&id);
             return Err(refuse(
@@ -152,35 +149,43 @@ _WITHOUT_TIMEOUT_CLOSE = _DEADLINE.replace("        Outcome::TimedOut => {\n    
 assert _WITHOUT_TIMEOUT_CLOSE != _DEADLINE
 
 MUTANTS += [
-    # the three MDD-042 mutants whose anchors this task moved, and their twins in the class flow
-    ("tool: an empty descriptor is looked up instead of refused", TOOLS,
+    ("tool: an empty descriptor is looked up instead of refused", TOOLS_DECODE,
      [('    if args.method.as_deref() == Some("") || args.class.as_deref() == Some("") {', "    if false {")]),
-    ("tool: a text offset past the text is not called a range error", TOOLS,
+    ("tool: a text offset past the text is not called a range error", TOOLS_DECODE,
      [('    let kind = if error.message.starts_with("OFFSET_") {\n        "invalid_range"', '    let kind = if error.message.starts_with("OFFSET_") {\n        "invalid_offset"')]),
-    ("tool: a method decode deadline leaves the dataset open", TOOLS,
+    ("tool: a method decode deadline leaves the dataset open", TOOLS_DECODE,
      [(_DEADLINE + "    let decoded = match result {", _WITHOUT_TIMEOUT_CLOSE + "    let decoded = match result {")]),
-    ("tool: a class decode deadline leaves the dataset open", TOOLS,
+    ("tool: a class decode deadline leaves the dataset open", TOOLS_DECODE,
      [(_DEADLINE + "    let ClassAnswer {", _WITHOUT_TIMEOUT_CLOSE + "    let ClassAnswer {")]),
 ]
 
-base.MUTANTS = MUTANTS
+SUITE = H.MutationSuite(
+    name="MDD-071",
+    sources=SOURCES,
+    fixtures=FIXTURES,
+    unit_suites=[
+        ("unit", [*H.CARGO, "-p", "mdd-mcp", "-p", "mdd-service", "--lib", *H.TAIL]),
+        ("smali", [*H.CARGO, "-p", "mdd-facts", "--lib", "smali", *H.TAIL]),
+        ("process", [*H.CARGO, "-p", "mdd-cli", "--test", "mcp", *H.TAIL]),
+    ],
+    replays=[
+        ("decode", [PY, "-I", "conformance/decode/run_decode_conformance.py"]),
+        ("reference answers", [PY, "-I", "conformance/decode/a0_replay.py"]),
+        ("full decode", [PY, "-I", "conformance/decode/run_decode_full.py"]),
+        ("decode contract", [PY, "-I", "conformance/decode/build_decode_contract.py", "--check"]),
+    ],
+    controls=[
+        [PY, "-I", "conformance/decode/test_a0_replay.py"],
+        [PY, "-I", "conformance/decode/test_decode_full.py"],
+    ],
+    mutants=MUTANTS,
+)
+base = SUITE
 
 
-def anchors() -> int:
-    """Which anchors are not unique in their file (no build, no run)."""
-    bad = 0
-    for name, relative, edits in MUTANTS:
-        text = (ROOT / relative).read_text(encoding="utf-8")
-        for old, _new in edits:
-            count = text.count(old)
-            if count != 1:
-                bad += 1
-                print(f"ANCHOR {count}x  {name}  [{relative}]")
-    print(f"{len(MUTANTS)} mutants, {bad} anchors that are not unique")
-    return 1 if bad else 0
+def sources_sha256() -> str:
+    return SUITE.sources_sha256()
 
 
 if __name__ == "__main__":
-    if sys.argv[1:] == ["--anchors"]:
-        sys.exit(anchors())
-    sys.exit(base.main())
+    sys.exit(SUITE.main())

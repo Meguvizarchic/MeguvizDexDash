@@ -11,5 +11,4 @@ KILLED   like: an underscore matches past the end [unit]
 KILLED   rewrite: the depth of the rewrite is not capped [unit]
 KILLED   rewrite: the rewrite runs on a small stack [unit]
 restored tree passes the unit and process tests, the replays and their controls: True
-public APK present for the manifest replay: False
-sources sha256: 59c8cbc05df4f0a9662ed2a791aa9d4f963b824a7cc14a4eb92d44d8bb71f4e0
+sources sha256: f5b9069c9daf5f7019a44f65a5fcb41d38b6af88ac716f21689dcac67b1d8c43

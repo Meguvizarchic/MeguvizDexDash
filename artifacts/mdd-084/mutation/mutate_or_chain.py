@@ -2,43 +2,34 @@
 """Mutation check for MDD-084: a deep OR/AND/NOT chain or a long LIKE pattern must be evaluated, or refused, without
 overflowing the call stack.
 
-It uses the machinery of artifacts/mdd-042/mutation/mutate_mcp.py (one source file edited in place per mutant, the suites
-run, the original bytes written back in a finally block, commands with time limits, parts, assembly) with this task's
-mutants and suites. A mutant is killed when the unit tests of mdd-query and mdd-sql, the MCP process tests or a replay fails;
-the replays include the crash reproduction of this task (repro_or_chain_overflow.py, phase post) against the mutated build.
-
-Usage: the same as mutate_mcp.py
-  mutate_or_chain.py                     every mutant, then the clean-tree check
-  mutate_or_chain.py --part K/N          the mutants whose position is K-1 modulo N
-  mutate_or_chain.py --clean-only        only the clean-tree check and the hash
-  mutate_or_chain.py --assemble FILE...  merge the parts and the clean-tree output
-  mutate_or_chain.py --anchors           only say which mutants' anchors are not unique in their file (no build, no run)
-  mutate_or_chain.py NAME...             only the mutants whose name contains one of the words
+Uses tools/mutation_harness.py with only the mdd-query/mdd-sql evaluator/rewrite sources and reproduction suite.
 """
 from __future__ import annotations
 
-import importlib.util
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
-_spec = importlib.util.spec_from_file_location("mutate_mcp", ROOT / "artifacts/mdd-042/mutation/mutate_mcp.py")
-base = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(base)
+sys.path.insert(0, str(ROOT / "tools"))
 
-PY = base.PY
+import mutation_harness as H  # noqa: E402
+
+PY = H.PY
 OPERATORS = "crates/mdd-query/src/operators/mod.rs"
 AST = "crates/mdd-sql/src/dialects/ast.rs"
+AST_REWRITE = "crates/mdd-sql/src/dialects/ast/rewrite.rs"
 
-# the suites of this task: the engine crates that hold the evaluator and the rewrite, then the process tests
-base.UNIT_MCP = [*base.CARGO, "-p", "mdd-query", "-p", "mdd-sql", "--lib", *base.TAIL]
-base.UNIT_SMALI = [*base.CARGO, "-p", "mdd-service", "--lib", *base.TAIL]
-base.REPLAYS = [
-    *base.REPLAYS,
-    ("or-chain crash", [PY, "-I", "artifacts/mdd-084/repro_or_chain_overflow.py", "--binary", "target/debug/meguvizdexdash" + (".exe" if sys.platform == "win32" else ""),
-                        "--phase", "post", "--out", "artifacts/local/mdd-084-mutation-repro.json"]),
+SOURCES = [
+    OPERATORS,
+    "crates/mdd-query/src/executor/tests.rs",
+    AST,
+    "crates/mdd-sql/src/dialects/ast/binding.rs",
+    "crates/mdd-sql/src/dialects/ast/affinity.rs",
+    "crates/mdd-sql/src/dialects/ast/compound.rs",
+    AST_REWRITE,
+    "crates/mdd-sql/src/dialects/ast/validate.rs",
+    "artifacts/mdd-084/repro_or_chain_overflow.py",
 ]
-base.SOURCES = [*base.SOURCES, OPERATORS, AST, "artifacts/mdd-084/repro_or_chain_overflow.py"]
 
 MUTANTS = [
     # ---- the predicate evaluator
@@ -57,28 +48,28 @@ MUTANTS = [
     ("like: a literal matches any unit", OPERATORS, [("                    if text.get(t) != Some(&unit) {", "                    if false {")]),
     ("like: an underscore matches past the end", OPERATORS, [("                LikeToken::AnyOne => {\n                    if t == text.len() {", "                LikeToken::AnyOne => {\n                    if false {")]),
     # ---- the SQL rewrite
-    ("rewrite: the depth of the rewrite is not capped", AST, [("        if depth > self.limits.max_ast_depth.min(MAX_AST_REWRITE_DEPTH)", "        if depth > self.limits.max_ast_depth")]),
+    ("rewrite: the depth of the rewrite is not capped", AST_REWRITE, [("        if depth > self.limits.max_ast_depth.min(MAX_AST_REWRITE_DEPTH)", "        if depth > self.limits.max_ast_depth")]),
     ("rewrite: the rewrite runs on a small stack", AST, [("            .stack_size(AST_REWRITE_STACK_BYTES)", "            .stack_size(AST_REWRITE_STACK_BYTES / 256)")]),
 ]
 
-base.MUTANTS = MUTANTS
+SUITE = H.MutationSuite(
+    name="MDD-084",
+    sources=SOURCES,
+    unit_suites=[
+        ("unit", [*H.CARGO, "-p", "mdd-query", "-p", "mdd-sql", "--lib", *H.TAIL]),
+    ],
+    replays=[
+        ("or-chain crash", [PY, "-I", "artifacts/mdd-084/repro_or_chain_overflow.py", "--binary", H.BINARY,
+                            "--phase", "post", "--out", "artifacts/local/mdd-084-mutation-repro.json"]),
+    ],
+    mutants=MUTANTS,
+)
+base = SUITE
 
 
-def anchors() -> int:
-    """Which anchors are not unique in their file (no build, no run)."""
-    bad = 0
-    for name, relative, edits in MUTANTS:
-        text = (ROOT / relative).read_text(encoding="utf-8")
-        for old, _new in edits:
-            count = text.count(old)
-            if count != 1:
-                bad += 1
-                print(f"ANCHOR {count}x  {name}  [{relative}]")
-    print(f"{len(MUTANTS)} mutants, {bad} anchors that are not unique")
-    return 1 if bad else 0
+def sources_sha256() -> str:
+    return SUITE.sources_sha256()
 
 
 if __name__ == "__main__":
-    if sys.argv[1:] == ["--anchors"]:
-        sys.exit(anchors())
-    sys.exit(base.main())
+    sys.exit(SUITE.main())
