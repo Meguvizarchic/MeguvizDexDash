@@ -1,6 +1,18 @@
 # MeguvizDexDash 当前状态
 
-更新：2026-11-21（Asia/Shanghai）。唯一任务图：tasks/backlog.json（52 项：done 43、in_progress 0、todo 9；剩余待办 `MDD-060..064`、`074`、`081..083`）；M5 HostLab-MVP 功能预览与双平台（`windows-x86_64`、`linux-x86_64`）原生运行时与 C ABI `1.0` 功能资格均已收口，正式性能替代发行仍待 `MDD-082`，所有产品 profile `admitted=false`。
+更新：2026-11-21（Asia/Shanghai）。唯一任务图：tasks/backlog.json（52 项：done 46、in_progress 0、todo 6；剩余待办 `MDD-060..062`、`064`、`082`、`083`）；M5 HostLab-MVP 功能预览、双平台（`windows-x86_64`、`linux-x86_64`）原生运行时与 C ABI `1.0` 功能资格、`mdd-index/1` 持久缓存（`MDD-063`）、可选 DEX `041`/provider 隔离验证（`MDD-074`）及联合故障与浸泡回收验证（`MDD-081`）均已收口，正式性能替代发行仍待 `MDD-060..062/064/082`，所有产品 profile `admitted=false`。
+
+## 2026-11-21 MDD-063 / MDD-074 / MDD-081 持久缓存、可选格式隔离与联合故障浸泡收口（Wave C2）
+
+- **`MDD-063` 版本化持久事实缓存与原子恢复（-> `done`）**：
+  - 新增工作区 crate [crates/mdd-cache/](crates/mdd-cache/Cargo.toml)（零外部生产依赖变动，`Cargo.lock` 仅新增本地 workspace 包与内部边），实现规范 `mdd-index/1` 二进制索引格式（128 字节小端头 + 96B header SHA-256 + 原始 manifest UTF-8 SHA-256 + 64B section descriptors + `section_table_sha256`、先验数量/乘积与非重叠区间检查、非零 reserved 字节拒绝）、`standalone`（内嵌验证源字节，删源仍可用）与 `thin`（外部 CAS 缺失返回 `STALE_CACHE`、篡改返回 `CACHE_CORRUPT`）双模式、不含路径/`mtime` 且保留逻辑多重性的 `FactCacheKeySpec`、独立 `RuleCacheKeySpec`、写锁+双检+自检+`sync_all`+原子发布、半写 `.tmp` 隔离回收，以及对部分输入/事实/超时/取消/未消费分页拒绝写入完成或阴性缓存的强门卫。
+  - 实跑 `crates/mdd-cache/tests/cache_integration.rs` 及 [conformance/cache/run_cache_conformance.py](conformance/cache/run_cache_conformance.py) 8 项场景（冷/热/旁路/修复 17 张表全量 SHA-256 一致、同大小同 mtime 1 字节改写失效、双份 `structured-035.dex` 逻辑重数保留、多进程并发加锁发布、半写/截断/版本升级拒错修复与 `python -O` 负向控制），生成 [artifacts/mdd-063/cache-fault-recovery.json](artifacts/mdd-063/cache-fault-recovery.json)。
+- **`MDD-074` 可选 DEX `041`、特殊容器与隔离 Provider（-> `done`，不阻塞标准 DEX 发行）**：
+  - 在不改动标准 `035–040` DEX reader（[crates/mdd-dex/src/header.rs](crates/mdd-dex/src/header.rs)）前提下，在 [crates/mdd-input/src/optional_formats/](crates/mdd-input/src/optional_formats/mod.rs) 隔离实现强类型地址空间（`ContainerOffset`/`LogicalHeaderOffset`/`CodeUnitPc`）、120B 多逻辑头 DEX `041` 容器校验（保留各自 `local_string_idx` 不合并共享字符串，严格拒绝截断共享 string_data `TRUNCATED_SHARED_STRING_DATA`、指入头区、混合版本、零进展和未识别尾随字节）及 `SharedContainerDependency` 缓存联动（[crates/mdd-cache/tests/dex041_cache_invalidation.rs](crates/mdd-cache/tests/dex041_cache_invalidation.rs)），并将 `cdex`/`vdex`/`oat`/`apk-split-bundle`/`protobuf-resources` 保持显式 `disabled`（`UNSUPPORTED_CAPABILITY`）。
+  - 新增 [crates/mdd-worker/src/providers/](crates/mdd-worker/src/providers/mod.rs) 隔离外部只读反编译视图（默认 disabled、强核验可执行文件 SHA-256、清理环境、独立临时目录、硬超时强杀 `DEADLINE_EXCEEDED`、输出上限 `QUOTA_EXCEEDED` 及 `display_only_reconstructed` 门卫禁止染指原始指纹或确定调用图）；证据记录于 [artifacts/mdd-074/optional-format-qualification.json](artifacts/mdd-074/optional-format-qualification.json)。
+- **`MDD-081` 联合故障注入、恢复与长时资源验证（-> `done`）**：
+  - 新增 [crates/mdd-worker/examples/fault_supervisor_probe.rs](crates/mdd-worker/examples/fault_supervisor_probe.rs) 与 [conformance/faults/run-fault-suite.py](conformance/faults/run-fault-suite.py)，联合实测 9 类故障场景（`source_mutation`、`stale_handles`、`catalog_epoch_invalidation`、`half_frames` 的 `TruncatedHeader`/`TruncatedBody`/`detached_threads=0`、`broken_pipe`、强杀 Worker 1 全量 3/3 请求 `WORKER_LOST` + 隔离 Worker 2 正常 2/2 + Worker 3 校核恢复 3/3、`hard_deadline` 零缓存、`half_written_and_corrupt_cache`、`duplicate_logical_inputs` 3 重数保留）以及 3+24 轮混合故障/取消/配额/崩溃浸泡测量（原生 OS 句柄与工作集统计 `live_ffi_handles_delta=0`、`leaked_child_processes=0`、`leftover_temp_files=0`、Windows +0.809 MiB）；证据记录于 [artifacts/mdd-081/fault-and-soak-results.json](artifacts/mdd-081/fault-and-soak-results.json)。
+- **门禁接入与下一步**：[tools/run_ci_conformance.py](tools/run_ci_conformance.py) 新增 `cache`、`optional-formats`、`faults` 三组共 9 项检查；下一步进入 **Wave D**（`MDD-060` 正式五路测量、`MDD-061` 热点路径优化、`MDD-062` HostLab `AuditDataProvider` 复用、`MDD-064` 全局调度预算与可审计复用）。
 
 ## 2026-11-21 MDD-080 Linux/Windows 双平台原生运行与 ABI 资格收口（Wave C1 收口）
 

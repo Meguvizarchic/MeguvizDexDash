@@ -54623,6 +54623,11 @@
       "sha256": "7931eae77798bbfad1c725edac06b7792b3ebecb74bba0fbb6b62775f42abc39"
     },
     {
+      "path": "artifacts/mdd-063/cache-fault-recovery.json",
+      "bytes": 3822,
+      "sha256": "9c632b5588fefe54c9036442125671cb57155655ff733eaf9a1ea7d6250bd094"
+    },
+    {
       "path": "artifacts/mdd-065/consumer-portability.json",
       "bytes": 8143,
       "sha256": "95cee6d769a1898847799ce78ba2cbe46e16f0856e6ad85fac0ac40a07523c72"
@@ -55303,6 +55308,11 @@
       "sha256": "e44e930f39b0a862e54cc3580df2327be18ece70041d8c29c19722f19f14e62e"
     },
     {
+      "path": "artifacts/mdd-074/optional-format-qualification.json",
+      "bytes": 3492,
+      "sha256": "d687cdf9324273e4cc63d2c09649fdfca5f0657c9c19c4fd1e4944b72dfe980a"
+    },
+    {
       "path": "artifacts/mdd-075/analysis-capability-qualification.json",
       "bytes": 9458,
       "sha256": "ac6763a2e0b4c41b68107477a4b1ff932c8029f237c5be3683b38a5bdf20aec4"
@@ -55331,6 +55341,11 @@
       "path": "artifacts/mdd-080/windows-x86_64-results.json",
       "bytes": 3028,
       "sha256": "0b8c36a6cddae02fa60e4a11cba649d3232c8371eaa37755d5f84069b8034765"
+    },
+    {
+      "path": "artifacts/mdd-081/fault-and-soak-results.json",
+      "bytes": 4138,
+      "sha256": "d7bb0ac9670af8c065aeefb50355dac0097fbc1455b2ffbc841b6603829fdf52"
     },
     {
       "path": "artifacts/mdd-084/build_record.py",

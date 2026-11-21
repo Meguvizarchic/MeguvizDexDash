@@ -1834,7 +1834,7 @@
       "id": "MDD-063",
       "phase": "M6",
       "title": "实现版本化持久事实缓存与原子恢复",
-      "status": "todo",
+      "status": "done",
       "depends_on": [
         "MDD-011",
         "MDD-012",
@@ -1867,6 +1867,24 @@
         "docs/02_ARCHITECTURE_AND_CONTRACTS.md",
         "docs/03_HOSTLAB_MIGRATION.md",
         "docs/04_VALIDATION_AND_PERFORMANCE.md"
+      ],
+      "implementation_notes": "2026-11-21, DONE. Implemented `crates/mdd-cache/` (`mdd-index/1` 128B little-endian header with 96B header SHA-256, raw manifest SHA-256, 64B section descriptors with a priori bounds/non-overlap validation, `section_table_sha256`, nonzero reserved-bytes rejection, Standalone embedded-blob vs Thin external CAS storage, deterministic canonical keys excluding filesystem path/mtime while preserving logical occurrence multiplicity and separate `RuleCacheKeySpec`, lockfile + double-checked concurrency serialization + staging temp self-verification + `sync_all` + atomic rename + stale `.tmp` reclaim, and strict completeness guards rejecting partial/truncated/unpaged/deadline/cancelled outcomes from complete or negative caches). Verified cold/warm(with source deletion)/bypass/corrupt-repair 17-table SHA-256 bit-identity against uncached `mdd_service::Dataset`, same-size/same-mtime 1-byte mutation invalidation, `[structured-035.dex, structured-035.dex]` duplicate multiplicity preservation, CAS missing(`STALE_CACHE`)/corrupt(`CACHE_CORRUPT`), major=2(`STALE_CACHE`), concurrent multi-process race, and negative controls in `conformance/cache/run_cache_conformance.py` and `crates/mdd-cache/tests/cache_integration.rs`.",
+      "implementation_evidence": [
+        "crates/mdd-cache/Cargo.toml",
+        "crates/mdd-cache/src/lib.rs",
+        "crates/mdd-cache/src/key.rs",
+        "crates/mdd-cache/src/format.rs",
+        "crates/mdd-cache/src/cas.rs",
+        "crates/mdd-cache/src/guard.rs",
+        "crates/mdd-cache/src/facts_codec.rs",
+        "crates/mdd-cache/src/store.rs",
+        "crates/mdd-cache/src/dependency_tracking.rs",
+        "crates/mdd-cache/examples/cache_probe.rs",
+        "crates/mdd-cache/tests/cache_integration.rs",
+        "conformance/cache/invalidation-matrix.json",
+        "conformance/cache/run_cache_conformance.py",
+        "conformance/cache/test_cache_conformance.py",
+        "artifacts/mdd-063/cache-fault-recovery.json"
       ]
     },
     {
@@ -2290,7 +2308,7 @@
       "id": "MDD-074",
       "phase": "M7",
       "title": "独立验证可选 041、特殊容器与 provider",
-      "status": "todo",
+      "status": "done",
       "depends_on": [
         "MDD-013",
         "MDD-014",
@@ -2323,6 +2341,23 @@
         "docs/01_DECISIONS_AND_DEPENDENCIES.md",
         "docs/02_ARCHITECTURE_AND_CONTRACTS.md",
         "docs/04_VALIDATION_AND_PERFORMANCE.md"
+      ],
+      "implementation_notes": "2026-11-21, DONE (explicitly decoupled from standard DEX Linux/Windows release; standard_release_depends_on_mdd_074=false). Implemented isolated `crates/mdd-input/src/optional_formats/` (`address.rs` typed `ContainerOffset`/`LogicalHeaderOffset`/`CodeUnitPc`, `dex041.rs` dedicated 120B multi-logical-header validator preserving per-DEX string occurrences without collapsing shared strings and failing closed on unrecognized tail bytes / header-pointer collisions / zero-progress / truncated shared MUTF-8 / mixed versions, while keeping `crates/mdd-dex/src/header.rs` standard `035-040` reader strictly untouched and rejecting `041`; plus `special_containers.rs` keeping `cdex`, `vdex`, `oat`, `apk-split-bundle`, and `protobuf-resources` explicitly `disabled` with `UnsupportedCapability`). Verified `SharedContainerDependency` cache invalidation in `crates/mdd-cache/tests/dex041_cache_invalidation.rs`. Implemented isolated `crates/mdd-worker/src/providers/` (`jadx_view.rs` disabled by default, enforcing exact binary SHA-256 verification, sanitized env + scratch dir cleanup, hard timeout reap, bounded stdout cap, `display_only_reconstructed` trust label, and architectural `reject_as_authoritative_fact` guard against supplying raw fingerprints or deterministic call graphs). All checks and negative controls recorded in `artifacts/mdd-074/optional-format-qualification.json`.",
+      "implementation_evidence": [
+        "crates/mdd-input/src/optional_formats/mod.rs",
+        "crates/mdd-input/src/optional_formats/address.rs",
+        "crates/mdd-input/src/optional_formats/dex041.rs",
+        "crates/mdd-input/src/optional_formats/special_containers.rs",
+        "crates/mdd-input/examples/optional_format_probe.rs",
+        "crates/mdd-worker/src/providers/mod.rs",
+        "crates/mdd-worker/src/providers/jadx_view.rs",
+        "crates/mdd-worker/examples/provider_isolation_probe.rs",
+        "crates/mdd-worker/tests/provider_isolation.rs",
+        "crates/mdd-cache/tests/dex041_cache_invalidation.rs",
+        "conformance/manifests/optional-capabilities.json",
+        "conformance/optional_formats/run_optional_conformance.py",
+        "conformance/optional_formats/test_optional_conformance.py",
+        "artifacts/mdd-074/optional-format-qualification.json"
       ]
     },
     {
@@ -2433,7 +2468,7 @@
       "id": "MDD-081",
       "phase": "M8",
       "title": "完成故障注入、恢复与长时资源验证",
-      "status": "todo",
+      "status": "done",
       "depends_on": [
         "MDD-014",
         "MDD-034",
@@ -2464,6 +2499,15 @@
         "docs/02_ARCHITECTURE_AND_CONTRACTS.md",
         "docs/03_HOSTLAB_MIGRATION.md",
         "docs/04_VALIDATION_AND_PERFORMANCE.md"
+      ],
+      "implementation_notes": "2026-11-21, DONE. Built `crates/mdd-worker/examples/fault_supervisor_probe.rs`, `conformance/faults/scenario-matrix.json`, `conformance/faults/run-fault-suite.py`, and negative control `test_fault_suite.py` exercising all 10 scenarios end-to-end across `mdd-input`, `mdd-session`, `mdd-worker` (`Supervisor` + `mdd-wire/1`), `mdd-ffi`, `mdd-mcp`, `mdd-cli`, and `mdd-cache`: (1) `source_mutation` (`SOURCE_CHANGED`, post-capture isolation, new key on reopen); (2) `stale_handles` (`SNAPSHOT_CLOSED`, C ABI `MDD_E_INVALID_HANDLE`, closed MCP dataset refusal, zero leaked handles); (3) `catalog_epoch_invalidation` (`epoch 0 -> 1` cross-epoch `INVALID_CURSOR` + recovered `cursor1` + MCP `CREATE/DROP TEMP VIEW`); (4) `half_frames` (`mdd-wire/1` `TruncatedHeader` + `TruncatedBody`, zero detached threads, missing CLI terminal rejection); (5) `broken_pipe` (mid-stream stdout close exit `4`, zero Rust panic); (6) `multi_worker_crash_isolation` (killing Worker 1 marks all 3 active queries `WORKER_LOST` with `direct_child_reaped=true` while isolated Worker 2 completes 2/2 and fresh Worker 3 re-verifies SHA-256 and recovers 3/3); (7) `hard_deadline` (`DEADLINE_EXCEEDED`, zero cache persisted); (8) `half_written_and_corrupt_cache` (`CACHE_CORRUPT` in `CacheOnly`, auto-repair and `.tmp` cleanup in `ReadWrite` matching `bypass` SHA-256); (9) `duplicate_logical_inputs` (`[structured-035, structured-035, changed]` preserves 3 `dex_files` rows through corruption rebuild); and (10) 24-round mixed soak after 3-round warmup (`GetProcessHandleCount` + `WorkingSetSize` on Windows; `/proc/self/fd` + `/proc/self/statm` on Linux) confirming `live_ffi_handles_delta=0`, `leaked_child_processes=0`, `leftover_temp_files=0`, and bounded handle/RSS deltas (`+20` handles / `+0.809 MiB` on Windows run). Wired into `tools/run_ci_conformance.py` for continuous dual-OS execution.",
+      "implementation_evidence": [
+        "crates/mdd-worker/examples/fault_supervisor_probe.rs",
+        "conformance/faults/scenario-matrix.json",
+        "conformance/faults/run-fault-suite.py",
+        "conformance/faults/test_fault_suite.py",
+        "tools/run_ci_conformance.py",
+        "artifacts/mdd-081/fault-and-soak-results.json"
       ]
     },
     {
