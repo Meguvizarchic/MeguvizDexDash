@@ -2382,7 +2382,7 @@
       "id": "MDD-080",
       "phase": "M8",
       "title": "完成 Linux/Windows 运行、ABI 与桌面平台资格",
-      "status": "in_progress",
+      "status": "done",
       "depends_on": [
         "MDD-044",
         "MDD-055",
@@ -2415,7 +2415,19 @@
         "ENGINEERING_PLAN.md",
         "docs/02_ARCHITECTURE_AND_CONTRACTS.md",
         "docs/04_VALIDATION_AND_PERFORMANCE.md"
-      ]
+      ],
+      "implementation_notes": "2026-11-21, DONE (dual-OS runtime & ABI functional qualification; does not replace MDD-082 performance release qualification and stays independent of MDD-074). Defined `conformance/platform/platform-matrix.json` explicitly declaring `linux-x86_64` and `windows-x86_64` as Tier-1 natively verified functional platforms, `macos-arm64` / `macos-x86_64` / `linux-aarch64` / `windows-aarch64` as `status=\"not_admitted\", advertised=false`, `dex-041`/`cdex`/`vdex`/`oat`/`jadx-provider` under `separate_qualification_mdd_074`, and the four allowed platform differences. Executed `conformance/platform/run_platform_qualification.py` natively on both Windows 11 x86_64 (`artifacts/mdd-080/windows-x86_64-results.json`) and GitHub Actions Ubuntu 24.04 x86_64 (`run 44889697130`, `artifacts/mdd-080/linux-x86_64-results.json`): all surfaces pass (CLI exit codes 0/1/2, all 12 MCP tools & 56 tables, Python SDK/Worker MUTF-8/scalar fidelity, and MDD-073 preview desktop checks on WebView2 + WebKitGTK), all 6 OS/lifecycle probes pass (`unicode_paths` `mdd_平台_प्रणाली_δείγμα/样本_αβγ.apk`, `source_replace_and_delete` after capture across Snapshot/Worker/MCP, `worker_crash_cleanup` -> `WORKER_LOST` with `abandoned_threads=0`, `pipe_close_handling` clean stdin exit `0` & broken stdout exit `4` with zero panics, `c_abi_buffer_and_handle_lifecycle` verifying 29 header symbols, `ABI_MISMATCH` error release, `MDD_E_OUTSTANDING_BATCH` flow control, retained batch readable after parent close+release, double-release/stale-handle `MDD_E_INVALID_HANDLE`, `live_handles_delta=0`, and concurrent `multi_session_isolation`). `conformance/platform/verify_cross_platform.py --write` confirmed exact byte-for-byte identity across all 5 canonical workloads (`overall_canonical_sha256 = eb1deaaa26fc0836a1ba064c362cb224a350e5caf5439ae3b775a9c4af05838e`) and produced `artifacts/mdd-080/abi-compatibility.json`; `conformance/platform/test_platform_qualification.py` verifies 5 negative controls (cross-compile stand-in, hash divergence, advertised `macos-arm64`, handle leak).",
+      "implementation_evidence": [
+        "conformance/platform/platform-matrix.json",
+        "conformance/platform/run_platform_qualification.py",
+        "conformance/platform/verify_cross_platform.py",
+        "conformance/platform/test_platform_qualification.py",
+        "tools/run_ci_conformance.py",
+        "artifacts/mdd-080/windows-x86_64-results.json",
+        "artifacts/mdd-080/linux-x86_64-results.json",
+        "artifacts/mdd-080/abi-compatibility.json"
+      ],
+      "blocking_reasons": []
     },
     {
       "id": "MDD-081",

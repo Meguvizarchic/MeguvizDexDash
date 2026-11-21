@@ -1,6 +1,14 @@
 # MeguvizDexDash 当前状态
 
-更新：2026-11-21（Asia/Shanghai）。唯一任务图：tasks/backlog.json（52 项：done 42、in_progress 1 [`MDD-080`]、todo 9；待办含 `MDD-060..064`、`074`、`081..083`）；M5 可切换 HostLab-MVP 功能预览已收口（`preview=true`、`performance_replacement_qualified=false`、`default_production_cutover=false`），所有产品 profile `admitted=false`。
+更新：2026-11-21（Asia/Shanghai）。唯一任务图：tasks/backlog.json（52 项：done 43、in_progress 0、todo 9；剩余待办 `MDD-060..064`、`074`、`081..083`）；M5 HostLab-MVP 功能预览与双平台（`windows-x86_64`、`linux-x86_64`）原生运行时与 C ABI `1.0` 功能资格均已收口，正式性能替代发行仍待 `MDD-082`，所有产品 profile `admitted=false`。
+
+## 2026-11-21 MDD-080 Linux/Windows 双平台原生运行与 ABI 资格收口（Wave C1 收口）
+
+- **`MDD-080` 完成并闭环（-> `done`）**：
+  - 在 `edac868` 修复 POSIX `subprocess.Popen.communicate(input=b"")` 后，GitHub Actions `Native build and conformance`（run `44889697130`）在真实 `ubuntu-24.04` 环境全项通过并产出 `platform-results.json`，已提取固化为 [artifacts/mdd-080/linux-x86_64-results.json](artifacts/mdd-080/linux-x86_64-results.json)。
+  - [conformance/platform/verify_cross_platform.py](conformance/platform/verify_cross_platform.py) 验证 Ubuntu 24.04 x86_64 与 Windows 11 x86_64 在全部 5 项标准工作负载（`public_apk_facts_digest`、`decode_smali_and_context_digest`、`resources_and_manifest_digest`、`mutf8_and_scalar_cells_digest`、`c_abi_batch_codec_digest`）上逐字节相等（`overall_canonical_sha256 = eb1deaaa26fc0836a1ba064c362cb224a350e5caf5439ae3b775a9c4af05838e`），生成 [artifacts/mdd-080/abi-compatibility.json](artifacts/mdd-080/abi-compatibility.json)。
+  - 矩阵明确声明 `macos-arm64` / `macos-x86_64` / `linux-aarch64` / `windows-aarch64` 为 `not_admitted`、`041/CDex/VDEX/OAT/JADX` 归 `MDD-074` 独立验证、标准 DEX 平台资格不替代 `MDD-082`。
+- **下一步里程碑**：进入 Wave C2（`MDD-063` 持久化事实缓存、`MDD-074` 可选 `041`/provider 与 `MDD-081` 联合故障注入与长时恢复验证）。
 
 ## 2026-11-21 MDD-065 通用消费者可移植性与 MDD-080 Windows 平台实测（Wave C1 阶段 1）
 

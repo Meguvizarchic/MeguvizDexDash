@@ -1,0 +1,64 @@
+{
+  "schema": "mdd.abi-compatibility.v1",
+  "task": "MDD-080",
+  "kind": "dual-OS native runtime & C ABI 1.0 compatibility certificate; does not admit performance replacement",
+  "generated_utc": "2026-11-21T09:35:44.929921+00:00",
+  "abi_version": {
+    "major": 1,
+    "minor": 0,
+    "header": "include/mdd.h"
+  },
+  "depends_on_mdd_074": false,
+  "performance_replacement_qualified": false,
+  "qualified_platforms": [
+    "windows-x86_64",
+    "linux-x86_64"
+  ],
+  "unadmitted_platforms": [
+    "macos-arm64",
+    "macos-x86_64",
+    "linux-aarch64",
+    "windows-aarch64"
+  ],
+  "overall_canonical_sha256": "eb1deaaa26fc0836a1ba064c362cb224a350e5caf5439ae3b775a9c4af05838e",
+  "canonical_hashes_equal": true,
+  "workload_comparisons": {
+    "public_apk_facts_digest": {
+      "windows_sha256": "69044e0927438f0ee9127319a9ea968d0e97d3766ac35e26e1a8fcddf2b40aa4",
+      "linux_sha256": "69044e0927438f0ee9127319a9ea968d0e97d3766ac35e26e1a8fcddf2b40aa4",
+      "equal": true
+    },
+    "decode_smali_and_context_digest": {
+      "windows_sha256": "8ed8f5806e744ed244e021bc9910d785e077389b65ca368882ceb182d856ebd3",
+      "linux_sha256": "8ed8f5806e744ed244e021bc9910d785e077389b65ca368882ceb182d856ebd3",
+      "equal": true
+    },
+    "resources_and_manifest_digest": {
+      "windows_sha256": "eb9ece4449ad01daa7a727e03d3ea529df7d06abb2a73dd29a99c81d307a0a7d",
+      "linux_sha256": "eb9ece4449ad01daa7a727e03d3ea529df7d06abb2a73dd29a99c81d307a0a7d",
+      "equal": true
+    },
+    "mutf8_and_scalar_cells_digest": {
+      "windows_sha256": "f8076dbfc995cf3a70b75de3d832c1b303b18c83bb88610392f66cf43acfde25",
+      "linux_sha256": "f8076dbfc995cf3a70b75de3d832c1b303b18c83bb88610392f66cf43acfde25",
+      "equal": true
+    },
+    "c_abi_batch_codec_digest": {
+      "windows_sha256": "9e102e93022c753b05eb368929bf49dfe099a63efe01cfd184fb0677bee5296f",
+      "linux_sha256": "9e102e93022c753b05eb368929bf49dfe099a63efe01cfd184fb0677bee5296f",
+      "equal": true
+    }
+  },
+  "allowed_platform_differences": [
+    "EXECUTABLE_AND_SHARED_LIB_NAMES",
+    "HOST_SOURCE_PATH_SYNTAX",
+    "FORCED_WORKER_KILL_EXIT_CODE",
+    "DESKTOP_WEBVIEW_RUNTIME"
+  ],
+  "evidence_sha256": {
+    "conformance/platform/platform-matrix.json": "483e45662854b7630096d040bab465c254d403fd1667f27f16126e33cd7df4af",
+    "artifacts/mdd-080/windows-x86_64-results.json": "0b8c36a6cddae02fa60e4a11cba649d3232c8371eaa37755d5f84069b8034765",
+    "artifacts/mdd-080/linux-x86_64-results.json": "cdcbffbe88efb4dd39176a55b5681316bbeaad407649169175816d08272868c1"
+  },
+  "overall_passed": true
+}
