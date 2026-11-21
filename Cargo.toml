@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["tools/build-probe", "tools/mdd-timing", "crates/mdd-types", "crates/mdd-cli", "crates/mdd-input", "crates/mdd-dex", "crates/mdd-session", "crates/mdd-worker", "crates/mdd-facts", "crates/mdd-query", "crates/mdd-sql", "crates/mdd-wire", "crates/mdd-ffi", "crates/mdd-service", "crates/mdd-mcp"]
+members = ["tools/build-probe", "tools/mdd-timing", "crates/mdd-types", "crates/mdd-cache", "crates/mdd-cli", "crates/mdd-input", "crates/mdd-dex", "crates/mdd-session", "crates/mdd-worker", "crates/mdd-facts", "crates/mdd-query", "crates/mdd-sql", "crates/mdd-wire", "crates/mdd-ffi", "crates/mdd-service", "crates/mdd-mcp"]
 
 [workspace.package]
 version = "0.1.0-dev"
@@ -10,6 +10,7 @@ publish = false
 
 [workspace.dependencies]
 mdd-types = { path = "crates/mdd-types" }
+mdd-cache = { path = "crates/mdd-cache" }
 mdd-input = { path = "crates/mdd-input" }
 mdd-dex = { path = "crates/mdd-dex" }
 mdd-session = { path = "crates/mdd-session" }

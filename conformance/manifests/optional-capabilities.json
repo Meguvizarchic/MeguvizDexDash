@@ -1,0 +1,87 @@
+{
+  "schema_version": "mdd.optional-capabilities.v1",
+  "task_id": "MDD-074",
+  "standard_core_admitted_formats": [
+    "dex-035",
+    "dex-037",
+    "dex-038",
+    "dex-039",
+    "dex-040",
+    "apk-zip"
+  ],
+  "standard_release_depends_on_mdd_074": false,
+  "capabilities": [
+    {
+      "id": "dex-041-container",
+      "kind": "input_container",
+      "versions": ["041"],
+      "status": "verified_optional",
+      "default_enabled": false,
+      "admitted_for_standard_release": false,
+      "implementation": "crates/mdd-input/src/optional_formats/dex041.rs",
+      "isolated_from_standard_dex_reader": true,
+      "notes": "Requires opt-in policy; standard DEX 035-040 reader continues rejecting 041."
+    },
+    {
+      "id": "cdex",
+      "kind": "runtime_container",
+      "versions": [],
+      "status": "disabled",
+      "default_enabled": false,
+      "admitted_for_standard_release": false,
+      "expected_error": "UNSUPPORTED_CAPABILITY",
+      "notes": "Explicitly unimplemented and disabled; fails closed on cdex magic."
+    },
+    {
+      "id": "vdex",
+      "kind": "runtime_container",
+      "versions": [],
+      "status": "disabled",
+      "default_enabled": false,
+      "admitted_for_standard_release": false,
+      "expected_error": "UNSUPPORTED_CAPABILITY",
+      "notes": "Explicitly unimplemented and disabled; fails closed on vdex magic."
+    },
+    {
+      "id": "oat",
+      "kind": "runtime_container",
+      "versions": [],
+      "status": "disabled",
+      "default_enabled": false,
+      "admitted_for_standard_release": false,
+      "expected_error": "UNSUPPORTED_CAPABILITY",
+      "notes": "Explicitly unimplemented and disabled; fails closed on oat magic."
+    },
+    {
+      "id": "apk-split-bundle",
+      "kind": "input_container",
+      "versions": [],
+      "status": "disabled",
+      "default_enabled": false,
+      "admitted_for_standard_release": false,
+      "expected_error": "UNSUPPORTED_CAPABILITY",
+      "notes": "Requires dedicated package-world/split-identity manifest; not enabled in core."
+    },
+    {
+      "id": "protobuf-resources",
+      "kind": "resource_encoding",
+      "versions": [],
+      "status": "disabled",
+      "default_enabled": false,
+      "admitted_for_standard_release": false,
+      "expected_error": "UNSUPPORTED_CAPABILITY",
+      "notes": "AAPT2 protobuf resources remain disabled unless verified separately."
+    },
+    {
+      "id": "jadx-optional-view-provider",
+      "kind": "external_provider",
+      "versions": ["pinned-sha256-opt-in"],
+      "status": "isolated_display_only",
+      "default_enabled": false,
+      "admitted_for_standard_release": false,
+      "authoritative_for_facts": false,
+      "implementation": "crates/mdd-worker/src/providers/jadx_view.rs",
+      "notes": "Disabled unless configured with exact binary SHA-256, timeout, and output cap; outputs are display_only_reconstructed and forbidden from supplying raw fingerprints or call graphs."
+    }
+  ]
+}

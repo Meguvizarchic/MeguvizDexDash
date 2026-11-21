@@ -1,0 +1,112 @@
+{
+  "schema_version": "mdd.fault-and-soak-results.v1",
+  "task_id": "MDD-081",
+  "platform": {
+    "system": "windows",
+    "machine": "amd64"
+  },
+  "source_sha256": {
+    "crates/mdd-worker/examples/fault_supervisor_probe.rs": "2fc0b1e654a963a580cd96b11d7003c04b314eb1270178bf51823e849820adb7",
+    "crates/mdd-worker/src/lifecycle/mod.rs": "64ecc389ed84ea8bf92cbbd4b015df3781e642d5d637ba424412125fa61d925b",
+    "crates/mdd-worker/src/protocol/mod.rs": "12f82651e295486e1e6fd5b369194cadc786de2918b8328c3d35238c2bfb929d",
+    "crates/mdd-cache/examples/cache_probe.rs": "7de276e2e494712cf694c618ff470aee3f1c3fce3181269d219c4a90e44954de",
+    "crates/mdd-cache/src/store.rs": "31d9e414687885ebbf24327500418902bffe6292cbe0f62bf15c28828b05810f",
+    "crates/mdd-cache/src/guard.rs": "6dc1f6c829ba2d6be1b4f8a31e5c8c6501617ed2b27b162eb55bd9067e533bef",
+    "conformance/faults/scenario-matrix.json": "7e8278ddf5df3d8d0f16a8757825bb4d5492188e1f25cdbd2bf12f11eb7dd5f4",
+    "conformance/faults/run-fault-suite.py": "a097ba18380ae5423ec6d1169a77a10317f1b75ed57cb63456ea14c8068705c4",
+    "conformance/faults/test_fault_suite.py": "81c91b53cbec1a54fa627ebf050c29b08a85995a59ce52c78263401246e9d7ee"
+  },
+  "scenarios": {
+    "source_mutation": {
+      "passed": true,
+      "error_code": "SOURCE_CHANGED",
+      "snapshot_isolated": true,
+      "reopen_key_changed": true
+    },
+    "stale_handles": {
+      "passed": true,
+      "lifecycle_closed_snapshot": "SNAPSHOT_CLOSED",
+      "c_abi_stale_status": 2,
+      "mcp_closed_refused": true,
+      "live_handles_delta": 0
+    },
+    "catalog_epoch_invalidation": {
+      "passed": true,
+      "epoch_before": 0,
+      "epoch_after": 1,
+      "stale_cursor_error": "INVALID_CURSOR",
+      "recovered_cursor_epoch": 1,
+      "mcp_temp_ddl_verified": true
+    },
+    "half_frames": {
+      "passed": true,
+      "wire_half_header": "TruncatedHeader",
+      "wire_half_body": "TruncatedBody",
+      "detached_threads": 0,
+      "missing_cli_terminal_detected": true
+    },
+    "broken_pipe": {
+      "passed": true,
+      "stdout_close_exit_code": 4,
+      "rust_panic": false
+    },
+    "multi_worker_crash_isolation": {
+      "passed": true,
+      "worker1_error_code": "WORKER_LOST",
+      "worker1_affected_requests": 3,
+      "claims_single_query_loss": false,
+      "worker2_unaffected_completed": 2,
+      "worker3_recovered_requests": 3,
+      "direct_child_reaped": true
+    },
+    "hard_deadline": {
+      "passed": true,
+      "error_code": "DEADLINE_EXCEEDED",
+      "persisted_cache_files": 0
+    },
+    "half_written_and_corrupt_cache": {
+      "passed": true,
+      "cache_only_error": "CACHE_CORRUPT",
+      "rebuilt_outcome": "rebuilt_corrupt",
+      "reclaimed_half_written_tmp": true,
+      "tables_sha256": "8f6b61c629214cb4b61401019db5e39409a9c7ad16ef1eba4c4abd7e38189778"
+    },
+    "duplicate_logical_inputs": {
+      "passed": true,
+      "input_occurrences": 3,
+      "recovered_dex_files_rows": 3,
+      "overall_tables_sha256": "bbd50d162eb22356ab20aa9834dcb7010fe1e62e91a914e9b14b95a52f90dc81"
+    },
+    "soak_resource_bounds": {
+      "passed": true,
+      "warmup_rounds": 3,
+      "measured_rounds": 24,
+      "os": "windows",
+      "measurement_method": "GetProcessHandleCount + GetProcessMemoryInfo.WorkingSetSize",
+      "warmup_sample": {
+        "platform": "windows",
+        "method": "GetProcessHandleCount + GetProcessMemoryInfo.WorkingSetSize",
+        "handle_or_fd_count": 165,
+        "rss_bytes": 32804864
+      },
+      "midpoint_sample": {
+        "platform": "windows",
+        "method": "GetProcessHandleCount + GetProcessMemoryInfo.WorkingSetSize",
+        "handle_or_fd_count": 175,
+        "rss_bytes": 33116160
+      },
+      "end_sample": {
+        "platform": "windows",
+        "method": "GetProcessHandleCount + GetProcessMemoryInfo.WorkingSetSize",
+        "handle_or_fd_count": 175,
+        "rss_bytes": 33181696
+      },
+      "live_ffi_handles_delta": 0,
+      "handle_or_fd_delta_vs_warmup": 10,
+      "rss_delta_mib_vs_warmup": 0.359,
+      "leaked_child_processes": 0,
+      "leftover_temp_files": 0
+    }
+  },
+  "all_passed": true
+}

@@ -1,0 +1,55 @@
+{
+  "schema_version": "mdd.cache-invalidation-matrix.v1",
+  "task_id": "MDD-063",
+  "cache_format": "mdd-index/1",
+  "cases": [
+    {
+      "id": "cold_warm_bypass_equivalence_standalone",
+      "description": "Cold build, warm hit (without rebuild and after deleting source file), and bypass produce bit-identical 17-table digests",
+      "mode": "standalone",
+      "expected": "equal_tables_and_warm_skips_build"
+    },
+    {
+      "id": "thin_mode_cas_persistence_and_faults",
+      "description": "Thin mode external CAS blob reused cleanly; missing CAS returns STALE_CACHE and mutated CAS returns CACHE_CORRUPT",
+      "mode": "thin",
+      "expected": "cas_verified_or_fail_closed"
+    },
+    {
+      "id": "same_size_same_mtime_one_byte_mutation",
+      "description": "Identical byte count and identical nanosecond mtime with 1-byte mutation forces new canonical key and invalidation",
+      "mode": "standalone",
+      "expected": "canonical_key_changed"
+    },
+    {
+      "id": "path_rename_preserves_cache_key",
+      "description": "Moving identical DEX to another directory/filename preserves canonical cache key without path/mtime dependence",
+      "mode": "standalone",
+      "expected": "canonical_key_equal"
+    },
+    {
+      "id": "logical_duplicate_multiplicity_preserved",
+      "description": "[structured-035.dex, structured-035.dex] differs from single structured-035.dex in key, dex_files file_id count, and occurrence_reuse_map",
+      "mode": "standalone",
+      "expected": "distinct_key_and_double_file_id_count"
+    },
+    {
+      "id": "half_write_truncation_corruption_and_recovery",
+      "description": "Truncated header, half-written .tmp file, nonzero reserved header bytes, unsupported major=2, and section bit flip fail in CacheOnly and recover cleanly in ReadWrite",
+      "mode": "standalone",
+      "expected": "fail_closed_in_cache_only_and_recover_in_read_write"
+    },
+    {
+      "id": "concurrent_lock_writers_atomic_publish",
+      "description": "Two concurrent probe processes racing on the same cache key coordinate via lockfile cleanly with identical result digests",
+      "mode": "standalone",
+      "expected": "both_succeed_identical_tables_zero_temps"
+    },
+    {
+      "id": "partial_deadline_truncated_unpaged_negative_guard",
+      "description": "Partial input, IncompleteFacts, DeadlineExceeded, truncated, and more_available responses are never written to complete or negative caches",
+      "mode": "standalone",
+      "expected": "refused_by_rust_integration_tests"
+    }
+  ]
+}

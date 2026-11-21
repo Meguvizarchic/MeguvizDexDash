@@ -1,0 +1,76 @@
+{
+  "schema_version": "mdd.fault-scenario-matrix.v1",
+  "task_id": "MDD-081",
+  "scenarios": [
+    {
+      "id": "source_mutation",
+      "affected_scope": "capture_and_open_snapshot",
+      "error_category": "SOURCE_CHANGED",
+      "incomplete_handling_rule": "Refuse capture if expected_sha256 mismatches; existing captured snapshot stays isolated from disk overwrite/delete; fresh open re-hashes new bytes",
+      "recovery_rule": "Recapture current verified bytes under a new snapshot_id and recompute cache key"
+    },
+    {
+      "id": "stale_handles",
+      "affected_scope": "c_abi_session_lifecycle_and_mcp",
+      "error_category": "SNAPSHOT_CLOSED / MDD_E_INVALID_HANDLE",
+      "incomplete_handling_rule": "Never dereference closed/released FFI handles or closed datasets; refuse immediately",
+      "recovery_rule": "Re-open snapshot and session handles and track zero leaked live handles"
+    },
+    {
+      "id": "catalog_epoch_invalidation",
+      "affected_scope": "session_temp_catalog_and_cursors",
+      "error_category": "INVALID_CURSOR",
+      "incomplete_handling_rule": "Cursors bound to epoch N fail against epoch N+1 after DDL mutation instead of mixing TEMP views across generations",
+      "recovery_rule": "Re-prepare query and re-open cursor bound to current catalog_epoch"
+    },
+    {
+      "id": "half_frames",
+      "affected_scope": "mdd_wire_v1_and_cli_jsonl_ipc",
+      "error_category": "TruncatedHeader / TruncatedBody / MISSING_TERMINAL",
+      "incomplete_handling_rule": "Half headers, truncated frame payloads, and streams ending without End/terminal never degrade into empty success",
+      "recovery_rule": "Reap child with zero detached threads and mark incomplete requests failed"
+    },
+    {
+      "id": "broken_pipe",
+      "affected_scope": "streaming_stdout_and_closed_stdin",
+      "error_category": "OUTPUT_PIPE_CLOSED",
+      "incomplete_handling_rule": "Streaming producer terminates cleanly with exit code 4 (stdout broken) or 0 (stdin EOF) with zero Rust panic",
+      "recovery_rule": "No orphaned children; partial consumer drops result without persisting completion"
+    },
+    {
+      "id": "multi_worker_crash_isolation",
+      "affected_scope": "worker_1_all_active_requests",
+      "error_category": "WORKER_LOST",
+      "incomplete_handling_rule": "Crashing worker marks ALL in-flight requests owned by that worker as WORKER_LOST (never claiming single-query loss) while sibling worker completes isolated",
+      "recovery_rule": "Reap crashed worker process, re-verify source content SHA-256, and re-execute incomplete list on fresh worker"
+    },
+    {
+      "id": "hard_deadline",
+      "affected_scope": "query_and_cache_persistence",
+      "error_category": "DEADLINE_EXCEEDED",
+      "incomplete_handling_rule": "Bounded execution aborts at deadline_ms and refuses writing complete or negative cache entries",
+      "recovery_rule": "Verify zero cache files emitted and re-run within sufficient budget for Complete coverage"
+    },
+    {
+      "id": "half_written_and_corrupt_cache",
+      "affected_scope": "mdd_index_v1_store",
+      "error_category": "CACHE_CORRUPT",
+      "incomplete_handling_rule": "Half-written .tmp files and corrupted .mddidx refuse in CacheOnly mode rather than serving empty facts",
+      "recovery_rule": "Reclaim .tmp leaks, quarantine corrupt index, rebuild from verified capture, and confirm hash equivalence against bypass"
+    },
+    {
+      "id": "duplicate_logical_inputs",
+      "affected_scope": "snapshot_occurrences_and_recovered_relations",
+      "error_category": "MULTIPLICITY_PRESERVED",
+      "incomplete_handling_rule": "Fault recovery and physical deduplication never collapse distinct logical source occurrences into one entry",
+      "recovery_rule": "Verify dex_files row count and total rows equal exact multiplicity after recovery"
+    },
+    {
+      "id": "soak_resource_bounds",
+      "affected_scope": "process_memory_handles_fd_children_queues",
+      "error_category": "BOUNDED_RESOURCES",
+      "incomplete_handling_rule": "24 mixed cancel/quota/crash/cache/FFI rounds leak zero FFI handles, zero child processes, zero .tmp files, and bound RSS/handle growth",
+      "recovery_rule": "Compare post-warmup baseline against midpoint and final samples using native OS counters"
+    }
+  ]
+}

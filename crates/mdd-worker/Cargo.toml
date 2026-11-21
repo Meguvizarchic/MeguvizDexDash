@@ -11,6 +11,7 @@ mdd-session.workspace = true
 mdd-wire.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
 
 [dev-dependencies]
 mdd-input.workspace = true

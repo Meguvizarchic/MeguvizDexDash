@@ -11,6 +11,11 @@ serde.workspace = true
 serde_json.workspace = true
 zip.workspace = true
 quick-xml.workspace = true
+sha1.workspace = true
+sha2.workspace = true
+
+[dev-dependencies]
+mdd-dex = { path = "../mdd-dex" }
 
 [lints]
 workspace = true

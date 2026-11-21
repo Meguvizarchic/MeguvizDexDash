@@ -1,0 +1,25 @@
+[package]
+name = "mdd-cache"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+mdd-types.workspace = true
+mdd-input.workspace = true
+mdd-dex.workspace = true
+mdd-facts.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+getrandom.workspace = true
+
+[dev-dependencies]
+mdd-service = { path = "../mdd-service" }
+mdd-sql = { path = "../mdd-sql" }
+mdd-session = { path = "../mdd-session" }
+sha1.workspace = true
+
+[lints]
+workspace = true

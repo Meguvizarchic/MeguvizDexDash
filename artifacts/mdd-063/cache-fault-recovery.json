@@ -1,0 +1,76 @@
+{
+  "schema_version": "mdd.cache-fault-recovery.v1",
+  "task_id": "MDD-063",
+  "cache_format": "mdd-index/1",
+  "source_sha256": {
+    "crates/mdd-cache/Cargo.toml": "f8b8e566a90ed485c2102070c2a425479e9973e710f09aacd3258999120d35bd",
+    "crates/mdd-cache/src/lib.rs": "f2841956364b9776624ec6d9e6813c1683b29de669727e8550a456212c8a77ca",
+    "crates/mdd-cache/src/key.rs": "bafcce2dcca91ad7ae7b73f8f4e95680d97542cb0792ec9607afb2e953446029",
+    "crates/mdd-cache/src/format.rs": "aaea537dabe1a1ca521f0c9e9d6b5347a6a8964a0ffdf81e3e85f3b3c2af9bbb",
+    "crates/mdd-cache/src/cas.rs": "095b367e6187dce1a8d71dded7efe3de3b34db745632c4bef74d9a3053644079",
+    "crates/mdd-cache/src/guard.rs": "6dc1f6c829ba2d6be1b4f8a31e5c8c6501617ed2b27b162eb55bd9067e533bef",
+    "crates/mdd-cache/src/facts_codec.rs": "13bddbb0ca380589bc63b2c5540eca8626e986d620e9eb94301323b9b5ba4ba1",
+    "crates/mdd-cache/src/store.rs": "31d9e414687885ebbf24327500418902bffe6292cbe0f62bf15c28828b05810f",
+    "crates/mdd-cache/src/dependency_tracking.rs": "60ef6208e6ca25b9b21cdcf40dbfb7e13c44c900a10ba1ffe7ec2439e76b99a8",
+    "crates/mdd-cache/examples/cache_probe.rs": "7de276e2e494712cf694c618ff470aee3f1c3fce3181269d219c4a90e44954de",
+    "crates/mdd-cache/tests/cache_integration.rs": "3206866c0880078123b5f546d88824aa3562294160a82451f14b05f5008fb37f",
+    "conformance/cache/invalidation-matrix.json": "db2a04bb307686ac8e5a69976f7079f5efb18c0a6e93cfc945acc9a062d5a2fe",
+    "conformance/cache/run_cache_conformance.py": "d2db3f81a5027a36920a66de9106c20c5ed331a7e8680a48a0d4a7045e80d05c",
+    "conformance/cache/test_cache_conformance.py": "9e5beb34cd36b29a0fd83b4ee771aa56ab29bee3eda4ae2f7772af40471cb74c"
+  },
+  "cases": {
+    "cold_warm_bypass_equivalence_standalone": {
+      "passed": true,
+      "canonical_cache_key": "99e988883077ea8e5c80e60184bf7f08bd79ac0a0689cff3c90fe0ec092aea8c",
+      "table_count": 17,
+      "overall_tables_sha256": "a711ebf672e488ee15a00588ba4943382696daacc20f525b7e3bf7fb2fbd8fda",
+      "header_bytes": 128,
+      "warm_build_fn_invoked": false
+    },
+    "thin_mode_cas_persistence_and_faults": {
+      "passed": true,
+      "corrupt_cas_error": "CACHE_CORRUPT",
+      "missing_cas_error": "STALE_CACHE"
+    },
+    "path_rename_preserves_cache_key": {
+      "passed": true,
+      "key": "99e988883077ea8e5c80e60184bf7f08bd79ac0a0689cff3c90fe0ec092aea8c"
+    },
+    "same_size_same_mtime_one_byte_mutation": {
+      "passed": true,
+      "size_bytes": 536,
+      "before_key": "99e988883077ea8e5c80e60184bf7f08bd79ac0a0689cff3c90fe0ec092aea8c",
+      "after_key": "0e2ef0369a86c96ff0d21db8f1c9423bd6855dfca20b20e1e5938d13345cfe9e",
+      "stale_error_detected": true
+    },
+    "logical_duplicate_multiplicity_preserved": {
+      "passed": true,
+      "single_key": "99e988883077ea8e5c80e60184bf7f08bd79ac0a0689cff3c90fe0ec092aea8c",
+      "duplicate_key": "14da05e5b67638a3b1d9cb35995bc5a734a4c3cf155d3f1875a39192f6e87e74",
+      "dex_files_rows": 2,
+      "overall_tables_sha256": "7bf17545fe922752e5c0e5ab65318030b3a454ddf5fc7804c80f20ef83872685"
+    },
+    "half_write_truncation_corruption_and_recovery": {
+      "passed": true,
+      "truncated_error": "CACHE_CORRUPT",
+      "nonzero_reserved_error": "CACHE_CORRUPT",
+      "unsupported_version_error": "STALE_CACHE",
+      "recovered_outcome": "rebuilt_corrupt",
+      "reclaimed_stale_tmp": true
+    },
+    "concurrent_lock_writers_atomic_publish": {
+      "passed": true,
+      "worker_outcomes": [
+        "built_cold",
+        "hit_warm"
+      ],
+      "tables_sha256": "bf1d008f3877b658a37337dc6124362fd943961b12d90b03aa42d08eda84e76d",
+      "leftover_temps": 0
+    },
+    "partial_deadline_truncated_unpaged_negative_guard": {
+      "passed": true,
+      "verified_by": "crates/mdd-cache/tests/cache_integration.rs"
+    }
+  },
+  "all_passed": true
+}

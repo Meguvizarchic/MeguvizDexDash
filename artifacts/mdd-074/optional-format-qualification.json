@@ -1,0 +1,69 @@
+{
+  "schema_version": "mdd.optional-format-qualification.v1",
+  "task_id": "MDD-074",
+  "standard_release_depends_on_mdd_074": false,
+  "source_sha256": {
+    "crates/mdd-input/src/optional_formats/mod.rs": "6612451989b6b9161ef8bd3f25efe22b3e1dcd6ea948ba0bd2c8d96fca318198",
+    "crates/mdd-input/src/optional_formats/address.rs": "86e2a97bf10160b7a9dd45fd7b683b9bc19dc2c813e88c8f1f0b4b077baa9d41",
+    "crates/mdd-input/src/optional_formats/dex041.rs": "2cd162a111b4fa66e109ddd2bd70e774db7eef931fc365a0a36f1acfb5714b02",
+    "crates/mdd-input/src/optional_formats/special_containers.rs": "e2d8dd09057f50129387f922e641f85c680a43a70ff2764b672ffa65842ff264",
+    "crates/mdd-input/examples/optional_format_probe.rs": "d6057a0e5b3834d1b743058e8f9898eee41a070d4c2ff90d32fa1a52a132456f",
+    "crates/mdd-worker/src/providers/mod.rs": "6062c514483df8907bef6ffeb2c7354726cc883c714fd4be29654c0cf0596fd7",
+    "crates/mdd-worker/src/providers/jadx_view.rs": "8a25ec143f6a2aebf1989af525141e7ea095d51b029cc49e5a19a95e9800242d",
+    "crates/mdd-worker/examples/provider_isolation_probe.rs": "148efdece51bd028c2f7ee36213a9b5538df52b2dd55bbe76425f8483ef71f35",
+    "crates/mdd-worker/tests/provider_isolation.rs": "ba202c8839b555b0f399f35942735726c6986ba14ca9a929c90ed438342527cb",
+    "crates/mdd-cache/tests/dex041_cache_invalidation.rs": "f96ab5231fdb3b46a735b1f498d90739096cafe61b3a568ebfa975d27368c84f",
+    "conformance/manifests/optional-capabilities.json": "3644ff97613f2a7ba86aac4957c6e2f432f03df1f1d8a7d087d77ed40c42885c",
+    "conformance/optional_formats/run_optional_conformance.py": "d79574e32f443d6b7159e05cacb11e382c6b56bbf834ffa1bf8feb95731495cc",
+    "conformance/optional_formats/test_optional_conformance.py": "66cdc39bb4bad4359f70338f85d525ade96cfc0e8a31cc07b0d90279f2ff7402"
+  },
+  "dex_041": {
+    "positive_1_2_3_logical_dex_and_shared_preserving": {
+      "passed": true,
+      "standard_reader_rejected_code": "UNSUPPORTED_CAPABILITY",
+      "default_policy_rejected_code": "UNSUPPORTED_CAPABILITY",
+      "two_dex_logical_strings": 6,
+      "three_dex_logical_strings": 6
+    },
+    "negative_boundaries": {
+      "passed": true,
+      "cases": {
+        "truncated_shared_tail": "CONTAINER_SIZE_MISMATCH",
+        "unterminated_shared_string": "TRUNCATED_SHARED_STRING_DATA",
+        "wrong_container_size": "CONTAINER_SIZE_MISMATCH",
+        "pointer_into_header": "STRING_DATA_POINTS_INTO_HEADER",
+        "unrecognized_trailing_bytes": "UNRECOGNIZED_TRAILING_CONTAINER_DATA",
+        "mixed_version_header": "MIXED_CONTAINER_DEX_VERSION",
+        "zero_progress_file_size": "ZERO_PROGRESS_OR_TINY_FILE_SIZE"
+      }
+    }
+  },
+  "special_containers_disabled": {
+    "cdex": {
+      "passed": true,
+      "error_code": "UNSUPPORTED_CAPABILITY",
+      "capability_state": "disabled"
+    },
+    "vdex": {
+      "passed": true,
+      "error_code": "UNSUPPORTED_CAPABILITY",
+      "capability_state": "disabled"
+    },
+    "oat": {
+      "passed": true,
+      "error_code": "UNSUPPORTED_CAPABILITY",
+      "capability_state": "disabled"
+    }
+  },
+  "isolated_provider": {
+    "passed": true,
+    "disabled_by_default": "UNSUPPORTED_CAPABILITY",
+    "sha_mismatch_code": "INVALID_INPUT",
+    "timeout_code": "DEADLINE_EXCEEDED",
+    "output_cap_code": "QUOTA_EXCEEDED",
+    "display_only_trust_level": "display_only_reconstructed",
+    "raw_fingerprint_rejected_code": "UNSUPPORTED_CAPABILITY",
+    "call_graph_rejected_code": "UNSUPPORTED_CAPABILITY"
+  },
+  "all_passed": true
+}

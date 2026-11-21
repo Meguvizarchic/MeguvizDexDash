@@ -188,6 +188,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "mdd-cache"
+version = "0.1.0-dev"
+dependencies = [
+ "getrandom",
+ "mdd-dex",
+ "mdd-facts",
+ "mdd-input",
+ "mdd-service",
+ "mdd-session",
+ "mdd-sql",
+ "mdd-types",
+ "serde",
+ "serde_json",
+ "sha1",
+ "sha2",
+]
+
+[[package]]
 name = "mdd-cli"
 version = "0.1.0-dev"
 dependencies = [
@@ -248,10 +266,13 @@ dependencies = [
 name = "mdd-input"
 version = "0.1.0-dev"
 dependencies = [
+ "mdd-dex",
  "mdd-types",
  "quick-xml",
  "serde",
  "serde_json",
+ "sha1",
+ "sha2",
  "zip",
 ]
 
@@ -361,6 +382,7 @@ dependencies = [
  "mdd-wire",
  "serde",
  "serde_json",
+ "sha2",
 ]
 
 [[package]]

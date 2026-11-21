@@ -80,6 +80,21 @@ def build_groups(binary: str, out_dir: Path) -> dict[str, list[tuple[str, list[s
             ("platform-native-qualification", [*py, "conformance/platform/run_platform_qualification.py", "--binary", binary, "--out", str(out_dir / "platform-results.json")]),
             ("platform-matrix-check", [*py, "conformance/platform/verify_cross_platform.py", "--check"]),
         ],
+        "cache": [
+            ("cache-controls", [*py, "conformance/cache/test_cache_conformance.py"]),
+            ("cache-conformance", [*py, "conformance/cache/run_cache_conformance.py", "--binary", binary, "--out", str(out_dir / "cache-fault-recovery.json")]),
+            ("mdd-063-record", [*py, "conformance/cache/run_cache_conformance.py", "--check"]),
+        ],
+        "optional-formats": [
+            ("optional-formats-controls", [*py, "conformance/optional_formats/test_optional_conformance.py"]),
+            ("optional-formats-conformance", [*py, "conformance/optional_formats/run_optional_conformance.py", "--binary", binary, "--out", str(out_dir / "optional-format-qualification.json")]),
+            ("mdd-074-record", [*py, "conformance/optional_formats/run_optional_conformance.py", "--check"]),
+        ],
+        "faults": [
+            ("faults-controls", [*py, "conformance/faults/test_fault_suite.py"]),
+            ("faults-conformance", [*py, "conformance/faults/run-fault-suite.py", "--binary", binary, "--out", str(out_dir / "fault-and-soak-results.json")]),
+            ("mdd-081-record", [*py, "conformance/faults/run-fault-suite.py", "--check"]),
+        ],
     }
 
 
@@ -87,7 +102,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=Path, default=DEFAULT_BINARY)
     parser.add_argument("--out-dir", type=Path, default=ROOT / "artifacts/local/ci")
-    parser.add_argument("--group", default="all", help="all, or comma-separated group names: cli,mcp-decode,resources,hostlab,relations,generic-consumer,platform")
+    parser.add_argument("--group", default="all", help="all, or comma-separated group names: cli,mcp-decode,resources,hostlab,relations,generic-consumer,platform,cache,optional-formats,faults")
     args = parser.parse_args(argv)
 
     binary = args.binary.resolve()
