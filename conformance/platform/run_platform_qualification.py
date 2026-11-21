@@ -474,9 +474,7 @@ def _probe_pipe_close(binary: Path) -> dict[str, Any]:
         [str(binary), "serve", "--input", str(DESKTOP_DIR / "a.dex")],
     ):
         proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        assert proc.stdin is not None
-        proc.stdin.close()
-        out, err = proc.communicate(timeout=15)
+        out, err = proc.communicate(input=b"", timeout=15)
         require(proc.returncode == 0, f"{cmd[1]} did not exit cleanly on closed stdin: rc={proc.returncode}, err={err!r}")
         require(b"panicked" not in err, f"panic on closed stdin in {cmd[1]}: {err!r}")
 
@@ -498,7 +496,7 @@ def _probe_pipe_close(binary: Path) -> dict[str, Any]:
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    assert q_proc.stdout is not None and q_proc.stderr is not None
+    require(q_proc.stdout is not None and q_proc.stderr is not None, "missing query stdio pipes")
     first_line = q_proc.stdout.readline()
     require(b'"opened"' in first_line, f"unexpected first query line: {first_line!r}")
     q_proc.stdout.close()
