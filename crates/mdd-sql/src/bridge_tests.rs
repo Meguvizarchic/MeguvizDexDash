@@ -8189,3 +8189,344 @@ fn blob_magic_is_never_an_internal_text_and_controls_cannot_be_rebound() {
             .is_ok()
     );
 }
+
+#[test]
+fn prepare_memo_reuses_same_binding_respects_toggle_epoch_and_never_caches_errors() {
+    struct CountingProvider {
+        relations_calls: AtomicUsize,
+        bumped: std::sync::atomic::AtomicBool,
+        b1: SqlBinding,
+        b2: SqlBinding,
+    }
+    impl SqlFactProvider for CountingProvider {
+        fn binding(&self) -> &SqlBinding {
+            if self.bumped.load(Ordering::SeqCst) {
+                &self.b2
+            } else {
+                &self.b1
+            }
+        }
+        fn relations(&self) -> MddResult<Vec<SqlRelation>> {
+            self.relations_calls.fetch_add(1, Ordering::SeqCst);
+            Ok(vec![SqlRelation {
+                name: "facts".into(),
+                columns: vec![
+                    SqlColumn {
+                        id: "id".into(),
+                        name: "id".into(),
+                        data_type: SqlType::U64,
+                        nullable: false,
+                    },
+                    SqlColumn {
+                        id: "value".into(),
+                        name: "value".into(),
+                        data_type: SqlType::Text,
+                        nullable: false,
+                    },
+                ],
+                required_layers: vec![],
+                estimated_rows: Some(DecimalU64(3)),
+            }])
+        }
+        fn require_relation(&self, _: &str) -> MddResult<()> {
+            Ok(())
+        }
+        fn open_cursor(
+            self: Arc<Self>,
+            _: &str,
+            _: SqlControl,
+        ) -> MddResult<Box<dyn SqlFactCursor>> {
+            Err(invalid("NOT_USED"))
+        }
+    }
+
+    let provider = Arc::new(CountingProvider {
+        relations_calls: AtomicUsize::new(0),
+        bumped: std::sync::atomic::AtomicBool::new(false),
+        b1: SqlBinding {
+            provider_identity: "memo-test".into(),
+            snapshot_id: "snap-1".into(),
+            catalog_epoch: DecimalU64(1),
+        },
+        b2: SqlBinding {
+            provider_identity: "memo-test".into(),
+            snapshot_id: "snap-1".into(),
+            catalog_epoch: DecimalU64(2),
+        },
+    });
+    let bridge_obj = SqlBridge::new(
+        provider.clone(),
+        SqlDialect::DexSql011,
+        SqlLimits::default(),
+    )
+    .unwrap();
+
+    let p1 = bridge_obj
+        .prepare_with_memo("SELECT id, value FROM facts ORDER BY id", true)
+        .unwrap();
+    assert_eq!(provider.relations_calls.load(Ordering::SeqCst), 1);
+
+    let p2 = bridge_obj
+        .prepare_with_memo("SELECT id, value FROM facts ORDER BY id", true)
+        .unwrap();
+    assert_eq!(
+        provider.relations_calls.load(Ordering::SeqCst),
+        1,
+        "second prepare must hit SqlBridge memo cache"
+    );
+    assert_eq!(p1.adapted_sql, p2.adapted_sql);
+    assert_eq!(p1.required_relations, p2.required_relations);
+
+    // Provider binding bump (catalog_epoch change) invalidates cached entry.
+    provider.bumped.store(true, Ordering::SeqCst);
+    let _p_bumped = bridge_obj
+        .prepare_with_memo("SELECT id, value FROM facts ORDER BY id", true)
+        .unwrap();
+    assert_eq!(provider.relations_calls.load(Ordering::SeqCst), 2);
+    provider.bumped.store(false, Ordering::SeqCst);
+
+    // Memo disabled forces fresh provider interrogation.
+    let _p3 = bridge_obj
+        .prepare_with_memo("SELECT id, value FROM facts ORDER BY id", false)
+        .unwrap();
+    assert_eq!(provider.relations_calls.load(Ordering::SeqCst), 3);
+
+    // Errors are never cached (each invalid query must re-evaluate cleanly).
+    assert!(
+        bridge_obj
+            .prepare_with_memo("SELECT id FROM missing_table", true)
+            .is_err()
+    );
+    assert_eq!(provider.relations_calls.load(Ordering::SeqCst), 4);
+    assert!(
+        bridge_obj
+            .prepare_with_memo("SELECT id FROM missing_table", true)
+            .is_err()
+    );
+    assert_eq!(provider.relations_calls.load(Ordering::SeqCst), 5);
+
+    // LRU capacity bounded at 64 entries and normal execution remains identical.
+    for i in 0..70u64 {
+        bridge_obj
+            .prepare_with_memo(&format!("SELECT id FROM facts WHERE id = {i}"), true)
+            .unwrap();
+    }
+    let (_, exec_bridge) = bridge();
+    let e1 = exec_bridge
+        .prepare_with_memo("SELECT id, value FROM facts ORDER BY id", true)
+        .unwrap();
+    let e2 = exec_bridge
+        .prepare_with_memo("SELECT id, value FROM facts ORDER BY id", true)
+        .unwrap();
+    let r1 = e1
+        .execute(SqlControl::new(SqlLimits::default(), None))
+        .unwrap();
+    let r2 = e2
+        .execute(SqlControl::new(SqlLimits::default(), None))
+        .unwrap();
+    assert_eq!(r1.rows, r2.rows);
+}
+
+#[test]
+fn hostlab_direct_count_group_by_matches_sqlite_and_streams_identically() {
+    use crate::column_store::{BorrowedSqlCell, DirectCellRowConsumer};
+    use crate::provider::hostlab::{
+        HostLabOccurrenceFacts, HostLabSqlProvider, LayerNeeds, OccurrenceLoader,
+    };
+    use mdd_dex::{definitions::DefinitionLimits, strings::StringLimits};
+    use mdd_facts::{MetadataFacts, definitions::DefinitionFacts, indexes::SelectedScope};
+    use mdd_input::{
+        archive::{ArchiveInventory, ArchiveLimits, InventoryPolicy},
+        snapshot::{CaptureLimits, InputKind, InputSpec, Snapshot},
+    };
+
+    let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let specs = ["definitions-035.dex", "classic-035.dex"]
+        .into_iter()
+        .map(|name| InputSpec {
+            path: root
+                .join("tests/fixtures")
+                .join(if name.starts_with("def") {
+                    format!("definitions/generated/{name}")
+                } else {
+                    format!("references/generated/{name}")
+                }),
+            kind: InputKind::RawDex,
+            expected_sha256: None,
+        })
+        .collect::<Vec<_>>();
+    let snapshot = Arc::new(Snapshot::capture(&specs, CaptureLimits::default()).unwrap());
+    let inventories: Vec<ArchiveInventory> = snapshot
+        .sources()
+        .iter()
+        .map(|source| {
+            ArchiveInventory::build(source, InventoryPolicy::default(), ArchiveLimits::default())
+                .unwrap()
+        })
+        .collect();
+    let scope = SelectedScope::from_inventories(&snapshot, &inventories.iter().collect::<Vec<_>>())
+        .unwrap();
+
+    let mut pairs = Vec::with_capacity(scope.dexes().len());
+    for (pos, _) in scope.dexes().iter().enumerate() {
+        let mut rem = pos;
+        let (inv, local) = inventories
+            .iter()
+            .find_map(|inv| {
+                let count = inv.selected_dexes().len();
+                if rem < count {
+                    Some((inv, rem))
+                } else {
+                    rem -= count;
+                    None
+                }
+            })
+            .unwrap();
+        let meta =
+            Arc::new(MetadataFacts::build(&snapshot, inv, local, StringLimits::default()).unwrap());
+        let defs = Arc::new(
+            DefinitionFacts::build_arc(Arc::clone(&meta), DefinitionLimits::default()).unwrap(),
+        );
+        pairs.push((meta, defs));
+    }
+
+    struct Loader(Vec<(Arc<MetadataFacts>, Arc<DefinitionFacts>)>);
+    impl OccurrenceLoader for Loader {
+        fn load(&self, position: usize, _: LayerNeeds) -> MddResult<HostLabOccurrenceFacts> {
+            let (meta, defs) = &self.0[position];
+            Ok(HostLabOccurrenceFacts::structural(
+                Arc::clone(meta),
+                Arc::clone(defs),
+            ))
+        }
+    }
+
+    #[derive(Default)]
+    struct CaptureConsumer {
+        columns: Vec<String>,
+        rows: Vec<SqlRow>,
+        current: SqlRow,
+        finished: bool,
+    }
+    impl DirectCellRowConsumer for CaptureConsumer {
+        fn on_columns(&mut self, columns: &[String]) -> MddResult<()> {
+            self.columns = columns.to_vec();
+            Ok(())
+        }
+        fn on_start(&mut self, _row_count: u64) -> MddResult<()> {
+            Ok(())
+        }
+        fn begin_row(&mut self) -> MddResult<()> {
+            self.current.clear();
+            Ok(())
+        }
+        fn push_cell(&mut self, _col_idx: usize, cell: &BorrowedSqlCell<'_>) -> MddResult<()> {
+            let val = match cell {
+                BorrowedSqlCell::Null => SqlValue::Null,
+                BorrowedSqlCell::Bool(b) => SqlValue::Bool(*b),
+                BorrowedSqlCell::I64(v) => SqlValue::I64(mdd_query::ir::Signed64(*v)),
+                BorrowedSqlCell::U64(v) => SqlValue::U64(DecimalU64(*v)),
+                BorrowedSqlCell::F64Bits(bits) => SqlValue::F64(DecimalU64(*bits)),
+                BorrowedSqlCell::Utf8(s) => SqlValue::text(s),
+                BorrowedSqlCell::Utf16Be(raw) => {
+                    let utf16 = raw
+                        .as_chunks::<2>()
+                        .0
+                        .iter()
+                        .copied()
+                        .map(u16::from_be_bytes)
+                        .collect();
+                    SqlValue::Text(crate::values::SqlText {
+                        utf16,
+                        original_mutf8: None,
+                    })
+                }
+                BorrowedSqlCell::Bytes(raw) => SqlValue::Bytes(raw.to_vec()),
+                BorrowedSqlCell::DexMutf8 { bytes, utf16_units } => SqlValue::DexMutf8 {
+                    bytes: bytes.to_vec(),
+                    utf16_code_units: DecimalU64(*utf16_units),
+                },
+                BorrowedSqlCell::Owned(v) => v.clone(),
+            };
+            self.current.push(val);
+            Ok(())
+        }
+        fn end_row(&mut self) -> MddResult<()> {
+            self.rows.push(std::mem::take(&mut self.current));
+            Ok(())
+        }
+        fn on_finish(&mut self) -> MddResult<()> {
+            self.finished = true;
+            Ok(())
+        }
+    }
+
+    let provider: Arc<dyn SqlFactProvider> = Arc::new(
+        HostLabSqlProvider::from_loader(&scope, Arc::new(Loader(pairs)), DecimalU64(0)).unwrap(),
+    );
+
+    let cases = [
+        (
+            "SELECT file_id, kind, COUNT(*) AS cnt FROM class_methods GROUP BY file_id, kind ORDER BY file_id, kind",
+            "SELECT file_id, kind, COUNT(*) AS cnt FROM (SELECT file_id, kind FROM class_methods WHERE 1=1) GROUP BY file_id, kind ORDER BY file_id, kind",
+            true,
+        ),
+        (
+            "SELECT file_id, kind, COUNT(*) AS cnt FROM class_methods GROUP BY file_id, kind",
+            "SELECT file_id, kind, COUNT(*) AS cnt FROM (SELECT file_id, kind FROM class_methods WHERE 1=1) GROUP BY file_id, kind",
+            false,
+        ),
+        (
+            "SELECT COUNT(*) AS TotalCnt, kind AS K, file_id FROM class_methods GROUP BY file_id, kind ORDER BY K",
+            "SELECT COUNT(*) AS TotalCnt, kind AS K, file_id FROM (SELECT file_id, kind FROM class_methods WHERE 1=1) GROUP BY file_id, kind ORDER BY K, file_id",
+            true,
+        ),
+    ];
+
+    for dialect in [SqlDialect::NativeV1, SqlDialect::DexSql011] {
+        let bridge_obj =
+            SqlBridge::new(Arc::clone(&provider), dialect, SqlLimits::default()).unwrap();
+        for (direct_sql, oracle_sql, exact_order) in cases {
+            let direct_prep = bridge_obj.prepare(direct_sql).unwrap();
+            assert!(!direct_prep.has_direct_projection());
+            assert!(
+                direct_prep.direct_count_group_by.is_some(),
+                "expected direct_count_group_by for `{direct_sql}` under {dialect:?}"
+            );
+
+            let oracle_prep = bridge_obj.prepare(oracle_sql).unwrap();
+            assert!(oracle_prep.direct_count_group_by.is_none());
+
+            let direct_res = direct_prep
+                .execute(SqlControl::new(SqlLimits::default(), None))
+                .unwrap();
+            let oracle_res = oracle_prep
+                .execute(SqlControl::new(SqlLimits::default(), None))
+                .unwrap();
+            assert!(!direct_res.rows().is_empty());
+            assert_eq!(direct_res.columns(), oracle_res.columns());
+
+            let mut consumer = CaptureConsumer::default();
+            bridge_obj
+                .execute_to_consumer(
+                    &direct_prep,
+                    SqlControl::new(SqlLimits::default(), None),
+                    &mut consumer,
+                )
+                .unwrap();
+            assert!(consumer.finished);
+            assert_eq!(consumer.columns, direct_res.columns());
+            assert_eq!(consumer.rows, direct_res.rows());
+
+            if exact_order {
+                assert_eq!(direct_res.rows(), oracle_res.rows());
+            } else {
+                let mut got = direct_res.rows().to_vec();
+                let mut want = oracle_res.rows().to_vec();
+                got.sort_by(|a, b| format!("{a:?}").cmp(&format!("{b:?}")));
+                want.sort_by(|a, b| format!("{a:?}").cmp(&format!("{b:?}")));
+                assert_eq!(got, want);
+            }
+        }
+    }
+}

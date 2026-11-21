@@ -1389,7 +1389,20 @@ impl Rewrite<'_> {
                         return Err(unsupported("DISTINCT_ORDER_AGGREGATE_BINDING")
                             .detail("confirm_sqlite_syntax", true));
                     }
-                    order.expr = call("mdd_sort_key", vec![take(&mut order.expr)]);
+                    let keep_native_order = self.fast_udf
+                        && !synthetic_distinct_group
+                        && matches!(
+                            self.in_column_type(&order.expr),
+                            Some(
+                                crate::values::SqlType::U64
+                                    | crate::values::SqlType::I64
+                                    | crate::values::SqlType::Bool
+                                    | crate::values::SqlType::Text
+                            )
+                        );
+                    if !keep_native_order {
+                        order.expr = call("mdd_sort_key", vec![take(&mut order.expr)]);
+                    }
                 } else if let Some(Some(position)) = compound_positions.get(order_index) {
                     // Check the original expression and its AST budget first.
                     // Proof excludes input placeholders; literals rewritten
@@ -1507,7 +1520,7 @@ impl Rewrite<'_> {
                                 if let Some(Some(scope)) = self.in_scopes.last_mut() {
                                     scope.aliases_visible = false;
                                 }
-                                *expr = call("mdd_truth_input", vec![take(expr)]);
+                                *expr = self.wrap_truth_input(take(expr));
                             }
                             JoinConstraint::Using(columns) => {
                                 if join_index != 0 || !using_allowed {
@@ -1519,6 +1532,24 @@ impl Rewrite<'_> {
                             JoinConstraint::Natural => {
                                 return Err(unsupported("NATURAL_JOIN_NEEDS_TYPED_BINDING"));
                             }
+                        }
+                        if self.fast_udf
+                            && crate::column_store::sql_scan_opt_enabled()
+                            && depth + 6 <= self.limits.max_ast_depth
+                            && self.nodes + 16 <= self.limits.max_ast_nodes
+                            && let JoinOperator::Join(JoinConstraint::On(expr))
+                            | JoinOperator::Inner(JoinConstraint::On(expr))
+                            | JoinOperator::Left(JoinConstraint::On(expr))
+                            | JoinOperator::LeftOuter(JoinConstraint::On(expr)) =
+                                &join.join_operator
+                            && has_top_level_native_eq(expr)
+                            && materialize_joined_base_table(
+                                &mut join.relation,
+                                &self.schemas,
+                                &self.cte_scopes,
+                            )
+                        {
+                            self.nodes += 4;
                         }
                     }
                 }
@@ -1595,11 +1626,11 @@ impl Rewrite<'_> {
                 }
                 if let Some(selection) = &mut select.selection {
                     self.expr(selection, depth + 1)?;
-                    *selection = call("mdd_truth_input", vec![take(selection)]);
+                    *selection = self.wrap_truth_input(take(selection));
                 }
                 if let Some(having) = &mut select.having {
                     self.expr(having, depth + 1)?;
-                    *having = call("mdd_truth_input", vec![take(having)]);
+                    *having = self.wrap_truth_input(take(having));
                 }
                 let mut grouping = match std::mem::replace(
                     &mut select.group_by,
@@ -1616,10 +1647,23 @@ impl Rewrite<'_> {
                 for expr in &mut grouping {
                     if let Some(ordinal) = positional_ordinal(expr)? {
                         *expr = self.select_projection_at(select, ordinal)?;
+                        *expr = call("mdd_key", vec![take(expr)]);
                     } else {
+                        let keep_native = self.fast_udf
+                            && matches!(
+                                self.in_column_type(expr),
+                                Some(
+                                    crate::values::SqlType::U64
+                                        | crate::values::SqlType::I64
+                                        | crate::values::SqlType::Bool
+                                        | crate::values::SqlType::Text
+                                )
+                            );
                         self.expr(expr, depth + 1)?;
+                        if !keep_native {
+                            *expr = call("mdd_key", vec![take(expr)]);
+                        }
                     }
-                    *expr = call("mdd_key", vec![take(expr)]);
                 }
                 if let Some(Some(scope)) = self.in_scopes.last_mut() {
                     scope.aliases_visible = false;
@@ -1893,7 +1937,7 @@ impl Rewrite<'_> {
                         .detail("confirm_sqlite_syntax", true));
                 }
                 self.expr(child, depth + 1)?;
-                **child = call("mdd_truth_input", vec![take(child)]);
+                **child = self.wrap_truth_input(take(child));
             }
             Expr::IsFalse(child) | Expr::IsNotFalse(child) => {
                 if self.boolean_token_shadowed(false) {
@@ -1901,7 +1945,7 @@ impl Rewrite<'_> {
                         .detail("confirm_sqlite_syntax", true));
                 }
                 self.expr(child, depth + 1)?;
-                **child = call("mdd_truth_input", vec![take(child)]);
+                **child = self.wrap_truth_input(take(child));
             }
             Expr::UnaryOp { expr: child, op } => {
                 self.expr(child, depth + 1)?;
@@ -1909,7 +1953,7 @@ impl Rewrite<'_> {
                     UnaryOperator::Minus => Some("mdd_neg"),
                     UnaryOperator::Plus => Some("mdd_pos"),
                     UnaryOperator::Not => {
-                        **child = call("mdd_truth_input", vec![take(child)]);
+                        **child = self.wrap_truth_input(take(child));
                         None
                     }
                     _ => return Err(unsupported("UNARY_OPERATOR")),
@@ -1921,6 +1965,13 @@ impl Rewrite<'_> {
                 return Ok(());
             }
             Expr::BinaryOp { left, op, right } => {
+                if *op == BinaryOperator::Or
+                    && self.fast_udf
+                    && let Some(fused) = self.try_fuse_or_like(left, right, depth)?
+                {
+                    *expr = fused;
+                    return Ok(());
+                }
                 if matches!(op, BinaryOperator::And | BinaryOperator::Or)
                     && (matches!(&**left, Expr::BinaryOp { op: lo, .. } if lo == op)
                         || matches!(&**right, Expr::BinaryOp { op: ro, .. } if ro == op))
@@ -1992,8 +2043,29 @@ impl Rewrite<'_> {
                         replace_with_i64_literal(left, value);
                     }
                 }
+                let native_same_col_eq = self.fast_udf
+                    && matches!(op, BinaryOperator::Eq)
+                    && !text_integer_affinity
+                    && !numeric_cast_text_equality
+                    && !no_affinity
+                    && matches!(
+                        (self.in_column_type(left), self.in_column_type(right)),
+                        (
+                            Some(crate::values::SqlType::U64),
+                            Some(crate::values::SqlType::U64)
+                        ) | (
+                            Some(crate::values::SqlType::I64),
+                            Some(crate::values::SqlType::I64)
+                        ) | (
+                            Some(crate::values::SqlType::Bool),
+                            Some(crate::values::SqlType::Bool)
+                        )
+                    );
                 self.expr(left, depth + 1)?;
                 self.expr(right, depth + 1)?;
+                if native_same_col_eq {
+                    return Ok(());
+                }
                 let name = match op {
                     BinaryOperator::Eq if text_integer_affinity || numeric_cast_text_equality => {
                         "mdd_text_integer_eq"
@@ -2022,8 +2094,8 @@ impl Rewrite<'_> {
                     BinaryOperator::Divide => "mdd_div",
                     BinaryOperator::Modulo => "mdd_mod",
                     BinaryOperator::And | BinaryOperator::Or => {
-                        **left = call("mdd_truth_input", vec![take(left)]);
-                        **right = call("mdd_truth_input", vec![take(right)]);
+                        **left = self.wrap_truth_input(take(left));
+                        **right = self.wrap_truth_input(take(right));
                         return Ok(());
                     }
                     _ => return Err(unsupported("BINARY_OPERATOR_NOT_IMPLEMENTED")),
@@ -2275,8 +2347,7 @@ impl Rewrite<'_> {
                     }
                 }
                 for condition in conditions {
-                    condition.condition =
-                        call("mdd_truth_input", vec![take(&mut condition.condition)]);
+                    condition.condition = self.wrap_truth_input(take(&mut condition.condition));
                 }
                 if let Some(value) = else_result {
                     self.expr(value, depth + 1)?;
@@ -2438,7 +2509,7 @@ impl Rewrite<'_> {
                     self.expr(filter, depth + 1)?;
                     // Encoded lossless carriers are BLOBs to SQLite. FILTER
                     // must apply the same truth coercion as WHERE/HAVING.
-                    **filter = call("mdd_truth_input", vec![take(filter)]);
+                    **filter = self.wrap_truth_input(take(filter));
                 }
                 if let Some(name) = replacement {
                     function.name = ObjectName::from(vec![Ident::new(name)]);
@@ -2847,6 +2918,285 @@ impl Rewrite<'_> {
     }
 }
 
+fn collect_flat_binary_refs<'a>(
+    left: &'a Expr,
+    right: &'a Expr,
+    target_op: &BinaryOperator,
+) -> Vec<&'a Expr> {
+    let mut out = Vec::new();
+    let mut stack = vec![right, left];
+    while let Some(expr) = stack.pop() {
+        match expr {
+            Expr::BinaryOp {
+                left: l,
+                op,
+                right: r,
+            } if op == target_op => {
+                stack.push(r);
+                stack.push(l);
+            }
+            other => out.push(other),
+        }
+    }
+    out
+}
+
+fn is_already_sqlite_truth(mut expr: &Expr) -> bool {
+    while let Expr::Nested(inner) = expr {
+        expr = inner;
+    }
+    match expr {
+        Expr::BinaryOp {
+            op: BinaryOperator::And | BinaryOperator::Or | BinaryOperator::Eq,
+            ..
+        }
+        | Expr::UnaryOp {
+            op: UnaryOperator::Not,
+            ..
+        }
+        | Expr::IsNull(_)
+        | Expr::IsNotNull(_)
+        | Expr::IsTrue(_)
+        | Expr::IsNotTrue(_)
+        | Expr::IsFalse(_)
+        | Expr::IsNotFalse(_) => true,
+        Expr::Function(func) if func.name.0.len() == 1 => {
+            func.name.0[0].as_ident().is_some_and(|id| {
+                matches!(
+                    id.value.as_str(),
+                    "mdd_truth_input"
+                        | "mdd_like"
+                        | "mdd_like_any"
+                        | "mdd_eq"
+                        | "mdd_ne"
+                        | "mdd_gt"
+                        | "mdd_ge"
+                        | "mdd_lt"
+                        | "mdd_le"
+                        | "mdd_literal_eq"
+                        | "mdd_literal_ne"
+                        | "mdd_literal_gt"
+                        | "mdd_literal_ge"
+                        | "mdd_literal_lt"
+                        | "mdd_literal_le"
+                        | "mdd_text_integer_eq"
+                        | "mdd_text_integer_ne"
+                        | "mdd_text_integer_gt"
+                        | "mdd_text_integer_ge"
+                        | "mdd_text_integer_lt"
+                        | "mdd_text_integer_le"
+                )
+            })
+        }
+        _ => false,
+    }
+}
+
+enum LikeInspect<'a> {
+    NotPlainLike,
+    InvalidAbort,
+    Fusible {
+        col_key: Vec<String>,
+        col_expr: &'a Expr,
+        pat: &'a str,
+        esc: Option<u16>,
+    },
+}
+
+fn inspect_fusible_like(
+    leaf: &Expr,
+    dialect: super::SqlDialect,
+    max_cell_bytes: u64,
+) -> LikeInspect<'_> {
+    let Expr::Like {
+        negated: false,
+        any: false,
+        expr: target,
+        pattern,
+        escape_char,
+    } = without_parentheses(leaf)
+    else {
+        return LikeInspect::NotPlainLike;
+    };
+    let col_expr = without_parentheses(target);
+    let col_key = match col_expr {
+        Expr::Identifier(id) => vec![id.value.to_ascii_lowercase()],
+        Expr::CompoundIdentifier(parts) if !parts.is_empty() => {
+            parts.iter().map(|p| p.value.to_ascii_lowercase()).collect()
+        }
+        _ => return LikeInspect::NotPlainLike,
+    };
+    let Expr::Value(pat_val) = without_parentheses(pattern) else {
+        return LikeInspect::NotPlainLike;
+    };
+    let Value::SingleQuotedString(pat) = &pat_val.value else {
+        return LikeInspect::NotPlainLike;
+    };
+    let esc = match escape_char {
+        None => None,
+        Some(esc_expr) => {
+            let Expr::Value(esc_val) = without_parentheses(esc_expr) else {
+                return LikeInspect::NotPlainLike;
+            };
+            let Value::SingleQuotedString(esc_str) = &esc_val.value else {
+                return LikeInspect::NotPlainLike;
+            };
+            let mut units = esc_str.encode_utf16();
+            match (units.next(), units.next()) {
+                (Some(unit), None) => Some(unit),
+                _ => return LikeInspect::InvalidAbort,
+            }
+        }
+    };
+    let pat_u16: Vec<u16> = pat.encode_utf16().collect();
+    if pat_u16.len() as u64 > max_cell_bytes / 2 {
+        return LikeInspect::InvalidAbort;
+    }
+    let flavor = if dialect == super::SqlDialect::NativeV1 {
+        mdd_query::optimized::LikeFlavor::ExactWithUnderscore
+    } else {
+        mdd_query::optimized::LikeFlavor::AsciiCiPercentOnly
+    };
+    if mdd_query::optimized::CompiledLike::compile(&pat_u16, esc, flavor).is_err() {
+        return LikeInspect::InvalidAbort;
+    }
+    LikeInspect::Fusible {
+        col_key,
+        col_expr,
+        pat: pat.as_str(),
+        esc,
+    }
+}
+
+impl Rewrite<'_> {
+    pub(super) fn wrap_truth_input(&self, expr: Expr) -> Expr {
+        if self.fast_udf && is_already_sqlite_truth(&expr) {
+            expr
+        } else {
+            call("mdd_truth_input", vec![expr])
+        }
+    }
+
+    fn try_fuse_or_like(
+        &mut self,
+        left: &mut Expr,
+        right: &mut Expr,
+        depth: usize,
+    ) -> MddResult<Option<Expr>> {
+        let refs = collect_flat_binary_refs(left, right, &BinaryOperator::Or);
+        if refs.len() < 2 {
+            return Ok(None);
+        }
+        enum PlanChunk {
+            Single(usize),
+            FusedGroup {
+                start: usize,
+                end: usize,
+                col_expr: Box<Expr>,
+                spec: Vec<u8>,
+            },
+        }
+        let mut inspections = Vec::with_capacity(refs.len());
+        for leaf in &refs {
+            let insp = inspect_fusible_like(leaf, self.dialect, self.limits.max_cell_bytes);
+            if matches!(insp, LikeInspect::InvalidAbort) {
+                return Ok(None);
+            }
+            inspections.push(insp);
+        }
+        let mut chunks: Vec<PlanChunk> = Vec::new();
+        let mut any_fused = false;
+        let mut i = 0usize;
+        while i < inspections.len() {
+            let LikeInspect::Fusible {
+                col_key, col_expr, ..
+            } = &inspections[i]
+            else {
+                chunks.push(PlanChunk::Single(i));
+                i += 1;
+                continue;
+            };
+            let mut j = i + 1;
+            while j < inspections.len() {
+                if let LikeInspect::Fusible {
+                    col_key: next_key, ..
+                } = &inspections[j]
+                    && next_key == col_key
+                {
+                    j += 1;
+                } else {
+                    break;
+                }
+            }
+            if j - i >= 2 {
+                let items: Vec<(&str, Option<u16>)> = inspections[i..j]
+                    .iter()
+                    .filter_map(|insp| match insp {
+                        LikeInspect::Fusible { pat, esc, .. } => Some((*pat, *esc)),
+                        _ => None,
+                    })
+                    .collect();
+                if let Ok(spec) = crate::dialects::functions::encode_like_any_spec(&items)
+                    && spec.len() as u64 <= self.limits.max_cell_bytes
+                {
+                    any_fused = true;
+                    chunks.push(PlanChunk::FusedGroup {
+                        start: i,
+                        end: j,
+                        col_expr: Box::new((*col_expr).clone()),
+                        spec,
+                    });
+                    i = j;
+                    continue;
+                }
+            }
+            for k in i..j {
+                chunks.push(PlanChunk::Single(k));
+            }
+            i = j;
+        }
+        if !any_fused {
+            return Ok(None);
+        }
+        let raw_operands =
+            collect_flat_binary_operands(take(left), take(right), &BinaryOperator::Or);
+        let mut iter = raw_operands.into_iter().enumerate();
+        let mut rewritten = Vec::with_capacity(chunks.len());
+        for chunk in chunks {
+            match chunk {
+                PlanChunk::Single(idx) => {
+                    let (got_idx, mut item) = iter.next().expect("operand sync");
+                    debug_assert_eq!(got_idx, idx);
+                    self.expr(&mut item, depth + 1)?;
+                    rewritten.push(item);
+                }
+                PlanChunk::FusedGroup {
+                    start,
+                    end,
+                    mut col_expr,
+                    spec,
+                } => {
+                    for idx in start..end {
+                        let (got_idx, _) = iter.next().expect("operand sync");
+                        debug_assert_eq!(got_idx, idx);
+                    }
+                    self.expr(&mut col_expr, depth + 1)?;
+                    let spec_param = self.bind(SqlValue::Bytes(spec))?;
+                    rewritten.push(call("mdd_like_any", vec![*col_expr, spec_param]));
+                }
+            }
+        }
+        if rewritten.len() == 1 {
+            return Ok(Some(rewritten.pop().expect("single fused operand")));
+        }
+        let wrapped: Vec<Expr> = rewritten
+            .into_iter()
+            .map(|item| self.wrap_truth_input(item))
+            .collect();
+        Ok(Some(rebalance_binary_chain(wrapped, &BinaryOperator::Or)))
+    }
+}
+
 fn collect_flat_binary_operands(left: Expr, right: Expr, target_op: &BinaryOperator) -> Vec<Expr> {
     let mut out = Vec::new();
     let mut stack = vec![right, left];
@@ -2880,4 +3230,116 @@ fn rebalance_binary_chain(mut items: Vec<Expr>, op: &BinaryOperator) -> Expr {
         op: op.clone(),
         right: Box::new(right_expr),
     }
+}
+
+fn has_top_level_native_eq(root: &Expr) -> bool {
+    let mut stack = vec![root];
+    while let Some(mut expr) = stack.pop() {
+        while let Expr::Nested(inner) = expr {
+            expr = inner;
+        }
+        match expr {
+            Expr::BinaryOp {
+                left,
+                op: BinaryOperator::And,
+                right,
+            } => {
+                stack.push(right);
+                stack.push(left);
+            }
+            Expr::BinaryOp {
+                op: BinaryOperator::Eq,
+                ..
+            } => return true,
+            _ => {}
+        }
+    }
+    false
+}
+
+/// Wrap an equi-joined base virtual table in `(SELECT * FROM <tbl> LIMIT -1) AS <alias>`
+/// so SQLite materializes the right side and builds an automatic covering index + Bloom filter
+/// instead of scanning the virtual table $O(N)$ times per outer probe row.
+fn materialize_joined_base_table(
+    relation: &mut TableFactor,
+    schemas: &BTreeMap<String, Vec<String>>,
+    cte_scopes: &[BTreeMap<String, usize>],
+) -> bool {
+    let (ident, lower, has_col_alias) = match relation {
+        TableFactor::Table {
+            name,
+            alias,
+            args: None,
+            with_hints,
+            version: None,
+            with_ordinality: false,
+            partitions,
+            json_path: None,
+            sample: None,
+            index_hints,
+            ..
+        } if with_hints.is_empty()
+            && partitions.is_empty()
+            && index_hints.is_empty()
+            && name.0.len() == 1 =>
+        {
+            let Some(ident) = name.0[0].as_ident() else {
+                return false;
+            };
+            (
+                ident.clone(),
+                ident.value.to_ascii_lowercase(),
+                alias.as_ref().is_some_and(|a| !a.columns.is_empty()),
+            )
+        }
+        _ => return false,
+    };
+    if has_col_alias
+        || !schemas.contains_key(&lower)
+        || cte_scopes.iter().any(|scope| scope.contains_key(&lower))
+    {
+        return false;
+    }
+    static JOIN_MAT_TEMPLATE: std::sync::OnceLock<Query> = std::sync::OnceLock::new();
+    let template = JOIN_MAT_TEMPLATE
+        .get_or_init(|| {
+            let mut stmts =
+                Parser::parse_sql(&SQLiteDialect {}, "SELECT * FROM placeholder LIMIT -1")
+                    .expect("join materialization template must parse");
+            let Statement::Query(q) = stmts.remove(0) else {
+                unreachable!("join materialization template is a Query");
+            };
+            *q
+        })
+        .clone();
+    let dummy = TableFactor::Derived {
+        lateral: false,
+        subquery: Box::new(template),
+        alias: None,
+        sample: None,
+    };
+    let mut original = std::mem::replace(relation, dummy);
+    let existing_alias = match &mut original {
+        TableFactor::Table { alias, .. } => alias.take(),
+        _ => unreachable!(),
+    };
+    let TableFactor::Derived {
+        subquery,
+        alias: derived_alias,
+        ..
+    } = relation
+    else {
+        unreachable!();
+    };
+    let SetExpr::Select(inner_select) = subquery.body.as_mut() else {
+        unreachable!("join materialization template body is Select");
+    };
+    inner_select.from[0].relation = original;
+    *derived_alias = Some(existing_alias.unwrap_or_else(|| TableAlias {
+        name: ident,
+        columns: Vec::new(),
+        explicit: true,
+        at: None,
+    }));
+    true
 }

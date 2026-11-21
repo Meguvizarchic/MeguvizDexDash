@@ -1,6 +1,6 @@
 //! Exact encoded operand sites. Runtime dispatch and definition lookup are separate.
 use crate::{
-    code::CodeFacts,
+    code::{CodeFacts, CompactCodeRefs},
     definitions::DefinitionFacts,
     metadata::{
         EntityKind, EntityRef, MetadataSource, SharedId, StringFact, StringPoolIdentity, TypeFact,
@@ -20,9 +20,9 @@ use mdd_input::{
     snapshot::Snapshot,
 };
 use mdd_types::{Completeness, DecimalU64, ErrorCode, MddError, MddResult};
-use serde::Serialize;
+use serde::{Serialize, ser::SerializeStruct};
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 #[derive(Clone, Copy, Debug)]
 pub struct ReferenceLimits {
@@ -57,7 +57,7 @@ pub enum TargetKind {
     MethodHandle,
 }
 impl TargetKind {
-    fn from_operand(value: &ReferenceKind) -> Self {
+    const fn from_operand(value: &ReferenceKind) -> Self {
         match value {
             ReferenceKind::String => Self::String,
             ReferenceKind::Type => Self::Type,
@@ -67,6 +67,50 @@ impl TargetKind {
             ReferenceKind::CallSite => Self::CallSite,
             ReferenceKind::MethodHandle => Self::MethodHandle,
         }
+    }
+
+    const fn tag(self) -> u8 {
+        match self {
+            Self::String => 0,
+            Self::Type => 1,
+            Self::Field => 2,
+            Self::Method => 3,
+            Self::Prototype => 4,
+            Self::CallSite => 5,
+            Self::MethodHandle => 6,
+        }
+    }
+
+    const fn from_tag(tag: u8) -> Self {
+        match tag {
+            0 => Self::String,
+            1 => Self::Type,
+            2 => Self::Field,
+            3 => Self::Method,
+            4 => Self::Prototype,
+            5 => Self::CallSite,
+            _ => Self::MethodHandle,
+        }
+    }
+}
+
+#[derive(Default)]
+struct TargetSeen([Vec<u64>; 7]);
+
+impl TargetSeen {
+    fn insert(&mut self, kind: TargetKind, local_index: u32) -> bool {
+        let bucket = &mut self.0[kind.tag() as usize];
+        let word = (local_index >> 6) as usize;
+        let mask = 1u64 << (local_index & 63);
+        if word >= bucket.len() {
+            bucket.resize(word + 1, 0);
+        }
+        let existing = bucket[word];
+        if existing & mask != 0 {
+            return false;
+        }
+        bucket[word] = existing | mask;
+        true
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -227,7 +271,6 @@ pub struct ReferenceUsage {
     pub fact_bytes: u64,
     pub index_postings: u64,
 }
-#[derive(Clone, Serialize)]
 /// Validated reference facts expose immutable source/coverage and site getters.
 /// ```compile_fail
 /// fn forge(mut facts: mdd_facts::references::ReferenceFacts) { facts.sites.clear(); }
@@ -237,12 +280,52 @@ pub struct ReferenceFacts {
     code: Arc<CodeFacts>,
     sites: Vec<LocalReferenceSite>,
     dynamic_calls: Vec<DynamicCallSite>,
-    target_index: TargetIndex,
+    /// Populated on first `find_target_indexed` / `Serialize` call so relation streaming and bulk
+    /// audits never pay the CSR posting sort or retain an unused index.
+    target_index: OnceLock<TargetIndex>,
     coverage: ReferenceCoverage,
     arrays: Option<EncodedArraySection>,
     handles: Option<MethodHandleSection>,
     limits: ReferenceLimitsView,
     usage: ReferenceUsage,
+}
+
+impl Clone for ReferenceFacts {
+    fn clone(&self) -> Self {
+        let target_index = OnceLock::new();
+        if let Some(existing) = self.target_index.get() {
+            let _ = target_index.set(existing.clone());
+        }
+        Self {
+            definitions: Arc::clone(&self.definitions),
+            code: Arc::clone(&self.code),
+            sites: self.sites.clone(),
+            dynamic_calls: self.dynamic_calls.clone(),
+            target_index,
+            coverage: self.coverage.clone(),
+            arrays: self.arrays.clone(),
+            handles: self.handles.clone(),
+            limits: self.limits,
+            usage: self.usage.clone(),
+        }
+    }
+}
+
+impl Serialize for ReferenceFacts {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut state = serializer.serialize_struct("ReferenceFacts", 10)?;
+        state.serialize_field("definitions", &self.definitions)?;
+        state.serialize_field("code", &self.code)?;
+        state.serialize_field("sites", &self.sites)?;
+        state.serialize_field("dynamic_calls", &self.dynamic_calls)?;
+        state.serialize_field("target_index", self.target_index())?;
+        state.serialize_field("coverage", &self.coverage)?;
+        state.serialize_field("arrays", &self.arrays)?;
+        state.serialize_field("handles", &self.handles)?;
+        state.serialize_field("limits", &self.limits)?;
+        state.serialize_field("usage", &self.usage)?;
+        state.end()
+    }
 }
 
 /// Compressed-sparse-row posting index: `keys` is sorted by `(kind, local_index)`
@@ -265,46 +348,45 @@ struct TargetIndex {
 }
 
 impl TargetIndex {
-    /// Build CSR arrays from the validated site list.
-    ///
-    /// `distinct` must hold exactly the keys present in `sites`; it iterates in
-    /// key order, which becomes the CSR key order. Two passes over `sites`
-    /// scatter each posting into its key's slot. Sites are visited in ascending
-    /// `site_ordinal` order, so every posting list stays ascending.
-    fn from_sites(
-        sites: &[LocalReferenceSite],
-        distinct: &BTreeSet<(TargetKind, u32)>,
-    ) -> MddResult<Self> {
-        let keys = distinct.iter().copied().collect::<Vec<_>>();
-        let mut offsets = vec![0u32; keys.len() + 1];
+    /// Build CSR arrays from `sites` in a single `(key, site_ordinal)` sort pass.
+    fn from_sites(sites: &[LocalReferenceSite]) -> Self {
+        if sites.is_empty() {
+            return Self {
+                keys: Vec::new(),
+                offsets: vec![0],
+                postings: Vec::new(),
+            };
+        }
+        let mut pairs: Vec<(u64, u32)> = Vec::with_capacity(sites.len());
         for site in sites {
-            let position = keys
-                .binary_search(&(site.target_kind, site.target_local_index))
-                .map_err(|_| failure("REFERENCE_INDEX_KEY_MISSING"))?;
-            offsets[position + 1] += 1;
+            let key =
+                (u64::from(site.target_kind.tag()) << 32) | u64::from(site.target_local_index);
+            pairs.push((key, site.site_ordinal));
         }
-        for position in 0..keys.len() {
-            offsets[position + 1] = offsets[position]
-                .checked_add(offsets[position + 1])
-                .ok_or_else(|| failure("REFERENCE_INDEX_OFFSET_OVERFLOW"))?;
+        pairs.sort_unstable();
+        let mut keys = Vec::new();
+        let mut offsets = Vec::with_capacity(pairs.len().min(64) + 1);
+        let mut postings = Vec::with_capacity(pairs.len());
+        let mut current_key = u64::MAX;
+        for (packed_key, ordinal) in pairs {
+            if packed_key != current_key {
+                current_key = packed_key;
+                keys.push((
+                    TargetKind::from_tag((packed_key >> 32) as u8),
+                    packed_key as u32,
+                ));
+                offsets.push(postings.len() as u32);
+            }
+            postings.push(ordinal);
         }
-        let mut cursor = offsets[..keys.len()].to_vec();
-        let mut postings = vec![0u32; sites.len()];
-        for site in sites {
-            let position = keys
-                .binary_search(&(site.target_kind, site.target_local_index))
-                .map_err(|_| failure("REFERENCE_INDEX_KEY_MISSING"))?;
-            let slot = &mut cursor[position];
-            postings[*slot as usize] = site.site_ordinal;
-            *slot += 1;
-        }
+        offsets.push(postings.len() as u32);
         debug_assert!(keys.windows(2).all(|pair| pair[0] < pair[1]));
         debug_assert_eq!(offsets.len(), keys.len() + 1);
-        Ok(Self {
+        Self {
             keys,
             offsets,
             postings,
-        })
+        }
     }
 
     fn postings(&self, kind: TargetKind, local_index: u32) -> &[u32] {
@@ -440,6 +522,41 @@ pub fn type_name(descriptor: &str) -> String {
     base + &"[]".repeat(dimensions)
 }
 
+/// Stack-allocated Java type name formatting for common non-array descriptors up to 512 bytes.
+pub fn with_type_name<R>(descriptor: &str, f: impl FnOnce(&str) -> R) -> R {
+    if !descriptor.starts_with('[') {
+        let primitive = match descriptor {
+            "V" => Some("void"),
+            "Z" => Some("boolean"),
+            "B" => Some("byte"),
+            "S" => Some("short"),
+            "C" => Some("char"),
+            "I" => Some("int"),
+            "J" => Some("long"),
+            "F" => Some("float"),
+            "D" => Some("double"),
+            _ => None,
+        };
+        if let Some(name) = primitive {
+            return f(name);
+        }
+        let inner = descriptor
+            .strip_prefix('L')
+            .and_then(|value| value.strip_suffix(';'))
+            .unwrap_or(descriptor);
+        if inner.len() <= 512 {
+            let mut buf = [0u8; 512];
+            for (dst, &src) in buf[..inner.len()].iter_mut().zip(inner.as_bytes()) {
+                *dst = if src == b'/' { b'.' } else { src };
+            }
+            let rendered = std::str::from_utf8(&buf[..inner.len()])
+                .expect("replacing ASCII '/' with ASCII '.' preserves UTF-8");
+            return f(rendered);
+        }
+    }
+    f(&type_name(descriptor))
+}
+
 impl ReferenceFacts {
     pub fn build(
         definitions: DefinitionFacts,
@@ -454,6 +571,40 @@ impl ReferenceFacts {
     pub fn build_arc(
         definitions: Arc<DefinitionFacts>,
         code: Arc<CodeFacts>,
+        limits: ReferenceLimits,
+    ) -> MddResult<Self> {
+        Self::build_arc_internal(definitions, code, None, limits)
+    }
+
+    /// Build from compact code facts and the streaming invoke/operand sidecar captured before
+    /// dropping decoded instructions, avoiding a second instruction decode per caller method.
+    pub fn build_arc_with_compact_refs(
+        definitions: Arc<DefinitionFacts>,
+        code: Arc<CodeFacts>,
+        compact_refs: CompactCodeRefs,
+        limits: ReferenceLimits,
+    ) -> MddResult<Self> {
+        let source = definitions.metadata().source();
+        if compact_refs.content_id() != source.content_id
+            || compact_refs.item_count() != code.items().len()
+        {
+            return Err(MddError::new(
+                ErrorCode::InvalidArgument,
+                "facts.references",
+                "compact code refs do not match the bound code facts",
+            )
+            .detail("snapshot_id", source.snapshot_id.clone())
+            .detail("dex_occurrence_id", source.dex_occurrence_id.clone())
+            .detail("content_id", source.content_id.clone())
+            .detail("member_id", source.member_id.clone()));
+        }
+        Self::build_arc_internal(definitions, code, Some(compact_refs), limits)
+    }
+
+    fn build_arc_internal(
+        definitions: Arc<DefinitionFacts>,
+        code: Arc<CodeFacts>,
+        compact_refs: Option<CompactCodeRefs>,
         limits: ReferenceLimits,
     ) -> MddResult<Self> {
         if limits.max_sites > u64::from(u32::MAX) || limits.max_callers > u64::from(u32::MAX) {
@@ -478,9 +629,9 @@ impl ReferenceFacts {
                 "definition and code facts do not belong to the same immutable occurrence",
             )));
         }
-        // The sites are read out of the decoded instructions. A compact value does not hold them: its items are
-        // decoded again, one caller at a time, from the DEX bytes it leases (`CodeItemReader::instructions`), and
-        // let go as soon as their sites are taken. The result is the one the full value gives.
+        // The sites are read out of the decoded instructions. A compact value without a pre-extracted
+        // sidecar decodes each caller once on demand; with `compact_refs` it reads the compact
+        // sidecar directly without re-decoding any DEX instruction.
         if definitions.definition_coverage() != Completeness::Complete
             || code.code_layout_coverage() != Completeness::Complete
         {
@@ -494,16 +645,31 @@ impl ReferenceFacts {
             limits,
             usage: ReferenceUsage::default(),
         };
-        let mut by_code = BTreeMap::new();
-        for (index, item) in code.items().iter().enumerate() {
-            by_code
-                .entry(item.data().raw_range.byte_offset.0)
-                .or_insert(index);
-        }
+        let code_items = code.items();
+        let code_sorted = code_items.windows(2).all(|pair| {
+            pair[0].data().raw_range.byte_offset.0 < pair[1].data().raw_range.byte_offset.0
+        });
+        let sorted_code: Vec<(u64, usize)> = if code_sorted {
+            Vec::new()
+        } else {
+            let mut pairs: Vec<(u64, usize)> = code_items
+                .iter()
+                .enumerate()
+                .map(|(index, item)| (item.data().raw_range.byte_offset.0, index))
+                .collect();
+            pairs.sort_by_key(|&(offset, _)| offset);
+            pairs
+        };
+        let declared_offsets = code.declared_code_item_byte_offsets();
+        debug_assert!(
+            declared_offsets
+                .windows(2)
+                .all(|pair| pair[0].0 < pair[1].0)
+        );
         let mut missing = Vec::new();
         let mut callers = Vec::new();
-        let mut used_code = BTreeSet::new();
-        let mut all_owned_code = BTreeSet::new();
+        let mut used_code = vec![false; code_items.len()];
+        let mut owned_declared = vec![false; declared_offsets.len()];
         let mut no_body = 0u32;
         for method in &definitions.definitions().method_definitions {
             let MethodBody::Present {
@@ -513,20 +679,35 @@ impl ReferenceFacts {
                 no_body += 1;
                 continue;
             };
-            if !code.known_code_item_start(code_byte_offset.0) {
+            let Ok(declared_pos) =
+                declared_offsets.binary_search_by_key(&code_byte_offset.0, |item| item.0)
+            else {
                 return Err(bind(
                     failure("METHOD_BODY_NOT_CODE_ITEM_START")
                         .detail("method_idx", u64::from(method.method_idx))
                         .detail("byte_offset", code_byte_offset.0.to_string()),
                 ));
-            }
-            all_owned_code.insert(code_byte_offset.0);
-            let Some(index) = by_code.get(&code_byte_offset.0).copied() else {
+            };
+            owned_declared[declared_pos] = true;
+            let code_index = if code_sorted {
+                code_items
+                    .binary_search_by_key(&code_byte_offset.0, |item| {
+                        item.data().raw_range.byte_offset.0
+                    })
+                    .ok()
+            } else {
+                let pos = sorted_code.partition_point(|&(off, _)| off < code_byte_offset.0);
+                sorted_code
+                    .get(pos)
+                    .filter(|&&(off, _)| off == code_byte_offset.0)
+                    .map(|&(_, index)| index)
+            };
+            let Some(index) = code_index else {
                 budget.bytes(4).map_err(bind)?;
                 missing.push(method.method_idx);
                 continue;
             };
-            let item = code.items()[index].data();
+            let item = code_items[index].data();
             let reference =
                 &definitions.definitions().method_references[method.method_idx as usize];
             let expected = argument_words(&definitions, reference.proto_idx)
@@ -555,15 +736,18 @@ impl ReferenceFacts {
                 method.class_idx,
                 index,
             ));
-            used_code.insert(index);
+            used_code[index] = true;
         }
         // One pass over the used code items instead of two: the two predicates
         // share the same traversal, and stopping once both are true keeps the
         // short-circuit behaviour of the previous separate `any` calls.
         let mut needs_arrays = false;
         let mut needs_handles = false;
-        for index in &used_code {
-            let item = &code.items()[*index];
+        for (index, used) in used_code.iter().copied().enumerate() {
+            if !used {
+                continue;
+            }
+            let item = &code_items[index];
             needs_arrays |= item.names_call_site();
             needs_handles |= item.names_method_handle();
             if needs_arrays && needs_handles {
@@ -614,168 +798,234 @@ impl ReferenceFacts {
             })
             .unwrap_or_default();
         let mut sites = Vec::new();
+        if let Some(sidecar) = compact_refs.as_ref() {
+            let max_by_bytes =
+                (limits.max_fact_bytes as usize) / std::mem::size_of::<LocalReferenceSite>().max(1);
+            let hint = sidecar
+                .operand_count()
+                .min(limits.max_sites as usize)
+                .min(max_by_bytes);
+            let _ = sites.try_reserve(hint);
+        }
         let mut dynamic_calls = Vec::new();
-        let mut distinct_targets = BTreeSet::new();
-        let mut reader = code.reader();
-        for (method_idx, class_def_idx, class_idx, code_index) in callers.iter().copied() {
-            let item = reader.instructions(code_index).map_err(bind)?;
-            for instruction in &item.instructions {
-                if let Some(invoke) = &instruction.invoke_kind {
-                    let target = instruction
-                        .references
-                        .first()
-                        .ok_or_else(|| bind(failure("INVOKE_REFERENCE_MISSING")))?;
-                    let expected = match invoke {
-                        InvokeKind::Custom | InvokeKind::CustomRange => {
-                            let call = call_sites.get(&target.local_index).ok_or_else(|| {
-                                bind(MddError::new(
-                                    ErrorCode::IncompleteFacts,
-                                    "facts.references",
-                                    "required call-site metadata is unavailable",
-                                ))
-                            })?;
-                            argument_words(&definitions, call.method_type_idx).map_err(bind)?
-                        }
-                        InvokeKind::Polymorphic | InvokeKind::PolymorphicRange => {
-                            let proto = instruction
-                                .references
-                                .iter()
-                                .find(|value| value.kind == ReferenceKind::Prototype)
-                                .ok_or_else(|| bind(failure("POLYMORPHIC_PROTO_MISSING")))?;
-                            argument_words(&definitions, proto.local_index)
-                                .map_err(bind)?
-                                .checked_add(1)
-                                .ok_or_else(|| bind(failure("INVOKE_WORD_OVERFLOW")))?
-                        }
-                        _ => {
-                            let method = definitions
-                                .definitions()
-                                .method_references
-                                .get(target.local_index as usize)
-                                .ok_or_else(|| bind(failure("INVOKE_METHOD_INDEX")))?;
-                            argument_words(&definitions, method.proto_idx)
-                                .map_err(bind)?
-                                .checked_add(u32::from(
-                                    !instruction.mnemonic.starts_with("invoke-static"),
-                                ))
-                                .ok_or_else(|| bind(failure("INVOKE_WORD_OVERFLOW")))?
-                        }
-                    };
+        let mut distinct_targets = TargetSeen::default();
+        let raw_reader = mdd_dex::checked_reader::CheckedReader::new(definitions.bytes());
+
+        struct OperandRef<'a> {
+            kind: &'a ReferenceKind,
+            local_index: u32,
+            raw_range: &'a DexRange,
+        }
+        let mut push_insn = |method_idx: u32,
+                             class_def_idx: u32,
+                             class_idx: u32,
+                             code_item_byte_offset: DecimalU64,
+                             code_unit_offset: u32,
+                             instruction_ordinal: u32,
+                             opcode: u8,
+                             invoke_kind: Option<&InvokeKind>,
+                             actual_invoke_words: u32,
+                             insn_raw_range: &DexRange,
+                             operands: &[OperandRef<'_>]|
+         -> MddResult<()> {
+            let mnemonic = mdd_dex::instructions::opcode_mnemonic(opcode);
+            if let Some(invoke) = invoke_kind {
+                let target = operands
+                    .first()
+                    .ok_or_else(|| bind(failure("INVOKE_REFERENCE_MISSING")))?;
+                let expected = match invoke {
+                    InvokeKind::Custom | InvokeKind::CustomRange => {
+                        let call = call_sites.get(&target.local_index).ok_or_else(|| {
+                            bind(MddError::new(
+                                ErrorCode::IncompleteFacts,
+                                "facts.references",
+                                "required call-site metadata is unavailable",
+                            ))
+                        })?;
+                        argument_words(&definitions, call.method_type_idx).map_err(bind)?
+                    }
+                    InvokeKind::Polymorphic | InvokeKind::PolymorphicRange => {
+                        let proto = operands
+                            .iter()
+                            .find(|value| *value.kind == ReferenceKind::Prototype)
+                            .ok_or_else(|| bind(failure("POLYMORPHIC_PROTO_MISSING")))?;
+                        argument_words(&definitions, proto.local_index)
+                            .map_err(bind)?
+                            .checked_add(1)
+                            .ok_or_else(|| bind(failure("INVOKE_WORD_OVERFLOW")))?
+                    }
+                    _ => {
+                        let method = definitions
+                            .definitions()
+                            .method_references
+                            .get(target.local_index as usize)
+                            .ok_or_else(|| bind(failure("INVOKE_METHOD_INDEX")))?;
+                        argument_words(&definitions, method.proto_idx)
+                            .map_err(bind)?
+                            .checked_add(u32::from(!mnemonic.starts_with("invoke-static")))
+                            .ok_or_else(|| bind(failure("INVOKE_WORD_OVERFLOW")))?
+                    }
+                };
+                if actual_invoke_words != expected {
+                    return Err(bind(
+                        failure("INVOKE_ARGUMENT_WORD_MISMATCH")
+                            .detail("byte_offset", insn_raw_range.byte_offset.0.to_string())
+                            .detail("byte_length", insn_raw_range.byte_length.0.to_string())
+                            .detail("method_idx", u64::from(method_idx))
+                            .detail("code_unit_pc", u64::from(code_unit_offset))
+                            .detail("expected_words", u64::from(expected))
+                            .detail("encoded_words", u64::from(actual_invoke_words)),
+                    ));
+                }
+            }
+            for (ordinal, reference) in operands.iter().enumerate() {
+                budget.site(mnemonic.len()).map_err(bind)?;
+                let start = reference.raw_range.byte_offset.0;
+                let length = reference.raw_range.byte_length.0;
+                let end = start
+                    .checked_add(length)
+                    .ok_or_else(|| bind(failure("OPERAND_RANGE_OVERFLOW")))?;
+                if start < insn_raw_range.byte_offset.0
+                    || end > insn_raw_range.byte_offset.0 + insn_raw_range.byte_length.0
+                {
+                    return Err(bind(MddError::new(
+                        ErrorCode::InternalFault,
+                        "facts.references",
+                        "operand range is outside checked instruction",
+                    )));
+                }
+                let raw = raw_reader.range(start, length).map_err(bind)?;
+                let encoded = match raw.len() {
+                    2 => u32::from(u16::from_le_bytes([raw[0], raw[1]])),
+                    4 => u32::from_le_bytes([raw[0], raw[1], raw[2], raw[3]]),
+                    _ => {
+                        return Err(bind(MddError::new(
+                            ErrorCode::InternalFault,
+                            "facts.references",
+                            "checked operand index width is neither16 nor32",
+                        )));
+                    }
+                };
+                if encoded != reference.local_index {
+                    return Err(bind(
+                        MddError::new(
+                            ErrorCode::InternalFault,
+                            "facts.references",
+                            "checked operand index does not match held source range",
+                        )
+                        .detail("byte_offset", start.to_string()),
+                    ));
+                }
+                let site_ordinal = sites.len() as u32;
+                let kind = TargetKind::from_operand(reference.kind);
+                if distinct_targets.insert(kind, reference.local_index) {
+                    budget.bytes(64).map_err(bind)?;
+                }
+                budget.usage.index_postings += 1;
+                sites.push(LocalReferenceSite {
+                    site_ordinal,
+                    caller_method_idx: method_idx,
+                    class_def_idx,
+                    class_idx,
+                    code_item_byte_offset,
+                    code_unit_pc: code_unit_offset,
+                    instruction_ordinal,
+                    operand_ordinal: ordinal as u32,
+                    target_kind: kind,
+                    target_local_index: reference.local_index,
+                    opcode,
+                    mnemonic,
+                    invoke_kind: invoke_kind.cloned(),
+                    instruction_range: insn_raw_range.clone(),
+                    operand_range: reference.raw_range.clone(),
+                });
+                if kind == TargetKind::CallSite {
+                    let call = call_sites[&reference.local_index];
+                    let section = arrays.as_ref().ok_or_else(|| {
+                        bind(MddError::new(
+                            ErrorCode::IncompleteFacts,
+                            "facts.references",
+                            "call-site arrays not built",
+                        ))
+                    })?;
+                    let handle = section
+                        .method_handles
+                        .get(call.bootstrap_method_handle_idx as usize)
+                        .ok_or_else(|| bind(failure("BOOTSTRAP_HANDLE_INDEX")))?;
+                    budget
+                        .bytes(std::mem::size_of::<DynamicCallSite>() as u64 + 32)
+                        .map_err(bind)?;
+                    dynamic_calls.push(DynamicCallSite{site_ordinal,call_site_idx:call.call_site_idx,bootstrap_method_handle_idx:call.bootstrap_method_handle_idx,bootstrap_target_kind:handle.target_kind,bootstrap_target_index:handle.target_index,method_type_idx:call.method_type_idx,name_string_idx:call.name_string_idx,runtime_target_status:"unknown_dynamic_target; bootstrap reference is not the runtime callee"});
+                }
+            }
+            Ok(())
+        };
+
+        if let Some(sidecar) = compact_refs {
+            let mut operand_buf: Vec<OperandRef<'_>> = Vec::with_capacity(4);
+            for (method_idx, class_def_idx, class_idx, code_index) in callers.iter().copied() {
+                let code_item_byte_offset = code_items[code_index].data().raw_range.byte_offset;
+                for entry in sidecar.item_entries(code_index) {
+                    operand_buf.clear();
+                    for op in sidecar.entry_operands(entry) {
+                        operand_buf.push(OperandRef {
+                            kind: &op.kind,
+                            local_index: op.local_index,
+                            raw_range: &op.raw_range,
+                        });
+                    }
+                    push_insn(
+                        method_idx,
+                        class_def_idx,
+                        class_idx,
+                        code_item_byte_offset,
+                        entry.code_unit_offset,
+                        entry.instruction_ordinal,
+                        entry.opcode,
+                        entry.invoke_kind.as_ref(),
+                        entry.actual_invoke_words,
+                        &entry.raw_range,
+                        &operand_buf,
+                    )?;
+                }
+            }
+            drop(sidecar);
+        } else {
+            let mut reader = code.reader();
+            for (method_idx, class_def_idx, class_idx, code_index) in callers.iter().copied() {
+                let item = reader.instructions(code_index).map_err(bind)?;
+                let mut operand_buf: Vec<OperandRef<'_>> = Vec::with_capacity(4);
+                for instruction in &item.instructions {
                     let actual = instruction
                         .register_range
                         .as_ref()
                         .map_or(instruction.registers.len() as u32, |range| {
                             u32::from(range.word_count)
                         });
-                    if actual != expected {
-                        return Err(bind(
-                            failure("INVOKE_ARGUMENT_WORD_MISMATCH")
-                                .detail(
-                                    "byte_offset",
-                                    instruction.raw_range.byte_offset.0.to_string(),
-                                )
-                                .detail(
-                                    "byte_length",
-                                    instruction.raw_range.byte_length.0.to_string(),
-                                )
-                                .detail("method_idx", u64::from(method_idx))
-                                .detail("code_unit_pc", u64::from(instruction.code_unit_offset))
-                                .detail("expected_words", u64::from(expected))
-                                .detail("encoded_words", u64::from(actual)),
-                        ));
+                    operand_buf.clear();
+                    for op in &instruction.references {
+                        operand_buf.push(OperandRef {
+                            kind: &op.kind,
+                            local_index: op.local_index,
+                            raw_range: &op.raw_range,
+                        });
                     }
-                }
-                for (ordinal, reference) in instruction.references.iter().enumerate() {
-                    budget.site(instruction.mnemonic.len()).map_err(bind)?;
-                    let start = reference.raw_range.byte_offset.0;
-                    let length = reference.raw_range.byte_length.0;
-                    let end = start
-                        .checked_add(length)
-                        .ok_or_else(|| bind(failure("OPERAND_RANGE_OVERFLOW")))?;
-                    if start < instruction.raw_range.byte_offset.0
-                        || end
-                            > instruction.raw_range.byte_offset.0
-                                + instruction.raw_range.byte_length.0
-                    {
-                        return Err(bind(MddError::new(
-                            ErrorCode::InternalFault,
-                            "facts.references",
-                            "operand range is outside checked instruction",
-                        )));
-                    }
-                    let raw = mdd_dex::checked_reader::CheckedReader::new(definitions.bytes())
-                        .range(start, length)
-                        .map_err(bind)?;
-                    let encoded = match raw.len() {
-                        2 => u32::from(u16::from_le_bytes([raw[0], raw[1]])),
-                        4 => u32::from_le_bytes([raw[0], raw[1], raw[2], raw[3]]),
-                        _ => {
-                            return Err(bind(MddError::new(
-                                ErrorCode::InternalFault,
-                                "facts.references",
-                                "checked operand index width is neither16 nor32",
-                            )));
-                        }
-                    };
-                    if encoded != reference.local_index {
-                        return Err(bind(
-                            MddError::new(
-                                ErrorCode::InternalFault,
-                                "facts.references",
-                                "checked operand index does not match held source range",
-                            )
-                            .detail("byte_offset", start.to_string()),
-                        ));
-                    }
-                    let site_ordinal = sites.len() as u32;
-                    let kind = TargetKind::from_operand(&reference.kind);
-                    // One set insertion replaces the previous `contains_key`
-                    // plus `entry` pair, and keeps the 64-byte charge on the
-                    // first posting of each distinct target.
-                    if distinct_targets.insert((kind, reference.local_index)) {
-                        budget.bytes(64).map_err(bind)?;
-                    }
-                    budget.usage.index_postings += 1;
-                    sites.push(LocalReferenceSite {
-                        site_ordinal,
-                        caller_method_idx: method_idx,
+                    push_insn(
+                        method_idx,
                         class_def_idx,
                         class_idx,
-                        code_item_byte_offset: item.raw_range.byte_offset,
-                        code_unit_pc: instruction.code_unit_offset,
-                        instruction_ordinal: instruction.instruction_ordinal,
-                        operand_ordinal: ordinal as u32,
-                        target_kind: kind,
-                        target_local_index: reference.local_index,
-                        opcode: instruction.opcode,
-                        mnemonic: mdd_dex::instructions::opcode_mnemonic(instruction.opcode),
-                        invoke_kind: instruction.invoke_kind.clone(),
-                        instruction_range: instruction.raw_range.clone(),
-                        operand_range: reference.raw_range.clone(),
-                    });
-                    if kind == TargetKind::CallSite {
-                        let call = call_sites[&reference.local_index];
-                        let section = arrays.as_ref().ok_or_else(|| {
-                            bind(MddError::new(
-                                ErrorCode::IncompleteFacts,
-                                "facts.references",
-                                "call-site arrays not built",
-                            ))
-                        })?;
-                        let handle = section
-                            .method_handles
-                            .get(call.bootstrap_method_handle_idx as usize)
-                            .ok_or_else(|| bind(failure("BOOTSTRAP_HANDLE_INDEX")))?;
-                        budget
-                            .bytes(std::mem::size_of::<DynamicCallSite>() as u64 + 32)
-                            .map_err(bind)?;
-                        dynamic_calls.push(DynamicCallSite{site_ordinal,call_site_idx:call.call_site_idx,bootstrap_method_handle_idx:call.bootstrap_method_handle_idx,bootstrap_target_kind:handle.target_kind,bootstrap_target_index:handle.target_index,method_type_idx:call.method_type_idx,name_string_idx:call.name_string_idx,runtime_target_status:"unknown_dynamic_target; bootstrap reference is not the runtime callee"});
-                    }
+                        item.raw_range.byte_offset,
+                        instruction.code_unit_offset,
+                        instruction.instruction_ordinal,
+                        instruction.opcode,
+                        instruction.invoke_kind.as_ref(),
+                        actual,
+                        &instruction.raw_range,
+                        &operand_buf,
+                    )?;
                 }
             }
         }
-        drop(reader);
-        let target_index = TargetIndex::from_sites(&sites, &distinct_targets).map_err(bind)?;
         let coverage = ReferenceCoverage {
             required_layer_scope:
                 "encoded operands in all declared method definitions of this bound DEX occurrence; not runtime dispatch".into(),
@@ -789,10 +1039,9 @@ impl ReferenceFacts {
             no_body_methods: no_body,
             decoded_callers: callers.len() as u32,
             missing_method_indices: missing,
-            unowned_physical_code_items: code
-                .declared_code_item_byte_offsets()
+            unowned_physical_code_items: owned_declared
                 .iter()
-                .filter(|offset| !all_owned_code.contains(&offset.0))
+                .filter(|owned| !**owned)
                 .count() as u32,
         };
         Ok(Self {
@@ -800,7 +1049,7 @@ impl ReferenceFacts {
             code,
             sites,
             dynamic_calls,
-            target_index,
+            target_index: OnceLock::new(),
             coverage,
             arrays,
             handles,
@@ -810,6 +1059,11 @@ impl ReferenceFacts {
             },
             usage: budget.usage,
         })
+    }
+
+    fn target_index(&self) -> &TargetIndex {
+        self.target_index
+            .get_or_init(|| TargetIndex::from_sites(&self.sites))
     }
     pub fn source(&self) -> &MetadataSource {
         self.definitions.metadata().source()
@@ -1320,7 +1574,9 @@ impl ReferenceFacts {
         }
         self.target_id(target.kind, target.local_index)?;
         let ordinals = if indexed {
-            let matches = self.target_index.postings(target.kind, target.local_index);
+            let matches = self
+                .target_index()
+                .postings(target.kind, target.local_index);
             if matches.len() as u64 > self.limits.max_lookup_candidates {
                 return Err(quota("REFERENCE_MATCH_BUDGET"));
             }
@@ -2312,24 +2568,25 @@ impl ReferenceFacts {
                 &self.definitions.definitions().method_references[site.caller_method_idx as usize];
             let target =
                 &self.definitions.metadata().types()[site.target_local_index as usize].data;
-            let name = type_name(&target.descriptor);
-            budget.text(&[
-                &caller.descriptor,
-                &caller.class_descriptor,
-                &caller.method_name,
-                &target.descriptor,
-                &name,
-            ])?;
-            budget.row::<MethodTypeRow>()?;
-            each(&MethodTypeRef {
-                method: &caller.descriptor,
-                method_class: &caller.class_descriptor,
-                method_name: &caller.method_name,
-                type_descriptor: &target.descriptor,
-                type_name: &name,
-                class_idx: site.class_idx,
-                method_idx: site.caller_method_idx,
-                type_idx: site.target_local_index,
+            with_type_name(&target.descriptor, |name| {
+                budget.text(&[
+                    &caller.descriptor,
+                    &caller.class_descriptor,
+                    &caller.method_name,
+                    &target.descriptor,
+                    name,
+                ])?;
+                budget.row::<MethodTypeRow>()?;
+                each(&MethodTypeRef {
+                    method: &caller.descriptor,
+                    method_class: &caller.class_descriptor,
+                    method_name: &caller.method_name,
+                    type_descriptor: &target.descriptor,
+                    type_name: name,
+                    class_idx: site.class_idx,
+                    method_idx: site.caller_method_idx,
+                    type_idx: site.target_local_index,
+                })
             })?;
         }
         Ok(())

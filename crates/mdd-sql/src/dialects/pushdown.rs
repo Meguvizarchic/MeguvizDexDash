@@ -12,11 +12,450 @@
 //! The statement still contains the condition, so a cursor that returns more rows than asked for changes nothing but the
 //! time; this only chooses a smaller cursor.
 use crate::{
-    provider::{EquiJoinEdge, RowFilter, SqlRelation},
+    provider::{
+        DirectCountGroupBy, DirectGroupItem, DirectTableProjection, EquiJoinEdge, RowFilter,
+        SqlRelation,
+    },
     values::SqlType,
 };
-use sqlparser::{ast::*, tokenizer::Token};
+use sqlparser::{ast::*, dialect::SQLiteDialect, parser::Parser, tokenizer::Token};
 use std::collections::{BTreeMap, BTreeSet};
+
+/// Extract a sound direct single-table projection with optional ascending `U64` ORDER BY,
+/// excluding wrappers, CTEs, filters, aggregates, LIMIT/OFFSET, or ambiguous aliases.
+pub(crate) fn extract_direct_projection(
+    sql: &str,
+    relations: &[SqlRelation],
+    cte_names: &BTreeSet<String>,
+    max_ast_depth: usize,
+) -> Option<DirectTableProjection> {
+    if relations.is_empty() {
+        return None;
+    }
+    let stmts = Parser::new(&SQLiteDialect {})
+        .with_recursion_limit(max_ast_depth)
+        .try_with_sql(sql)
+        .ok()?
+        .parse_statements()
+        .ok()?;
+    if stmts.len() != 1 {
+        return None;
+    }
+    let Statement::Query(root) = &stmts[0] else {
+        return None;
+    };
+    if root.with.is_some()
+        || root.limit_clause.is_some()
+        || root.fetch.is_some()
+        || !root.locks.is_empty()
+        || root.settings.is_some()
+        || root.format_clause.is_some()
+        || !root.pipe_operators.is_empty()
+    {
+        return None;
+    }
+    let SetExpr::Select(select) = &*root.body else {
+        return None;
+    };
+    let empty_group = matches!(
+        &select.group_by,
+        GroupByExpr::Expressions(exprs, modifiers) if exprs.is_empty() && modifiers.is_empty()
+    );
+    if select.distinct.is_some()
+        || select.top.is_some()
+        || select.into.is_some()
+        || select.selection.is_some()
+        || !empty_group
+        || !select.cluster_by.is_empty()
+        || !select.distribute_by.is_empty()
+        || !select.sort_by.is_empty()
+        || select.having.is_some()
+        || !select.named_window.is_empty()
+        || select.qualify.is_some()
+        || !select.connect_by.is_empty()
+        || select.prewhere.is_some()
+        || !select.lateral_views.is_empty()
+        || select.value_table_mode.is_some()
+        || select.from.len() != 1
+        || !select.from[0].joins.is_empty()
+        || select.projection.is_empty()
+    {
+        return None;
+    }
+    let TableFactor::Table {
+        name,
+        alias,
+        args: None,
+        with_hints,
+        version: None,
+        with_ordinality: false,
+        partitions,
+        json_path: None,
+        sample: None,
+        index_hints,
+    } = &select.from[0].relation
+    else {
+        return None;
+    };
+    if !with_hints.is_empty() || !partitions.is_empty() || !index_hints.is_empty() {
+        return None;
+    }
+    if alias.as_ref().is_some_and(|a| !a.columns.is_empty()) || name.0.len() != 1 {
+        return None;
+    }
+    let rel_ident = name.0[0].as_ident()?;
+    let rel_lower = rel_ident.value.to_ascii_lowercase();
+    if cte_names.contains(&rel_lower) {
+        return None;
+    }
+    let rel = relations
+        .iter()
+        .find(|r| r.name.eq_ignore_ascii_case(&rel_lower))?;
+    let qualifier = alias
+        .as_ref()
+        .map_or_else(|| rel_lower.clone(), |a| a.name.value.to_ascii_lowercase());
+
+    let resolve_col = |expr: &Expr| -> Option<usize> {
+        match unwrap_nested(expr) {
+            Expr::Identifier(id) => rel
+                .columns
+                .iter()
+                .position(|c| c.name.eq_ignore_ascii_case(&id.value)),
+            Expr::CompoundIdentifier(parts) if parts.len() == 2 => {
+                if !parts[0].value.eq_ignore_ascii_case(&qualifier) {
+                    return None;
+                }
+                rel.columns
+                    .iter()
+                    .position(|c| c.name.eq_ignore_ascii_case(&parts[1].value))
+            }
+            _ => None,
+        }
+    };
+
+    let mut projected_columns = Vec::with_capacity(select.projection.len());
+    let mut shadowed_cols = BTreeSet::new();
+    for item in &select.projection {
+        match item {
+            SelectItem::UnnamedExpr(expr) => {
+                let col_idx = resolve_col(expr)?;
+                projected_columns.push((col_idx, rel.columns[col_idx].name.clone()));
+            }
+            SelectItem::ExprWithAlias { expr, alias } => {
+                let col_idx = resolve_col(expr)?;
+                if let Some(other_idx) = rel
+                    .columns
+                    .iter()
+                    .position(|c| c.name.eq_ignore_ascii_case(&alias.value))
+                    && other_idx != col_idx
+                {
+                    shadowed_cols.insert(other_idx);
+                }
+                projected_columns.push((col_idx, alias.value.clone()));
+            }
+            _ => return None,
+        }
+    }
+
+    let order_by_u64_asc = match &root.order_by {
+        None => Vec::new(),
+        Some(order) => {
+            if order.interpolate.is_some() {
+                return None;
+            }
+            let OrderByKind::Expressions(exprs) = &order.kind else {
+                return None;
+            };
+            if exprs.is_empty() || exprs.len() > 2 {
+                return None;
+            }
+            let mut cols = Vec::with_capacity(exprs.len());
+            for item in exprs {
+                if item.with_fill.is_some()
+                    || !matches!(item.options.sort, None | Some(OrderBySort::Asc))
+                    || item.options.nulls_first.is_some()
+                {
+                    return None;
+                }
+                let ord_idx = resolve_col(&item.expr)?;
+                if shadowed_cols.contains(&ord_idx)
+                    && matches!(unwrap_nested(&item.expr), Expr::Identifier(_))
+                {
+                    return None;
+                }
+                let col = &rel.columns[ord_idx];
+                if col.data_type != SqlType::U64 || col.nullable {
+                    return None;
+                }
+                cols.push(ord_idx);
+            }
+            cols
+        }
+    };
+
+    Some(DirectTableProjection {
+        relation: rel.name.clone(),
+        projected_columns,
+        order_by_u64_asc,
+    })
+}
+
+fn is_count_star(expr: &Expr) -> bool {
+    let Expr::Function(func) = unwrap_nested(expr) else {
+        return false;
+    };
+    if func.name.0.len() != 1
+        || !func.name.0[0]
+            .as_ident()
+            .is_some_and(|id| id.value.eq_ignore_ascii_case("count"))
+        || func.filter.is_some()
+        || func.over.is_some()
+        || !func.within_group.is_empty()
+        || func.null_treatment.is_some()
+        || func.uses_odbc_syntax
+        || !matches!(func.parameters, FunctionArguments::None)
+    {
+        return false;
+    }
+    let FunctionArguments::List(list) = &func.args else {
+        return false;
+    };
+    list.duplicate_treatment.is_none()
+        && list.clauses.is_empty()
+        && list.args.len() == 1
+        && matches!(
+            &list.args[0],
+            FunctionArg::Unnamed(FunctionArgExpr::Wildcard)
+        )
+}
+
+/// Extract a sound single-table unfiltered `GROUP BY <cols> COUNT(*) [ORDER BY <cols> ASC]`
+/// fast path, excluding wrappers, CTEs, filters, HAVING, DISTINCT, LIMIT/OFFSET, or ambiguous aliases.
+pub(crate) fn extract_direct_count_group_by(
+    sql: &str,
+    relations: &[SqlRelation],
+    cte_names: &BTreeSet<String>,
+    max_ast_depth: usize,
+) -> Option<DirectCountGroupBy> {
+    if relations.is_empty() {
+        return None;
+    }
+    let stmts = Parser::new(&SQLiteDialect {})
+        .with_recursion_limit(max_ast_depth)
+        .try_with_sql(sql)
+        .ok()?
+        .parse_statements()
+        .ok()?;
+    if stmts.len() != 1 {
+        return None;
+    }
+    let Statement::Query(root) = &stmts[0] else {
+        return None;
+    };
+    if root.with.is_some()
+        || root.limit_clause.is_some()
+        || root.fetch.is_some()
+        || !root.locks.is_empty()
+        || root.settings.is_some()
+        || root.format_clause.is_some()
+        || !root.pipe_operators.is_empty()
+    {
+        return None;
+    }
+    let SetExpr::Select(select) = &*root.body else {
+        return None;
+    };
+    if select.distinct.is_some()
+        || select.top.is_some()
+        || select.into.is_some()
+        || select.selection.is_some()
+        || select.having.is_some()
+        || !select.cluster_by.is_empty()
+        || !select.distribute_by.is_empty()
+        || !select.sort_by.is_empty()
+        || !select.named_window.is_empty()
+        || select.qualify.is_some()
+        || !select.connect_by.is_empty()
+        || select.prewhere.is_some()
+        || !select.lateral_views.is_empty()
+        || select.value_table_mode.is_some()
+        || select.from.len() != 1
+        || !select.from[0].joins.is_empty()
+        || select.projection.is_empty()
+    {
+        return None;
+    }
+    let TableFactor::Table {
+        name,
+        alias,
+        args: None,
+        with_hints,
+        version: None,
+        with_ordinality: false,
+        partitions,
+        json_path: None,
+        sample: None,
+        index_hints,
+    } = &select.from[0].relation
+    else {
+        return None;
+    };
+    if !with_hints.is_empty()
+        || !partitions.is_empty()
+        || !index_hints.is_empty()
+        || alias.as_ref().is_some_and(|a| !a.columns.is_empty())
+        || name.0.len() != 1
+    {
+        return None;
+    }
+    let rel_ident = name.0[0].as_ident()?;
+    let rel_lower = rel_ident.value.to_ascii_lowercase();
+    if cte_names.contains(&rel_lower) {
+        return None;
+    }
+    let rel = relations
+        .iter()
+        .find(|r| r.name.eq_ignore_ascii_case(&rel_lower))?;
+    let qualifier = alias
+        .as_ref()
+        .map_or_else(|| rel_lower.clone(), |a| a.name.value.to_ascii_lowercase());
+
+    let resolve_col = |expr: &Expr| -> Option<usize> {
+        match unwrap_nested(expr) {
+            Expr::Identifier(id) => rel
+                .columns
+                .iter()
+                .position(|c| c.name.eq_ignore_ascii_case(&id.value)),
+            Expr::CompoundIdentifier(parts) if parts.len() == 2 => {
+                if !parts[0].value.eq_ignore_ascii_case(&qualifier) {
+                    return None;
+                }
+                rel.columns
+                    .iter()
+                    .position(|c| c.name.eq_ignore_ascii_case(&parts[1].value))
+            }
+            _ => None,
+        }
+    };
+
+    let GroupByExpr::Expressions(group_exprs, modifiers) = &select.group_by else {
+        return None;
+    };
+    if !modifiers.is_empty() || group_exprs.is_empty() || group_exprs.len() > 4 {
+        return None;
+    }
+    let mut group_columns = Vec::with_capacity(group_exprs.len());
+    for g in group_exprs {
+        let col_idx = resolve_col(g)?;
+        if !matches!(
+            rel.columns[col_idx].data_type,
+            SqlType::U64 | SqlType::I64 | SqlType::Text
+        ) {
+            return None;
+        }
+        if !group_columns.contains(&col_idx) {
+            group_columns.push(col_idx);
+        }
+    }
+
+    let mut projections = Vec::with_capacity(select.projection.len());
+    let mut shadowed_cols = BTreeSet::new();
+    let mut alias_targets: BTreeMap<String, Option<usize>> = BTreeMap::new();
+    for item in &select.projection {
+        match item {
+            SelectItem::UnnamedExpr(expr) => {
+                let col_idx = resolve_col(expr)?;
+                let group_pos = group_columns.iter().position(|&c| c == col_idx)?;
+                projections.push(DirectGroupItem::GroupCol {
+                    group_pos,
+                    output_name: rel.columns[col_idx].name.clone(),
+                });
+            }
+            SelectItem::ExprWithAlias { expr, alias } => {
+                let alias_lower = alias.value.to_ascii_lowercase();
+                if is_count_star(expr) {
+                    if let Some(other_idx) = rel
+                        .columns
+                        .iter()
+                        .position(|c| c.name.eq_ignore_ascii_case(&alias.value))
+                    {
+                        shadowed_cols.insert(other_idx);
+                    }
+                    alias_targets.insert(alias_lower, None);
+                    projections.push(DirectGroupItem::CountStar {
+                        output_name: alias.value.clone(),
+                    });
+                } else {
+                    let col_idx = resolve_col(expr)?;
+                    let group_pos = group_columns.iter().position(|&c| c == col_idx)?;
+                    if let Some(other_idx) = rel
+                        .columns
+                        .iter()
+                        .position(|c| c.name.eq_ignore_ascii_case(&alias.value))
+                        && other_idx != col_idx
+                    {
+                        shadowed_cols.insert(other_idx);
+                    }
+                    alias_targets.insert(alias_lower, Some(col_idx));
+                    projections.push(DirectGroupItem::GroupCol {
+                        group_pos,
+                        output_name: alias.value.clone(),
+                    });
+                }
+            }
+            _ => return None,
+        }
+    }
+
+    let order_by_group_asc = match &root.order_by {
+        None => Vec::new(),
+        Some(order) => {
+            if order.interpolate.is_some() {
+                return None;
+            }
+            let OrderByKind::Expressions(exprs) = &order.kind else {
+                return None;
+            };
+            if exprs.is_empty() || exprs.len() > 4 {
+                return None;
+            }
+            let mut cols = Vec::with_capacity(exprs.len());
+            for item in exprs {
+                if item.with_fill.is_some()
+                    || !matches!(item.options.sort, None | Some(OrderBySort::Asc))
+                    || item.options.nulls_first.is_some()
+                {
+                    return None;
+                }
+                let ord_idx = match unwrap_nested(&item.expr) {
+                    Expr::Identifier(id) => {
+                        let lower = id.value.to_ascii_lowercase();
+                        if let Some(target) = alias_targets.get(&lower) {
+                            (*target)?
+                        } else {
+                            let idx = resolve_col(&item.expr)?;
+                            if shadowed_cols.contains(&idx) {
+                                return None;
+                            }
+                            idx
+                        }
+                    }
+                    _ => resolve_col(&item.expr)?,
+                };
+                let group_pos = group_columns.iter().position(|&c| c == ord_idx)?;
+                cols.push(group_pos);
+            }
+            cols
+        }
+    };
+
+    Some(DirectCountGroupBy {
+        relation: rel.name.clone(),
+        group_columns,
+        projections,
+        order_by_group_asc,
+    })
+}
 
 #[derive(Default, Clone, Debug)]
 pub(crate) struct QueryHints {
@@ -679,31 +1118,109 @@ fn extract_single_table_filter(
                 }
                 None => None,
             };
-            let prefix = extract_ascii_like_prefix(&pat, esc)?;
-            Some((rel, RowFilter::LikeAsciiPrefix(col, prefix)))
+            let scan_opt =
+                std::env::var_os("MDD_OPT_SQL_SCAN").as_deref() != Some(std::ffi::OsStr::new("0"));
+            if let Some((prefix, suffix)) = extract_ascii_like_prefix_and_suffix(&pat, esc) {
+                if let Some(suffix) = suffix
+                    && scan_opt
+                {
+                    Some((rel, RowFilter::LikeAsciiPrefixSuffix(col, prefix, suffix)))
+                } else {
+                    Some((rel, RowFilter::LikeAsciiPrefix(col, prefix)))
+                }
+            } else if scan_opt && let Some(needle) = extract_ascii_like_contains(&pat, esc) {
+                Some((rel, RowFilter::LikeAsciiContains(col, needle)))
+            } else {
+                None
+            }
         }
         _ => None,
     }
 }
 
-fn extract_ascii_like_prefix(pattern: &str, escape: Option<char>) -> Option<String> {
+fn extract_ascii_like_prefix_and_suffix(
+    pattern: &str,
+    escape: Option<char>,
+) -> Option<(String, Option<String>)> {
     let mut prefix = String::new();
+    let mut suffix = String::new();
+    let mut in_prefix = true;
+    let mut after_percent = false;
     let mut chars = pattern.chars();
     while let Some(ch) = chars.next() {
         if Some(ch) == escape {
             let escaped = chars.next()?;
-            prefix.push(escaped);
-        } else if ch == '%' || ch == '_' {
-            break;
-        } else {
+            if in_prefix {
+                prefix.push(escaped);
+            } else if after_percent {
+                suffix.push(escaped);
+            }
+        } else if ch == '%' {
+            in_prefix = false;
+            after_percent = true;
+            suffix.clear();
+        } else if ch == '_' {
+            in_prefix = false;
+            after_percent = false;
+            suffix.clear();
+        } else if in_prefix {
             prefix.push(ch);
+        } else if after_percent {
+            suffix.push(ch);
         }
     }
     if prefix.is_empty() || !prefix.is_ascii() {
         return None;
     }
     prefix.make_ascii_lowercase();
-    Some(prefix)
+    let suffix = if after_percent && !suffix.is_empty() && suffix.is_ascii() {
+        suffix.make_ascii_lowercase();
+        Some(suffix)
+    } else {
+        None
+    };
+    Some((prefix, suffix))
+}
+
+fn extract_ascii_like_contains(pattern: &str, escape: Option<char>) -> Option<String> {
+    let mut chars = pattern.chars().peekable();
+    let mut saw_leading = false;
+    while let Some(&ch) = chars.peek() {
+        if Some(ch) != escape && ch == '%' {
+            saw_leading = true;
+            chars.next();
+        } else {
+            break;
+        }
+    }
+    if !saw_leading {
+        return None;
+    }
+    let mut needle = String::new();
+    let mut saw_trailing = false;
+    while let Some(ch) = chars.next() {
+        if Some(ch) == escape {
+            let escaped = chars.next()?;
+            if saw_trailing {
+                return None;
+            }
+            needle.push(escaped);
+        } else if ch == '_' {
+            return None;
+        } else if ch == '%' {
+            saw_trailing = true;
+        } else {
+            if saw_trailing {
+                return None;
+            }
+            needle.push(ch);
+        }
+    }
+    if !saw_trailing || needle.is_empty() || !needle.is_ascii() {
+        return None;
+    }
+    needle.make_ascii_lowercase();
+    Some(needle)
 }
 
 /// `partition_columns` maps a relation name (lower case) to its partition column (lower case). The result maps a relation
@@ -1020,13 +1537,37 @@ mod tests {
             ]))
         );
 
-        let unsafe_or =
+        let contains_or =
             "SELECT descriptor FROM classes WHERE descriptor = 'La;' OR descriptor LIKE '%Lb%'";
-        let stmts2 = sqlparser::parser::Parser::parse_sql(&SQLiteDialect {}, unsafe_or).unwrap();
-        let sqlparser::ast::Statement::Query(q2) = &stmts2[0] else {
+        let stmts_c = sqlparser::parser::Parser::parse_sql(&SQLiteDialect {}, contains_or).unwrap();
+        let sqlparser::ast::Statement::Query(qc) = &stmts_c[0] else {
             panic!("not a query");
         };
-        assert!(query_hints(q2, &rels).row_filters.is_empty());
+        assert_eq!(
+            query_hints(qc, &rels).row_filters.get("classes"),
+            Some(&RowFilter::Or(vec![
+                RowFilter::EqText("descriptor".to_owned(), "La;".to_owned()),
+                RowFilter::LikeAsciiContains("descriptor".to_owned(), "lb".to_owned()),
+            ]))
+        );
+
+        for unpushable in [
+            "SELECT descriptor FROM classes WHERE descriptor = 'La;' OR descriptor LIKE '_Lb%'",
+            "SELECT descriptor FROM classes WHERE descriptor LIKE '%'",
+            "SELECT descriptor FROM classes WHERE descriptor LIKE '%a_b%'",
+            "SELECT descriptor FROM classes WHERE descriptor LIKE '%a%b%'",
+            "SELECT descriptor FROM classes WHERE descriptor LIKE '%\u{00e9}%'",
+        ] {
+            let stmts2 =
+                sqlparser::parser::Parser::parse_sql(&SQLiteDialect {}, unpushable).unwrap();
+            let sqlparser::ast::Statement::Query(q2) = &stmts2[0] else {
+                panic!("not a query");
+            };
+            assert!(
+                query_hints(q2, &rels).row_filters.is_empty(),
+                "expected no row filter for {unpushable}"
+            );
+        }
 
         let limit_zero = "SELECT * FROM (SELECT descriptor FROM classes WHERE descriptor = 'La;') AS hostlab_shape LIMIT 0";
         let stmts_z = sqlparser::parser::Parser::parse_sql(&SQLiteDialect {}, limit_zero).unwrap();
@@ -1041,5 +1582,269 @@ mod tests {
             panic!("not a query");
         };
         assert!(query_hints(q3, &rels).row_filters.is_empty());
+    }
+
+    fn bulk_test_relations() -> Vec<SqlRelation> {
+        let col = |name: &str, data_type: SqlType| crate::provider::SqlColumn {
+            id: name.to_owned(),
+            name: name.to_owned(),
+            data_type,
+            nullable: false,
+        };
+        vec![
+            SqlRelation {
+                name: "dex_files".to_owned(),
+                columns: vec![
+                    col("file_id", SqlType::U64),
+                    col("entry_name", SqlType::Text),
+                ],
+                required_layers: vec![],
+                estimated_rows: None,
+            },
+            SqlRelation {
+                name: "strings".to_owned(),
+                columns: vec![
+                    col("string_pool_id", SqlType::U64),
+                    col("string_idx", SqlType::U64),
+                    col("value", SqlType::Text),
+                ],
+                required_layers: vec![],
+                estimated_rows: None,
+            },
+            SqlRelation {
+                name: "types".to_owned(),
+                columns: vec![
+                    col("file_id", SqlType::U64),
+                    col("type_idx", SqlType::U64),
+                    col("descriptor", SqlType::Text),
+                ],
+                required_layers: vec![],
+                estimated_rows: None,
+            },
+            SqlRelation {
+                name: "classes".to_owned(),
+                columns: vec![
+                    col("file_id", SqlType::U64),
+                    col("class_idx", SqlType::U64),
+                    col("descriptor", SqlType::Text),
+                ],
+                required_layers: vec![],
+                estimated_rows: None,
+            },
+            SqlRelation {
+                name: "methods".to_owned(),
+                columns: vec![
+                    col("file_id", SqlType::U64),
+                    col("method_idx", SqlType::U64),
+                    col("class_descriptor", SqlType::Text),
+                    col("name", SqlType::Text),
+                    col("descriptor", SqlType::Text),
+                ],
+                required_layers: vec![],
+                estimated_rows: None,
+            },
+            SqlRelation {
+                name: "method_calls".to_owned(),
+                columns: vec![
+                    col("file_id", SqlType::U64),
+                    col("class_idx", SqlType::U64),
+                    col("method_idx", SqlType::U64),
+                ],
+                required_layers: vec![],
+                estimated_rows: None,
+            },
+            SqlRelation {
+                name: "method_strings".to_owned(),
+                columns: vec![
+                    col("file_id", SqlType::U64),
+                    col("class_idx", SqlType::U64),
+                    col("method_idx", SqlType::U64),
+                ],
+                required_layers: vec![],
+                estimated_rows: None,
+            },
+        ]
+    }
+
+    #[test]
+    fn direct_table_projection_extracts_bulk_and_rejects_ambiguous_or_non_asc_queries() {
+        let rels = bulk_test_relations();
+        let no_ctes = BTreeSet::new();
+
+        for (sql, rel_name, cols, order) in [
+            (
+                "SELECT file_id,entry_name FROM dex_files ORDER BY file_id",
+                "dex_files",
+                vec![(0, "file_id"), (1, "entry_name")],
+                vec![0],
+            ),
+            (
+                "SELECT string_pool_id,string_idx FROM strings ORDER BY string_pool_id,string_idx",
+                "strings",
+                vec![(0, "string_pool_id"), (1, "string_idx")],
+                vec![0, 1],
+            ),
+            (
+                "SELECT file_id,type_idx,descriptor FROM types ORDER BY file_id,type_idx",
+                "types",
+                vec![(0, "file_id"), (1, "type_idx"), (2, "descriptor")],
+                vec![0, 1],
+            ),
+            (
+                "SELECT file_id,class_idx,descriptor FROM classes ORDER BY file_id,class_idx",
+                "classes",
+                vec![(0, "file_id"), (1, "class_idx"), (2, "descriptor")],
+                vec![0, 1],
+            ),
+            (
+                "SELECT file_id,method_idx,class_descriptor,name,descriptor FROM methods ORDER BY file_id,method_idx",
+                "methods",
+                vec![
+                    (0, "file_id"),
+                    (1, "method_idx"),
+                    (2, "class_descriptor"),
+                    (3, "name"),
+                    (4, "descriptor"),
+                ],
+                vec![0, 1],
+            ),
+            (
+                "SELECT file_id,method_idx FROM method_calls ORDER BY file_id,method_idx",
+                "method_calls",
+                vec![(0, "file_id"), (2, "method_idx")],
+                vec![0, 2],
+            ),
+            (
+                "SELECT file_id,method_idx FROM method_strings ORDER BY file_id,method_idx",
+                "method_strings",
+                vec![(0, "file_id"), (2, "method_idx")],
+                vec![0, 2],
+            ),
+            (
+                "SELECT file_id, entry_name FROM dex_files",
+                "dex_files",
+                vec![(0, "file_id"), (1, "entry_name")],
+                vec![],
+            ),
+            (
+                "SELECT c.file_id, c.class_idx AS cid FROM classes c ORDER BY c.file_id ASC, c.class_idx ASC",
+                "classes",
+                vec![(0, "file_id"), (1, "cid")],
+                vec![0, 1],
+            ),
+        ] {
+            let extracted = extract_direct_projection(sql, &rels, &no_ctes, 64)
+                .unwrap_or_else(|| panic!("expected DirectTableProjection for {sql}"));
+            assert_eq!(extracted.relation, rel_name, "{sql}");
+            let expected_cols: Vec<(usize, String)> =
+                cols.into_iter().map(|(i, n)| (i, n.to_owned())).collect();
+            assert_eq!(extracted.projected_columns, expected_cols, "{sql}");
+            assert_eq!(extracted.order_by_u64_asc, order, "{sql}");
+        }
+
+        for rejected in [
+            "SELECT file_id, entry_name FROM dex_files ORDER BY file_id DESC",
+            "SELECT file_id, entry_name FROM dex_files ORDER BY file_id NULLS FIRST",
+            "SELECT file_id, entry_name FROM dex_files ORDER BY entry_name",
+            "SELECT file_id, entry_name FROM dex_files WHERE file_id = 0",
+            "SELECT file_id, entry_name FROM dex_files LIMIT 1",
+            "SELECT DISTINCT file_id FROM dex_files",
+            "SELECT a.file_id FROM dex_files a JOIN classes b ON a.file_id = b.file_id",
+            "SELECT class_idx AS method_idx FROM method_calls ORDER BY method_idx",
+            "SELECT * FROM dex_files ORDER BY file_id",
+            "SELECT file_id FROM dex_files ORDER BY file_id, 1, 2",
+        ] {
+            assert!(
+                extract_direct_projection(rejected, &rels, &no_ctes, 64).is_none(),
+                "must refuse direct projection for {rejected}"
+            );
+        }
+
+        let cte_shadow = BTreeSet::from(["dex_files".to_owned()]);
+        assert!(
+            extract_direct_projection("SELECT file_id FROM dex_files", &rels, &cte_shadow, 64)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn direct_count_group_by_extractor_accepts_w04_shape_and_rejects_unsafe_shapes() {
+        use crate::provider::SqlColumn;
+        let rels = vec![SqlRelation {
+            name: "class_methods".to_owned(),
+            columns: vec![
+                SqlColumn {
+                    id: "file_id".into(),
+                    name: "file_id".into(),
+                    data_type: SqlType::U64,
+                    nullable: false,
+                },
+                SqlColumn {
+                    id: "kind".into(),
+                    name: "kind".into(),
+                    data_type: SqlType::Text,
+                    nullable: false,
+                },
+                SqlColumn {
+                    id: "method_name".into(),
+                    name: "method_name".into(),
+                    data_type: SqlType::Text,
+                    nullable: false,
+                },
+            ],
+            required_layers: vec![],
+            estimated_rows: None,
+        }];
+        let no_ctes = BTreeSet::new();
+
+        let w04 = "SELECT file_id, kind, COUNT(*) AS cnt FROM class_methods GROUP BY file_id, kind ORDER BY file_id, kind";
+        let got = extract_direct_count_group_by(w04, &rels, &no_ctes, 64)
+            .expect("must extract W04 class_methods GROUP BY plan");
+        assert_eq!(got.relation, "class_methods");
+        assert_eq!(got.group_columns, vec![0, 1]);
+        assert_eq!(
+            got.projections,
+            vec![
+                DirectGroupItem::GroupCol {
+                    group_pos: 0,
+                    output_name: "file_id".into(),
+                },
+                DirectGroupItem::GroupCol {
+                    group_pos: 1,
+                    output_name: "kind".into(),
+                },
+                DirectGroupItem::CountStar {
+                    output_name: "cnt".into(),
+                },
+            ]
+        );
+        assert_eq!(got.order_by_group_asc, vec![0, 1]);
+
+        let aliased = "SELECT cm.kind AS k, COUNT(*) AS total FROM class_methods cm GROUP BY cm.kind ORDER BY k ASC";
+        let got_aliased = extract_direct_count_group_by(aliased, &rels, &no_ctes, 64)
+            .expect("must extract aliased single group");
+        assert_eq!(got_aliased.group_columns, vec![1]);
+        assert_eq!(got_aliased.order_by_group_asc, vec![0]);
+
+        for rejected in [
+            "SELECT file_id, kind, COUNT(*) FROM class_methods GROUP BY file_id, kind",
+            "SELECT file_id, kind, COUNT(*) AS cnt FROM class_methods WHERE file_id = 0 GROUP BY file_id, kind",
+            "SELECT file_id, kind, COUNT(*) AS cnt FROM class_methods GROUP BY file_id, kind HAVING COUNT(*) > 1",
+            "SELECT DISTINCT file_id, kind FROM class_methods GROUP BY file_id, kind",
+            "SELECT file_id, kind, COUNT(*) AS cnt FROM class_methods GROUP BY file_id, kind LIMIT 2",
+            "SELECT file_id, kind, COUNT(*) AS cnt FROM class_methods GROUP BY file_id, kind ORDER BY kind DESC",
+            "SELECT file_id, COUNT(*) AS kind FROM class_methods GROUP BY file_id ORDER BY kind",
+            "SELECT file_id, method_name, COUNT(*) AS cnt FROM class_methods GROUP BY file_id",
+            "SELECT COUNT(*) AS cnt FROM class_methods",
+            "SELECT a.file_id, COUNT(*) AS cnt FROM class_methods a JOIN class_methods b ON a.file_id = b.file_id GROUP BY a.file_id",
+        ] {
+            assert!(
+                extract_direct_count_group_by(rejected, &rels, &no_ctes, 64).is_none(),
+                "must refuse direct count group_by for {rejected}"
+            );
+        }
+
+        let cte_shadow = BTreeSet::from(["class_methods".to_owned()]);
+        assert!(extract_direct_count_group_by(w04, &rels, &cte_shadow, 64).is_none());
     }
 }

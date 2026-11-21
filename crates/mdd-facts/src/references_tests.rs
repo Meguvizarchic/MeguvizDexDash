@@ -98,18 +98,41 @@ fn references_from_compact_code_are_the_references_from_full_code() {
             CodeLimits::default(),
         )
         .unwrap();
-        for compact in [
-            Arc::new(data.code[0].compacted().unwrap()),
-            Arc::new(streamed),
+        let (sidecar_code, sidecar_refs) = CodeFacts::build_all_code_items_compact_with_refs(
+            &data.snapshot,
+            &data.inventories[0],
+            0,
+            CodeLimits::default(),
+        )
+        .unwrap();
+        let sidecar_built = ReferenceFacts::build_arc_with_compact_refs(
+            Arc::clone(&definitions),
+            Arc::new(sidecar_code),
+            sidecar_refs,
+            ReferenceLimits::default(),
+        );
+        for (compact_kind, from_compact) in [
+            (
+                "compacted",
+                ReferenceFacts::build_arc(
+                    Arc::clone(&definitions),
+                    Arc::new(data.code[0].compacted().unwrap()),
+                    ReferenceLimits::default(),
+                ),
+            ),
+            (
+                "streamed",
+                ReferenceFacts::build_arc(
+                    Arc::clone(&definitions),
+                    Arc::new(streamed),
+                    ReferenceLimits::default(),
+                ),
+            ),
+            ("compact_with_refs", sidecar_built),
         ] {
-            let from_compact = ReferenceFacts::build_arc(
-                Arc::clone(&definitions),
-                compact,
-                ReferenceLimits::default(),
-            );
             match (&full, &from_compact) {
                 (Ok(full), Ok(compact)) => {
-                    assert!(compact.code().is_compact(), "{case}");
+                    assert!(compact.code().is_compact(), "{case} ({compact_kind})");
                     for (name, left, right) in [
                         (
                             "sites",
@@ -132,18 +155,28 @@ fn references_from_compact_code_are_the_references_from_full_code() {
                             serde_json::to_value(full.usage()).unwrap(),
                         ),
                     ] {
-                        assert_eq!(left, right, "{case}: {name}");
+                        assert_eq!(left, right, "{case} ({compact_kind}): {name}");
                     }
                     assert_eq!(
                         compact.call_site_metadata().is_some(),
                         full.call_site_metadata().is_some(),
-                        "{case}"
+                        "{case} ({compact_kind})"
                     );
                     assert_eq!(
                         compact.method_handle_metadata().is_some(),
                         full.method_handle_metadata().is_some(),
-                        "{case}"
+                        "{case} ({compact_kind})"
                     );
+                    if let Some(first_site) = full.sites().first() {
+                        let target = full
+                            .target_id(first_site.target_kind, first_site.target_local_index)
+                            .unwrap();
+                        assert_eq!(
+                            compact.find_target_indexed(&target).unwrap(),
+                            full.find_target_indexed(&target).unwrap(),
+                            "{case} ({compact_kind}): indexed lookup"
+                        );
+                    }
                     dynamic += compact.dynamic_calls().len();
                     built += 1;
                 }
@@ -151,14 +184,16 @@ fn references_from_compact_code_are_the_references_from_full_code() {
                     assert_eq!(
                         serde_json::to_value(compact).unwrap(),
                         serde_json::to_value(full).unwrap(),
-                        "{case}"
+                        "{case} ({compact_kind})"
                     );
                     refused += 1;
                 }
                 (Ok(_), Err(error)) => {
-                    panic!("{case}: only the compact build fails: {error:?}")
+                    panic!("{case} ({compact_kind}): only the compact build fails: {error:?}")
                 }
-                (Err(error), Ok(_)) => panic!("{case}: only the full build fails: {error:?}"),
+                (Err(error), Ok(_)) => {
+                    panic!("{case} ({compact_kind}): only the full build fails: {error:?}")
+                }
             }
         }
     }
@@ -902,14 +937,12 @@ fn csr_target_index_matches_independent_per_target_scan() {
                 .or_default()
                 .push(site.site_ordinal);
         }
-        assert_eq!(facts.target_index.target_count(), expected.len(), "{case}");
-        assert_eq!(
-            facts.target_index.keys,
-            expected.keys().copied().collect::<Vec<_>>()
-        );
+        let index = facts.target_index();
+        assert_eq!(index.target_count(), expected.len(), "{case}");
+        assert_eq!(index.keys, expected.keys().copied().collect::<Vec<_>>());
         for (key, ordinals) in &expected {
             assert_eq!(
-                facts.target_index.postings(key.0, key.1),
+                index.postings(key.0, key.1),
                 ordinals.as_slice(),
                 "{case} {key:?}"
             );

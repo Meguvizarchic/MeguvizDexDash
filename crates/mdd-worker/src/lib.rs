@@ -2,3 +2,4 @@
 pub mod lifecycle;
 pub mod protocol;
 pub mod providers;
+pub mod scheduler;

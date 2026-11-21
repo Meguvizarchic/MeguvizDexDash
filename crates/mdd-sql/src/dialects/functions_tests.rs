@@ -350,7 +350,7 @@ fn truth_text_lease_survives_sqlite_to_sql_callback() {
                 .unwrap();
             Ok(ObservedCell {
                 inner: SqlCellWithWorkspaceLease {
-                    value: Cell::Text("1".to_owned()),
+                    value: super::ReturnPayload::Cell(Cell::Text("1".to_owned())),
                     _workspace: Some(lease),
                 },
                 pool: callback_pool.clone(),
@@ -689,7 +689,7 @@ fn key_lease_survives_actual_rusqlite_to_sql_callback() {
                 .unwrap();
             Ok(ObservedCell {
                 inner: SqlCellWithWorkspaceLease {
-                    value: Cell::Blob(vec![0, 1, 0xff]),
+                    value: super::ReturnPayload::Cell(Cell::Blob(vec![0, 1, 0xff])),
                     _workspace: Some(lease),
                 },
                 pool: callback_pool.clone(),
@@ -812,4 +812,299 @@ fn legacy_trailing_escape_does_not_hide_budget_or_cancel_errors() {
         let error = like(&empty, &pattern, Some(u16::from(b'!')), dialect, &cancelled).unwrap_err();
         assert_eq!(error.code, ErrorCode::Cancelled);
     }
+}
+
+#[test]
+fn borrowed_udf_fast_paths_agree_with_scalar_reference() {
+    let text_blob = |units: &[u16]| {
+        let mut out = TEXT.to_vec();
+        for u in units {
+            out.extend_from_slice(&u.to_be_bytes());
+        }
+        Cell::Blob(out)
+    };
+    let uint_blob = |v: u64| {
+        let mut out = crate::values::UNSIGNED.to_vec();
+        out.extend_from_slice(&v.to_be_bytes());
+        Cell::Blob(out)
+    };
+
+    for dialect in [
+        SqlDialect::NativeV1,
+        SqlDialect::DexSql010,
+        SqlDialect::DexSql011,
+    ] {
+        let db = Connection::open_in_memory().unwrap();
+        let control = SqlControl::new(SqlLimits::default(), None);
+        register(&db, dialect, control.clone()).unwrap();
+
+        type Utf16LikeCase<'a> = (&'a [u16], &'a [u16], Option<u16>, i64);
+        let cases: &[Utf16LikeCase<'_>] = &[
+            (
+                &[b'L' as u16, b'a' as u16, 0x0000, b'b' as u16],
+                &[b'l' as u16, b'a' as u16, b'%' as u16],
+                None,
+                0,
+            ),
+            (
+                &[b'p' as u16, b'_' as u16, b'q' as u16],
+                &[b'p' as u16, b'X' as u16, b'q' as u16],
+                None,
+                0,
+            ),
+            (
+                &[b'p' as u16, b'X' as u16, b'q' as u16],
+                &[b'p' as u16, b'_' as u16, b'q' as u16],
+                None,
+                0,
+            ),
+            (&[0xd800, b'A' as u16], &[0xd800, b'a' as u16], None, 0),
+        ];
+        for &(val_u, pat_u, esc_u, flag) in cases {
+            let v_cell = text_blob(val_u);
+            let p_cell = text_blob(pat_u);
+            let e_cell = esc_u.map_or(Cell::Null, |u| text_blob(&[u]));
+            let sql_res: Option<i64> = db
+                .query_row(
+                    "SELECT mdd_like(?1, ?2, ?3, ?4)",
+                    rusqlite::params![v_cell, p_cell, e_cell, flag],
+                    |r| r.get(0),
+                )
+                .unwrap();
+            let ref_res = like(
+                &SqlText {
+                    utf16: val_u.to_vec(),
+                    original_mutf8: None,
+                },
+                &SqlText {
+                    utf16: pat_u.to_vec(),
+                    original_mutf8: None,
+                },
+                if flag != 0 { esc_u } else { None },
+                dialect,
+                &control,
+            )
+            .unwrap();
+            assert_eq!(sql_res.unwrap() != 0, ref_res, "{dialect:?}");
+        }
+
+        // Trailing escape check uses its own SqlControl because a failing statement sticky-latches error state.
+        let esc_db = Connection::open_in_memory().unwrap();
+        let esc_control = SqlControl::new(SqlLimits::default(), None);
+        register(&esc_db, dialect, esc_control.clone()).unwrap();
+        let esc_sql = esc_db.query_row(
+            "SELECT mdd_like(?1, ?2, ?3, 1)",
+            rusqlite::params![
+                text_blob(&[]),
+                text_blob(&[b'!' as u16]),
+                text_blob(&[b'!' as u16])
+            ],
+            |r| r.get::<_, Option<i64>>(0),
+        );
+        let esc_ref = like(
+            &SqlText {
+                utf16: vec![],
+                original_mutf8: None,
+            },
+            &SqlText {
+                utf16: vec![b'!' as u16],
+                original_mutf8: None,
+            },
+            Some(b'!' as u16),
+            dialect,
+            &esc_control,
+        );
+        match (esc_sql, esc_ref) {
+            (Ok(Some(v)), Ok(exp)) => assert_eq!(v != 0, exp, "{dialect:?}"),
+            (Err(_), Err(e)) => assert_eq!(e.message, "LIKE_DANGLING_ESCAPE"),
+            other => panic!("trailing escape mismatch on {dialect:?}: {other:?}"),
+        }
+
+        // Borrowed sort key matches `equality_key().sqlite()` byte-for-byte
+        for (sql_arg, ref_val) in [
+            (
+                text_blob(&[0x41, 0xd800, 0x0062]),
+                SqlValue::Text(SqlText {
+                    utf16: vec![0x41, 0xd800, 0x0062],
+                    original_mutf8: None,
+                }),
+            ),
+            (Cell::Integer(i64::MIN), SqlValue::I64(Signed64(i64::MIN))),
+            (Cell::Integer(0), SqlValue::I64(Signed64(0))),
+            (uint_blob(u64::MAX), SqlValue::U64(DecimalU64(u64::MAX))),
+        ] {
+            let got: Cell = db
+                .query_row("SELECT mdd_sort_key(?1)", rusqlite::params![sql_arg], |r| {
+                    r.get(0)
+                })
+                .unwrap();
+            let expected_bytes = equality_key(&ref_val, &control).unwrap();
+            let expected_cell = SqlValue::Bytes(expected_bytes)
+                .sqlite(SqlLimits::default().max_cell_bytes)
+                .unwrap();
+            assert_eq!(got, expected_cell, "sort key mismatch on {dialect:?}");
+        }
+
+        // Borrowed compare matches scalar compare for TEXT and exact integers
+        let eq_pairs: &[(Cell, Cell, SqlValue, SqlValue)] = &[
+            (
+                text_blob(&[0x41, 0xd800]),
+                text_blob(&[0x41, 0xdfff]),
+                SqlValue::Text(SqlText {
+                    utf16: vec![0x41, 0xd800],
+                    original_mutf8: None,
+                }),
+                SqlValue::Text(SqlText {
+                    utf16: vec![0x41, 0xdfff],
+                    original_mutf8: None,
+                }),
+            ),
+            (
+                Cell::Integer(-5),
+                uint_blob(5),
+                SqlValue::I64(Signed64(-5)),
+                SqlValue::U64(DecimalU64(5)),
+            ),
+        ];
+        for (c1, c2, v1, v2) in eq_pairs {
+            let lt: i64 = db
+                .query_row("SELECT mdd_lt(?1, ?2)", rusqlite::params![c1, c2], |r| {
+                    r.get(0)
+                })
+                .unwrap();
+            assert_eq!(
+                lt != 0,
+                compare(v1, v2, &control).unwrap() == Ordering::Less
+            );
+            let leq: i64 = db
+                .query_row(
+                    "SELECT mdd_literal_eq(?1, ?2)",
+                    rusqlite::params![c1, c1],
+                    |r| r.get(0),
+                )
+                .unwrap();
+            assert_eq!(leq, 1);
+        }
+    }
+}
+
+#[test]
+fn mdd_like_any_preserves_semantics_across_prefixes_nulls_utf8_and_errors() {
+    let text_blob = |units: &[u16]| {
+        let mut out = TEXT.to_vec();
+        for u in units {
+            out.extend_from_slice(&u.to_be_bytes());
+        }
+        Cell::Blob(out)
+    };
+    let pat_list: Vec<(&str, Option<u16>)> = vec![
+        ("Lcom/alpha/ui/%", Some(b'\\' as u16)),
+        ("Lcom/beta\\_pkg/%", Some(b'\\' as u16)),
+        ("Lkntr/common/%suffix", None),
+        ("nonAscii\u{0130}%", None),
+    ];
+    let spec_bytes = super::encode_like_any_spec(&pat_list).unwrap();
+    let spec_cell = SqlValue::Bytes(spec_bytes)
+        .sqlite(SqlLimits::default().max_cell_bytes)
+        .unwrap();
+
+    for dialect in [
+        SqlDialect::NativeV1,
+        SqlDialect::DexSql010,
+        SqlDialect::DexSql011,
+    ] {
+        let db = Connection::open_in_memory().unwrap();
+        let control = SqlControl::new(SqlLimits::default(), None);
+        register(&db, dialect, control.clone()).unwrap();
+
+        for sample in [
+            None,
+            Some("Lcom/alpha/ui/Main;"),
+            Some("lcom/ALPHA/ui/Sub;"),
+            Some("Lcom/beta_pkg/Item;"),
+            Some("Lcom/betaXpkg/Item;"),
+            Some("Lkntr/common/TestSuffix"),
+            Some("nonascii\u{0130}tail"),
+            Some("nonAscii\u{0130}tail"),
+            Some("Lunrelated/Class;"),
+            Some(""),
+        ] {
+            let arg_text = sample.map(|s| s.encode_utf16().collect::<Vec<_>>());
+            let blob_res: Option<i64> = db
+                .query_row(
+                    "SELECT mdd_like_any(?1, ?2)",
+                    rusqlite::params![arg_text.as_deref().map_or(Cell::Null, text_blob), spec_cell],
+                    |r| r.get(0),
+                )
+                .unwrap();
+            // Scalar fallback via SQLite TEXT value (exercises slow fallback path too).
+            let utf8_res: Option<i64> = db
+                .query_row(
+                    "SELECT mdd_like_any(?1, ?2)",
+                    rusqlite::params![sample, spec_cell],
+                    |r| r.get(0),
+                )
+                .unwrap();
+            let expected = match arg_text {
+                None => None,
+                Some(ref u) => {
+                    let v = SqlText {
+                        utf16: u.clone(),
+                        original_mutf8: None,
+                    };
+                    let mut hit = false;
+                    for &(pat, esc) in &pat_list {
+                        let p = SqlText {
+                            utf16: pat.encode_utf16().collect(),
+                            original_mutf8: None,
+                        };
+                        if like(&v, &p, esc, dialect, &control).unwrap() {
+                            hit = true;
+                            break;
+                        }
+                    }
+                    Some(i64::from(hit))
+                }
+            };
+            assert_eq!(
+                blob_res, expected,
+                "blob mismatch on {dialect:?} sample={sample:?}"
+            );
+            assert_eq!(
+                utf8_res, expected,
+                "utf8 mismatch on {dialect:?} sample={sample:?}"
+            );
+        }
+    }
+
+    // Trailing escape must still error in NativeV1 and return false/0 in legacy dialects.
+    let bad_spec = super::encode_like_any_spec(&[("abc\\", Some(b'\\' as u16))]).unwrap();
+    let bad_cell = SqlValue::Bytes(bad_spec)
+        .sqlite(SqlLimits::default().max_cell_bytes)
+        .unwrap();
+    let db_native = Connection::open_in_memory().unwrap();
+    let ctrl_native = SqlControl::new(SqlLimits::default(), None);
+    register(&db_native, SqlDialect::NativeV1, ctrl_native.clone()).unwrap();
+    assert!(
+        db_native
+            .query_row(
+                "SELECT mdd_like_any(?1, ?2)",
+                rusqlite::params![Cell::Null, bad_cell],
+                |r| r.get::<_, Option<i64>>(0)
+            )
+            .is_err()
+    );
+    assert_eq!(ctrl_native.error().unwrap().message, "LIKE_DANGLING_ESCAPE");
+
+    let db_legacy = Connection::open_in_memory().unwrap();
+    let ctrl_legacy = SqlControl::new(SqlLimits::default(), None);
+    register(&db_legacy, SqlDialect::DexSql011, ctrl_legacy).unwrap();
+    let legacy_res: Option<i64> = db_legacy
+        .query_row(
+            "SELECT mdd_like_any(?1, ?2)",
+            rusqlite::params![text_blob(&[b'x' as u16]), bad_cell],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(legacy_res, Some(0));
 }

@@ -5,15 +5,16 @@ use crate::{
     metadata::EntityRef,
 };
 use mdd_dex::{
+    DexRange,
     definitions::MethodBody,
     instructions::{
-        CodeItem, CodeItemDecoder, CodeLimits, CodeSection, DebugPolicy, ReferenceKind,
+        CodeItem, CodeItemDecoder, CodeLimits, CodeSection, DebugPolicy, InvokeKind, ReferenceKind,
         read_code_offsets, read_code_section_streaming, read_code_section_with_debug_starts,
     },
     validate_header,
 };
 use mdd_input::{archive::ArchiveInventory, snapshot::Snapshot};
-use mdd_types::{Completeness, DecimalU64, ErrorCode, MddError, MddResult, content_id};
+use mdd_types::{Completeness, DecimalU64, ErrorCode, MddError, MddResult, SharedId, content_id};
 use serde::Serialize;
 use std::{borrow::Cow, sync::Arc};
 
@@ -37,6 +38,60 @@ pub struct CodeFact {
 const NAMES_CALL_SITE: u8 = 1;
 /// An instruction of the item names a method handle.
 const NAMES_METHOD_HANDLE: u8 = 2;
+
+/// Compact per-code-item invoke & operand coordinates captured during a streaming code-section walk.
+///
+/// Holds only what `ReferenceFacts` reads so the reference layer can be constructed alongside compact
+/// `CodeFacts` without retaining or re-decoding full `CodeItem` instruction vectors.
+pub struct CompactCodeRefs {
+    content_id: SharedId,
+    item_entry_offsets: Vec<u32>,
+    entries: Vec<CompactRefEntry>,
+    operands: Vec<CompactRefOperand>,
+}
+
+pub(crate) struct CompactRefEntry {
+    pub(crate) code_unit_offset: u32,
+    pub(crate) instruction_ordinal: u32,
+    pub(crate) opcode: u8,
+    pub(crate) invoke_kind: Option<InvokeKind>,
+    pub(crate) actual_invoke_words: u32,
+    pub(crate) raw_range: DexRange,
+    ref_start: u32,
+    ref_len: u16,
+}
+
+pub(crate) struct CompactRefOperand {
+    pub(crate) kind: ReferenceKind,
+    pub(crate) local_index: u32,
+    pub(crate) raw_range: DexRange,
+}
+
+impl CompactCodeRefs {
+    pub(crate) fn content_id(&self) -> &str {
+        &self.content_id
+    }
+
+    pub(crate) fn item_count(&self) -> usize {
+        self.item_entry_offsets.len().saturating_sub(1)
+    }
+
+    pub fn operand_count(&self) -> usize {
+        self.operands.len()
+    }
+
+    pub(crate) fn item_entries(&self, code_index: usize) -> &[CompactRefEntry] {
+        let start = self.item_entry_offsets[code_index] as usize;
+        let end = self.item_entry_offsets[code_index + 1] as usize;
+        &self.entries[start..end]
+    }
+
+    pub(crate) fn entry_operands(&self, entry: &CompactRefEntry) -> &[CompactRefOperand] {
+        let start = entry.ref_start as usize;
+        let end = start + usize::from(entry.ref_len);
+        &self.operands[start..end]
+    }
+}
 
 fn reference_kinds_of(item: &CodeItem) -> u8 {
     let mut kinds = 0;
@@ -349,23 +404,139 @@ impl CodeFacts {
         dex_index: usize,
         limits: CodeLimits,
     ) -> MddResult<Self> {
+        Self::build_compact_internal(snapshot, inventory, dex_index, limits, false)
+            .map(|(facts, _)| facts)
+    }
+
+    /// As `build_all_code_items_compact`, also returning compact invoke/operand sidecar data captured
+    /// before each decoded `CodeItem` is dropped so `ReferenceFacts::build_arc_with_compact_refs` can
+    /// validate callers and extract sites without retaining or re-decoding instructions.
+    pub fn build_all_code_items_compact_with_refs(
+        snapshot: &Snapshot,
+        inventory: &ArchiveInventory,
+        dex_index: usize,
+        limits: CodeLimits,
+    ) -> MddResult<(Self, CompactCodeRefs)> {
+        let (facts, refs) =
+            Self::build_compact_internal(snapshot, inventory, dex_index, limits, true)?;
+        let refs = refs.ok_or_else(|| {
+            MddError::new(
+                ErrorCode::InternalFault,
+                "facts.code",
+                "compact code refs sidecar missing",
+            )
+        })?;
+        Ok((facts, refs))
+    }
+
+    fn build_compact_internal(
+        snapshot: &Snapshot,
+        inventory: &ArchiveInventory,
+        dex_index: usize,
+        limits: CodeLimits,
+        collect_refs: bool,
+    ) -> MddResult<(Self, Option<CompactCodeRefs>)> {
         let (source, bytes, header) = Self::prepare(snapshot, inventory, dex_index)?;
-        let mut items = Vec::new();
+        let expected_items = header
+            .map
+            .iter()
+            .find(|item| item.type_code == 0x2001)
+            .map_or(0, |item| item.count as usize);
+        let mut items = Vec::with_capacity(expected_items);
+        let mut item_entry_offsets = if collect_refs {
+            let mut offsets = Vec::with_capacity(expected_items + 1);
+            offsets.push(0);
+            offsets
+        } else {
+            Vec::new()
+        };
+        let mut ref_entries = Vec::new();
+        let mut ref_operands = Vec::new();
         let (section, debug_starts) =
             read_code_section_streaming(&bytes, &header, limits, |data| {
+                let mut kinds = 0u8;
+                let mut opcodes = Vec::with_capacity(data.instructions.len());
+                for instruction in &data.instructions {
+                    opcodes.push(instruction.opcode);
+                    for reference in &instruction.references {
+                        match reference.kind {
+                            ReferenceKind::CallSite => kinds |= NAMES_CALL_SITE,
+                            ReferenceKind::MethodHandle => kinds |= NAMES_METHOD_HANDLE,
+                            _ => {}
+                        }
+                    }
+                    if collect_refs
+                        && (instruction.invoke_kind.is_some() || !instruction.references.is_empty())
+                    {
+                        let ref_start = u32::try_from(ref_operands.len()).map_err(|_| {
+                            MddError::new(
+                                ErrorCode::QuotaExceeded,
+                                "facts.code",
+                                "compact operand sidecar count overflow",
+                            )
+                        })?;
+                        let ref_len =
+                            u16::try_from(instruction.references.len()).map_err(|_| {
+                                MddError::new(
+                                    ErrorCode::InternalFault,
+                                    "facts.code",
+                                    "instruction operand count exceeds u16",
+                                )
+                            })?;
+                        for reference in &instruction.references {
+                            ref_operands.push(CompactRefOperand {
+                                kind: reference.kind.clone(),
+                                local_index: reference.local_index,
+                                raw_range: reference.raw_range.clone(),
+                            });
+                        }
+                        let actual_invoke_words = instruction
+                            .register_range
+                            .as_ref()
+                            .map_or(instruction.registers.len() as u32, |range| {
+                                u32::from(range.word_count)
+                            });
+                        ref_entries.push(CompactRefEntry {
+                            code_unit_offset: instruction.code_unit_offset,
+                            instruction_ordinal: instruction.instruction_ordinal,
+                            opcode: instruction.opcode,
+                            invoke_kind: instruction.invoke_kind.clone(),
+                            actual_invoke_words,
+                            raw_range: instruction.raw_range.clone(),
+                            ref_start,
+                            ref_len,
+                        });
+                    }
+                }
+                if collect_refs {
+                    let end = u32::try_from(ref_entries.len()).map_err(|_| {
+                        MddError::new(
+                            ErrorCode::QuotaExceeded,
+                            "facts.code",
+                            "compact entry sidecar count overflow",
+                        )
+                    })?;
+                    item_entry_offsets.push(end);
+                }
                 items.push(CodeFact {
                     code_item_id: format!(
                         "{}:code-byte:{}",
                         source.dex_occurrence_id, data.raw_range.byte_offset.0
                     ),
-                    opcodes: data.instructions.iter().map(|i| i.opcode).collect(),
-                    reference_kinds: reference_kinds_of(&data),
+                    opcodes: opcodes.into_boxed_slice(),
+                    reference_kinds: kinds,
                     data: into_header_view(data),
                 });
                 Ok(())
             })
             .map_err(|error| bind_source(&source, error))?;
-        Ok(Self {
+        let sidecar = collect_refs.then(|| CompactCodeRefs {
+            content_id: source.content_id.clone().into(),
+            item_entry_offsets,
+            entries: ref_entries,
+            operands: ref_operands,
+        });
+        let facts = Self {
             source,
             scope: section.scope,
             debug_policy: limits.debug_policy,
@@ -382,7 +553,8 @@ impl CodeFacts {
             limits,
             debug_starts: Some(Arc::from(debug_starts)),
             compact: true,
-        })
+        };
+        Ok((facts, sidecar))
     }
 
     /// The same facts with the decoded instructions, payloads, switch tables and debug programs dropped from every
@@ -668,13 +840,16 @@ impl MethodCodeBody<'_> {
         Some(opcodes.iter().copied())
     }
 
-    /// Render ordinary opcodes as two lower-case hex digits separated by a
-    /// single space. Reference-only methods return None; native, abstract and
-    /// present-empty definitions return a zero count and empty text. Payload
-    /// words are not included. Limits cover logical opcode/text bytes only.
-    pub fn opcode_text(&self, limits: OpcodeTextLimits) -> MddResult<Option<OpcodeText>> {
-        let Some(opcodes) = self.decoded_opcode_bytes() else {
-            return Ok(None);
+    /// Check and return the raw ordinary-instruction opcode bytes without hex formatting, enforcing
+    /// identical `OpcodeTextLimits` count and rendered-byte quotas.
+    pub fn opcode_bytes_checked(
+        &self,
+        limits: OpcodeTextLimits,
+    ) -> MddResult<Option<(u32, &[u8])>> {
+        let opcodes: &[u8] = match self {
+            Self::ReferenceOnly => return Ok(None),
+            Self::Native | Self::Abstract => &[],
+            Self::Present { code, .. } => code.opcodes(),
         };
         let quota = || {
             MddError::new(
@@ -698,11 +873,32 @@ impl MethodCodeBody<'_> {
         if count > limits.max_opcodes || bytes > limits.max_text_bytes {
             return Err(quota());
         }
+        Ok(Some((count_u32, opcodes)))
+    }
+
+    /// Render ordinary opcodes as two lower-case hex digits separated by a
+    /// single space. Reference-only methods return None; native, abstract and
+    /// present-empty definitions return a zero count and empty text. Payload
+    /// words are not included. Limits cover logical opcode/text bytes only.
+    pub fn opcode_text(&self, limits: OpcodeTextLimits) -> MddResult<Option<OpcodeText>> {
+        let Some((count_u32, opcodes)) = self.opcode_bytes_checked(limits)? else {
+            return Ok(None);
+        };
+        let bytes = if opcodes.is_empty() {
+            0
+        } else {
+            opcodes.len() * 3 - 1
+        };
         let mut text = String::new();
-        text.try_reserve_exact(usize::try_from(bytes).map_err(|_| quota())?)
-            .map_err(|_| quota())?;
+        text.try_reserve_exact(bytes).map_err(|_| {
+            MddError::new(
+                ErrorCode::QuotaExceeded,
+                "facts.opcode_text",
+                "opcode text projection budget exceeded",
+            )
+        })?;
         const HEX: &[u8; 16] = b"0123456789abcdef";
-        for (ordinal, opcode) in opcodes.enumerate() {
+        for (ordinal, &opcode) in opcodes.iter().enumerate() {
             if ordinal != 0 {
                 text.push(' ');
             }
@@ -1044,6 +1240,62 @@ impl<'a> MethodCodeFactViews<'a> {
         Ok(())
     }
 
+    /// Stream `methods` rows carrying raw opcode bytes instead of formatted spaced-hex strings so callers
+    /// backed by binary dictionaries (e.g. `Cell::SpacedHexBytes`) avoid per-method hex allocation and re-parsing.
+    pub fn for_each_method_row_compact(
+        &self,
+        each: &mut dyn FnMut(&MethodCodeCompactRowRef<'_>) -> MddResult<()>,
+    ) -> MddResult<()> {
+        Self::require_method_columns(MethodCodeRow::COLUMNS)?;
+        let limits = OpcodeTextLimits::default();
+        for view in self.iter() {
+            let view = view?;
+            let reference = view.method.reference;
+            let param_count =
+                u32::try_from(reference.parameter_descriptors.len()).map_err(|_| {
+                    MddError::new(
+                        ErrorCode::InternalFault,
+                        "facts.method_code",
+                        "validated parameter count exceeds UInt32",
+                    )
+                    .detail("method_idx", u64::from(reference.method_idx))
+                })?;
+            let (opcode_count, opcode_bytes) = match view.body.opcode_bytes_checked(limits) {
+                Ok(Some((count, bytes))) => (Some(count), Some(bytes)),
+                Ok(None) => (None, None),
+                Err(error) => {
+                    return Err(error
+                        .detail("method_idx", u64::from(reference.method_idx))
+                        .detail("column", "opcode_hex"));
+                }
+            };
+            let param_descriptors =
+                crate::definitions::parameter_descriptors_text(&reference.parameter_descriptors)?;
+            each(&MethodCodeCompactRowRef {
+                method_idx: reference.method_idx,
+                class_idx: reference.class_idx,
+                class_descriptor: &reference.class_descriptor,
+                proto_idx: reference.proto_idx,
+                name: &reference.method_name,
+                descriptor: &reference.descriptor,
+                return_descriptor: &reference.return_descriptor,
+                param_count,
+                param_descriptors: &param_descriptors,
+                access_flags: view
+                    .method
+                    .definition
+                    .map(|definition| definition.access_flags),
+                opcode_count,
+                opcode_bytes,
+                method_kind: view
+                    .method
+                    .definition
+                    .map(|definition| definition.kind.as_str()),
+            })?;
+        }
+        Ok(())
+    }
+
     /// Project one `code_items` row per method-owned present body, in
     /// `method_idx` order. A physical code item with no declaring method is not
     /// a row of this relation because `method_idx` is NOT NULL; a shared body
@@ -1156,6 +1408,104 @@ impl<'a> MethodCodeFactViews<'a> {
         }
         Ok(rows)
     }
+
+    /// Stream `code_items` rows without allocating a vector of owned structs.
+    pub fn for_each_code_item_row(
+        &self,
+        each: &mut dyn FnMut(&CodeItemRow) -> MddResult<()>,
+    ) -> MddResult<()> {
+        self.require_relation_columns(CodeRelation::CodeItems, CodeItemRow::COLUMNS)?;
+        for view in self.iter() {
+            let view = view?;
+            let MethodCodeBody::Present { code: item, .. } = view.body else {
+                continue;
+            };
+            let data = item.data();
+            let insns_size = data.insns_size_code_units;
+            let method_idx = view.method.reference.method_idx;
+            let insns_off = u32::try_from(data.insns_range.byte_offset.0).map_err(|_| {
+                MddError::new(
+                    ErrorCode::InternalFault,
+                    "facts.code.projection",
+                    "validated insns offset exceeds UInt32",
+                )
+                .detail("method_idx", u64::from(method_idx))
+            })?;
+            let tries_size = u32::try_from(data.tries.len()).map_err(|_| {
+                MddError::new(
+                    ErrorCode::InternalFault,
+                    "facts.code.projection",
+                    "validated try count exceeds UInt32",
+                )
+                .detail("method_idx", u64::from(method_idx))
+            })?;
+            let tries_off = if tries_size == 0 {
+                None
+            } else {
+                Some(
+                    insns_off
+                        .checked_add(insns_size.saturating_mul(2))
+                        .and_then(|end| end.checked_add(insns_size % 2 * 2))
+                        .ok_or_else(|| {
+                            MddError::new(
+                                ErrorCode::InternalFault,
+                                "facts.code.projection",
+                                "validated try offset overflow",
+                            )
+                            .detail("method_idx", u64::from(method_idx))
+                        })?,
+                )
+            };
+            let handlers_off = match tries_off {
+                Some(offset) => Some(
+                    offset
+                        .checked_add(tries_size.saturating_mul(8))
+                        .ok_or_else(|| {
+                            MddError::new(
+                                ErrorCode::InternalFault,
+                                "facts.code.projection",
+                                "validated handler offset overflow",
+                            )
+                            .detail("method_idx", u64::from(method_idx))
+                        })?,
+                ),
+                None => None,
+            };
+            let row = CodeItemRow {
+                file_id: 0,
+                method_idx,
+                code_off: u32::try_from(data.raw_range.byte_offset.0).map_err(|_| {
+                    MddError::new(
+                        ErrorCode::InternalFault,
+                        "facts.code.projection",
+                        "validated code offset exceeds UInt32",
+                    )
+                    .detail("method_idx", u64::from(method_idx))
+                })?,
+                registers_size: u32::from(data.registers_size),
+                ins_size: u32::from(data.ins_size),
+                outs_size: u32::from(data.outs_size),
+                tries_size,
+                debug_info_off: u32::try_from(
+                    data.debug_info_byte_offset.map_or(0u64, |value| value.0),
+                )
+                .map_err(|_| {
+                    MddError::new(
+                        ErrorCode::InternalFault,
+                        "facts.code.projection",
+                        "validated debug info offset exceeds UInt32",
+                    )
+                    .detail("method_idx", u64::from(method_idx))
+                })?,
+                insns_size,
+                insns_off,
+                tries_off,
+                handlers_off,
+            };
+            each(&row)?;
+        }
+        Ok(())
+    }
 }
 
 /// Compatibility relation names whose columns the code layer can project.
@@ -1228,6 +1578,23 @@ impl CodeItemRow {
 /// Payload pseudo-instructions are not counted and are not rendered.
 /// A `methods` row (with the opcode columns) without its `file_id`, its text borrowed from the facts or from the call that
 /// hands it out: what `for_each_method_row` gives.
+#[derive(Clone, Copy, Debug)]
+pub struct MethodCodeCompactRowRef<'a> {
+    pub method_idx: u32,
+    pub class_idx: u32,
+    pub class_descriptor: &'a str,
+    pub proto_idx: u32,
+    pub name: &'a str,
+    pub descriptor: &'a str,
+    pub return_descriptor: &'a str,
+    pub param_count: u32,
+    pub param_descriptors: &'a str,
+    pub access_flags: Option<u32>,
+    pub opcode_count: Option<u32>,
+    pub opcode_bytes: Option<&'a [u8]>,
+    pub method_kind: Option<&'static str>,
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct MethodCodeRowRef<'a> {
     pub method_idx: u32,

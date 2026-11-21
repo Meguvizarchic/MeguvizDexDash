@@ -1004,6 +1004,7 @@ impl AnnotationFacts {
 
 mod parameters;
 mod rows;
+pub use rows::ReachableElementRef;
 mod views;
 
 #[cfg(test)]

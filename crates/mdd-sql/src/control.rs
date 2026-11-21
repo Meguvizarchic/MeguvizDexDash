@@ -74,6 +74,7 @@ pub(crate) struct Inner {
     failed: Arc<AtomicBool>,
     state: Arc<Mutex<State>>,
     runtime: Option<RuntimeBudget>,
+    fast_scan: bool,
 }
 /// Hot-path counters. `checkpoint` runs once per SQLite VM step, so the common
 /// path must not take the mutex: limits are evaluated against these atomics and
@@ -91,6 +92,8 @@ struct State {
 }
 impl SqlControl {
     pub fn new(limits: SqlLimits, deadline: Option<Instant>) -> Self {
+        let fast_scan =
+            std::env::var_os("MDD_OPT_SQL_SCAN").as_deref() != Some(std::ffi::OsStr::new("0"));
         Self {
             inner: Arc::new(Inner {
                 limits,
@@ -101,6 +104,7 @@ impl SqlControl {
                 failed: Arc::new(AtomicBool::new(false)),
                 state: Arc::new(Mutex::new(State::default())),
                 runtime: None,
+                fast_scan,
             }),
         }
     }
@@ -115,6 +119,7 @@ impl SqlControl {
                 failed: Arc::clone(&self.inner.failed),
                 state: Arc::clone(&self.inner.state),
                 runtime: self.inner.runtime.clone(),
+                fast_scan: self.inner.fast_scan,
             }),
         }
     }
@@ -129,11 +134,59 @@ impl SqlControl {
                 failed: Arc::clone(&self.inner.failed),
                 state: Arc::clone(&self.inner.state),
                 runtime: Some(runtime),
+                fast_scan: self.inner.fast_scan,
             }),
         }
     }
     pub(crate) fn runtime(&self) -> Option<&RuntimeBudget> {
         self.inner.runtime.as_ref()
+    }
+    pub(crate) fn remaining_streaming_budgets(&self) -> MddResult<(u64, u64, u64, u64, u64)> {
+        if self.inner.failed.load(Ordering::Acquire)
+            && let Some(error) = self.error()
+        {
+            return Err(error);
+        }
+        if self.inner.cancel.load(Ordering::Acquire) {
+            return Err(self.fail(MddError::new(
+                ErrorCode::Cancelled,
+                "sql",
+                "query cancelled",
+            )));
+        }
+        if let Some(deadline) = self.inner.deadline {
+            let now = Instant::now();
+            if now >= deadline {
+                return Err(self.fail(MddError::new(
+                    ErrorCode::DeadlineExceeded,
+                    "sql",
+                    "query deadline exceeded",
+                )));
+            }
+            if deadline.saturating_duration_since(now) < std::time::Duration::from_secs(5) {
+                return Ok((0, 0, 0, 0, 0));
+            }
+        }
+        let counters = &self.inner.counters;
+        Ok((
+            self.inner
+                .limits
+                .max_steps
+                .saturating_sub(counters.steps.load(Ordering::Relaxed)),
+            self.inner
+                .limits
+                .max_scanned_rows
+                .saturating_sub(counters.scanned.load(Ordering::Relaxed)),
+            self.inner
+                .limits
+                .max_result_rows
+                .saturating_sub(counters.result_rows.load(Ordering::Relaxed)),
+            self.inner
+                .limits
+                .max_result_bytes
+                .saturating_sub(counters.result_bytes.load(Ordering::Relaxed)),
+            self.inner.limits.max_cell_bytes,
+        ))
     }
     pub fn cancel(&self) -> MddResult<()> {
         self.inner.cancel.store(true, Ordering::Release);
@@ -199,6 +252,43 @@ impl SqlControl {
                 "sql",
                 "query cancelled",
             )));
+        }
+        if self.inner.fast_scan && self.runtime().is_none() {
+            const OVERFLOW_GUARD: u64 = u64::MAX - (1u64 << 48);
+            let counters = &self.inner.counters;
+            let prev_steps = counters.steps.fetch_add(steps, Ordering::Relaxed);
+            let Some(next_steps) = prev_steps.checked_add(steps) else {
+                return Err(self.sticky(quota("SQL_STEP_OVERFLOW")));
+            };
+            if prev_steps > OVERFLOW_GUARD {
+                return Err(self.sticky(quota("SQL_STEP_OVERFLOW")));
+            }
+            let mut next_scanned = 0u64;
+            if scan {
+                let prev_scan = counters.scanned.fetch_add(1, Ordering::Relaxed);
+                if prev_scan > OVERFLOW_GUARD {
+                    return Err(self.sticky(quota("SQL_SCAN_OVERFLOW")));
+                }
+                next_scanned = prev_scan + 1;
+            }
+            if let Some(deadline) = self.inner.deadline
+                && (prev_steps == 0
+                    || ((prev_steps ^ next_steps) & !0x3FF) != 0
+                    || (scan && (next_scanned & 0xFF) == 0))
+                && Instant::now() >= deadline
+            {
+                return Err(self.fail(MddError::new(
+                    ErrorCode::DeadlineExceeded,
+                    "sql",
+                    "query deadline exceeded",
+                )));
+            }
+            if next_steps > self.inner.limits.max_steps
+                || (scan && next_scanned > self.inner.limits.max_scanned_rows)
+            {
+                return Err(self.sticky(quota("SQL_WORK_BUDGET")));
+            }
+            return Ok(());
         }
         if self
             .inner
@@ -270,12 +360,32 @@ impl SqlControl {
     }
     pub(crate) fn output(&self, bytes: u64) -> MddResult<()> {
         self.checkpoint(1, false)?;
+        let counters = &self.inner.counters;
+        if self.inner.fast_scan && self.runtime().is_none() {
+            const OVERFLOW_GUARD: u64 = u64::MAX - (1u64 << 48);
+            let prev_rows = counters.result_rows.fetch_add(1, Ordering::Relaxed);
+            if prev_rows > OVERFLOW_GUARD {
+                return Err(self.sticky(quota("SQL_ROWS_OVERFLOW")));
+            }
+            let prev_bytes = counters.result_bytes.fetch_add(bytes, Ordering::Relaxed);
+            let Some(next_bytes) = prev_bytes.checked_add(bytes) else {
+                return Err(self.sticky(quota("SQL_BYTES_OVERFLOW")));
+            };
+            if prev_bytes > OVERFLOW_GUARD {
+                return Err(self.sticky(quota("SQL_BYTES_OVERFLOW")));
+            }
+            if prev_rows + 1 > self.inner.limits.max_result_rows
+                || next_bytes > self.inner.limits.max_result_bytes
+            {
+                return Err(self.sticky(quota("SQL_RESULT_BUDGET")));
+            }
+            return Ok(());
+        }
         // Same read-modify-write reasoning as `checkpoint`: each field is
         // individually exact under concurrency. The two fields are not updated
         // as one critical section, so a concurrent observer can see the row
         // count of one admission with the byte count of another; both remain
         // correct running totals and neither can be undercounted.
-        let counters = &self.inner.counters;
         let next_rows =
             match counters
                 .result_rows

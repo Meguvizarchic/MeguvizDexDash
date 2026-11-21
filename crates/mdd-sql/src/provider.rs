@@ -175,6 +175,10 @@ pub enum RowFilter {
     InText(String, Vec<String>),
     /// ASCII case-insensitive literal prefix extracted from `LIKE '...' [ESCAPE '...']` before any wildcard.
     LikeAsciiPrefix(String, String),
+    /// Non-overlapping ASCII case-insensitive literal `(column, lower_prefix, lower_suffix)` from `LIKE 'pre%suf'`.
+    LikeAsciiPrefixSuffix(String, String, String),
+    /// ASCII case-insensitive substring literal `(column, lower_needle)` from `LIKE '%needle%'`.
+    LikeAsciiContains(String, String),
     And(Vec<RowFilter>),
     Or(Vec<RowFilter>),
 }
@@ -186,6 +190,35 @@ pub struct EquiJoinEdge {
     pub left_relation: String,
     pub right_relation: String,
     pub columns: Vec<(String, String)>,
+}
+
+/// Direct single-table projection descriptor eligible to bypass SQLite VM overhead when unbounded/unfiltered.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DirectTableProjection {
+    pub relation: String,
+    pub projected_columns: Vec<(usize, String)>,
+    pub order_by_u64_asc: Vec<usize>,
+}
+
+/// Output projection item for an unfiltered single-table `GROUP BY ... COUNT(*)`.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum DirectGroupItem {
+    GroupCol {
+        group_pos: usize,
+        output_name: String,
+    },
+    CountStar {
+        output_name: String,
+    },
+}
+
+/// Direct single-table unfiltered `GROUP BY <1..=4 direct cols> [ORDER BY ...]` plan.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DirectCountGroupBy {
+    pub relation: String,
+    pub group_columns: Vec<usize>,
+    pub projections: Vec<DirectGroupItem>,
+    pub order_by_group_asc: Vec<usize>,
 }
 
 /// Candidate row selection passed from query planning to a virtual table scan.
@@ -279,6 +312,34 @@ pub trait SqlFactProvider: Send + Sync {
             }
         }
     }
+
+    /// Optional fast path for unfiltered single-table projections ordered by ascending U64 keys.
+    fn try_direct_projection(
+        &self,
+        _projection: &DirectTableProjection,
+        _control: &SqlControl,
+    ) -> Option<MddResult<Vec<SqlRow>>> {
+        None
+    }
+
+    /// Optional zero-row-materialization streaming fast path for direct table projections.
+    fn try_stream_direct_projection(
+        &self,
+        _projection: &DirectTableProjection,
+        _control: &SqlControl,
+        _consumer: &mut dyn crate::column_store::DirectCellRowConsumer,
+    ) -> MddResult<bool> {
+        Ok(false)
+    }
+
+    /// Optional fast path for unfiltered single-table `GROUP BY ... COUNT(*)`.
+    fn try_direct_count_group_by(
+        &self,
+        _plan: &DirectCountGroupBy,
+        _control: &SqlControl,
+    ) -> Option<MddResult<Vec<SqlRow>>> {
+        None
+    }
 }
 /// Own the Arc and ordinal/iterator state. No self-referential borrowed scan.
 pub trait SqlFactCursor {
@@ -301,6 +362,23 @@ pub trait PositionedCursor {
     fn advance(&mut self) -> MddResult<bool>;
     /// The cell of `column` in the row the cursor stands on.
     fn value(&self, column: usize) -> MddResult<SqlValue>;
+    /// Optional fast encoding directly to `rusqlite::types::Value` without constructing an intermediate `SqlValue`.
+    fn sqlite_value(
+        &self,
+        _column: usize,
+        _max_cell_bytes: u64,
+    ) -> Option<MddResult<rusqlite::types::Value>> {
+        None
+    }
+    /// Optional zero-heap stack write directly into SQLite `Context` for bounded cells.
+    fn set_sqlite_column(
+        &self,
+        _column: usize,
+        _max_cell_bytes: u64,
+        _context: &mut rusqlite::vtab::Context,
+    ) -> Option<MddResult<rusqlite::Result<()>>> {
+        None
+    }
     /// An upper bound on the size of any cell the cursor will give. A caller that limits the size of a cell and finds the
     /// bound within the limit need not look at each cell.
     fn max_cell_bytes(&self) -> u64;

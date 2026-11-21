@@ -737,9 +737,13 @@ fn leb_s(bytes: &[u8], at: &mut u64, end: u64) -> MddResult<i32> {
     Ok(value)
 }
 
-fn valid_target(target: i64, size: u32, starts: &BTreeSet<u32>, at: u64) -> MddResult<u32> {
+fn valid_target(target: i64, size: u32, instructions: &[Instruction], at: u64) -> MddResult<u32> {
     let target = u32::try_from(target).map_err(|_| fail("BRANCH_TARGET_RANGE", at, 0))?;
-    if target >= size || !starts.contains(&target) {
+    if target >= size
+        || instructions
+            .binary_search_by_key(&target, |item| item.code_unit_offset)
+            .is_err()
+    {
         return Err(fail("TARGET_NOT_EXECUTABLE_BOUNDARY", at, 0)
             .detail("target_code_units", u64::from(target)));
     }
@@ -824,6 +828,32 @@ impl DebugPrograms {
     }
 }
 
+#[derive(Clone, Copy)]
+struct CodeSectionCtx {
+    section_start: u64,
+    section_end: u64,
+    counts: Counts,
+    version: u16,
+}
+
+impl CodeSectionCtx {
+    fn from_header(header: &DexHeader, offset: u64) -> MddResult<Self> {
+        let (section_start, section_end, _) =
+            section(header, 0x2001).ok_or_else(|| fail("MISSING_CODE_SECTION", offset, 16))?;
+        let counts = Counts::from_header(header);
+        let version = header
+            .version
+            .parse::<u16>()
+            .map_err(|_| fail("INVALID_VERSION_CONTEXT", offset, 0))?;
+        Ok(Self {
+            section_start,
+            section_end,
+            counts,
+            version,
+        })
+    }
+}
+
 fn parse_item(
     bytes: &[u8],
     header: &DexHeader,
@@ -833,9 +863,37 @@ fn parse_item(
     debug_programs: &mut DebugPrograms,
     attach_debug: bool,
 ) -> MddResult<CodeItem> {
+    let ctx = CodeSectionCtx::from_header(header, offset)?;
+    parse_item_with_ctx(
+        bytes,
+        header,
+        ctx,
+        offset,
+        limits,
+        used,
+        debug_programs,
+        attach_debug,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn parse_item_with_ctx(
+    bytes: &[u8],
+    header: &DexHeader,
+    ctx: CodeSectionCtx,
+    offset: u64,
+    limits: CodeLimits,
+    used: &mut Used,
+    debug_programs: &mut DebugPrograms,
+    attach_debug: bool,
+) -> MddResult<CodeItem> {
     let reader = CheckedReader::new(bytes);
-    let (start, end, _) =
-        section(header, 0x2001).ok_or_else(|| fail("MISSING_CODE_SECTION", offset, 16))?;
+    let CodeSectionCtx {
+        section_start: start,
+        section_end: end,
+        counts,
+        version,
+    } = ctx;
     if !offset.is_multiple_of(4) {
         return Err(fail("CODE_ITEM_ALIGNMENT", offset, 16));
     }
@@ -862,31 +920,40 @@ fn parse_item(
     let insns_at = offset + 16;
     let insns_length = u64::from(size) * 2;
     bounded_range(reader, insns_at, insns_length, start, end)?;
-    let units: Vec<u16> = reader
-        .range(insns_at, insns_length)?
-        .as_chunks::<2>()
-        .0
-        .iter()
-        .map(|b| u16::from_le_bytes([b[0], b[1]]))
-        .collect();
-    let counts = Counts::from_header(header);
-    let version = header
-        .version
-        .parse::<u16>()
-        .map_err(|_| fail("INVALID_VERSION_CONTEXT", offset, 0))?;
-    let (instructions, payloads, switch_targets) = decode::decode(
-        &units,
-        DecodeContext {
-            base: insns_at,
-            registers,
-            outs,
-            counts,
-            version,
-            limits,
-        },
-        used,
-    )?;
-    let starts: BTreeSet<u32> = instructions.iter().map(|i| i.code_unit_offset).collect();
+    let raw_insns = reader.range(insns_at, insns_length)?;
+    let decode_ctx = DecodeContext {
+        base: insns_at,
+        registers,
+        outs,
+        counts,
+        version,
+        limits,
+    };
+    let (instructions, payloads, switch_targets) = if size <= 256 {
+        let mut stack_units = [0u16; 256];
+        for (dst, pair) in stack_units[..size as usize]
+            .iter_mut()
+            .zip(raw_insns.as_chunks::<2>().0)
+        {
+            *dst = u16::from_le_bytes(*pair);
+        }
+        decode::decode(&stack_units[..size as usize], decode_ctx, used)?
+    } else {
+        let mut units = Vec::with_capacity(size as usize);
+        units.extend(
+            raw_insns
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|b| u16::from_le_bytes(*b)),
+        );
+        decode::decode(&units, decode_ctx, used)?
+    };
+    debug_assert!(
+        instructions
+            .windows(2)
+            .all(|pair| pair[0].code_unit_offset < pair[1].code_unit_offset)
+    );
     let mut at = insns_at + insns_length;
     let mut tries = Vec::new();
     let mut handlers = Vec::new();
@@ -907,7 +974,13 @@ fn parse_item(
             let stop = begin
                 .checked_add(u32::from(length))
                 .ok_or_else(|| fail("TRY_RANGE_OVERFLOW", at, 8))?;
-            if length == 0 || begin < previous_end || stop > size || !starts.contains(&begin) {
+            if length == 0
+                || begin < previous_end
+                || stop > size
+                || instructions
+                    .binary_search_by_key(&begin, |item| item.code_unit_offset)
+                    .is_err()
+            {
                 return Err(fail("INVALID_TRY_RANGE_OR_ORDER", at, 8));
             }
             tries.push(TryItem {
@@ -953,7 +1026,7 @@ fn parse_item(
                         at - handler_start,
                     ));
                 }
-                valid_target(i64::from(target), size, &starts, handler_start)?;
+                valid_target(i64::from(target), size, &instructions, handler_start)?;
                 typed_catches.push(CatchPair {
                     type_idx,
                     address_code_units: target,
@@ -968,7 +1041,7 @@ fn parse_item(
                     at,
                 )?;
                 let target = leb_u(bytes, &mut at, end)?;
-                Some(valid_target(i64::from(target), size, &starts, at)?)
+                Some(valid_target(i64::from(target), size, &instructions, at)?)
             } else {
                 None
             };
@@ -1128,16 +1201,18 @@ fn walk_code_section(
     } else {
         DebugPrograms::new(debug_starts)
     };
-    let mut offsets = Vec::new();
+    let mut offsets = Vec::with_capacity(count as usize);
+    let ctx = CodeSectionCtx::from_header(header, start)?;
     let mut at = start;
     for _ in 0..count {
         at = at
             .checked_add(3)
             .map(|n| n & !3)
             .ok_or_else(|| fail("CODE_ALIGNMENT_OVERFLOW", at, 0))?;
-        let parsed = parse_item(
+        let parsed = parse_item_with_ctx(
             bytes,
             header,
+            ctx,
             at,
             limits,
             &mut used,

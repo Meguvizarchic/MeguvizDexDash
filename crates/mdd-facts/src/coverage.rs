@@ -58,6 +58,19 @@ impl NonScalarTextPolicy {
             Err(_) => None,
         }
     }
+
+    pub fn project_dex_text_cow<'a>(
+        &self,
+        text: &'a mdd_dex::strings::DexText,
+    ) -> Option<std::borrow::Cow<'a, str>> {
+        match text.strict_utf8_cow() {
+            Ok(scalar) => Some(scalar),
+            Err(_) if *self == Self::LossyReplacement => {
+                Some(std::borrow::Cow::Owned(text.display_lossy()))
+            }
+            Err(_) => None,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Serialize)]

@@ -367,11 +367,34 @@ fn reserve_key_workspace(value: &SqlValue, control: &SqlControl) -> MddResult<Op
         .transpose()
 }
 
+const INLINE_BLOB_CAP: usize = 128;
+
+/// Avoids boxing small hot-path SQL UDF blobs such as encoded sort keys.
+#[allow(clippy::large_enum_variant)]
+pub(super) enum ReturnPayload {
+    Cell(Cell),
+    InlineBlob {
+        buf: [u8; INLINE_BLOB_CAP],
+        len: u16,
+    },
+}
+
+impl ToSql for ReturnPayload {
+    fn to_sql(&self) -> rusqlite::Result<ToSqlOutput<'_>> {
+        match self {
+            Self::Cell(cell) => cell.to_sql(),
+            Self::InlineBlob { buf, len } => Ok(ToSqlOutput::Borrowed(ValueRef::Blob(
+                &buf[..usize::from(*len)],
+            ))),
+        }
+    }
+}
+
 // rusqlite keeps the returned object alive across ToSql and the transient
 // SQLite copy. The lease lasts until that copy returns; it does not account
 // for SQLite's own copy or later storage.
 struct SqlCellWithWorkspaceLease {
-    value: Cell,
+    value: ReturnPayload,
     _workspace: Option<Reservation>,
 }
 impl ToSql for SqlCellWithWorkspaceLease {
@@ -1495,6 +1518,23 @@ fn scalar(
                 &value, &pattern, escape, dialect, control,
             )?))
         }
+        "mdd_like_any" => {
+            let spec = args[1]
+                .bytes()
+                .ok_or_else(|| invalid("INVALID_LIKE_ANY_SPEC"))?;
+            let entries = parse_like_any_spec_units(spec)?;
+            let value = scalar_text_cow(&args[0], control)?;
+            for (pat_units, esc) in entries {
+                let pat = SqlText {
+                    utf16: pat_units,
+                    original_mutf8: None,
+                };
+                if like(&value, &pat, esc, dialect, control)? {
+                    return Ok(SqlValue::Bool(true));
+                }
+            }
+            Ok(SqlValue::Bool(false))
+        }
         "mdd_concat" => {
             if let (Some(left), Some(right)) = (args[0].bytes(), args[1].bytes()) {
                 let capacity = concat_capacity(
@@ -1802,11 +1842,547 @@ fn borrowed_text_length(
         Ok(SqlValue::I64(Signed64(length)))
     })())
 }
+struct AuxCompiledLike {
+    effective_esc: Option<u16>,
+    compiled: Result<mdd_query::optimized::CompiledLike, mdd_query::optimized::LikeCompileError>,
+}
+
+/// Encode `(pattern, escape)` entries for fused `mdd_like_any(col, spec)` into canonical bytes.
+pub(crate) fn encode_like_any_spec(patterns: &[(&str, Option<u16>)]) -> MddResult<Vec<u8>> {
+    let count = u32::try_from(patterns.len()).map_err(|_| quota("LIKE_ANY_SPEC_OVERFLOW"))?;
+    let mut out = Vec::with_capacity(4 + patterns.len() * 32);
+    out.extend_from_slice(&count.to_le_bytes());
+    for &(pat, esc) in patterns {
+        let start_len = out.len();
+        out.push(u8::from(esc.is_some()));
+        out.extend_from_slice(&esc.unwrap_or(0).to_le_bytes());
+        out.extend_from_slice(&0u32.to_le_bytes());
+        let mut unit_count = 0u32;
+        for u in pat.encode_utf16() {
+            unit_count = unit_count
+                .checked_add(1)
+                .ok_or_else(|| quota("LIKE_ANY_SPEC_OVERFLOW"))?;
+            out.extend_from_slice(&u.to_be_bytes());
+        }
+        out[start_len + 3..start_len + 7].copy_from_slice(&unit_count.to_le_bytes());
+    }
+    Ok(out)
+}
+
+fn parse_like_any_spec_units(spec: &[u8]) -> MddResult<Vec<(Vec<u16>, Option<u16>)>> {
+    if spec.len() < 4 {
+        return Err(invalid("INVALID_LIKE_ANY_SPEC"));
+    }
+    let count = u32::from_le_bytes(spec[..4].try_into().unwrap()) as usize;
+    let mut pos = 4usize;
+    if spec.len().saturating_sub(pos) / 7 < count {
+        return Err(invalid("INVALID_LIKE_ANY_SPEC"));
+    }
+    let mut entries = Vec::with_capacity(count);
+    for _ in 0..count {
+        if pos + 7 > spec.len() {
+            return Err(invalid("INVALID_LIKE_ANY_SPEC"));
+        }
+        let has_esc = spec[pos];
+        if has_esc > 1 {
+            return Err(invalid("INVALID_LIKE_ANY_SPEC"));
+        }
+        let esc =
+            (has_esc == 1).then(|| u16::from_le_bytes(spec[pos + 1..pos + 3].try_into().unwrap()));
+        let len = u32::from_le_bytes(spec[pos + 3..pos + 7].try_into().unwrap()) as usize;
+        pos += 7;
+        let byte_len = len
+            .checked_mul(2)
+            .ok_or_else(|| invalid("INVALID_LIKE_ANY_SPEC"))?;
+        let end = pos
+            .checked_add(byte_len)
+            .filter(|&end| end <= spec.len())
+            .ok_or_else(|| invalid("INVALID_LIKE_ANY_SPEC"))?;
+        let units = spec[pos..end]
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|p| u16::from_be_bytes(*p))
+            .collect();
+        pos = end;
+        entries.push((units, esc));
+    }
+    if pos != spec.len() {
+        return Err(invalid("INVALID_LIKE_ANY_SPEC"));
+    }
+    Ok(entries)
+}
+
+struct AuxCompiledLikeAny {
+    prefix_set: mdd_query::optimized::AsciiPrefixSet,
+    compiled: Vec<mdd_query::optimized::CompiledLike>,
+    pattern_count: usize,
+}
+
+impl AuxCompiledLikeAny {
+    fn compile(spec: &[u8], dialect: SqlDialect) -> MddResult<Self> {
+        use mdd_query::optimized::{
+            AsciiPrefixSet, CompiledLike, LikeCompileError, LikeFlavor, LikeShape,
+        };
+        let entries = parse_like_any_spec_units(spec)?;
+        let flavor = if dialect == SqlDialect::NativeV1 {
+            LikeFlavor::ExactWithUnderscore
+        } else {
+            LikeFlavor::AsciiCiPercentOnly
+        };
+        let mut ascii_prefixes: Vec<Vec<u8>> = Vec::new();
+        let mut compiled = Vec::new();
+        let pattern_count = entries.len();
+        for (units, esc) in entries {
+            let item = CompiledLike::compile(&units, esc, flavor).map_err(|e| match e {
+                LikeCompileError::DanglingEscape => invalid("LIKE_DANGLING_ESCAPE"),
+            })?;
+            if dialect != SqlDialect::NativeV1
+                && let LikeShape::Prefix(prefix_u16) = item.shape()
+                && !prefix_u16.is_empty()
+                && prefix_u16.iter().all(|&u| u <= 0x7F)
+            {
+                ascii_prefixes.push(
+                    prefix_u16
+                        .iter()
+                        .map(|&u| (u as u8).to_ascii_lowercase())
+                        .collect(),
+                );
+                continue;
+            }
+            compiled.push(item);
+        }
+        let prefix_refs: Vec<&[u8]> = ascii_prefixes.iter().map(Vec::as_slice).collect();
+        let prefix_set = AsciiPrefixSet::new(&prefix_refs);
+        Ok(Self {
+            prefix_set,
+            compiled,
+            pattern_count,
+        })
+    }
+
+    #[inline]
+    fn matches_be_bytes(&self, pairs: &[[u8; 2]]) -> bool {
+        self.prefix_set.matches_utf16_be_bytes(pairs)
+            || self.compiled.iter().any(|c| c.matches_be_bytes(pairs))
+    }
+}
+
+fn borrowed_text_like_any(
+    context: &Context<'_>,
+    dialect: SqlDialect,
+    control: &SqlControl,
+    memo_on: bool,
+) -> Option<MddResult<Cell>> {
+    if control.runtime().is_some() {
+        return None;
+    }
+    let ValueRef::Blob(spec_blob) = context.get_raw(1) else {
+        return None;
+    };
+    let spec = spec_blob.strip_prefix(BYTES)?;
+    let val_raw = match context.get_raw(0) {
+        ValueRef::Null => None,
+        ValueRef::Blob(bytes) => {
+            let raw = bytes.strip_prefix(TEXT)?;
+            if !raw.len().is_multiple_of(2) {
+                return None;
+            }
+            Some(raw)
+        }
+        _ => return None,
+    };
+    Some((|| {
+        if let Some(raw) = val_raw {
+            control.checkpoint(1 + (raw.len() / 2) as u64, false)?;
+        } else {
+            control.checkpoint(1, false)?;
+        }
+        if memo_on && let Ok(Some(aux)) = context.get_aux::<AuxCompiledLikeAny>(1) {
+            control.checkpoint(aux.pattern_count as u64, false)?;
+            return match val_raw {
+                None => Ok(Cell::Null),
+                Some(raw) => Ok(Cell::Integer(i64::from(
+                    aux.matches_be_bytes(raw.as_chunks::<2>().0),
+                ))),
+            };
+        }
+        let aux = AuxCompiledLikeAny::compile(spec, dialect)?;
+        control.checkpoint(aux.pattern_count as u64, false)?;
+        let verdict = match val_raw {
+            None => Ok(Cell::Null),
+            Some(raw) => Ok(Cell::Integer(i64::from(
+                aux.matches_be_bytes(raw.as_chunks::<2>().0),
+            ))),
+        };
+        if memo_on {
+            let _ = context.set_aux(1, aux);
+        }
+        verdict
+    })())
+}
+
+#[inline]
+fn sql_fast_udf_enabled() -> bool {
+    std::env::var_os("MDD_OPT_SQL_FAST_UDF").as_deref() != Some(std::ffi::OsStr::new("0"))
+}
+
+fn borrowed_text_like(
+    context: &Context<'_>,
+    dialect: SqlDialect,
+    control: &SqlControl,
+    memo_on: bool,
+) -> Option<MddResult<Cell>> {
+    use mdd_query::optimized::{CompiledLike, LikeCompileError, LikeFlavor};
+    if control.runtime().is_some() {
+        return None;
+    }
+
+    let val_raw = match context.get_raw(0) {
+        ValueRef::Null => None,
+        ValueRef::Blob(bytes) => {
+            let raw = bytes.strip_prefix(TEXT)?;
+            if !raw.len().is_multiple_of(2) {
+                return None;
+            }
+            Some(raw)
+        }
+        _ => return None,
+    };
+    let pat_raw = match context.get_raw(1) {
+        ValueRef::Null => None,
+        ValueRef::Blob(bytes) => {
+            let raw = bytes.strip_prefix(TEXT)?;
+            if !raw.len().is_multiple_of(2) {
+                return None;
+            }
+            Some(raw)
+        }
+        _ => return None,
+    };
+    let esc_u16 = match context.get_raw(2) {
+        ValueRef::Null => None,
+        ValueRef::Blob(bytes) => {
+            let raw = bytes.strip_prefix(TEXT)?;
+            if raw.len() != 2 {
+                return None;
+            }
+            Some(u16::from_be_bytes([raw[0], raw[1]]))
+        }
+        _ => return None,
+    };
+    let ValueRef::Integer(flag) = context.get_raw(3) else {
+        return None;
+    };
+
+    Some((|| {
+        let val_units = val_raw.map_or(0, <[u8]>::len) / 2;
+        let pat_units = pat_raw.map_or(0, <[u8]>::len) / 2;
+        control.checkpoint(1 + (val_units + pat_units) as u64, false)?;
+        let has_escape = flag != 0;
+        if has_escape && esc_u16.is_none() {
+            return Ok(Cell::Null);
+        }
+        let (Some(val), Some(pat)) = (val_raw, pat_raw) else {
+            return Ok(Cell::Null);
+        };
+        let effective_esc = if has_escape { esc_u16 } else { None };
+        let flavor = if dialect == SqlDialect::NativeV1 {
+            LikeFlavor::ExactWithUnderscore
+        } else {
+            LikeFlavor::AsciiCiPercentOnly
+        };
+        let val_pairs = val.as_chunks::<2>().0;
+        if memo_on
+            && let Ok(Some(aux)) = context.get_aux::<AuxCompiledLike>(1)
+            && aux.effective_esc == effective_esc
+        {
+            return match &aux.compiled {
+                Ok(compiled) => Ok(Cell::Integer(i64::from(
+                    compiled.matches_be_bytes(val_pairs),
+                ))),
+                Err(LikeCompileError::DanglingEscape) => Err(invalid("LIKE_DANGLING_ESCAPE")),
+            };
+        }
+        let pat_pairs = pat.as_chunks::<2>().0;
+        let compiled = CompiledLike::compile_be_bytes(pat_pairs, effective_esc, flavor);
+        let verdict = match &compiled {
+            Ok(c) => Ok(Cell::Integer(i64::from(c.matches_be_bytes(val_pairs)))),
+            Err(LikeCompileError::DanglingEscape) => Err(invalid("LIKE_DANGLING_ESCAPE")),
+        };
+        if memo_on {
+            let _ = context.set_aux(
+                1,
+                AuxCompiledLike {
+                    effective_esc,
+                    compiled,
+                },
+            );
+        }
+        verdict
+    })())
+}
+
+fn borrowed_text_case(
+    name: &str,
+    context: &Context<'_>,
+    control: &SqlControl,
+) -> Option<MddResult<ReturnPayload>> {
+    if control.runtime().is_some() {
+        return None;
+    }
+    let is_lower = name == "mdd_lower";
+    let fold_pair = |pair: [u8; 2]| -> [u8; 2] {
+        if pair[0] == 0 {
+            let b = pair[1];
+            let folded = if is_lower && (65..=90).contains(&b) {
+                b + 32
+            } else if !is_lower && (97..=122).contains(&b) {
+                b - 32
+            } else {
+                b
+            };
+            [0, folded]
+        } else {
+            pair
+        }
+    };
+    match context.get_raw(0) {
+        ValueRef::Null => Some((|| {
+            control.checkpoint(1, false)?;
+            Ok(ReturnPayload::Cell(Cell::Null))
+        })()),
+        ValueRef::Blob(bytes) if bytes.starts_with(TEXT) => {
+            let raw = &bytes[TEXT.len()..];
+            if !raw.len().is_multiple_of(2) {
+                return None;
+            }
+            Some((|| {
+                let raw_bytes = raw.len() as u64;
+                if raw_bytes > control.inner.limits.max_cell_bytes {
+                    return Err(quota("CASE_TEXT_CELL_BYTES"));
+                }
+                control.checkpoint(1 + (raw.len() / 2) as u64, false)?;
+                let total_len = TEXT.len() + raw.len();
+                if total_len <= INLINE_BLOB_CAP {
+                    let mut buf = [0u8; INLINE_BLOB_CAP];
+                    buf[..TEXT.len()].copy_from_slice(TEXT);
+                    for (dst, src) in buf[TEXT.len()..total_len]
+                        .as_chunks_mut::<2>()
+                        .0
+                        .iter_mut()
+                        .zip(raw.as_chunks::<2>().0)
+                    {
+                        *dst = fold_pair(*src);
+                    }
+                    return Ok(ReturnPayload::InlineBlob {
+                        buf,
+                        len: total_len as u16,
+                    });
+                }
+                let mut out = Vec::new();
+                if out.try_reserve_exact(total_len).is_err() {
+                    return Err(quota("SQL_OUTPUT_ALLOCATION"));
+                }
+                out.extend_from_slice(TEXT);
+                for src in raw.as_chunks::<2>().0 {
+                    out.extend_from_slice(&fold_pair(*src));
+                }
+                Ok(ReturnPayload::Cell(Cell::Blob(out)))
+            })())
+        }
+        _ => None,
+    }
+}
+
+#[inline]
+fn write_integer_equality_key_inline(buf: &mut [u8; INLINE_BLOB_CAP], integer: i128) -> u16 {
+    let mut pos = 0usize;
+    buf[pos..pos + BYTES.len()].copy_from_slice(BYTES);
+    pos += BYTES.len();
+    buf[pos..pos + KEY_HEADER.len()].copy_from_slice(KEY_HEADER);
+    pos += KEY_HEADER.len();
+    buf[pos] = 0;
+    pos += 1;
+    let magnitude = integer.unsigned_abs() as u64;
+    if magnitude == 0 {
+        buf[pos] = 2;
+        return (pos + 1) as u16;
+    }
+    let negative = integer < 0;
+    let exponent = 63 - magnitude.leading_zeros();
+    let significand = magnitude << (63 - exponent);
+    buf[pos] = if negative { 1 } else { 3 };
+    pos += 1;
+    let encoded = (exponent as i32 + 2048) as u16;
+    buf[pos..pos + 2].copy_from_slice(&encoded.to_be_bytes());
+    buf[pos + 2..pos + 10].copy_from_slice(&significand.to_be_bytes());
+    if negative {
+        for byte in &mut buf[pos..pos + 10] {
+            *byte = !*byte;
+        }
+    }
+    (pos + 10) as u16
+}
+
+fn borrowed_sort_key(
+    context: &Context<'_>,
+    control: &SqlControl,
+) -> Option<MddResult<ReturnPayload>> {
+    // Keep runtime QueryWorkspaceBytes reservation & test pause hooks intact when a runtime is bound.
+    if control.runtime().is_some() {
+        return None;
+    }
+    let max_cell_bytes = control.inner.limits.max_cell_bytes;
+    match context.get_raw(0) {
+        ValueRef::Null => Some((|| {
+            control.checkpoint(1, false)?;
+            Ok(ReturnPayload::Cell(Cell::Null))
+        })()),
+        ValueRef::Blob(bytes) if bytes.starts_with(TEXT) => {
+            let raw = &bytes[TEXT.len()..];
+            if !raw.len().is_multiple_of(2) {
+                return None;
+            }
+            Some((|| {
+                let logical_key_len = KEY_HEADER.len() + 1 + raw.len();
+                if logical_key_len as u64 > max_cell_bytes {
+                    return Err(quota("SQL_CELL_BYTES"));
+                }
+                control.checkpoint(1 + (raw.len() / 2) as u64, false)?;
+                let total_len = BYTES.len() + logical_key_len;
+                if total_len <= INLINE_BLOB_CAP {
+                    let mut buf = [0u8; INLINE_BLOB_CAP];
+                    let mut pos = 0usize;
+                    buf[pos..pos + BYTES.len()].copy_from_slice(BYTES);
+                    pos += BYTES.len();
+                    buf[pos..pos + KEY_HEADER.len()].copy_from_slice(KEY_HEADER);
+                    pos += KEY_HEADER.len();
+                    buf[pos] = 1;
+                    pos += 1;
+                    buf[pos..pos + raw.len()].copy_from_slice(raw);
+                    return Ok(ReturnPayload::InlineBlob {
+                        buf,
+                        len: total_len as u16,
+                    });
+                }
+                let mut out = Vec::new();
+                if out.try_reserve_exact(total_len).is_err() {
+                    return Err(quota("SQL_OUTPUT_ALLOCATION"));
+                }
+                out.extend_from_slice(BYTES);
+                out.extend_from_slice(KEY_HEADER);
+                out.push(1);
+                out.extend_from_slice(raw);
+                Ok(ReturnPayload::Cell(Cell::Blob(out)))
+            })())
+        }
+        ValueRef::Integer(v) => Some((|| {
+            let logical_key_len = KEY_HEADER.len() + if v == 0 { 2 } else { 12 };
+            if logical_key_len as u64 > max_cell_bytes {
+                return Err(quota("SQL_CELL_BYTES"));
+            }
+            control.checkpoint(1, false)?;
+            let mut buf = [0u8; INLINE_BLOB_CAP];
+            let len = write_integer_equality_key_inline(&mut buf, i128::from(v));
+            Ok(ReturnPayload::InlineBlob { buf, len })
+        })()),
+        ValueRef::Blob(bytes) if bytes.starts_with(crate::values::UNSIGNED) => {
+            let raw = &bytes[crate::values::UNSIGNED.len()..];
+            if raw.len() != 8 {
+                return None;
+            }
+            let v = u64::from_be_bytes(raw.try_into().unwrap());
+            Some((|| {
+                let logical_key_len = KEY_HEADER.len() + if v == 0 { 2 } else { 12 };
+                if logical_key_len as u64 > max_cell_bytes {
+                    return Err(quota("SQL_CELL_BYTES"));
+                }
+                control.checkpoint(1, false)?;
+                let mut buf = [0u8; INLINE_BLOB_CAP];
+                let len = write_integer_equality_key_inline(&mut buf, i128::from(v));
+                Ok(ReturnPayload::InlineBlob { buf, len })
+            })())
+        }
+        _ => None,
+    }
+}
+
+fn borrowed_cmp(
+    name: &str,
+    context: &Context<'_>,
+    control: &SqlControl,
+) -> Option<MddResult<Cell>> {
+    if control.runtime().is_some() {
+        return None;
+    }
+    let operator = name
+        .strip_prefix("mdd_literal_")
+        .or_else(|| name.strip_prefix("mdd_"))?;
+    let a = context.get_raw(0);
+    let b = context.get_raw(1);
+    match (a, b) {
+        (ValueRef::Blob(ba), ValueRef::Blob(bb))
+            if ba.starts_with(TEXT) && bb.starts_with(TEXT) =>
+        {
+            let ra = &ba[TEXT.len()..];
+            let rb = &bb[TEXT.len()..];
+            if !ra.len().is_multiple_of(2) || !rb.len().is_multiple_of(2) {
+                return None;
+            }
+            Some((|| {
+                let common = ra.len().min(rb.len()) / 2;
+                control.checkpoint(1 + common as u64, false)?;
+                let order = ra.cmp(rb);
+                Ok(Cell::Integer(i64::from(match operator {
+                    "eq" => order == Ordering::Equal,
+                    "ne" => order != Ordering::Equal,
+                    "gt" => order == Ordering::Greater,
+                    "ge" => order != Ordering::Less,
+                    "lt" => order == Ordering::Less,
+                    _ => order != Ordering::Greater,
+                })))
+            })())
+        }
+        (left, right) => {
+            let as_i128 = |v: ValueRef<'_>| -> Option<i128> {
+                match v {
+                    ValueRef::Integer(n) => Some(i128::from(n)),
+                    ValueRef::Blob(b) => {
+                        let raw = b.strip_prefix(crate::values::UNSIGNED)?;
+                        if raw.len() != 8 {
+                            return None;
+                        }
+                        Some(i128::from(u64::from_be_bytes(raw.try_into().unwrap())))
+                    }
+                    _ => None,
+                }
+            };
+            let la = as_i128(left)?;
+            let lb = as_i128(right)?;
+            Some((|| {
+                control.checkpoint(1, false)?;
+                let order = la.cmp(&lb);
+                Ok(Cell::Integer(i64::from(match operator {
+                    "eq" => order == Ordering::Equal,
+                    "ne" => order != Ordering::Equal,
+                    "gt" => order == Ordering::Greater,
+                    "ge" => order != Ordering::Less,
+                    "lt" => order == Ordering::Less,
+                    _ => order != Ordering::Greater,
+                })))
+            })())
+        }
+    }
+}
+
 pub(crate) fn register(
     db: &Connection,
     dialect: SqlDialect,
     control: SqlControl,
 ) -> rusqlite::Result<()> {
+    let fast_udf = sql_fast_udf_enabled();
+    let memo_on = mdd_query::optimized::schema_memo::query_memo_enabled();
     let flags = FunctionFlags::SQLITE_UTF8
         | FunctionFlags::SQLITE_DETERMINISTIC
         | FunctionFlags::SQLITE_INNOCUOUS;
@@ -1820,6 +2396,7 @@ pub(crate) fn register(
             .map_err(|e| failure(&truth_control, e))?;
         let raw = context.get_raw(0);
         let (value, workspace) = match raw {
+            ValueRef::Integer(v) => (Cell::Integer(v), None),
             ValueRef::Text(bytes) => {
                 let (text, lease) = truth_utf8_with_lease(bytes, &truth_control)
                     .map_err(|e| failure(&truth_control, e))?;
@@ -1854,7 +2431,7 @@ pub(crate) fn register(
             },
         };
         Ok(SqlCellWithWorkspaceLease {
-            value,
+            value: ReturnPayload::Cell(value),
             _workspace: workspace,
         })
     })?;
@@ -1898,6 +2475,7 @@ pub(crate) fn register(
         ("mdd_div", 2),
         ("mdd_mod", 2),
         ("mdd_like", 4),
+        ("mdd_like_any", 2),
     ] {
         let control = control.clone();
         db.create_scalar_function(name, count, flags, move |context| {
@@ -1908,7 +2486,71 @@ pub(crate) fn register(
                     .and_then(|value| value.sqlite(control.inner.limits.max_cell_bytes))
                     .map_err(|e| failure(&control, e))?;
                 return Ok(SqlCellWithWorkspaceLease {
+                    value: ReturnPayload::Cell(value),
+                    _workspace: None,
+                });
+            }
+            if fast_udf
+                && name == "mdd_like"
+                && let Some(result) = borrowed_text_like(context, dialect, &control, memo_on)
+            {
+                let value = result.map_err(|e| failure(&control, e))?;
+                return Ok(SqlCellWithWorkspaceLease {
+                    value: ReturnPayload::Cell(value),
+                    _workspace: None,
+                });
+            }
+            if fast_udf
+                && name == "mdd_like_any"
+                && let Some(result) = borrowed_text_like_any(context, dialect, &control, memo_on)
+            {
+                let value = result.map_err(|e| failure(&control, e))?;
+                return Ok(SqlCellWithWorkspaceLease {
+                    value: ReturnPayload::Cell(value),
+                    _workspace: None,
+                });
+            }
+            if fast_udf
+                && matches!(name, "mdd_lower" | "mdd_upper")
+                && let Some(result) = borrowed_text_case(name, context, &control)
+            {
+                let value = result.map_err(|e| failure(&control, e))?;
+                return Ok(SqlCellWithWorkspaceLease {
                     value,
+                    _workspace: None,
+                });
+            }
+            if fast_udf
+                && (name == "mdd_sort_key" || name == "mdd_key")
+                && let Some(result) = borrowed_sort_key(context, &control)
+            {
+                let value = result.map_err(|e| failure(&control, e))?;
+                return Ok(SqlCellWithWorkspaceLease {
+                    value,
+                    _workspace: None,
+                });
+            }
+            if fast_udf
+                && matches!(
+                    name,
+                    "mdd_eq"
+                        | "mdd_ne"
+                        | "mdd_gt"
+                        | "mdd_ge"
+                        | "mdd_lt"
+                        | "mdd_le"
+                        | "mdd_literal_eq"
+                        | "mdd_literal_ne"
+                        | "mdd_literal_gt"
+                        | "mdd_literal_ge"
+                        | "mdd_literal_lt"
+                        | "mdd_literal_le"
+                )
+                && let Some(result) = borrowed_cmp(name, context, &control)
+            {
+                let value = result.map_err(|e| failure(&control, e))?;
+                return Ok(SqlCellWithWorkspaceLease {
+                    value: ReturnPayload::Cell(value),
                     _workspace: None,
                 });
             }
@@ -1919,7 +2561,7 @@ pub(crate) fn register(
                     .and_then(|value| value.sqlite(control.inner.limits.max_cell_bytes))
                     .map_err(|e| failure(&control, e))?;
                 return Ok(SqlCellWithWorkspaceLease {
-                    value,
+                    value: ReturnPayload::Cell(value),
                     _workspace: None,
                 });
             }
@@ -1965,7 +2607,7 @@ pub(crate) fn register(
                 (value, workspace)
             };
             Ok(SqlCellWithWorkspaceLease {
-                value,
+                value: ReturnPayload::Cell(value),
                 _workspace: key_workspace.or(result_workspace),
             })
         })?;
@@ -2090,7 +2732,7 @@ impl Aggregate<AggregateState, SqlCellWithWorkspaceLease> for AggregateValue {
             .map_err(|e| failure(&self.control, e))?;
         drop(state);
         Ok(SqlCellWithWorkspaceLease {
-            value: result,
+            value: ReturnPayload::Cell(result),
             _workspace: workspace,
         })
     }

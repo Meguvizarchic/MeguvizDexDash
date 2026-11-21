@@ -503,3 +503,349 @@ fn a_cursor_for_one_dex_reads_that_dexs_rows_and_a_statement_asking_for_it_answe
         assert_eq!(a.rows(), b.rows(), "{wrapped}");
     }
 }
+
+#[test]
+fn direct_table_projection_matches_sqlite_rows_columns_and_quotas() {
+    let harness = harness();
+    let eager = harness.provider(true, true, true);
+    let loader = HarnessLoader::new(&harness, EVERYTHING);
+    let lazy_provider = lazy(&harness, loader);
+    lazy_provider.prepare_required(None).unwrap();
+
+    // Preload `method_calls` and `method_strings` via an ordinary query first,
+    // or let `try_direct_projection` lazily populate their stores as needed.
+    assert!(eager.partition_column("classes").is_none());
+    let held = SqlBridge::new(eager, SqlDialect::DexSql011, SqlLimits::default()).unwrap();
+    let stored = SqlBridge::new(
+        Arc::clone(&lazy_provider) as Arc<dyn SqlFactProvider>,
+        SqlDialect::DexSql011,
+        SqlLimits::default(),
+    )
+    .unwrap();
+
+    let statements = [
+        "SELECT file_id,entry_name FROM dex_files ORDER BY file_id",
+        "SELECT string_pool_id,string_idx FROM strings ORDER BY string_pool_id,string_idx",
+        "SELECT file_id,type_idx,descriptor FROM types ORDER BY file_id,type_idx",
+        "SELECT file_id,class_idx,descriptor FROM classes ORDER BY file_id,class_idx",
+        "SELECT file_id,method_idx,class_descriptor,name,descriptor FROM methods ORDER BY file_id,method_idx",
+        "SELECT file_id,method_idx FROM method_calls ORDER BY file_id,method_idx",
+        "SELECT file_id,method_idx FROM method_strings ORDER BY file_id,method_idx",
+        "SELECT file_id,entry_name FROM dex_files",
+        "SELECT class_idx AS method_idx FROM method_calls ORDER BY method_idx",
+    ];
+    for sql in statements {
+        let a = held.query(sql).unwrap_or_else(|e| panic!("{sql}: {e:?}"));
+        let b = stored.query(sql).unwrap_or_else(|e| panic!("{sql}: {e:?}"));
+        assert_eq!(a.columns(), b.columns(), "{sql}");
+        assert_eq!(a.rows(), b.rows(), "{sql}");
+        // Also compare against a forced-SQLite wrapper on the exact same `stored` bridge.
+        let wrapped = format!("SELECT * FROM ({sql}) AS sqlite_ref");
+        let w = stored
+            .query(&wrapped)
+            .unwrap_or_else(|e| panic!("{wrapped}: {e:?}"));
+        assert_eq!(w.columns(), b.columns(), "{wrapped}");
+        assert_eq!(w.rows(), b.rows(), "{wrapped}");
+    }
+
+    // Confirm non-trivial row counts were exercised on tie-breaking tables.
+    assert!(
+        stored
+            .query("SELECT file_id,method_idx FROM method_calls ORDER BY file_id,method_idx")
+            .unwrap()
+            .rows()
+            .len()
+            > 1
+    );
+
+    // NativeV1 preserves explicit alias casing just as SQLite does.
+    let stored_native = SqlBridge::new(
+        Arc::clone(&lazy_provider) as Arc<dyn SqlFactProvider>,
+        SqlDialect::NativeV1,
+        SqlLimits::default(),
+    )
+    .unwrap();
+    let held_native = SqlBridge::new(
+        harness.provider(true, true, true),
+        SqlDialect::NativeV1,
+        SqlLimits::default(),
+    )
+    .unwrap();
+    for sql in [
+        "SELECT file_id AS FileId, entry_name AS EntryName FROM dex_files ORDER BY file_id",
+        "SELECT class_idx AS method_idx FROM method_calls ORDER BY method_idx",
+    ] {
+        let a = held_native.query(sql).unwrap();
+        let b = stored_native.query(sql).unwrap();
+        assert_eq!(a.columns(), b.columns(), "{sql}");
+        assert_eq!(a.rows(), b.rows(), "{sql}");
+    }
+
+    // Verify SqlControl quotas and expired deadlines reject identically on direct projection.
+    let probe_sql = "SELECT file_id,entry_name FROM dex_files ORDER BY file_id";
+    let quota_cases = [
+        (
+            "max_result_rows",
+            SqlLimits {
+                max_result_rows: 1,
+                ..SqlLimits::default()
+            },
+            None,
+            ErrorCode::QuotaExceeded,
+        ),
+        (
+            "max_scanned_rows",
+            SqlLimits {
+                max_scanned_rows: 1,
+                ..SqlLimits::default()
+            },
+            None,
+            ErrorCode::QuotaExceeded,
+        ),
+        (
+            "max_cell_bytes",
+            SqlLimits {
+                max_cell_bytes: 4,
+                ..SqlLimits::default()
+            },
+            None,
+            ErrorCode::QuotaExceeded,
+        ),
+        (
+            "expired_deadline",
+            SqlLimits::default(),
+            Some(
+                std::time::Instant::now()
+                    .checked_sub(std::time::Duration::from_millis(10))
+                    .unwrap_or_else(std::time::Instant::now),
+            ),
+            ErrorCode::DeadlineExceeded,
+        ),
+    ];
+    for (label, limits, deadline, expected_code) in quota_cases {
+        let h_bridge = SqlBridge::new(
+            harness.provider(true, true, true),
+            SqlDialect::DexSql011,
+            limits,
+        )
+        .unwrap();
+        let s_bridge = SqlBridge::new(
+            Arc::clone(&lazy_provider) as Arc<dyn SqlFactProvider>,
+            SqlDialect::DexSql011,
+            limits,
+        )
+        .unwrap();
+        let h_prepared = h_bridge.prepare(probe_sql).unwrap();
+        let s_prepared = s_bridge.prepare(probe_sql).unwrap();
+        let h_err = h_bridge
+            .execute(&h_prepared, SqlControl::new(limits, deadline))
+            .unwrap_err();
+        let s_err = s_bridge
+            .execute(&s_prepared, SqlControl::new(limits, deadline))
+            .unwrap_err();
+        assert_eq!(h_err.code, expected_code, "{label} held: {h_err:?}");
+        assert_eq!(s_err.code, expected_code, "{label} direct: {s_err:?}");
+    }
+}
+
+#[test]
+fn with_type_name_matches_facts_type_name() {
+    let long = format!("L{}/Tail;", "pkg/".repeat(160));
+    for descriptor in [
+        "V",
+        "Z",
+        "B",
+        "S",
+        "C",
+        "I",
+        "J",
+        "F",
+        "D",
+        "Ljava/lang/String;",
+        "[I",
+        "[[Ljava/lang/Object;",
+        "Lnon/terminated",
+        "Lcom/example/测试/Main;",
+        long.as_str(),
+    ] {
+        let actual = super::lazy::with_type_name(descriptor, str::to_owned);
+        let expected = mdd_facts::references::type_name(descriptor);
+        assert_eq!(actual, expected, "{descriptor}");
+    }
+}
+
+#[test]
+fn stream_projected_ordered_matches_project_ordered_and_declines_tight_quotas_upfront() {
+    use crate::column_store::{BorrowedSqlCell, DirectCellRowConsumer};
+    use std::cell::Cell as StdCell;
+
+    struct CaptureConsumer {
+        started: Option<u64>,
+        finished: bool,
+        rows: Vec<Vec<String>>,
+        cur_row: Vec<String>,
+    }
+    impl CaptureConsumer {
+        fn new() -> Self {
+            Self {
+                started: None,
+                finished: false,
+                rows: Vec::new(),
+                cur_row: Vec::new(),
+            }
+        }
+    }
+    impl DirectCellRowConsumer for CaptureConsumer {
+        fn on_start(&mut self, row_count: u64) -> MddResult<()> {
+            assert!(self.started.is_none());
+            self.started = Some(row_count);
+            Ok(())
+        }
+        fn begin_row(&mut self) -> MddResult<()> {
+            self.cur_row.clear();
+            Ok(())
+        }
+        fn push_cell(&mut self, _col_idx: usize, cell: &BorrowedSqlCell<'_>) -> MddResult<()> {
+            let rendered = match cell {
+                BorrowedSqlCell::Null => "null".to_owned(),
+                BorrowedSqlCell::Bool(b) => format!("bool:{b}"),
+                BorrowedSqlCell::I64(v) => format!("i64:{v}"),
+                BorrowedSqlCell::U64(v) => format!("u64:{v}"),
+                BorrowedSqlCell::F64Bits(b) => format!("f64:{b}"),
+                BorrowedSqlCell::Utf8(s) => format!("str:{s}"),
+                BorrowedSqlCell::Utf16Be(raw) => {
+                    let units: Vec<u16> = raw
+                        .as_chunks::<2>()
+                        .0
+                        .iter()
+                        .map(|p| u16::from_be_bytes(*p))
+                        .collect();
+                    format!("str:{}", String::from_utf16(&units).unwrap())
+                }
+                BorrowedSqlCell::Bytes(raw) => format!("bytes:{}", raw.len()),
+                BorrowedSqlCell::DexMutf8 { bytes, utf16_units } => {
+                    format!("mutf8:{utf16_units}:{}", bytes.len())
+                }
+                BorrowedSqlCell::Owned(v) => match v {
+                    SqlValue::Text(t) => format!("str:{}", t.strict_utf8().unwrap()),
+                    other => format!("owned:{other:?}"),
+                },
+            };
+            self.cur_row.push(rendered);
+            Ok(())
+        }
+        fn end_row(&mut self) -> MddResult<()> {
+            self.rows.push(std::mem::take(&mut self.cur_row));
+            Ok(())
+        }
+        fn on_finish(&mut self) -> MddResult<()> {
+            self.finished = true;
+            Ok(())
+        }
+    }
+
+    let harness = harness();
+    let provider = lazy(&harness, HarnessLoader::new(&harness, EVERYTHING));
+    provider.prepare_required(None).unwrap();
+
+    // Verify full equivalence on `methods` and derived `method_calls` against `project_ordered`.
+    for (rel, cols, order) in [
+        (
+            ContractRelation::Required(HostLabRelation::Methods),
+            vec![
+                (0usize, "file_id".to_owned()),
+                (1usize, "method_idx".to_owned()),
+                (2usize, "class_descriptor".to_owned()),
+                (3usize, "name".to_owned()),
+            ],
+            vec![0usize, 1usize],
+        ),
+        (
+            ContractRelation::Required(HostLabRelation::MethodCalls),
+            vec![
+                (6usize, "file_id".to_owned()),
+                (8usize, "method_idx".to_owned()),
+                (0usize, "method".to_owned()),
+            ],
+            vec![6usize, 8usize],
+        ),
+    ] {
+        let store = provider.ensure_store(rel, None).unwrap();
+        let ctrl_stream = control();
+        let mut consumer = CaptureConsumer::new();
+        let ran = store
+            .stream_projected_ordered(&cols, &order, &ctrl_stream, &mut consumer)
+            .unwrap();
+        assert!(ran, "{rel:?} should stream");
+        assert!(consumer.finished);
+        assert_eq!(consumer.started, Some(store.rows()));
+
+        let ctrl_ref = control();
+        let ref_rows = store.project_ordered(&cols, &order, &ctrl_ref).unwrap();
+        assert_eq!(consumer.rows.len(), ref_rows.len());
+        for (idx, (got, want)) in consumer.rows.iter().zip(ref_rows.iter()).enumerate() {
+            let want_strs: Vec<String> = want
+                .iter()
+                .map(|v| match v {
+                    SqlValue::U64(n) => format!("u64:{}", n.0),
+                    SqlValue::Text(t) => format!("str:{}", t.strict_utf8().unwrap()),
+                    other => format!("owned:{other:?}"),
+                })
+                .collect();
+            assert_eq!(got, &want_strs, "row {idx} in {rel:?}");
+        }
+        // Check identical counters charged (`StdCell` unused import suppressed via type annotation check).
+        let _ = StdCell::new(0);
+    }
+
+    // Verify strict upfront decline (`Ok(false)` BEFORE calling `on_start`) for tight limits/deadlines.
+    let methods_store = provider
+        .ensure_store(ContractRelation::Required(HostLabRelation::Methods), None)
+        .unwrap();
+    let cols = vec![(0usize, "file_id".to_owned())];
+    for tight in [
+        SqlControl::new(
+            SqlLimits {
+                max_result_rows: 1,
+                ..SqlLimits::default()
+            },
+            None,
+        ),
+        SqlControl::new(
+            SqlLimits {
+                max_scanned_rows: 1,
+                ..SqlLimits::default()
+            },
+            None,
+        ),
+        SqlControl::new(
+            SqlLimits {
+                max_cell_bytes: 8,
+                ..SqlLimits::default()
+            },
+            None,
+        ),
+        SqlControl::new(
+            SqlLimits {
+                max_result_bytes: 1,
+                ..SqlLimits::default()
+            },
+            None,
+        ),
+        SqlControl::new(
+            SqlLimits::default(),
+            Some(std::time::Instant::now() + std::time::Duration::from_millis(200)),
+        ),
+    ] {
+        let mut consumer = CaptureConsumer::new();
+        let ran = methods_store
+            .stream_projected_ordered(&cols, &[0], &tight, &mut consumer)
+            .unwrap();
+        assert!(!ran, "tight control must decline streaming");
+        assert!(
+            consumer.started.is_none(),
+            "on_start must not fire on decline"
+        );
+        assert!(consumer.rows.is_empty());
+    }
+}

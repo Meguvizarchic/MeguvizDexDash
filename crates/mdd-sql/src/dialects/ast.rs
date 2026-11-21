@@ -109,23 +109,91 @@ pub(crate) fn adapt(
     dialect_policy: super::SqlDialect,
     partition_columns: &BTreeMap<String, String>,
 ) -> MddResult<Adapted> {
+    adapt_with_mode(
+        sql,
+        limits,
+        parameters,
+        relations,
+        dialect_policy,
+        partition_columns,
+        crate::column_store::sql_fast_udf_enabled(),
+    )
+}
+
+#[cfg(test)]
+pub(super) fn adapt_with_fast_udf(
+    sql: &str,
+    limits: SqlLimits,
+    parameters: &[SqlValue],
+    relations: &[crate::provider::SqlRelation],
+    dialect_policy: super::SqlDialect,
+    partition_columns: &BTreeMap<String, String>,
+    fast_udf: bool,
+) -> MddResult<Adapted> {
+    adapt_with_mode(
+        sql,
+        limits,
+        parameters,
+        relations,
+        dialect_policy,
+        partition_columns,
+        fast_udf,
+    )
+}
+
+struct AstRequest {
+    sql: String,
+    limits: SqlLimits,
+    parameters: Vec<SqlValue>,
+    relations: Vec<crate::provider::SqlRelation>,
+    dialect_policy: super::SqlDialect,
+    partition_columns: BTreeMap<String, String>,
+    fast_udf: bool,
+    reply: std::sync::mpsc::SyncSender<MddResult<Adapted>>,
+}
+
+struct AstWorker {
+    tx: std::sync::mpsc::SyncSender<AstRequest>,
+}
+
+fn adapt_with_mode(
+    sql: &str,
+    limits: SqlLimits,
+    parameters: &[SqlValue],
+    relations: &[crate::provider::SqlRelation],
+    dialect_policy: super::SqlDialect,
+    partition_columns: &BTreeMap<String, String>,
+    fast_udf: bool,
+) -> MddResult<Adapted> {
     // MDD-084: run the recursive AST rewrite on a stack proven sufficient for the
-    // validated depth (see AST_REWRITE_STACK_BYTES). A scoped thread borrows the inputs
-    // and is joined before returning, so no result or error escapes its lifetime. A
-    // failure to start the thread or a panic inside it is a fail-closed internal fault,
-    // never an empty success.
-    std::thread::scope(|scope| {
-        let worker = std::thread::Builder::new()
+    // validated depth (see AST_REWRITE_STACK_BYTES). A persistent worker thread reuses
+    // that stack across statements so simple queries avoid per-statement OS thread creation,
+    // and any spawn failure or worker panic remains a fail-closed internal fault.
+    static AST_WORKER: std::sync::OnceLock<std::sync::Mutex<Option<AstWorker>>> =
+        std::sync::OnceLock::new();
+    let slot = AST_WORKER.get_or_init(|| std::sync::Mutex::new(None));
+    let mut guard = slot.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    if guard.is_none() {
+        let (tx, rx) = std::sync::mpsc::sync_channel::<AstRequest>(0);
+        std::thread::Builder::new()
+            .name("mdd-ast-rewrite".to_owned())
             .stack_size(AST_REWRITE_STACK_BYTES)
-            .spawn_scoped(scope, move || {
-                adapt_on_stack(
-                    sql,
-                    limits,
-                    parameters,
-                    relations,
-                    dialect_policy,
-                    partition_columns,
-                )
+            .spawn(move || {
+                while let Ok(req) = rx.recv() {
+                    let result = adapt_on_stack(
+                        &req.sql,
+                        req.limits,
+                        &req.parameters,
+                        &req.relations,
+                        req.dialect_policy,
+                        &req.partition_columns,
+                        req.fast_udf,
+                    );
+                    let _ = req.reply.send(result);
+                }
+            })
+            .map(|_handle| {
+                *guard = Some(AstWorker { tx });
             })
             .map_err(|_| {
                 MddError::new(
@@ -134,15 +202,42 @@ pub(crate) fn adapt(
                     "AST rewrite thread could not be started",
                 )
             })?;
-        match worker.join() {
-            Ok(result) => result,
-            Err(_) => Err(MddError::new(
+    }
+    let (reply_tx, reply_rx) = std::sync::mpsc::sync_channel::<MddResult<Adapted>>(1);
+    let req = AstRequest {
+        sql: sql.to_owned(),
+        limits,
+        parameters: parameters.to_vec(),
+        relations: relations.to_vec(),
+        dialect_policy,
+        partition_columns: partition_columns.clone(),
+        fast_udf,
+        reply: reply_tx,
+    };
+    let tx = guard
+        .as_ref()
+        .expect("AST worker initialized immediately above")
+        .tx
+        .clone();
+    if tx.send(req).is_err() {
+        *guard = None;
+        return Err(MddError::new(
+            ErrorCode::InternalFault,
+            "sql.ast",
+            "AST rewrite thread panicked",
+        ));
+    }
+    match reply_rx.recv() {
+        Ok(result) => result,
+        Err(_) => {
+            *guard = None;
+            Err(MddError::new(
                 ErrorCode::InternalFault,
                 "sql.ast",
                 "AST rewrite thread panicked",
-            )),
+            ))
         }
-    })
+    }
 }
 fn adapt_on_stack(
     sql: &str,
@@ -151,6 +246,7 @@ fn adapt_on_stack(
     relations: &[crate::provider::SqlRelation],
     dialect_policy: super::SqlDialect,
     partition_columns: &BTreeMap<String, String>,
+    fast_udf: bool,
 ) -> MddResult<Adapted> {
     if sql.len() > limits.max_sql_bytes {
         return Err(quota("SQL_TEXT_BYTES"));
@@ -271,6 +367,7 @@ fn adapt_on_stack(
         next_symbol: 0,
         display_overrides: BTreeMap::new(),
         dialect: dialect_policy,
+        fast_udf,
     };
     let dependencies = match rewrite.query(query, 1) {
         Ok(dependencies) => dependencies,
@@ -354,6 +451,7 @@ struct Rewrite<'a> {
     next_symbol: usize,
     display_overrides: BTreeMap<String, String>,
     dialect: super::SqlDialect,
+    fast_udf: bool,
 }
 struct InScope {
     tables: BTreeMap<String, BTreeMap<String, crate::values::SqlType>>,

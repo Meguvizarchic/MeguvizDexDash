@@ -55,6 +55,24 @@ impl DexText {
         String::from_utf16(&self.utf16_units)
     }
 
+    /// Borrow plain UTF-8 directly when every code unit matches a raw ASCII byte.
+    pub fn strict_utf8_cow(
+        &self,
+    ) -> Result<std::borrow::Cow<'_, str>, std::string::FromUtf16Error> {
+        if self.raw_mutf8.len() == self.utf16_units.len()
+            && self
+                .raw_mutf8
+                .iter()
+                .zip(&self.utf16_units)
+                .all(|(&b, &u)| b < 0x80 && u == u16::from(b))
+        {
+            return Ok(std::borrow::Cow::Borrowed(
+                std::str::from_utf8(&self.raw_mutf8).expect("plain ASCII is valid UTF-8"),
+            ));
+        }
+        String::from_utf16(&self.utf16_units).map(std::borrow::Cow::Owned)
+    }
+
     pub fn display_lossy(&self) -> String {
         String::from_utf16_lossy(&self.utf16_units)
     }

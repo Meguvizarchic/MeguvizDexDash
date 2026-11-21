@@ -1,9 +1,15 @@
 //! End-to-end probe comparing uncached `mdd_service::Dataset` queries against persisted
 //! `mdd-index/1` caches across cold, warm, invalidated, corrupted-repair, and bypass paths.
 
+use mdd_cache::dependency_tracking::{
+    ContentCacheRecord, ContentObjectReuseIndex, IncrementalDependencyBoundary,
+    LogicalOccurrenceRef, TargetMemberSpec, WorkloadUnitSummary,
+    evaluate_default_conservative_gate, shared_container_dependency,
+    validate_negative_finding_reuse,
+};
 use mdd_cache::facts_codec::{
     CachedCell, CachedFactsPayload, CachedRawCodeMethod, CachedRelationTable,
-    SnapshotAndInventorySection,
+    NegativeFindingRecord, SnapshotAndInventorySection,
 };
 use mdd_cache::format::verify_and_decode_image;
 use mdd_cache::key::{CacheMode, FactCacheKeySpec, SemanticsIdentity};
@@ -24,7 +30,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 const CONTRACT_TABLES: &[&str] = &[
     "dex_files",
@@ -536,13 +542,300 @@ fn cmd_inspect_header(args: &[String]) -> Result<serde_json::Value, String> {
     }))
 }
 
+struct BuiltMemberTelemetry {
+    spec: TargetMemberSpec,
+    build_elapsed_ns: u64,
+    outbound_ref_edges: u64,
+    hierarchy_edges: u64,
+    constant_pool_refs: u64,
+}
+
+fn build_member_telemetry(
+    snapshot: &Snapshot,
+    inventories: &[ArchiveInventory],
+) -> Result<Vec<BuiltMemberTelemetry>, String> {
+    let mut out = Vec::new();
+    let mut global_file_id = 0u32;
+    for inv in inventories {
+        for (local_idx, cand) in inv.selected_dexes().iter().enumerate() {
+            let start = Instant::now();
+            let meta = std::sync::Arc::new(
+                mdd_facts::MetadataFacts::build(snapshot, inv, local_idx, Default::default())
+                    .map_err(|e| format!("{:?}: {}", e.code, e.message))?,
+            );
+            let defs = std::sync::Arc::new(
+                mdd_facts::DefinitionFacts::build_arc(
+                    std::sync::Arc::clone(&meta),
+                    Default::default(),
+                )
+                .map_err(|e| format!("{:?}: {}", e.code, e.message))?,
+            );
+            let code = std::sync::Arc::new(
+                mdd_facts::CodeFacts::build_all_code_items(
+                    snapshot,
+                    inv,
+                    local_idx,
+                    Default::default(),
+                )
+                .map_err(|e| format!("{:?}: {}", e.code, e.message))?,
+            );
+            let _anns = mdd_facts::annotations::AnnotationFacts::build_arc(
+                std::sync::Arc::clone(&defs),
+                Default::default(),
+            )
+            .map_err(|e| format!("{:?}: {}", e.code, e.message))?;
+            let refs = mdd_facts::ReferenceFacts::build_arc(
+                std::sync::Arc::clone(&defs),
+                std::sync::Arc::clone(&code),
+                Default::default(),
+            )
+            .map_err(|e| format!("{:?}: {}", e.code, e.message))?;
+            let elapsed_ns = start.elapsed().as_nanos().min(u128::from(u64::MAX)) as u64;
+
+            let header = meta.header();
+            let _ = header;
+            let workload = WorkloadUnitSummary {
+                member_bytes: DecimalU64(cand.blob.len() as u64),
+                string_count: meta.strings().len() as u32,
+                type_count: meta.types().len() as u32,
+                proto_count: meta.prototypes().len() as u32,
+                field_count: defs.definitions().field_references.len() as u32,
+                method_count: defs.definitions().method_references.len() as u32,
+                class_count: defs.definitions().classes.len() as u32,
+                code_item_count: code.items().len() as u32,
+            };
+            let hierarchy_edges: u64 = defs
+                .definitions()
+                .classes
+                .iter()
+                .filter(|cls| cls.superclass_idx.is_some())
+                .count() as u64
+                + defs.definitions().interfaces.len() as u64;
+            let outbound_ref_edges = refs.sites().len() as u64;
+            let constant_pool_refs = u64::from(workload.string_count)
+                + u64::from(workload.type_count)
+                + u64::from(workload.field_count)
+                + u64::from(workload.method_count);
+
+            let spec = TargetMemberSpec {
+                occurrence: LogicalOccurrenceRef {
+                    file_id: global_file_id,
+                    dex_occurrence_id: cand.dex_occurrence_id.clone(),
+                    source_occurrence_id: meta.source().source_occurrence_id.clone(),
+                    member_name: cand.blob.identity.name_utf8.clone(),
+                    logical_header_offset: cand.logical_header_byte_offset,
+                },
+                content_id: meta.source().content_id.clone(),
+                workload,
+                container_dependency: None,
+            };
+            global_file_id += 1;
+            out.push(BuiltMemberTelemetry {
+                spec,
+                build_elapsed_ns: elapsed_ns,
+                outbound_ref_edges,
+                hierarchy_edges,
+                constant_pool_refs,
+            });
+        }
+    }
+    Ok(out)
+}
+
+fn cmd_content_reuse_suite(args: &[String]) -> Result<serde_json::Value, String> {
+    let mut baselines: Vec<PathBuf> = Vec::new();
+    let mut targets: Vec<PathBuf> = Vec::new();
+    let mut task_id = "mdd064-reuse-eval".to_owned();
+    let mut i = 0;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--baseline" => {
+                i += 1;
+                baselines.push(PathBuf::from(args.get(i).ok_or("missing --baseline")?));
+            }
+            "--target" => {
+                i += 1;
+                targets.push(PathBuf::from(args.get(i).ok_or("missing --target")?));
+            }
+            "--task-id" => {
+                i += 1;
+                task_id = args.get(i).ok_or("missing --task-id")?.clone();
+            }
+            other => return Err(format!("unknown arg {other}")),
+        }
+        i += 1;
+    }
+    if baselines.is_empty() || targets.is_empty() {
+        return Err("usage: content-reuse-suite --baseline <path> --target <path>".to_owned());
+    }
+
+    let (base_snap, base_invs, _) = collect_inputs(&baselines)?;
+    let base_members = build_member_telemetry(&base_snap, &base_invs)?;
+
+    let (tgt_snap, tgt_invs, _) = collect_inputs(&targets)?;
+    let tgt_members = build_member_telemetry(&tgt_snap, &tgt_invs)?;
+    let tgt_tables = query_all_tables(&targets)?;
+    let dex_files_row_count = tgt_tables
+        .iter()
+        .find(|t| t.name == "dex_files")
+        .map_or(0u64, |t| t.row_count.0);
+
+    let semantics = SemanticsIdentity::default();
+    let sem_digest =
+        sha256(&serde_json::to_vec(&semantics).map_err(|e| format!("semantics serialize: {e}"))?);
+    let (cov, exec, resp) = complete_envelope_parts("mdd064-baseline-cache");
+
+    let mut reuse_index = ContentObjectReuseIndex::new();
+    for member in &base_members {
+        reuse_index
+            .register_verified(
+                &cov,
+                &exec,
+                &resp,
+                None,
+                ContentCacheRecord {
+                    semantics_digest: sem_digest.clone(),
+                    content_id: member.spec.content_id.clone(),
+                    workload: member.spec.workload.clone(),
+                    container_dependency: None,
+                    persisted_scope_id: "mdd064-baseline-cache".to_owned(),
+                },
+            )
+            .map_err(|e| format!("{}:{}", e.code, e.message))?;
+    }
+
+    let target_specs: Vec<TargetMemberSpec> = tgt_members.iter().map(|m| m.spec.clone()).collect();
+    let report = reuse_index
+        .evaluate_target(&task_id, &sem_digest, &target_specs)
+        .map_err(|e| format!("{}:{}", e.code, e.message))?;
+
+    let full_cold_build_ns: u64 = tgt_members.iter().map(|m| m.build_elapsed_ns).sum();
+    let rebuilt_only_ns: u64 = tgt_members
+        .iter()
+        .zip(report.decisions.iter())
+        .filter(|(_, d)| !d.reused)
+        .map(|(m, _)| m.build_elapsed_ns)
+        .sum();
+    let wall_time_saving_ratio = if full_cold_build_ns == 0 {
+        0.0
+    } else {
+        (full_cold_build_ns.saturating_sub(rebuilt_only_ns) as f64) / (full_cold_build_ns as f64)
+    };
+
+    // Container invalidation & incomplete negative-finding guard probes.
+    let mut container_probe_index = ContentObjectReuseIndex::new();
+    let dep_v1 =
+        shared_container_dependency("dex-041-container", b"hdr+tail-v1", 0, 128, b"tail-v1");
+    let dep_v2 =
+        shared_container_dependency("dex-041-container", b"hdr+tail-v2", 0, 128, b"tail-v2");
+    container_probe_index
+        .register_verified(
+            &cov,
+            &exec,
+            &resp,
+            None,
+            ContentCacheRecord {
+                semantics_digest: sem_digest.clone(),
+                content_id: "sha256:container-slice".to_owned(),
+                workload: WorkloadUnitSummary::default(),
+                container_dependency: Some(dep_v1),
+                persisted_scope_id: "container-probe".to_owned(),
+            },
+        )
+        .map_err(|e| format!("{}:{}", e.code, e.message))?;
+    let container_invalidation_report = container_probe_index
+        .evaluate_target(
+            "container-invalidation-probe",
+            &sem_digest,
+            &[TargetMemberSpec {
+                occurrence: LogicalOccurrenceRef {
+                    file_id: 0,
+                    dex_occurrence_id: "occ:container:0".to_owned(),
+                    source_occurrence_id: "src:container:0".to_owned(),
+                    member_name: Some("classes.dex".to_owned()),
+                    logical_header_offset: DecimalU64(128),
+                },
+                content_id: "sha256:container-slice".to_owned(),
+                workload: WorkloadUnitSummary::default(),
+                container_dependency: Some(dep_v2),
+            }],
+        )
+        .map_err(|e| format!("{}:{}", e.code, e.message))?;
+
+    let partial_neg_eligibility = validate_negative_finding_reuse(
+        &cov,
+        &exec,
+        &resp,
+        None,
+        &[
+            "inventory".to_owned(),
+            "metadata".to_owned(),
+            "references".to_owned(),
+        ],
+        &NegativeFindingRecord {
+            scope_id: "neg-partial-layer".to_owned(),
+            canonical_cache_key: "neg-key".to_owned(),
+            predicate_id: "pred-missing-layer".to_owned(),
+            covered_layers: vec!["inventory".to_owned(), "metadata".to_owned()],
+            matched_count: DecimalU64(0),
+            verified_complete: true,
+        },
+    );
+
+    let fine_grained_gate = evaluate_default_conservative_gate(IncrementalDependencyBoundary {
+        candidate_id: task_id,
+        touched_method_count: DecimalU64(
+            tgt_members
+                .iter()
+                .map(|m| u64::from(m.spec.workload.method_count))
+                .sum(),
+        ),
+        outbound_method_ref_edges: DecimalU64(
+            tgt_members.iter().map(|m| m.outbound_ref_edges).sum(),
+        ),
+        hierarchy_override_edges: DecimalU64(tgt_members.iter().map(|m| m.hierarchy_edges).sum()),
+        negative_query_dependencies: 1,
+        constant_pool_references: DecimalU64(
+            tgt_members.iter().map(|m| m.constant_pool_refs).sum(),
+        ),
+        optional_dex041_container_present: false,
+        shared_container_dependency: None,
+    });
+
+    Ok(json!({
+        "ok": true,
+        "dex_files_row_count": dex_files_row_count,
+        "physical_dedup_preserves_all_logical_sources":
+            (dex_files_row_count as usize) == report.occurrence_reuse_map.total_logical_occurrences(),
+        "report": report,
+        "timing": {
+            "full_cold_build_ns": full_cold_build_ns,
+            "incremental_rebuilt_only_ns": rebuilt_only_ns,
+            "realized_wall_time_saving_ratio": wall_time_saving_ratio,
+        },
+        "shared_container_invalidation_verified":
+            container_invalidation_report
+                .decisions
+                .first()
+                .is_some_and(|d| !d.reused),
+        "shared_container_invalidation_reason":
+            container_invalidation_report.decisions.first().map(|d| d.reason),
+        "partial_negative_finding_guard": partial_neg_eligibility,
+        "fine_grained_incremental_gate": fine_grained_gate,
+    }))
+}
+
 fn main() -> ExitCode {
     let args: Vec<String> = env::args().skip(1).collect();
     let res = match args.first().map(String::as_str) {
         Some("run") => cmd_run(&args[1..]),
         Some("verify-file") => cmd_verify_file(&args[1..]),
         Some("inspect-header") => cmd_inspect_header(&args[1..]),
-        _ => Err("usage: cache_probe <run|verify-file|inspect-header> ...".to_owned()),
+        Some("content-reuse-suite") => cmd_content_reuse_suite(&args[1..]),
+        _ => Err(
+            "usage: cache_probe <run|verify-file|inspect-header|content-reuse-suite> ..."
+                .to_owned(),
+        ),
     };
     match res {
         Ok(val) => {

@@ -20,7 +20,7 @@ use crate::{
     control::SqlLimits,
 };
 use mdd_facts::coverage::OccurrenceStates;
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 
 /// What a pass over one DEX needs built beyond the metadata and definitions, which are always built.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -145,6 +145,15 @@ fn derived_columns(
             ("type_descriptor", "type_idx", TypeDescriptor),
             ("type_name", "type_idx", TypeName),
         ],
+        HostLabRelation::Methods => &[
+            ("class_descriptor", "method_idx", MethodClass),
+            ("name", "method_idx", MethodName),
+            ("descriptor", "method_idx", MethodDescriptor),
+        ],
+        HostLabRelation::Classes => &[("descriptor", "class_idx", TypeDescriptor)],
+        HostLabRelation::ClassInterfaces => {
+            &[("interface_descriptor", "interface_type_idx", TypeDescriptor)]
+        }
         HostLabRelation::ClassMethods => &[
             ("class_descriptor", "method_idx", MethodClass),
             ("method_name", "method_idx", MethodName),
@@ -444,7 +453,7 @@ impl HostLabSqlProvider {
             });
         }
         let threads = pass_threads();
-        for (position, descriptor) in lazy.descriptors.iter().enumerate() {
+        let chunk_needs = |passes: &[Pass]| -> LayerNeeds {
             let mut needs = LayerNeeds::default();
             for pass in passes.iter().filter(|pass| pass.stopped.is_none()) {
                 let wanted = Self::needs_of(pass.relation);
@@ -452,10 +461,13 @@ impl HostLabSqlProvider {
                 needs.references |= wanted.references;
                 needs.annotations |= wanted.annotations;
             }
-            if passes.iter().all(|pass| pass.stopped.is_some()) {
-                break;
-            }
-            let loaded = lazy.loader.load(position, needs)?;
+            needs
+        };
+        let feed_loaded = |position: usize,
+                           descriptor: &Descriptor,
+                           loaded: HostLabOccurrenceFacts,
+                           passes: &mut [Pass]|
+         -> MddResult<()> {
             let occurrence = HostLabOccurrence {
                 facts: loaded,
                 provenance: descriptor.provenance.clone(),
@@ -483,6 +495,15 @@ impl HostLabSqlProvider {
             } else {
                 None
             };
+            let method_views: OnceLock<MddResult<MethodCodeFactViews<'_>>> = OnceLock::new();
+            let ctx = DexFeedContext {
+                occurrence: &occurrence,
+                ledger: &ledger,
+                expected,
+                control,
+                table: table.as_ref(),
+                method_views: &method_views,
+            };
             // The relations that cost the most so far are taken first, so the last thread to finish is not the one that
             // started the biggest relation late.
             let mut live: Vec<&mut Pass> = passes
@@ -493,14 +514,7 @@ impl HostLabSqlProvider {
             let workers = threads.min(live.len());
             if workers <= 1 {
                 for pass in live.into_iter().rev() {
-                    self.feed(
-                        pass,
-                        &occurrence,
-                        &ledger,
-                        expected,
-                        control,
-                        table.as_ref(),
-                    );
+                    self.feed(pass, &ctx);
                 }
             } else {
                 let queue = Mutex::new(live);
@@ -508,20 +522,84 @@ impl HostLabSqlProvider {
                     for _ in 0..workers {
                         scope.spawn(|| {
                             loop {
-                                let next = queue.lock().ok().and_then(|mut queue| queue.pop());
+                                let next = queue.lock().ok().and_then(|mut q| q.pop());
                                 let Some(pass) = next else { break };
-                                self.feed(
-                                    pass,
-                                    &occurrence,
-                                    &ledger,
-                                    expected,
-                                    control,
-                                    table.as_ref(),
-                                );
+                                self.feed(pass, &ctx);
                             }
                         });
                     }
                 });
+            }
+            Ok(())
+        };
+
+        if passes.len() > 1
+            && parallel_prepare_threads() > 1
+            && lazy.descriptors.len() > 1
+            && !passes.iter().all(|pass| pass.stopped.is_some())
+        {
+            use std::sync::atomic::{AtomicBool, Ordering};
+            let initial_needs = chunk_needs(&passes);
+            let stop = AtomicBool::new(false);
+            let stop_ref = &stop;
+            let stream_res: MddResult<()> = std::thread::scope(|scope| {
+                let (tx, rx) =
+                    std::sync::mpsc::sync_channel::<(usize, MddResult<HostLabOccurrenceFacts>)>(0);
+                scope.spawn(move || {
+                    for position in 0..lazy.descriptors.len() {
+                        if stop_ref.load(Ordering::Acquire) {
+                            break;
+                        }
+                        let res = lazy.loader.load(position, initial_needs);
+                        let is_err = res.is_err();
+                        if tx.send((position, res)).is_err() || is_err {
+                            break;
+                        }
+                    }
+                });
+                for (position, descriptor) in lazy.descriptors.iter().enumerate() {
+                    if passes.iter().all(|pass| pass.stopped.is_some()) {
+                        stop.store(true, Ordering::Release);
+                        break;
+                    }
+                    let (recv_pos, loaded_res) = rx.recv().map_err(|_| {
+                        stop.store(true, Ordering::Release);
+                        MddError::new(
+                            ErrorCode::InternalFault,
+                            "sql.hostlab",
+                            "occurrence loader thread ended unexpectedly",
+                        )
+                    })?;
+                    debug_assert_eq!(recv_pos, position);
+                    let loaded = match loaded_res {
+                        Ok(facts) => facts,
+                        Err(error) => {
+                            stop.store(true, Ordering::Release);
+                            drop(rx);
+                            return Err(error);
+                        }
+                    };
+                    if let Err(error) = feed_loaded(position, descriptor, loaded, &mut passes) {
+                        stop.store(true, Ordering::Release);
+                        drop(rx);
+                        return Err(error);
+                    }
+                    if passes.iter().all(|pass| pass.stopped.is_some()) {
+                        stop.store(true, Ordering::Release);
+                        break;
+                    }
+                }
+                drop(rx);
+                Ok(())
+            });
+            stream_res?;
+        } else {
+            for (position, descriptor) in lazy.descriptors.iter().enumerate() {
+                if passes.iter().all(|pass| pass.stopped.is_some()) {
+                    break;
+                }
+                let loaded = lazy.loader.load(position, chunk_needs(&passes))?;
+                feed_loaded(position, descriptor, loaded, &mut passes)?;
             }
         }
         let shell = CoverageLedger::new(self.scope.clone(), &[])?;
@@ -560,63 +638,93 @@ impl HostLabSqlProvider {
     /// the relations that read them by index are made from.
     fn ref_table(occurrence: &HostLabOccurrence, dict: &TextDict) -> MddResult<RefTable> {
         let definitions = occurrence.definitions()?.definitions();
-        let mut table = RefTable {
-            methods: definitions
+        let types_meta = occurrence.facts.metadata.types();
+        let parallel = parallel_prepare_threads() > 1
+            && (definitions.method_references.len() > 256 || types_meta.len() > 256);
+
+        let build_methods = || -> Vec<[u32; 3]> {
+            definitions
                 .method_references
                 .iter()
                 .map(|r| {
-                    [
-                        dict.intern_str(&r.class_descriptor),
-                        dict.intern_str(&r.method_name),
-                        dict.intern_str(&r.descriptor),
-                    ]
+                    let head_id = dict.intern_str(&r.class_descriptor);
+                    let name_id = dict.intern_str(&r.method_name);
+                    let desc_id = dict.intern_member_with_ids(
+                        &r.descriptor,
+                        &r.class_descriptor,
+                        &r.method_name,
+                        head_id,
+                        name_id,
+                    );
+                    [head_id, name_id, desc_id]
                 })
-                .collect(),
-            fields: definitions
+                .collect()
+        };
+        let build_fields = || -> Vec<[u32; 4]> {
+            definitions
                 .field_references
                 .iter()
                 .map(|r| {
-                    [
-                        dict.intern_str(&r.class_descriptor),
-                        dict.intern_str(&r.field_name),
-                        dict.intern_str(&r.descriptor),
-                        dict.intern_str(&r.type_descriptor),
-                    ]
+                    let head_id = dict.intern_str(&r.class_descriptor);
+                    let name_id = dict.intern_str(&r.field_name);
+                    let desc_id = dict.intern_member_with_ids(
+                        &r.descriptor,
+                        &r.class_descriptor,
+                        &r.field_name,
+                        head_id,
+                        name_id,
+                    );
+                    let ty_id = dict.intern_str(&r.type_descriptor);
+                    [head_id, name_id, desc_id, ty_id]
                 })
-                .collect(),
-            types: occurrence
-                .facts
-                .metadata
-                .types()
+                .collect()
+        };
+        let build_types = || -> Vec<[u32; 2]> {
+            types_meta
                 .iter()
                 .map(|t| {
                     let descriptor = &t.data.descriptor;
-                    [
-                        dict.intern_str(descriptor),
-                        dict.intern_str(&mdd_facts::references::type_name(descriptor)),
-                    ]
+                    let desc_id = dict.intern_str(descriptor);
+                    let name_id = with_type_name(descriptor, |name| dict.intern_str(name));
+                    [desc_id, name_id]
                 })
-                .collect(),
+                .collect()
+        };
+
+        let (methods, fields, types) = if parallel {
+            std::thread::scope(|scope| {
+                let f = scope.spawn(build_fields);
+                let t = scope.spawn(build_types);
+                let m = build_methods();
+                let fields = match f.join() {
+                    Ok(v) => v,
+                    Err(payload) => std::panic::resume_unwind(payload),
+                };
+                let types = match t.join() {
+                    Ok(v) => v,
+                    Err(payload) => std::panic::resume_unwind(payload),
+                };
+                (m, fields, types)
+            })
+        } else {
+            (build_methods(), build_fields(), build_types())
+        };
+        let mut table = RefTable {
+            methods,
+            fields,
+            types,
         };
         table.shrink_to_fit();
         Ok(table)
     }
 
     /// One relation's share of one DEX: the layer check, the coverage state, and the rows into the builder.
-    fn feed(
-        &self,
-        pass: &mut Pass,
-        occurrence: &HostLabOccurrence,
-        ledger: &CoverageLedger,
-        expected: &str,
-        control: &SqlControl,
-        table: Option<&Arc<RefTable>>,
-    ) {
+    fn feed<'a>(&self, pass: &mut Pass, ctx: &DexFeedContext<'a, '_>) {
         let started = std::time::Instant::now();
         // The layer check comes first and ends the pass, as `require_layer` ends at the first occurrence that fails it.
         let checked = match pass.relation {
-            ContractRelation::Required(required) => Self::check_layer(required, occurrence),
-            ContractRelation::Public(public) => self.check_public_layer(public, occurrence),
+            ContractRelation::Required(required) => Self::check_layer(required, ctx.occurrence),
+            ContractRelation::Public(public) => self.check_public_layer(public, ctx.occurrence),
         };
         if let Err(error) = checked {
             pass.stopped = Some(error);
@@ -624,7 +732,7 @@ impl HostLabSqlProvider {
         }
         let mut complete = true;
         if let Some(request) = &pass.request {
-            let state = ledger.occurrence_states(request, expected);
+            let state = ctx.ledger.occurrence_states(request, ctx.expected);
             complete = state.is_complete();
             pass.states.push(state);
         }
@@ -638,9 +746,9 @@ impl HostLabSqlProvider {
         let Some(builder) = pass.builder.as_mut() else {
             return;
         };
-        builder.begin_partition(u64::from(occurrence.file_id));
+        builder.begin_partition(u64::from(ctx.occurrence.file_id));
         if builder.has_derived()
-            && let Some(table) = table
+            && let Some(table) = ctx.table
         {
             builder.set_table(Arc::clone(table));
         }
@@ -648,7 +756,13 @@ impl HostLabSqlProvider {
             builder,
             refused: None,
         };
-        let produced = self.occurrence_into(pass.relation, occurrence, control, &mut sink);
+        let produced = self.occurrence_into_with_views(
+            pass.relation,
+            ctx.occurrence,
+            ctx.control,
+            &mut sink,
+            Some(ctx.method_views),
+        );
         let refused = sink.refused.take();
         if let Err(error) = produced {
             // a row the store cannot hold ends the relation; a DEX whose rows cannot be made is reported after the verdict
@@ -659,6 +773,16 @@ impl HostLabSqlProvider {
         }
         pass.cost += started.elapsed();
     }
+}
+
+/// Shared immutable state for feeding every active relation from a single loaded DEX occurrence.
+struct DexFeedContext<'a, 'b> {
+    occurrence: &'a HostLabOccurrence,
+    ledger: &'b CoverageLedger<'a>,
+    expected: &'b str,
+    control: &'b SqlControl,
+    table: Option<&'b Arc<RefTable>>,
+    method_views: &'b OnceLock<MddResult<MethodCodeFactViews<'a>>>,
 }
 
 /// A builder that remembers whether the error that ended a DEX's rows was its own: a row the store cannot hold, as opposed
@@ -697,11 +821,16 @@ struct Pass {
     cost: std::time::Duration,
 }
 
-/// How many threads feed the stores of one DEX at once: `MDD_PASS_THREADS` when it is set, else the cores this process
-/// may use, at most four. The rows of a DEX take far less time than its layers do, so more threads add memory (each holds
-/// the rows it is making) and no speed.
+/// Delegate to `mdd_facts::references::with_type_name` to avoid duplicating type-name formatting.
+pub(super) fn with_type_name<R>(descriptor: &str, f: impl FnOnce(&str) -> R) -> R {
+    mdd_facts::references::with_type_name(descriptor, f)
+}
+
+/// How many threads feed the stores of one DEX at once: `MDD_PASS_THREADS` (or `MDD_FACTS_THREADS`)
+/// when set, else the cores this process may use, at most four.
 fn pass_threads() -> usize {
     std::env::var("MDD_PASS_THREADS")
+        .or_else(|_| std::env::var("MDD_FACTS_THREADS"))
         .ok()
         .and_then(|value| value.parse::<usize>().ok())
         .filter(|&threads| threads >= 1)
@@ -710,6 +839,24 @@ fn pass_threads() -> usize {
                 .map_or(1, std::num::NonZeroUsize::get)
                 .min(4)
         })
+        .clamp(1, 4)
+}
+
+/// Bounded parallel DEX occurrence preload window toggled by `MDD_OPT_PARALLEL_PREPARE` (`"0"` restores sequential).
+fn parallel_prepare_threads() -> usize {
+    if std::env::var_os("MDD_OPT_PARALLEL_PREPARE").as_deref() == Some(std::ffi::OsStr::new("0")) {
+        return 1;
+    }
+    std::env::var("MDD_FACTS_THREADS")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .filter(|&threads| threads >= 1)
+        .unwrap_or_else(|| {
+            std::thread::available_parallelism()
+                .map_or(1, std::num::NonZeroUsize::get)
+                .min(4)
+        })
+        .clamp(1, 4)
 }
 
 /// The control for a build nobody bounds: the input is the only limit.

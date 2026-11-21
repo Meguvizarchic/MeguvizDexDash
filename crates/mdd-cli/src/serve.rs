@@ -122,10 +122,7 @@ pub fn serve(
             max_rows: request.max_rows,
             deadline_ms: request.deadline_ms,
         };
-        let mut sink = JsonlSink {
-            out: &mut *out,
-            id: Some(id),
-        };
+        let mut sink = JsonlSink::new(&mut *out, Some(id))?;
         match dataset.run(sql, &options, &mut sink) {
             Ok(outcome) => {
                 if outcome.output_lost.is_some() {

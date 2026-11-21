@@ -1587,6 +1587,75 @@ impl SqlFactProvider for HostLabSqlProvider {
             _ => self.open_cursor(relation, control),
         }
     }
+
+    fn try_direct_projection(
+        &self,
+        projection: &crate::provider::DirectTableProjection,
+        control: &SqlControl,
+    ) -> Option<MddResult<Vec<SqlRow>>> {
+        if self.lazy.is_none()
+            || !crate::column_store::sql_scan_opt_enabled()
+            || control.runtime().is_some()
+        {
+            return None;
+        }
+        let parsed = ContractRelation::parse(&projection.relation)?;
+        let store = match self.ensure_store(parsed, Some(control)) {
+            Ok(store) => store,
+            Err(error) => return Some(Err(error)),
+        };
+        if store.max_cell_bytes() > control.inner.limits.max_cell_bytes {
+            return None;
+        }
+        Some(store.project_ordered(
+            &projection.projected_columns,
+            &projection.order_by_u64_asc,
+            control,
+        ))
+    }
+
+    fn try_stream_direct_projection(
+        &self,
+        projection: &crate::provider::DirectTableProjection,
+        control: &SqlControl,
+        consumer: &mut dyn crate::column_store::DirectCellRowConsumer,
+    ) -> MddResult<bool> {
+        if self.lazy.is_none()
+            || !crate::column_store::sql_scan_opt_enabled()
+            || control.runtime().is_some()
+        {
+            return Ok(false);
+        }
+        let Some(parsed) = ContractRelation::parse(&projection.relation) else {
+            return Ok(false);
+        };
+        let store = self.ensure_store(parsed, Some(control))?;
+        store.stream_projected_ordered(
+            &projection.projected_columns,
+            &projection.order_by_u64_asc,
+            control,
+            consumer,
+        )
+    }
+
+    fn try_direct_count_group_by(
+        &self,
+        plan: &crate::provider::DirectCountGroupBy,
+        control: &SqlControl,
+    ) -> Option<MddResult<Vec<SqlRow>>> {
+        if self.lazy.is_none()
+            || !crate::column_store::sql_scan_opt_enabled()
+            || control.runtime().is_some()
+        {
+            return None;
+        }
+        let parsed = ContractRelation::parse(&plan.relation)?;
+        let store = match self.ensure_store(parsed, Some(control)) {
+            Ok(store) => store,
+            Err(error) => return Some(Err(error)),
+        };
+        store.direct_count_group_by(plan, control)
+    }
 }
 
 fn build_semi_join_filter(

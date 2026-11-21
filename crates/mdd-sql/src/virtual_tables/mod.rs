@@ -170,6 +170,8 @@ unsafe impl<'vtab> VTab<'vtab> for FactTable {
         #[cfg(test)]
         TEST_OPENS.with(|count| count.set(count.get() + 1));
         let lease = self.source.control.reserve_cursor().map_err(error)?;
+        let fast_udf =
+            std::env::var_os("MDD_OPT_SQL_FAST_UDF").as_deref() != Some(std::ffi::OsStr::new("0"));
         Ok(Cursor {
             base: ffi::sqlite3_vtab_cursor::default(),
             source: Arc::clone(&self.source),
@@ -178,6 +180,7 @@ unsafe impl<'vtab> VTab<'vtab> for FactTable {
             ordinal: 0,
             positioned: false,
             on_row: false,
+            fast_udf,
             _lease: lease,
         })
     }
@@ -193,6 +196,7 @@ struct Cursor {
     /// `on_row` says whether the cursor stands on a row.
     positioned: bool,
     on_row: bool,
+    fast_udf: bool,
     _lease: Option<mdd_query::budget::Reservation>,
 }
 impl Cursor {
@@ -289,11 +293,17 @@ unsafe impl VTabCursor for Cursor {
         let index = usize::try_from(column).map_err(|_| coordinate())?;
         let max_cell_bytes = self.source.control.inner.limits.max_cell_bytes;
         if self.positioned {
-            let value = self
+            let positioned = self
                 .cursor
                 .as_ref()
                 .and_then(|cursor| cursor.positioned_ref())
-                .ok_or_else(coordinate)?
+                .ok_or_else(coordinate)?;
+            if self.fast_udf
+                && let Some(direct) = positioned.set_sqlite_column(index, max_cell_bytes, context)
+            {
+                return direct.map_err(|e| error(self.source.control.fail(e)))?;
+            }
+            let value = positioned
                 .value(index)
                 .map_err(|e| error(self.source.control.fail(e)))?;
             return context.set_result(

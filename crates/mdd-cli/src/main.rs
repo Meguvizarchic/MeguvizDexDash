@@ -105,15 +105,15 @@ fn query(args: QueryArgs) -> MddResult<i32> {
         deadline_ms: args.data.deadline_ms,
     };
     let stdout = io::stdout();
-    let mut out = stdout.lock();
+    let lock = stdout.lock();
     match args.format {
         Format::Jsonl => {
+            let mut out = io::BufWriter::with_capacity(256 * 1024, lock);
             if JsonlSink::opened(&mut out, &dataset.description()).is_err() {
                 return Ok(OUTPUT);
             }
-            let mut sink = JsonlSink {
-                out: &mut out,
-                id: None,
+            let Ok(mut sink) = JsonlSink::new(&mut out, None) else {
+                return Ok(OUTPUT);
             };
             let outcome = dataset.run(&sql, &options, &mut sink)?;
             if outcome.output_lost.is_some() || sink.terminal(&outcome.terminal).is_err() {
@@ -122,6 +122,7 @@ fn query(args: QueryArgs) -> MddResult<i32> {
             Ok(terminal_code(&outcome.terminal))
         }
         Format::Text => {
+            let mut out = lock;
             let mut sink = TextSink::new(&mut out);
             let outcome = dataset.run(&sql, &options, &mut sink)?;
             let code = terminal_code(&outcome.terminal);
@@ -157,7 +158,7 @@ fn serve(args: ServeArgs) -> MddResult<i32> {
     let stdin = io::stdin();
     let stdout = io::stdout();
     let mut input = stdin.lock();
-    let mut out = stdout.lock();
+    let mut out = io::BufWriter::with_capacity(256 * 1024, stdout.lock());
     match serve::serve(&dataset, &mut input, &mut out) {
         Ok(()) => Ok(OK),
         Err(serve::Failure::Output) => Ok(OUTPUT),

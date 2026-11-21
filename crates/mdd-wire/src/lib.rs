@@ -9,6 +9,7 @@ pub mod channel;
 pub mod credit;
 pub mod error;
 pub mod frame;
+pub mod optimized;
 pub mod stream;
 
 pub use cell::{Cell, ColumnType};

@@ -5,7 +5,7 @@ use rusqlite::types::{Value as SqliteValue, ValueRef};
 use serde::{Deserialize, Serialize};
 
 pub(crate) const TEXT: &[u8] = b"\0MDDTEXT1";
-const UNSIGNED: &[u8] = b"\0MDDUINT1";
+pub(crate) const UNSIGNED: &[u8] = b"\0MDDUINT1";
 const FLOAT: &[u8] = b"\0MDDFLOAT1";
 pub(crate) const BYTES: &[u8] = b"\0MDDBYTES1";
 const MUTF8: &[u8] = b"\0MDDMUTF1";

@@ -3,3 +3,4 @@ pub mod budget;
 pub mod executor;
 pub mod ir;
 pub mod operators;
+pub mod optimized;

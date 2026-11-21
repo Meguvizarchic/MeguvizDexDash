@@ -406,8 +406,9 @@ type Decoded = (Vec<Instruction>, Vec<Payload>, Vec<SwitchTargets>);
 pub(super) fn decode(units: &[u16], context: DecodeContext, used: &mut Used) -> MddResult<Decoded> {
     let DecodeContext { base, limits, .. } = context;
     let mut pc = 0usize;
-    let mut instructions = Vec::new();
+    let mut instructions = Vec::with_capacity(units.len().min(16));
     let mut payloads = Vec::new();
+    let mut has_branches = false;
     while pc < units.len() {
         if units[pc] & 255 == 0 && units[pc] != 0 {
             let item = payload(units, pc, base, limits, used)?;
@@ -424,67 +425,83 @@ pub(super) fn decode(units: &[u16], context: DecodeContext, used: &mut Used) -> 
             let ordinal = u32::try_from(instructions.len())
                 .map_err(|_| fail("INSTRUCTION_ORDINAL_OVERFLOW", base, 0))?;
             let item = instruction(units, pc, context, ordinal)?;
+            has_branches |= item.branch_offset_code_units.is_some();
             pc += usize::from(item.width_code_units);
             instructions.push(item);
         }
     }
-    let starts: BTreeSet<u32> = instructions.iter().map(|i| i.code_unit_offset).collect();
-    let payload_map: BTreeMap<_, _> = payloads.iter().map(|p| (p.code_unit_offset, p)).collect();
+    debug_assert!(
+        instructions
+            .windows(2)
+            .all(|pair| pair[0].code_unit_offset < pair[1].code_unit_offset)
+    );
+    debug_assert!(
+        payloads
+            .windows(2)
+            .all(|pair| pair[0].code_unit_offset < pair[1].code_unit_offset)
+    );
+    if !has_branches {
+        return Ok((instructions, payloads, Vec::new()));
+    }
     let mut switches = Vec::new();
     let size = units.len() as u32;
-    for item in &mut instructions {
-        if let Some(relative) = item.branch_offset_code_units {
-            let target = i64::from(item.code_unit_offset) + i64::from(relative);
-            if matches!(item.opcode, 0x26 | 0x2b | 0x2c) {
-                let target = u32::try_from(target)
-                    .map_err(|_| fail("PAYLOAD_TARGET_RANGE", item.byte_offset.0, 0))?;
-                let data = payload_map
-                    .get(&target)
-                    .ok_or_else(|| fail("PAYLOAD_TARGET_NOT_PAYLOAD", item.byte_offset.0, 0))?;
-                item.payload_target_code_units = Some(target);
-                let relatives = match (&data.data, item.opcode) {
-                    (PayloadData::FillArray { .. }, 0x26) => None,
-                    (
-                        PayloadData::PackedSwitch {
-                            relative_targets, ..
-                        },
-                        0x2b,
-                    )
-                    | (
-                        PayloadData::SparseSwitch {
-                            relative_targets, ..
-                        },
-                        0x2c,
-                    ) => Some(relative_targets),
-                    _ => return Err(fail("PAYLOAD_KIND_MISMATCH", item.byte_offset.0, 0)),
-                };
-                if let Some(relatives) = relatives {
-                    charge(
-                        &mut used.switch_targets,
-                        relatives.len() as u64,
-                        limits.max_switch_targets,
-                        "max_switch_targets",
-                        item.byte_offset.0,
-                    )?;
-                    let mut targets = Vec::new();
-                    for offset in relatives {
-                        targets.push(valid_target(
-                            i64::from(item.code_unit_offset) + i64::from(*offset),
-                            size,
-                            &starts,
-                            item.byte_offset.0,
-                        )?);
-                    }
-                    switches.push(SwitchTargets {
-                        instruction_code_unit_offset: item.code_unit_offset,
-                        payload_code_unit_offset: target,
-                        target_code_units: targets,
-                    });
+    for index in 0..instructions.len() {
+        let Some(relative) = instructions[index].branch_offset_code_units else {
+            continue;
+        };
+        let code_unit_offset = instructions[index].code_unit_offset;
+        let opcode = instructions[index].opcode;
+        let byte_offset = instructions[index].byte_offset.0;
+        let target = i64::from(code_unit_offset) + i64::from(relative);
+        if matches!(opcode, 0x26 | 0x2b | 0x2c) {
+            let target =
+                u32::try_from(target).map_err(|_| fail("PAYLOAD_TARGET_RANGE", byte_offset, 0))?;
+            let payload_idx = payloads
+                .binary_search_by_key(&target, |p| p.code_unit_offset)
+                .map_err(|_| fail("PAYLOAD_TARGET_NOT_PAYLOAD", byte_offset, 0))?;
+            instructions[index].payload_target_code_units = Some(target);
+            let relatives = match (&payloads[payload_idx].data, opcode) {
+                (PayloadData::FillArray { .. }, 0x26) => None,
+                (
+                    PayloadData::PackedSwitch {
+                        relative_targets, ..
+                    },
+                    0x2b,
+                )
+                | (
+                    PayloadData::SparseSwitch {
+                        relative_targets, ..
+                    },
+                    0x2c,
+                ) => Some(relative_targets),
+                _ => return Err(fail("PAYLOAD_KIND_MISMATCH", byte_offset, 0)),
+            };
+            if let Some(relatives) = relatives {
+                charge(
+                    &mut used.switch_targets,
+                    relatives.len() as u64,
+                    limits.max_switch_targets,
+                    "max_switch_targets",
+                    byte_offset,
+                )?;
+                let mut targets = Vec::with_capacity(relatives.len());
+                for offset in relatives {
+                    targets.push(valid_target(
+                        i64::from(code_unit_offset) + i64::from(*offset),
+                        size,
+                        &instructions,
+                        byte_offset,
+                    )?);
                 }
-            } else {
-                item.branch_target_code_units =
-                    Some(valid_target(target, size, &starts, item.byte_offset.0)?);
+                switches.push(SwitchTargets {
+                    instruction_code_unit_offset: code_unit_offset,
+                    payload_code_unit_offset: target,
+                    target_code_units: targets,
+                });
             }
+        } else {
+            let resolved = valid_target(target, size, &instructions, byte_offset)?;
+            instructions[index].branch_target_code_units = Some(resolved);
         }
     }
     Ok((instructions, payloads, switches))

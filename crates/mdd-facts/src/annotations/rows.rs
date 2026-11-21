@@ -1,5 +1,8 @@
 use super::*;
 
+pub type DirectoryEntryVisitor<'a> =
+    &'a mut dyn FnMut(u32, u32, &str, u32, Option<u32>, Option<u32>) -> MddResult<()>;
+
 impl AnnotationFacts {
     pub fn bytes(&self) -> &[u8] {
         self.definitions.bytes()
@@ -287,4 +290,114 @@ impl AnnotationFacts {
             })
             .collect()
     }
+
+    pub fn for_each_directory_entry_row(&self, each: DirectoryEntryVisitor<'_>) -> MddResult<()> {
+        let items: BTreeMap<_, _> = self
+            .data
+            .directories
+            .iter()
+            .map(|item| (item.byte_offset, item))
+            .collect();
+        for binding in &self.data.directory_bindings {
+            for entry in &items[&binding.directory_byte_offset].entries {
+                let kind = match entry.kind {
+                    AnnotationOwnerKind::Field => "field",
+                    AnnotationOwnerKind::Method => "method",
+                    AnnotationOwnerKind::Parameter => "parameter",
+                    AnnotationOwnerKind::Class => "class",
+                };
+                let set_off = (entry.kind != AnnotationOwnerKind::Parameter)
+                    .then_some(entry.target_byte_offset);
+                let ref_list_off = (entry.kind == AnnotationOwnerKind::Parameter)
+                    .then_some(entry.target_byte_offset);
+                each(
+                    binding.class_idx,
+                    binding.directory_byte_offset,
+                    kind,
+                    entry.local_index,
+                    set_off,
+                    ref_list_off,
+                )?;
+            }
+        }
+        Ok(())
+    }
+
+    pub fn for_each_reachable_set_entry_row(
+        &self,
+        each: &mut dyn FnMut(u32, u32, u32) -> MddResult<()>,
+    ) -> MddResult<()> {
+        let (sets, _) = self.reachable_offsets();
+        for set in &self.data.sets {
+            if !sets.contains(&set.byte_offset) {
+                continue;
+            }
+            for (ordinal, offset) in set.annotation_offsets.iter().enumerate() {
+                each(set.byte_offset, ordinal as u32, *offset)?;
+            }
+        }
+        Ok(())
+    }
+
+    pub fn for_each_reachable_annotation_row(
+        &self,
+        each: &mut dyn FnMut(u32, u32, u32, u32) -> MddResult<()>,
+    ) -> MddResult<()> {
+        let (_, annotations) = self.reachable_offsets();
+        for item in &self.data.annotation_items {
+            if !annotations.contains(&item.byte_offset) {
+                continue;
+            }
+            each(
+                item.byte_offset,
+                u32::from(item.visibility),
+                item.type_idx,
+                item.elements.len() as u32,
+            )?;
+        }
+        Ok(())
+    }
+
+    pub fn for_each_reachable_element_row(
+        &self,
+        each: &mut dyn FnMut(&ReachableElementRef<'_>) -> MddResult<()>,
+    ) -> MddResult<()> {
+        let (_, annotations) = self.reachable_offsets();
+        for item in &self.data.values {
+            let Some(root) = item.annotation_byte_offset else {
+                continue;
+            };
+            if !annotations.contains(&root) {
+                continue;
+            }
+            each(&ReachableElementRef {
+                annotation_off: root,
+                depth: item.depth,
+                ordinal: item.ordinal,
+                name_idx: item.name_idx,
+                value_off: item.encoded_range.byte_offset.0 as u32,
+                value_end_off: (item.encoded_range.byte_offset.0 + item.encoded_range.byte_length.0)
+                    as u32,
+                value_kind: item.kind.as_str(),
+                value_index: item.value_index,
+                value_i64: item.value_i64.as_deref(),
+                value_f64: item.value_f64,
+            })?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct ReachableElementRef<'a> {
+    pub annotation_off: u32,
+    pub depth: u32,
+    pub ordinal: u32,
+    pub name_idx: Option<u32>,
+    pub value_off: u32,
+    pub value_end_off: u32,
+    pub value_kind: &'static str,
+    pub value_index: Option<u32>,
+    pub value_i64: Option<&'a str>,
+    pub value_f64: Option<ExactFloat>,
 }

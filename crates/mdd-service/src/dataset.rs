@@ -370,9 +370,53 @@ impl Dataset {
                 let Some(layers) = &self.layers else {
                     return Ok(DecodeState::default());
                 };
-                let occurrences = (0..self.dex_count)
-                    .map(|position| layers.occurrence(position))
-                    .collect::<MddResult<Vec<_>>>()?;
+                let occurrences = if self.dex_count > 1 && self.limits.max_threads > 1 {
+                    let workers = self.limits.max_threads.min(self.dex_count);
+                    let next = std::sync::atomic::AtomicUsize::new(0);
+                    let slots: Vec<Mutex<Option<MddResult<Occurrence>>>> =
+                        (0..self.dex_count).map(|_| Mutex::new(None)).collect();
+                    std::thread::scope(|scope| {
+                        for _ in 0..workers {
+                            scope.spawn(|| {
+                                loop {
+                                    let pos =
+                                        next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                                    if pos >= self.dex_count {
+                                        break;
+                                    }
+                                    let built = layers.occurrence(pos);
+                                    if let Ok(mut guard) = slots[pos].lock() {
+                                        *guard = Some(built);
+                                    }
+                                }
+                            });
+                        }
+                    });
+                    slots
+                        .into_iter()
+                        .map(|slot| {
+                            slot.into_inner()
+                                .map_err(|_| {
+                                    MddError::new(
+                                        ErrorCode::InternalFault,
+                                        "service",
+                                        "parallel decode worker panicked",
+                                    )
+                                })?
+                                .unwrap_or_else(|| {
+                                    Err(MddError::new(
+                                        ErrorCode::InternalFault,
+                                        "service",
+                                        "parallel decode worker did not populate slot",
+                                    ))
+                                })
+                        })
+                        .collect::<MddResult<Vec<_>>>()?
+                } else {
+                    (0..self.dex_count)
+                        .map(|position| layers.occurrence(position))
+                        .collect::<MddResult<Vec<_>>>()?
+                };
                 let indexes = occurrences.iter().map(OccurrenceIndex::build).collect();
                 Ok(DecodeState {
                     occurrences,

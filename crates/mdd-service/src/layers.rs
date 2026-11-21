@@ -18,7 +18,7 @@ use mdd_dex::{
 use mdd_facts::{
     DefinitionFacts, MetadataFacts,
     annotations::AnnotationFacts,
-    code::CodeFacts,
+    code::{CodeFacts, CompactCodeRefs},
     references::{ReferenceFacts, ReferenceLimits},
 };
 use mdd_input::{archive::ArchiveInventory, snapshot::Snapshot};
@@ -48,8 +48,9 @@ struct Built {
     metadata: Arc<MetadataFacts>,
     definitions: Arc<DefinitionFacts>,
     /// The header and opcodes of every code item; the instructions are decoded again from the DEX bytes when they are read,
-    /// one code item at a time (by `decode`, and by the reference layer when it takes its sites).
+    /// one code item at a time (by `decode`, or via `compact_refs` when `ReferenceFacts` takes its sites).
     compact_code: MddResult<Arc<CodeFacts>>,
+    compact_refs: Option<CompactCodeRefs>,
     annotations: MddResult<Arc<AnnotationFacts>>,
 }
 
@@ -98,25 +99,39 @@ impl LayerBuilder {
     /// or the references: a DEX whose references or annotations cannot be validated can still show its instructions, and
     /// `decode` must not lose every method body to a fault in one other layer.
     fn build(&self, position: usize) -> MddResult<Built> {
+        self.build_internal(position, false)
+    }
+
+    fn build_internal(&self, position: usize, capture_compact_refs: bool) -> MddResult<Built> {
         let (inventory, local) = self.dex(position)?;
         // The inventory does not hold the DEX: the first layer reads it from the archive and the others share that copy.
         // Whatever the layers need of it they hold themselves, so the inventory lets its copy go when this returns, however
         // it returns; the copy is then freed with the last layer that holds it.
         let _release = ReleaseOnDrop(&inventory.selected_dexes()[local].blob);
-        // The code layer reads the DEX bytes and nothing of the metadata, so it is built beside the metadata, definitions
-        // and annotation layers: the bytes are read from the archive once (the first to ask reads, the other waits and
-        // shares), and the two chains take about as long as the longer. The code layer is built compact: every code item is
-        // read and validated, and kept as its header and opcodes; the decoded instructions of the whole DEX (most of a
-        // gigabyte for a large one) are never alive together.
-        let (chain, compact_code) = std::thread::scope(|scope| {
+        let (chain, (compact_code, compact_refs)) = std::thread::scope(|scope| {
             let code = scope.spawn(|| {
-                CodeFacts::build_all_code_items_compact(
-                    &self.snapshot,
-                    inventory,
-                    local,
-                    CodeLimits::default(),
-                )
-                .map(Arc::new)
+                if capture_compact_refs {
+                    match CodeFacts::build_all_code_items_compact_with_refs(
+                        &self.snapshot,
+                        inventory,
+                        local,
+                        CodeLimits::default(),
+                    ) {
+                        Ok((facts, refs)) => (Ok(Arc::new(facts)), Some(refs)),
+                        Err(error) => (Err(error), None),
+                    }
+                } else {
+                    (
+                        CodeFacts::build_all_code_items_compact(
+                            &self.snapshot,
+                            inventory,
+                            local,
+                            CodeLimits::default(),
+                        )
+                        .map(Arc::new),
+                        None,
+                    )
+                }
             });
             let chain = (|| -> MddResult<_> {
                 let metadata = Arc::new(MetadataFacts::build(
@@ -129,11 +144,19 @@ impl LayerBuilder {
                     Arc::clone(&metadata),
                     DefinitionLimits::default(),
                 )?);
-                let annotations = AnnotationFacts::build_arc(
-                    Arc::clone(&definitions),
-                    AnnotationLimits::default(),
-                )
-                .map(Arc::new);
+                let annotations = if capture_compact_refs {
+                    Err(MddError::new(
+                        ErrorCode::InternalFault,
+                        "service.layers",
+                        "deferred for parallel loader pass",
+                    ))
+                } else {
+                    AnnotationFacts::build_arc(
+                        Arc::clone(&definitions),
+                        AnnotationLimits::default(),
+                    )
+                    .map(Arc::new)
+                };
                 Ok((metadata, definitions, annotations))
             })();
             let code = match code.join() {
@@ -147,6 +170,7 @@ impl LayerBuilder {
             metadata,
             definitions,
             compact_code,
+            compact_refs,
             annotations,
         })
     }
@@ -161,6 +185,7 @@ impl LayerBuilder {
             metadata,
             definitions,
             compact_code,
+            compact_refs: _,
             annotations,
         } = self.build(position)?;
         Ok(Occurrence {
@@ -188,22 +213,57 @@ impl OccurrenceLoader for LayerBuilder {
     fn load(&self, position: usize, _needs: LayerNeeds) -> MddResult<HostLabOccurrenceFacts> {
         let (inventory, local) = self.dex(position)?;
         let occurrence = inventory.selected_dexes()[local].dex_occurrence_id.clone();
-        let built = self.build(position)?;
+        let opt_parallel = std::env::var_os("MDD_OPT_PARALLEL_PREPARE").as_deref()
+            != Some(std::ffi::OsStr::new("0"));
+        let built = self.build_internal(position, opt_parallel)?;
         let Built {
             metadata,
             definitions,
             compact_code,
+            compact_refs,
             annotations,
         } = built;
         let upper = || -> MddResult<_> {
-            let compact = Arc::clone(compact_code.as_ref().map_err(Clone::clone)?);
+            let built_code = Arc::clone(compact_code.as_ref().map_err(Clone::clone)?);
+            if opt_parallel {
+                let (references, annotations) = std::thread::scope(|scope| {
+                    let ann = scope.spawn(|| {
+                        AnnotationFacts::build_arc(
+                            Arc::clone(&definitions),
+                            AnnotationLimits::default(),
+                        )
+                        .map(Arc::new)
+                    });
+                    let refs = match compact_refs {
+                        Some(sidecar) => ReferenceFacts::build_arc_with_compact_refs(
+                            Arc::clone(&definitions),
+                            Arc::clone(&built_code),
+                            sidecar,
+                            ReferenceLimits::default(),
+                        ),
+                        None => ReferenceFacts::build_arc(
+                            Arc::clone(&definitions),
+                            Arc::clone(&built_code),
+                            ReferenceLimits::default(),
+                        ),
+                    }
+                    .map(Arc::new);
+                    let ann = match ann.join() {
+                        Ok(res) => res,
+                        Err(payload) => std::panic::resume_unwind(payload),
+                    };
+                    (refs, ann)
+                });
+                return Ok((built_code, references?, annotations?));
+            }
+            drop(compact_refs);
             let references = Arc::new(ReferenceFacts::build_arc(
                 Arc::clone(&definitions),
-                Arc::clone(&compact),
+                Arc::clone(&built_code),
                 ReferenceLimits::default(),
             )?);
             let annotations = Arc::clone(annotations.as_ref().map_err(Clone::clone)?);
-            Ok((compact, references, annotations))
+            Ok((built_code, references, annotations))
         };
         let upper = upper();
         match upper {

@@ -819,6 +819,53 @@ impl MetadataFacts {
         Ok(rows)
     }
 
+    /// Stream validated string rows with borrowed text when possible, preserving all checks and error details.
+    pub fn for_each_string_row_with_policy(
+        &self,
+        string_pool_id: u32,
+        policy: crate::coverage::NonScalarTextPolicy,
+        each: &mut dyn FnMut(u32, u32, &str) -> MddResult<()>,
+    ) -> MddResult<()> {
+        self.require_relation_columns(MetadataRelation::Strings, StringRow::COLUMNS)?;
+        self.require_complete_metadata()?;
+        for (ordinal, fact) in self.strings.iter().enumerate() {
+            let inconsistent = || {
+                MddError::new(
+                    ErrorCode::InternalFault,
+                    "facts.metadata.strings",
+                    "validated string identity is inconsistent",
+                )
+            };
+            if u32::try_from(ordinal).ok() != Some(fact.data.string_idx)
+                || fact.data.string_idx != fact.entity.local_index
+                || fact.entity.kind != EntityKind::String
+                || fact.string_pool_id != self.string_pool.string_pool_id
+            {
+                return Err(inconsistent());
+            }
+            let value = policy
+                .project_dex_text_cow(&fact.data.text)
+                .ok_or_else(|| {
+                    MddError::new(
+                    ErrorCode::UnsupportedQuery,
+                    "facts.metadata.strings",
+                    "plain UTF8 relation cannot losslessly represent a legal non-scalar DEX string",
+                )
+                .detail("reason", "NON_SCALAR_TEXT_PROJECTION")
+                .detail("string_idx", u64::from(fact.data.string_idx))
+                .detail("snapshot_id", self.source.snapshot_id.clone())
+                .detail("dex_occurrence_id", self.source.dex_occurrence_id.clone())
+                .detail("string_pool_id", self.string_pool.string_pool_id.clone())
+                .detail(
+                    "byte_offset",
+                    fact.data.text.raw_range.byte_offset.0.to_string(),
+                )
+                })?;
+            each(string_pool_id, fact.data.string_idx, &value)?;
+        }
+        Ok(())
+    }
+
     /// Project every validated type descriptor and its exact display name.
     pub fn type_rows(&self, file_id: u32) -> MddResult<Vec<TypeRow>> {
         self.require_relation_columns(MetadataRelation::Types, TypeRow::COLUMNS)?;
@@ -849,6 +896,28 @@ impl MetadataFacts {
             });
         }
         Ok(rows)
+    }
+
+    /// Stream validated type rows without materializing intermediate `Vec<TypeRow>`.
+    pub fn for_each_type_row(
+        &self,
+        each: &mut dyn FnMut(u32, &str, &str) -> MddResult<()>,
+    ) -> MddResult<()> {
+        self.require_relation_columns(MetadataRelation::Types, TypeRow::COLUMNS)?;
+        self.require_complete_metadata()?;
+        for fact in &self.types {
+            if fact.data.type_idx != fact.entity.local_index || fact.entity.kind != EntityKind::Type
+            {
+                return Err(MddError::new(
+                    ErrorCode::InternalFault,
+                    "facts.metadata.types",
+                    "validated type identity is inconsistent",
+                ));
+            }
+            let java_name = self.java_type_name(&fact.entity, TypeNameLimits::default())?;
+            each(fact.data.type_idx, &fact.data.descriptor, &java_name.value)?;
+        }
+        Ok(())
     }
 }
 

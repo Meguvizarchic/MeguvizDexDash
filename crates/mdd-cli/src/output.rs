@@ -40,12 +40,13 @@ fn io_error(error: serde_json::Error) -> io::Error {
 /// One JSON line. `id` echoes the request id in `serve` and is null in `query`.
 pub struct JsonlSink<'a, W: Write> {
     pub out: &'a mut W,
-    pub id: Option<&'a str>,
+    id_json: String,
 }
 
-impl<W: Write> JsonlSink<'_, W> {
-    fn id_json(&self) -> Result<String, io::Error> {
-        serde_json::to_string(&self.id).map_err(io_error)
+impl<'a, W: Write> JsonlSink<'a, W> {
+    pub fn new(out: &'a mut W, id: Option<&str>) -> io::Result<Self> {
+        let id_json = serde_json::to_string(&id).map_err(io_error)?;
+        Ok(Self { out, id_json })
     }
 
     pub fn opened(out: &mut W, dataset: &Value) -> io::Result<()> {
@@ -55,24 +56,27 @@ impl<W: Write> JsonlSink<'_, W> {
     }
 
     pub fn terminal(&mut self, terminal: &ResultEnvelope) -> io::Result<()> {
-        let id = self.id_json()?;
         let body = serde_json::to_string(terminal).map_err(io_error)?;
-        writeln!(
-            self.out,
-            "{{\"kind\":\"terminal\",\"id\":{id},\"terminal\":{body}}}"
-        )?;
+        self.out.write_all(b"{\"kind\":\"terminal\",\"id\":")?;
+        self.out.write_all(self.id_json.as_bytes())?;
+        self.out.write_all(b",\"terminal\":")?;
+        self.out.write_all(body.as_bytes())?;
+        self.out.write_all(b"}\n")?;
         self.out.flush()
     }
 }
 
 impl<W: Write> Sink for JsonlSink<'_, W> {
+    fn encoded_only(&self) -> bool {
+        true
+    }
+
     fn batch(&mut self, batch: &Batch<'_>) -> io::Result<()> {
-        let id = self.id_json()?;
-        self.out
-            .write_all(format!("{{\"kind\":\"batch\",\"id\":{id},\"batch\":").as_bytes())?;
+        self.out.write_all(b"{\"kind\":\"batch\",\"id\":")?;
+        self.out.write_all(self.id_json.as_bytes())?;
+        self.out.write_all(b",\"batch\":")?;
         self.out.write_all(batch.encoded)?;
-        self.out.write_all(b"}\n")?;
-        self.out.flush()
+        self.out.write_all(b"}\n")
     }
 }
 

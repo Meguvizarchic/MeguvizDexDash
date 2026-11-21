@@ -1624,6 +1624,84 @@ impl DefinitionFacts {
         }
         Ok(rows)
     }
+
+    /// Stream `classes` rows without allocating `Vec<ClassRow>`.
+    pub fn for_each_class_row_with_policy(
+        &self,
+        policy: crate::coverage::NonScalarTextPolicy,
+        each: &mut dyn FnMut(&ClassRowRef<'_>) -> MddResult<()>,
+    ) -> MddResult<()> {
+        self.require_relation_columns(DefinitionRelation::Classes, ClassRow::COLUMNS)?;
+        if self.definition_coverage != Completeness::Complete
+            || self.metadata.metadata_coverage() != Completeness::Complete
+        {
+            return Err(MddError::new(
+                ErrorCode::IncompleteFacts,
+                "facts.classes",
+                "complete metadata and definitions are required",
+            ));
+        }
+        let mut interface_counts: std::collections::HashMap<u32, u32> =
+            std::collections::HashMap::new();
+        for interface in &self.definitions.interfaces {
+            let entry = interface_counts.entry(interface.class_def_idx).or_default();
+            *entry = entry.checked_add(1).ok_or_else(|| {
+                MddError::new(
+                    ErrorCode::InternalFault,
+                    "facts.classes",
+                    "validated interface count exceeds UInt32",
+                )
+                .detail("class_def_idx", u64::from(interface.class_def_idx))
+            })?;
+        }
+        for class in &self.definitions.classes {
+            let interface_count = interface_counts
+                .get(&class.class_def_idx)
+                .copied()
+                .unwrap_or(0);
+            let source_file = match &class.source_file {
+                Some(text) => Some(policy.project_dex_text_cow(text).ok_or_else(|| {
+                    MddError::new(
+                        ErrorCode::UnsupportedQuery,
+                        "facts.classes",
+                        "plain UTF8 relation cannot losslessly represent a legal non-scalar source file name",
+                    )
+                    .detail("reason", "NON_SCALAR_TEXT_PROJECTION")
+                    .detail("class_def_idx", u64::from(class.class_def_idx))
+                    .detail(
+                        "snapshot_id",
+                        self.metadata.source.snapshot_id.clone(),
+                    )
+                    .detail(
+                        "dex_occurrence_id",
+                        self.metadata.source.dex_occurrence_id.clone(),
+                    )
+                })?),
+                None => None,
+            };
+            each(&ClassRowRef {
+                class_def_idx: class.class_def_idx,
+                class_idx: class.class_idx,
+                descriptor: &class.descriptor,
+                access_flags: class.access_flags,
+                superclass_descriptor: class.superclass_descriptor.as_deref(),
+                interface_count,
+                source_file: source_file.as_deref(),
+            })?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct ClassRowRef<'a> {
+    pub class_def_idx: u32,
+    pub class_idx: u32,
+    pub descriptor: &'a str,
+    pub access_flags: u32,
+    pub superclass_descriptor: Option<&'a str>,
+    pub interface_count: u32,
+    pub source_file: Option<&'a str>,
 }
 
 /// Render one exact ordered parameter descriptor vector as

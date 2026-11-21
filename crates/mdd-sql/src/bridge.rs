@@ -20,7 +20,86 @@ use rusqlite::{
     limits::Limit,
 };
 use serde::Serialize;
-use std::{collections::BTreeSet, sync::Arc};
+use std::{
+    collections::{BTreeSet, VecDeque},
+    sync::{Arc, Mutex},
+};
+
+type PreparedCacheKey = (String, SqlBinding, bool, bool);
+
+#[derive(Clone)]
+struct PreparedCacheEntry {
+    adapted_sql: String,
+    parameters: Vec<SqlValue>,
+    ast_nodes: usize,
+    required_relations: Vec<String>,
+    cte_names: BTreeSet<String>,
+    required_layers: Vec<FactLayer>,
+    relations: Vec<SqlRelation>,
+    display_overrides: std::collections::BTreeMap<String, String>,
+    partition_hints: std::collections::BTreeMap<String, u64>,
+    row_filters: std::collections::BTreeMap<String, crate::provider::RowFilter>,
+    equi_joins: Vec<crate::provider::EquiJoinEdge>,
+    direct_projection: Option<crate::provider::DirectTableProjection>,
+    direct_count_group_by: Option<crate::provider::DirectCountGroupBy>,
+}
+
+impl PreparedCacheEntry {
+    fn from_prepared(prepared: &PreparedSql) -> Self {
+        Self {
+            adapted_sql: prepared.adapted_sql.clone(),
+            parameters: prepared.parameters.clone(),
+            ast_nodes: prepared.ast_nodes,
+            required_relations: prepared.required_relations.clone(),
+            cte_names: prepared.cte_names.clone(),
+            required_layers: prepared.required_layers.clone(),
+            relations: prepared.relations.clone(),
+            display_overrides: prepared.display_overrides.clone(),
+            partition_hints: prepared.partition_hints.clone(),
+            row_filters: prepared.row_filters.clone(),
+            equi_joins: prepared.equi_joins.clone(),
+            direct_projection: prepared.direct_projection.clone(),
+            direct_count_group_by: prepared.direct_count_group_by.clone(),
+        }
+    }
+
+    #[expect(clippy::too_many_arguments)]
+    fn to_prepared(
+        &self,
+        binding: SqlBinding,
+        sql: String,
+        provider: Arc<dyn SqlFactProvider>,
+        dialect: SqlDialect,
+        limits: SqlLimits,
+        profile: Option<CompatibilityProfile>,
+        profiles: Option<Arc<CompatibilityProfileRegistry>>,
+    ) -> PreparedSql {
+        PreparedSql {
+            binding,
+            temp_fingerprint: None,
+            sql,
+            adapted_sql: self.adapted_sql.clone(),
+            parameters: self.parameters.clone(),
+            ast_nodes: self.ast_nodes,
+            required_relations: self.required_relations.clone(),
+            cte_names: self.cte_names.clone(),
+            required_layers: self.required_layers.clone(),
+            relations: self.relations.clone(),
+            provider,
+            dialect,
+            limits,
+            display_overrides: self.display_overrides.clone(),
+            partition_hints: self.partition_hints.clone(),
+            row_filters: self.row_filters.clone(),
+            equi_joins: self.equi_joins.clone(),
+            direct_projection: self.direct_projection.clone(),
+            direct_count_group_by: self.direct_count_group_by.clone(),
+            execution_binding: None,
+            profile,
+            profiles,
+        }
+    }
+}
 
 pub struct SqlBridge {
     provider: Arc<dyn SqlFactProvider>,
@@ -31,6 +110,7 @@ pub struct SqlBridge {
     profile: Option<CompatibilityProfile>,
     /// Registry that must outlive a single query for a block to be enforced.
     profiles: Option<Arc<CompatibilityProfileRegistry>>,
+    prepare_cache: Mutex<VecDeque<(PreparedCacheKey, PreparedCacheEntry)>>,
 }
 pub struct PreparedSql {
     binding: SqlBinding,
@@ -53,6 +133,8 @@ pub struct PreparedSql {
     partition_hints: std::collections::BTreeMap<String, u64>,
     row_filters: std::collections::BTreeMap<String, crate::provider::RowFilter>,
     equi_joins: Vec<crate::provider::EquiJoinEdge>,
+    direct_projection: Option<crate::provider::DirectTableProjection>,
+    direct_count_group_by: Option<crate::provider::DirectCountGroupBy>,
     execution_binding: Option<crate::runtime::SqlExecutionBinding>,
     profile: Option<CompatibilityProfile>,
     profiles: Option<Arc<CompatibilityProfileRegistry>>,
@@ -83,11 +165,15 @@ pub struct SqlResult {
     _result_memory: ResultMemory,
 }
 impl SqlResult {
+    /// Identity of a column list in projection order (`mdd.rows.v1:<sha256>`).
+    pub fn columns_schema_id(columns: &[String]) -> String {
+        let names = serde_json::to_string(columns).unwrap_or_default();
+        format!("mdd.rows.v1:{}", mdd_types::sha256(names.as_bytes()))
+    }
     /// Identity of the result's column list, in projection order and without
     /// merging duplicate names. A page of the same statement must repeat it.
     pub fn schema_id(&self) -> String {
-        let names = serde_json::to_string(&self.columns).unwrap_or_default();
-        format!("mdd.rows.v1:{}", mdd_types::sha256(names.as_bytes()))
+        Self::columns_schema_id(&self.columns)
     }
     /// The window this result covers, when it was executed through one.
     pub fn window(&self) -> Option<&SqlWindowReport> {
@@ -503,6 +589,9 @@ impl PreparedSql {
     pub fn sql(&self) -> &str {
         &self.sql
     }
+    pub fn has_direct_projection(&self) -> bool {
+        self.direct_projection.is_some()
+    }
     /// Bind the TEMP definitions this statement was expanded with into its source
     /// identity. Two statements with the same text but different TEMP bodies then
     /// get different cursor specs.
@@ -590,6 +679,7 @@ impl SqlBridge {
             limits,
             profile: None,
             profiles: None,
+            prepare_cache: Mutex::new(VecDeque::new()),
         })
     }
     /// Declare the compatibility profile this bridge serves and the registry
@@ -686,17 +776,72 @@ impl SqlBridge {
         sql: &str,
         parameters: &[SqlValue],
     ) -> MddResult<PreparedSql> {
+        let memo_enabled =
+            std::env::var_os("MDD_OPT_QUERY_MEMO").as_deref() != Some(std::ffi::OsStr::new("0"));
+        self.prepare_with_parameters_mode(sql, parameters, memo_enabled)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn prepare_with_memo(
+        &self,
+        sql: &str,
+        memo_enabled: bool,
+    ) -> MddResult<PreparedSql> {
+        self.prepare_with_parameters_mode(sql, &[], memo_enabled)
+    }
+
+    fn prepare_with_parameters_mode(
+        &self,
+        sql: &str,
+        parameters: &[SqlValue],
+        memo_enabled: bool,
+    ) -> MddResult<PreparedSql> {
         // A blocked profile must not be answered at all: report the preserved
         // counterexample instead of re-running the gap in a new shape.
         if let Some(error) = self.blocked_profile_error("prepare") {
             return Err(error);
         }
-        match self.prepare_inner(sql, parameters) {
+        match self.prepare_inner(sql, parameters, memo_enabled) {
             Ok(prepared) => Ok(prepared),
             Err(error) => Err(self.record_compatibility_failure("prepare", sql, error)),
         }
     }
-    fn prepare_inner(&self, sql: &str, parameters: &[SqlValue]) -> MddResult<PreparedSql> {
+    fn prepare_inner(
+        &self,
+        sql: &str,
+        parameters: &[SqlValue],
+        memo_enabled: bool,
+    ) -> MddResult<PreparedSql> {
+        let fast_udf = crate::column_store::sql_fast_udf_enabled();
+        let scan_opt = crate::column_store::sql_scan_opt_enabled();
+        let binding = self.provider.binding().clone();
+        let memo_active = memo_enabled && parameters.is_empty();
+        if memo_active
+            && let Ok(mut cache) = self.prepare_cache.lock()
+            && let Some(pos) = cache.iter().position(|(k, entry)| {
+                k.0 == sql
+                    && k.1 == binding
+                    && k.2 == fast_udf
+                    && k.3 == scan_opt
+                    && entry
+                        .required_relations
+                        .iter()
+                        .all(|name| crate::profiles::compatibility::advertises(self.dialect, name))
+            })
+        {
+            let (k, entry) = cache.remove(pos).expect("validated cache position");
+            let prepared = entry.to_prepared(
+                binding,
+                sql.to_owned(),
+                Arc::clone(&self.provider),
+                self.dialect,
+                self.limits,
+                self.profile.clone(),
+                self.profiles.clone(),
+            );
+            cache.push_back((k, entry));
+            return Ok(prepared);
+        }
         // A frozen relation the dialect does not advertise is not in the schema the statement is bound against.
         let relations = crate::profiles::compatibility::visible_relations(
             self.provider.relations()?,
@@ -787,7 +932,34 @@ impl SqlBridge {
             .collect::<BTreeSet<_>>()
             .into_iter()
             .collect();
-        Ok(PreparedSql {
+        let direct_projection = if adapted.parameters.is_empty()
+            && adapted.cte_names.is_empty()
+            && adapted.display_overrides.is_empty()
+        {
+            crate::dialects::pushdown::extract_direct_projection(
+                sql,
+                &relations,
+                &adapted.cte_names,
+                self.limits.max_ast_depth,
+            )
+        } else {
+            None
+        };
+        let direct_count_group_by = if direct_projection.is_none()
+            && adapted.parameters.is_empty()
+            && adapted.cte_names.is_empty()
+            && adapted.display_overrides.is_empty()
+        {
+            crate::dialects::pushdown::extract_direct_count_group_by(
+                sql,
+                &relations,
+                &adapted.cte_names,
+                self.limits.max_ast_depth,
+            )
+        } else {
+            None
+        };
+        let prepared = PreparedSql {
             binding: self.provider.binding().clone(),
             temp_fingerprint: None,
             sql: sql.to_owned(),
@@ -805,13 +977,108 @@ impl SqlBridge {
             partition_hints: adapted.partition_hints,
             row_filters: adapted.row_filters,
             equi_joins: adapted.equi_joins,
+            direct_projection,
+            direct_count_group_by,
             execution_binding: None,
             profile: self.profile.clone(),
             profiles: self.profiles.clone(),
-        })
+        };
+        if memo_active
+            && prepared.binding == binding
+            && let Ok(mut cache) = self.prepare_cache.lock()
+        {
+            const MAX_PREPARE_CACHE_ENTRIES: usize = 64;
+            let key = (sql.to_owned(), binding, fast_udf, scan_opt);
+            if let Some(pos) = cache.iter().position(|(k, _)| k == &key) {
+                cache.remove(pos);
+            } else if cache.len() >= MAX_PREPARE_CACHE_ENTRIES {
+                cache.pop_front();
+            }
+            cache.push_back((key, PreparedCacheEntry::from_prepared(&prepared)));
+        }
+        Ok(prepared)
     }
     pub fn execute(&self, prepared: &PreparedSql, control: SqlControl) -> MddResult<SqlResult> {
         self.execute_windowed(prepared, control, None)
+    }
+
+    /// Stream an unfiltered single-table direct projection directly into `consumer`
+    /// without allocating intermediate `Vec<SqlRow>` or UTF-16 `Vec<u16>` buffers.
+    /// Returns `Ok(false)` without calling `on_start` when the query must use `execute`.
+    pub fn try_stream_direct_projection(
+        &self,
+        prepared: &PreparedSql,
+        control: &SqlControl,
+        consumer: &mut dyn crate::column_store::DirectCellRowConsumer,
+    ) -> MddResult<bool> {
+        if !prepared.parameters.is_empty()
+            || prepared.temp_fingerprint.is_some()
+            || control.runtime().is_some()
+            || !crate::column_store::sql_scan_opt_enabled()
+        {
+            return Ok(false);
+        }
+        let Some(direct) = prepared.direct_projection.as_ref() else {
+            return Ok(false);
+        };
+        for name in &prepared.required_relations {
+            prepared.provider.require_relation(name)?;
+        }
+        let columns: Vec<String> = direct
+            .projected_columns
+            .iter()
+            .map(|(_, shown)| {
+                if prepared.dialect == SqlDialect::NativeV1 {
+                    shown.clone()
+                } else {
+                    shown.to_ascii_lowercase()
+                }
+            })
+            .collect();
+        struct Adapter<'a> {
+            columns: &'a [String],
+            inner: &'a mut dyn crate::column_store::DirectCellRowConsumer,
+            provider: &'a dyn crate::provider::SqlFactProvider,
+            expected_binding: &'a crate::provider::SqlBinding,
+            control: &'a SqlControl,
+        }
+        impl crate::column_store::DirectCellRowConsumer for Adapter<'_> {
+            fn on_start(&mut self, row_count: u64) -> MddResult<()> {
+                self.inner.on_columns(self.columns)?;
+                self.inner.on_start(row_count)
+            }
+            fn begin_row(&mut self) -> MddResult<()> {
+                self.inner.begin_row()
+            }
+            fn push_cell(
+                &mut self,
+                col_idx: usize,
+                cell: &crate::column_store::BorrowedSqlCell<'_>,
+            ) -> MddResult<()> {
+                self.inner.push_cell(col_idx, cell)
+            }
+            fn end_row(&mut self) -> MddResult<()> {
+                self.inner.end_row()
+            }
+            fn on_finish(&mut self) -> MddResult<()> {
+                if self.provider.binding() != self.expected_binding {
+                    return Err(invalid("SQL_GENERATION_CHANGED_BEFORE_END"));
+                }
+                self.control.checkpoint(1, false)?;
+                self.inner.on_finish()
+            }
+        }
+        let mut adapter = Adapter {
+            columns: &columns,
+            inner: consumer,
+            provider: prepared.provider.as_ref(),
+            expected_binding: &prepared.binding,
+            control,
+        };
+        prepared
+            .provider
+            .try_stream_direct_projection(direct, control, &mut adapter)
+            .map_err(|error| control.error().unwrap_or(error))
     }
     /// Execute and return only the rows of `window`, applied after any `LIMIT` or
     /// `OFFSET` in the statement itself. The statement text is not rewritten.
@@ -823,12 +1090,39 @@ impl SqlBridge {
     ) -> MddResult<SqlResult> {
         self.execute_windowed(prepared, control, Some(window))
     }
+    pub fn execute_to_consumer(
+        &self,
+        prepared: &PreparedSql,
+        control: SqlControl,
+        consumer: &mut dyn crate::column_store::DirectCellRowConsumer,
+    ) -> MddResult<()> {
+        let control = self.prepare_execution(prepared, control)?;
+        let total_rows = self
+            .execute_to_consumer_inner(prepared, control.clone(), consumer)
+            .map_err(|error| fail_preserving_restore_detail(&control, error))
+            .map_err(|error| self.record_compatibility_failure("execute", &prepared.sql, error))?;
+        finish_runtime_cancellation(&control, total_rows)?;
+        Ok(())
+    }
     fn execute_windowed(
         &self,
         prepared: &PreparedSql,
         control: SqlControl,
         window: Option<SqlWindow>,
     ) -> MddResult<SqlResult> {
+        let control = self.prepare_execution(prepared, control)?;
+        let result = self
+            .execute_inner(prepared, control.clone(), window)
+            .map_err(|error| fail_preserving_restore_detail(&control, error))
+            .map_err(|error| self.record_compatibility_failure("execute", &prepared.sql, error))?;
+        finish_runtime_cancellation(&control, result.rows.len())?;
+        Ok(result)
+    }
+    fn prepare_execution(
+        &self,
+        prepared: &PreparedSql,
+        control: SqlControl,
+    ) -> MddResult<SqlControl> {
         if self.provider.binding() != &prepared.binding
             || self.provider.binding() != prepared.provider.binding()
             || self.dialect != prepared.dialect
@@ -877,33 +1171,13 @@ impl SqlBridge {
         if let Some(runtime) = control.runtime() {
             runtime.cancellation().claim_execution()?;
         }
-        let result = self
-            .execute_inner(prepared, control.clone(), window)
-            .map_err(|error| fail_preserving_restore_detail(&control, error))
-            .map_err(|error| self.record_compatibility_failure("execute", &prepared.sql, error))?;
-        if let Some(runtime) = control.runtime() {
-            runtime.cancellation().mark_computed()?;
-            if let Some(error) = runtime.cancellation().status()?.error {
-                return Err(error
-                    .detail("execution_complete", true)
-                    .detail("total_rows", result.rows.len().to_string()));
-            }
-        }
-        Ok(result)
+        Ok(control)
     }
-    fn execute_inner(
+    fn open_sqlite_connection(
         &self,
         prepared: &PreparedSql,
-        control: SqlControl,
-        window: Option<SqlWindow>,
-    ) -> MddResult<SqlResult> {
-        control.checkpoint(1, false)?;
-        // Scope admission is independent of SQLite short-circuit execution.
-        // LIMIT 0 / WHERE false must not turn an unbuilt required layer into
-        // an empty successful answer; unused registered relations stay unbuilt.
-        for name in &prepared.required_relations {
-            prepared.provider.require_relation(name)?;
-        }
+        control: &SqlControl,
+    ) -> MddResult<Connection> {
         let planned_scans = prepared.provider.plan_scans(
             &prepared.required_relations,
             &prepared.row_filters,
@@ -949,7 +1223,17 @@ impl SqlBridge {
             i32::try_from(self.limits.max_ast_depth).unwrap_or(i32::MAX),
         )
         .map_err(sqlite_error)?;
+        let only_required_vtabs =
+            std::env::var_os("MDD_OPT_SQL_SCAN").as_deref() != Some(std::ffi::OsStr::new("0"));
         for relation in &prepared.relations {
+            if only_required_vtabs
+                && !prepared
+                    .required_relations
+                    .iter()
+                    .any(|req| req.eq_ignore_ascii_case(&relation.name))
+            {
+                continue;
+            }
             let mut relation = relation.clone();
             let key = relation.name.to_ascii_lowercase();
             let planned_scan = planned_scans.get(&key).cloned();
@@ -994,8 +1278,6 @@ impl SqlBridge {
                 && column_name.is_empty()
                 && ctes.contains(&table_name.to_ascii_lowercase()) =>
             {
-                // SQLite has bound this to an in-memory CTE container. Actual
-                // database reads still require an admitted provider relation.
                 Authorization::Allow
             }
             AuthAction::Function { function_name }
@@ -1044,6 +1326,7 @@ impl SqlBridge {
                     "mdd_key",
                     "mdd_sort_key",
                     "mdd_like",
+                    "mdd_like_any",
                     "mdd_truth_input",
                 ]
                 .iter()
@@ -1055,13 +1338,72 @@ impl SqlBridge {
         }))
         .map_err(sqlite_error)?;
         let progress = control.clone();
-        db.progress_handler(1, Some(move || progress.checkpoint(1, false).is_err()))
-            .map_err(sqlite_error)?;
-        // A tiny data-cell limit must not prevent SQLite from declaring an
-        // already-admitted relation's schema. Only generated metadata-only
-        // statements run here; the original length limit is restored before
-        // preparing any user statement.
-        preconnect_required_schemas(&db, prepared, &control)?;
+        let progress_stride = if crate::column_store::sql_scan_opt_enabled()
+            && control.runtime().is_none()
+            && control.inner.limits.max_steps >= 1_000_000
+        {
+            128
+        } else {
+            1
+        };
+        db.progress_handler(
+            progress_stride,
+            Some(move || {
+                progress
+                    .checkpoint(u64::from(progress_stride as u32), false)
+                    .is_err()
+            }),
+        )
+        .map_err(sqlite_error)?;
+        preconnect_required_schemas(&db, prepared, control)?;
+        Ok(db)
+    }
+    fn execute_to_consumer_inner(
+        &self,
+        prepared: &PreparedSql,
+        control: SqlControl,
+        consumer: &mut dyn crate::column_store::DirectCellRowConsumer,
+    ) -> MddResult<usize> {
+        control.checkpoint(1, false)?;
+        for name in &prepared.required_relations {
+            prepared.provider.require_relation(name)?;
+        }
+        if prepared.parameters.is_empty()
+            && prepared.temp_fingerprint.is_none()
+            && control.runtime().is_none()
+            && crate::column_store::sql_scan_opt_enabled()
+            && let Some(group_plan) = prepared.direct_count_group_by.as_ref()
+            && let Some(result_rows) = prepared
+                .provider
+                .try_direct_count_group_by(group_plan, &control)
+        {
+            let rows = result_rows.map_err(|error| control.error().unwrap_or(error))?;
+            let columns = direct_group_columns(group_plan, prepared.dialect);
+            let result = (|| {
+                consumer.on_columns(&columns)?;
+                consumer.on_start(rows.len() as u64)?;
+                let total_rows = rows.len();
+                for row in rows {
+                    control.checkpoint(1, false)?;
+                    consumer.begin_row()?;
+                    for (ordinal, val) in row.into_iter().enumerate() {
+                        consumer.push_cell(
+                            ordinal,
+                            &crate::column_store::BorrowedSqlCell::Owned(val),
+                        )?;
+                    }
+                    consumer.end_row()?;
+                }
+                if prepared.provider.binding() != &prepared.binding {
+                    return Err(invalid("SQL_GENERATION_CHANGED_BEFORE_END"));
+                }
+                control.checkpoint(1, false)?;
+                consumer.on_finish()?;
+                Ok(total_rows)
+            })();
+            return result.map_err(|error| control.error().unwrap_or(error));
+        }
+        let db = self.open_sqlite_connection(prepared, &control)?;
         let result = (|| {
             let mut statement = db.prepare(&prepared.adapted_sql).map_err(sqlite_error)?;
             if !statement.readonly() {
@@ -1070,26 +1412,128 @@ impl SqlBridge {
             let mut result_memory = ResultMemory::default();
             result_memory.admit(&control, result_metadata_bytes(prepared, &statement)?)?;
             let count = statement.column_count();
-            let mut columns = Vec::new();
-            columns
-                .try_reserve_exact(count)
-                .map_err(|_| quota("SQL_RESULT_ALLOCATION"))?;
-            for ordinal in 0..count {
-                let name = statement.column_name(ordinal).map_err(sqlite_error)?;
-                let shown = prepared
-                    .display_overrides
-                    .get(name)
-                    .map_or_else(|| name.to_owned(), Clone::clone);
-                // The frozen reference engine reports result column names folded
-                // to ASCII lower case (aliases, bare identifiers and CTE column
-                // lists alike; non-ASCII letters are left alone). The native
-                // dialect keeps SQLite's own spelling.
-                columns.push(if prepared.dialect == SqlDialect::NativeV1 {
-                    shown
-                } else {
-                    shown.to_ascii_lowercase()
-                });
+            let columns = output_columns(prepared, &statement)?;
+            let parameters = prepared
+                .parameters
+                .iter()
+                .map(|v| v.sqlite(control.inner.limits.max_cell_bytes))
+                .collect::<MddResult<Vec<_>>>()?;
+            let mut cursor = statement
+                .query(rusqlite::params_from_iter(parameters))
+                .map_err(sqlite_error)?;
+            consumer.on_columns(&columns)?;
+            consumer.on_start(0)?;
+            let mut total_rows = 0usize;
+            while let Some(row) = cursor.next().map_err(sqlite_error)? {
+                control.checkpoint(1, false)?;
+                let mut reserved_bytes = (count as u64)
+                    .checked_mul(std::mem::size_of::<SqlValue>() as u64)
+                    .and_then(|v| v.checked_mul(2))
+                    .and_then(|v| v.checked_add((std::mem::size_of::<Vec<SqlValue>>() * 2) as u64))
+                    .ok_or_else(|| quota("SQL_RESULT_WORKSPACE_OVERFLOW"))?;
+                for ordinal in 0..count {
+                    let value = row.get_ref(ordinal).map_err(sqlite_error)?;
+                    let extra = match value {
+                        rusqlite::types::ValueRef::Text(v) => (v.len() as u64).checked_mul(2),
+                        rusqlite::types::ValueRef::Blob(v) => Some(v.len() as u64),
+                        _ => Some(0),
+                    }
+                    .ok_or_else(|| quota("SQL_RESULT_WORKSPACE_OVERFLOW"))?;
+                    reserved_bytes = reserved_bytes
+                        .checked_add(extra)
+                        .ok_or_else(|| quota("SQL_RESULT_WORKSPACE_OVERFLOW"))?;
+                }
+                result_memory.admit(&control, reserved_bytes)?;
+                consumer.begin_row()?;
+                let mut bytes = 0u64;
+                for ordinal in 0..count {
+                    let value_ref = row.get_ref(ordinal).map_err(sqlite_error)?;
+                    let work = match value_ref {
+                        rusqlite::types::ValueRef::Text(v) => (v.len() as u64).checked_mul(2),
+                        rusqlite::types::ValueRef::Blob(v) => Some(v.len() as u64),
+                        _ => Some(16),
+                    }
+                    .ok_or_else(|| quota("SQL_RESULT_WORK_OVERFLOW"))?;
+                    control.work(work)?;
+                    let cell = borrowed_from_sqlite_ref(value_ref)?;
+                    let size = borrowed_cell_size(&cell);
+                    if size > control.inner.limits.max_cell_bytes {
+                        return Err(quota("SQL_RESULT_CELL_BYTES"));
+                    }
+                    bytes = bytes
+                        .checked_add(size)
+                        .ok_or_else(|| quota("SQL_RESULT_BYTES_OVERFLOW"))?;
+                    consumer.push_cell(ordinal, &cell)?;
+                }
+                control.output(bytes)?;
+                consumer.end_row()?;
+                total_rows += 1;
             }
+            if prepared.provider.binding() != &prepared.binding {
+                return Err(invalid("SQL_GENERATION_CHANGED_BEFORE_END"));
+            }
+            control.checkpoint(1, false)?;
+            consumer.on_finish()?;
+            Ok(total_rows)
+        })();
+        result.map_err(|error| control.error().unwrap_or(error))
+    }
+    fn execute_inner(
+        &self,
+        prepared: &PreparedSql,
+        control: SqlControl,
+        window: Option<SqlWindow>,
+    ) -> MddResult<SqlResult> {
+        control.checkpoint(1, false)?;
+        // Scope admission is independent of SQLite short-circuit execution.
+        // LIMIT 0 / WHERE false must not turn an unbuilt required layer into
+        // an empty successful answer; unused registered relations stay unbuilt.
+        for name in &prepared.required_relations {
+            prepared.provider.require_relation(name)?;
+        }
+        if window.is_none()
+            && prepared.parameters.is_empty()
+            && prepared.temp_fingerprint.is_none()
+            && control.runtime().is_none()
+            && crate::column_store::sql_scan_opt_enabled()
+        {
+            if let Some(direct) = prepared.direct_projection.as_ref()
+                && let Some(result_rows) = prepared.provider.try_direct_projection(direct, &control)
+            {
+                let rows = result_rows.map_err(|error| control.error().unwrap_or(error))?;
+                let columns: Vec<String> = direct
+                    .projected_columns
+                    .iter()
+                    .map(|(_, shown)| {
+                        if prepared.dialect == SqlDialect::NativeV1 {
+                            shown.clone()
+                        } else {
+                            shown.to_ascii_lowercase()
+                        }
+                    })
+                    .collect();
+                return finish_direct_sql_result(prepared, &control, columns, rows);
+            }
+            if let Some(group_plan) = prepared.direct_count_group_by.as_ref()
+                && let Some(result_rows) = prepared
+                    .provider
+                    .try_direct_count_group_by(group_plan, &control)
+            {
+                let rows = result_rows.map_err(|error| control.error().unwrap_or(error))?;
+                let columns = direct_group_columns(group_plan, prepared.dialect);
+                return finish_direct_sql_result(prepared, &control, columns, rows);
+            }
+        }
+        let db = self.open_sqlite_connection(prepared, &control)?;
+        let result = (|| {
+            let mut statement = db.prepare(&prepared.adapted_sql).map_err(sqlite_error)?;
+            if !statement.readonly() {
+                return Err(invalid("SQLITE_STATEMENT_NOT_READONLY"));
+            }
+            let mut result_memory = ResultMemory::default();
+            result_memory.admit(&control, result_metadata_bytes(prepared, &statement)?)?;
+            let count = statement.column_count();
+            let columns = output_columns(prepared, &statement)?;
             let parameters = prepared
                 .parameters
                 .iter()
@@ -1357,6 +1801,173 @@ impl SqlBridge {
                 }
             }
         }
+    }
+}
+
+fn finish_runtime_cancellation(control: &SqlControl, total_rows: usize) -> MddResult<()> {
+    if let Some(runtime) = control.runtime() {
+        runtime.cancellation().mark_computed()?;
+        if let Some(error) = runtime.cancellation().status()?.error {
+            return Err(error
+                .detail("execution_complete", true)
+                .detail("total_rows", total_rows.to_string()));
+        }
+    }
+    Ok(())
+}
+
+fn output_columns(
+    prepared: &PreparedSql,
+    statement: &rusqlite::Statement<'_>,
+) -> MddResult<Vec<String>> {
+    let count = statement.column_count();
+    let mut columns = Vec::new();
+    columns
+        .try_reserve_exact(count)
+        .map_err(|_| quota("SQL_RESULT_ALLOCATION"))?;
+    for ordinal in 0..count {
+        let name = statement.column_name(ordinal).map_err(sqlite_error)?;
+        let shown = prepared
+            .display_overrides
+            .get(name)
+            .map_or_else(|| name.to_owned(), Clone::clone);
+        // The frozen reference engine reports result column names folded
+        // to ASCII lower case (aliases, bare identifiers and CTE column
+        // lists alike; non-ASCII letters are left alone). The native
+        // dialect keeps SQLite's own spelling.
+        columns.push(if prepared.dialect == SqlDialect::NativeV1 {
+            shown
+        } else {
+            shown.to_ascii_lowercase()
+        });
+    }
+    Ok(columns)
+}
+
+fn direct_group_columns(
+    plan: &crate::provider::DirectCountGroupBy,
+    dialect: SqlDialect,
+) -> Vec<String> {
+    plan.projections
+        .iter()
+        .map(|item| {
+            let shown = match item {
+                crate::provider::DirectGroupItem::GroupCol { output_name, .. }
+                | crate::provider::DirectGroupItem::CountStar { output_name } => output_name,
+            };
+            if dialect == SqlDialect::NativeV1 {
+                shown.clone()
+            } else {
+                shown.to_ascii_lowercase()
+            }
+        })
+        .collect()
+}
+
+fn finish_direct_sql_result(
+    prepared: &PreparedSql,
+    control: &SqlControl,
+    columns: Vec<String>,
+    rows: Vec<Vec<SqlValue>>,
+) -> MddResult<SqlResult> {
+    if prepared.provider.binding() != &prepared.binding {
+        return Err(invalid("SQL_GENERATION_CHANGED_BEFORE_END"));
+    }
+    control.checkpoint(1, false)?;
+    Ok(SqlResult {
+        binding: prepared.binding.clone(),
+        dialect: prepared.dialect,
+        columns,
+        rows,
+        calculation_complete: true,
+        profiles_admitted: Vec::new(),
+        sqlite_version: rusqlite::version().to_owned(),
+        optimizer: {
+            let policy = virtual_tables::VTB_POLICY;
+            OptimizerPolicy {
+                omit: policy.omit,
+                order_by_consumed: policy.order_by_consumed,
+                limit_offset_pushdown: policy.limit_offset_pushdown,
+                in_pushdown: policy.in_pushdown,
+            }
+        },
+        required_relations: prepared.required_relations.clone(),
+        required_layers: prepared.required_layers.clone(),
+        ast_nodes: prepared.ast_nodes,
+        execution_binding: prepared.execution_binding.clone(),
+        window: None,
+        _result_memory: ResultMemory::default(),
+    })
+}
+
+fn borrowed_from_sqlite_ref<'a>(
+    value_ref: rusqlite::types::ValueRef<'a>,
+) -> MddResult<crate::column_store::BorrowedSqlCell<'a>> {
+    use crate::column_store::BorrowedSqlCell;
+    use crate::values::{BYTES, RawDecodePlan, TEXT, UNSIGNED, raw_decode_plan, validate_mutf8};
+    use rusqlite::types::ValueRef;
+
+    Ok(match value_ref {
+        ValueRef::Null => BorrowedSqlCell::Null,
+        ValueRef::Integer(v) => BorrowedSqlCell::I64(v),
+        ValueRef::Real(v) => BorrowedSqlCell::F64Bits(v.to_bits()),
+        ValueRef::Text(v) => {
+            let text = std::str::from_utf8(v).map_err(|_| invalid("INVALID_UTF8_FROM_SQLITE"))?;
+            BorrowedSqlCell::Utf8(text)
+        }
+        ValueRef::Blob(bytes) => match raw_decode_plan(value_ref)? {
+            RawDecodePlan::Fixed => {
+                if let Some(raw) = bytes.strip_prefix(UNSIGNED) {
+                    BorrowedSqlCell::U64(u64::from_be_bytes(
+                        raw.try_into().map_err(|_| invalid("INVALID_U64_CARRIER"))?,
+                    ))
+                } else {
+                    let raw = &bytes[bytes.len() - 8..];
+                    BorrowedSqlCell::F64Bits(u64::from_be_bytes(
+                        raw.try_into().map_err(|_| invalid("INVALID_F64_CARRIER"))?,
+                    ))
+                }
+            }
+            RawDecodePlan::Utf16(_) => {
+                let raw = bytes
+                    .strip_prefix(TEXT)
+                    .ok_or_else(|| invalid("INVALID_TEXT_CARRIER"))?;
+                BorrowedSqlCell::Utf16Be(raw)
+            }
+            RawDecodePlan::Bytes(_) => {
+                let raw = bytes
+                    .strip_prefix(BYTES)
+                    .ok_or_else(|| invalid("UNTYPED_SQLITE_BLOB"))?;
+                BorrowedSqlCell::Bytes(raw)
+            }
+            RawDecodePlan::Mutf8 { bytes: data, units } => {
+                validate_mutf8(data, units)?;
+                BorrowedSqlCell::DexMutf8 {
+                    bytes: data,
+                    utf16_units: units,
+                }
+            }
+            RawDecodePlan::Utf8(_) => return Err(invalid("UNTYPED_SQLITE_BLOB")),
+        },
+    })
+}
+
+fn borrowed_cell_size(cell: &crate::column_store::BorrowedSqlCell<'_>) -> u64 {
+    use crate::column_store::BorrowedSqlCell;
+    match cell {
+        BorrowedSqlCell::Utf8(s) => {
+            let units = if s.is_ascii() {
+                s.len() as u64
+            } else {
+                s.encode_utf16().count() as u64
+            };
+            units.saturating_mul(2)
+        }
+        BorrowedSqlCell::Utf16Be(raw)
+        | BorrowedSqlCell::Bytes(raw)
+        | BorrowedSqlCell::DexMutf8 { bytes: raw, .. } => raw.len() as u64,
+        BorrowedSqlCell::Owned(v) => v.byte_size(),
+        _ => 16,
     }
 }
 

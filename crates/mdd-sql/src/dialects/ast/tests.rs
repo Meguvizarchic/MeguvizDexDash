@@ -268,12 +268,30 @@ mod mdd084_rewrite_tests {
             clauses.join(" OR ")
         );
         let wrapped = format!("SELECT * FROM ({inner}) AS hostlab_shape LIMIT 0");
-        let adapted = adapt_on_small_caller_stack(wrapped, SqlLimits::default())
+        let unfused = std::thread::Builder::new()
+            .stack_size(1024 * 1024)
+            .spawn({
+                let wrapped = wrapped.clone();
+                move || {
+                    adapt_with_fast_udf(
+                        &wrapped,
+                        SqlLimits::default(),
+                        &[],
+                        &[facts_relation()],
+                        crate::dialects::SqlDialect::NativeV1,
+                        &BTreeMap::new(),
+                        false,
+                    )
+                }
+            })
+            .unwrap()
+            .join()
+            .unwrap()
             .expect("flat 35-term OR LIKE wrapped in hostlab_shape must fit max_ast_depth=48");
         // Each LIKE ... ESCAPE binds (pattern, escape, has_escape=true), plus 1 for LIMIT 0.
-        assert_eq!(adapted.parameters.len(), 35 * 3 + 1);
+        assert_eq!(unfused.parameters.len(), 35 * 3 + 1);
         // Check left-to-right positional parameter order is preserved after rebalancing.
-        let mut iter = adapted.parameters.iter().step_by(3);
+        let mut iter = unfused.parameters.iter().step_by(3);
         for i in 0..35 {
             assert_eq!(
                 iter.next(),
@@ -281,5 +299,239 @@ mod mdd084_rewrite_tests {
                 "parameter order drifted at {i}"
             );
         }
+
+        // Default fast-UDF path fuses contiguous same-column OR LIKE patterns into mdd_like_any.
+        let fused = adapt_on_small_caller_stack(wrapped, SqlLimits::default())
+            .expect("fused 35-term OR LIKE wrapped in hostlab_shape must fit max_ast_depth=48");
+        assert!(fused.sql.contains("mdd_like_any"), "{}", fused.sql);
+        assert_eq!(fused.parameters.len(), 2);
+        assert!(matches!(fused.parameters[0], SqlValue::Bytes(_)));
+    }
+
+    #[test]
+    fn fast_udf_keeps_native_same_type_int_eq_and_group_by_keys() {
+        use crate::provider::{SqlColumn, SqlRelation};
+        use crate::values::SqlType;
+
+        let col = |name: &str, data_type: SqlType, nullable: bool| SqlColumn {
+            id: name.into(),
+            name: name.into(),
+            data_type,
+            nullable,
+        };
+        let relations = [
+            SqlRelation {
+                name: "classes".into(),
+                required_layers: vec![],
+                estimated_rows: None,
+                columns: vec![
+                    col("file_id", SqlType::U64, false),
+                    col("class_idx", SqlType::U64, false),
+                    col("access_flags", SqlType::I64, false),
+                    col("descriptor", SqlType::Text, false),
+                ],
+            },
+            SqlRelation {
+                name: "class_interfaces".into(),
+                required_layers: vec![],
+                estimated_rows: None,
+                columns: vec![
+                    col("file_id", SqlType::U64, false),
+                    col("class_idx", SqlType::U64, false),
+                    col("ordinal", SqlType::U64, false),
+                    col("interface_descriptor", SqlType::Text, false),
+                ],
+            },
+        ];
+        let join_sql = "SELECT c.file_id, c.descriptor, COUNT(ci.ordinal) AS ifaces \
+            FROM classes c LEFT JOIN class_interfaces ci \
+            ON c.file_id = ci.file_id AND c.class_idx = ci.class_idx \
+            GROUP BY c.file_id, c.class_idx, c.descriptor \
+            ORDER BY c.file_id, c.descriptor";
+
+        let fast = adapt_with_fast_udf(
+            join_sql,
+            SqlLimits::default(),
+            &[],
+            &relations,
+            crate::dialects::SqlDialect::DexSql010,
+            &BTreeMap::new(),
+            true,
+        )
+        .expect("fast join rewrite");
+        assert!(!fast.sql.contains("mdd_eq"), "{}", fast.sql);
+        assert!(!fast.sql.contains("mdd_truth_input"), "{}", fast.sql);
+        assert!(!fast.sql.contains("mdd_key"), "{}", fast.sql);
+        assert!(!fast.sql.contains("mdd_sort_key"), "{}", fast.sql);
+
+        let slow = adapt_with_fast_udf(
+            join_sql,
+            SqlLimits::default(),
+            &[],
+            &relations,
+            crate::dialects::SqlDialect::DexSql010,
+            &BTreeMap::new(),
+            false,
+        )
+        .expect("slow join rewrite");
+        assert!(slow.sql.contains("mdd_eq"), "{}", slow.sql);
+        assert!(slow.sql.contains("mdd_truth_input"), "{}", slow.sql);
+        assert!(slow.sql.contains("mdd_key"), "{}", slow.sql);
+        assert!(slow.sql.contains("mdd_sort_key"), "{}", slow.sql);
+
+        let computed_group = "SELECT c.file_id FROM classes c \
+            JOIN class_interfaces ci ON c.descriptor = ci.interface_descriptor \
+            WHERE c.access_flags = ci.file_id \
+            GROUP BY c.descriptor || 'x'";
+        let mixed = adapt_with_fast_udf(
+            computed_group,
+            SqlLimits::default(),
+            &[],
+            &relations,
+            crate::dialects::SqlDialect::DexSql010,
+            &BTreeMap::new(),
+            true,
+        )
+        .expect("mixed eq rewrite");
+        assert!(mixed.sql.contains("mdd_eq"), "{}", mixed.sql);
+        assert!(mixed.sql.contains("mdd_key"), "{}", mixed.sql);
+
+        let expr_order = "SELECT c.file_id + 1 AS x FROM classes c ORDER BY x";
+        let fast_expr_order = adapt_with_fast_udf(
+            expr_order,
+            SqlLimits::default(),
+            &[],
+            &relations,
+            crate::dialects::SqlDialect::DexSql010,
+            &BTreeMap::new(),
+            true,
+        )
+        .expect("expr alias order rewrite");
+        assert!(
+            fast_expr_order.sql.contains("mdd_sort_key"),
+            "{}",
+            fast_expr_order.sql
+        );
+    }
+
+    #[test]
+    fn fast_udf_materializes_native_equi_joined_base_tables_safely() {
+        let col = |name: &str, data_type: SqlType| SqlColumn {
+            id: name.to_owned(),
+            name: name.to_owned(),
+            data_type,
+            nullable: false,
+        };
+        let relations = vec![
+            SqlRelation {
+                name: "classes".to_owned(),
+                required_layers: vec![],
+                estimated_rows: None,
+                columns: vec![
+                    col("file_id", SqlType::U64),
+                    col("class_idx", SqlType::U64),
+                    col("descriptor", SqlType::Text),
+                ],
+            },
+            SqlRelation {
+                name: "class_interfaces".to_owned(),
+                required_layers: vec![],
+                estimated_rows: None,
+                columns: vec![
+                    col("file_id", SqlType::U64),
+                    col("class_idx", SqlType::U64),
+                    col("ordinal", SqlType::U64),
+                    col("interface_descriptor", SqlType::Text),
+                ],
+            },
+        ];
+
+        // Aliased LEFT JOIN with native integer `=` wraps RHS as `(SELECT * FROM ... LIMIT -1) AS ci`.
+        let aliased = "SELECT c.file_id, COUNT(ci.ordinal) AS n \
+            FROM classes c LEFT JOIN class_interfaces ci \
+            ON c.file_id = ci.file_id AND c.class_idx = ci.class_idx \
+            GROUP BY c.file_id, c.class_idx";
+        let fast_aliased = adapt_with_fast_udf(
+            aliased,
+            SqlLimits::default(),
+            &[],
+            &relations,
+            crate::dialects::SqlDialect::DexSql010,
+            &BTreeMap::new(),
+            true,
+        )
+        .expect("fast aliased join");
+        assert!(
+            fast_aliased
+                .sql
+                .contains("(SELECT * FROM class_interfaces LIMIT -1) ci"),
+            "{}",
+            fast_aliased.sql
+        );
+
+        // Unaliased JOIN preserves table name as outer alias (`AS class_interfaces`).
+        let unaliased = "SELECT c.file_id FROM classes c \
+            JOIN class_interfaces ON c.file_id = class_interfaces.file_id";
+        let fast_unaliased = adapt_with_fast_udf(
+            unaliased,
+            SqlLimits::default(),
+            &[],
+            &relations,
+            crate::dialects::SqlDialect::DexSql010,
+            &BTreeMap::new(),
+            true,
+        )
+        .expect("fast unaliased join");
+        assert!(
+            fast_unaliased
+                .sql
+                .contains("(SELECT * FROM class_interfaces LIMIT -1) AS class_interfaces"),
+            "{}",
+            fast_unaliased.sql
+        );
+
+        // fast_udf = false does NOT wrap.
+        let slow = adapt_with_fast_udf(
+            aliased,
+            SqlLimits::default(),
+            &[],
+            &relations,
+            crate::dialects::SqlDialect::DexSql010,
+            &BTreeMap::new(),
+            false,
+        )
+        .expect("slow join");
+        assert!(!slow.sql.contains("LIMIT -1"), "{}", slow.sql);
+
+        // Non-native text `=` (rewritten to `mdd_eq`) is NOT wrapped.
+        let text_eq = "SELECT c.file_id FROM classes c \
+            JOIN class_interfaces ci ON c.descriptor = ci.interface_descriptor";
+        let fast_text = adapt_with_fast_udf(
+            text_eq,
+            SqlLimits::default(),
+            &[],
+            &relations,
+            crate::dialects::SqlDialect::DexSql010,
+            &BTreeMap::new(),
+            true,
+        )
+        .expect("text eq join");
+        assert!(!fast_text.sql.contains("LIMIT -1"), "{}", fast_text.sql);
+
+        // CTE RHS is NOT wrapped even with native `=`.
+        let cte_join = "WITH ci_cte AS (SELECT file_id, class_idx FROM class_interfaces) \
+            SELECT c.file_id FROM classes c \
+            JOIN ci_cte ON c.file_id = ci_cte.file_id";
+        let fast_cte = adapt_with_fast_udf(
+            cte_join,
+            SqlLimits::default(),
+            &[],
+            &relations,
+            crate::dialects::SqlDialect::DexSql010,
+            &BTreeMap::new(),
+            true,
+        )
+        .expect("cte join");
+        assert!(!fast_cte.sql.contains("LIMIT -1"), "{}", fast_cte.sql);
     }
 }
