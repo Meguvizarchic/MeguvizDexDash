@@ -426,7 +426,7 @@
  "tests": {
   "rust": {
    "exit_code": 0,
-   "passed": 24,
+   "passed": 25,
    "failed": 0
   },
   "python": {
@@ -435,10 +435,10 @@
   },
   "boundaries_exit_code": 0,
   "log_sha256": {
-   "build": "4c4a9954aa125c60b52867a09e96466d5908a28e51831b2ccb36b6c5640eb162",
-   "rust": "f749d0b099a04698cfeffbdbbc7569e9c559cee79ab706dba9c71f72580aa953",
-   "python": "9ef351714760e8c450677d0b0422658037f913f77192461764d2a9ad65978c42",
-   "boundaries": "04fe3290ac90f82cfc723c1ef0fc42cefb71fad59e8fb8ce163d8bf55b2049c9"
+   "build": "3018aa1af7d4d93753e18370c59dfa6eaeb53c614dec2874cc2530417e803907",
+   "rust": "7965481cc8712c773aa095dc29ef1170d9713af0d8ba85657ca350a1f312562c",
+   "python": "3ea00c6f9cb2ac031ad5d88f1229d2fc16b1657519001b665cafef22b1ba10a7",
+   "boundaries": "ac0f0cf1c24ec5bb4677007356a5bdcad957bb81cd8ee77fc01b431d1fdaffcb"
   },
   "raw_logs_kept_at": "artifacts/local/ (ignored; carries developer-machine output)"
  },
@@ -468,7 +468,7 @@
   "the mutation check has no result yet (it runs in a GitHub workflow); the conformance runner and its --check are not wired into CI"
  ],
  "run": {
-  "started_utc": "2026-11-16T09:21:14.685731+00:00",
+  "started_utc": "2026-11-21T16:06:22.159409+00:00",
   "profile": "native-unqualified (never admitted)"
  }
 }

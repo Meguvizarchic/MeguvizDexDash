@@ -11,11 +11,13 @@
     "crates/mdd-cache/src/guard.rs": "6dc1f6c829ba2d6be1b4f8a31e5c8c6501617ed2b27b162eb55bd9067e533bef",
     "crates/mdd-cache/src/facts_codec.rs": "13bddbb0ca380589bc63b2c5540eca8626e986d620e9eb94301323b9b5ba4ba1",
     "crates/mdd-cache/src/store.rs": "31d9e414687885ebbf24327500418902bffe6292cbe0f62bf15c28828b05810f",
-    "crates/mdd-cache/src/dependency_tracking.rs": "60ef6208e6ca25b9b21cdcf40dbfb7e13c44c900a10ba1ffe7ec2439e76b99a8",
-    "crates/mdd-cache/examples/cache_probe.rs": "7de276e2e494712cf694c618ff470aee3f1c3fce3181269d219c4a90e44954de",
+    "crates/mdd-cache/src/dependency_tracking.rs": "7981ce3f1a08b2dc528d9102c86dbb1729444d4e91fa684c6144bd64c078a67f",
+    "crates/mdd-cache/src/dependency_tracking/content_reuse.rs": "e91c209cf3d701397e24815e947adc0a584a144fe6406005097ee769d6b6f12b",
+    "crates/mdd-cache/src/dependency_tracking/incremental_gate.rs": "2d7e26cdbc8e02520f86fe61238ad811c1497fbdb69dfc82b333b8432310eafc",
+    "crates/mdd-cache/examples/cache_probe.rs": "e6ab4de025b7e886474b7b09665c03bdb538b37716b833cef75dc09ad7b147c2",
     "crates/mdd-cache/tests/cache_integration.rs": "3206866c0880078123b5f546d88824aa3562294160a82451f14b05f5008fb37f",
     "conformance/cache/invalidation-matrix.json": "db2a04bb307686ac8e5a69976f7079f5efb18c0a6e93cfc945acc9a062d5a2fe",
-    "conformance/cache/run_cache_conformance.py": "d2db3f81a5027a36920a66de9106c20c5ed331a7e8680a48a0d4a7045e80d05c",
+    "conformance/cache/run_cache_conformance.py": "efd3d842e1bdf6cf33c0094dbeb9e753fc24b83464a131367fb0a7d5c6626c15",
     "conformance/cache/test_cache_conformance.py": "9e5beb34cd36b29a0fd83b4ee771aa56ab29bee3eda4ae2f7772af40471cb74c"
   },
   "cases": {
@@ -23,7 +25,7 @@
       "passed": true,
       "canonical_cache_key": "99e988883077ea8e5c80e60184bf7f08bd79ac0a0689cff3c90fe0ec092aea8c",
       "table_count": 17,
-      "overall_tables_sha256": "a711ebf672e488ee15a00588ba4943382696daacc20f525b7e3bf7fb2fbd8fda",
+      "overall_tables_sha256": "6bdbc812240f77b5f3d16569d976094138134738df6df67d8dbb1b8c34de5ae6",
       "header_bytes": 128,
       "warm_build_fn_invoked": false
     },
@@ -48,7 +50,7 @@
       "single_key": "99e988883077ea8e5c80e60184bf7f08bd79ac0a0689cff3c90fe0ec092aea8c",
       "duplicate_key": "14da05e5b67638a3b1d9cb35995bc5a734a4c3cf155d3f1875a39192f6e87e74",
       "dex_files_rows": 2,
-      "overall_tables_sha256": "7bf17545fe922752e5c0e5ab65318030b3a454ddf5fc7804c80f20ef83872685"
+      "overall_tables_sha256": "6193d104e40cfbd669a794654d3e86f8f98022a1cfa496c81a4aea46986d175b"
     },
     "half_write_truncation_corruption_and_recovery": {
       "passed": true,
@@ -64,7 +66,7 @@
         "built_cold",
         "hit_warm"
       ],
-      "tables_sha256": "bf1d008f3877b658a37337dc6124362fd943961b12d90b03aa42d08eda84e76d",
+      "tables_sha256": "eba2659e837eaad40d2de2d68620c281ba948ad32d5d36bf8c4f012b73c8c0a5",
       "leftover_temps": 0
     },
     "partial_deadline_truncated_unpaged_negative_guard": {

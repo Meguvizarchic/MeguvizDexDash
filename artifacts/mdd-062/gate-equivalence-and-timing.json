@@ -1,0 +1,270 @@
+{
+  "schema_version": "mdd.gate-equivalence-and-timing.v1",
+  "task_id": "MDD-062",
+  "generated_utc": "2026-11-21T20:55:46.765956Z",
+  "source_sha256": {
+    "integrations/hostlab/audit_data_provider.py": "4aadf949f5fd01e58927651e7be6961519b89f5881859dd5ffc141bc72921580",
+    "integrations/hostlab/test_audit_data_provider.py": "f0b556c3d0091fea7054758edd80a244643741b01a56c8fcaa08eee7766013e6",
+    "integrations/hostlab/surface_gate.py": "e6409f44ff71c3c70eab107a32374e63106db31a51adb979763bf59b74ff92df",
+    "integrations/hostlab/native_session.py": "50db72d250aa10d7425fc6738abb160408283ec7d3561745f6307da232af549d",
+    "conformance/hostlab/gate-reuse-cases.json": "fc3008af16906120d0e0c20ee66f81314cee8da70c479dfc6bf56b139bc21929"
+  },
+  "engine_binary_sha256": "7a89484c6474b7fe4eb0bc8af97b813e56a0685511cc461b8bd16f54926c0053",
+  "exclusive_window": {
+    "machine_id": "win-x86_64-59aa72116490",
+    "os": "Windows 11 (AMD64)",
+    "cpu_count": 24,
+    "total_phys_bytes": 51284160512,
+    "avail_phys_bytes": 29766336512,
+    "competing_processes": [],
+    "verified_utc": "2026-11-21T20:50:04.200Z"
+  },
+  "governance": {
+    "default_rollback_mode": "legacy_independent",
+    "allow_mid_run_fallback": false,
+    "same_core_self_check_is_not_independent_oracle": true,
+    "independent_oracle_retained": "legacy_independent (analysis/run_intake.py + analysis/home_frame_audit.py)",
+    "counted_in_phase1_sf_target": false,
+    "timing_window_name": "E_gate",
+    "preserves_sha_and_inventory_and_code_integrity": true
+  },
+  "synthetic_suite": {
+    "cases_file": "conformance/hostlab/gate-reuse-cases.json",
+    "case_count": 8,
+    "unittest_ran": 9,
+    "unittest_passed": true
+  },
+  "live_samples": {
+    "hostlab-9161100": {
+      "apk_sha256": "41efb1c9acb07badab5296953fb3da1def6925e2b34662120ca96df9d17bbfb2",
+      "equivalent": true,
+      "exit_code_match": true,
+      "legacy_verdict_sha256": "f6580a78a775ac4597b48b6907b09ac99e7854365afcca0c408a1d4322041255",
+      "reuse_verdict_sha256": "f6580a78a775ac4597b48b6907b09ac99e7854365afcca0c408a1d4322041255",
+      "mismatches": [],
+      "intake_exit_code": 0,
+      "home_exit_code": 0,
+      "intake_summary": {
+        "mapper_count": 1,
+        "mapper_ok": true,
+        "relate_count": 1,
+        "relate_ok": true,
+        "gemini_count": 1,
+        "gemini_ok": true,
+        "multi_owner_warning": false,
+        "expected_feature_count": 27
+      },
+      "home_summary": {
+        "data_elements_count": 5,
+        "data_order": "order-ok fields=5 elements=5 unproven=[]",
+        "data_companion_present": true,
+        "item_elements_count": 17,
+        "item_order": "order-ok fields=17 elements=17 unproven=[15]",
+        "item_companion_present": true,
+        "vm_reach": "sigs=12 direct=False via_state=True",
+        "kx_all_true": true,
+        "marker_true_count": 3
+      },
+      "timing_window": {
+        "name": "E_gate",
+        "counted_in_phase1_sf_target": false,
+        "legacy_seconds": 15.288515799999004,
+        "legacy_intake_seconds": 13.764999999999418,
+        "legacy_home_seconds": 1.5160000000032596,
+        "reuse_seconds": 22.916550499998266,
+        "reuse_intake_seconds": 2.56105080000998,
+        "reuse_home_seconds": 8.290417799988063,
+        "wall_saved_seconds": -7.628034699999262,
+        "speedup": 0.667138616695395,
+        "legacy_median_seconds": 15.32972609999706,
+        "fresh_session_reuse_median_seconds": 22.983732699998654,
+        "shared_resident_reuse_median_seconds": 10.407505700000911,
+        "shared_resident_median_saved_seconds": 4.922220399996149,
+        "shared_resident_median_speedup": 1.472949094805273
+      },
+      "paired_rounds": [
+        {
+          "pair_index": 0,
+          "order": [
+            "legacy_independent",
+            "mdd_fact_reuse"
+          ],
+          "legacy_seconds": 15.408648700002232,
+          "reuse_seconds": 22.983732699998654,
+          "legacy_intake_seconds": 13.875,
+          "legacy_home_seconds": 1.5320000000065193,
+          "reuse_intake_seconds": 2.611292300003697,
+          "reuse_home_seconds": 8.255895299997064,
+          "equivalent": true
+        },
+        {
+          "pair_index": 1,
+          "order": [
+            "mdd_fact_reuse",
+            "legacy_independent"
+          ],
+          "legacy_seconds": 15.32972609999706,
+          "reuse_seconds": 23.365342399993096,
+          "legacy_intake_seconds": 13.812999999994645,
+          "legacy_home_seconds": 1.5160000000032596,
+          "reuse_intake_seconds": 2.6348073999979533,
+          "reuse_home_seconds": 8.59012839999923,
+          "equivalent": true
+        },
+        {
+          "pair_index": 2,
+          "order": [
+            "legacy_independent",
+            "mdd_fact_reuse"
+          ],
+          "legacy_seconds": 15.288515799999004,
+          "reuse_seconds": 22.916550499998266,
+          "legacy_intake_seconds": 13.764999999999418,
+          "legacy_home_seconds": 1.5160000000032596,
+          "reuse_intake_seconds": 2.56105080000998,
+          "reuse_home_seconds": 8.290417799988063,
+          "equivalent": true
+        }
+      ],
+      "shared_resident_rounds": [
+        {
+          "round": 0,
+          "wall_seconds": 10.870407700000214,
+          "intake_seconds": 2.53711239999393,
+          "home_seconds": 8.237749899999471,
+          "equivalent": true
+        },
+        {
+          "round": 1,
+          "wall_seconds": 10.407505700000911,
+          "intake_seconds": 2.5437208999937866,
+          "home_seconds": 7.753660200003651,
+          "equivalent": true
+        },
+        {
+          "round": 2,
+          "wall_seconds": 10.265926899999613,
+          "intake_seconds": 2.515533999991021,
+          "home_seconds": 7.654974999997648,
+          "equivalent": true
+        }
+      ]
+    },
+    "hostlab-9170100": {
+      "apk_sha256": "f0f880e841d017db335b3919e6d4792961f2e08aa9993da661b626d52cfcb955",
+      "equivalent": true,
+      "exit_code_match": true,
+      "legacy_verdict_sha256": "9299b04c7db27e16b9b120fcb42dcc8c2d2aa3a8cb6ed6173d6ba1218f217719",
+      "reuse_verdict_sha256": "9299b04c7db27e16b9b120fcb42dcc8c2d2aa3a8cb6ed6173d6ba1218f217719",
+      "mismatches": [],
+      "intake_exit_code": 0,
+      "home_exit_code": 0,
+      "intake_summary": {
+        "mapper_count": 1,
+        "mapper_ok": true,
+        "relate_count": 1,
+        "relate_ok": true,
+        "gemini_count": 1,
+        "gemini_ok": true,
+        "multi_owner_warning": false,
+        "expected_feature_count": 27
+      },
+      "home_summary": {
+        "data_elements_count": 5,
+        "data_order": "order-ok fields=5 elements=5 unproven=[]",
+        "data_companion_present": true,
+        "item_elements_count": 17,
+        "item_order": "order-ok fields=17 elements=17 unproven=[15]",
+        "item_companion_present": true,
+        "vm_reach": "sigs=12 direct=False via_state=True",
+        "kx_all_true": true,
+        "marker_true_count": 3
+      },
+      "timing_window": {
+        "name": "E_gate",
+        "counted_in_phase1_sf_target": false,
+        "legacy_seconds": 16.893856100010453,
+        "legacy_intake_seconds": 15.203000000008615,
+        "legacy_home_seconds": 1.6719999999913853,
+        "reuse_seconds": 25.257125100004487,
+        "reuse_intake_seconds": 2.8516692999983206,
+        "reuse_home_seconds": 9.131504600009066,
+        "wall_saved_seconds": -8.363268999994034,
+        "speedup": 0.6688748633551905,
+        "legacy_median_seconds": 16.907753099992988,
+        "fresh_session_reuse_median_seconds": 25.035033699998166,
+        "shared_resident_reuse_median_seconds": 11.311396499993862,
+        "shared_resident_median_saved_seconds": 5.596356599999126,
+        "shared_resident_median_speedup": 1.494753817532801
+      },
+      "paired_rounds": [
+        {
+          "pair_index": 0,
+          "order": [
+            "legacy_independent",
+            "mdd_fact_reuse"
+          ],
+          "legacy_seconds": 16.907753099992988,
+          "reuse_seconds": 24.946238899996388,
+          "legacy_intake_seconds": 15.23399999999674,
+          "legacy_home_seconds": 1.6719999999913853,
+          "reuse_intake_seconds": 2.8000800000008894,
+          "reuse_home_seconds": 8.981621800005087,
+          "equivalent": true
+        },
+        {
+          "pair_index": 1,
+          "order": [
+            "mdd_fact_reuse",
+            "legacy_independent"
+          ],
+          "legacy_seconds": 16.918690499995137,
+          "reuse_seconds": 25.035033699998166,
+          "legacy_intake_seconds": 15.26600000000326,
+          "legacy_home_seconds": 1.6559999999881256,
+          "reuse_intake_seconds": 2.7710413000022527,
+          "reuse_home_seconds": 8.905063500002143,
+          "equivalent": true
+        },
+        {
+          "pair_index": 2,
+          "order": [
+            "legacy_independent",
+            "mdd_fact_reuse"
+          ],
+          "legacy_seconds": 16.893856100010453,
+          "reuse_seconds": 25.257125100004487,
+          "legacy_intake_seconds": 15.203000000008615,
+          "legacy_home_seconds": 1.6719999999913853,
+          "reuse_intake_seconds": 2.8516692999983206,
+          "reuse_home_seconds": 9.131504600009066,
+          "equivalent": true
+        }
+      ],
+      "shared_resident_rounds": [
+        {
+          "round": 0,
+          "wall_seconds": 11.919903400004841,
+          "intake_seconds": 2.830804099998204,
+          "home_seconds": 8.983078299992485,
+          "equivalent": true
+        },
+        {
+          "round": 1,
+          "wall_seconds": 11.311396499993862,
+          "intake_seconds": 2.7118570000020554,
+          "home_seconds": 8.502992099995026,
+          "equivalent": true
+        },
+        {
+          "round": 2,
+          "wall_seconds": 11.084065400005784,
+          "intake_seconds": 2.6680595000070753,
+          "home_seconds": 8.311062999986461,
+          "equivalent": true
+        }
+      ]
+    }
+  },
+  "all_passed": true
+}

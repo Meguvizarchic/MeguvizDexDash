@@ -1,0 +1,287 @@
+{
+  "schema_version": "mdd.optimization-ablation.v1",
+  "task_id": "MDD-061",
+  "generated_utc": "2026-11-21T21:14:07.548Z",
+  "source_sha256": {
+    "benchmarks/run_mdd061_ablation.py": "9e18b2ac255b3fdc738f11babc7ff8b3b8e58dc074e2317228f49f0b8aef8483",
+    "benchmarks/test_mdd061_ablation.py": "390133498eeaed79c1ae5325315c0078230cb80d6f74c5526e77163378607b2a",
+    "benchmarks/observed_run_validator.py": "0d54a9425889cc68772187aaba9fbca99c812c916188295cf36393d6fac30075",
+    "benchmarks/run-five-way-comparison.py": "aeab5d0b7e004ff49a77d64811610ea5f59f487c7e33e52439a8155414fc04cf",
+    "crates/mdd-query/src/optimized/mod.rs": "4d69fe7c59ff4c9111711681bdb11956136fd06ff9936756cb75ac81b3f0e3d2",
+    "crates/mdd-query/src/optimized/schema_memo.rs": "3e50ffe141f8624496322d9848e0632f28e1f3f22c4591897bce0c90824a7249",
+    "crates/mdd-query/src/optimized/compiled_like.rs": "4cbcd924170277001a3b8e58350f42bc3bc7b90960afe6953342d8645c55104b",
+    "crates/mdd-query/src/optimized/prefix_set.rs": "ef32aff69efa13b3575e0526563b4e0dcd3afb95986224edce084e07d65c9cf1",
+    "crates/mdd-wire/src/optimized/mod.rs": "6f16a787159545165c5e4013387edbc7e7c32e6a9db2f852501c1c487e0c092f",
+    "crates/mdd-wire/src/optimized/batch_codec.rs": "f12d7c7d1c0fbed115e71ab29fb0bfc7cc681b677e4cc7a4eeaf7bd9786bd340",
+    "crates/mdd-wire/src/optimized/columns_v1.rs": "eefb820b7b7b38954ac7d99eb17959050c656d752cf4c7dc60858ecfe001f52e",
+    "integrations/hostlab/native_session.py": "50db72d250aa10d7425fc6738abb160408283ec7d3561745f6307da232af549d"
+  },
+  "engine_binary_sha256": "7a89484c6474b7fe4eb0bc8af97b813e56a0685511cc461b8bd16f54926c0053",
+  "w05_newpipe_bulk_ablation": {
+    "canonical_sha256": "98233301135694b5df2c08230d1be715bc02d9edf59b0b06ffe55a6bf3593bd5",
+    "all_configs_identical_output": true,
+    "configs": {
+      "all_off": {
+        "description": "Baseline scalar/conservative B1 path with all five MDD-061 toggles forced off.",
+        "toggles": {
+          "MDD_OPT_QUERY_MEMO": "0",
+          "MDD_OPT_SQL_SCAN": "0",
+          "MDD_OPT_SQL_FAST_UDF": "0",
+          "MDD_OPT_WIRE_DIRECT_JSON": "0",
+          "MDD_OPT_PARALLEL_PREPARE": "0"
+        },
+        "trial_count": 5,
+        "median_wall_seconds": 2.996642,
+        "delta_vs_all_off_seconds": 0.0,
+        "reduction_vs_all_off_fraction": 0.0,
+        "equivalent_to_scalar_baseline": true,
+        "fallback_count": 0
+      },
+      "only_query_memo": {
+        "description": "Enable only SchemaMemo query/schema memoization (crates/mdd-query/src/optimized/schema_memo.rs).",
+        "toggles": {
+          "MDD_OPT_QUERY_MEMO": "1",
+          "MDD_OPT_SQL_SCAN": "0",
+          "MDD_OPT_SQL_FAST_UDF": "0",
+          "MDD_OPT_WIRE_DIRECT_JSON": "0",
+          "MDD_OPT_PARALLEL_PREPARE": "0"
+        },
+        "trial_count": 5,
+        "median_wall_seconds": 3.026161,
+        "delta_vs_all_off_seconds": -0.029519,
+        "reduction_vs_all_off_fraction": -0.009851,
+        "equivalent_to_scalar_baseline": true,
+        "fallback_count": 0
+      },
+      "only_sql_scan": {
+        "description": "Enable only CSR LikeAsciiPrefixSuffix + FilterIdCache + DirectCell streaming scan (crates/mdd-sql/src/column_store.rs).",
+        "toggles": {
+          "MDD_OPT_QUERY_MEMO": "0",
+          "MDD_OPT_SQL_SCAN": "1",
+          "MDD_OPT_SQL_FAST_UDF": "0",
+          "MDD_OPT_WIRE_DIRECT_JSON": "0",
+          "MDD_OPT_PARALLEL_PREPARE": "0"
+        },
+        "trial_count": 5,
+        "median_wall_seconds": 2.092017,
+        "delta_vs_all_off_seconds": 0.904625,
+        "reduction_vs_all_off_fraction": 0.30188,
+        "equivalent_to_scalar_baseline": true,
+        "fallback_count": 0
+      },
+      "only_sql_fast_udf": {
+        "description": "Enable only CompiledLike zero-alloc matcher + inline UDF ReturnPayload + per-row SqlCell reuse (crates/mdd-query/src/optimized/compiled_like.rs, mdd-sql/src/dialects/functions.rs).",
+        "toggles": {
+          "MDD_OPT_QUERY_MEMO": "0",
+          "MDD_OPT_SQL_SCAN": "0",
+          "MDD_OPT_SQL_FAST_UDF": "1",
+          "MDD_OPT_WIRE_DIRECT_JSON": "0",
+          "MDD_OPT_PARALLEL_PREPARE": "0"
+        },
+        "trial_count": 5,
+        "median_wall_seconds": 2.51176,
+        "delta_vs_all_off_seconds": 0.484882,
+        "reduction_vs_all_off_fraction": 0.161808,
+        "equivalent_to_scalar_baseline": true,
+        "fallback_count": 0
+      },
+      "only_wire_direct_json": {
+        "description": "Enable only BatchStreamEncoder direct JSON framing + fast client batch decode (crates/mdd-wire/src/optimized/batch_codec.rs, integrations/hostlab/native_session.py).",
+        "toggles": {
+          "MDD_OPT_QUERY_MEMO": "0",
+          "MDD_OPT_SQL_SCAN": "0",
+          "MDD_OPT_SQL_FAST_UDF": "0",
+          "MDD_OPT_WIRE_DIRECT_JSON": "1",
+          "MDD_OPT_PARALLEL_PREPARE": "0"
+        },
+        "trial_count": 5,
+        "median_wall_seconds": 2.569657,
+        "delta_vs_all_off_seconds": 0.426985,
+        "reduction_vs_all_off_fraction": 0.142488,
+        "equivalent_to_scalar_baseline": true,
+        "fallback_count": 0
+      },
+      "only_parallel_prepare": {
+        "description": "Enable only bounded-window parallel LayerBuilder prepare + overlapping References||Annotations build (crates/mdd-sql/src/provider/hostlab/lazy.rs, mdd-service/src/layers.rs).",
+        "toggles": {
+          "MDD_OPT_QUERY_MEMO": "0",
+          "MDD_OPT_SQL_SCAN": "0",
+          "MDD_OPT_SQL_FAST_UDF": "0",
+          "MDD_OPT_WIRE_DIRECT_JSON": "0",
+          "MDD_OPT_PARALLEL_PREPARE": "1"
+        },
+        "trial_count": 5,
+        "median_wall_seconds": 2.939244,
+        "delta_vs_all_off_seconds": 0.057398,
+        "reduction_vs_all_off_fraction": 0.019154,
+        "equivalent_to_scalar_baseline": true,
+        "fallback_count": 0
+      },
+      "all_on": {
+        "description": "Production default B1 configuration with all five toggleable optimizations active.",
+        "toggles": {
+          "MDD_OPT_QUERY_MEMO": "1",
+          "MDD_OPT_SQL_SCAN": "1",
+          "MDD_OPT_SQL_FAST_UDF": "1",
+          "MDD_OPT_WIRE_DIRECT_JSON": "1",
+          "MDD_OPT_PARALLEL_PREPARE": "1"
+        },
+        "trial_count": 5,
+        "median_wall_seconds": 1.419912,
+        "delta_vs_all_off_seconds": 1.57673,
+        "reduction_vs_all_off_fraction": 0.526166,
+        "equivalent_to_scalar_baseline": true,
+        "fallback_count": 0
+      }
+    },
+    "isolated_delta_sum_seconds": 1.844371,
+    "joint_all_on_delta_seconds": 1.57673,
+    "overlap_accounted_non_additive": true
+  },
+  "w07_hostlab_9161100_ablation": {
+    "twenty_group_canonical_sha256": "66fb6f640531ae77dbcbe4f0ab09350fb315121d8a9a39d49a081e84461d8f85",
+    "all_configs_identical_20_groups": true,
+    "configs": {
+      "all_off": {
+        "description": "Baseline scalar/conservative B1 path with all five MDD-061 toggles forced off.",
+        "toggles": {
+          "MDD_OPT_QUERY_MEMO": "0",
+          "MDD_OPT_SQL_SCAN": "0",
+          "MDD_OPT_SQL_FAST_UDF": "0",
+          "MDD_OPT_WIRE_DIRECT_JSON": "0",
+          "MDD_OPT_PARALLEL_PREPARE": "0"
+        },
+        "trial_count": 3,
+        "median_wall_seconds": 127.078243,
+        "delta_vs_all_off_seconds": 0.0,
+        "reduction_vs_all_off_fraction": 0.0,
+        "equivalent_to_scalar_baseline": true,
+        "fallback_count": 0
+      },
+      "only_query_memo": {
+        "description": "Enable only SchemaMemo query/schema memoization (crates/mdd-query/src/optimized/schema_memo.rs).",
+        "toggles": {
+          "MDD_OPT_QUERY_MEMO": "1",
+          "MDD_OPT_SQL_SCAN": "0",
+          "MDD_OPT_SQL_FAST_UDF": "0",
+          "MDD_OPT_WIRE_DIRECT_JSON": "0",
+          "MDD_OPT_PARALLEL_PREPARE": "0"
+        },
+        "trial_count": 1,
+        "median_wall_seconds": 131.793717,
+        "delta_vs_all_off_seconds": -4.715474,
+        "reduction_vs_all_off_fraction": -0.037107,
+        "equivalent_to_scalar_baseline": true,
+        "fallback_count": 0
+      },
+      "only_sql_scan": {
+        "description": "Enable only CSR LikeAsciiPrefixSuffix + FilterIdCache + DirectCell streaming scan (crates/mdd-sql/src/column_store.rs).",
+        "toggles": {
+          "MDD_OPT_QUERY_MEMO": "0",
+          "MDD_OPT_SQL_SCAN": "1",
+          "MDD_OPT_SQL_FAST_UDF": "0",
+          "MDD_OPT_WIRE_DIRECT_JSON": "0",
+          "MDD_OPT_PARALLEL_PREPARE": "0"
+        },
+        "trial_count": 1,
+        "median_wall_seconds": 62.573799,
+        "delta_vs_all_off_seconds": 64.504444,
+        "reduction_vs_all_off_fraction": 0.507596,
+        "equivalent_to_scalar_baseline": true,
+        "fallback_count": 0
+      },
+      "only_sql_fast_udf": {
+        "description": "Enable only CompiledLike zero-alloc matcher + inline UDF ReturnPayload + per-row SqlCell reuse (crates/mdd-query/src/optimized/compiled_like.rs, mdd-sql/src/dialects/functions.rs).",
+        "toggles": {
+          "MDD_OPT_QUERY_MEMO": "0",
+          "MDD_OPT_SQL_SCAN": "0",
+          "MDD_OPT_SQL_FAST_UDF": "1",
+          "MDD_OPT_WIRE_DIRECT_JSON": "0",
+          "MDD_OPT_PARALLEL_PREPARE": "0"
+        },
+        "trial_count": 1,
+        "median_wall_seconds": 52.994426,
+        "delta_vs_all_off_seconds": 74.083817,
+        "reduction_vs_all_off_fraction": 0.582978,
+        "equivalent_to_scalar_baseline": true,
+        "fallback_count": 0
+      },
+      "only_wire_direct_json": {
+        "description": "Enable only BatchStreamEncoder direct JSON framing + fast client batch decode (crates/mdd-wire/src/optimized/batch_codec.rs, integrations/hostlab/native_session.py).",
+        "toggles": {
+          "MDD_OPT_QUERY_MEMO": "0",
+          "MDD_OPT_SQL_SCAN": "0",
+          "MDD_OPT_SQL_FAST_UDF": "0",
+          "MDD_OPT_WIRE_DIRECT_JSON": "1",
+          "MDD_OPT_PARALLEL_PREPARE": "0"
+        },
+        "trial_count": 1,
+        "median_wall_seconds": 125.729166,
+        "delta_vs_all_off_seconds": 1.349077,
+        "reduction_vs_all_off_fraction": 0.010616,
+        "equivalent_to_scalar_baseline": true,
+        "fallback_count": 0
+      },
+      "only_parallel_prepare": {
+        "description": "Enable only bounded-window parallel LayerBuilder prepare + overlapping References||Annotations build (crates/mdd-sql/src/provider/hostlab/lazy.rs, mdd-service/src/layers.rs).",
+        "toggles": {
+          "MDD_OPT_QUERY_MEMO": "0",
+          "MDD_OPT_SQL_SCAN": "0",
+          "MDD_OPT_SQL_FAST_UDF": "0",
+          "MDD_OPT_WIRE_DIRECT_JSON": "0",
+          "MDD_OPT_PARALLEL_PREPARE": "1"
+        },
+        "trial_count": 1,
+        "median_wall_seconds": 122.239902,
+        "delta_vs_all_off_seconds": 4.838341,
+        "reduction_vs_all_off_fraction": 0.038074,
+        "equivalent_to_scalar_baseline": true,
+        "fallback_count": 0
+      },
+      "all_on": {
+        "description": "Production default B1 configuration with all five toggleable optimizations active.",
+        "toggles": {
+          "MDD_OPT_QUERY_MEMO": "1",
+          "MDD_OPT_SQL_SCAN": "1",
+          "MDD_OPT_SQL_FAST_UDF": "1",
+          "MDD_OPT_WIRE_DIRECT_JSON": "1",
+          "MDD_OPT_PARALLEL_PREPARE": "1"
+        },
+        "trial_count": 3,
+        "median_wall_seconds": 33.120209,
+        "delta_vs_all_off_seconds": 93.958034,
+        "reduction_vs_all_off_fraction": 0.739372,
+        "equivalent_to_scalar_baseline": true,
+        "fallback_count": 0
+      }
+    },
+    "isolated_delta_sum_seconds": 140.060205,
+    "joint_all_on_delta_seconds": 93.958034,
+    "overlap_accounted_non_additive": true
+  },
+  "non_additive_overlap_policy": {
+    "additivity_forbidden": true,
+    "reason": "Producer/consumer pipe waiting and shared scan/UDF/prepare phases overlap dynamically; summing isolated per-optimization wall deltas yields inaccurate totals and is strictly forbidden."
+  },
+  "columns_v1_disposition": {
+    "artifact": "crates/mdd-wire/src/optimized/columns_v1.rs",
+    "format_magic": "MDDCOLL1",
+    "status": "opt_in_evaluated_deferred_for_default_b1",
+    "rationale": "Direct streaming UTF-8 JSON framing (BatchStreamEncoder + B1Session._decode_direct_batches) already delivers >=15% W05 speedup over A1 while speaking standard JSON Lines consumed directly by the Python SDK/workbench without a custom binary wire negotiation split; columns-v1 remains cleanly isolated and unit-tested as an opt-in IPC building block."
+  },
+  "unadopted_low_level_optimizations": {
+    "simd_intrinsics": {
+      "adopted": false,
+      "evidence_reason": "Profile breakdown in artifacts/mdd-060/optimization-priorities.json shows >85% of W07 runtime is SQL virtual-table LIKE filtering, UDF string allocations, sequential DEX prepare, and JSON serialization. Once CSR TextDict prefix narrowing and borrowed UTF-16 matching landed, pure byte comparison fell below measurability; adding unsafe arch-specific SIMD intrinsics is rejected without bottleneck evidence."
+    },
+    "mmap_input_mapping": {
+      "adopted": false,
+      "evidence_reason": "Input soundness contracts (docs/04 & Snapshot::capture) forbid trusting OS mmap over mutable filesystem files due to TOCTOU / SIGBUS risk on source mutation; bounded immutable snapshot buffers already fit well below A0/A1 peak memory (~1.26-1.36 GiB)."
+    },
+    "custom_bump_arena": {
+      "adopted": false,
+      "evidence_reason": "Arc sharing between DefinitionFacts and AnnotationFacts, compacted CodeFacts, RelationStore columnar dictionary/RLE storage, and BorrowedSqlCell zero-copy callbacks eliminated the ~16.7 GiB heap spike without sacrificing Rust ownership or adding unsafe lifetime-erased arenas."
+    }
+  },
+  "all_passed": true
+}

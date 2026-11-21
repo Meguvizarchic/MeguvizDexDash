@@ -901,6 +901,10 @@ class B1Session(_Session):
     wire = "b1"
     transport_name = "typed_batch_v1"
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._direct_dto = os.environ.get("MDD_OPT_WIRE_DIRECT_JSON") != "0"
+
     def batches(self, sql: str, **options: Any) -> Iterator[TypedBatch]:
         """Run one statement and yield its typed batches. A statement that fails or is incomplete raises after the
         batches that were delivered; the caller never gets a shorter result that looks complete."""
@@ -921,29 +925,172 @@ class B1Session(_Session):
 
     last_columns: "tuple | None" = None
 
+    @staticmethod
+    def _decode_dto_cell(cell: Any) -> "str | None":
+        """Direct JSON cell -> DTO `(str | None)` decoding preserving `decode_cell` + `dto_value` validation."""
+        try:
+            tag = cell["t"]
+            if tag == "null":
+                return None
+            if tag == "text":
+                if "units" in cell:
+                    raw = bytes.fromhex(cell["units"])
+                    text = raw.decode("utf-16-be", "surrogatepass")
+                    try:
+                        text.encode("utf-8")
+                    except UnicodeEncodeError:
+                        raise EngineProtocolError("a text cell holds an unpaired surrogate; it is not valid Unicode text") from None
+                    return text
+                text = cell["v"]
+                if not isinstance(text, str):
+                    raise TypeError
+                return text
+            if tag in ("i64", "u64"):
+                v = cell["v"]
+                if type(v) is str and (
+                    (v.isascii() and v.isdigit() and (len(v) == 1 or v[0] != "0"))
+                    or (v.startswith("-") and len(v) >= 2 and v[1] != "0" and v[1:].isascii() and v[1:].isdigit())
+                ):
+                    return v
+                return str(int(v))
+            if tag == "dex_mutf8":
+                text = DexMutf8(bytes.fromhex(cell["v"]), int(cell["utf16_units"])).text()
+                try:
+                    text.encode("utf-8")
+                except UnicodeEncodeError:
+                    raise EngineProtocolError("a text cell holds an unpaired surrogate; it is not valid Unicode text") from None
+                return text
+            if tag == "bool":
+                _ = bool(cell["v"])
+                raise EngineProtocolError("a bool cell cannot be represented in the audit DTO")
+            if tag == "f64":
+                _ = struct.unpack(">d", bytes.fromhex(cell["bits"]))[0]
+                raise EngineProtocolError("a float cell cannot be represented in the audit DTO")
+            if tag == "bytes":
+                _ = bytes.fromhex(cell["v"])
+                raise EngineProtocolError("a bytes cell cannot be represented in the audit DTO")
+        except EngineProtocolError:
+            raise
+        except (KeyError, TypeError, ValueError, struct.error):
+            raise EngineProtocolError("a cell that does not decode") from None
+        raise EngineProtocolError(f"an unknown cell tag {tag!r}")
+
+    def _decode_direct_batches(self, sql, *, page_size=1000, max_rows=500000, max_bytes=128 * 1024 * 1024):
+        decode_dto = self._decode_dto_cell
+        col_tuple: "tuple | None" = None
+        last_cols: "tuple | None" = None
+        names: "list[str] | None" = None
+        ncols = 0
+        c0 = c1 = c2 = c3 = c4 = ""
+        used, count = 0, 0
+        _ = page_size
+        for kind, payload in self.transport.statement(sql, batch_rows=10000):
+            if kind == "batch":
+                cur_tuple = tuple(payload["columns"])
+                if col_tuple is None:
+                    col_tuple = cur_tuple
+                    names = list(col_tuple)
+                    self._need_unambiguous(names)
+                    ncols = len(names)
+                    if ncols >= 1:
+                        c0 = names[0]
+                    if ncols >= 2:
+                        c1 = names[1]
+                    if ncols >= 3:
+                        c2 = names[2]
+                    if ncols >= 4:
+                        c3 = names[3]
+                    if ncols >= 5:
+                        c4 = names[4]
+                elif cur_tuple != col_tuple:
+                    raise EngineProtocolError("the columns changed between batches")
+                raw_rows = payload["rows"]
+                batch_out: list[dict[str, Any]] = []
+                batch_append = batch_out.append
+                for raw_row in raw_rows:
+                    count += 1
+                    if count > max_rows:
+                        raise EngineProtocolError("native audit exceeded its complete row budget", code="QUOTA_EXCEEDED")
+                    if len(raw_row) != ncols:
+                        raise EngineProtocolError("a batch row width differs from its columns")
+                    vals: list[Any] = []
+                    v_append = vals.append
+                    for cell in raw_row:
+                        if type(cell) is dict:
+                            tag = cell.get("t")
+                            if tag == "u64":
+                                v = cell.get("v")
+                                if type(v) is str and v.isascii() and v.isdigit() and (len(v) == 1 or v[0] != "0"):
+                                    used += len(v)
+                                    v_append(v)
+                                    continue
+                            elif tag == "text" and "units" not in cell:
+                                v = cell.get("v")
+                                if type(v) is str:
+                                    used += len(v) if v.isascii() else len(v.encode())
+                                    v_append(v)
+                                    continue
+                            elif tag == "null":
+                                v_append(None)
+                                continue
+                        val = decode_dto(cell)
+                        if val is not None:
+                            used += len(val) if val.isascii() else len(val.encode())
+                        v_append(val)
+                    if used > max_bytes:
+                        raise EngineProtocolError("native audit exceeded its complete byte budget", code="QUOTA_EXCEEDED")
+                    if ncols == 2:
+                        batch_append({c0: vals[0], c1: vals[1]})
+                    elif ncols == 1:
+                        batch_append({c0: vals[0]})
+                    elif ncols == 3:
+                        batch_append({c0: vals[0], c1: vals[1], c2: vals[2]})
+                    elif ncols == 5:
+                        batch_append({c0: vals[0], c1: vals[1], c2: vals[2], c3: vals[3], c4: vals[4]})
+                    elif ncols == 4:
+                        batch_append({c0: vals[0], c1: vals[1], c2: vals[2], c3: vals[3]})
+                    else:
+                        batch_append(dict(zip(names, vals)))
+                if batch_out:
+                    yield batch_out
+            else:
+                final = (payload.get("data") or {}).get("columns")
+                if col_tuple is not None and final is not None and tuple(final) != col_tuple:
+                    raise EngineProtocolError("the terminal names other columns than the batches")
+                last_cols = tuple(final) if final is not None else col_tuple
+                self.last_columns = last_cols
+        if names is None:
+            self._need_unambiguous(list(last_cols or ()))
+        self.queries += 1
+
     def rows(self, sql, *, page_size=1000, max_rows=500000, max_bytes=128 * 1024 * 1024):
         self._need_stable_order(sql)
         self.statements.append(sql)
-        used, count = 0, 0
-        names = None
-        for batch in self.batches(sql):
-            if names is None:
-                names = list(batch.columns)
-                self._need_unambiguous(names)
-            for row in batch.rows:
-                count += 1
-                if count > max_rows:
-                    raise EngineProtocolError("native audit exceeded its complete row budget", code="QUOTA_EXCEEDED")
-                values = [dto_value(value) for value in row]
-                for value in values:
-                    if value is not None:
-                        used += len(value.encode())
-                if used > max_bytes:
-                    raise EngineProtocolError("native audit exceeded its complete byte budget", code="QUOTA_EXCEEDED")
-                yield dict(zip(names, values))
-        if names is None:  # no rows: the terminal still has to name distinct columns
-            self._need_unambiguous(list(self.last_columns or ()))
-        self.queries += 1
+        if not self._direct_dto:
+            used, count = 0, 0
+            names = None
+            for batch in self.batches(sql):
+                if names is None:
+                    names = list(batch.columns)
+                    self._need_unambiguous(names)
+                for row in batch.rows:
+                    count += 1
+                    if count > max_rows:
+                        raise EngineProtocolError("native audit exceeded its complete row budget", code="QUOTA_EXCEEDED")
+                    values = [dto_value(value) for value in row]
+                    for value in values:
+                        if value is not None:
+                            used += len(value.encode())
+                    if used > max_bytes:
+                        raise EngineProtocolError("native audit exceeded its complete byte budget", code="QUOTA_EXCEEDED")
+                    yield dict(zip(names, values))
+            if names is None:  # no rows: the terminal still has to name distinct columns
+                self._need_unambiguous(list(self.last_columns or ()))
+            self.queries += 1
+            return
+
+        for batch_rows in self._decode_direct_batches(sql, page_size=page_size, max_rows=max_rows, max_bytes=max_bytes):
+            yield from batch_rows
 
 
 SESSIONS = {"b0": B0Session, "b1": B1Session}

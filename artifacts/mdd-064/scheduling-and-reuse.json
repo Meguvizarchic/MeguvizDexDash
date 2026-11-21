@@ -1,0 +1,388 @@
+{
+  "schema_version": "mdd.scheduling-and-reuse.v1",
+  "task_id": "MDD-064",
+  "source_sha256": {
+    "crates/mdd-worker/Cargo.toml": "674c0cbe51360d1bc17847516c17b37bcefbe2a0d3e35147ade9e600f5920e74",
+    "crates/mdd-worker/src/lib.rs": "a8ea3bbbb607fc23e57e3e671ca1f0023635a30b648a432e8aa5cd3771b43bc3",
+    "crates/mdd-worker/src/scheduler/mod.rs": "3864397e7cdae5750221f8f1a3873c2d54760b9e01c0e9ca7069c8742c23c36b",
+    "crates/mdd-worker/src/scheduler/budget.rs": "b31980764ecee6f556943f890d007f45c722d7e9b9b4e42dff45ceb75b66362e",
+    "crates/mdd-worker/src/scheduler/queue.rs": "d609f59cd69d63ed07e7c8151c4911aa462e715d5c34df2f9a32180a39defa1f",
+    "crates/mdd-worker/src/scheduler/tests.rs": "192db1ee12d371dd9858e57c142ea86bb1931ffa66d9c2a156d5bc593539324b",
+    "crates/mdd-worker/examples/scheduler_reuse_probe.rs": "a98fcff2258fdbfdfc24e924b74e3480dc57b8c947741829fb2b0a63c2ef45d7",
+    "crates/mdd-cache/Cargo.toml": "f8b8e566a90ed485c2102070c2a425479e9973e710f09aacd3258999120d35bd",
+    "crates/mdd-cache/src/lib.rs": "f2841956364b9776624ec6d9e6813c1683b29de669727e8550a456212c8a77ca",
+    "crates/mdd-cache/src/dependency_tracking.rs": "7981ce3f1a08b2dc528d9102c86dbb1729444d4e91fa684c6144bd64c078a67f",
+    "crates/mdd-cache/src/dependency_tracking/content_reuse.rs": "e91c209cf3d701397e24815e947adc0a584a144fe6406005097ee769d6b6f12b",
+    "crates/mdd-cache/src/dependency_tracking/incremental_gate.rs": "2d7e26cdbc8e02520f86fe61238ad811c1497fbdb69dfc82b333b8432310eafc",
+    "crates/mdd-cache/examples/cache_probe.rs": "e6ab4de025b7e886474b7b09665c03bdb538b37716b833cef75dc09ad7b147c2",
+    "conformance/cache/run_mdd064_conformance.py": "0899ab875a25989e49f314973f4d112818a28930264555da7e5643f8c865b904",
+    "conformance/cache/test_mdd064_conformance.py": "55472758ec8dff64659ba76d96a89cf074197bfa37a20ba38a848597cb612f6f"
+  },
+  "global_budget_and_scheduler": {
+    "fixture": "tests/fixtures/generated/multidex-deflated.apk",
+    "concurrency_levels": [
+      {
+        "ceiling_cpu_permits": 4,
+        "ceiling_memory_bytes": "67108864",
+        "concurrency": 1,
+        "dex_units_processed": 4,
+        "history_bounded": true,
+        "oversubscription_observed": false,
+        "peak_cpu_permits": 2,
+        "peak_memory_bytes": "33554432",
+        "queue_depth_bounded": true,
+        "tail_latency_ms": 8.623199999999999,
+        "tasks_completed": 2,
+        "throughput_tasks_per_sec": 228.77013177159589,
+        "wall_ms": 8.742400000000002
+      },
+      {
+        "ceiling_cpu_permits": 4,
+        "ceiling_memory_bytes": "67108864",
+        "concurrency": 2,
+        "dex_units_processed": 8,
+        "history_bounded": true,
+        "oversubscription_observed": false,
+        "peak_cpu_permits": 4,
+        "peak_memory_bytes": "67108864",
+        "queue_depth_bounded": true,
+        "tail_latency_ms": 8.4765,
+        "tasks_completed": 4,
+        "throughput_tasks_per_sec": 462.70055177040797,
+        "wall_ms": 8.6449
+      },
+      {
+        "ceiling_cpu_permits": 4,
+        "ceiling_memory_bytes": "67108864",
+        "concurrency": 4,
+        "dex_units_processed": 16,
+        "history_bounded": true,
+        "oversubscription_observed": false,
+        "peak_cpu_permits": 4,
+        "peak_memory_bytes": "67108864",
+        "queue_depth_bounded": true,
+        "tail_latency_ms": 16.7609,
+        "tasks_completed": 8,
+        "throughput_tasks_per_sec": 466.8016501438332,
+        "wall_ms": 17.137900000000002
+      }
+    ],
+    "isolation_and_bounds": {
+      "cancel_response_ms": 0.5537,
+      "final_used_cpu_permits": 0,
+      "final_used_memory_bytes": "0",
+      "healthy_after_overload_dexes": 2,
+      "healthy_after_worker_lost_dexes": 2,
+      "history_bounded": true,
+      "overload_rejected_code": "QuotaExceeded",
+      "queue_depth_bounded": true,
+      "victim_worker_lost_count": 1
+    },
+    "cross_stage_oversubscription_observed": false
+  },
+  "content_reuse_and_denominator_accounting": {
+    "duplicate_multiplicity_apk": {
+      "fixture": "conformance/generic-consumer/fixtures/public-app-audit.apk",
+      "dex_files_row_count": 5,
+      "physical_dedup_preserves_all_logical_sources": true,
+      "accounting": {
+        "affected_workload_ratio": 0.0,
+        "affected_workload_units": "0",
+        "changed_byte_ratio": 0.0,
+        "changed_or_rebuilt_bytes": "0",
+        "denominator_task_id": "mdd064-duplicate-multiplicity",
+        "extrapolation_from_changed_bytes_forbidden": true,
+        "logical_occurrences_backed_by_reuse": 5,
+        "logical_occurrences_requiring_rebuild": 0,
+        "optional_dex041_prerequisite": false,
+        "realized_workload_saving_ratio": 1.0,
+        "rebuilt_physical_objects": 0,
+        "reused_member_bytes": "2504",
+        "reused_physical_objects": 4,
+        "reused_workload_units": "113",
+        "total_logical_occurrences": 5,
+        "total_member_bytes": "2504",
+        "total_workload_units": "113",
+        "unique_physical_objects": 4
+      },
+      "occurrence_reuse_map": {
+        "by_content_id": {
+          "sha256:1b2a4aa8d930dcb19377f7657960d2f089badfd813f2dfe278d12af1745f1298": {
+            "byte_length": "492",
+            "content_id": "sha256:1b2a4aa8d930dcb19377f7657960d2f089badfd813f2dfe278d12af1745f1298",
+            "occurrences": [
+              {
+                "dex_occurrence_id": "snapshot-edd3bde06a814f465fa8d1749a413727e1eb4c1f44e052268d0075a3537657b3:source:0:member:3:dex:header:0",
+                "file_id": 2,
+                "logical_header_offset": "0",
+                "member_name": "classes3.dex",
+                "source_occurrence_id": "snapshot-edd3bde06a814f465fa8d1749a413727e1eb4c1f44e052268d0075a3537657b3:source:0"
+              },
+              {
+                "dex_occurrence_id": "snapshot-edd3bde06a814f465fa8d1749a413727e1eb4c1f44e052268d0075a3537657b3:source:0:member:4:dex:header:0",
+                "file_id": 3,
+                "logical_header_offset": "0",
+                "member_name": "classes4.dex",
+                "source_occurrence_id": "snapshot-edd3bde06a814f465fa8d1749a413727e1eb4c1f44e052268d0075a3537657b3:source:0"
+              }
+            ]
+          },
+          "sha256:496d5fbcbba3c958ca9a1db21eaa9cda41306638df6fc18911d8b91f2b2e2927": {
+            "byte_length": "596",
+            "content_id": "sha256:496d5fbcbba3c958ca9a1db21eaa9cda41306638df6fc18911d8b91f2b2e2927",
+            "occurrences": [
+              {
+                "dex_occurrence_id": "snapshot-edd3bde06a814f465fa8d1749a413727e1eb4c1f44e052268d0075a3537657b3:source:0:member:1:dex:header:0",
+                "file_id": 0,
+                "logical_header_offset": "0",
+                "member_name": "classes.dex",
+                "source_occurrence_id": "snapshot-edd3bde06a814f465fa8d1749a413727e1eb4c1f44e052268d0075a3537657b3:source:0"
+              }
+            ]
+          },
+          "sha256:4d320ef49dfa0476677e9509e8c1cc0be7136eac663c35ac84456a89935f9b8f": {
+            "byte_length": "424",
+            "content_id": "sha256:4d320ef49dfa0476677e9509e8c1cc0be7136eac663c35ac84456a89935f9b8f",
+            "occurrences": [
+              {
+                "dex_occurrence_id": "snapshot-edd3bde06a814f465fa8d1749a413727e1eb4c1f44e052268d0075a3537657b3:source:0:member:5:dex:header:0",
+                "file_id": 4,
+                "logical_header_offset": "0",
+                "member_name": "classes5.dex",
+                "source_occurrence_id": "snapshot-edd3bde06a814f465fa8d1749a413727e1eb4c1f44e052268d0075a3537657b3:source:0"
+              }
+            ]
+          },
+          "sha256:9db77227e2e5b4dc272d32fe89c7c97cbc7088011f16d731b2d24bb8962f651d": {
+            "byte_length": "500",
+            "content_id": "sha256:9db77227e2e5b4dc272d32fe89c7c97cbc7088011f16d731b2d24bb8962f651d",
+            "occurrences": [
+              {
+                "dex_occurrence_id": "snapshot-edd3bde06a814f465fa8d1749a413727e1eb4c1f44e052268d0075a3537657b3:source:0:member:2:dex:header:0",
+                "file_id": 1,
+                "logical_header_offset": "0",
+                "member_name": "classes2.dex",
+                "source_occurrence_id": "snapshot-edd3bde06a814f465fa8d1749a413727e1eb4c1f44e052268d0075a3537657b3:source:0"
+              }
+            ]
+          }
+        }
+      },
+      "decisions": [
+        {
+          "content_id": "sha256:496d5fbcbba3c958ca9a1db21eaa9cda41306638df6fc18911d8b91f2b2e2927",
+          "dex_occurrence_id": "snapshot-edd3bde06a814f465fa8d1749a413727e1eb4c1f44e052268d0075a3537657b3:source:0:member:1:dex:header:0",
+          "file_id": 0,
+          "logical_header_offset": "0",
+          "member_bytes": "596",
+          "member_name": "classes.dex",
+          "reason": "reused_whole_content_id",
+          "reused": true,
+          "source_occurrence_id": "snapshot-edd3bde06a814f465fa8d1749a413727e1eb4c1f44e052268d0075a3537657b3:source:0",
+          "workload_units": "30"
+        },
+        {
+          "content_id": "sha256:9db77227e2e5b4dc272d32fe89c7c97cbc7088011f16d731b2d24bb8962f651d",
+          "dex_occurrence_id": "snapshot-edd3bde06a814f465fa8d1749a413727e1eb4c1f44e052268d0075a3537657b3:source:0:member:2:dex:header:0",
+          "file_id": 1,
+          "logical_header_offset": "0",
+          "member_bytes": "500",
+          "member_name": "classes2.dex",
+          "reason": "reused_whole_content_id",
+          "reused": true,
+          "source_occurrence_id": "snapshot-edd3bde06a814f465fa8d1749a413727e1eb4c1f44e052268d0075a3537657b3:source:0",
+          "workload_units": "22"
+        },
+        {
+          "content_id": "sha256:1b2a4aa8d930dcb19377f7657960d2f089badfd813f2dfe278d12af1745f1298",
+          "dex_occurrence_id": "snapshot-edd3bde06a814f465fa8d1749a413727e1eb4c1f44e052268d0075a3537657b3:source:0:member:3:dex:header:0",
+          "file_id": 2,
+          "logical_header_offset": "0",
+          "member_bytes": "492",
+          "member_name": "classes3.dex",
+          "reason": "reused_whole_content_id",
+          "reused": true,
+          "source_occurrence_id": "snapshot-edd3bde06a814f465fa8d1749a413727e1eb4c1f44e052268d0075a3537657b3:source:0",
+          "workload_units": "22"
+        },
+        {
+          "content_id": "sha256:1b2a4aa8d930dcb19377f7657960d2f089badfd813f2dfe278d12af1745f1298",
+          "dex_occurrence_id": "snapshot-edd3bde06a814f465fa8d1749a413727e1eb4c1f44e052268d0075a3537657b3:source:0:member:4:dex:header:0",
+          "file_id": 3,
+          "logical_header_offset": "0",
+          "member_bytes": "492",
+          "member_name": "classes4.dex",
+          "reason": "reused_whole_content_id",
+          "reused": true,
+          "source_occurrence_id": "snapshot-edd3bde06a814f465fa8d1749a413727e1eb4c1f44e052268d0075a3537657b3:source:0",
+          "workload_units": "22"
+        },
+        {
+          "content_id": "sha256:4d320ef49dfa0476677e9509e8c1cc0be7136eac663c35ac84456a89935f9b8f",
+          "dex_occurrence_id": "snapshot-edd3bde06a814f465fa8d1749a413727e1eb4c1f44e052268d0075a3537657b3:source:0:member:5:dex:header:0",
+          "file_id": 4,
+          "logical_header_offset": "0",
+          "member_bytes": "424",
+          "member_name": "classes5.dex",
+          "reason": "reused_whole_content_id",
+          "reused": true,
+          "source_occurrence_id": "snapshot-edd3bde06a814f465fa8d1749a413727e1eb4c1f44e052268d0075a3537657b3:source:0",
+          "workload_units": "17"
+        }
+      ]
+    },
+    "cross_version_whole_content": {
+      "baseline_inputs": [
+        "tests/fixtures/generated/structured-035.dex",
+        "tests/fixtures/query/generated/unicode-order-038.dex"
+      ],
+      "target_inputs": [
+        "tests/fixtures/generated/structured-035.dex",
+        "tests/fixtures/query/generated/unicode-order-038.dex",
+        "tests/fixtures/generated/structured-035-same-size-changed.dex"
+      ],
+      "dex_files_row_count": 3,
+      "physical_dedup_preserves_all_logical_sources": true,
+      "accounting": {
+        "affected_workload_ratio": 0.2558139534883721,
+        "affected_workload_units": "33",
+        "changed_byte_ratio": 0.24814814814814815,
+        "changed_or_rebuilt_bytes": "536",
+        "denominator_task_id": "mdd064-cross-version-whole-content",
+        "extrapolation_from_changed_bytes_forbidden": true,
+        "logical_occurrences_backed_by_reuse": 2,
+        "logical_occurrences_requiring_rebuild": 1,
+        "optional_dex041_prerequisite": false,
+        "realized_workload_saving_ratio": 0.7441860465116279,
+        "rebuilt_physical_objects": 1,
+        "reused_member_bytes": "1624",
+        "reused_physical_objects": 2,
+        "reused_workload_units": "96",
+        "total_logical_occurrences": 3,
+        "total_member_bytes": "2160",
+        "total_workload_units": "129",
+        "unique_physical_objects": 3
+      },
+      "decisions": [
+        {
+          "content_id": "sha256:108cf907d330b823c6e32d38eaab8f23709fe493f52537688bbd09ba3e271605",
+          "dex_occurrence_id": "snapshot-a44f3d4256ab33470f01330f5ca758713ff33d96dd7b87e6696bd92cebe9be85:source:0:raw:dex:header:0",
+          "file_id": 0,
+          "logical_header_offset": "0",
+          "member_bytes": "536",
+          "member_name": null,
+          "reason": "reused_whole_content_id",
+          "reused": true,
+          "source_occurrence_id": "snapshot-a44f3d4256ab33470f01330f5ca758713ff33d96dd7b87e6696bd92cebe9be85:source:0",
+          "workload_units": "33"
+        },
+        {
+          "content_id": "sha256:bc69b3385a595bf8e2e409b371b4eb7eba264b1970ad6aaa1e76aef6f4a9f3da",
+          "dex_occurrence_id": "snapshot-a44f3d4256ab33470f01330f5ca758713ff33d96dd7b87e6696bd92cebe9be85:source:1:raw:dex:header:0",
+          "file_id": 1,
+          "logical_header_offset": "0",
+          "member_bytes": "1088",
+          "member_name": null,
+          "reason": "reused_whole_content_id",
+          "reused": true,
+          "source_occurrence_id": "snapshot-a44f3d4256ab33470f01330f5ca758713ff33d96dd7b87e6696bd92cebe9be85:source:1",
+          "workload_units": "63"
+        },
+        {
+          "content_id": "sha256:12dc21ec8975294592eb4994c57e148ab99d26f973b435697b97cb6ab58faa11",
+          "dex_occurrence_id": "snapshot-a44f3d4256ab33470f01330f5ca758713ff33d96dd7b87e6696bd92cebe9be85:source:2:raw:dex:header:0",
+          "file_id": 2,
+          "logical_header_offset": "0",
+          "member_bytes": "536",
+          "member_name": null,
+          "reason": "cold_miss_new_content",
+          "reused": false,
+          "source_occurrence_id": "snapshot-a44f3d4256ab33470f01330f5ca758713ff33d96dd7b87e6696bd92cebe9be85:source:2",
+          "workload_units": "33"
+        }
+      ],
+      "timing_ns_sample": {
+        "full_cold_build_ns": 133600,
+        "incremental_rebuilt_only_ns": 26800,
+        "realized_wall_time_saving_ratio": 0.7994011976047904
+      }
+    },
+    "shared_container_invalidation_verified": true,
+    "shared_container_invalidation_reason": "invalidated_shared_container",
+    "partial_negative_finding_guard": {
+      "denial_code": "INCOMPLETE_FACTS",
+      "eligible": false,
+      "reason": "negative finding missing required layer `references`"
+    }
+  },
+  "fine_grained_method_incremental_gate": {
+    "all_required_dimensions_proved": false,
+    "boundaries": {
+      "candidate_id": "mdd064-cross-version-whole-content",
+      "constant_pool_references": "72",
+      "hierarchy_override_edges": "3",
+      "negative_query_dependencies": 1,
+      "optional_dex041_container_present": false,
+      "outbound_method_ref_edges": "21",
+      "touched_method_count": "14"
+    },
+    "candidate_id": "mdd064-cross-version-whole-content",
+    "capability_enabled": false,
+    "dimensions": [
+      {
+        "blocking_reason": "missing exhaustive cross-method call/reference invalidation closure proof",
+        "boundary_summary": "14 touched methods with 21 outbound call/ref edges",
+        "dimension": "cross_method_reference_graph",
+        "proved": false
+      },
+      {
+        "blocking_reason": "missing class hierarchy and virtual-override transitivity proof",
+        "boundary_summary": "3 class/interface override propagation edges",
+        "dimension": "hierarchy_override_closure",
+        "proved": false
+      },
+      {
+        "blocking_reason": "missing proof that global negative queries remain invariant under method edits",
+        "boundary_summary": "1 negative query scopes requiring whole-snapshot completeness",
+        "dimension": "global_negative_finding_scope",
+        "proved": false
+      },
+      {
+        "blocking_reason": "missing proof bounding string/type/proto/field/method index renumbering across partial edits",
+        "boundary_summary": "72 constant-pool string/type/field index dependencies",
+        "dimension": "constant_pool_and_type_field_closure",
+        "proved": false
+      },
+      {
+        "blocking_reason": "missing shared-container tail/offset isolation proof (standard DEX builds keep method incremental disabled without requiring DEX 041)",
+        "boundary_summary": "standard DEX isolation only (optional_dex041_present=false)",
+        "dimension": "shared_container_tail_isolation",
+        "proved": false
+      }
+    ],
+    "missing_or_unproved_dimensions": [
+      "cross_method_reference_graph",
+      "hierarchy_override_closure",
+      "global_negative_finding_scope",
+      "constant_pool_and_type_field_closure",
+      "shared_container_tail_isolation"
+    ],
+    "optional_dex041_prerequisite": false,
+    "rejection_reasons": [
+      "missing exhaustive cross-method call/reference invalidation closure proof",
+      "missing class hierarchy and virtual-override transitivity proof",
+      "missing proof that global negative queries remain invariant under method edits",
+      "missing proof bounding string/type/proto/field/method index renumbering across partial edits",
+      "missing shared-container tail/offset isolation proof (standard DEX builds keep method incremental disabled without requiring DEX 041)"
+    ],
+    "runtime_gate_enabled": false
+  },
+  "acceptance_summary": {
+    "unified_budget_prevents_oversubscription": true,
+    "bounded_queues_and_isolated_failures": true,
+    "whole_content_reuse_preserves_logical_multiplicity": true,
+    "fine_grained_incremental_kept_disabled_without_proofs": true,
+    "workload_denominator_used_and_041_not_prerequisite": true
+  },
+  "all_passed": true
+}

@@ -9,7 +9,7 @@
     "crates/mdd-worker/examples/fault_supervisor_probe.rs": "2fc0b1e654a963a580cd96b11d7003c04b314eb1270178bf51823e849820adb7",
     "crates/mdd-worker/src/lifecycle/mod.rs": "64ecc389ed84ea8bf92cbbd4b015df3781e642d5d637ba424412125fa61d925b",
     "crates/mdd-worker/src/protocol/mod.rs": "12f82651e295486e1e6fd5b369194cadc786de2918b8328c3d35238c2bfb929d",
-    "crates/mdd-cache/examples/cache_probe.rs": "7de276e2e494712cf694c618ff470aee3f1c3fce3181269d219c4a90e44954de",
+    "crates/mdd-cache/examples/cache_probe.rs": "e6ab4de025b7e886474b7b09665c03bdb538b37716b833cef75dc09ad7b147c2",
     "crates/mdd-cache/src/store.rs": "31d9e414687885ebbf24327500418902bffe6292cbe0f62bf15c28828b05810f",
     "crates/mdd-cache/src/guard.rs": "6dc1f6c829ba2d6be1b4f8a31e5c8c6501617ed2b27b162eb55bd9067e533bef",
     "conformance/faults/scenario-matrix.json": "7e8278ddf5df3d8d0f16a8757825bb4d5492188e1f25cdbd2bf12f11eb7dd5f4",
@@ -87,23 +87,23 @@
         "platform": "windows",
         "method": "GetProcessHandleCount + GetProcessMemoryInfo.WorkingSetSize",
         "handle_or_fd_count": 165,
-        "rss_bytes": 32804864
+        "rss_bytes": 32923648
       },
       "midpoint_sample": {
         "platform": "windows",
         "method": "GetProcessHandleCount + GetProcessMemoryInfo.WorkingSetSize",
         "handle_or_fd_count": 175,
-        "rss_bytes": 33116160
+        "rss_bytes": 33251328
       },
       "end_sample": {
         "platform": "windows",
         "method": "GetProcessHandleCount + GetProcessMemoryInfo.WorkingSetSize",
         "handle_or_fd_count": 175,
-        "rss_bytes": 33181696
+        "rss_bytes": 33337344
       },
       "live_ffi_handles_delta": 0,
       "handle_or_fd_delta_vs_warmup": 10,
-      "rss_delta_mib_vs_warmup": 0.359,
+      "rss_delta_mib_vs_warmup": 0.395,
       "leaked_child_processes": 0,
       "leftover_temp_files": 0
     }

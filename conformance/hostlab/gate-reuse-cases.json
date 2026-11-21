@@ -1,0 +1,87 @@
+{
+  "schema_version": "mdd.gate-reuse-cases.v1",
+  "task_id": "MDD-062",
+  "description": "Neutral synthetic boundary and equivalence cases for MDD-062 intake/home gate fact reuse and fail-closed verification.",
+  "neutral_domain": {
+    "reply_info": "org.sample.proto.v1.ReplyInfo",
+    "comment_item": "org.sample.model.CommentItem",
+    "mapper_package": "org.sample.source.v1",
+    "relate_game_package": "org.sample.intro.relate",
+    "gemini_ui_package": "org.sample.ui.base",
+    "expected_features": ["feat_a", "feat_b"],
+    "expected_package": "org.sample.app",
+    "tab_data_serial": "org.sample.khome.HomeTabData",
+    "tab_item_serial": "org.sample.khome.HomeTabItemData",
+    "vm_descriptor": "Lorg/sample/khome/vm/HomeFrameViewModel;",
+    "marker_classes": [
+      "Lorg/sample/home/HomeFragment;",
+      "Lorg/sample/home/BaseHomeFragment;",
+      "Lorg/sample/home/MediatorFragment;"
+    ]
+  },
+  "cases": [
+    {
+      "id": "intake_covered_all_ok",
+      "gate": "intake",
+      "expect_exit_code": 0,
+      "expect_mapper_ok": true,
+      "expect_relate_ok": true,
+      "expect_gemini_ok": true,
+      "expect_multi_owner_warning": false
+    },
+    {
+      "id": "intake_uncovered_drift",
+      "gate": "intake",
+      "expect_exit_code": 1,
+      "expect_mapper_ok": false,
+      "expect_relate_ok": true,
+      "expect_gemini_ok": true,
+      "expect_multi_owner_warning": false
+    },
+    {
+      "id": "intake_multi_owner_fail_closed",
+      "gate": "intake",
+      "expect_exit_code": 0,
+      "expect_mapper_ok": true,
+      "expect_relate_ok": true,
+      "expect_gemini_ok": true,
+      "expect_multi_owner_warning": true
+    },
+    {
+      "id": "home_order_ok_and_2hop_reach",
+      "gate": "home",
+      "expect_exit_code": 0,
+      "expect_data_order_prefix": "order-ok ",
+      "expect_item_order_prefix": "order-ok ",
+      "expect_vm_direct": false,
+      "expect_vm_via_state": true,
+      "expect_companion_non_missing": true
+    },
+    {
+      "id": "home_order_mismatch_detected",
+      "gate": "home",
+      "expect_exit_code": 0,
+      "expect_data_order_prefix": "ORDER-MISMATCH ",
+      "expect_item_order_prefix": "order-ok ",
+      "expect_companion_non_missing": false
+    },
+    {
+      "id": "negative_missing_annotations_layer_refused",
+      "gate": "home",
+      "expect_error": true,
+      "error_code": "INCOMPLETE_FACTS"
+    },
+    {
+      "id": "negative_partial_or_truncated_coverage_refused",
+      "gate": "intake",
+      "expect_error": true,
+      "error_code": "INCOMPLETE_FACTS"
+    },
+    {
+      "id": "rollback_explicit_legacy_independent_mode",
+      "gate": "both",
+      "mode": "legacy_independent",
+      "expect_no_silent_mixing": true
+    }
+  ]
+}

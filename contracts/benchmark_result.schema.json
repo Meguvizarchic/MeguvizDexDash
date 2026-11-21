@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:meguvizdexdash:benchmark-run:v1",
-  "title": "MeguvizDexDash benchmark-run proposed contract",
-  "x-contract-status": "proposed-not-implemented",
+  "title": "MeguvizDexDash benchmark-run contract",
+  "x-contract-status": "implemented",
   "description": "One observed run, never a projection or aggregate fabricated from a single observation. A model projection belongs in a different artifact.",
   "type": "object",
   "required": [

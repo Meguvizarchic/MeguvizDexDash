@@ -31,4 +31,4 @@ KILLED   a worker that outstays its grace period is not killed
 KILLED   a dropped worker is not reaped
 KILLED   a worker's output pipes are never closed
 restored tree passes every test set: True
-tests sha256: 7e82146407c1e54fc354dff94d6042bc2c8433f38f14b50edd339492cc48bcc7
+tests sha256: 52e354a3428e902eaf084742befc4891ec5f3098797831de2d89ae87d44bb1ce

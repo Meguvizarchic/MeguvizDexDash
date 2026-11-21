@@ -895,6 +895,68 @@ class FactoryTests(unittest.TestCase):
                                      settings=ns.StructuralConfig(), runner=engine)
             self.assertEqual(engine.calls, [])  # a binary with another digest is never run
 
+    def test_b1_direct_dto_matches_conservative_decode_and_errors(self):
+        valid_cells = [
+            {"t": "null"},
+            {"t": "i64", "v": "0"},
+            {"t": "i64", "v": "-0"},
+            {"t": "i64", "v": "-9223372036854775808"},
+            {"t": "u64", "v": "18446744073709551615"},
+            {"t": "i64", "v": "007"},
+            {"t": "text", "v": "Lcom/example/A;"},
+            {"t": "text", "v": "中文😀"},
+            {"t": "text", "v": "\ud800"},
+            {"t": "text", "units": "00610062"},
+            {"t": "dex_mutf8", "v": "61c08062", "utf16_units": "3"},
+        ]
+        for cell in valid_cells:
+            expected = ns.dto_value(ns.decode_cell(cell))
+            actual = ns.B1Session._decode_dto_cell(cell)
+            self.assertEqual(actual, expected, cell)
+
+        invalid_cells = [
+            {"t": "bool", "v": True},
+            {"t": "f64", "bits": "0000000000000000"},
+            {"t": "bytes", "v": "deadbeef"},
+            {"t": "text", "units": "d800"},
+            {"t": "text", "v": 123},
+            {"t": "i64", "v": "not-an-int"},
+            {"t": "unknown"},
+            "bad-not-dict",
+        ]
+        for cell in invalid_cells:
+            with self.assertRaises(ns.EngineProtocolError) as exp_ctx:
+                ns.dto_value(ns.decode_cell(cell))
+            with self.assertRaises(ns.EngineProtocolError) as act_ctx:
+                ns.B1Session._decode_dto_cell(cell)
+            self.assertEqual(str(act_ctx.exception), str(exp_ctx.exception), cell)
+
+    def test_b1_direct_batches_all_matches_conservative_path(self):
+        cols = ["c1", "c2", "c3", "c4", "c5", "c6"]
+        rows = [
+            [{"t": "u64", "v": "0"}, text("ascii"), {"t": "null"}, {"t": "i64", "v": "-7"},
+             {"t": "text", "units": "0061"}, {"t": "dex_mutf8", "v": "c080", "utf16_units": "1"}],
+            [{"t": "u64", "v": "42"}, text("中文"), {"t": "u64", "v": "999"}, {"t": "i64", "v": "0"},
+             text("end"), {"t": "null"}],
+        ]
+        with mock.patch.dict(os.environ, {"MDD_OPT_WIRE_DIRECT_JSON": "1"}):
+            h_direct = Harness(self, "b1", b1_steps(cols, rows))
+            with h_direct.session as session:
+                got_direct = session.all("SELECT c1,c2,c3,c4,c5,c6 FROM t ORDER BY c1")
+        with mock.patch.dict(os.environ, {"MDD_OPT_WIRE_DIRECT_JSON": "0"}):
+            h_ref = Harness(self, "b1", b1_steps(cols, rows))
+            with h_ref.session as session:
+                got_ref = session.all("SELECT c1,c2,c3,c4,c5,c6 FROM t ORDER BY c1")
+        self.assertEqual(got_direct, got_ref)
+        # Non-canonical leading-zero u64 still delegates identically.
+        with mock.patch.dict(os.environ, {"MDD_OPT_WIRE_DIRECT_JSON": "1"}):
+            h_lead = Harness(self, "b1", b1_steps(["a"], [[{"t": "u64", "v": "07"}]]))
+            with h_lead.session as session:
+                self.assertEqual(session.all("SELECT a FROM t ORDER BY a"), [{"a": "7"}])
+        # Verify batch_rows=10000 is sent by direct batch reader.
+        reqs = [r for r in h_direct.requests() if r.get("sql", "").startswith("SELECT c1")]
+        self.assertEqual(reqs[0].get("batch_rows"), 10000)
+
 
 if __name__ == "__main__":
     unittest.main()

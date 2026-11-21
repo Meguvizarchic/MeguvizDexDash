@@ -1,0 +1,1435 @@
+{
+  "schema_version": "mdd.end-to-end-regression.v1",
+  "task_id": "MDD-061",
+  "generated_utc": "2026-11-21T22:00:55.429Z",
+  "source_sha256": {
+    "benchmarks/run_mdd061_ablation.py": "9e18b2ac255b3fdc738f11babc7ff8b3b8e58dc074e2317228f49f0b8aef8483",
+    "benchmarks/test_mdd061_ablation.py": "390133498eeaed79c1ae5325315c0078230cb80d6f74c5526e77163378607b2a",
+    "benchmarks/observed_run_validator.py": "0d54a9425889cc68772187aaba9fbca99c812c916188295cf36393d6fac30075",
+    "benchmarks/run-five-way-comparison.py": "aeab5d0b7e004ff49a77d64811610ea5f59f487c7e33e52439a8155414fc04cf",
+    "crates/mdd-query/src/optimized/mod.rs": "4d69fe7c59ff4c9111711681bdb11956136fd06ff9936756cb75ac81b3f0e3d2",
+    "crates/mdd-query/src/optimized/schema_memo.rs": "3e50ffe141f8624496322d9848e0632f28e1f3f22c4591897bce0c90824a7249",
+    "crates/mdd-query/src/optimized/compiled_like.rs": "4cbcd924170277001a3b8e58350f42bc3bc7b90960afe6953342d8645c55104b",
+    "crates/mdd-query/src/optimized/prefix_set.rs": "ef32aff69efa13b3575e0526563b4e0dcd3afb95986224edce084e07d65c9cf1",
+    "crates/mdd-wire/src/optimized/mod.rs": "6f16a787159545165c5e4013387edbc7e7c32e6a9db2f852501c1c487e0c092f",
+    "crates/mdd-wire/src/optimized/batch_codec.rs": "f12d7c7d1c0fbed115e71ab29fb0bfc7cc681b677e4cc7a4eeaf7bd9786bd340",
+    "crates/mdd-wire/src/optimized/columns_v1.rs": "eefb820b7b7b38954ac7d99eb17959050c656d752cf4c7dc60858ecfe001f52e",
+    "integrations/hostlab/native_session.py": "50db72d250aa10d7425fc6738abb160408283ec7d3561745f6307da232af549d"
+  },
+  "engine_binaries_sha256": {
+    "A0": "f354ebcf715de9a66ef8ebe08b2b36807ab58e25cd5a1c0812e497fc1fcfc448",
+    "A1": "602105c98232120c14d6124fb33574f2f95f12e50e51d25b8834f893925f28d6",
+    "B1": "7a89484c6474b7fe4eb0bc8af97b813e56a0685511cc461b8bd16f54926c0053"
+  },
+  "thresholds": {
+    "key_median_reduction_vs_a1_min": 0.1,
+    "other_required_regression_vs_a1_max": 0.05
+  },
+  "key_workloads_vs_a1": {
+    "W05-newpipe-bulk": {
+      "block1": {
+        "workload_id": "W05-newpipe-bulk",
+        "block_filter": "block1",
+        "left_variant": "A1",
+        "right_variant": "B1",
+        "qualified_pair_count": 10,
+        "excluded_pair_count": 0,
+        "excluded_pairs": [],
+        "unpaired_runs": [],
+        "paired_median_speedup": 1.665901,
+        "paired_median_reduction_fraction": 0.399724,
+        "paired_reduction_min": 0.35242,
+        "paired_reduction_max": 0.421278,
+        "left_median_wall_seconds": 2.422157,
+        "right_median_wall_seconds": 1.454369,
+        "left_iqr_seconds": 0.087103,
+        "right_iqr_seconds": 0.048153,
+        "unpaired_median_ratio_for_reference_only": 1.665435,
+        "pairs": [
+          {
+            "block_id": "block1",
+            "pair_id": "p01",
+            "left_run_id": "mdd061-W05-block1-p01-A1",
+            "right_run_id": "mdd061-W05-block1-p01-B1",
+            "left_wall_seconds": 2.487098,
+            "right_wall_seconds": 1.439339,
+            "pair_speedup": 1.727945,
+            "pair_reduction_fraction": 0.421278
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p02",
+            "left_run_id": "mdd061-W05-block1-p02-A1",
+            "right_run_id": "mdd061-W05-block1-p02-B1",
+            "left_wall_seconds": 2.447729,
+            "right_wall_seconds": 1.475898,
+            "pair_speedup": 1.658468,
+            "pair_reduction_fraction": 0.397034
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p03",
+            "left_run_id": "mdd061-W05-block1-p03-A1",
+            "right_run_id": "mdd061-W05-block1-p03-B1",
+            "left_wall_seconds": 2.42235,
+            "right_wall_seconds": 1.471472,
+            "pair_speedup": 1.646209,
+            "pair_reduction_fraction": 0.392544
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p04",
+            "left_run_id": "mdd061-W05-block1-p04-A1",
+            "right_run_id": "mdd061-W05-block1-p04-B1",
+            "left_wall_seconds": 2.348417,
+            "right_wall_seconds": 1.520787,
+            "pair_speedup": 1.544212,
+            "pair_reduction_fraction": 0.35242
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p05",
+            "left_run_id": "mdd061-W05-block1-p05-A1",
+            "right_run_id": "mdd061-W05-block1-p05-B1",
+            "left_wall_seconds": 2.444299,
+            "right_wall_seconds": 1.430604,
+            "pair_speedup": 1.708578,
+            "pair_reduction_fraction": 0.414718
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p06",
+            "left_run_id": "mdd061-W05-block1-p06-A1",
+            "right_run_id": "mdd061-W05-block1-p06-B1",
+            "left_wall_seconds": 2.41247,
+            "right_wall_seconds": 1.427745,
+            "pair_speedup": 1.689706,
+            "pair_reduction_fraction": 0.408181
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p07",
+            "left_run_id": "mdd061-W05-block1-p07-A1",
+            "right_run_id": "mdd061-W05-block1-p07-B1",
+            "left_wall_seconds": 2.421965,
+            "right_wall_seconds": 1.485227,
+            "pair_speedup": 1.630704,
+            "pair_reduction_fraction": 0.386768
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p08",
+            "left_run_id": "mdd061-W05-block1-p08-A1",
+            "right_run_id": "mdd061-W05-block1-p08-B1",
+            "left_wall_seconds": 2.359768,
+            "right_wall_seconds": 1.415933,
+            "pair_speedup": 1.666582,
+            "pair_reduction_fraction": 0.399969
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p09",
+            "left_run_id": "mdd061-W05-block1-p09-A1",
+            "right_run_id": "mdd061-W05-block1-p09-B1",
+            "left_wall_seconds": 2.446871,
+            "right_wall_seconds": 1.469399,
+            "pair_speedup": 1.665219,
+            "pair_reduction_fraction": 0.399478
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p10",
+            "left_run_id": "mdd061-W05-block1-p10-A1",
+            "right_run_id": "mdd061-W05-block1-p10-B1",
+            "left_wall_seconds": 2.321206,
+            "right_wall_seconds": 1.379219,
+            "pair_speedup": 1.682986,
+            "pair_reduction_fraction": 0.405818
+          }
+        ]
+      },
+      "block2": {
+        "workload_id": "W05-newpipe-bulk",
+        "block_filter": "block2",
+        "left_variant": "A1",
+        "right_variant": "B1",
+        "qualified_pair_count": 3,
+        "excluded_pair_count": 0,
+        "excluded_pairs": [],
+        "unpaired_runs": [],
+        "paired_median_speedup": 1.625715,
+        "paired_median_reduction_fraction": 0.384886,
+        "paired_reduction_min": 0.376914,
+        "paired_reduction_max": 0.405977,
+        "left_median_wall_seconds": 2.399612,
+        "right_median_wall_seconds": 1.476035,
+        "left_iqr_seconds": 0.058271,
+        "right_iqr_seconds": 0.104441,
+        "unpaired_median_ratio_for_reference_only": 1.625715,
+        "pairs": [
+          {
+            "block_id": "block2",
+            "pair_id": "p01",
+            "left_run_id": "mdd061-W05-block2-p01-A1",
+            "right_run_id": "mdd061-W05-block2-p01-B1",
+            "left_wall_seconds": 2.344263,
+            "right_wall_seconds": 1.392545,
+            "pair_speedup": 1.683438,
+            "pair_reduction_fraction": 0.405977
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p02",
+            "left_run_id": "mdd061-W05-block2-p02-A1",
+            "right_run_id": "mdd061-W05-block2-p02-B1",
+            "left_wall_seconds": 2.399612,
+            "right_wall_seconds": 1.476035,
+            "pair_speedup": 1.625715,
+            "pair_reduction_fraction": 0.384886
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p03",
+            "left_run_id": "mdd061-W05-block2-p03-A1",
+            "right_run_id": "mdd061-W05-block2-p03-B1",
+            "left_wall_seconds": 2.402534,
+            "right_wall_seconds": 1.496986,
+            "pair_speedup": 1.604914,
+            "pair_reduction_fraction": 0.376914
+          }
+        ]
+      },
+      "combined": {
+        "workload_id": "W05-newpipe-bulk",
+        "block_filter": null,
+        "left_variant": "A1",
+        "right_variant": "B1",
+        "qualified_pair_count": 13,
+        "excluded_pair_count": 0,
+        "excluded_pairs": [],
+        "unpaired_runs": [],
+        "paired_median_speedup": 1.665219,
+        "paired_median_reduction_fraction": 0.399478,
+        "paired_reduction_min": 0.35242,
+        "paired_reduction_max": 0.421278,
+        "left_median_wall_seconds": 2.41247,
+        "right_median_wall_seconds": 1.469399,
+        "left_iqr_seconds": 0.091492,
+        "right_iqr_seconds": 0.058792,
+        "unpaired_median_ratio_for_reference_only": 1.641807,
+        "pairs": [
+          {
+            "block_id": "block1",
+            "pair_id": "p01",
+            "left_run_id": "mdd061-W05-block1-p01-A1",
+            "right_run_id": "mdd061-W05-block1-p01-B1",
+            "left_wall_seconds": 2.487098,
+            "right_wall_seconds": 1.439339,
+            "pair_speedup": 1.727945,
+            "pair_reduction_fraction": 0.421278
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p02",
+            "left_run_id": "mdd061-W05-block1-p02-A1",
+            "right_run_id": "mdd061-W05-block1-p02-B1",
+            "left_wall_seconds": 2.447729,
+            "right_wall_seconds": 1.475898,
+            "pair_speedup": 1.658468,
+            "pair_reduction_fraction": 0.397034
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p03",
+            "left_run_id": "mdd061-W05-block1-p03-A1",
+            "right_run_id": "mdd061-W05-block1-p03-B1",
+            "left_wall_seconds": 2.42235,
+            "right_wall_seconds": 1.471472,
+            "pair_speedup": 1.646209,
+            "pair_reduction_fraction": 0.392544
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p04",
+            "left_run_id": "mdd061-W05-block1-p04-A1",
+            "right_run_id": "mdd061-W05-block1-p04-B1",
+            "left_wall_seconds": 2.348417,
+            "right_wall_seconds": 1.520787,
+            "pair_speedup": 1.544212,
+            "pair_reduction_fraction": 0.35242
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p05",
+            "left_run_id": "mdd061-W05-block1-p05-A1",
+            "right_run_id": "mdd061-W05-block1-p05-B1",
+            "left_wall_seconds": 2.444299,
+            "right_wall_seconds": 1.430604,
+            "pair_speedup": 1.708578,
+            "pair_reduction_fraction": 0.414718
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p06",
+            "left_run_id": "mdd061-W05-block1-p06-A1",
+            "right_run_id": "mdd061-W05-block1-p06-B1",
+            "left_wall_seconds": 2.41247,
+            "right_wall_seconds": 1.427745,
+            "pair_speedup": 1.689706,
+            "pair_reduction_fraction": 0.408181
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p07",
+            "left_run_id": "mdd061-W05-block1-p07-A1",
+            "right_run_id": "mdd061-W05-block1-p07-B1",
+            "left_wall_seconds": 2.421965,
+            "right_wall_seconds": 1.485227,
+            "pair_speedup": 1.630704,
+            "pair_reduction_fraction": 0.386768
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p08",
+            "left_run_id": "mdd061-W05-block1-p08-A1",
+            "right_run_id": "mdd061-W05-block1-p08-B1",
+            "left_wall_seconds": 2.359768,
+            "right_wall_seconds": 1.415933,
+            "pair_speedup": 1.666582,
+            "pair_reduction_fraction": 0.399969
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p09",
+            "left_run_id": "mdd061-W05-block1-p09-A1",
+            "right_run_id": "mdd061-W05-block1-p09-B1",
+            "left_wall_seconds": 2.446871,
+            "right_wall_seconds": 1.469399,
+            "pair_speedup": 1.665219,
+            "pair_reduction_fraction": 0.399478
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p10",
+            "left_run_id": "mdd061-W05-block1-p10-A1",
+            "right_run_id": "mdd061-W05-block1-p10-B1",
+            "left_wall_seconds": 2.321206,
+            "right_wall_seconds": 1.379219,
+            "pair_speedup": 1.682986,
+            "pair_reduction_fraction": 0.405818
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p01",
+            "left_run_id": "mdd061-W05-block2-p01-A1",
+            "right_run_id": "mdd061-W05-block2-p01-B1",
+            "left_wall_seconds": 2.344263,
+            "right_wall_seconds": 1.392545,
+            "pair_speedup": 1.683438,
+            "pair_reduction_fraction": 0.405977
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p02",
+            "left_run_id": "mdd061-W05-block2-p02-A1",
+            "right_run_id": "mdd061-W05-block2-p02-B1",
+            "left_wall_seconds": 2.399612,
+            "right_wall_seconds": 1.476035,
+            "pair_speedup": 1.625715,
+            "pair_reduction_fraction": 0.384886
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p03",
+            "left_run_id": "mdd061-W05-block2-p03-A1",
+            "right_run_id": "mdd061-W05-block2-p03-B1",
+            "left_wall_seconds": 2.402534,
+            "right_wall_seconds": 1.496986,
+            "pair_speedup": 1.604914,
+            "pair_reduction_fraction": 0.376914
+          }
+        ]
+      }
+    },
+    "W07-hostlab-9161100": {
+      "block1": {
+        "workload_id": "W07-hostlab-9161100",
+        "block_filter": "m61-block1",
+        "left_variant": "A1",
+        "right_variant": "B1",
+        "qualified_pair_count": 10,
+        "excluded_pair_count": 0,
+        "excluded_pairs": [],
+        "unpaired_runs": [],
+        "paired_median_speedup": 1.79869,
+        "paired_median_reduction_fraction": 0.44404,
+        "paired_reduction_min": 0.438819,
+        "paired_reduction_max": 0.453916,
+        "left_median_wall_seconds": 59.093761,
+        "right_median_wall_seconds": 32.764675,
+        "left_iqr_seconds": 2.483919,
+        "right_iqr_seconds": 1.068545,
+        "unpaired_median_ratio_for_reference_only": 1.803581,
+        "pairs": [
+          {
+            "block_id": "m61-block1",
+            "pair_id": "p01",
+            "left_run_id": "mdd061-hostlab-9161100-block1-p01-A1",
+            "right_run_id": "mdd061-hostlab-9161100-block1-p01-B1",
+            "left_wall_seconds": 60.924839,
+            "right_wall_seconds": 33.882293,
+            "pair_speedup": 1.798132,
+            "pair_reduction_fraction": 0.443867
+          },
+          {
+            "block_id": "m61-block1",
+            "pair_id": "p02",
+            "left_run_id": "mdd061-hostlab-9161100-block1-p02-A1",
+            "right_run_id": "mdd061-hostlab-9161100-block1-p02-B1",
+            "left_wall_seconds": 61.795133,
+            "right_wall_seconds": 33.745363,
+            "pair_speedup": 1.831218,
+            "pair_reduction_fraction": 0.453916
+          },
+          {
+            "block_id": "m61-block1",
+            "pair_id": "p03",
+            "left_run_id": "mdd061-hostlab-9161100-block1-p03-A1",
+            "right_run_id": "mdd061-hostlab-9161100-block1-p03-B1",
+            "left_wall_seconds": 61.217733,
+            "right_wall_seconds": 34.309982,
+            "pair_speedup": 1.784254,
+            "pair_reduction_fraction": 0.439542
+          },
+          {
+            "block_id": "m61-block1",
+            "pair_id": "p04",
+            "left_run_id": "mdd061-hostlab-9161100-block1-p04-A1",
+            "right_run_id": "mdd061-hostlab-9161100-block1-p04-B1",
+            "left_wall_seconds": 58.44092,
+            "right_wall_seconds": 32.592773,
+            "pair_speedup": 1.793064,
+            "pair_reduction_fraction": 0.442295
+          },
+          {
+            "block_id": "m61-block1",
+            "pair_id": "p05",
+            "left_run_id": "mdd061-hostlab-9161100-block1-p05-A1",
+            "right_run_id": "mdd061-hostlab-9161100-block1-p05-B1",
+            "left_wall_seconds": 58.372806,
+            "right_wall_seconds": 32.42093,
+            "pair_speedup": 1.800467,
+            "pair_reduction_fraction": 0.444588
+          },
+          {
+            "block_id": "m61-block1",
+            "pair_id": "p06",
+            "left_run_id": "mdd061-hostlab-9161100-block1-p06-A1",
+            "right_run_id": "mdd061-hostlab-9161100-block1-p06-B1",
+            "left_wall_seconds": 58.921692,
+            "right_wall_seconds": 32.747946,
+            "pair_speedup": 1.799248,
+            "pair_reduction_fraction": 0.444212
+          },
+          {
+            "block_id": "m61-block1",
+            "pair_id": "p07",
+            "left_run_id": "mdd061-hostlab-9161100-block1-p07-A1",
+            "right_run_id": "mdd061-hostlab-9161100-block1-p07-B1",
+            "left_wall_seconds": 59.426787,
+            "right_wall_seconds": 32.717505,
+            "pair_speedup": 1.816361,
+            "pair_reduction_fraction": 0.449449
+          },
+          {
+            "block_id": "m61-block1",
+            "pair_id": "p08",
+            "left_run_id": "mdd061-hostlab-9161100-block1-p08-A1",
+            "right_run_id": "mdd061-hostlab-9161100-block1-p08-B1",
+            "left_wall_seconds": 58.415058,
+            "right_wall_seconds": 32.781404,
+            "pair_speedup": 1.781957,
+            "pair_reduction_fraction": 0.438819
+          },
+          {
+            "block_id": "m61-block1",
+            "pair_id": "p09",
+            "left_run_id": "mdd061-hostlab-9161100-block1-p09-A1",
+            "right_run_id": "mdd061-hostlab-9161100-block1-p09-B1",
+            "left_wall_seconds": 58.624098,
+            "right_wall_seconds": 32.676818,
+            "pair_speedup": 1.794058,
+            "pair_reduction_fraction": 0.442604
+          },
+          {
+            "block_id": "m61-block1",
+            "pair_id": "p10",
+            "left_run_id": "mdd061-hostlab-9161100-block1-p10-A1",
+            "right_run_id": "mdd061-hostlab-9161100-block1-p10-B1",
+            "left_wall_seconds": 59.26583,
+            "right_wall_seconds": 32.799973,
+            "pair_speedup": 1.806887,
+            "pair_reduction_fraction": 0.446562
+          }
+        ]
+      },
+      "block2": {
+        "workload_id": "W07-hostlab-9161100",
+        "block_filter": "m61-block2",
+        "left_variant": "A1",
+        "right_variant": "B1",
+        "qualified_pair_count": 2,
+        "excluded_pair_count": 0,
+        "excluded_pairs": [],
+        "unpaired_runs": [],
+        "paired_median_speedup": 1.805885,
+        "paired_median_reduction_fraction": 0.446254,
+        "paired_reduction_min": 0.445587,
+        "paired_reduction_max": 0.446921,
+        "left_median_wall_seconds": 59.159581,
+        "right_median_wall_seconds": 32.759177,
+        "left_iqr_seconds": 0.620577,
+        "right_iqr_seconds": 0.264694,
+        "unpaired_median_ratio_for_reference_only": 1.805893,
+        "pairs": [
+          {
+            "block_id": "m61-block2",
+            "pair_id": "p01",
+            "left_run_id": "mdd061-hostlab-9161100-block2-p01-A1",
+            "right_run_id": "mdd061-hostlab-9161100-block2-p01-B1",
+            "left_wall_seconds": 59.469869,
+            "right_wall_seconds": 32.891524,
+            "pair_speedup": 1.808061,
+            "pair_reduction_fraction": 0.446921
+          },
+          {
+            "block_id": "m61-block2",
+            "pair_id": "p02",
+            "left_run_id": "mdd061-hostlab-9161100-block2-p02-A1",
+            "right_run_id": "mdd061-hostlab-9161100-block2-p02-B1",
+            "left_wall_seconds": 58.849292,
+            "right_wall_seconds": 32.62683,
+            "pair_speedup": 1.803709,
+            "pair_reduction_fraction": 0.445587
+          }
+        ]
+      },
+      "combined": {
+        "workload_id": "W07-hostlab-9161100",
+        "block_filter": null,
+        "left_variant": "A1",
+        "right_variant": "B1",
+        "qualified_pair_count": 12,
+        "excluded_pair_count": 0,
+        "excluded_pairs": [],
+        "unpaired_runs": [],
+        "paired_median_speedup": 1.799857,
+        "paired_median_reduction_fraction": 0.4444,
+        "paired_reduction_min": 0.438819,
+        "paired_reduction_max": 0.453916,
+        "left_median_wall_seconds": 59.093761,
+        "right_median_wall_seconds": 32.764675,
+        "left_iqr_seconds": 1.664845,
+        "right_iqr_seconds": 0.66662,
+        "unpaired_median_ratio_for_reference_only": 1.803581,
+        "pairs": [
+          {
+            "block_id": "m61-block1",
+            "pair_id": "p01",
+            "left_run_id": "mdd061-hostlab-9161100-block1-p01-A1",
+            "right_run_id": "mdd061-hostlab-9161100-block1-p01-B1",
+            "left_wall_seconds": 60.924839,
+            "right_wall_seconds": 33.882293,
+            "pair_speedup": 1.798132,
+            "pair_reduction_fraction": 0.443867
+          },
+          {
+            "block_id": "m61-block1",
+            "pair_id": "p02",
+            "left_run_id": "mdd061-hostlab-9161100-block1-p02-A1",
+            "right_run_id": "mdd061-hostlab-9161100-block1-p02-B1",
+            "left_wall_seconds": 61.795133,
+            "right_wall_seconds": 33.745363,
+            "pair_speedup": 1.831218,
+            "pair_reduction_fraction": 0.453916
+          },
+          {
+            "block_id": "m61-block1",
+            "pair_id": "p03",
+            "left_run_id": "mdd061-hostlab-9161100-block1-p03-A1",
+            "right_run_id": "mdd061-hostlab-9161100-block1-p03-B1",
+            "left_wall_seconds": 61.217733,
+            "right_wall_seconds": 34.309982,
+            "pair_speedup": 1.784254,
+            "pair_reduction_fraction": 0.439542
+          },
+          {
+            "block_id": "m61-block1",
+            "pair_id": "p04",
+            "left_run_id": "mdd061-hostlab-9161100-block1-p04-A1",
+            "right_run_id": "mdd061-hostlab-9161100-block1-p04-B1",
+            "left_wall_seconds": 58.44092,
+            "right_wall_seconds": 32.592773,
+            "pair_speedup": 1.793064,
+            "pair_reduction_fraction": 0.442295
+          },
+          {
+            "block_id": "m61-block1",
+            "pair_id": "p05",
+            "left_run_id": "mdd061-hostlab-9161100-block1-p05-A1",
+            "right_run_id": "mdd061-hostlab-9161100-block1-p05-B1",
+            "left_wall_seconds": 58.372806,
+            "right_wall_seconds": 32.42093,
+            "pair_speedup": 1.800467,
+            "pair_reduction_fraction": 0.444588
+          },
+          {
+            "block_id": "m61-block1",
+            "pair_id": "p06",
+            "left_run_id": "mdd061-hostlab-9161100-block1-p06-A1",
+            "right_run_id": "mdd061-hostlab-9161100-block1-p06-B1",
+            "left_wall_seconds": 58.921692,
+            "right_wall_seconds": 32.747946,
+            "pair_speedup": 1.799248,
+            "pair_reduction_fraction": 0.444212
+          },
+          {
+            "block_id": "m61-block1",
+            "pair_id": "p07",
+            "left_run_id": "mdd061-hostlab-9161100-block1-p07-A1",
+            "right_run_id": "mdd061-hostlab-9161100-block1-p07-B1",
+            "left_wall_seconds": 59.426787,
+            "right_wall_seconds": 32.717505,
+            "pair_speedup": 1.816361,
+            "pair_reduction_fraction": 0.449449
+          },
+          {
+            "block_id": "m61-block1",
+            "pair_id": "p08",
+            "left_run_id": "mdd061-hostlab-9161100-block1-p08-A1",
+            "right_run_id": "mdd061-hostlab-9161100-block1-p08-B1",
+            "left_wall_seconds": 58.415058,
+            "right_wall_seconds": 32.781404,
+            "pair_speedup": 1.781957,
+            "pair_reduction_fraction": 0.438819
+          },
+          {
+            "block_id": "m61-block1",
+            "pair_id": "p09",
+            "left_run_id": "mdd061-hostlab-9161100-block1-p09-A1",
+            "right_run_id": "mdd061-hostlab-9161100-block1-p09-B1",
+            "left_wall_seconds": 58.624098,
+            "right_wall_seconds": 32.676818,
+            "pair_speedup": 1.794058,
+            "pair_reduction_fraction": 0.442604
+          },
+          {
+            "block_id": "m61-block1",
+            "pair_id": "p10",
+            "left_run_id": "mdd061-hostlab-9161100-block1-p10-A1",
+            "right_run_id": "mdd061-hostlab-9161100-block1-p10-B1",
+            "left_wall_seconds": 59.26583,
+            "right_wall_seconds": 32.799973,
+            "pair_speedup": 1.806887,
+            "pair_reduction_fraction": 0.446562
+          },
+          {
+            "block_id": "m61-block2",
+            "pair_id": "p01",
+            "left_run_id": "mdd061-hostlab-9161100-block2-p01-A1",
+            "right_run_id": "mdd061-hostlab-9161100-block2-p01-B1",
+            "left_wall_seconds": 59.469869,
+            "right_wall_seconds": 32.891524,
+            "pair_speedup": 1.808061,
+            "pair_reduction_fraction": 0.446921
+          },
+          {
+            "block_id": "m61-block2",
+            "pair_id": "p02",
+            "left_run_id": "mdd061-hostlab-9161100-block2-p02-A1",
+            "right_run_id": "mdd061-hostlab-9161100-block2-p02-B1",
+            "left_wall_seconds": 58.849292,
+            "right_wall_seconds": 32.62683,
+            "pair_speedup": 1.803709,
+            "pair_reduction_fraction": 0.445587
+          }
+        ]
+      }
+    },
+    "W07-hostlab-9170100": {
+      "block1": {
+        "workload_id": "W07-hostlab-9170100",
+        "block_filter": "m61-block1",
+        "left_variant": "A1",
+        "right_variant": "B1",
+        "qualified_pair_count": 10,
+        "excluded_pair_count": 0,
+        "excluded_pairs": [],
+        "unpaired_runs": [],
+        "paired_median_speedup": 1.840702,
+        "paired_median_reduction_fraction": 0.456729,
+        "paired_reduction_min": 0.453222,
+        "paired_reduction_max": 0.462756,
+        "left_median_wall_seconds": 65.032058,
+        "right_median_wall_seconds": 35.319152,
+        "left_iqr_seconds": 0.313478,
+        "right_iqr_seconds": 0.129643,
+        "unpaired_median_ratio_for_reference_only": 1.841269,
+        "pairs": [
+          {
+            "block_id": "m61-block1",
+            "pair_id": "p01",
+            "left_run_id": "mdd061-hostlab-9170100-block1-p01-A1",
+            "right_run_id": "mdd061-hostlab-9170100-block1-p01-B1",
+            "left_wall_seconds": 65.911392,
+            "right_wall_seconds": 35.584085,
+            "pair_speedup": 1.852272,
+            "pair_reduction_fraction": 0.460122
+          },
+          {
+            "block_id": "m61-block1",
+            "pair_id": "p02",
+            "left_run_id": "mdd061-hostlab-9170100-block1-p02-A1",
+            "right_run_id": "mdd061-hostlab-9170100-block1-p02-B1",
+            "left_wall_seconds": 64.565819,
+            "right_wall_seconds": 35.12267,
+            "pair_speedup": 1.838295,
+            "pair_reduction_fraction": 0.456018
+          },
+          {
+            "block_id": "m61-block1",
+            "pair_id": "p03",
+            "left_run_id": "mdd061-hostlab-9170100-block1-p03-A1",
+            "right_run_id": "mdd061-hostlab-9170100-block1-p03-B1",
+            "left_wall_seconds": 64.848849,
+            "right_wall_seconds": 35.383891,
+            "pair_speedup": 1.832722,
+            "pair_reduction_fraction": 0.454364
+          },
+          {
+            "block_id": "m61-block1",
+            "pair_id": "p04",
+            "left_run_id": "mdd061-hostlab-9170100-block1-p04-A1",
+            "right_run_id": "mdd061-hostlab-9170100-block1-p04-B1",
+            "left_wall_seconds": 65.19615,
+            "right_wall_seconds": 35.322775,
+            "pair_speedup": 1.845726,
+            "pair_reduction_fraction": 0.458208
+          },
+          {
+            "block_id": "m61-block1",
+            "pair_id": "p05",
+            "left_run_id": "mdd061-hostlab-9170100-block1-p05-A1",
+            "right_run_id": "mdd061-hostlab-9170100-block1-p05-B1",
+            "left_wall_seconds": 64.931828,
+            "right_wall_seconds": 35.277602,
+            "pair_speedup": 1.840596,
+            "pair_reduction_fraction": 0.456698
+          },
+          {
+            "block_id": "m61-block1",
+            "pair_id": "p06",
+            "left_run_id": "mdd061-hostlab-9170100-block1-p06-A1",
+            "right_run_id": "mdd061-hostlab-9170100-block1-p06-B1",
+            "left_wall_seconds": 64.588475,
+            "right_wall_seconds": 35.315528,
+            "pair_speedup": 1.828897,
+            "pair_reduction_fraction": 0.453222
+          },
+          {
+            "block_id": "m61-block1",
+            "pair_id": "p07",
+            "left_run_id": "mdd061-hostlab-9170100-block1-p07-A1",
+            "right_run_id": "mdd061-hostlab-9170100-block1-p07-B1",
+            "left_wall_seconds": 65.040936,
+            "right_wall_seconds": 35.338386,
+            "pair_speedup": 1.840518,
+            "pair_reduction_fraction": 0.456675
+          },
+          {
+            "block_id": "m61-block1",
+            "pair_id": "p08",
+            "left_run_id": "mdd061-hostlab-9170100-block1-p08-A1",
+            "right_run_id": "mdd061-hostlab-9170100-block1-p08-B1",
+            "left_wall_seconds": 65.162327,
+            "right_wall_seconds": 35.008074,
+            "pair_speedup": 1.861351,
+            "pair_reduction_fraction": 0.462756
+          },
+          {
+            "block_id": "m61-block1",
+            "pair_id": "p09",
+            "left_run_id": "mdd061-hostlab-9170100-block1-p09-A1",
+            "right_run_id": "mdd061-hostlab-9170100-block1-p09-B1",
+            "left_wall_seconds": 65.02318,
+            "right_wall_seconds": 35.323169,
+            "pair_speedup": 1.840808,
+            "pair_reduction_fraction": 0.45676
+          },
+          {
+            "block_id": "m61-block1",
+            "pair_id": "p10",
+            "left_run_id": "mdd061-hostlab-9170100-block1-p10-A1",
+            "right_run_id": "mdd061-hostlab-9170100-block1-p10-B1",
+            "left_wall_seconds": 65.077287,
+            "right_wall_seconds": 35.208743,
+            "pair_speedup": 1.848327,
+            "pair_reduction_fraction": 0.45897
+          }
+        ]
+      },
+      "block2": {
+        "workload_id": "W07-hostlab-9170100",
+        "block_filter": "m61-block2",
+        "left_variant": "A1",
+        "right_variant": "B1",
+        "qualified_pair_count": 2,
+        "excluded_pair_count": 0,
+        "excluded_pairs": [],
+        "unpaired_runs": [],
+        "paired_median_speedup": 1.839295,
+        "paired_median_reduction_fraction": 0.456311,
+        "paired_reduction_min": 0.455205,
+        "paired_reduction_max": 0.457417,
+        "left_median_wall_seconds": 65.136925,
+        "right_median_wall_seconds": 35.414403,
+        "left_iqr_seconds": 0.333404,
+        "right_iqr_seconds": 0.325321,
+        "unpaired_median_ratio_for_reference_only": 1.839278,
+        "pairs": [
+          {
+            "block_id": "m61-block2",
+            "pair_id": "p01",
+            "left_run_id": "mdd061-hostlab-9170100-block2-p01-A1",
+            "right_run_id": "mdd061-hostlab-9170100-block2-p01-B1",
+            "left_wall_seconds": 65.303627,
+            "right_wall_seconds": 35.577064,
+            "pair_speedup": 1.835554,
+            "pair_reduction_fraction": 0.455205
+          },
+          {
+            "block_id": "m61-block2",
+            "pair_id": "p02",
+            "left_run_id": "mdd061-hostlab-9170100-block2-p02-A1",
+            "right_run_id": "mdd061-hostlab-9170100-block2-p02-B1",
+            "left_wall_seconds": 64.970223,
+            "right_wall_seconds": 35.251743,
+            "pair_speedup": 1.843036,
+            "pair_reduction_fraction": 0.457417
+          }
+        ]
+      },
+      "combined": {
+        "workload_id": "W07-hostlab-9170100",
+        "block_filter": null,
+        "left_variant": "A1",
+        "right_variant": "B1",
+        "qualified_pair_count": 12,
+        "excluded_pair_count": 0,
+        "excluded_pairs": [],
+        "unpaired_runs": [],
+        "paired_median_speedup": 1.840702,
+        "paired_median_reduction_fraction": 0.456729,
+        "paired_reduction_min": 0.453222,
+        "paired_reduction_max": 0.462756,
+        "left_median_wall_seconds": 65.032058,
+        "right_median_wall_seconds": 35.319152,
+        "left_iqr_seconds": 0.2889,
+        "right_iqr_seconds": 0.130895,
+        "unpaired_median_ratio_for_reference_only": 1.841269,
+        "pairs": [
+          {
+            "block_id": "m61-block1",
+            "pair_id": "p01",
+            "left_run_id": "mdd061-hostlab-9170100-block1-p01-A1",
+            "right_run_id": "mdd061-hostlab-9170100-block1-p01-B1",
+            "left_wall_seconds": 65.911392,
+            "right_wall_seconds": 35.584085,
+            "pair_speedup": 1.852272,
+            "pair_reduction_fraction": 0.460122
+          },
+          {
+            "block_id": "m61-block1",
+            "pair_id": "p02",
+            "left_run_id": "mdd061-hostlab-9170100-block1-p02-A1",
+            "right_run_id": "mdd061-hostlab-9170100-block1-p02-B1",
+            "left_wall_seconds": 64.565819,
+            "right_wall_seconds": 35.12267,
+            "pair_speedup": 1.838295,
+            "pair_reduction_fraction": 0.456018
+          },
+          {
+            "block_id": "m61-block1",
+            "pair_id": "p03",
+            "left_run_id": "mdd061-hostlab-9170100-block1-p03-A1",
+            "right_run_id": "mdd061-hostlab-9170100-block1-p03-B1",
+            "left_wall_seconds": 64.848849,
+            "right_wall_seconds": 35.383891,
+            "pair_speedup": 1.832722,
+            "pair_reduction_fraction": 0.454364
+          },
+          {
+            "block_id": "m61-block1",
+            "pair_id": "p04",
+            "left_run_id": "mdd061-hostlab-9170100-block1-p04-A1",
+            "right_run_id": "mdd061-hostlab-9170100-block1-p04-B1",
+            "left_wall_seconds": 65.19615,
+            "right_wall_seconds": 35.322775,
+            "pair_speedup": 1.845726,
+            "pair_reduction_fraction": 0.458208
+          },
+          {
+            "block_id": "m61-block1",
+            "pair_id": "p05",
+            "left_run_id": "mdd061-hostlab-9170100-block1-p05-A1",
+            "right_run_id": "mdd061-hostlab-9170100-block1-p05-B1",
+            "left_wall_seconds": 64.931828,
+            "right_wall_seconds": 35.277602,
+            "pair_speedup": 1.840596,
+            "pair_reduction_fraction": 0.456698
+          },
+          {
+            "block_id": "m61-block1",
+            "pair_id": "p06",
+            "left_run_id": "mdd061-hostlab-9170100-block1-p06-A1",
+            "right_run_id": "mdd061-hostlab-9170100-block1-p06-B1",
+            "left_wall_seconds": 64.588475,
+            "right_wall_seconds": 35.315528,
+            "pair_speedup": 1.828897,
+            "pair_reduction_fraction": 0.453222
+          },
+          {
+            "block_id": "m61-block1",
+            "pair_id": "p07",
+            "left_run_id": "mdd061-hostlab-9170100-block1-p07-A1",
+            "right_run_id": "mdd061-hostlab-9170100-block1-p07-B1",
+            "left_wall_seconds": 65.040936,
+            "right_wall_seconds": 35.338386,
+            "pair_speedup": 1.840518,
+            "pair_reduction_fraction": 0.456675
+          },
+          {
+            "block_id": "m61-block1",
+            "pair_id": "p08",
+            "left_run_id": "mdd061-hostlab-9170100-block1-p08-A1",
+            "right_run_id": "mdd061-hostlab-9170100-block1-p08-B1",
+            "left_wall_seconds": 65.162327,
+            "right_wall_seconds": 35.008074,
+            "pair_speedup": 1.861351,
+            "pair_reduction_fraction": 0.462756
+          },
+          {
+            "block_id": "m61-block1",
+            "pair_id": "p09",
+            "left_run_id": "mdd061-hostlab-9170100-block1-p09-A1",
+            "right_run_id": "mdd061-hostlab-9170100-block1-p09-B1",
+            "left_wall_seconds": 65.02318,
+            "right_wall_seconds": 35.323169,
+            "pair_speedup": 1.840808,
+            "pair_reduction_fraction": 0.45676
+          },
+          {
+            "block_id": "m61-block1",
+            "pair_id": "p10",
+            "left_run_id": "mdd061-hostlab-9170100-block1-p10-A1",
+            "right_run_id": "mdd061-hostlab-9170100-block1-p10-B1",
+            "left_wall_seconds": 65.077287,
+            "right_wall_seconds": 35.208743,
+            "pair_speedup": 1.848327,
+            "pair_reduction_fraction": 0.45897
+          },
+          {
+            "block_id": "m61-block2",
+            "pair_id": "p01",
+            "left_run_id": "mdd061-hostlab-9170100-block2-p01-A1",
+            "right_run_id": "mdd061-hostlab-9170100-block2-p01-B1",
+            "left_wall_seconds": 65.303627,
+            "right_wall_seconds": 35.577064,
+            "pair_speedup": 1.835554,
+            "pair_reduction_fraction": 0.455205
+          },
+          {
+            "block_id": "m61-block2",
+            "pair_id": "p02",
+            "left_run_id": "mdd061-hostlab-9170100-block2-p02-A1",
+            "right_run_id": "mdd061-hostlab-9170100-block2-p02-B1",
+            "left_wall_seconds": 64.970223,
+            "right_wall_seconds": 35.251743,
+            "pair_speedup": 1.843036,
+            "pair_reduction_fraction": 0.457417
+          }
+        ]
+      }
+    }
+  },
+  "non_regression_guards_vs_a1": {
+    "W01-newpipe-intake": {
+      "workload_id": "W01-newpipe-intake",
+      "block_filter": null,
+      "left_variant": "A1",
+      "right_variant": "B1",
+      "qualified_pair_count": 5,
+      "excluded_pair_count": 0,
+      "excluded_pairs": [],
+      "unpaired_runs": [],
+      "paired_median_speedup": 1.850647,
+      "paired_median_reduction_fraction": 0.459648,
+      "paired_reduction_min": 0.429701,
+      "paired_reduction_max": 0.503962,
+      "left_median_wall_seconds": 0.014716,
+      "right_median_wall_seconds": 0.008138,
+      "left_iqr_seconds": 0.001104,
+      "right_iqr_seconds": 0.000538,
+      "unpaired_median_ratio_for_reference_only": 1.808307,
+      "pairs": [
+        {
+          "block_id": "block1",
+          "pair_id": "p01",
+          "left_run_id": "mdd061-W01-newpipe-intake-block1-p01-A1",
+          "right_run_id": "mdd061-W01-newpipe-intake-block1-p01-B1",
+          "left_wall_seconds": 0.014716,
+          "right_wall_seconds": 0.008213,
+          "pair_speedup": 1.791793,
+          "pair_reduction_fraction": 0.4419
+        },
+        {
+          "block_id": "block1",
+          "pair_id": "p02",
+          "left_run_id": "mdd061-W01-newpipe-intake-block1-p02-A1",
+          "right_run_id": "mdd061-W01-newpipe-intake-block1-p02-B1",
+          "left_wall_seconds": 0.014538,
+          "right_wall_seconds": 0.008291,
+          "pair_speedup": 1.753468,
+          "pair_reduction_fraction": 0.429701
+        },
+        {
+          "block_id": "block1",
+          "pair_id": "p03",
+          "left_run_id": "mdd061-W01-newpipe-intake-block1-p03-A1",
+          "right_run_id": "mdd061-W01-newpipe-intake-block1-p03-B1",
+          "left_wall_seconds": 0.016406,
+          "right_wall_seconds": 0.008138,
+          "pair_speedup": 2.015974,
+          "pair_reduction_fraction": 0.503962
+        },
+        {
+          "block_id": "block1",
+          "pair_id": "p04",
+          "left_run_id": "mdd061-W01-newpipe-intake-block1-p04-A1",
+          "right_run_id": "mdd061-W01-newpipe-intake-block1-p04-B1",
+          "left_wall_seconds": 0.015018,
+          "right_wall_seconds": 0.008115,
+          "pair_speedup": 1.850647,
+          "pair_reduction_fraction": 0.459648
+        },
+        {
+          "block_id": "block1",
+          "pair_id": "p05",
+          "left_run_id": "mdd061-W01-newpipe-intake-block1-p05-A1",
+          "right_run_id": "mdd061-W01-newpipe-intake-block1-p05-B1",
+          "left_wall_seconds": 0.014677,
+          "right_wall_seconds": 0.007312,
+          "pair_speedup": 2.007248,
+          "pair_reduction_fraction": 0.501806
+        }
+      ],
+      "same_scope_metric": "resident_query_seconds",
+      "scope_note": "Compares resident query_wall_seconds inside an opened session; explicit_open_seconds reported separately (key workloads W05/W07 remain 100% process-cold end-to-end)."
+    },
+    "W02-newpipe-lookup": {
+      "workload_id": "W02-newpipe-lookup",
+      "block_filter": null,
+      "left_variant": "A1",
+      "right_variant": "B1",
+      "qualified_pair_count": 5,
+      "excluded_pair_count": 0,
+      "excluded_pairs": [],
+      "unpaired_runs": [],
+      "paired_median_speedup": 1.229015,
+      "paired_median_reduction_fraction": 0.18634,
+      "paired_reduction_min": 0.138372,
+      "paired_reduction_max": 0.327078,
+      "left_median_wall_seconds": 0.007438,
+      "right_median_wall_seconds": 0.005791,
+      "left_iqr_seconds": 0.001158,
+      "right_iqr_seconds": 0.000553,
+      "unpaired_median_ratio_for_reference_only": 1.284407,
+      "pairs": [
+        {
+          "block_id": "block1",
+          "pair_id": "p01",
+          "left_run_id": "mdd061-W02-newpipe-lookup-block1-p01-A1",
+          "right_run_id": "mdd061-W02-newpipe-lookup-block1-p01-B1",
+          "left_wall_seconds": 0.007438,
+          "right_wall_seconds": 0.006052,
+          "pair_speedup": 1.229015,
+          "pair_reduction_fraction": 0.18634
+        },
+        {
+          "block_id": "block1",
+          "pair_id": "p02",
+          "left_run_id": "mdd061-W02-newpipe-lookup-block1-p02-A1",
+          "right_run_id": "mdd061-W02-newpipe-lookup-block1-p02-B1",
+          "left_wall_seconds": 0.007017,
+          "right_wall_seconds": 0.005941,
+          "pair_speedup": 1.181114,
+          "pair_reduction_fraction": 0.153342
+        },
+        {
+          "block_id": "block1",
+          "pair_id": "p03",
+          "left_run_id": "mdd061-W02-newpipe-lookup-block1-p03-A1",
+          "right_run_id": "mdd061-W02-newpipe-lookup-block1-p03-B1",
+          "left_wall_seconds": 0.008206,
+          "right_wall_seconds": 0.005522,
+          "pair_speedup": 1.486056,
+          "pair_reduction_fraction": 0.327078
+        },
+        {
+          "block_id": "block1",
+          "pair_id": "p04",
+          "left_run_id": "mdd061-W02-newpipe-lookup-block1-p04-A1",
+          "right_run_id": "mdd061-W02-newpipe-lookup-block1-p04-B1",
+          "left_wall_seconds": 0.006721,
+          "right_wall_seconds": 0.005791,
+          "pair_speedup": 1.160594,
+          "pair_reduction_fraction": 0.138372
+        },
+        {
+          "block_id": "block1",
+          "pair_id": "p05",
+          "left_run_id": "mdd061-W02-newpipe-lookup-block1-p05-A1",
+          "right_run_id": "mdd061-W02-newpipe-lookup-block1-p05-B1",
+          "left_wall_seconds": 0.007848,
+          "right_wall_seconds": 0.005365,
+          "pair_speedup": 1.462815,
+          "pair_reduction_fraction": 0.316386
+        }
+      ],
+      "same_scope_metric": "resident_query_seconds",
+      "scope_note": "Compares resident query_wall_seconds inside an opened session; explicit_open_seconds reported separately (key workloads W05/W07 remain 100% process-cold end-to-end)."
+    },
+    "W03-newpipe-xref": {
+      "workload_id": "W03-newpipe-xref",
+      "block_filter": null,
+      "left_variant": "A1",
+      "right_variant": "B1",
+      "qualified_pair_count": 5,
+      "excluded_pair_count": 0,
+      "excluded_pairs": [],
+      "unpaired_runs": [],
+      "paired_median_speedup": 2.203921,
+      "paired_median_reduction_fraction": 0.546263,
+      "paired_reduction_min": 0.465034,
+      "paired_reduction_max": 0.570467,
+      "left_median_wall_seconds": 0.064533,
+      "right_median_wall_seconds": 0.029281,
+      "left_iqr_seconds": 0.005091,
+      "right_iqr_seconds": 0.003538,
+      "unpaired_median_ratio_for_reference_only": 2.203921,
+      "pairs": [
+        {
+          "block_id": "block1",
+          "pair_id": "p01",
+          "left_run_id": "mdd061-W03-newpipe-xref-block1-p01-A1",
+          "right_run_id": "mdd061-W03-newpipe-xref-block1-p01-B1",
+          "left_wall_seconds": 0.058071,
+          "right_wall_seconds": 0.031066,
+          "pair_speedup": 1.869278,
+          "pair_reduction_fraction": 0.465034
+        },
+        {
+          "block_id": "block1",
+          "pair_id": "p02",
+          "left_run_id": "mdd061-W03-newpipe-xref-block1-p02-A1",
+          "right_run_id": "mdd061-W03-newpipe-xref-block1-p02-B1",
+          "left_wall_seconds": 0.064533,
+          "right_wall_seconds": 0.029281,
+          "pair_speedup": 2.203921,
+          "pair_reduction_fraction": 0.546263
+        },
+        {
+          "block_id": "block1",
+          "pair_id": "p03",
+          "left_run_id": "mdd061-W03-newpipe-xref-block1-p03-A1",
+          "right_run_id": "mdd061-W03-newpipe-xref-block1-p03-B1",
+          "left_wall_seconds": 0.064005,
+          "right_wall_seconds": 0.028595,
+          "pair_speedup": 2.238328,
+          "pair_reduction_fraction": 0.553238
+        },
+        {
+          "block_id": "block1",
+          "pair_id": "p04",
+          "left_run_id": "mdd061-W03-newpipe-xref-block1-p04-A1",
+          "right_run_id": "mdd061-W03-newpipe-xref-block1-p04-B1",
+          "left_wall_seconds": 0.067163,
+          "right_wall_seconds": 0.032566,
+          "pair_speedup": 2.062366,
+          "pair_reduction_fraction": 0.51512
+        },
+        {
+          "block_id": "block1",
+          "pair_id": "p05",
+          "left_run_id": "mdd061-W03-newpipe-xref-block1-p05-A1",
+          "right_run_id": "mdd061-W03-newpipe-xref-block1-p05-B1",
+          "left_wall_seconds": 0.065094,
+          "right_wall_seconds": 0.02796,
+          "pair_speedup": 2.328112,
+          "pair_reduction_fraction": 0.570467
+        }
+      ],
+      "same_scope_metric": "resident_query_seconds",
+      "scope_note": "Compares resident query_wall_seconds inside an opened session; explicit_open_seconds reported separately (key workloads W05/W07 remain 100% process-cold end-to-end)."
+    },
+    "W04-newpipe-joins-agg": {
+      "workload_id": "W04-newpipe-joins-agg",
+      "block_filter": null,
+      "left_variant": "A1",
+      "right_variant": "B1",
+      "qualified_pair_count": 5,
+      "excluded_pair_count": 0,
+      "excluded_pairs": [],
+      "unpaired_runs": [],
+      "paired_median_speedup": 1.382359,
+      "paired_median_reduction_fraction": 0.276599,
+      "paired_reduction_min": 0.204171,
+      "paired_reduction_max": 0.344163,
+      "left_median_wall_seconds": 0.028917,
+      "right_median_wall_seconds": 0.020758,
+      "left_iqr_seconds": 0.002114,
+      "right_iqr_seconds": 0.002244,
+      "unpaired_median_ratio_for_reference_only": 1.393053,
+      "pairs": [
+        {
+          "block_id": "block1",
+          "pair_id": "p01",
+          "left_run_id": "mdd061-W04-newpipe-joins-agg-block1-p01-A1",
+          "right_run_id": "mdd061-W04-newpipe-joins-agg-block1-p01-B1",
+          "left_wall_seconds": 0.028917,
+          "right_wall_seconds": 0.023013,
+          "pair_speedup": 1.256551,
+          "pair_reduction_fraction": 0.204171
+        },
+        {
+          "block_id": "block1",
+          "pair_id": "p02",
+          "left_run_id": "mdd061-W04-newpipe-joins-agg-block1-p02-A1",
+          "right_run_id": "mdd061-W04-newpipe-joins-agg-block1-p02-B1",
+          "left_wall_seconds": 0.030222,
+          "right_wall_seconds": 0.021569,
+          "pair_speedup": 1.401178,
+          "pair_reduction_fraction": 0.286315
+        },
+        {
+          "block_id": "block1",
+          "pair_id": "p03",
+          "left_run_id": "mdd061-W04-newpipe-joins-agg-block1-p03-A1",
+          "right_run_id": "mdd061-W04-newpipe-joins-agg-block1-p03-B1",
+          "left_wall_seconds": 0.027433,
+          "right_wall_seconds": 0.020331,
+          "pair_speedup": 1.349319,
+          "pair_reduction_fraction": 0.258885
+        },
+        {
+          "block_id": "block1",
+          "pair_id": "p04",
+          "left_run_id": "mdd061-W04-newpipe-joins-agg-block1-p04-A1",
+          "right_run_id": "mdd061-W04-newpipe-joins-agg-block1-p04-B1",
+          "left_wall_seconds": 0.030134,
+          "right_wall_seconds": 0.019763,
+          "pair_speedup": 1.524769,
+          "pair_reduction_fraction": 0.344163
+        },
+        {
+          "block_id": "block1",
+          "pair_id": "p05",
+          "left_run_id": "mdd061-W04-newpipe-joins-agg-block1-p05-A1",
+          "right_run_id": "mdd061-W04-newpipe-joins-agg-block1-p05-B1",
+          "left_wall_seconds": 0.028695,
+          "right_wall_seconds": 0.020758,
+          "pair_speedup": 1.382359,
+          "pair_reduction_fraction": 0.276599
+        }
+      ],
+      "same_scope_metric": "resident_query_seconds",
+      "scope_note": "Compares resident query_wall_seconds inside an opened session; explicit_open_seconds reported separately (key workloads W05/W07 remain 100% process-cold end-to-end)."
+    },
+    "W06-newpipe-smali": {
+      "workload_id": "W06-newpipe-smali",
+      "block_filter": null,
+      "left_variant": "A1",
+      "right_variant": "B1",
+      "qualified_pair_count": 5,
+      "excluded_pair_count": 0,
+      "excluded_pairs": [],
+      "unpaired_runs": [],
+      "paired_median_speedup": 43.366667,
+      "paired_median_reduction_fraction": 0.976941,
+      "paired_reduction_min": 0.962827,
+      "paired_reduction_max": 0.979388,
+      "left_median_wall_seconds": 0.01255,
+      "right_median_wall_seconds": 0.000295,
+      "left_iqr_seconds": 0.000965,
+      "right_iqr_seconds": 0.000105,
+      "unpaired_median_ratio_for_reference_only": 42.542373,
+      "pairs": [
+        {
+          "block_id": "block1",
+          "pair_id": "p01",
+          "left_run_id": "mdd061-W06-newpipe-smali-block1-p01-A1",
+          "right_run_id": "mdd061-W06-newpipe-smali-block1-p01-B1",
+          "left_wall_seconds": 0.011971,
+          "right_wall_seconds": 0.000445,
+          "pair_speedup": 26.901124,
+          "pair_reduction_fraction": 0.962827
+        },
+        {
+          "block_id": "block1",
+          "pair_id": "p02",
+          "left_run_id": "mdd061-W06-newpipe-smali-block1-p02-A1",
+          "right_run_id": "mdd061-W06-newpipe-smali-block1-p02-B1",
+          "left_wall_seconds": 0.01255,
+          "right_wall_seconds": 0.000295,
+          "pair_speedup": 42.542373,
+          "pair_reduction_fraction": 0.976494
+        },
+        {
+          "block_id": "block1",
+          "pair_id": "p03",
+          "left_run_id": "mdd061-W06-newpipe-smali-block1-p03-A1",
+          "right_run_id": "mdd061-W06-newpipe-smali-block1-p03-B1",
+          "left_wall_seconds": 0.012728,
+          "right_wall_seconds": 0.000291,
+          "pair_speedup": 43.738832,
+          "pair_reduction_fraction": 0.977137
+        },
+        {
+          "block_id": "block1",
+          "pair_id": "p04",
+          "left_run_id": "mdd061-W06-newpipe-smali-block1-p04-A1",
+          "right_run_id": "mdd061-W06-newpipe-smali-block1-p04-B1",
+          "left_wall_seconds": 0.01301,
+          "right_wall_seconds": 0.0003,
+          "pair_speedup": 43.366667,
+          "pair_reduction_fraction": 0.976941
+        },
+        {
+          "block_id": "block1",
+          "pair_id": "p05",
+          "left_run_id": "mdd061-W06-newpipe-smali-block1-p05-A1",
+          "right_run_id": "mdd061-W06-newpipe-smali-block1-p05-B1",
+          "left_wall_seconds": 0.011838,
+          "right_wall_seconds": 0.000244,
+          "pair_speedup": 48.516393,
+          "pair_reduction_fraction": 0.979388
+        }
+      ],
+      "same_scope_metric": "warm_decode_seconds",
+      "scope_note": "Compares warm resident decode_smali; process-cold explicit_open (B1 validates 6 layers vs A1 header-only) and cold_decode reported transparently in observed_run.metrics."
+    }
+  },
+  "w07_stage_comparison_vs_a0": {
+    "W07-hostlab-9161100": {
+      "a0_vs_b1_e2e": {
+        "workload_id": "W07-hostlab-9161100",
+        "block_filter": "m61-stage-profile-a0",
+        "left_variant": "A0",
+        "right_variant": "B1",
+        "qualified_pair_count": 2,
+        "excluded_pair_count": 0,
+        "excluded_pairs": [],
+        "unpaired_runs": [],
+        "paired_median_speedup": 1.994177,
+        "paired_median_reduction_fraction": 0.498401,
+        "paired_reduction_min": 0.49007,
+        "paired_reduction_max": 0.506733,
+        "left_median_wall_seconds": 65.697725,
+        "right_median_wall_seconds": 32.946064,
+        "left_iqr_seconds": 1.875286,
+        "right_iqr_seconds": 0.154062,
+        "unpaired_median_ratio_for_reference_only": 1.994099,
+        "pairs": [
+          {
+            "block_id": "m61-stage-profile-a0",
+            "pair_id": "p01",
+            "left_run_id": "mdd061-hostlab-9161100-stage-profile-a0-p01-A0",
+            "right_run_id": "mdd061-hostlab-9161100-stage-profile-a0-p01-B1",
+            "left_wall_seconds": 64.760082,
+            "right_wall_seconds": 33.023095,
+            "pair_speedup": 1.961054,
+            "pair_reduction_fraction": 0.49007
+          },
+          {
+            "block_id": "m61-stage-profile-a0",
+            "pair_id": "p02",
+            "left_run_id": "mdd061-hostlab-9161100-stage-profile-a0-p02-A0",
+            "right_run_id": "mdd061-hostlab-9161100-stage-profile-a0-p02-B1",
+            "left_wall_seconds": 66.635368,
+            "right_wall_seconds": 32.869033,
+            "pair_speedup": 2.027299,
+            "pair_reduction_fraction": 0.506733
+          }
+        ]
+      },
+      "a0_median_s_seconds": 9.8825,
+      "b1_median_s_seconds": 1.0855,
+      "s_speedup_vs_a0": 9.1041,
+      "a0_median_f_seconds": 38.9845,
+      "b1_median_f_seconds": 6.398,
+      "f_speedup_vs_a0": 6.0932
+    },
+    "W07-hostlab-9170100": {
+      "a0_vs_b1_e2e": {
+        "workload_id": "W07-hostlab-9170100",
+        "block_filter": "m61-stage-profile-a0",
+        "left_variant": "A0",
+        "right_variant": "B1",
+        "qualified_pair_count": 2,
+        "excluded_pair_count": 0,
+        "excluded_pairs": [],
+        "unpaired_runs": [],
+        "paired_median_speedup": 2.043553,
+        "paired_median_reduction_fraction": 0.510614,
+        "paired_reduction_min": 0.50607,
+        "paired_reduction_max": 0.515158,
+        "left_median_wall_seconds": 71.962913,
+        "right_median_wall_seconds": 35.212989,
+        "left_iqr_seconds": 2.04398,
+        "right_iqr_seconds": 0.346329,
+        "unpaired_median_ratio_for_reference_only": 2.043647,
+        "pairs": [
+          {
+            "block_id": "m61-stage-profile-a0",
+            "pair_id": "p01",
+            "left_run_id": "mdd061-hostlab-9170100-stage-profile-a0-p01-A0",
+            "right_run_id": "mdd061-hostlab-9170100-stage-profile-a0-p01-B1",
+            "left_wall_seconds": 70.940923,
+            "right_wall_seconds": 35.039825,
+            "pair_speedup": 2.02458,
+            "pair_reduction_fraction": 0.50607
+          },
+          {
+            "block_id": "m61-stage-profile-a0",
+            "pair_id": "p02",
+            "left_run_id": "mdd061-hostlab-9170100-stage-profile-a0-p02-A0",
+            "right_run_id": "mdd061-hostlab-9170100-stage-profile-a0-p02-B1",
+            "left_wall_seconds": 72.984903,
+            "right_wall_seconds": 35.386154,
+            "pair_speedup": 2.062527,
+            "pair_reduction_fraction": 0.515158
+          }
+        ]
+      },
+      "a0_median_s_seconds": 10.7735,
+      "b1_median_s_seconds": 1.1405,
+      "s_speedup_vs_a0": 9.4463,
+      "a0_median_f_seconds": 43.0935,
+      "b1_median_f_seconds": 6.703,
+      "f_speedup_vs_a0": 6.429
+    }
+  },
+  "local_checkpoint_file": "artifacts/local/mdd-061-runs/regression-main.jsonl",
+  "total_observed_runs": 132,
+  "all_passed": true
+}

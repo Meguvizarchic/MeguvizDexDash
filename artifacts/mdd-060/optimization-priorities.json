@@ -1,0 +1,85 @@
+{
+  "schema": "mdd.optimization-priorities.v1",
+  "task": "MDD-060",
+  "generated_utc": "2026-11-21T12:59:34.494Z",
+  "baseline_unoptimized_b1_9161100": {
+    "variant": "B1",
+    "worker_e_wall_seconds": 170.794348,
+    "P_prepare_seconds": 31.0,
+    "S_structural_seconds": 2.109,
+    "F_surface_seconds": 117.359,
+    "R_native_residual_seconds": 0.469,
+    "O_outer_residual_seconds": 19.857348,
+    "S_sub_sql_seconds": 2.053919,
+    "F_sub_sql_seconds": 112.204478,
+    "F_sub_resource_fingerprints_seconds": 0.556751,
+    "O_sub_intake_gate_seconds": 12.371527,
+    "O_sub_home_gate_seconds": 2.072678,
+    "job_cpu_seconds": 176.34375,
+    "peak_job_commit_bytes": 1379053568
+  },
+  "baseline_unoptimized_b0_9161100": {
+    "variant": "B0",
+    "worker_e_wall_seconds": 204.848387,
+    "P_prepare_seconds": 34.625,
+    "S_structural_seconds": 3.11,
+    "F_surface_seconds": 147.36,
+    "R_native_residual_seconds": 0.421,
+    "O_outer_residual_seconds": 19.332387,
+    "S_sub_sql_seconds": 3.051905,
+    "F_sub_sql_seconds": 141.489776,
+    "F_sub_resource_fingerprints_seconds": 0.553569,
+    "O_sub_intake_gate_seconds": 12.083301,
+    "O_sub_home_gate_seconds": 1.917391,
+    "job_cpu_seconds": 207.484375,
+    "peak_job_commit_bytes": 1382916096
+  },
+  "ranked_hotspots": [
+    {
+      "rank": 1,
+      "stage": "F (surface) & SQL LIKE/UDF hot path",
+      "target_task": "MDD-061",
+      "measured_seconds": 116.8022,
+      "share_of_worker_e": 0.6839,
+      "evidence_root_cause": "Prefix-plus-suffix LIKE '<prefix>%<suffix>' drops suffix narrowing in pushdown, uncached per-DEX global dictionary prefix scans re-walk the shared TextDict, repeated per-row virtual-table column materializations re-decode across disjunctive OR predicates, and unoptimized mdd_like/mdd_sort_key UDFs allocate per call across class_fields/class_methods/classes/method_calls; per-query virtual table registration also registers all relations when 1 is queried.",
+      "planned_optimizations": [
+        "LikeAsciiPrefixSuffix pushdown + TextDict suffix/TAG_MEMBER direct check + bounded filter-ID cache",
+        "CompiledLike zero-alloc borrowed UTF-16 matcher + Cursor per-row SqlCell cache",
+        "Register only prepared.required_relations during execute_inner"
+      ]
+    },
+    {
+      "rank": 2,
+      "stage": "P (explicit open prepare)",
+      "target_task": "MDD-061",
+      "measured_seconds": 31.0,
+      "share_of_worker_e": 0.1815,
+      "evidence_root_cause": "HostLabSqlProvider::build_group decodes DEX files strictly sequentially one DEX position at a time while leaving multi-core CPU budget underutilized.",
+      "planned_optimizations": [
+        "Bounded-window parallel LayerBuilder::load preloading in crates/mdd-sql/src/provider/hostlab/lazy.rs with strict position-ordered RelationStoreBuilder feeding"
+      ]
+    },
+    {
+      "rank": 3,
+      "stage": "O (intake + home independent Python gates)",
+      "target_task": "MDD-062",
+      "measured_seconds": 14.4442,
+      "share_of_worker_e": 0.0846,
+      "evidence_root_cause": "run_intake.py and home_frame_audit.py each re-open and independently scan every DEX in the archive after the engine already built validated snapshot facts (not counted toward phase-1 S/F 37% target).",
+      "planned_optimizations": [
+        "AuditDataProvider reusing verified snapshot metadata/definitions/annotations/raw code facts with separate gate timing window & standalone oracle retention"
+      ]
+    },
+    {
+      "rank": 4,
+      "stage": "B0 -> B1 & W05 bulk JSON batch encoding",
+      "target_task": "MDD-061",
+      "measured_seconds": 3.627694,
+      "share_of_w05_wall": 1.0,
+      "evidence_root_cause": "B1 eliminates B0's double LIMIT 0 shape round-trip and hex(CAST) encoding; remaining serialization hotspot is per-cell serde_json::Value heap allocation in mdd-ffi::codec::batch_bytes and mdd-wire/1 JSON framing.",
+      "planned_optimizations": [
+        "Direct streaming JSON writer in crates/mdd-wire/src/optimized/batch_codec.rs and optional columns-v1 binary batch codec in columns_v1.rs"
+      ]
+    }
+  ]
+}

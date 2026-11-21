@@ -5,7 +5,7 @@
       "crates/mdd-facts/src/hostlab/rules.rs"
     ],
     "core_files_with_application_literals": [],
-    "core_production_files_scanned": 160,
+    "core_production_files_scanned": 186,
     "known_exception": "crates/mdd-facts/src/hostlab/rules.rs (built before MDD-051) names FEATUREs in a core crate; AGENTS.md keeps FEATURE out of the generic core. It is pinned by test_structural_provider.py, not endorsed, and is not on the HostLab path this task adds.",
     "new_modules": {
       "native_session.py": {
@@ -86,9 +86,9 @@
         "sha256": "f1993fda790af2d93437dc5f5581f5ace36dec484be76eccdde485abb12981d3"
       },
       {
-        "bytes": 47894,
+        "bytes": 55264,
         "path": "integrations/hostlab/native_session.py",
-        "sha256": "edd5b8c203c12e706a12e1e56751d9dbbe3bd15a3807f15e2f7611f260c123e5"
+        "sha256": "50db72d250aa10d7425fc6738abb160408283ec7d3561745f6307da232af549d"
       },
       {
         "bytes": 12755,
@@ -830,25 +830,25 @@
   "task": "MDD-051",
   "volatile": {
     "binary_manifest_entry": {
-      "build_id": "source-sha256:533f52208629eec677eef6ce70d9fdf6bded69c4f8a54aa46badf265d7c40ec8",
+      "build_id": "source-sha256:338cb8a560353b3a7d5122ba374e70e628d6f8f46dbd696b46cc669840568ada",
       "engine_version": "0.1.0-dev",
       "platform": "Windows/AMD64",
-      "sha256": "eb9e9b9c540ab7f6d1446ade775fc9d42d69a0afdb081a9a23ae58ce54e20efe"
+      "sha256": "f83f4d327f6c1097b7f285d1dff886d92ecb91bf6f6e02a42ae64c43b909b63c"
     },
     "dataset": {
       "dex_count": 1,
       "layer_issues": [],
       "profile": "hostlab-contract-unqualified",
       "protocol": "mdd.cli-stream.v1",
-      "scope_id": "sha256:5a663063443c03ed3f834662af00182264c7df660ac2ee0a4ad20017a0e73b26",
-      "snapshot_id": "snapshot-5b442c6f871d12634eef994ec269eb7737e8ac5f3b653c254f2ff8218a027ab9",
+      "scope_id": "sha256:97f13c66f7b031b85054f91ba131b073b808cd6b8a8b8c596ec31314ec8ae7d4",
+      "snapshot_id": "snapshot-c77cc07f8bd3eb79c998950461616bf6e1c6ec95f9518724a4711ccc1a7fa46d",
       "sql_dialect": "dexsql-0.1.0"
     },
     "engine": {
       "backend": "meguvizdexdash",
-      "binary_sha256": "eb9e9b9c540ab7f6d1446ade775fc9d42d69a0afdb081a9a23ae58ce54e20efe",
-      "build_id": "source-sha256:533f52208629eec677eef6ce70d9fdf6bded69c4f8a54aa46badf265d7c40ec8",
-      "config_digest": "9206d87219a9c0ecf7bf565432586df3f6b28256dc94c86be69405446360cae6",
+      "binary_sha256": "f83f4d327f6c1097b7f285d1dff886d92ecb91bf6f6e02a42ae64c43b909b63c",
+      "build_id": "source-sha256:338cb8a560353b3a7d5122ba374e70e628d6f8f46dbd696b46cc669840568ada",
+      "config_digest": "b7cd631101580e585a226a3227e45049dcbc5b32c274dafab6283fa76612100f",
       "dialect": {
         "engine": "dexsql-0.1.0",
         "hostlab": "dexsql",

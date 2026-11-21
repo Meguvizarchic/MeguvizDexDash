@@ -1,0 +1,29 @@
+{
+  "schema": "mdd.threshold-calibration.v1",
+  "task": "MDD-060",
+  "generated_utc": "2026-11-21T12:59:34.495Z",
+  "pre_registered_policy": {
+    "minimum_pairs_block1": 10,
+    "independent_blocks": 2,
+    "key_median_reduction_threshold": 0.1,
+    "other_required_regression_limit": 0.05
+  },
+  "measured_noise": {
+    "W05-newpipe-bulk": {
+      "block1_pairs": 10,
+      "block2_pairs": 10,
+      "block1_vs_block2_median_drift": 0.099334,
+      "block1_left_rel_iqr": 0.221376,
+      "block1_right_rel_iqr": 0.267467
+    },
+    "W07-hostlab-9161100": {
+      "block1_pairs": 10,
+      "block2_pairs": 2,
+      "block1_vs_block2_median_drift": 0.132603,
+      "block1_left_rel_iqr": 0.543821,
+      "block1_right_rel_iqr": 0.143797
+    }
+  },
+  "thresholds_unchanged_and_above_noise": true,
+  "decision_for_mdd_082": "Keep pre-registered 10% key reduction floor and 5% non-regression limit unchanged without relaxation; both thresholds comfortably exceed observed exclusive-window run-to-run IQR and inter-block drift."
+}

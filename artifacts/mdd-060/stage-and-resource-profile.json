@@ -1,0 +1,1443 @@
+{
+  "schema": "mdd.stage-and-resource-profile.v1",
+  "task": "MDD-060",
+  "generated_utc": "2026-11-21T12:59:34.491Z",
+  "record_count": 116,
+  "a2_disposition": {
+    "schema_version": "mdd.a2-disposition.v1",
+    "task": "MDD-060",
+    "variant": "A2",
+    "product": "DexSQL 0.1.1 MCP compact=true candidate",
+    "binary_sha256": "602105c98232120c14d6124fb33574f2f95f12e50e51d25b8834f893925f28d6",
+    "component_probe_passed": true,
+    "compact_flag_in_schema": true,
+    "small_page_seconds": 0.008822,
+    "small_page_compact_content_empty": true,
+    "small_page_total_rows": 8540,
+    "small_page_truncated": true,
+    "producer_snapshot_provenance_bound": false,
+    "offset_plus_limit_over_100k_is_error": true,
+    "offset_plus_limit_over_100k_message": "query requires 1..=16 non-empty statements, at most 16 temporary queries and 64 KiB of SQL; offset + limit must not exceed 100000",
+    "offset_100k_is_error": true,
+    "offset_100k_message": "query requires 1..=16 non-empty statements, at most 16 temporary queries and 64 KiB of SQL; offset + limit must not exceed 100000",
+    "end_to_end_qualified_for_hostlab_w07": false,
+    "end_to_end_qualified_for_unbounded_w05_bulk": false,
+    "exclusion_reasons": [
+      "DexSQL 0.1.1 MCP query refuses offset+limit > 100000 (verified directly on real binary), whereas hostlab-9161100 classes has 310,716 rows, hostlab-9170100 has 345,907 rows, and method_calls exceeds 1,000,000 rows.",
+      "MCP open_dataset/query does not expose an immutable snapshot_id/source SHA-256 generation binding proof or deterministic tie-breaking outer ORDER BY rewrite guarantee for HostLab arbitrary projections.",
+      "Original HostLab native_audit consumes CLI query --interactive (which has no compact switch) + shape/hex/sentinel marker; no 20-group qualified MCP audit consumer is deployed in HostLab."
+    ]
+  },
+  "fastest_qualified_existing_baseline": {
+    "W05-newpipe-bulk": "A1",
+    "W07-hostlab-9161100": "A1",
+    "W07-hostlab-9170100": "A1"
+  },
+  "paired_comparisons": {
+    "W05-newpipe-bulk": {
+      "A0_vs_A1": {
+        "workload_id": "W05-newpipe-bulk",
+        "block_filter": null,
+        "left_variant": "A0",
+        "right_variant": "A1",
+        "qualified_pair_count": 20,
+        "excluded_pair_count": 0,
+        "excluded_pairs": [],
+        "unpaired_runs": [],
+        "paired_median_speedup": 2.384431,
+        "paired_median_reduction_fraction": 0.580612,
+        "paired_reduction_min": 0.340745,
+        "paired_reduction_max": 0.761719,
+        "left_median_wall_seconds": 5.168675,
+        "right_median_wall_seconds": 2.043792,
+        "left_iqr_seconds": 4.140464,
+        "right_iqr_seconds": 1.425074,
+        "unpaired_median_ratio_for_reference_only": 2.528964,
+        "pairs": [
+          {
+            "block_id": "block1",
+            "pair_id": "p01",
+            "left_run_id": "mdd060-block1-p01-A0",
+            "right_run_id": "mdd060-block1-p01-A1",
+            "left_wall_seconds": 3.887327,
+            "right_wall_seconds": 1.631836,
+            "pair_speedup": 2.38218,
+            "pair_reduction_fraction": 0.580216
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p02",
+            "left_run_id": "mdd060-block1-p02-A0",
+            "right_run_id": "mdd060-block1-p02-A1",
+            "left_wall_seconds": 3.800679,
+            "right_wall_seconds": 1.633558,
+            "pair_speedup": 2.326626,
+            "pair_reduction_fraction": 0.570193
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p03",
+            "left_run_id": "mdd060-block1-p03-A0",
+            "right_run_id": "mdd060-block1-p03-A1",
+            "left_wall_seconds": 3.779862,
+            "right_wall_seconds": 1.629402,
+            "pair_speedup": 2.319785,
+            "pair_reduction_fraction": 0.568926
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p04",
+            "left_run_id": "mdd060-block1-p04-A0",
+            "right_run_id": "mdd060-block1-p04-A1",
+            "left_wall_seconds": 4.725763,
+            "right_wall_seconds": 1.662225,
+            "pair_speedup": 2.843034,
+            "pair_reduction_fraction": 0.648263
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p05",
+            "left_run_id": "mdd060-block1-p05-A0",
+            "right_run_id": "mdd060-block1-p05-A1",
+            "left_wall_seconds": 4.295812,
+            "right_wall_seconds": 2.494944,
+            "pair_speedup": 1.721807,
+            "pair_reduction_fraction": 0.419215
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p06",
+            "left_run_id": "mdd060-block1-p06-A0",
+            "right_run_id": "mdd060-block1-p06-A1",
+            "left_wall_seconds": 5.163496,
+            "right_wall_seconds": 2.013929,
+            "pair_speedup": 2.563892,
+            "pair_reduction_fraction": 0.609968
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p07",
+            "left_run_id": "mdd060-block1-p07-A0",
+            "right_run_id": "mdd060-block1-p07-A1",
+            "left_wall_seconds": 5.173854,
+            "right_wall_seconds": 2.058754,
+            "pair_speedup": 2.5131,
+            "pair_reduction_fraction": 0.602085
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p08",
+            "left_run_id": "mdd060-block1-p08-A0",
+            "right_run_id": "mdd060-block1-p08-A1",
+            "left_wall_seconds": 3.937486,
+            "right_wall_seconds": 1.76849,
+            "pair_speedup": 2.226468,
+            "pair_reduction_fraction": 0.550858
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p09",
+            "left_run_id": "mdd060-block1-p09-A0",
+            "right_run_id": "mdd060-block1-p09-A1",
+            "left_wall_seconds": 3.953197,
+            "right_wall_seconds": 1.667941,
+            "pair_speedup": 2.370106,
+            "pair_reduction_fraction": 0.578078
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p10",
+            "left_run_id": "mdd060-block1-p10-A0",
+            "right_run_id": "mdd060-block1-p10-A1",
+            "left_wall_seconds": 4.028171,
+            "right_wall_seconds": 1.829039,
+            "pair_speedup": 2.202343,
+            "pair_reduction_fraction": 0.545938
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p01",
+            "left_run_id": "mdd060-block2-p01-A0",
+            "right_run_id": "mdd060-block2-p01-A1",
+            "left_wall_seconds": 3.835491,
+            "right_wall_seconds": 2.028829,
+            "pair_speedup": 1.890495,
+            "pair_reduction_fraction": 0.471038
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p02",
+            "left_run_id": "mdd060-block2-p02-A0",
+            "right_run_id": "mdd060-block2-p02-A1",
+            "left_wall_seconds": 9.100931,
+            "right_wall_seconds": 2.495611,
+            "pair_speedup": 3.646775,
+            "pair_reduction_fraction": 0.725785
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p03",
+            "left_run_id": "mdd060-block2-p03-A0",
+            "right_run_id": "mdd060-block2-p03-A1",
+            "left_wall_seconds": 8.32521,
+            "right_wall_seconds": 1.983737,
+            "pair_speedup": 4.196731,
+            "pair_reduction_fraction": 0.761719
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p04",
+            "left_run_id": "mdd060-block2-p04-A0",
+            "right_run_id": "mdd060-block2-p04-A1",
+            "left_wall_seconds": 5.17948,
+            "right_wall_seconds": 3.414597,
+            "pair_speedup": 1.516864,
+            "pair_reduction_fraction": 0.340745
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p05",
+            "left_run_id": "mdd060-block2-p05-A0",
+            "right_run_id": "mdd060-block2-p05-A1",
+            "left_wall_seconds": 6.477706,
+            "right_wall_seconds": 2.305522,
+            "pair_speedup": 2.809648,
+            "pair_reduction_fraction": 0.644084
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p06",
+            "left_run_id": "mdd060-block2-p06-A0",
+            "right_run_id": "mdd060-block2-p06-A1",
+            "left_wall_seconds": 8.729533,
+            "right_wall_seconds": 3.003596,
+            "pair_speedup": 2.906361,
+            "pair_reduction_fraction": 0.655927
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p07",
+            "left_run_id": "mdd060-block2-p07-A0",
+            "right_run_id": "mdd060-block2-p07-A1",
+            "left_wall_seconds": 10.595091,
+            "right_wall_seconds": 5.541968,
+            "pair_speedup": 1.911792,
+            "pair_reduction_fraction": 0.476931
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p08",
+            "left_run_id": "mdd060-block2-p08-A0",
+            "right_run_id": "mdd060-block2-p08-A1",
+            "left_wall_seconds": 8.030424,
+            "right_wall_seconds": 3.282982,
+            "pair_speedup": 2.446076,
+            "pair_reduction_fraction": 0.591182
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p09",
+            "left_run_id": "mdd060-block2-p09-A0",
+            "right_run_id": "mdd060-block2-p09-A1",
+            "left_wall_seconds": 7.891052,
+            "right_wall_seconds": 3.306286,
+            "pair_speedup": 2.386682,
+            "pair_reduction_fraction": 0.581008
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p10",
+            "left_run_id": "mdd060-block2-p10-A0",
+            "right_run_id": "mdd060-block2-p10-A1",
+            "left_wall_seconds": 8.141187,
+            "right_wall_seconds": 3.374119,
+            "pair_speedup": 2.412833,
+            "pair_reduction_fraction": 0.58555
+          }
+        ]
+      },
+      "A1_vs_B0": {
+        "workload_id": "W05-newpipe-bulk",
+        "block_filter": null,
+        "left_variant": "A1",
+        "right_variant": "B0",
+        "qualified_pair_count": 20,
+        "excluded_pair_count": 0,
+        "excluded_pairs": [],
+        "unpaired_runs": [],
+        "paired_median_speedup": 0.334784,
+        "paired_median_reduction_fraction": -1.986999,
+        "paired_reduction_min": -2.810327,
+        "paired_reduction_max": -1.025599,
+        "left_median_wall_seconds": 2.043792,
+        "right_median_wall_seconds": 6.194227,
+        "left_iqr_seconds": 1.425074,
+        "right_iqr_seconds": 3.334963,
+        "unpaired_median_ratio_for_reference_only": 0.329951,
+        "pairs": [
+          {
+            "block_id": "block1",
+            "pair_id": "p01",
+            "left_run_id": "mdd060-block1-p01-A1",
+            "right_run_id": "mdd060-block1-p01-B0",
+            "left_wall_seconds": 1.631836,
+            "right_wall_seconds": 5.196909,
+            "pair_speedup": 0.314001,
+            "pair_reduction_fraction": -2.184701
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p02",
+            "left_run_id": "mdd060-block1-p02-A1",
+            "right_run_id": "mdd060-block1-p02-B0",
+            "left_wall_seconds": 1.633558,
+            "right_wall_seconds": 5.291036,
+            "pair_speedup": 0.308741,
+            "pair_reduction_fraction": -2.238964
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p03",
+            "left_run_id": "mdd060-block1-p03-A1",
+            "right_run_id": "mdd060-block1-p03-B0",
+            "left_wall_seconds": 1.629402,
+            "right_wall_seconds": 5.191165,
+            "pair_speedup": 0.31388,
+            "pair_reduction_fraction": -2.185933
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p04",
+            "left_run_id": "mdd060-block1-p04-A1",
+            "right_run_id": "mdd060-block1-p04-B0",
+            "left_wall_seconds": 1.662225,
+            "right_wall_seconds": 5.227504,
+            "pair_speedup": 0.317977,
+            "pair_reduction_fraction": -2.144884
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p05",
+            "left_run_id": "mdd060-block1-p05-A1",
+            "right_run_id": "mdd060-block1-p05-B0",
+            "left_wall_seconds": 2.494944,
+            "right_wall_seconds": 6.832905,
+            "pair_speedup": 0.365137,
+            "pair_reduction_fraction": -1.738701
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p06",
+            "left_run_id": "mdd060-block1-p06-A1",
+            "right_run_id": "mdd060-block1-p06-B0",
+            "left_wall_seconds": 2.013929,
+            "right_wall_seconds": 6.01097,
+            "pair_speedup": 0.335042,
+            "pair_reduction_fraction": -1.984698
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p07",
+            "left_run_id": "mdd060-block1-p07-A1",
+            "right_run_id": "mdd060-block1-p07-B0",
+            "left_wall_seconds": 2.058754,
+            "right_wall_seconds": 5.621232,
+            "pair_speedup": 0.366246,
+            "pair_reduction_fraction": -1.730405
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p08",
+            "left_run_id": "mdd060-block1-p08-A1",
+            "right_run_id": "mdd060-block1-p08-B0",
+            "left_wall_seconds": 1.76849,
+            "right_wall_seconds": 5.231623,
+            "pair_speedup": 0.338039,
+            "pair_reduction_fraction": -1.958243
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p09",
+            "left_run_id": "mdd060-block1-p09-A1",
+            "right_run_id": "mdd060-block1-p09-B0",
+            "left_wall_seconds": 1.667941,
+            "right_wall_seconds": 5.440439,
+            "pair_speedup": 0.306582,
+            "pair_reduction_fraction": -2.261769
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p10",
+            "left_run_id": "mdd060-block1-p10-A1",
+            "right_run_id": "mdd060-block1-p10-B0",
+            "left_wall_seconds": 1.829039,
+            "right_wall_seconds": 5.752605,
+            "pair_speedup": 0.31795,
+            "pair_reduction_fraction": -2.145152
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p01",
+            "left_run_id": "mdd060-block2-p01-A1",
+            "right_run_id": "mdd060-block2-p01-B0",
+            "left_wall_seconds": 2.028829,
+            "right_wall_seconds": 7.730501,
+            "pair_speedup": 0.262445,
+            "pair_reduction_fraction": -2.810327
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p02",
+            "left_run_id": "mdd060-block2-p02-A1",
+            "right_run_id": "mdd060-block2-p02-B0",
+            "left_wall_seconds": 2.495611,
+            "right_wall_seconds": 8.419946,
+            "pair_speedup": 0.296393,
+            "pair_reduction_fraction": -2.373902
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p03",
+            "left_run_id": "mdd060-block2-p03-A1",
+            "right_run_id": "mdd060-block2-p03-B0",
+            "left_wall_seconds": 1.983737,
+            "right_wall_seconds": 5.358396,
+            "pair_speedup": 0.370211,
+            "pair_reduction_fraction": -1.701163
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p04",
+            "left_run_id": "mdd060-block2-p04-A1",
+            "right_run_id": "mdd060-block2-p04-B0",
+            "left_wall_seconds": 3.414597,
+            "right_wall_seconds": 6.916604,
+            "pair_speedup": 0.493681,
+            "pair_reduction_fraction": -1.025599
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p05",
+            "left_run_id": "mdd060-block2-p05-A1",
+            "right_run_id": "mdd060-block2-p05-B0",
+            "left_wall_seconds": 2.305522,
+            "right_wall_seconds": 6.377484,
+            "pair_speedup": 0.36151,
+            "pair_reduction_fraction": -1.766178
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p06",
+            "left_run_id": "mdd060-block2-p06-A1",
+            "right_run_id": "mdd060-block2-p06-B0",
+            "left_wall_seconds": 3.003596,
+            "right_wall_seconds": 8.899412,
+            "pair_speedup": 0.337505,
+            "pair_reduction_fraction": -1.962919
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p07",
+            "left_run_id": "mdd060-block2-p07-A1",
+            "right_run_id": "mdd060-block2-p07-B0",
+            "left_wall_seconds": 5.541968,
+            "right_wall_seconds": 16.469507,
+            "pair_speedup": 0.336499,
+            "pair_reduction_fraction": -1.97178
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p08",
+            "left_run_id": "mdd060-block2-p08-A1",
+            "right_run_id": "mdd060-block2-p08-B0",
+            "left_wall_seconds": 3.282982,
+            "right_wall_seconds": 9.813819,
+            "pair_speedup": 0.334526,
+            "pair_reduction_fraction": -1.9893
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p09",
+            "left_run_id": "mdd060-block2-p09-A1",
+            "right_run_id": "mdd060-block2-p09-B0",
+            "left_wall_seconds": 3.306286,
+            "right_wall_seconds": 9.369081,
+            "pair_speedup": 0.352893,
+            "pair_reduction_fraction": -1.833718
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p10",
+            "left_run_id": "mdd060-block2-p10-A1",
+            "right_run_id": "mdd060-block2-p10-B0",
+            "left_wall_seconds": 3.374119,
+            "right_wall_seconds": 10.181537,
+            "pair_speedup": 0.331396,
+            "pair_reduction_fraction": -2.017539
+          }
+        ]
+      },
+      "A1_vs_B1": {
+        "workload_id": "W05-newpipe-bulk",
+        "block_filter": null,
+        "left_variant": "A1",
+        "right_variant": "B1",
+        "qualified_pair_count": 20,
+        "excluded_pair_count": 0,
+        "excluded_pairs": [],
+        "unpaired_runs": [],
+        "paired_median_speedup": 0.60769,
+        "paired_median_reduction_fraction": -0.645601,
+        "paired_reduction_min": -1.293648,
+        "paired_reduction_max": 0.131556,
+        "left_median_wall_seconds": 2.043792,
+        "right_median_wall_seconds": 3.627694,
+        "left_iqr_seconds": 1.425074,
+        "right_iqr_seconds": 1.865636,
+        "unpaired_median_ratio_for_reference_only": 0.563386,
+        "pairs": [
+          {
+            "block_id": "block1",
+            "pair_id": "p01",
+            "left_run_id": "mdd060-block1-p01-A1",
+            "right_run_id": "mdd060-block1-p01-B1",
+            "left_wall_seconds": 1.631836,
+            "right_wall_seconds": 2.674574,
+            "pair_speedup": 0.610129,
+            "pair_reduction_fraction": -0.638997
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p02",
+            "left_run_id": "mdd060-block1-p02-A1",
+            "right_run_id": "mdd060-block1-p02-B1",
+            "left_wall_seconds": 1.633558,
+            "right_wall_seconds": 2.835851,
+            "pair_speedup": 0.576038,
+            "pair_reduction_fraction": -0.735997
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p03",
+            "left_run_id": "mdd060-block1-p03-A1",
+            "right_run_id": "mdd060-block1-p03-B1",
+            "left_wall_seconds": 1.629402,
+            "right_wall_seconds": 3.312047,
+            "pair_speedup": 0.491962,
+            "pair_reduction_fraction": -1.032676
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p04",
+            "left_run_id": "mdd060-block1-p04-A1",
+            "right_run_id": "mdd060-block1-p04-B1",
+            "left_wall_seconds": 1.662225,
+            "right_wall_seconds": 3.400862,
+            "pair_speedup": 0.488766,
+            "pair_reduction_fraction": -1.04597
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p05",
+            "left_run_id": "mdd060-block1-p05-A1",
+            "right_run_id": "mdd060-block1-p05-B1",
+            "left_wall_seconds": 2.494944,
+            "right_wall_seconds": 3.782556,
+            "pair_speedup": 0.659592,
+            "pair_reduction_fraction": -0.516089
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p06",
+            "left_run_id": "mdd060-block1-p06-A1",
+            "right_run_id": "mdd060-block1-p06-B1",
+            "left_wall_seconds": 2.013929,
+            "right_wall_seconds": 3.327426,
+            "pair_speedup": 0.605251,
+            "pair_reduction_fraction": -0.652206
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p07",
+            "left_run_id": "mdd060-block1-p07-A1",
+            "right_run_id": "mdd060-block1-p07-B1",
+            "left_wall_seconds": 2.058754,
+            "right_wall_seconds": 4.722058,
+            "pair_speedup": 0.435987,
+            "pair_reduction_fraction": -1.293648
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p08",
+            "left_run_id": "mdd060-block1-p08-A1",
+            "right_run_id": "mdd060-block1-p08-B1",
+            "left_wall_seconds": 1.76849,
+            "right_wall_seconds": 3.670723,
+            "pair_speedup": 0.481782,
+            "pair_reduction_fraction": -1.075626
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p09",
+            "left_run_id": "mdd060-block1-p09-A1",
+            "right_run_id": "mdd060-block1-p09-B1",
+            "left_wall_seconds": 1.667941,
+            "right_wall_seconds": 2.763711,
+            "pair_speedup": 0.603515,
+            "pair_reduction_fraction": -0.65696
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p10",
+            "left_run_id": "mdd060-block1-p10-A1",
+            "right_run_id": "mdd060-block1-p10-B1",
+            "left_wall_seconds": 1.829039,
+            "right_wall_seconds": 2.782804,
+            "pair_speedup": 0.657265,
+            "pair_reduction_fraction": -0.521457
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p01",
+            "left_run_id": "mdd060-block2-p01-A1",
+            "right_run_id": "mdd060-block2-p01-B1",
+            "left_wall_seconds": 2.028829,
+            "right_wall_seconds": 3.786776,
+            "pair_speedup": 0.535767,
+            "pair_reduction_fraction": -0.866484
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p02",
+            "left_run_id": "mdd060-block2-p02-A1",
+            "right_run_id": "mdd060-block2-p02-B1",
+            "left_wall_seconds": 2.495611,
+            "right_wall_seconds": 3.584665,
+            "pair_speedup": 0.696191,
+            "pair_reduction_fraction": -0.436388
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p03",
+            "left_run_id": "mdd060-block2-p03-A1",
+            "right_run_id": "mdd060-block2-p03-B1",
+            "left_wall_seconds": 1.983737,
+            "right_wall_seconds": 2.692466,
+            "pair_speedup": 0.736773,
+            "pair_reduction_fraction": -0.35727
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p04",
+            "left_run_id": "mdd060-block2-p04-A1",
+            "right_run_id": "mdd060-block2-p04-B1",
+            "left_wall_seconds": 3.414597,
+            "right_wall_seconds": 2.965387,
+            "pair_speedup": 1.151484,
+            "pair_reduction_fraction": 0.131556
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p05",
+            "left_run_id": "mdd060-block2-p05-A1",
+            "right_run_id": "mdd060-block2-p05-B1",
+            "left_wall_seconds": 2.305522,
+            "right_wall_seconds": 4.384427,
+            "pair_speedup": 0.525843,
+            "pair_reduction_fraction": -0.901707
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p06",
+            "left_run_id": "mdd060-block2-p06-A1",
+            "right_run_id": "mdd060-block2-p06-B1",
+            "left_wall_seconds": 3.003596,
+            "right_wall_seconds": 4.810452,
+            "pair_speedup": 0.62439,
+            "pair_reduction_fraction": -0.601564
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p07",
+            "left_run_id": "mdd060-block2-p07-A1",
+            "right_run_id": "mdd060-block2-p07-B1",
+            "left_wall_seconds": 5.541968,
+            "right_wall_seconds": 7.972415,
+            "pair_speedup": 0.695143,
+            "pair_reduction_fraction": -0.438553
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p08",
+            "left_run_id": "mdd060-block2-p08-A1",
+            "right_run_id": "mdd060-block2-p08-B1",
+            "left_wall_seconds": 3.282982,
+            "right_wall_seconds": 5.994818,
+            "pair_speedup": 0.547637,
+            "pair_reduction_fraction": -0.826028
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p09",
+            "left_run_id": "mdd060-block2-p09-A1",
+            "right_run_id": "mdd060-block2-p09-B1",
+            "left_wall_seconds": 3.306286,
+            "right_wall_seconds": 5.26601,
+            "pair_speedup": 0.627854,
+            "pair_reduction_fraction": -0.592727
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p10",
+            "left_run_id": "mdd060-block2-p10-A1",
+            "right_run_id": "mdd060-block2-p10-B1",
+            "left_wall_seconds": 3.374119,
+            "right_wall_seconds": 5.501764,
+            "pair_speedup": 0.613279,
+            "pair_reduction_fraction": -0.630578
+          }
+        ]
+      },
+      "B0_vs_B1": {
+        "workload_id": "W05-newpipe-bulk",
+        "block_filter": null,
+        "left_variant": "B0",
+        "right_variant": "B1",
+        "qualified_pair_count": 20,
+        "excluded_pair_count": 0,
+        "excluded_pairs": [],
+        "unpaired_runs": [],
+        "paired_median_speedup": 1.850306,
+        "paired_median_reduction_fraction": 0.459549,
+        "paired_reduction_min": 0.15996,
+        "paired_reduction_max": 0.574265,
+        "left_median_wall_seconds": 6.194227,
+        "right_median_wall_seconds": 3.627694,
+        "left_iqr_seconds": 3.334963,
+        "right_iqr_seconds": 1.865636,
+        "unpaired_median_ratio_for_reference_only": 1.707483,
+        "pairs": [
+          {
+            "block_id": "block1",
+            "pair_id": "p01",
+            "left_run_id": "mdd060-block1-p01-B0",
+            "right_run_id": "mdd060-block1-p01-B1",
+            "left_wall_seconds": 5.196909,
+            "right_wall_seconds": 2.674574,
+            "pair_speedup": 1.943079,
+            "pair_reduction_fraction": 0.485353
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p02",
+            "left_run_id": "mdd060-block1-p02-B0",
+            "right_run_id": "mdd060-block1-p02-B1",
+            "left_wall_seconds": 5.291036,
+            "right_wall_seconds": 2.835851,
+            "pair_speedup": 1.865767,
+            "pair_reduction_fraction": 0.464027
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p03",
+            "left_run_id": "mdd060-block1-p03-B0",
+            "right_run_id": "mdd060-block1-p03-B1",
+            "left_wall_seconds": 5.191165,
+            "right_wall_seconds": 3.312047,
+            "pair_speedup": 1.567358,
+            "pair_reduction_fraction": 0.361984
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p04",
+            "left_run_id": "mdd060-block1-p04-B0",
+            "right_run_id": "mdd060-block1-p04-B1",
+            "left_wall_seconds": 5.227504,
+            "right_wall_seconds": 3.400862,
+            "pair_speedup": 1.537111,
+            "pair_reduction_fraction": 0.349429
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p05",
+            "left_run_id": "mdd060-block1-p05-B0",
+            "right_run_id": "mdd060-block1-p05-B1",
+            "left_wall_seconds": 6.832905,
+            "right_wall_seconds": 3.782556,
+            "pair_speedup": 1.806425,
+            "pair_reduction_fraction": 0.446421
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p06",
+            "left_run_id": "mdd060-block1-p06-B0",
+            "right_run_id": "mdd060-block1-p06-B1",
+            "left_wall_seconds": 6.01097,
+            "right_wall_seconds": 3.327426,
+            "pair_speedup": 1.806492,
+            "pair_reduction_fraction": 0.446441
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p07",
+            "left_run_id": "mdd060-block1-p07-B0",
+            "right_run_id": "mdd060-block1-p07-B1",
+            "left_wall_seconds": 5.621232,
+            "right_wall_seconds": 4.722058,
+            "pair_speedup": 1.19042,
+            "pair_reduction_fraction": 0.15996
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p08",
+            "left_run_id": "mdd060-block1-p08-B0",
+            "right_run_id": "mdd060-block1-p08-B1",
+            "left_wall_seconds": 5.231623,
+            "right_wall_seconds": 3.670723,
+            "pair_speedup": 1.42523,
+            "pair_reduction_fraction": 0.298359
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p09",
+            "left_run_id": "mdd060-block1-p09-B0",
+            "right_run_id": "mdd060-block1-p09-B1",
+            "left_wall_seconds": 5.440439,
+            "right_wall_seconds": 2.763711,
+            "pair_speedup": 1.968527,
+            "pair_reduction_fraction": 0.492006
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p10",
+            "left_run_id": "mdd060-block1-p10-B0",
+            "right_run_id": "mdd060-block1-p10-B1",
+            "left_wall_seconds": 5.752605,
+            "right_wall_seconds": 2.782804,
+            "pair_speedup": 2.067197,
+            "pair_reduction_fraction": 0.516253
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p01",
+            "left_run_id": "mdd060-block2-p01-B0",
+            "right_run_id": "mdd060-block2-p01-B1",
+            "left_wall_seconds": 7.730501,
+            "right_wall_seconds": 3.786776,
+            "pair_speedup": 2.041447,
+            "pair_reduction_fraction": 0.510151
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p02",
+            "left_run_id": "mdd060-block2-p02-B0",
+            "right_run_id": "mdd060-block2-p02-B1",
+            "left_wall_seconds": 8.419946,
+            "right_wall_seconds": 3.584665,
+            "pair_speedup": 2.348879,
+            "pair_reduction_fraction": 0.574265
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p03",
+            "left_run_id": "mdd060-block2-p03-B0",
+            "right_run_id": "mdd060-block2-p03-B1",
+            "left_wall_seconds": 5.358396,
+            "right_wall_seconds": 2.692466,
+            "pair_speedup": 1.990144,
+            "pair_reduction_fraction": 0.497524
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p04",
+            "left_run_id": "mdd060-block2-p04-B0",
+            "right_run_id": "mdd060-block2-p04-B1",
+            "left_wall_seconds": 6.916604,
+            "right_wall_seconds": 2.965387,
+            "pair_speedup": 2.332446,
+            "pair_reduction_fraction": 0.571265
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p05",
+            "left_run_id": "mdd060-block2-p05-B0",
+            "right_run_id": "mdd060-block2-p05-B1",
+            "left_wall_seconds": 6.377484,
+            "right_wall_seconds": 4.384427,
+            "pair_speedup": 1.454576,
+            "pair_reduction_fraction": 0.312515
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p06",
+            "left_run_id": "mdd060-block2-p06-B0",
+            "right_run_id": "mdd060-block2-p06-B1",
+            "left_wall_seconds": 8.899412,
+            "right_wall_seconds": 4.810452,
+            "pair_speedup": 1.850016,
+            "pair_reduction_fraction": 0.459464
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p07",
+            "left_run_id": "mdd060-block2-p07-B0",
+            "right_run_id": "mdd060-block2-p07-B1",
+            "left_wall_seconds": 16.469507,
+            "right_wall_seconds": 7.972415,
+            "pair_speedup": 2.065812,
+            "pair_reduction_fraction": 0.515929
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p08",
+            "left_run_id": "mdd060-block2-p08-B0",
+            "right_run_id": "mdd060-block2-p08-B1",
+            "left_wall_seconds": 9.813819,
+            "right_wall_seconds": 5.994818,
+            "pair_speedup": 1.63705,
+            "pair_reduction_fraction": 0.389145
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p09",
+            "left_run_id": "mdd060-block2-p09-B0",
+            "right_run_id": "mdd060-block2-p09-B1",
+            "left_wall_seconds": 9.369081,
+            "right_wall_seconds": 5.26601,
+            "pair_speedup": 1.779161,
+            "pair_reduction_fraction": 0.437937
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p10",
+            "left_run_id": "mdd060-block2-p10-B0",
+            "right_run_id": "mdd060-block2-p10-B1",
+            "left_wall_seconds": 10.181537,
+            "right_wall_seconds": 5.501764,
+            "pair_speedup": 1.850595,
+            "pair_reduction_fraction": 0.459633
+          }
+        ]
+      }
+    },
+    "W07-hostlab-9161100": {
+      "A0_vs_A1": {
+        "workload_id": "W07-hostlab-9161100",
+        "block_filter": null,
+        "left_variant": "A0",
+        "right_variant": "A1",
+        "qualified_pair_count": 1,
+        "excluded_pair_count": 12,
+        "excluded_pairs": [
+          {
+            "block_id": "block1",
+            "pair_id": "p01",
+            "reason": "incomplete_pair"
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p02",
+            "reason": "incomplete_pair"
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p03",
+            "reason": "incomplete_pair"
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p04",
+            "reason": "incomplete_pair"
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p05",
+            "reason": "incomplete_pair"
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p06",
+            "reason": "incomplete_pair"
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p07",
+            "reason": "incomplete_pair"
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p08",
+            "reason": "incomplete_pair"
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p09",
+            "reason": "incomplete_pair"
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p10",
+            "reason": "incomplete_pair"
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p01",
+            "reason": "incomplete_pair"
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p02",
+            "reason": "incomplete_pair"
+          }
+        ],
+        "unpaired_runs": [],
+        "paired_median_speedup": 1.148991,
+        "paired_median_reduction_fraction": 0.129671,
+        "paired_reduction_min": 0.129671,
+        "paired_reduction_max": 0.129671,
+        "left_median_wall_seconds": 91.931209,
+        "right_median_wall_seconds": 80.010405,
+        "left_iqr_seconds": 0.0,
+        "right_iqr_seconds": 0.0,
+        "unpaired_median_ratio_for_reference_only": 1.148991,
+        "pairs": [
+          {
+            "block_id": "stage-profile",
+            "pair_id": "sp01",
+            "left_run_id": "mdd060-hostlab-9161100-stage-profile-sp01-A0",
+            "right_run_id": "mdd060-hostlab-9161100-stage-profile-sp01-A1",
+            "left_wall_seconds": 91.931209,
+            "right_wall_seconds": 80.010405,
+            "pair_speedup": 1.148991,
+            "pair_reduction_fraction": 0.129671
+          }
+        ]
+      },
+      "A1_vs_B1_all": {
+        "workload_id": "W07-hostlab-9161100",
+        "block_filter": null,
+        "left_variant": "A1",
+        "right_variant": "B1",
+        "qualified_pair_count": 13,
+        "excluded_pair_count": 0,
+        "excluded_pairs": [],
+        "unpaired_runs": [],
+        "paired_median_speedup": 0.49697,
+        "paired_median_reduction_fraction": -1.012194,
+        "paired_reduction_min": -1.220474,
+        "paired_reduction_max": 0.080022,
+        "left_median_wall_seconds": 76.336776,
+        "right_median_wall_seconds": 150.343809,
+        "left_iqr_seconds": 28.423198,
+        "right_iqr_seconds": 24.86209,
+        "unpaired_median_ratio_for_reference_only": 0.507748,
+        "pairs": [
+          {
+            "block_id": "block1",
+            "pair_id": "p01",
+            "left_run_id": "mdd060-hostlab-9161100-block1-p01-A1",
+            "right_run_id": "mdd060-hostlab-9161100-block1-p01-B1",
+            "left_wall_seconds": 65.947721,
+            "right_wall_seconds": 139.005811,
+            "pair_speedup": 0.474424,
+            "pair_reduction_fraction": -1.107818
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p02",
+            "left_run_id": "mdd060-hostlab-9161100-block1-p02-A1",
+            "right_run_id": "mdd060-hostlab-9161100-block1-p02-B1",
+            "left_wall_seconds": 71.065581,
+            "right_wall_seconds": 150.343809,
+            "pair_speedup": 0.472687,
+            "pair_reduction_fraction": -1.115564
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p03",
+            "left_run_id": "mdd060-hostlab-9161100-block1-p03-A1",
+            "right_run_id": "mdd060-hostlab-9161100-block1-p03-B1",
+            "left_wall_seconds": 76.441422,
+            "right_wall_seconds": 139.320227,
+            "pair_speedup": 0.548674,
+            "pair_reduction_fraction": -0.822575
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p04",
+            "left_run_id": "mdd060-hostlab-9161100-block1-p04-A1",
+            "right_run_id": "mdd060-hostlab-9161100-block1-p04-B1",
+            "left_wall_seconds": 66.769268,
+            "right_wall_seconds": 140.331083,
+            "pair_speedup": 0.475798,
+            "pair_reduction_fraction": -1.101732
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p05",
+            "left_run_id": "mdd060-hostlab-9161100-block1-p05-A1",
+            "right_run_id": "mdd060-hostlab-9161100-block1-p05-B1",
+            "left_wall_seconds": 113.549791,
+            "right_wall_seconds": 162.173334,
+            "pair_speedup": 0.700175,
+            "pair_reduction_fraction": -0.428213
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p06",
+            "left_run_id": "mdd060-hostlab-9161100-block1-p06-A1",
+            "right_run_id": "mdd060-hostlab-9161100-block1-p06-B1",
+            "left_wall_seconds": 74.281702,
+            "right_wall_seconds": 147.670902,
+            "pair_speedup": 0.503022,
+            "pair_reduction_fraction": -0.987985
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p07",
+            "left_run_id": "mdd060-hostlab-9161100-block1-p07-A1",
+            "right_run_id": "mdd060-hostlab-9161100-block1-p07-B1",
+            "left_wall_seconds": 112.607574,
+            "right_wall_seconds": 153.993829,
+            "pair_speedup": 0.731247,
+            "pair_reduction_fraction": -0.367526
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p08",
+            "left_run_id": "mdd060-hostlab-9161100-block1-p08-A1",
+            "right_run_id": "mdd060-hostlab-9161100-block1-p08-B1",
+            "left_wall_seconds": 81.515428,
+            "right_wall_seconds": 153.449272,
+            "pair_speedup": 0.531221,
+            "pair_reduction_fraction": -0.882457
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p09",
+            "left_run_id": "mdd060-hostlab-9161100-block1-p09-A1",
+            "right_run_id": "mdd060-hostlab-9161100-block1-p09-B1",
+            "left_wall_seconds": 198.618479,
+            "right_wall_seconds": 182.724577,
+            "pair_speedup": 1.086983,
+            "pair_reduction_fraction": 0.080022
+          },
+          {
+            "block_id": "block1",
+            "pair_id": "p10",
+            "left_run_id": "mdd060-hostlab-9161100-block1-p10-A1",
+            "right_run_id": "mdd060-hostlab-9161100-block1-p10-B1",
+            "left_wall_seconds": 76.336776,
+            "right_wall_seconds": 169.503797,
+            "pair_speedup": 0.450354,
+            "pair_reduction_fraction": -1.220474
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p01",
+            "left_run_id": "mdd060-hostlab-9161100-block2-p01-A1",
+            "right_run_id": "mdd060-hostlab-9161100-block2-p01-B1",
+            "left_wall_seconds": 66.89478,
+            "right_wall_seconds": 142.04798,
+            "pair_speedup": 0.470931,
+            "pair_reduction_fraction": -1.123454
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p02",
+            "left_run_id": "mdd060-hostlab-9161100-block2-p02-A1",
+            "right_run_id": "mdd060-hostlab-9161100-block2-p02-B1",
+            "left_wall_seconds": 70.381826,
+            "right_wall_seconds": 141.621868,
+            "pair_speedup": 0.49697,
+            "pair_reduction_fraction": -1.012194
+          },
+          {
+            "block_id": "stage-profile",
+            "pair_id": "sp01",
+            "left_run_id": "mdd060-hostlab-9161100-stage-profile-sp01-A1",
+            "right_run_id": "mdd060-hostlab-9161100-stage-profile-sp01-B1",
+            "left_wall_seconds": 80.010405,
+            "right_wall_seconds": 170.794348,
+            "pair_speedup": 0.46846,
+            "pair_reduction_fraction": -1.134652
+          }
+        ]
+      },
+      "A0_vs_B1_stage": {
+        "workload_id": "W07-hostlab-9161100",
+        "block_filter": "stage-profile",
+        "left_variant": "A0",
+        "right_variant": "B1",
+        "qualified_pair_count": 1,
+        "excluded_pair_count": 0,
+        "excluded_pairs": [],
+        "unpaired_runs": [],
+        "paired_median_speedup": 0.538257,
+        "paired_median_reduction_fraction": -0.857849,
+        "paired_reduction_min": -0.857849,
+        "paired_reduction_max": -0.857849,
+        "left_median_wall_seconds": 91.931209,
+        "right_median_wall_seconds": 170.794348,
+        "left_iqr_seconds": 0.0,
+        "right_iqr_seconds": 0.0,
+        "unpaired_median_ratio_for_reference_only": 0.538257,
+        "pairs": [
+          {
+            "block_id": "stage-profile",
+            "pair_id": "sp01",
+            "left_run_id": "mdd060-hostlab-9161100-stage-profile-sp01-A0",
+            "right_run_id": "mdd060-hostlab-9161100-stage-profile-sp01-B1",
+            "left_wall_seconds": 91.931209,
+            "right_wall_seconds": 170.794348,
+            "pair_speedup": 0.538257,
+            "pair_reduction_fraction": -0.857849
+          }
+        ]
+      }
+    },
+    "W07-hostlab-9170100": {
+      "A0_vs_A1": {
+        "workload_id": "W07-hostlab-9170100",
+        "block_filter": null,
+        "left_variant": "A0",
+        "right_variant": "A1",
+        "qualified_pair_count": 1,
+        "excluded_pair_count": 2,
+        "excluded_pairs": [
+          {
+            "block_id": "block2",
+            "pair_id": "p01",
+            "reason": "incomplete_pair"
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p02",
+            "reason": "incomplete_pair"
+          }
+        ],
+        "unpaired_runs": [],
+        "paired_median_speedup": 1.235998,
+        "paired_median_reduction_fraction": 0.190937,
+        "paired_reduction_min": 0.190937,
+        "paired_reduction_max": 0.190937,
+        "left_median_wall_seconds": 112.27898,
+        "right_median_wall_seconds": 90.840737,
+        "left_iqr_seconds": 0.0,
+        "right_iqr_seconds": 0.0,
+        "unpaired_median_ratio_for_reference_only": 1.235998,
+        "pairs": [
+          {
+            "block_id": "stage-profile",
+            "pair_id": "sp01",
+            "left_run_id": "mdd060-hostlab-9170100-stage-profile-sp01-A0",
+            "right_run_id": "mdd060-hostlab-9170100-stage-profile-sp01-A1",
+            "left_wall_seconds": 112.27898,
+            "right_wall_seconds": 90.840737,
+            "pair_speedup": 1.235998,
+            "pair_reduction_fraction": 0.190937
+          }
+        ]
+      },
+      "A1_vs_B1": {
+        "workload_id": "W07-hostlab-9170100",
+        "block_filter": null,
+        "left_variant": "A1",
+        "right_variant": "B1",
+        "qualified_pair_count": 3,
+        "excluded_pair_count": 0,
+        "excluded_pairs": [],
+        "unpaired_runs": [],
+        "paired_median_speedup": 0.493092,
+        "paired_median_reduction_fraction": -1.028018,
+        "paired_reduction_min": -1.380668,
+        "paired_reduction_max": -1.007938,
+        "left_median_wall_seconds": 76.576532,
+        "right_median_wall_seconds": 153.760913,
+        "left_iqr_seconds": 18.180795,
+        "right_iqr_seconds": 68.905994,
+        "unpaired_median_ratio_for_reference_only": 0.498023,
+        "pairs": [
+          {
+            "block_id": "block2",
+            "pair_id": "p01",
+            "left_run_id": "mdd060-hostlab-9170100-block2-p01-A1",
+            "right_run_id": "mdd060-hostlab-9170100-block2-p01-B1",
+            "left_wall_seconds": 72.659942,
+            "right_wall_seconds": 147.355645,
+            "pair_speedup": 0.493092,
+            "pair_reduction_fraction": -1.028018
+          },
+          {
+            "block_id": "block2",
+            "pair_id": "p02",
+            "left_run_id": "mdd060-hostlab-9170100-block2-p02-A1",
+            "right_run_id": "mdd060-hostlab-9170100-block2-p02-B1",
+            "left_wall_seconds": 76.576532,
+            "right_wall_seconds": 153.760913,
+            "pair_speedup": 0.498023,
+            "pair_reduction_fraction": -1.007938
+          },
+          {
+            "block_id": "stage-profile",
+            "pair_id": "sp01",
+            "left_run_id": "mdd060-hostlab-9170100-stage-profile-sp01-A1",
+            "right_run_id": "mdd060-hostlab-9170100-stage-profile-sp01-B1",
+            "left_wall_seconds": 90.840737,
+            "right_wall_seconds": 216.261639,
+            "pair_speedup": 0.42005,
+            "pair_reduction_fraction": -1.380668
+          }
+        ]
+      }
+    }
+  },
+  "mutually_exclusive_stages_w07": {
+    "W07-hostlab-9161100/A0": {
+      "variant": "A0",
+      "worker_e_wall_seconds": 91.931209,
+      "P_prepare_seconds": 1.407,
+      "S_structural_seconds": 14.546,
+      "F_surface_seconds": 53.0,
+      "R_native_residual_seconds": 0.329,
+      "O_outer_residual_seconds": 22.649209,
+      "S_sub_sql_seconds": 15.575961,
+      "F_sub_sql_seconds": 48.435698,
+      "F_sub_resource_fingerprints_seconds": 0.620914,
+      "O_sub_intake_gate_seconds": 12.599275,
+      "O_sub_home_gate_seconds": 2.084868,
+      "job_cpu_seconds": 109.609375,
+      "peak_job_commit_bytes": 1646137344
+    },
+    "W07-hostlab-9161100/A1": {
+      "variant": "A1",
+      "worker_e_wall_seconds": 80.010405,
+      "P_prepare_seconds": 1.297,
+      "S_structural_seconds": 13.453,
+      "F_surface_seconds": 44.109,
+      "R_native_residual_seconds": 0.297,
+      "O_outer_residual_seconds": 20.854405,
+      "S_sub_sql_seconds": 14.445653,
+      "F_sub_sql_seconds": 39.671807,
+      "F_sub_resource_fingerprints_seconds": 0.520651,
+      "O_sub_intake_gate_seconds": 13.063151,
+      "O_sub_home_gate_seconds": 1.950274,
+      "job_cpu_seconds": 96.71875,
+      "peak_job_commit_bytes": 1626390528
+    },
+    "W07-hostlab-9161100/B0": {
+      "variant": "B0",
+      "worker_e_wall_seconds": 204.848387,
+      "P_prepare_seconds": 34.625,
+      "S_structural_seconds": 3.11,
+      "F_surface_seconds": 147.36,
+      "R_native_residual_seconds": 0.421,
+      "O_outer_residual_seconds": 19.332387,
+      "S_sub_sql_seconds": 3.051905,
+      "F_sub_sql_seconds": 141.489776,
+      "F_sub_resource_fingerprints_seconds": 0.553569,
+      "O_sub_intake_gate_seconds": 12.083301,
+      "O_sub_home_gate_seconds": 1.917391,
+      "job_cpu_seconds": 207.484375,
+      "peak_job_commit_bytes": 1382916096
+    },
+    "W07-hostlab-9161100/B1": {
+      "variant": "B1",
+      "worker_e_wall_seconds": 170.794348,
+      "P_prepare_seconds": 31.0,
+      "S_structural_seconds": 2.109,
+      "F_surface_seconds": 117.359,
+      "R_native_residual_seconds": 0.469,
+      "O_outer_residual_seconds": 19.857348,
+      "S_sub_sql_seconds": 2.053919,
+      "F_sub_sql_seconds": 112.204478,
+      "F_sub_resource_fingerprints_seconds": 0.556751,
+      "O_sub_intake_gate_seconds": 12.371527,
+      "O_sub_home_gate_seconds": 2.072678,
+      "job_cpu_seconds": 176.34375,
+      "peak_job_commit_bytes": 1379053568
+    },
+    "W07-hostlab-9170100/A0": {
+      "variant": "A0",
+      "worker_e_wall_seconds": 112.27898,
+      "P_prepare_seconds": 1.875,
+      "S_structural_seconds": 17.078,
+      "F_surface_seconds": 71.484,
+      "R_native_residual_seconds": 0.313,
+      "O_outer_residual_seconds": 21.52898,
+      "S_sub_sql_seconds": 18.434716,
+      "F_sub_sql_seconds": 65.324336,
+      "F_sub_resource_fingerprints_seconds": 0.518071,
+      "O_sub_intake_gate_seconds": 13.163482,
+      "O_sub_home_gate_seconds": 2.11629,
+      "job_cpu_seconds": 139.59375,
+      "peak_job_commit_bytes": 1765126144
+    },
+    "W07-hostlab-9170100/A1": {
+      "variant": "A1",
+      "worker_e_wall_seconds": 90.840737,
+      "P_prepare_seconds": 1.563,
+      "S_structural_seconds": 16.156,
+      "F_surface_seconds": 51.156,
+      "R_native_residual_seconds": 0.313,
+      "O_outer_residual_seconds": 21.652737,
+      "S_sub_sql_seconds": 17.298929,
+      "F_sub_sql_seconds": 46.032246,
+      "F_sub_resource_fingerprints_seconds": 0.581433,
+      "O_sub_intake_gate_seconds": 13.464057,
+      "O_sub_home_gate_seconds": 2.214091,
+      "job_cpu_seconds": 110.109375,
+      "peak_job_commit_bytes": 1744252928
+    },
+    "W07-hostlab-9170100/B0": {
+      "variant": "B0",
+      "worker_e_wall_seconds": 206.710328,
+      "P_prepare_seconds": 33.109,
+      "S_structural_seconds": 4.61,
+      "F_surface_seconds": 145.094,
+      "R_native_residual_seconds": 0.499,
+      "O_outer_residual_seconds": 23.398328,
+      "S_sub_sql_seconds": 4.569312,
+      "F_sub_sql_seconds": 139.681337,
+      "F_sub_resource_fingerprints_seconds": 0.554181,
+      "O_sub_intake_gate_seconds": 14.638169,
+      "O_sub_home_gate_seconds": 2.365878,
+      "job_cpu_seconds": 212.03125,
+      "peak_job_commit_bytes": 1465221120
+    },
+    "W07-hostlab-9170100/B1": {
+      "variant": "B1",
+      "worker_e_wall_seconds": 216.261639,
+      "P_prepare_seconds": 59.453,
+      "S_structural_seconds": 4.0,
+      "F_surface_seconds": 127.172,
+      "R_native_residual_seconds": 0.484,
+      "O_outer_residual_seconds": 25.152639,
+      "S_sub_sql_seconds": 3.911109,
+      "F_sub_sql_seconds": 121.965876,
+      "F_sub_resource_fingerprints_seconds": 0.706359,
+      "O_sub_intake_gate_seconds": 15.171133,
+      "O_sub_home_gate_seconds": 2.573792,
+      "job_cpu_seconds": 219.46875,
+      "peak_job_commit_bytes": 1440546816
+    }
+  },
+  "same_machine_conditional_sf_targets": {
+    "W07-hostlab-9161100": {
+      "same_machine_a0_E_seconds": 91.931209,
+      "s2x_f2x_budget_seconds": 58.1582,
+      "s2x_f2x_reduction_vs_a0": 0.3674,
+      "s2x_f3x_budget_seconds": 49.3249,
+      "s2x_f3x_reduction_vs_a0": 0.4635,
+      "note": "Conditional same-machine A0 S/F model only (delta=0); historical Linux 37%/47% is neither guaranteed nor reused directly."
+    },
+    "W07-hostlab-9170100": {
+      "same_machine_a0_E_seconds": 112.27898,
+      "s2x_f2x_budget_seconds": 67.998,
+      "s2x_f2x_reduction_vs_a0": 0.3944,
+      "s2x_f3x_budget_seconds": 56.084,
+      "s2x_f3x_reduction_vs_a0": 0.5005,
+      "note": "Conditional same-machine A0 S/F model only (delta=0); historical Linux 37%/47% is neither guaranteed nor reused directly."
+    }
+  }
+}

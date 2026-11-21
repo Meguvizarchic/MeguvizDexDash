@@ -26,6 +26,8 @@ SOURCES = [
     "crates/mdd-cache/src/facts_codec.rs",
     "crates/mdd-cache/src/store.rs",
     "crates/mdd-cache/src/dependency_tracking.rs",
+    "crates/mdd-cache/src/dependency_tracking/content_reuse.rs",
+    "crates/mdd-cache/src/dependency_tracking/incremental_gate.rs",
     "crates/mdd-cache/examples/cache_probe.rs",
     "crates/mdd-cache/tests/cache_integration.rs",
     "conformance/cache/invalidation-matrix.json",
