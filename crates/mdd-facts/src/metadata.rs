@@ -754,6 +754,20 @@ impl MetadataFacts {
     /// `string_pool_id` is a caller-supplied catalog coordinate; the native
     /// pool identity stays available as `StringPoolIdentity::string_pool_id`.
     pub fn string_rows(&self, file_id: u32, string_pool_id: u32) -> MddResult<Vec<StringRow>> {
+        self.string_rows_with_policy(
+            file_id,
+            string_pool_id,
+            crate::coverage::NonScalarTextPolicy::Reject,
+        )
+    }
+
+    /// As [`Self::string_rows`], with an explicit policy for legal non-scalar UTF-16 values.
+    pub fn string_rows_with_policy(
+        &self,
+        file_id: u32,
+        string_pool_id: u32,
+        policy: crate::coverage::NonScalarTextPolicy,
+    ) -> MddResult<Vec<StringRow>> {
         self.require_relation_columns(MetadataRelation::Strings, StringRow::COLUMNS)?;
         self.require_complete_metadata()?;
         let mut rows = Vec::new();
@@ -779,7 +793,7 @@ impl MetadataFacts {
             {
                 return Err(inconsistent());
             }
-            let value = fact.data.text.strict_utf8().map_err(|_| {
+            let value = policy.project_dex_text(&fact.data.text).ok_or_else(|| {
                 MddError::new(
                     ErrorCode::UnsupportedQuery,
                     "facts.metadata.strings",

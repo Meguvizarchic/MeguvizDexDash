@@ -51,6 +51,8 @@ pub struct PreparedSql {
     display_overrides: std::collections::BTreeMap<String, String>,
     /// Relation (lower case) to the value of its partition column that the statement requires.
     partition_hints: std::collections::BTreeMap<String, u64>,
+    row_filters: std::collections::BTreeMap<String, crate::provider::RowFilter>,
+    equi_joins: Vec<crate::provider::EquiJoinEdge>,
     execution_binding: Option<crate::runtime::SqlExecutionBinding>,
     profile: Option<CompatibilityProfile>,
     profiles: Option<Arc<CompatibilityProfileRegistry>>,
@@ -801,6 +803,8 @@ impl SqlBridge {
             limits: self.limits,
             display_overrides: adapted.display_overrides,
             partition_hints: adapted.partition_hints,
+            row_filters: adapted.row_filters,
+            equi_joins: adapted.equi_joins,
             execution_binding: None,
             profile: self.profile.clone(),
             profiles: self.profiles.clone(),
@@ -900,6 +904,12 @@ impl SqlBridge {
         for name in &prepared.required_relations {
             prepared.provider.require_relation(name)?;
         }
+        let planned_scans = prepared.provider.plan_scans(
+            &prepared.required_relations,
+            &prepared.row_filters,
+            &prepared.equi_joins,
+            &prepared.partition_hints,
+        )?;
         let db = Connection::open_in_memory().map_err(sqlite_error)?;
         // SAFETY: the connection is exclusively owned here, has no statements
         // or callbacks in flight, and remains alive throughout this C call.
@@ -940,17 +950,24 @@ impl SqlBridge {
         )
         .map_err(sqlite_error)?;
         for relation in &prepared.relations {
+            let mut relation = relation.clone();
+            let key = relation.name.to_ascii_lowercase();
+            let planned_scan = planned_scans.get(&key).cloned();
+            if let Some(est) = planned_scan
+                .as_ref()
+                .and_then(crate::provider::PlannedScan::estimated_rows)
+            {
+                relation.estimated_rows = Some(mdd_types::DecimalU64(est));
+            }
             virtual_tables::register(
                 &db,
                 Arc::new(Source {
                     provider: Arc::clone(&prepared.provider),
-                    relation: relation.clone(),
+                    relation,
                     binding: prepared.binding.clone(),
                     control: control.clone(),
-                    partition_key: prepared
-                        .partition_hints
-                        .get(&relation.name.to_ascii_lowercase())
-                        .copied(),
+                    partition_key: prepared.partition_hints.get(&key).copied(),
+                    planned_scan,
                 }),
             )
             .map_err(sqlite_error)?;
@@ -1257,6 +1274,7 @@ impl SqlBridge {
                     binding: self.provider.binding().clone(),
                     control: control.clone(),
                     partition_key: None,
+                    planned_scan: None,
                 }),
             )
             .map_err(sqlite_error)?;

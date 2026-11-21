@@ -1,7 +1,9 @@
 //! Owned, forward-only vtable cursors over one immutable provider generation.
 use crate::{
     control::SqlControl,
-    provider::{SqlBinding, SqlFactCursor, SqlFactProvider, SqlRelation, SqlRow, validate_row},
+    provider::{
+        PlannedScan, SqlBinding, SqlFactCursor, SqlFactProvider, SqlRelation, SqlRow, validate_row,
+    },
     values::SqlType,
 };
 use rusqlite::{
@@ -50,6 +52,7 @@ pub(crate) struct Source {
     /// The value of the relation's partition column that the statement requires, when it requires one: the cursor may
     /// read only the rows that have it.
     pub partition_key: Option<u64>,
+    pub planned_scan: Option<PlannedScan>,
 }
 /// Pushdown behaviour shared by the fact vtab and the bridge's reported policy.
 /// `omit` and `order_by_consumed` are the two fields this vtab actually reports
@@ -247,9 +250,10 @@ unsafe impl VTabCursor for Cursor {
         check(&self.source)?;
         let provider = Arc::clone(&self.source.provider);
         let (name, control) = (&self.source.relation.name, self.source.control.clone());
-        let mut cursor = match self.source.partition_key {
-            Some(key) => provider.open_cursor_for_partition(name, control, key),
-            None => provider.open_cursor(name, control),
+        let mut cursor = match (&self.source.planned_scan, self.source.partition_key) {
+            (Some(scan), _) => provider.open_planned_cursor(name, control, scan),
+            (None, Some(key)) => provider.open_cursor_for_partition(name, control, key),
+            (None, None) => provider.open_cursor(name, control),
         }
         .map_err(|e| error(self.source.control.fail(e)))?;
         // A cursor that reads cell by cell is used so only if no cell can break the size limit; otherwise every row is

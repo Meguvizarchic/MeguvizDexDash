@@ -92,11 +92,12 @@ fn read_sql(source: SqlSource) -> MddResult<String> {
 
 fn query(args: QueryArgs) -> MddResult<i32> {
     let sql = read_sql(args.sql)?;
-    let dataset = Dataset::open(
+    let dataset = Dataset::open_with_non_scalar_policy(
         &args.data.inputs,
         args.data.dialect,
         limits(args.data.deadline_ms),
         args.data.sql_limits,
+        args.data.non_scalar_text,
     )?;
     let options = RunOptions {
         batch_rows: args.batch_rows,
@@ -146,11 +147,12 @@ fn query(args: QueryArgs) -> MddResult<i32> {
 }
 
 fn serve(args: ServeArgs) -> MddResult<i32> {
-    let dataset = Dataset::open(
+    let dataset = Dataset::open_with_non_scalar_policy(
         &args.data.inputs,
         args.data.dialect,
         limits(args.data.deadline_ms),
         args.data.sql_limits,
+        args.data.non_scalar_text,
     )?;
     let stdin = io::stdin();
     let stdout = io::stdout();

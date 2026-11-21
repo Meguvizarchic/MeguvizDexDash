@@ -89,8 +89,9 @@ impl HostLabSqlProvider {
                     ])
                 })
             }
-            HostLabRelation::MethodStrings => {
-                occurrence.references()?.for_each_method_string(&mut |row| {
+            HostLabRelation::MethodStrings => occurrence
+                .references()?
+                .for_each_method_string_with_policy(self.non_scalar_text_policy, &mut |row| {
                     control.work(128)?;
                     sink.cells(&[
                         Cell::Str(row.method),
@@ -102,8 +103,7 @@ impl HostLabSqlProvider {
                         Cell::U64(u64::from(row.method_idx)),
                         Cell::U64(u64::from(row.string_idx)),
                     ])
-                })
-            }
+                }),
             HostLabRelation::MethodCalls => {
                 occurrence.references()?.for_each_method_call(&mut |row| {
                     control.work(160)?;

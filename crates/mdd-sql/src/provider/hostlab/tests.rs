@@ -2007,3 +2007,99 @@ fn known_unsupported_forms_fail_closed_with_the_unsupported_classification() {
         .expect_err("a double-quoted unknown identifier must not become a string literal");
     assert_eq!(error.code, mdd_types::ErrorCode::InvalidArgument);
 }
+
+#[test]
+fn opt_in_lossy_replacement_projects_surrogate_strings_and_classes_while_default_rejects() {
+    struct Loader(Arc<Harness>);
+    impl OccurrenceLoader for Loader {
+        fn load(&self, position: usize, needs: LayerNeeds) -> MddResult<HostLabOccurrenceFacts> {
+            Ok(self
+                .0
+                .facts_at(position, needs.code, needs.references, needs.annotations))
+        }
+    }
+
+    let harness = Arc::new(open(&[(
+        "tests/fixtures/references/generated/nonscalar-string-035.dex",
+        InputKind::RawDex,
+    )]));
+    // Strict default rejects `strings` and `method_strings` with INCOMPLETE_FACTS.
+    let strict_provider = HostLabSqlProvider::from_scope(
+        &harness.scope,
+        vec![harness.facts_at(0, true, true, true)],
+        DecimalU64(0),
+    )
+    .unwrap();
+    let strict = SqlBridge::new(
+        Arc::new(strict_provider),
+        SqlDialect::DexSql010,
+        SqlLimits::default(),
+    )
+    .unwrap();
+    for sql in [
+        "SELECT value FROM strings WHERE string_idx = 13",
+        "SELECT value FROM method_strings",
+    ] {
+        let err = strict.query(sql).expect_err(sql);
+        assert_eq!(err.code, ErrorCode::IncompleteFacts, "{sql}: {err:?}");
+    }
+
+    // Both `from_scope` and `from_loader` emit U+FFFD under explicit LossyReplacement.
+    let scope_opt_in = HostLabSqlProvider::from_scope(
+        &harness.scope,
+        vec![harness.facts_at(0, true, true, true)],
+        DecimalU64(0),
+    )
+    .unwrap()
+    .with_non_scalar_text_policy(NonScalarTextPolicy::LossyReplacement);
+    let loader_opt_in = HostLabSqlProvider::from_loader(
+        &harness.scope,
+        Arc::new(Loader(Arc::clone(&harness))),
+        DecimalU64(0),
+    )
+    .unwrap()
+    .with_non_scalar_text_policy(NonScalarTextPolicy::LossyReplacement);
+    loader_opt_in.prepare_required(None).unwrap();
+
+    for provider in [Arc::new(scope_opt_in), Arc::new(loader_opt_in)] {
+        let bridge = SqlBridge::new(provider, SqlDialect::DexSql010, SqlLimits::default()).unwrap();
+        let s_res = bridge
+            .query("SELECT value FROM strings WHERE string_idx = 13")
+            .unwrap();
+        assert_eq!(s_res.rows().len(), 1);
+        let SqlValue::Text(t) = &s_res.rows()[0][0] else {
+            panic!("expected text");
+        };
+        assert_eq!(t.strict_utf8().unwrap(), "\u{fffd}");
+
+        let ms_res = bridge.query("SELECT value FROM method_strings").unwrap();
+        assert!(ms_res.rows().iter().any(|row| {
+            matches!(&row[0], SqlValue::Text(v) if v.strict_utf8().ok().as_deref() == Some("\u{fffd}"))
+        }));
+    }
+
+    // `classes.source_file` with lone surrogate
+    let src_harness = open(&[(
+        "tests/fixtures/class_source_boundary/generated/surrogate-source.dex",
+        InputKind::RawDex,
+    )]);
+    let src_provider = HostLabSqlProvider::from_scope(
+        &src_harness.scope,
+        vec![src_harness.facts_at(0, true, true, true)],
+        DecimalU64(0),
+    )
+    .unwrap()
+    .with_non_scalar_text_policy(NonScalarTextPolicy::LossyReplacement);
+    let src_bridge = SqlBridge::new(
+        Arc::new(src_provider),
+        SqlDialect::DexSql010,
+        SqlLimits::default(),
+    )
+    .unwrap();
+    let cls = src_bridge
+        .query("SELECT source_file FROM classes WHERE source_file IS NOT NULL")
+        .unwrap();
+    assert!(cls.rows().iter().any(|row| {
+        matches!(&row[0], SqlValue::Text(v) if v.strict_utf8().ok().is_some_and(|s| s.contains('\u{fffd}')))
+    }));
+}

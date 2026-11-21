@@ -19,7 +19,9 @@ use crate::{
     layers::LayerBuilder,
 };
 use mdd_dex::{definitions::DefinitionLimits, strings::StringLimits};
-use mdd_facts::{DefinitionFacts, MetadataFacts, indexes::SelectedScope};
+use mdd_facts::{
+    DefinitionFacts, MetadataFacts, coverage::NonScalarTextPolicy, indexes::SelectedScope,
+};
 use mdd_input::{
     archive::{ArchiveInventory, ArchiveLimits, InventoryPolicy},
     manifest::ManifestDocument,
@@ -117,6 +119,7 @@ pub struct Dataset {
     temp: Option<TempSqlSession>,
     pub(crate) scope_id: String,
     pub(crate) dialect: Dialect,
+    pub(crate) non_scalar_text_policy: NonScalarTextPolicy,
     pub(crate) limits: ResourceLimits,
     layer_issues: Vec<LayerIssue>,
     dex_count: usize,
@@ -139,6 +142,24 @@ impl Dataset {
         dialect: Dialect,
         limits: ResourceLimits,
         sql_limits: SqlLimits,
+    ) -> MddResult<Self> {
+        Self::open_with_non_scalar_policy(
+            inputs,
+            dialect,
+            limits,
+            sql_limits,
+            NonScalarTextPolicy::Reject,
+        )
+    }
+
+    /// As [`Self::open`], with an explicit opt-in policy for legal non-scalar UTF-16 strings in
+    /// plain-UTF-8 HostLab contract columns (`strings.value`, `classes.source_file`, `method_strings.value`).
+    pub fn open_with_non_scalar_policy(
+        inputs: &[InputRequest],
+        dialect: Dialect,
+        limits: ResourceLimits,
+        sql_limits: SqlLimits,
+        non_scalar_text_policy: NonScalarTextPolicy,
     ) -> MddResult<Self> {
         let mut specs = Vec::with_capacity(inputs.len());
         for input in inputs {
@@ -178,9 +199,14 @@ impl Dataset {
         let built = (dex_count > 0).then(|| match dialect {
             Dialect::NativeV1 => Self::native_bridge(&snapshot, &inventories, sql_limits)
                 .map(|bridge| (bridge, Vec::new(), None)),
-            Dialect::DexSql010 | Dialect::DexSql011 => {
-                Self::contract_bridge(dialect, &snapshot, &inventories, &scope, sql_limits)
-            }
+            Dialect::DexSql010 | Dialect::DexSql011 => Self::contract_bridge(
+                dialect,
+                &snapshot,
+                &inventories,
+                &scope,
+                sql_limits,
+                non_scalar_text_policy,
+            ),
         });
         let built = built.transpose()?;
         // A session or query can only restrict the lifecycle's ceiling, never raise it,
@@ -213,6 +239,7 @@ impl Dataset {
             temp,
             scope_id: scope.scope_id().to_owned(),
             dialect,
+            non_scalar_text_policy,
             limits,
             layer_issues,
             dex_count,
@@ -263,16 +290,20 @@ impl Dataset {
         inventories: &Arc<Vec<ArchiveInventory>>,
         scope: &SelectedScope,
         sql_limits: SqlLimits,
+        non_scalar_text_policy: NonScalarTextPolicy,
     ) -> MddResult<(SqlBridge, Vec<LayerIssue>, Option<Arc<LayerBuilder>>)> {
         let layers = Arc::new(LayerBuilder::new(
             Arc::clone(snapshot),
             Arc::clone(inventories),
         ));
-        let provider = Arc::new(HostLabSqlProvider::from_loader(
-            scope,
-            Arc::clone(&layers) as Arc<dyn OccurrenceLoader>,
-            DecimalU64(0),
-        )?);
+        let provider = Arc::new(
+            HostLabSqlProvider::from_loader(
+                scope,
+                Arc::clone(&layers) as Arc<dyn OccurrenceLoader>,
+                DecimalU64(0),
+            )?
+            .with_non_scalar_text_policy(non_scalar_text_policy),
+        );
         // Metadata and definitions are the base of every relation, so a DEX that cannot build them fails the open. A layer
         // above them that cannot be built is not an error here: the relations that need it refuse with its error, and the
         // dataset names it in `layer_issues`.
@@ -379,7 +410,7 @@ impl Dataset {
 
     /// What `serve` prints first, and what `query` records about its dataset.
     pub fn description(&self) -> Value {
-        json!({
+        let mut out = json!({
             "snapshot_id": self.snapshot_id(),
             "scope_id": self.scope_id,
             "profile": self.dialect.profile(),
@@ -390,7 +421,16 @@ impl Dataset {
                 "layers": issue.layers,
                 "error": issue.error,
             })).collect::<Vec<_>>(),
-        })
+        });
+        if self.non_scalar_text_policy == NonScalarTextPolicy::LossyReplacement
+            && let Some(obj) = out.as_object_mut()
+        {
+            obj.insert(
+                "non_scalar_text_policy".to_owned(),
+                json!(self.non_scalar_text_policy.as_str()),
+            );
+        }
+        out
     }
 }
 

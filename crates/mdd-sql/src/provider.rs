@@ -164,6 +164,54 @@ pub struct SqlRelation {
 }
 pub type SqlRow = Vec<SqlValue>;
 
+/// Sound monotonic predicate tree extracted for candidate-row indexing on a single relation.
+/// Column names are normalized to ASCII lower case.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum RowFilter {
+    EqU64(String, u64),
+    InU64(String, Vec<u64>),
+    BetweenU64(String, u64, u64),
+    EqText(String, String),
+    InText(String, Vec<String>),
+    /// ASCII case-insensitive literal prefix extracted from `LIKE '...' [ESCAPE '...']` before any wildcard.
+    LikeAsciiPrefix(String, String),
+    And(Vec<RowFilter>),
+    Or(Vec<RowFilter>),
+}
+
+/// Equality join edge across two base relations (`INNER JOIN` / comma join `ON` conjuncts).
+/// Both relation names and column names are normalized to ASCII lower case.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EquiJoinEdge {
+    pub left_relation: String,
+    pub right_relation: String,
+    pub columns: Vec<(String, String)>,
+}
+
+/// Candidate row selection passed from query planning to a virtual table scan.
+#[derive(Clone, Debug)]
+pub enum PlannedScan {
+    All {
+        estimated_rows: Option<u64>,
+    },
+    Partition {
+        key: u64,
+        estimated_rows: Option<u64>,
+    },
+    Rows(Arc<[u32]>),
+}
+
+impl PlannedScan {
+    pub fn estimated_rows(&self) -> Option<u64> {
+        match self {
+            Self::All { estimated_rows } | Self::Partition { estimated_rows, .. } => {
+                *estimated_rows
+            }
+            Self::Rows(rows) => Some(rows.len() as u64),
+        }
+    }
+}
+
 /// Provider owns one immutable source generation. Opening a cursor may build
 /// required facts, but schema/optimizer callbacks must never do so.
 pub trait SqlFactProvider: Send + Sync {
@@ -191,6 +239,45 @@ pub trait SqlFactProvider: Send + Sync {
         _key: u64,
     ) -> MddResult<Box<dyn SqlFactCursor>> {
         self.open_cursor(relation, control)
+    }
+
+    /// Sound candidate scans for the required relations, combining single-table predicates,
+    /// equi-join edges, and partition hints. Every returned scan must contain a superset of
+    /// matching rows; the SQL engine still evaluates the full query predicate on them.
+    fn plan_scans(
+        &self,
+        _required_relations: &[String],
+        _row_filters: &BTreeMap<String, RowFilter>,
+        _equi_joins: &[EquiJoinEdge],
+        partition_hints: &BTreeMap<String, u64>,
+    ) -> MddResult<BTreeMap<String, PlannedScan>> {
+        Ok(partition_hints
+            .iter()
+            .map(|(relation, key)| {
+                (
+                    relation.clone(),
+                    PlannedScan::Partition {
+                        key: *key,
+                        estimated_rows: None,
+                    },
+                )
+            })
+            .collect())
+    }
+
+    /// Open a cursor restricted to the candidate set in `scan`.
+    fn open_planned_cursor(
+        self: Arc<Self>,
+        relation: &str,
+        control: SqlControl,
+        scan: &PlannedScan,
+    ) -> MddResult<Box<dyn SqlFactCursor>> {
+        match scan {
+            PlannedScan::All { .. } | PlannedScan::Rows(_) => self.open_cursor(relation, control),
+            PlannedScan::Partition { key, .. } => {
+                self.open_cursor_for_partition(relation, control, *key)
+            }
+        }
     }
 }
 /// Own the Arc and ordinal/iterator state. No self-referential borrowed scan.

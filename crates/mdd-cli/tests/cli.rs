@@ -815,3 +815,104 @@ fn a_closed_output_pipe_ends_the_command_with_exit_four() {
         String::from_utf8_lossy(&output.stderr)
     );
 }
+
+#[test]
+fn non_scalar_text_flag_defaults_to_reject_and_allows_opt_in_lossy_replacement() {
+    let surrogate_dex = fixture("tests/fixtures/generated/strings-mutf8-035.dex");
+    let sql = "SELECT string_idx, value FROM strings ORDER BY string_idx";
+
+    let rejected = run(
+        &[
+            "query",
+            "--dialect",
+            "dexsql-0.1.0",
+            "--input",
+            surrogate_dex.as_str(),
+            "--sql",
+            sql,
+        ],
+        b"",
+    );
+    assert_eq!(rejected.code, 1);
+    let rejected_lines = rejected.lines();
+    assert!(
+        rejected_lines[0]["dataset"]
+            .get("non_scalar_text_policy")
+            .is_none()
+    );
+    assert_eq!(rejected.terminal()["error"]["code"], "INCOMPLETE_FACTS");
+
+    let invalid = run(
+        &[
+            "query",
+            "--dialect",
+            "dexsql-0.1.0",
+            "--non-scalar-text",
+            "bogus",
+            "--input",
+            surrogate_dex.as_str(),
+            "--sql",
+            sql,
+        ],
+        b"",
+    );
+    assert_eq!(invalid.code, 2);
+    assert_eq!(invalid.error()["code"], "INVALID_ARGUMENT");
+
+    let explicit_reject = query(&[
+        "--dialect",
+        "dexsql-0.1.0",
+        "--non-scalar-text",
+        "reject",
+        "--sql",
+        TYPES,
+    ]);
+    assert_eq!(explicit_reject.code, 0);
+    assert!(
+        explicit_reject.lines()[0]["dataset"]
+            .get("non_scalar_text_policy")
+            .is_none()
+    );
+
+    let admitted = run(
+        &[
+            "query",
+            "--dialect",
+            "dexsql-0.1.0",
+            "--non-scalar-text",
+            "lossy-replacement",
+            "--input",
+            surrogate_dex.as_str(),
+            "--sql",
+            sql,
+        ],
+        b"",
+    );
+    assert_eq!(
+        admitted.code,
+        0,
+        "{}",
+        String::from_utf8_lossy(&admitted.stderr)
+    );
+    let lines = admitted.lines();
+    assert_eq!(
+        lines[0]["dataset"]["non_scalar_text_policy"],
+        "lossy-replacement"
+    );
+    assert_eq!(admitted.terminal()["operation_status"], "ok");
+    let rows: Vec<Vec<Value>> = admitted
+        .batches()
+        .into_iter()
+        .flat_map(|batch| batch["rows"].as_array().unwrap().clone())
+        .map(|row| row.as_array().unwrap().clone())
+        .collect();
+    assert_eq!(rows.len(), 7);
+    assert_eq!(
+        rows[4][1],
+        serde_json::json!({"t": "text", "v": "\u{fffd}"})
+    );
+    assert_eq!(
+        rows[6][1],
+        serde_json::json!({"t": "text", "v": "\u{fffd}"})
+    );
+}

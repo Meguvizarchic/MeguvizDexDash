@@ -2285,6 +2285,7 @@ fn schema_only_prepare_reuses_eponymous_connection_after_restoring_cell_limit() 
             binding,
             control: control.clone(),
             partition_key: None,
+            planned_scan: None,
         }),
     )
     .unwrap();

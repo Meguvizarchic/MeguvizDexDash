@@ -1542,6 +1542,15 @@ impl DefinitionFacts {
     /// of the same-occurrence `DexText`; a legal non-scalar value is rejected
     /// rather than converted lossily.
     pub fn class_rows(&self, file_id: u32) -> MddResult<Vec<ClassRow>> {
+        self.class_rows_with_policy(file_id, crate::coverage::NonScalarTextPolicy::Reject)
+    }
+
+    /// As [`Self::class_rows`], with an explicit policy for legal non-scalar source file names.
+    pub fn class_rows_with_policy(
+        &self,
+        file_id: u32,
+        policy: crate::coverage::NonScalarTextPolicy,
+    ) -> MddResult<Vec<ClassRow>> {
         self.require_relation_columns(DefinitionRelation::Classes, ClassRow::COLUMNS)?;
         if self.definition_coverage != Completeness::Complete
             || self.metadata.metadata_coverage() != Completeness::Complete
@@ -1583,7 +1592,7 @@ impl DefinitionFacts {
                 .detail("class_def_idx", u64::from(class.class_def_idx))
             })?;
             let source_file = match &class.source_file {
-                Some(text) => Some(text.strict_utf8().map_err(|_| {
+                Some(text) => Some(policy.project_dex_text(text).ok_or_else(|| {
                     MddError::new(
                         ErrorCode::UnsupportedQuery,
                         "facts.classes",

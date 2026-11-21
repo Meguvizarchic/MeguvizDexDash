@@ -240,6 +240,7 @@ impl HostLabSqlProvider {
                 slots,
             }),
             scope: scope.clone(),
+            non_scalar_text_policy: NonScalarTextPolicy::Reject,
             coverage: std::array::from_fn(|_| std::sync::OnceLock::new()),
         })
     }
@@ -421,10 +422,10 @@ impl HostLabSqlProvider {
             let schema = Self::relation(relation).columns;
             // Only the contract relations are proven column by column by the ledger.
             let request = match relation {
-                ContractRelation::Required(required) => Some(CoverageRequest::for_relations(
-                    &self.scope,
-                    &[required.name()],
-                )?),
+                ContractRelation::Required(required) => Some(
+                    CoverageRequest::for_relations(&self.scope, &[required.name()])?
+                        .with_non_scalar_text_policy(self.non_scalar_text_policy),
+                ),
                 ContractRelation::Public(_) => None,
             };
             let derived = derived_columns(relation, &schema);

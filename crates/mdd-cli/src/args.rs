@@ -1,13 +1,14 @@
 //! Command-line parsing. Hand written: the grammar is small, every refusal is a
 //! named `INVALID_ARGUMENT`, and nothing here may accept an option it does not act on.
 use crate::output::Format;
+use mdd_facts::coverage::NonScalarTextPolicy;
 use mdd_service::{DEFAULT_BATCH_ROWS, Dialect, InputRequest, MAX_BATCH_ROWS};
 use mdd_sql::control::SqlLimits;
 use mdd_types::{ErrorCode, MddError, MddResult};
 use std::ffi::OsString;
 use std::path::PathBuf;
 
-pub const USAGE: &str = "usage: meguvizdexdash version | capabilities | inspect-dex PATH... | inspect-apk PATH... | query --input PATH... (--sql TEXT | --sql-file PATH|-) [--dialect native-v1|dexsql-0.1.0|dexsql-0.1.1] [--format jsonl|text] [--batch-rows N] [--max-rows N] [--deadline-ms N] [SQL BUDGETS] | serve --input PATH... [--dialect NAME] [--deadline-ms N] [SQL BUDGETS]; mcp [--dialect dexsql-0.1.0|dexsql-0.1.1] [--timeout-ms N] [--max-datasets N] [--max-total-input-bytes N] [--max-result-bytes N] [SQL BUDGETS]; SQL BUDGETS: --sql-max-steps N --sql-max-scanned-rows N --sql-max-result-rows N";
+pub const USAGE: &str = "usage: meguvizdexdash version | capabilities | inspect-dex PATH... | inspect-apk PATH... | query --input PATH... (--sql TEXT | --sql-file PATH|-) [--dialect native-v1|dexsql-0.1.0|dexsql-0.1.1] [--non-scalar-text reject|lossy-replacement] [--format jsonl|text] [--batch-rows N] [--max-rows N] [--deadline-ms N] [SQL BUDGETS] | serve --input PATH... [--dialect NAME] [--non-scalar-text reject|lossy-replacement] [--deadline-ms N] [SQL BUDGETS]; mcp [--dialect dexsql-0.1.0|dexsql-0.1.1] [--timeout-ms N] [--max-datasets N] [--max-total-input-bytes N] [--max-result-bytes N] [SQL BUDGETS]; SQL BUDGETS: --sql-max-steps N --sql-max-scanned-rows N --sql-max-result-rows N";
 
 pub enum Command {
     Version,
@@ -22,6 +23,7 @@ pub enum Command {
 pub struct DataArgs {
     pub inputs: Vec<InputRequest>,
     pub dialect: Dialect,
+    pub non_scalar_text: NonScalarTextPolicy,
     pub deadline_ms: Option<u64>,
     /// The engine's own budgets, with the defaults for anything not asked for. They
     /// can be raised as well as lowered: they are limits of the caller's own process.
@@ -74,6 +76,7 @@ struct Options {
     sql: Option<String>,
     sql_file: Option<PathBuf>,
     dialect: Option<String>,
+    non_scalar_text: Option<String>,
     format: Option<String>,
     batch_rows: Option<u64>,
     max_rows: Option<u64>,
@@ -113,6 +116,7 @@ fn options(rest: &[OsString], allowed: &[&str]) -> MddResult<Options> {
             "--sql" => once(&mut found.sql, name, text(name, value)?)?,
             "--sql-file" => once(&mut found.sql_file, name, PathBuf::from(value))?,
             "--dialect" => once(&mut found.dialect, name, text(name, value)?)?,
+            "--non-scalar-text" => once(&mut found.non_scalar_text, name, text(name, value)?)?,
             "--format" => once(&mut found.format, name, text(name, value)?)?,
             "--batch-rows" => once(&mut found.batch_rows, name, number(name, value)?)?,
             "--max-rows" => once(&mut found.max_rows, name, number(name, value)?)?,
@@ -144,6 +148,10 @@ fn data(found: &mut Options) -> MddResult<DataArgs> {
         Some(name) => Dialect::parse(name)?,
         None => Dialect::NativeV1,
     };
+    let non_scalar_text = match &found.non_scalar_text {
+        Some(name) => NonScalarTextPolicy::parse(name)?,
+        None => NonScalarTextPolicy::Reject,
+    };
     if found.deadline_ms == Some(0) {
         return Err(bad("--deadline-ms must be positive"));
     }
@@ -154,6 +162,7 @@ fn data(found: &mut Options) -> MddResult<DataArgs> {
             .map(|path| InputRequest { path, kind: None })
             .collect(),
         dialect,
+        non_scalar_text,
         deadline_ms: found.deadline_ms,
         sql_limits,
     })
@@ -244,6 +253,7 @@ pub fn parse(args: &[OsString]) -> MddResult<Command> {
                     "--sql",
                     "--sql-file",
                     "--dialect",
+                    "--non-scalar-text",
                     "--format",
                     "--batch-rows",
                     "--max-rows",
@@ -290,6 +300,7 @@ pub fn parse(args: &[OsString]) -> MddResult<Command> {
                 &[
                     "--input",
                     "--dialect",
+                    "--non-scalar-text",
                     "--deadline-ms",
                     "--sql-max-steps",
                     "--sql-max-scanned-rows",

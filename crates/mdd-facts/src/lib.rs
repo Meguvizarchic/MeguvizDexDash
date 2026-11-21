@@ -28,6 +28,7 @@ pub use pipeline::{
 };
 
 pub use code::CodeFacts;
+pub use coverage::NonScalarTextPolicy;
 pub use definitions::DefinitionFacts;
 pub use references::ReferenceFacts;
 

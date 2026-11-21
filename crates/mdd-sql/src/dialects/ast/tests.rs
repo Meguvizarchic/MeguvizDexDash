@@ -257,4 +257,29 @@ mod mdd084_rewrite_tests {
         assert_eq!(error.code, ErrorCode::QuotaExceeded);
         assert_eq!(error.message, "SQL_AST_NODE_OR_DEPTH");
     }
+
+    #[test]
+    fn flat_or_chain_like_rebalances_under_default_depth_limit() {
+        let clauses: Vec<String> = (0..35)
+            .map(|i| format!("value LIKE 'Lpkg/n{i:02}/%' ESCAPE '\\'"))
+            .collect();
+        let inner = format!(
+            "SELECT value FROM facts WHERE {} ORDER BY value",
+            clauses.join(" OR ")
+        );
+        let wrapped = format!("SELECT * FROM ({inner}) AS hostlab_shape LIMIT 0");
+        let adapted = adapt_on_small_caller_stack(wrapped, SqlLimits::default())
+            .expect("flat 35-term OR LIKE wrapped in hostlab_shape must fit max_ast_depth=48");
+        // Each LIKE ... ESCAPE binds (pattern, escape, has_escape=true), plus 1 for LIMIT 0.
+        assert_eq!(adapted.parameters.len(), 35 * 3 + 1);
+        // Check left-to-right positional parameter order is preserved after rebalancing.
+        let mut iter = adapted.parameters.iter().step_by(3);
+        for i in 0..35 {
+            assert_eq!(
+                iter.next(),
+                Some(&SqlValue::text(&format!("Lpkg/n{i:02}/%"))),
+                "parameter order drifted at {i}"
+            );
+        }
+    }
 }

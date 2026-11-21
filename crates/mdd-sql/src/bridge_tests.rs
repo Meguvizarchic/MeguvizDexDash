@@ -222,6 +222,7 @@ fn schema_test_connection(prepared: &PreparedSql, control: &SqlControl) -> Conne
                 binding: prepared.binding.clone(),
                 control: control.clone(),
                 partition_key: None,
+                planned_scan: None,
             }),
         )
         .unwrap();

@@ -10,8 +10,55 @@ use crate::{
 };
 use mdd_dex::definitions::MethodBody;
 use mdd_types::{Completeness, ErrorCode, MddError, MddResult};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
+
+/// Policy governing legal non-scalar UTF-16 strings (unpaired surrogates) in plain-UTF-8 relations.
+///
+/// Strict rejection is always the default; lossy U+FFFD replacement requires explicit opt-in and
+/// leaves a non-blocking diagnostic in coverage reports.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum NonScalarTextPolicy {
+    #[default]
+    Reject,
+    LossyReplacement,
+}
+
+impl NonScalarTextPolicy {
+    pub fn parse(name: &str) -> MddResult<Self> {
+        match name {
+            "reject" => Ok(Self::Reject),
+            "lossy-replacement" => Ok(Self::LossyReplacement),
+            other => Err(MddError::new(
+                ErrorCode::InvalidArgument,
+                "facts.coverage",
+                format!(
+                    "unknown non-scalar text policy `{other}`; use reject or lossy-replacement"
+                ),
+            )),
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Reject => "reject",
+            Self::LossyReplacement => "lossy-replacement",
+        }
+    }
+
+    pub fn is_reject(&self) -> bool {
+        *self == Self::Reject
+    }
+
+    pub fn project_dex_text(&self, text: &mdd_dex::strings::DexText) -> Option<String> {
+        match text.strict_utf8() {
+            Ok(scalar) => Some(scalar),
+            Err(_) if *self == Self::LossyReplacement => Some(text.display_lossy()),
+            Err(_) => None,
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -56,6 +103,8 @@ pub struct CoverageRequest {
     pub required_layers: Vec<FactLayer>,
     pub required_columns: Vec<ColumnRequirement>,
     pub required_resource_members: Vec<String>,
+    #[serde(skip_serializing_if = "NonScalarTextPolicy::is_reject")]
+    pub non_scalar_text_policy: NonScalarTextPolicy,
 }
 impl CoverageRequest {
     /// Scope-bound request for an explicit layer set. Columns are **not**
@@ -71,6 +120,7 @@ impl CoverageRequest {
             required_layers: layers.to_vec(),
             required_columns: Vec::new(),
             required_resource_members: Vec::new(),
+            non_scalar_text_policy: NonScalarTextPolicy::Reject,
         }
     }
     /// Scope-bound request that requires **every** frozen column of the named
@@ -119,7 +169,13 @@ impl CoverageRequest {
             required_layers: required_layers.into_iter().collect(),
             required_columns,
             required_resource_members: Vec::new(),
+            non_scalar_text_policy: NonScalarTextPolicy::Reject,
         })
+    }
+
+    pub fn with_non_scalar_text_policy(mut self, policy: NonScalarTextPolicy) -> Self {
+        self.non_scalar_text_policy = policy;
+        self
     }
 }
 #[derive(Clone, Debug, Serialize)]
@@ -806,11 +862,22 @@ impl<'a> CoverageLedger<'a> {
         Some((Completeness::Unknown, Some(reason.into()), None))
     }
 
+    #[cfg(test)]
     fn column_state(
         &self,
         occurrence: &str,
         spec: &ColumnSpec,
         domain: ColumnDomain,
+    ) -> (Completeness, Option<String>, Option<MddError>) {
+        self.column_state_with_policy(occurrence, spec, domain, NonScalarTextPolicy::Reject)
+    }
+
+    fn column_state_with_policy(
+        &self,
+        occurrence: &str,
+        spec: &ColumnSpec,
+        domain: ColumnDomain,
+        non_scalar_text_policy: NonScalarTextPolicy,
     ) -> (Completeness, Option<String>, Option<MddError>) {
         let layers = Self::native_column_layers(spec);
         if layers.is_empty() {
@@ -894,15 +961,28 @@ impl<'a> CoverageLedger<'a> {
             );
         };
         // A projection that renders validated `DexText` as plain UTF-8 fails for
-        // a legal non-scalar value even when every fact layer is complete. That
-        // gap must surface as Unknown instead of a fabricated Complete.
-        if Self::non_scalar_text_gap(view, spec) {
+        // a legal non-scalar value under the default strict policy. With an
+        // explicit opt-in lossy replacement policy, the provider gate still
+        // validates the column and records a non-blocking diagnostic.
+        let has_non_scalar_gap = Self::non_scalar_text_gap(view, spec);
+        if has_non_scalar_gap && non_scalar_text_policy == NonScalarTextPolicy::Reject {
             return (
                 Completeness::Unknown,
                 Some("non_scalar_UTF16_cannot_be_plain_UTF8".into()),
                 None,
             );
         }
+        let with_lossy_note = |state: (Completeness, Option<String>, Option<MddError>)| {
+            if state.0 == Completeness::Complete && has_non_scalar_gap {
+                (
+                    Completeness::Complete,
+                    Some("non_scalar_UTF16_lossy_replacement_applied".into()),
+                    None,
+                )
+            } else {
+                state
+            }
+        };
         // Every frozen relation with a production row projection is gated by its
         // owning provider (`frozen_provider_gate`); a rejection is an explicit
         // Unknown carrying the provider's own error. The four `method_*`
@@ -911,7 +991,7 @@ impl<'a> CoverageLedger<'a> {
         // producer, so it is reported as Unknown rather than defaulted to
         // `Complete`.
         if let Some(result) = Self::frozen_provider_gate(view, spec) {
-            return match result {
+            return with_lossy_note(match result {
                 Some(Ok(())) => (Completeness::Complete, None, None),
                 Some(Err(error)) => (
                     Completeness::Unknown,
@@ -923,7 +1003,7 @@ impl<'a> CoverageLedger<'a> {
                     Some("column_provider_not_built".into()),
                     None,
                 ),
-            };
+            });
         }
         let result = match spec.relation {
             "method_strings" => view.references.map(|value| {
@@ -943,7 +1023,7 @@ impl<'a> CoverageLedger<'a> {
             }),
             _ => None,
         };
-        match result {
+        with_lossy_note(match result {
             Some(Ok(())) => (Completeness::Complete, None, None),
             Some(Err(error)) => (
                 Completeness::Unknown,
@@ -955,7 +1035,7 @@ impl<'a> CoverageLedger<'a> {
                 Some("column_provider_not_built".into()),
                 None,
             ),
-        }
+        })
     }
     /// The state of every required layer and column for one logical occurrence of the scope, read from this ledger's
     /// view of it. A ledger built over a single view answers for that view alone.
@@ -984,7 +1064,14 @@ impl<'a> CoverageLedger<'a> {
                         .find(|spec| {
                             spec.relation == required.relation && spec.column == required.column
                         })
-                        .map(|spec| self.column_state(occurrence, spec, required.domain))
+                        .map(|spec| {
+                            self.column_state_with_policy(
+                                occurrence,
+                                spec,
+                                required.domain,
+                                request.non_scalar_text_policy,
+                            )
+                        })
                 })
                 .collect(),
         }
@@ -1204,13 +1291,14 @@ impl<'a> CoverageLedger<'a> {
                     });
                 values.push(state);
                 if let Some(reason) = reason {
-                    issues.push(issue(
-                        Some(&dex.dex_occurrence_id),
-                        "column",
-                        Some(key.clone()),
+                    issues.push(CoverageIssue {
+                        occurrence: Some(dex.dex_occurrence_id.clone()),
+                        layer: "column".into(),
+                        column: Some(key.clone()),
                         reason,
+                        blocking: state != Completeness::Complete,
                         error,
-                    ));
+                    });
                 }
             }
         }

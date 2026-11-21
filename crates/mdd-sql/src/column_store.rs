@@ -16,14 +16,17 @@
 //! is a legal non-scalar UTF-16 string is kept as such, not rewritten.
 use crate::{
     control::SqlControl,
-    provider::{PositionedCursor, SqlColumn, SqlFactCursor, SqlRow, validate_row},
+    provider::{
+        PlannedScan, PositionedCursor, RowFilter, SqlColumn, SqlFactCursor, SqlRow, validate_row,
+    },
     values::{SqlText, SqlType, SqlValue},
 };
 use mdd_query::ir::Signed64;
 use mdd_types::{DecimalU64, MddResult};
 use std::{
     collections::BTreeMap,
-    sync::{Arc, RwLock},
+    ops::ControlFlow,
+    sync::{Arc, OnceLock, RwLock},
 };
 
 /// Rows per chunk. Large enough that the per-chunk header is nothing, small enough that one outlier does not widen a
@@ -212,9 +215,134 @@ impl Shard {
     }
 }
 
+fn with_tagged_entry<R>(tag: u8, payload: &[u8], f: impl FnOnce(&[u8]) -> R) -> R {
+    const STACK: usize = 256;
+    if payload.len() < STACK {
+        let mut entry = [0u8; STACK];
+        entry[0] = tag;
+        entry[1..=payload.len()].copy_from_slice(payload);
+        f(&entry[..=payload.len()])
+    } else {
+        let mut entry = Vec::with_capacity(1 + payload.len());
+        entry.push(tag);
+        entry.extend_from_slice(payload);
+        f(&entry)
+    }
+}
+
+fn decode_spaced_hex(utf8: &str) -> Vec<u8> {
+    let mut entry = Vec::with_capacity(utf8.len() / 3 + 1);
+    entry.extend(
+        utf8.as_bytes()
+            .chunks(3)
+            .map(|group| nibble(group[0]) << 4 | nibble(group[1])),
+    );
+    entry
+}
+
 impl TextDict {
     pub fn new() -> Arc<Self> {
         Arc::new(Self::default())
+    }
+
+    fn lookup_entry(&self, entry: &[u8]) -> Option<u32> {
+        let hash = hash_entry(entry);
+        let shard_at = shard_of(hash);
+        self.shards[shard_at]
+            .read()
+            .expect("dictionary lock")
+            .find(entry, hash)
+            .ok()
+            .map(|local| compose(shard_at, local))
+    }
+
+    fn lookup_tagged(&self, tag: u8, payload: &[u8]) -> Option<u32> {
+        with_tagged_entry(tag, payload, |entry| self.lookup_entry(entry))
+    }
+
+    /// Look up the dictionary id of a scalar text without mutating the dictionary.
+    pub fn lookup_str(&self, utf8: &str) -> Option<u32> {
+        if is_spaced_hex(utf8) {
+            let entry = decode_spaced_hex(utf8);
+            return self.lookup_tagged(TAG_HEX, &entry);
+        }
+        if let Some((head, name, rest)) = split_member(utf8) {
+            let mut payload = [0u8; 12];
+            for (n, part) in [head, name, rest].into_iter().enumerate() {
+                let id = self.lookup_tagged(TAG_UTF8, part.as_bytes())?;
+                payload[n * 4..n * 4 + 4].copy_from_slice(&id.to_le_bytes());
+            }
+            return self.lookup_tagged(TAG_MEMBER, &payload);
+        }
+        self.lookup_tagged(TAG_UTF8, utf8.as_bytes())
+    }
+
+    /// Filter dictionary ids in `keys` whose text matches at least one ASCII lowercase prefix
+    /// case-insensitively (`like` ASCII folding). Sound superset: any non-text entry is included.
+    pub(crate) fn filter_ids_by_ascii_prefixes_ci(
+        &self,
+        keys: &[u64],
+        lower_prefixes: &[&[u8]],
+    ) -> Vec<u32> {
+        let Some(min_len) = lower_prefixes.iter().map(|p| p.len()).min() else {
+            return Vec::new();
+        };
+        if keys.is_empty() {
+            return Vec::new();
+        }
+        let mut buckets: [Vec<u32>; SHARDS] = std::array::from_fn(|_| Vec::new());
+        for &key in keys {
+            let Ok(id) = u32::try_from(key) else {
+                continue;
+            };
+            let (shard_idx, local) = split(id);
+            buckets[shard_idx].push(local);
+        }
+        let mut matched = Vec::new();
+        let mut fallback_ids = Vec::new();
+        for (shard_idx, locals) in buckets.into_iter().enumerate() {
+            if locals.is_empty() {
+                continue;
+            }
+            let shard = self.shards[shard_idx].read().expect("dictionary lock");
+            for local in locals {
+                let entry = shard.entry(local);
+                match entry.first().copied() {
+                    Some(TAG_UTF8) => {
+                        let payload = &entry[1..];
+                        if payload.len() >= min_len
+                            && lower_prefixes.iter().any(|p| {
+                                payload.len() >= p.len()
+                                    && payload[..p.len()].eq_ignore_ascii_case(p)
+                            })
+                        {
+                            matched.push(compose(shard_idx, local));
+                        }
+                    }
+                    Some(_) => fallback_ids.push(compose(shard_idx, local)),
+                    None => {}
+                }
+            }
+        }
+        for id in fallback_ids {
+            match self.get(id) {
+                SqlValue::Text(text) => {
+                    let units = &text.utf16;
+                    if units.len() >= min_len
+                        && lower_prefixes.iter().any(|p| {
+                            units.len() >= p.len()
+                                && units[..p.len()].iter().zip(*p).all(|(&u, &b)| {
+                                    u <= 0x7F && (u as u8).to_ascii_lowercase() == b
+                                })
+                        })
+                    {
+                        matched.push(id);
+                    }
+                }
+                _ => matched.push(id),
+            }
+        }
+        matched
     }
 
     /// The id of the entry with exactly these bytes, adding it when it is new.
@@ -239,29 +367,13 @@ impl TextDict {
 
     /// An entry made of a tag and a payload, without allocating for the usual short ones.
     fn intern_tagged(&self, tag: u8, payload: &[u8]) -> u32 {
-        const STACK: usize = 256;
-        if payload.len() < STACK {
-            let mut entry = [0u8; STACK];
-            entry[0] = tag;
-            entry[1..=payload.len()].copy_from_slice(payload);
-            self.intern_entry(&entry[..=payload.len()])
-        } else {
-            let mut entry = Vec::with_capacity(1 + payload.len());
-            entry.push(tag);
-            entry.extend_from_slice(payload);
-            self.intern_entry(&entry)
-        }
+        with_tagged_entry(tag, payload, |entry| self.intern_entry(entry))
     }
 
     /// The id of a scalar text, adding it when it is new: the id `intern` gives the `SqlValue::Text` made from it.
     pub fn intern_str(&self, utf8: &str) -> u32 {
         if is_spaced_hex(utf8) {
-            let mut entry = Vec::with_capacity(utf8.len() / 3 + 1);
-            entry.extend(
-                utf8.as_bytes()
-                    .chunks(3)
-                    .map(|group| nibble(group[0]) << 4 | nibble(group[1])),
-            );
+            let entry = decode_spaced_hex(utf8);
             return self.intern_tagged(TAG_HEX, &entry);
         }
         if let Some((head, name, rest)) = split_member(utf8) {
@@ -726,11 +838,149 @@ enum Kind {
 struct Column {
     kind: Kind,
     ints: IntColumn,
+    /// True if any text entry in this column was stored as `TAG_TEXT` (non-scalar UTF-16 or raw MUTF-8).
+    has_tagged_text: bool,
+}
+
+/// Compact CSR inverted index for one indexable column of a `RelationStore`.
+struct ColumnIndex {
+    keys: Vec<u64>,
+    offsets: Vec<u32>,
+    row_ids: Vec<u32>,
+}
+
+impl ColumnIndex {
+    fn from_pairs(mut pairs: Vec<(u64, u32)>) -> Self {
+        pairs.sort_unstable();
+        let mut keys = Vec::new();
+        let mut offsets = Vec::with_capacity(pairs.len().min(64) + 1);
+        offsets.push(0);
+        let mut row_ids = Vec::with_capacity(pairs.len());
+        for (key, row) in pairs {
+            if keys.last().copied() != Some(key) {
+                if !keys.is_empty() {
+                    offsets.push(row_ids.len() as u32);
+                }
+                keys.push(key);
+            }
+            row_ids.push(row);
+        }
+        if !keys.is_empty() {
+            offsets.push(row_ids.len() as u32);
+        }
+        keys.shrink_to_fit();
+        offsets.shrink_to_fit();
+        row_ids.shrink_to_fit();
+        Self {
+            keys,
+            offsets,
+            row_ids,
+        }
+    }
+
+    fn keys(&self) -> &[u64] {
+        &self.keys
+    }
+
+    fn bytes_used(&self) -> usize {
+        self.keys.capacity() * std::mem::size_of::<u64>()
+            + self.offsets.capacity() * std::mem::size_of::<u32>()
+            + self.row_ids.capacity() * std::mem::size_of::<u32>()
+    }
+
+    fn rows_for_key(&self, key: u64, range: Option<(u32, u32)>) -> &[u32] {
+        let Ok(at) = self.keys.binary_search(&key) else {
+            return &[];
+        };
+        let slice = &self.row_ids[self.offsets[at] as usize..self.offsets[at + 1] as usize];
+        narrow_slice(slice, range)
+    }
+
+    fn rows_in_range(
+        &self,
+        low: u64,
+        high: u64,
+        range: Option<(u32, u32)>,
+        max_rows: usize,
+    ) -> Option<Vec<u32>> {
+        if low > high {
+            return Some(Vec::new());
+        }
+        let start = self.keys.partition_point(|&k| k < low);
+        let end = self.keys.partition_point(|&k| k <= high);
+        if start >= end {
+            return Some(Vec::new());
+        }
+        let total = (self.offsets[end] - self.offsets[start]) as usize;
+        if total > max_rows && range.is_none() {
+            return None;
+        }
+        let mut out = Vec::new();
+        for at in start..end {
+            let slice = narrow_slice(
+                &self.row_ids[self.offsets[at] as usize..self.offsets[at + 1] as usize],
+                range,
+            );
+            if out.len().saturating_add(slice.len()) > max_rows {
+                return None;
+            }
+            out.extend_from_slice(slice);
+        }
+        out.sort_unstable();
+        Some(out)
+    }
+}
+
+fn narrow_slice(slice: &[u32], range: Option<(u32, u32)>) -> &[u32] {
+    let Some((lo, hi)) = range else {
+        return slice;
+    };
+    if lo >= hi || slice.is_empty() {
+        return &[];
+    }
+    let start = slice.partition_point(|&r| r < lo);
+    let end = start + slice[start..].partition_point(|&r| r < hi);
+    &slice[start..end]
+}
+
+fn intersect_into(dst: &mut Vec<u32>, src: &[u32]) {
+    if src.is_empty() || dst.is_empty() {
+        dst.clear();
+        return;
+    }
+    if src.len() > dst.len().saturating_mul(8) {
+        dst.retain(|row| src.binary_search(row).is_ok());
+        return;
+    }
+    let (mut i, mut j, mut write) = (0usize, 0usize, 0usize);
+    while i < dst.len() && j < src.len() {
+        match dst[i].cmp(&src[j]) {
+            std::cmp::Ordering::Less => i += 1,
+            std::cmp::Ordering::Greater => j += 1,
+            std::cmp::Ordering::Equal => {
+                dst[write] = dst[i];
+                write += 1;
+                i += 1;
+                j += 1;
+            }
+        }
+    }
+    dst.truncate(write);
+}
+
+enum EvalScan<'a> {
+    All {
+        range: Option<(u64, u64)>,
+        partition_key: Option<u64>,
+    },
+    Slice(&'a [u32]),
+    Owned(Vec<u32>),
 }
 
 /// The rows of one relation, immutable. Build with `RelationStoreBuilder`, read with `cursor`.
 pub struct RelationStore {
     columns: Vec<Column>,
+    names: Vec<String>,
     /// Per column, how it is derived when it is not stored (its `Column` then holds no rows).
     derived: Vec<Option<DerivedColumn>>,
     /// The reference table of each DEX, by the value of the partition column, for the derived columns.
@@ -744,6 +994,8 @@ pub struct RelationStore {
     partitions: Option<Vec<Partition>>,
     /// An upper bound on the size of a cell, in bytes.
     max_cell_bytes: u64,
+    /// Lazy CSR column indexes, initialized on first filtered lookup of an indexable column.
+    indexes: Vec<OnceLock<Option<ColumnIndex>>>,
 }
 
 /// The rows `start..end` of a store, which all have the partition column `key`.
@@ -759,9 +1011,643 @@ impl RelationStore {
         self.rows
     }
 
-    /// Bytes held on the heap by the columns, not counting the shared dictionary.
+    /// Bytes held on the heap by the columns and any initialized column indexes, not counting the shared dictionary.
     pub fn bytes_used(&self) -> usize {
-        self.columns.iter().map(|c| c.ints.bytes_used()).sum()
+        let cols: usize = self.columns.iter().map(|c| c.ints.bytes_used()).sum();
+        let indexes: usize = self
+            .indexes
+            .iter()
+            .filter_map(|slot| slot.get().and_then(Option::as_ref))
+            .map(ColumnIndex::bytes_used)
+            .sum();
+        cols + indexes
+    }
+
+    pub fn column_by_name(&self, name: &str) -> Option<usize> {
+        self.names.iter().position(|n| n.eq_ignore_ascii_case(name))
+    }
+
+    pub fn column_type(&self, column: usize) -> Option<SqlType> {
+        self.types.get(column).copied()
+    }
+
+    pub fn u64_cell(&self, column: usize, row: u64) -> Option<Option<u64>> {
+        let col = self.columns.get(column)?;
+        if !matches!(col.kind, Kind::U64) || self.derived.get(column).copied().flatten().is_some() {
+            return None;
+        }
+        let mut hint = 0usize;
+        Some(col.ints.get(row, &mut hint))
+    }
+
+    pub fn text_cell(&self, column: usize, row: u64) -> Option<Option<String>> {
+        match self.cell(column, row).ok()? {
+            SqlValue::Null => Some(None),
+            SqlValue::Text(text) => text.strict_utf8().ok().map(Some),
+            _ => None,
+        }
+    }
+
+    pub fn scan_len(&self, scan: &PlannedScan) -> u64 {
+        match scan {
+            PlannedScan::All { .. } => self.rows,
+            PlannedScan::Partition { key, .. } => {
+                self.range_of(*key).map_or(self.rows, |(s, e)| e - s)
+            }
+            PlannedScan::Rows(rows) => rows.len() as u64,
+        }
+    }
+
+    pub fn for_each_scan_row(
+        &self,
+        scan: &PlannedScan,
+        mut visit: impl FnMut(u64) -> ControlFlow<()>,
+    ) {
+        match scan {
+            PlannedScan::All { .. } => {
+                for row in 0..self.rows {
+                    if visit(row).is_break() {
+                        break;
+                    }
+                }
+            }
+            PlannedScan::Partition { key, .. } => {
+                let (start, end) = self.range_of(*key).unwrap_or((0, self.rows));
+                for row in start..end {
+                    if visit(row).is_break() {
+                        break;
+                    }
+                }
+            }
+            PlannedScan::Rows(rows) => {
+                for &row in rows.iter() {
+                    if visit(u64::from(row)).is_break() {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    fn is_partition_column(&self, column: usize) -> bool {
+        self.partition_column == Some(column) && self.partitions.is_some()
+    }
+
+    fn is_indexable_u64(&self, column: usize) -> bool {
+        self.rows <= u64::from(u32::MAX)
+            && self.derived.get(column).copied().flatten().is_none()
+            && matches!(self.columns.get(column).map(|c| c.kind), Some(Kind::U64))
+    }
+
+    fn is_indexable_text(&self, column: usize) -> bool {
+        self.rows <= u64::from(u32::MAX)
+            && self.types.get(column) == Some(&SqlType::Text)
+            && (self.derived.get(column).copied().flatten().is_some()
+                || self
+                    .columns
+                    .get(column)
+                    .is_some_and(|c| matches!(c.kind, Kind::Dict) && !c.has_tagged_text))
+    }
+
+    fn column_index(&self, column: usize) -> Option<&ColumnIndex> {
+        if self.rows > u64::from(u32::MAX) || column >= self.columns.len() {
+            return None;
+        }
+        self.indexes[column]
+            .get_or_init(|| {
+                if let Some(derived) = self.derived[column] {
+                    let part_col = self.partition_column?;
+                    let mut pairs = Vec::with_capacity(self.rows as usize);
+                    let (mut part_hint, mut idx_hint) = (0usize, 0usize);
+                    let mut last_file: Option<u64> = None;
+                    let mut last_table: Option<&RefTable> = None;
+                    for row in 0..self.rows {
+                        let file = self.columns[part_col].ints.get(row, &mut part_hint)?;
+                        if last_file != Some(file) {
+                            last_table = self.tables.get(&file).map(Arc::as_ref);
+                            last_file = Some(file);
+                        }
+                        let table = last_table?;
+                        let index = self.columns[derived.index_column]
+                            .ints
+                            .get(row, &mut idx_hint)?;
+                        if let Some(id) = table.id(derived.derive, index) {
+                            pairs.push((u64::from(id), row as u32));
+                        }
+                    }
+                    return Some(ColumnIndex::from_pairs(pairs));
+                }
+                if !self.is_indexable_u64(column) && !self.is_indexable_text(column) {
+                    return None;
+                }
+                let mut pairs = Vec::with_capacity(self.rows as usize);
+                let mut hint = 0usize;
+                for row in 0..self.rows {
+                    if let Some(raw) = self.columns[column].ints.get(row, &mut hint) {
+                        pairs.push((raw, row as u32));
+                    }
+                }
+                Some(ColumnIndex::from_pairs(pairs))
+            })
+            .as_ref()
+    }
+
+    pub fn plan_filter(&self, filter: &RowFilter) -> PlannedScan {
+        match self.eval_filter(filter, None, None) {
+            EvalScan::Owned(rows) => PlannedScan::Rows(Arc::from(rows)),
+            EvalScan::Slice(slice) => PlannedScan::Rows(Arc::from(slice)),
+            EvalScan::All {
+                range: Some((start, end)),
+                partition_key,
+            } => {
+                if start >= end {
+                    PlannedScan::Rows(Arc::from([]))
+                } else if let Some(key) = partition_key {
+                    PlannedScan::Partition {
+                        key,
+                        estimated_rows: Some(end - start),
+                    }
+                } else {
+                    PlannedScan::All {
+                        estimated_rows: Some(self.rows),
+                    }
+                }
+            }
+            EvalScan::All { .. } => PlannedScan::All {
+                estimated_rows: Some(self.rows),
+            },
+        }
+    }
+
+    pub fn intersect_scans(&self, current: &PlannedScan, other: &PlannedScan) -> PlannedScan {
+        match (current, other) {
+            (PlannedScan::All { .. }, _) => other.clone(),
+            (_, PlannedScan::All { .. }) => current.clone(),
+            (PlannedScan::Partition { key: k1, .. }, PlannedScan::Partition { key: k2, .. }) => {
+                if k1 == k2 {
+                    current.clone()
+                } else {
+                    PlannedScan::Rows(Arc::from([]))
+                }
+            }
+            (PlannedScan::Partition { key, .. }, PlannedScan::Rows(rows))
+            | (PlannedScan::Rows(rows), PlannedScan::Partition { key, .. }) => {
+                let Some((start, end)) = self.range_of(*key) else {
+                    return PlannedScan::Rows(Arc::clone(rows));
+                };
+                if let (Ok(lo), Ok(hi)) = (u32::try_from(start), u32::try_from(end)) {
+                    PlannedScan::Rows(Arc::from(narrow_slice(rows, Some((lo, hi)))))
+                } else {
+                    PlannedScan::Rows(Arc::clone(rows))
+                }
+            }
+            (PlannedScan::Rows(left), PlannedScan::Rows(right)) => {
+                let (mut base, probe) = if left.len() <= right.len() {
+                    (left.to_vec(), right.as_ref())
+                } else {
+                    (right.to_vec(), left.as_ref())
+                };
+                intersect_into(&mut base, probe);
+                PlannedScan::Rows(Arc::from(base))
+            }
+        }
+    }
+
+    fn eval_filter<'a>(
+        &'a self,
+        filter: &RowFilter,
+        enclosing_range: Option<(u64, u64)>,
+        enclosing_partition: Option<u64>,
+    ) -> EvalScan<'a> {
+        let narrow = enclosing_range
+            .and_then(|(s, e)| Some((u32::try_from(s).ok()?, u32::try_from(e).ok()?)));
+        match filter {
+            RowFilter::EqU64(col, val) => {
+                let Some(at) = self.column_by_name(col) else {
+                    return EvalScan::All {
+                        range: enclosing_range,
+                        partition_key: enclosing_partition,
+                    };
+                };
+                if self.is_partition_column(at) {
+                    let Some((start, end)) = self.range_of(*val) else {
+                        return EvalScan::All {
+                            range: enclosing_range,
+                            partition_key: enclosing_partition,
+                        };
+                    };
+                    if let Some((e_start, e_end)) = enclosing_range {
+                        let lo = start.max(e_start);
+                        let hi = end.min(e_end);
+                        if lo >= hi {
+                            return EvalScan::Owned(Vec::new());
+                        }
+                        return EvalScan::All {
+                            range: Some((lo, hi)),
+                            partition_key: if enclosing_partition == Some(*val)
+                                || (lo == start && hi == end)
+                            {
+                                Some(*val)
+                            } else {
+                                enclosing_partition
+                            },
+                        };
+                    }
+                    return EvalScan::All {
+                        range: Some((start, end)),
+                        partition_key: Some(*val),
+                    };
+                }
+                if !self.is_indexable_u64(at) {
+                    return EvalScan::All {
+                        range: enclosing_range,
+                        partition_key: enclosing_partition,
+                    };
+                }
+                let Some(index) = self.column_index(at) else {
+                    return EvalScan::All {
+                        range: enclosing_range,
+                        partition_key: enclosing_partition,
+                    };
+                };
+                EvalScan::Slice(index.rows_for_key(*val, narrow))
+            }
+            RowFilter::InU64(col, vals) => {
+                let Some(at) = self.column_by_name(col) else {
+                    return EvalScan::All {
+                        range: enclosing_range,
+                        partition_key: enclosing_partition,
+                    };
+                };
+                if vals.is_empty() {
+                    return EvalScan::Owned(Vec::new());
+                }
+                if self.is_partition_column(at) {
+                    let mut spans = Vec::new();
+                    for val in vals {
+                        let Some((mut start, mut end)) = self.range_of(*val) else {
+                            return EvalScan::All {
+                                range: enclosing_range,
+                                partition_key: enclosing_partition,
+                            };
+                        };
+                        if let Some((lo, hi)) = enclosing_range {
+                            start = start.max(lo);
+                            end = end.min(hi);
+                        }
+                        if start < end {
+                            spans.push((start, end));
+                        }
+                    }
+                    let total: u64 = spans.iter().map(|(s, e)| e - s).sum();
+                    if total > self.rows / 2 || total > u64::from(u32::MAX) {
+                        return EvalScan::All {
+                            range: enclosing_range,
+                            partition_key: enclosing_partition,
+                        };
+                    }
+                    let mut rows = Vec::with_capacity(total as usize);
+                    for (start, end) in spans {
+                        for row in start..end {
+                            rows.push(row as u32);
+                        }
+                    }
+                    rows.sort_unstable();
+                    rows.dedup();
+                    return EvalScan::Owned(rows);
+                }
+                if !self.is_indexable_u64(at) {
+                    return EvalScan::All {
+                        range: enclosing_range,
+                        partition_key: enclosing_partition,
+                    };
+                }
+                let Some(index) = self.column_index(at) else {
+                    return EvalScan::All {
+                        range: enclosing_range,
+                        partition_key: enclosing_partition,
+                    };
+                };
+                let mut rows = Vec::new();
+                for val in vals {
+                    rows.extend_from_slice(index.rows_for_key(*val, narrow));
+                }
+                rows.sort_unstable();
+                rows.dedup();
+                EvalScan::Owned(rows)
+            }
+            RowFilter::BetweenU64(col, low, high) => {
+                if low > high {
+                    return EvalScan::Owned(Vec::new());
+                }
+                let Some(at) = self.column_by_name(col) else {
+                    return EvalScan::All {
+                        range: enclosing_range,
+                        partition_key: enclosing_partition,
+                    };
+                };
+                if !self.is_indexable_u64(at) {
+                    return EvalScan::All {
+                        range: enclosing_range,
+                        partition_key: enclosing_partition,
+                    };
+                }
+                let Some(index) = self.column_index(at) else {
+                    return EvalScan::All {
+                        range: enclosing_range,
+                        partition_key: enclosing_partition,
+                    };
+                };
+                let span_limit = match narrow {
+                    Some((lo, hi)) => (hi - lo) as usize / 2 + 64,
+                    None => (self.rows as usize) / 2,
+                };
+                match index.rows_in_range(*low, *high, narrow, span_limit) {
+                    Some(rows) => EvalScan::Owned(rows),
+                    None => EvalScan::All {
+                        range: enclosing_range,
+                        partition_key: enclosing_partition,
+                    },
+                }
+            }
+            RowFilter::EqText(col, val) => {
+                let Some(at) = self.column_by_name(col) else {
+                    return EvalScan::All {
+                        range: enclosing_range,
+                        partition_key: enclosing_partition,
+                    };
+                };
+                if !self.is_indexable_text(at) {
+                    return EvalScan::All {
+                        range: enclosing_range,
+                        partition_key: enclosing_partition,
+                    };
+                }
+                let Some(id) = self.dict.lookup_str(val) else {
+                    return EvalScan::Owned(Vec::new());
+                };
+                let Some(index) = self.column_index(at) else {
+                    return EvalScan::All {
+                        range: enclosing_range,
+                        partition_key: enclosing_partition,
+                    };
+                };
+                EvalScan::Slice(index.rows_for_key(u64::from(id), narrow))
+            }
+            RowFilter::InText(col, vals) => {
+                let Some(at) = self.column_by_name(col) else {
+                    return EvalScan::All {
+                        range: enclosing_range,
+                        partition_key: enclosing_partition,
+                    };
+                };
+                if vals.is_empty() {
+                    return EvalScan::Owned(Vec::new());
+                }
+                if !self.is_indexable_text(at) {
+                    return EvalScan::All {
+                        range: enclosing_range,
+                        partition_key: enclosing_partition,
+                    };
+                }
+                let ids: Vec<u32> = vals
+                    .iter()
+                    .filter_map(|val| self.dict.lookup_str(val))
+                    .collect();
+                if ids.is_empty() {
+                    return EvalScan::Owned(Vec::new());
+                }
+                let Some(index) = self.column_index(at) else {
+                    return EvalScan::All {
+                        range: enclosing_range,
+                        partition_key: enclosing_partition,
+                    };
+                };
+                let mut rows = Vec::new();
+                for id in ids {
+                    rows.extend_from_slice(index.rows_for_key(u64::from(id), narrow));
+                }
+                rows.sort_unstable();
+                rows.dedup();
+                EvalScan::Owned(rows)
+            }
+            RowFilter::LikeAsciiPrefix(col, prefix) => self.eval_like_ascii_prefixes(
+                col,
+                &[prefix.as_bytes()],
+                enclosing_range,
+                enclosing_partition,
+            ),
+            RowFilter::And(children) => {
+                let mut range = enclosing_range;
+                let mut part_key = enclosing_partition;
+                for child in children {
+                    if let RowFilter::EqU64(col, val) = child
+                        && self
+                            .column_by_name(col)
+                            .is_some_and(|at| self.is_partition_column(at))
+                        && let Some((start, end)) = self.range_of(*val)
+                    {
+                        range = Some(match range {
+                            Some((lo, hi)) => (lo.max(start), hi.min(end)),
+                            None => {
+                                part_key = Some(*val);
+                                (start, end)
+                            }
+                        });
+                        if let Some((lo, hi)) = range
+                            && lo >= hi
+                        {
+                            return EvalScan::Owned(Vec::new());
+                        }
+                    }
+                }
+                enum Piece<'p> {
+                    Slice(&'p [u32]),
+                    Owned(Vec<u32>),
+                }
+                impl Piece<'_> {
+                    fn len(&self) -> usize {
+                        match self {
+                            Self::Slice(s) => s.len(),
+                            Self::Owned(v) => v.len(),
+                        }
+                    }
+                    fn as_slice(&self) -> &[u32] {
+                        match self {
+                            Self::Slice(s) => s,
+                            Self::Owned(v) => v,
+                        }
+                    }
+                    fn into_vec(self) -> Vec<u32> {
+                        match self {
+                            Self::Slice(s) => s.to_vec(),
+                            Self::Owned(v) => v,
+                        }
+                    }
+                }
+                let mut pieces: Vec<Piece<'_>> = Vec::new();
+                for child in children {
+                    match self.eval_filter(child, range, part_key) {
+                        EvalScan::All {
+                            range: r,
+                            partition_key: k,
+                        } => {
+                            if let Some((lo, hi)) = r {
+                                range = Some(match range {
+                                    Some((a, b)) => (a.max(lo), b.min(hi)),
+                                    None => {
+                                        part_key = k;
+                                        (lo, hi)
+                                    }
+                                });
+                                if let Some((a, b)) = range
+                                    && a >= b
+                                {
+                                    return EvalScan::Owned(Vec::new());
+                                }
+                            }
+                        }
+                        EvalScan::Slice(s) => {
+                            if s.is_empty() {
+                                return EvalScan::Owned(Vec::new());
+                            }
+                            pieces.push(Piece::Slice(s));
+                        }
+                        EvalScan::Owned(v) => {
+                            if v.is_empty() {
+                                return EvalScan::Owned(Vec::new());
+                            }
+                            pieces.push(Piece::Owned(v));
+                        }
+                    }
+                }
+                if pieces.is_empty() {
+                    return EvalScan::All {
+                        range,
+                        partition_key: part_key,
+                    };
+                }
+                pieces.sort_by_key(Piece::len);
+                let mut iter = pieces.into_iter();
+                let mut acc = iter.next().unwrap().into_vec();
+                for piece in iter {
+                    intersect_into(&mut acc, piece.as_slice());
+                    if acc.is_empty() {
+                        break;
+                    }
+                }
+                EvalScan::Owned(acc)
+            }
+            RowFilter::Or(children) => {
+                if children.is_empty() {
+                    return EvalScan::Owned(Vec::new());
+                }
+                let mut prefix_groups: BTreeMap<&str, Vec<&[u8]>> = BTreeMap::new();
+                let mut combined = Vec::new();
+                for child in children {
+                    if let RowFilter::LikeAsciiPrefix(col, prefix) = child {
+                        prefix_groups
+                            .entry(col.as_str())
+                            .or_default()
+                            .push(prefix.as_bytes());
+                        continue;
+                    }
+                    match self.eval_filter(child, enclosing_range, enclosing_partition) {
+                        EvalScan::All { .. } => {
+                            return EvalScan::All {
+                                range: enclosing_range,
+                                partition_key: enclosing_partition,
+                            };
+                        }
+                        EvalScan::Slice(s) => combined.extend_from_slice(s),
+                        EvalScan::Owned(v) => combined.extend(v),
+                    }
+                }
+                for (col, prefixes) in prefix_groups {
+                    match self.eval_like_ascii_prefixes(
+                        col,
+                        &prefixes,
+                        enclosing_range,
+                        enclosing_partition,
+                    ) {
+                        EvalScan::All { .. } => {
+                            return EvalScan::All {
+                                range: enclosing_range,
+                                partition_key: enclosing_partition,
+                            };
+                        }
+                        EvalScan::Slice(s) => combined.extend_from_slice(s),
+                        EvalScan::Owned(v) => combined.extend(v),
+                    }
+                }
+                combined.sort_unstable();
+                combined.dedup();
+                EvalScan::Owned(combined)
+            }
+        }
+    }
+
+    fn eval_like_ascii_prefixes<'a>(
+        &'a self,
+        col: &str,
+        lower_prefixes: &[&[u8]],
+        enclosing_range: Option<(u64, u64)>,
+        enclosing_partition: Option<u64>,
+    ) -> EvalScan<'a> {
+        let Some(at) = self.column_by_name(col) else {
+            return EvalScan::All {
+                range: enclosing_range,
+                partition_key: enclosing_partition,
+            };
+        };
+        if !self.is_indexable_text(at) {
+            return EvalScan::All {
+                range: enclosing_range,
+                partition_key: enclosing_partition,
+            };
+        }
+        let Some(index) = self.column_index(at) else {
+            return EvalScan::All {
+                range: enclosing_range,
+                partition_key: enclosing_partition,
+            };
+        };
+        let narrow = enclosing_range
+            .and_then(|(s, e)| Some((u32::try_from(s).ok()?, u32::try_from(e).ok()?)));
+        let ids = self
+            .dict
+            .filter_ids_by_ascii_prefixes_ci(index.keys(), lower_prefixes);
+        if ids.is_empty() {
+            return EvalScan::Owned(Vec::new());
+        }
+        let mut rows = Vec::new();
+        for id in ids {
+            rows.extend_from_slice(index.rows_for_key(u64::from(id), narrow));
+        }
+        rows.sort_unstable();
+        rows.dedup();
+        EvalScan::Owned(rows)
+    }
+
+    pub fn cursor_for_scan(
+        self: &Arc<Self>,
+        scan: &PlannedScan,
+        control: SqlControl,
+    ) -> StoreCursor {
+        match scan {
+            PlannedScan::All { .. } => self.cursor_over(0, self.rows, control),
+            PlannedScan::Partition { key, .. } => self.cursor_for_partition(*key, control),
+            PlannedScan::Rows(rows) => StoreCursor {
+                store: Arc::clone(self),
+                mode: CursorMode::Rows {
+                    rows: Arc::clone(rows),
+                    at: 0,
+                },
+                current: 0,
+                hints: vec![std::cell::Cell::new(0); self.columns.len()],
+                control,
+            },
+        }
     }
 
     /// Bytes of each column, in schema order; a derived column holds none.
@@ -790,9 +1676,8 @@ impl RelationStore {
     fn cursor_over(self: &Arc<Self>, start: u64, end: u64, control: SqlControl) -> StoreCursor {
         StoreCursor {
             store: Arc::clone(self),
-            next: start,
+            mode: CursorMode::Range { next: start, end },
             current: start,
-            end,
             hints: vec![std::cell::Cell::new(0); self.columns.len()],
             control,
         }
@@ -933,6 +1818,7 @@ impl RelationStoreBuilder {
                 Column {
                     kind,
                     ints: IntColumn::new(order),
+                    has_tagged_text: false,
                 }
             })
             .collect();
@@ -1059,11 +1945,19 @@ impl RelationStoreBuilder {
                 (SqlValue::I64(v), Kind::I64) => Some(v.0 as u64),
                 (SqlValue::U64(v), Kind::U64) => Some(v.0),
                 (SqlValue::F64(v), Kind::F64) => Some(v.0),
-                (_, Kind::Dict) => Some(u64::from(
-                    self.dict
-                        .intern(value)
-                        .ok_or_else(|| crate::invalid("STORE_CELL_TYPE"))?,
-                )),
+                (_, Kind::Dict) => {
+                    if let SqlValue::Text(text) = value
+                        && (text.original_mutf8.is_some()
+                            || String::from_utf16(&text.utf16).is_err())
+                    {
+                        column.has_tagged_text = true;
+                    }
+                    Some(u64::from(
+                        self.dict
+                            .intern(value)
+                            .ok_or_else(|| crate::invalid("STORE_CELL_TYPE"))?,
+                    ))
+                }
                 _ => return Err(crate::invalid("STORE_CELL_TYPE")),
             };
             if self.partition_column == Some(at)
@@ -1146,8 +2040,15 @@ impl RelationStoreBuilder {
         // every row must be in a partition, and the partitions must cover the rows exactly once
         let covered: u64 = self.partitions.iter().map(|p| p.end - p.start).sum();
         let partitions = (self.partitioned && covered == self.rows).then_some(self.partitions);
+        let names = self
+            .schema
+            .iter()
+            .map(|c| c.name.to_ascii_lowercase())
+            .collect();
+        let indexes = (0..self.columns.len()).map(|_| OnceLock::new()).collect();
         Arc::new(RelationStore {
             types: self.schema.iter().map(|c| c.data_type).collect(),
+            names,
             columns: self.columns,
             derived: self.derived,
             tables: self.tables,
@@ -1156,18 +2057,21 @@ impl RelationStoreBuilder {
             dict: self.dict,
             partitions,
             max_cell_bytes: self.max_cell_bytes,
+            indexes,
         })
     }
 }
 
-/// Reads a store front to back, one `SqlRow` at a time, as a provider cursor.
+enum CursorMode {
+    Range { next: u64, end: u64 },
+    Rows { rows: Arc<[u32]>, at: usize },
+}
+
+/// Reads a store (or a planned subset of its rows) front to back, one `SqlRow` at a time, as a provider cursor.
 pub struct StoreCursor {
     store: Arc<RelationStore>,
-    /// The row the next `advance` or `next_row` moves to, and the row the cursor stands on.
-    next: u64,
+    mode: CursorMode,
     current: u64,
-    /// The cursor stops before this row.
-    end: u64,
     /// Per column, the run the last cell came from (see `IntColumn::get`).
     hints: Vec<std::cell::Cell<usize>>,
     control: SqlControl,
@@ -1196,12 +2100,25 @@ impl SqlFactCursor for StoreCursor {
 
 impl PositionedCursor for StoreCursor {
     fn advance(&mut self) -> MddResult<bool> {
-        if self.next >= self.end {
-            return Ok(false);
-        }
+        let row = match &mut self.mode {
+            CursorMode::Range { next, end } => {
+                if *next >= *end {
+                    return Ok(false);
+                }
+                let row = *next;
+                *next += 1;
+                row
+            }
+            CursorMode::Rows { rows, at } => {
+                let Some(&row) = rows.get(*at) else {
+                    return Ok(false);
+                };
+                *at += 1;
+                u64::from(row)
+            }
+        };
         self.control.checkpoint(1, true)?;
-        self.current = self.next;
-        self.next += 1;
+        self.current = row;
         Ok(true)
     }
 
@@ -1887,5 +2804,153 @@ mod tests {
             cursor.next_row().is_err(),
             "a cancelled scan stops at its first row"
         );
+    }
+
+    #[test]
+    fn dict_lookup_and_column_index_plan_sound_candidate_scans() {
+        let dict = TextDict::new();
+        let schema = vec![
+            column("file_id", SqlType::U64, false),
+            column("idx", SqlType::U64, false),
+            column("descriptor", SqlType::Text, false),
+        ];
+        let mut builder = RelationStoreBuilder::new(&schema, Arc::clone(&dict));
+        for file_id in 0..3u64 {
+            builder.begin_partition(file_id);
+            for idx in 0..10u64 {
+                let text = if file_id == 1 && idx == 4 {
+                    "Lcom/example/A;->run(II)V".to_owned()
+                } else if file_id == 2 && idx == 7 {
+                    "0a 1b ff".to_owned()
+                } else {
+                    format!("Lpkg/C{}_{};", file_id, idx)
+                };
+                builder
+                    .push(&vec![
+                        SqlValue::U64(DecimalU64(file_id)),
+                        SqlValue::U64(DecimalU64(idx)),
+                        SqlValue::text(&text),
+                    ])
+                    .unwrap();
+            }
+        }
+        let store = builder.finish();
+        let before_len = dict.len();
+        assert!(dict.lookup_str("Lpkg/DoesNotExist;").is_none());
+        assert_eq!(dict.len(), before_len, "lookup_str must never insert");
+        assert!(dict.lookup_str("Lcom/example/A;->run(II)V").is_some());
+        assert!(dict.lookup_str("0a 1b ff").is_some());
+
+        let filter = RowFilter::Or(vec![
+            RowFilter::And(vec![
+                RowFilter::EqU64("file_id".to_owned(), 1),
+                RowFilter::EqText(
+                    "descriptor".to_owned(),
+                    "Lcom/example/A;->run(II)V".to_owned(),
+                ),
+            ]),
+            RowFilter::And(vec![
+                RowFilter::EqU64("file_id".to_owned(), 2),
+                RowFilter::InU64("idx".to_owned(), vec![7, 99]),
+            ]),
+        ]);
+        let scan = store.plan_filter(&filter);
+        let PlannedScan::Rows(ref row_ids) = scan else {
+            panic!("expected PlannedScan::Rows, got {scan:?}");
+        };
+        assert_eq!(row_ids.len(), 2);
+        let mut cursor = store.cursor_for_scan(&scan, control());
+        let mut seen = Vec::new();
+        while let Some(row) = cursor.next_row().unwrap() {
+            seen.push((row[0].clone(), row[1].clone(), row[2].clone()));
+        }
+        assert_eq!(
+            seen,
+            vec![
+                (
+                    SqlValue::U64(DecimalU64(1)),
+                    SqlValue::U64(DecimalU64(4)),
+                    SqlValue::text("Lcom/example/A;->run(II)V"),
+                ),
+                (
+                    SqlValue::U64(DecimalU64(2)),
+                    SqlValue::U64(DecimalU64(7)),
+                    SqlValue::text("0a 1b ff"),
+                ),
+            ]
+        );
+
+        let inverted = store.plan_filter(&RowFilter::BetweenU64("idx".to_owned(), 8, 2));
+        assert_eq!(store.scan_len(&inverted), 0);
+    }
+
+    #[test]
+    fn tagged_non_scalar_text_falls_back_to_all_soundly() {
+        let dict = TextDict::new();
+        let schema = vec![column("value", SqlType::Text, false)];
+        let mut builder = RelationStoreBuilder::new(&schema, dict);
+        builder.push(&vec![SqlValue::text("plain")]).unwrap();
+        builder
+            .push(&vec![text(&[0xd800], Some(&[0xed, 0xa0, 0x80]))])
+            .unwrap();
+        let store = builder.finish();
+        let scan = store.plan_filter(&RowFilter::EqText("value".to_owned(), "plain".to_owned()));
+        assert!(matches!(scan, PlannedScan::All { .. }));
+    }
+
+    #[test]
+    fn dict_prefix_filtering_and_batched_or_like_prefix_scans() {
+        let dict = TextDict::new();
+        let schema = vec![
+            column("file_id", SqlType::U64, false),
+            column("descriptor", SqlType::Text, false),
+        ];
+        let mut builder = RelationStoreBuilder::new(&schema, dict);
+        for (file_id, items) in [
+            (
+                0u64,
+                vec![
+                    "Lcom/Alpha/Cls;",
+                    "Lkntr/beta/View;",
+                    "Lcom/other/Miss;",
+                    "Lpkg/LongName;->memberCall(I)V",
+                ],
+            ),
+            (
+                1u64,
+                vec!["Lcom/alpha/Sub;", "Ltv/danmaku/Main;", "Lorg/Other;"],
+            ),
+        ] {
+            builder.begin_partition(file_id);
+            for item in items {
+                builder
+                    .push(&vec![
+                        SqlValue::U64(DecimalU64(file_id)),
+                        SqlValue::text(item),
+                    ])
+                    .unwrap();
+            }
+        }
+        let store = builder.finish();
+        let filter = RowFilter::And(vec![
+            RowFilter::EqU64("file_id".to_owned(), 1),
+            RowFilter::Or(vec![
+                RowFilter::LikeAsciiPrefix("descriptor".to_owned(), "lcom/alpha/".to_owned()),
+                RowFilter::InText(
+                    "descriptor".to_owned(),
+                    vec!["Ltv/danmaku/Main;".to_owned(), "Lmissing/Type;".to_owned()],
+                ),
+            ]),
+        ]);
+        let scan = store.plan_filter(&filter);
+        let PlannedScan::Rows(ref row_ids) = scan else {
+            panic!("expected PlannedScan::Rows, got {scan:?}");
+        };
+        assert_eq!(row_ids.len(), 2);
+        let member_scan = store.plan_filter(&RowFilter::LikeAsciiPrefix(
+            "descriptor".to_owned(),
+            "lpkg/long".to_owned(),
+        ));
+        assert_eq!(store.scan_len(&member_scan), 1);
     }
 }

@@ -383,8 +383,10 @@ fn add_method_handles(
 /// exact ordered layer set. Only requests without columns or resource members
 /// reach this, so those two dimensions cannot collide.
 fn coverage_cache_key(request: &CoverageRequest) -> String {
-    let mut key = String::with_capacity(64 + request.required_layers.len() * 20);
+    let mut key = String::with_capacity(84 + request.required_layers.len() * 20);
     key.push_str(&request.scope_id);
+    key.push('|');
+    key.push_str(request.non_scalar_text_policy.as_str());
     key.push('|');
     for layer in &request.required_layers {
         key.push_str(match layer {

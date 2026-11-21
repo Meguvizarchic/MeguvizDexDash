@@ -23,6 +23,8 @@ pub(crate) struct Adapted {
     pub display_overrides: BTreeMap<String, String>,
     /// Relation (lower case) to the value its partition column must have for a row to matter to the statement.
     pub partition_hints: BTreeMap<String, u64>,
+    pub row_filters: BTreeMap<String, crate::provider::RowFilter>,
+    pub equi_joins: Vec<crate::provider::EquiJoinEdge>,
 }
 #[derive(Clone)]
 enum Dependency {
@@ -210,6 +212,7 @@ fn adapt_on_stack(
     };
     // read before the rewrite turns `file_id = 0` into a function call
     let partition_hints = super::pushdown::partition_hints(query, &tokens, partition_columns);
+    let query_hints = super::pushdown::query_hints(query, relations);
     let mut reserved = relations
         .iter()
         .flat_map(|r| {
@@ -320,6 +323,8 @@ fn adapt_on_stack(
         cte_names: rewrite.cte_names,
         display_overrides: rewrite.display_overrides,
         partition_hints,
+        row_filters: query_hints.row_filters,
+        equi_joins: query_hints.equi_joins,
     })
 }
 struct Rewrite<'a> {

@@ -1921,6 +1921,17 @@ impl Rewrite<'_> {
                 return Ok(());
             }
             Expr::BinaryOp { left, op, right } => {
+                if matches!(op, BinaryOperator::And | BinaryOperator::Or)
+                    && (matches!(&**left, Expr::BinaryOp { op: lo, .. } if lo == op)
+                        || matches!(&**right, Expr::BinaryOp { op: ro, .. } if ro == op))
+                {
+                    // Balance contiguous unparenthesized AND/OR spines without crossing `Expr::Nested`
+                    // so lexical parenthesis depth caps stay unchanged while emitted depth stays O(log n).
+                    let mut operands = collect_flat_binary_operands(take(left), take(right), op);
+                    let right_operands = operands.split_off(operands.len() / 2);
+                    **left = rebalance_binary_chain(operands, op);
+                    **right = rebalance_binary_chain(right_operands, op);
+                }
                 // A direct numeric column supplies SQLite NUMERIC affinity to
                 // a text literal on the opposite side. Reuse the restricted
                 // exact conversion admitted by IN/BETWEEN; expressions,
@@ -2833,5 +2844,40 @@ impl Rewrite<'_> {
         };
         *query = *wrapper;
         Ok(())
+    }
+}
+
+fn collect_flat_binary_operands(left: Expr, right: Expr, target_op: &BinaryOperator) -> Vec<Expr> {
+    let mut out = Vec::new();
+    let mut stack = vec![right, left];
+    while let Some(expr) = stack.pop() {
+        match expr {
+            Expr::BinaryOp {
+                left: l,
+                op,
+                right: r,
+            } if &op == target_op => {
+                stack.push(*r);
+                stack.push(*l);
+            }
+            other => out.push(other),
+        }
+    }
+    out
+}
+
+fn rebalance_binary_chain(mut items: Vec<Expr>, op: &BinaryOperator) -> Expr {
+    let n = items.len();
+    debug_assert!(n >= 1);
+    if n == 1 {
+        return items.pop().expect("non-empty operand list");
+    }
+    let right_items = items.split_off(n / 2);
+    let left_expr = rebalance_binary_chain(items, op);
+    let right_expr = rebalance_binary_chain(right_items, op);
+    Expr::BinaryOp {
+        left: Box::new(left_expr),
+        op: op.clone(),
+        right: Box::new(right_expr),
     }
 }

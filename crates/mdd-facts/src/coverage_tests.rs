@@ -966,4 +966,69 @@ mod coverage_column_gate_tests {
             "an unbuilt annotation provider must not be reported complete"
         );
     }
+
+    #[test]
+    fn opt_in_lossy_replacement_policy_admits_non_scalar_columns_with_non_blocking_diagnostics() {
+        let (snapshot, inventories) = fixture("references/generated/nonscalar-string-035.dex", 1);
+        let names = metadata(&snapshot, &inventories[0]);
+        let defs = DefinitionFacts::build(names.clone(), DefinitionLimits::default()).unwrap();
+        let scope = SelectedScope::from_inventories(&snapshot, &[&inventories[0]]).unwrap();
+        let view = FactView::unbuilt(&names.source().dex_occurrence_id).with_definitions(&defs);
+        let ledger = CoverageLedger::new(scope.clone(), &[view]).unwrap();
+
+        let default_req = CoverageRequest::for_relations(&scope, &["strings"]).unwrap();
+        assert_eq!(
+            default_req.non_scalar_text_policy,
+            NonScalarTextPolicy::Reject
+        );
+        let strict_report = ledger.evaluate(&default_req).unwrap();
+        assert!(strict_report.require_complete().is_err());
+
+        let opt_in_req =
+            default_req.with_non_scalar_text_policy(NonScalarTextPolicy::LossyReplacement);
+        let opt_in_report = ledger.evaluate(&opt_in_req).unwrap();
+        assert_eq!(opt_in_report.facts, Completeness::Complete);
+        assert!(opt_in_report.require_complete().is_ok());
+        assert!(opt_in_report.issues.iter().any(|issue| {
+            !issue.blocking
+                && issue.column.as_deref() == Some("strings.value")
+                && issue.reason == "non_scalar_UTF16_lossy_replacement_applied"
+        }));
+
+        let rows = names
+            .string_rows_with_policy(0, 0, NonScalarTextPolicy::LossyReplacement)
+            .unwrap();
+        assert!(rows.iter().any(|r| r.value.contains('\u{fffd}')));
+
+        // Check classes.source_file opt-in too
+        let (src_snap, src_inv) =
+            fixture("class_source_boundary/generated/surrogate-source.dex", 1);
+        let src_names = metadata(&src_snap, &src_inv[0]);
+        let src_defs =
+            DefinitionFacts::build(src_names.clone(), DefinitionLimits::default()).unwrap();
+        let src_scope = SelectedScope::from_inventories(&src_snap, &[&src_inv[0]]).unwrap();
+        let src_view =
+            FactView::unbuilt(&src_names.source().dex_occurrence_id).with_definitions(&src_defs);
+        let src_ledger = CoverageLedger::new(src_scope.clone(), &[src_view]).unwrap();
+        let src_req = CoverageRequest::for_relations(&src_scope, &["classes"])
+            .unwrap()
+            .with_non_scalar_text_policy(NonScalarTextPolicy::LossyReplacement);
+        let src_report = src_ledger.evaluate(&src_req).unwrap();
+        assert_eq!(src_report.facts, Completeness::Complete);
+        assert!(src_report.require_complete().is_ok());
+        assert!(src_report.issues.iter().any(|issue| {
+            !issue.blocking
+                && issue.column.as_deref() == Some("classes.source_file")
+                && issue.reason == "non_scalar_UTF16_lossy_replacement_applied"
+        }));
+        let class_rows = src_defs
+            .class_rows_with_policy(0, NonScalarTextPolicy::LossyReplacement)
+            .unwrap();
+        assert!(
+            class_rows
+                .iter()
+                .filter_map(|r| r.source_file.as_deref())
+                .any(|s| s.contains('\u{fffd}'))
+        );
+    }
 }

@@ -455,4 +455,51 @@ fn a_cursor_for_one_dex_reads_that_dexs_rows_and_a_statement_asking_for_it_answe
         );
         assert_eq!(a.rows(), b.rows(), "{statement}");
     }
+
+    for statement in [
+        "SELECT * FROM (SELECT ci.interface_descriptor, c.descriptor FROM class_interfaces ci JOIN classes c ON c.file_id=ci.file_id AND c.class_idx=ci.class_idx WHERE c.descriptor IN ('Lfixture/A;', 'Lfixture/Missing;') ORDER BY ci.file_id, ci.class_idx, ci.ordinal) AS hostlab_rows",
+        "SELECT * FROM (SELECT DISTINCT m.class_descriptor FROM class_methods c JOIN methods m ON m.file_id=c.file_id AND m.method_idx=c.method_idx WHERE m.return_descriptor='V' ORDER BY m.class_descriptor) AS hostlab_rows",
+        "SELECT * FROM (SELECT file_id, class_idx, descriptor FROM classes WHERE (file_id=0 AND class_idx IN (0, 1)) OR (file_id=1 AND class_idx IN (0)) ORDER BY file_id, class_idx) AS hostlab_rows",
+        "SELECT * FROM (SELECT string_pool_id, string_idx, value FROM strings WHERE (string_pool_id=0 AND string_idx IN (0, 1)) OR (string_pool_id=1 AND string_idx IN (0)) ORDER BY string_pool_id, string_idx) AS hostlab_rows",
+    ] {
+        let (a, b) = (
+            held.query(statement)
+                .unwrap_or_else(|e| panic!("{statement}: {e:?}")),
+            stored
+                .query(statement)
+                .unwrap_or_else(|e| panic!("{statement}: {e:?}")),
+        );
+        assert_eq!(a.rows(), b.rows(), "{statement}");
+    }
+
+    // Reproduces native_surface.py's 34-clause flat OR LIKE + IN filter under B0 wrappers.
+    let mut terms: Vec<String> = (0..32)
+        .map(|i| {
+            if i == 0 {
+                "descriptor LIKE 'Lfixture/%' ESCAPE '\\'".to_owned()
+            } else {
+                format!("descriptor LIKE 'Lcom/unused{i:02}/%' ESCAPE '\\'")
+            }
+        })
+        .collect();
+    terms.push("descriptor IN ('Ljava/lang/Object;', 'Lmissing/Proto;')".to_owned());
+    let flat_inner = format!(
+        "SELECT file_id, class_idx, descriptor FROM classes WHERE file_id=0 AND ({}) ORDER BY file_id, class_idx",
+        terms.join(" OR ")
+    );
+    for wrapped in [
+        format!("SELECT * FROM ({flat_inner}) AS hostlab_shape LIMIT 0"),
+        format!(
+            "SELECT CASE WHEN descriptor IS NULL THEN 'N' ELSE hex(CAST(descriptor AS TEXT)) END AS descriptor FROM ({flat_inner}) AS hostlab_rows"
+        ),
+    ] {
+        let (a, b) = (
+            held.query(&wrapped)
+                .unwrap_or_else(|e| panic!("{wrapped}: {e:?}")),
+            stored
+                .query(&wrapped)
+                .unwrap_or_else(|e| panic!("{wrapped}: {e:?}")),
+        );
+        assert_eq!(a.rows(), b.rows(), "{wrapped}");
+    }
 }

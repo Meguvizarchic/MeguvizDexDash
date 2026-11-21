@@ -32,7 +32,7 @@ use mdd_facts::{
     MetadataFacts,
     annotations::AnnotationFacts,
     code::{CodeFacts, MethodCodeFactViews, MethodCodeViewLimits},
-    coverage::{CoverageLedger, CoverageRequest},
+    coverage::{CoverageLedger, CoverageRequest, NonScalarTextPolicy},
     definitions::DefinitionFacts,
     indexes::{FactView, SelectedScope},
     references::ReferenceFacts,
@@ -518,6 +518,8 @@ pub struct HostLabSqlProvider {
     lazy: Option<lazy::LazyStores>,
     /// The selected scope the coverage ledger is bound to.
     scope: SelectedScope,
+    /// Policy governing legal non-scalar UTF-16 values in plain-UTF-8 columns.
+    non_scalar_text_policy: NonScalarTextPolicy,
     /// One coverage verdict per contract relation, computed on first use. The
     /// ledger is immutable once the provider exists, so a verdict (including a
     /// refusal) never changes and is not recomputed for every scan.
@@ -635,8 +637,17 @@ impl HostLabSqlProvider {
             lazy: None,
             occurrences,
             scope: scope.clone(),
+            non_scalar_text_policy: NonScalarTextPolicy::Reject,
             coverage: std::array::from_fn(|_| std::sync::OnceLock::new()),
         })
+    }
+
+    /// Explicitly configure how legal non-scalar UTF-16 values are handled in plain-UTF-8 columns
+    /// (`strings.value`, `classes.source_file`, `method_strings.value`). Must be set before sharing
+    /// the provider; default is [`NonScalarTextPolicy::Reject`].
+    pub fn with_non_scalar_text_policy(mut self, policy: NonScalarTextPolicy) -> Self {
+        self.non_scalar_text_policy = policy;
+        self
     }
 
     pub fn occurrence_count(&self) -> usize {
@@ -830,7 +841,11 @@ impl HostLabSqlProvider {
                 ]])
             }
             HostLabRelation::Strings => {
-                let rows = occurrence.facts.metadata.string_rows(file_id, pool_id)?;
+                let rows = occurrence.facts.metadata.string_rows_with_policy(
+                    file_id,
+                    pool_id,
+                    self.non_scalar_text_policy,
+                )?;
                 control.work(64u64.saturating_mul(rows.len() as u64))?;
                 Ok(rows
                     .into_iter()
@@ -894,7 +909,9 @@ impl HostLabSqlProvider {
                     .collect())
             }
             HostLabRelation::Classes => {
-                let rows = occurrence.definitions()?.class_rows(file_id)?;
+                let rows = occurrence
+                    .definitions()?
+                    .class_rows_with_policy(file_id, self.non_scalar_text_policy)?;
                 control.work(96u64.saturating_mul(rows.len() as u64))?;
                 Ok(rows
                     .into_iter()
@@ -1096,7 +1113,9 @@ impl HostLabSqlProvider {
                     .collect::<MddResult<Vec<_>>>()?)
             }
             HostLabRelation::MethodStrings => {
-                let rows = occurrence.references()?.method_string_rows(file_id)?;
+                let rows = occurrence
+                    .references()?
+                    .method_string_rows_with_policy(file_id, self.non_scalar_text_policy)?;
                 control.work(128u64.saturating_mul(rows.len() as u64))?;
                 Ok(rows
                     .into_iter()
@@ -1203,7 +1222,8 @@ impl HostLabSqlProvider {
     fn evaluate_coverage(&self, relation: HostLabRelation) -> MddResult<()> {
         let views: Vec<FactView<'_>> = self.occurrences.iter().map(Self::view_of).collect();
         let ledger = CoverageLedger::new(self.scope.clone(), &views)?;
-        let request = CoverageRequest::for_relations(&self.scope, &[relation.name()])?;
+        let request = CoverageRequest::for_relations(&self.scope, &[relation.name()])?
+            .with_non_scalar_text_policy(self.non_scalar_text_policy);
         let report = ledger.evaluate(&request)?;
         Self::coverage_verdict(&report, relation)
     }
@@ -1439,6 +1459,303 @@ impl SqlFactProvider for HostLabSqlProvider {
             control,
         }))
     }
+
+    fn plan_scans(
+        &self,
+        required_relations: &[String],
+        row_filters: &BTreeMap<String, RowFilter>,
+        equi_joins: &[EquiJoinEdge],
+        partition_hints: &BTreeMap<String, u64>,
+    ) -> MddResult<BTreeMap<String, PlannedScan>> {
+        if self.lazy.is_none() {
+            return Ok(partition_hints
+                .iter()
+                .map(|(relation, key)| {
+                    (
+                        relation.clone(),
+                        PlannedScan::Partition {
+                            key: *key,
+                            estimated_rows: None,
+                        },
+                    )
+                })
+                .collect());
+        }
+        let mut stores: BTreeMap<String, Arc<crate::column_store::RelationStore>> = BTreeMap::new();
+        let mut scans: BTreeMap<String, PlannedScan> = BTreeMap::new();
+        for name in required_relations {
+            let key = name.to_ascii_lowercase();
+            let Some(parsed) = ContractRelation::parse(&key) else {
+                continue;
+            };
+            let store = self.ensure_store(parsed, None)?;
+            let scan = if let Some(filter) = row_filters.get(&key) {
+                store.plan_filter(filter)
+            } else if let Some(&part) = partition_hints.get(&key) {
+                let estimated_rows = store.range_of(part).map(|(start, end)| end - start);
+                PlannedScan::Partition {
+                    key: part,
+                    estimated_rows,
+                }
+            } else {
+                PlannedScan::All {
+                    estimated_rows: Some(store.rows()),
+                }
+            };
+            stores.insert(key.clone(), store);
+            scans.insert(key, scan);
+        }
+
+        const MAX_SEMI_JOIN_ROWS: u64 = 4096;
+        for _ in 0..2 {
+            let mut changed = false;
+            for edge in equi_joins {
+                for (src_name, dst_name, reverse) in [
+                    (&edge.left_relation, &edge.right_relation, false),
+                    (&edge.right_relation, &edge.left_relation, true),
+                ] {
+                    let (Some(src_store), Some(dst_store)) =
+                        (stores.get(src_name), stores.get(dst_name))
+                    else {
+                        continue;
+                    };
+                    let (Some(src_scan), Some(dst_scan)) =
+                        (scans.get(src_name), scans.get(dst_name))
+                    else {
+                        continue;
+                    };
+                    let src_len = src_store.scan_len(src_scan);
+                    let dst_len = dst_store.scan_len(dst_scan);
+                    if src_len == 0 {
+                        if dst_len > 0 {
+                            scans.insert(dst_name.clone(), PlannedScan::Rows(Arc::from([])));
+                            changed = true;
+                        }
+                        continue;
+                    }
+                    if src_len > MAX_SEMI_JOIN_ROWS || dst_len <= src_len.saturating_mul(4) {
+                        continue;
+                    }
+                    let pairs: Vec<(&str, &str)> = edge
+                        .columns
+                        .iter()
+                        .map(|(left, right)| {
+                            if reverse {
+                                (right.as_str(), left.as_str())
+                            } else {
+                                (left.as_str(), right.as_str())
+                            }
+                        })
+                        .collect();
+                    let Some(semi_filter) =
+                        build_semi_join_filter(src_store, src_scan, dst_store, &pairs)
+                    else {
+                        continue;
+                    };
+                    let semi_scan = dst_store.plan_filter(&semi_filter);
+                    let narrowed = dst_store.intersect_scans(dst_scan, &semi_scan);
+                    if dst_store.scan_len(&narrowed) < dst_len {
+                        scans.insert(dst_name.clone(), narrowed);
+                        changed = true;
+                    }
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+        Ok(scans)
+    }
+
+    fn open_planned_cursor(
+        self: Arc<Self>,
+        relation: &str,
+        control: SqlControl,
+        scan: &PlannedScan,
+    ) -> MddResult<Box<dyn SqlFactCursor>> {
+        if self.lazy.is_some() {
+            let parsed = ContractRelation::parse(relation).ok_or_else(|| {
+                invalid("UNKNOWN_HOSTLAB_RELATION").detail("relation", relation.to_owned())
+            })?;
+            let store = self.ensure_store(parsed, Some(&control))?;
+            return Ok(Box::new(store.cursor_for_scan(scan, control)));
+        }
+        match scan {
+            PlannedScan::Partition { key, .. } => {
+                self.open_cursor_for_partition(relation, control, *key)
+            }
+            _ => self.open_cursor(relation, control),
+        }
+    }
+}
+
+fn build_semi_join_filter(
+    src_store: &crate::column_store::RelationStore,
+    src_scan: &PlannedScan,
+    dst_store: &crate::column_store::RelationStore,
+    pairs: &[(&str, &str)],
+) -> Option<RowFilter> {
+    use std::collections::{BTreeMap, BTreeSet};
+    use std::ops::ControlFlow;
+
+    #[derive(Clone, Eq, Ord, PartialEq, PartialOrd)]
+    enum KeyVal {
+        U64(u64),
+        Text(String),
+    }
+
+    if pairs.is_empty() {
+        return None;
+    }
+
+    let mut cols: Vec<(usize, String, bool)> = Vec::with_capacity(pairs.len());
+    for &(src_name, dst_name) in pairs {
+        let src_col = src_store.column_by_name(src_name)?;
+        let dst_col = dst_store.column_by_name(dst_name)?;
+        let src_ty = src_store.column_type(src_col)?;
+        let dst_ty = dst_store.column_type(dst_col)?;
+        if src_ty != dst_ty || !matches!(src_ty, SqlType::U64 | SqlType::Text) {
+            return None;
+        }
+        cols.push((src_col, dst_name.to_owned(), src_ty == SqlType::U64));
+    }
+
+    let mut aborted = false;
+    if cols.len() == 1 {
+        let (src_col, dst_name, is_u64) = &cols[0];
+        if *is_u64 {
+            let mut vals = BTreeSet::new();
+            src_store.for_each_scan_row(src_scan, |row| {
+                match src_store.u64_cell(*src_col, row) {
+                    Some(Some(v)) => {
+                        vals.insert(v);
+                    }
+                    Some(None) => {}
+                    None => {
+                        aborted = true;
+                        return ControlFlow::Break(());
+                    }
+                }
+                ControlFlow::Continue(())
+            });
+            return (!aborted)
+                .then(|| RowFilter::InU64(dst_name.clone(), vals.into_iter().collect()));
+        }
+        let mut vals = BTreeSet::new();
+        src_store.for_each_scan_row(src_scan, |row| {
+            match src_store.text_cell(*src_col, row) {
+                Some(Some(v)) => {
+                    vals.insert(v);
+                }
+                Some(None) => {}
+                None => {
+                    aborted = true;
+                    return ControlFlow::Break(());
+                }
+            }
+            ControlFlow::Continue(())
+        });
+        return (!aborted).then(|| RowFilter::InText(dst_name.clone(), vals.into_iter().collect()));
+    }
+
+    if cols.len() == 2 && cols[0].2 && cols[1].2 {
+        let (c0, d0, _) = &cols[0];
+        let (c1, d1, _) = &cols[1];
+        let mut grouped: BTreeMap<u64, BTreeSet<u64>> = BTreeMap::new();
+        src_store.for_each_scan_row(src_scan, |row| {
+            match (src_store.u64_cell(*c0, row), src_store.u64_cell(*c1, row)) {
+                (Some(Some(k0)), Some(Some(k1))) => {
+                    grouped.entry(k0).or_default().insert(k1);
+                }
+                (Some(_), Some(_)) => {}
+                _ => {
+                    aborted = true;
+                    return ControlFlow::Break(());
+                }
+            }
+            ControlFlow::Continue(())
+        });
+        if aborted {
+            return None;
+        }
+        if grouped.is_empty() {
+            return Some(RowFilter::InU64(d0.clone(), Vec::new()));
+        }
+        let mut branches: Vec<RowFilter> = grouped
+            .into_iter()
+            .map(|(k0, k1s)| {
+                RowFilter::And(vec![
+                    RowFilter::EqU64(d0.clone(), k0),
+                    RowFilter::InU64(d1.clone(), k1s.into_iter().collect()),
+                ])
+            })
+            .collect();
+        return Some(if branches.len() == 1 {
+            branches.pop().unwrap()
+        } else {
+            RowFilter::Or(branches)
+        });
+    }
+
+    let mut tuples: BTreeSet<Vec<KeyVal>> = BTreeSet::new();
+    src_store.for_each_scan_row(src_scan, |row| {
+        let mut tuple = Vec::with_capacity(cols.len());
+        for (src_col, _, is_u64) in &cols {
+            let val = if *is_u64 {
+                match src_store.u64_cell(*src_col, row) {
+                    Some(Some(v)) => KeyVal::U64(v),
+                    Some(None) => return ControlFlow::Continue(()),
+                    None => {
+                        aborted = true;
+                        return ControlFlow::Break(());
+                    }
+                }
+            } else {
+                match src_store.text_cell(*src_col, row) {
+                    Some(Some(v)) => KeyVal::Text(v),
+                    Some(None) => return ControlFlow::Continue(()),
+                    None => {
+                        aborted = true;
+                        return ControlFlow::Break(());
+                    }
+                }
+            };
+            tuple.push(val);
+        }
+        tuples.insert(tuple);
+        if tuples.len() > 512 {
+            aborted = true;
+            return ControlFlow::Break(());
+        }
+        ControlFlow::Continue(())
+    });
+    if aborted {
+        return None;
+    }
+    if tuples.is_empty() {
+        return Some(if cols[0].2 {
+            RowFilter::InU64(cols[0].1.clone(), Vec::new())
+        } else {
+            RowFilter::InText(cols[0].1.clone(), Vec::new())
+        });
+    }
+    let mut branches = Vec::with_capacity(tuples.len());
+    for tuple in tuples {
+        let conjuncts = tuple
+            .into_iter()
+            .zip(&cols)
+            .map(|(val, (_, name, _))| match val {
+                KeyVal::U64(v) => RowFilter::EqU64(name.clone(), v),
+                KeyVal::Text(v) => RowFilter::EqText(name.clone(), v),
+            })
+            .collect();
+        branches.push(RowFilter::And(conjuncts));
+    }
+    Some(if branches.len() == 1 {
+        branches.pop().unwrap()
+    } else {
+        RowFilter::Or(branches)
+    })
 }
 
 impl HostLabSqlProvider {

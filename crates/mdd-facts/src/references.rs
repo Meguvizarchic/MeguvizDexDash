@@ -2068,6 +2068,15 @@ impl ReferenceFacts {
         &self,
         each: &mut dyn FnMut(&MethodStringRef<'_>) -> MddResult<()>,
     ) -> MddResult<()> {
+        self.for_each_method_string_with_policy(crate::coverage::NonScalarTextPolicy::Reject, each)
+    }
+
+    /// As [`Self::for_each_method_string`], with an explicit policy for legal non-scalar strings.
+    pub fn for_each_method_string_with_policy(
+        &self,
+        policy: crate::coverage::NonScalarTextPolicy,
+        each: &mut dyn FnMut(&MethodStringRef<'_>) -> MddResult<()>,
+    ) -> MddResult<()> {
         self.require_complete()?;
         let mut budget = ProjectionBudget {
             remaining: self.limits.max_projection_bytes,
@@ -2085,7 +2094,25 @@ impl ReferenceFacts {
             {
                 let item =
                     &self.definitions.metadata().strings()[site.target_local_index as usize].data;
-                let text=item.text.strict_utf8().map_err(|_|MddError::new(ErrorCode::UnsupportedQuery,"facts.references.projection","plain UTF8 relation cannot losslessly represent a legal non-scalar DEX string").detail("reason","NON_SCALAR_TEXT_PROJECTION").detail("string_idx",u64::from(site.target_local_index)).detail("snapshot_id",self.source().snapshot_id.clone()).detail("dex_occurrence_id",self.source().dex_occurrence_id.clone()).detail("string_pool_id",self.definitions.metadata().string_pool().string_pool_id.clone()).detail("byte_offset",item.text.raw_range.byte_offset.0.to_string()))?;
+                let text = policy.project_dex_text(&item.text).ok_or_else(|| {
+                    MddError::new(
+                        ErrorCode::UnsupportedQuery,
+                        "facts.references.projection",
+                        "plain UTF8 relation cannot losslessly represent a legal non-scalar DEX string",
+                    )
+                    .detail("reason", "NON_SCALAR_TEXT_PROJECTION")
+                    .detail("string_idx", u64::from(site.target_local_index))
+                    .detail("snapshot_id", self.source().snapshot_id.clone())
+                    .detail("dex_occurrence_id", self.source().dex_occurrence_id.clone())
+                    .detail(
+                        "string_pool_id",
+                        self.definitions.metadata().string_pool().string_pool_id.clone(),
+                    )
+                    .detail(
+                        "byte_offset",
+                        item.text.raw_range.byte_offset.0.to_string(),
+                    )
+                })?;
                 budget.text(&[&text])?;
                 entry.insert(text);
             }
@@ -2110,8 +2137,16 @@ impl ReferenceFacts {
         Ok(())
     }
     pub fn method_string_rows(&self, file_id: u32) -> MddResult<Vec<MethodStringRow>> {
+        self.method_string_rows_with_policy(file_id, crate::coverage::NonScalarTextPolicy::Reject)
+    }
+
+    pub fn method_string_rows_with_policy(
+        &self,
+        file_id: u32,
+        policy: crate::coverage::NonScalarTextPolicy,
+    ) -> MddResult<Vec<MethodStringRow>> {
         let mut rows = Vec::new();
-        self.for_each_method_string(&mut |row| {
+        self.for_each_method_string_with_policy(policy, &mut |row| {
             rows.push(MethodStringRow {
                 method: row.method.to_owned(),
                 method_class: row.method_class.to_owned(),
