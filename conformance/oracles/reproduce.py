@@ -134,6 +134,14 @@ def main():
         committed_oracles = json.loads((ARTIFACTS / "oracle-checks.json").read_text(encoding="utf-8"))
         success = success and committed_report.get("success") is True and committed_oracles.get("success") is True
     print(f"reproducibility: {len(checks)} metamorphic checks, {len(oracle_report['checks'])} oracle checks, success={success}")
+    if not success:
+        failed = [item["id"] for item in checks if not item["passed"]]
+        failed_oracles = [item.get("id", item.get("case")) for item in oracle_report["checks"] if not item.get("passed")]
+        failed_encoding = [item["hex"] for item in encoding_checks if not item["passed"]]
+        print(
+            f"reproducibility failed: checks={failed}, oracles={failed_oracles}, encoding={len(failed_encoding)}",
+            file=sys.stderr,
+        )
     return 0 if success else 1
 
 

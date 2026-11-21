@@ -333,7 +333,7 @@ def main() -> None:
                     {"target": "archive_inventory_crc_and_selection", "seeds": ["multidex-stored.apk", "multidex-deflated.apk", "duplicate-name.apk", "bad-crc.apk", "member-policy.apk"], "status": "seeded_not_fuzzed"},
                     {"target": "axml_chunk_bounds", "seeds": ["manifest-minimal.axml", "manifest-bad-chunk.axml"], "status": "seeded_not_fuzzed"}],
                 "not_run": ["fixed AOSP verifier/dexdump", "dexlib2 independent full DEX parser", "AAPT2 resource semantic dump", "production engine differential"]}
-    (OUT.parent / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=True, indent=2) + "\n", encoding="utf-8")
+    (OUT.parent / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=True, indent=2) + "\n", encoding="utf-8", newline="\n")
     print(f"generated {len(files)} fixture files")
 
 
