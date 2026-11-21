@@ -154,7 +154,7 @@
       "id": "MDD-005",
       "phase": "M0",
       "title": "建立 A0/A1/A2 配对基线与阶段计时方案",
-      "status": "in_progress",
+      "status": "done",
       "depends_on": [
         "MDD-001",
         "MDD-003",
@@ -186,9 +186,6 @@
         "docs/00_EVIDENCE_BASELINE.md",
         "docs/03_HOSTLAB_MIGRATION.md",
         "docs/04_VALIDATION_AND_PERFORMANCE.md"
-      ],
-      "blocking_reasons": [
-        "Closing is the owner's decision: the reconciliation against the restated acceptance found no gap inside the restated scope (see reconciliation); the contract validator and the enforcement of the prepare and overlap rules are handed to MDD-060"
       ],
       "implementation_evidence": [
         "artifacts/mdd-005/baseline-qualification.json",
@@ -2158,7 +2155,7 @@
       "id": "MDD-073",
       "phase": "M7",
       "title": "实现复用 SDK 的桌面分析工作台",
-      "status": "in_progress",
+      "status": "done",
       "depends_on": [
         "MDD-043",
         "MDD-044",
@@ -2263,10 +2260,8 @@
         "crates/mdd-cli/tests/mcp.rs",
         "artifacts/mdd-073/package-check-linux.json",
         "artifacts/mdd-073/package-check-windows-ci.json",
-        "artifacts/mdd-073/windows-ci-control.json"
-      ],
-      "blocking_reasons": [
-        "Closing the task is the owner's decision: acceptance 5 now has passing records on Windows (this machine and Actions) and Linux (Actions), with the limits recorded in artifacts/mdd-073/desktop-workflows.json (different routes to the debugging port on the two Windows runs, archives not bit-identical across machines, macOS not run, no signing or installer)"
+        "artifacts/mdd-073/windows-ci-control.json",
+        "artifacts/mdd-073/preview-manifest.json"
       ]
     },
     {

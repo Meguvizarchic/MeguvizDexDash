@@ -1,6 +1,21 @@
 # MeguvizDexDash 当前状态
 
-更新：2026-11-19（Asia/Shanghai）。唯一任务图：tasks/backlog.json；当前产品仍在实施，所有产品 profile admitted=false。
+更新：2026-11-21（Asia/Shanghai）。唯一任务图：tasks/backlog.json（52 项：done 39、in_progress 1、todo 12）；当前产品仍在实施，所有产品 profile admitted=false。
+
+## 2026-11-21 门禁去重收敛、代码结构精简与 MDD-005/073 收口
+
+- **未合入门槛修复合入**：将 `claude/mdd-ci-lifecycle`（`c6ede58`，用 8 路交叉连接 `COUNT(*)` 消除 `conformance/mcp/lifecycle_replay.py` 在 1ms 截止窗口下的竞态）并入 `main`，连续实测 `lifecycle_replay.py` 10/10 通过；确认 `claude/mdd-073-desktop` 已为 `main` 祖先、`archive/m2-unpublished-e024eca` 按历史存档保留。
+- **门禁去重、清理与解耦**：
+  - 抽取 `tools/mutation_harness.py` 统一管理变异执行、进程树超时清理、`--anchors` 唯一性检验与 `check_evidence()`（默认 `--check` 校验输入存在、0 存活/错误/跳过与实时锚点唯一性，`--strict-provenance` 保留严格快照哈希校验）；解耦 `artifacts/mdd-{042,070,071,072,084}/mutation/mutate_*.py` 仅校验与构建各自领域范围；
+  - 新增 `tools/run_ci_conformance.py` 统一组织 5 组 38 项一致性格检并去掉已在 `integrations/hostlab` unittest 中重复执行的 4 项命令，同步精简 `.github/workflows/ci.yml` 与 `.github/workflows/desktop.yml`（增加路径过滤）并对齐本地 `.codex-workflow/gate.json`；
+  - `tools/verify_original_handoff.py` 改用自动清理的临时目录并清理遗留 40 个 `handoff/verified-*` 临时目录；`conformance/oracles/{check_fixtures,reproduce}.py` 增加 `--out` / `--check` 避免门禁改写被跟踪文件；`integrations/hostlab/make_structural_equivalence.py` 对 `core_production_files_scanned` 仅断言 `> 0`，保留全部业务字面量零出现断言。
+- **代码结构精简（保持公开导出、边界与行为等价）**：
+  - 将 9 个超长测试块（含 `code.rs` 与 `coverage.rs` 的文件中间测试模块）抽离至兄弟 `*_tests.rs` 文件：`bridge.rs`、`references.rs`、`functions.rs`、`scoped.rs`、`definitions.rs`、`metadata.rs`、`lib.rs`、`code.rs`、`coverage.rs`；
+  - 保留顶层 `foo.rs` 并利用 `foo/*.rs` 子模块拆分 5 个大型生产模块：`crates/mdd-sql/src/dialects/ast.rs`、`crates/mdd-sql/src/provider/metadata.rs`、`crates/mdd-facts/src/annotations.rs`、`crates/mdd-mcp/src/tools.rs`、`crates/mdd-sql/src/provider/hostlab.rs`（提取静态表列定义为 `hostlab/schemas.rs`）；同步更新各变异脚本锚点与 `SOURCES`（全部 6 套 383 个 mutant `--anchors` 零失配），实跑 `artifacts/mdd-084/mutation/mutate_or_chain.py` 12/12 `KILLED` 并更新 `artifacts/mdd-084/mutation/results.txt`。
+- **任务收口（Wave 1：MDD-005、MDD-073 -> done）**：
+  - `MDD-005` 依据 2026-11-19 所有者静态验证范围决定关闭（`acceptance_original` 与 `scope_decision` 完整保留，结果契约校验器与正式配对测量已转交 `MDD-060`/`MDD-082`）；
+  - 为 `MDD-073` 补齐 `artifacts/mdd-073/preview-manifest.json`（显式声明 `preview=true`、`performance_replacement_qualified=false`、`qualification_blocker="MDD-082"` 与 Windows/Linux 实测平台证据），并在 `tools/check_progress.py` 中增加 `DESCRIPTIVE_OUTPUT_CHECKS` 显式校验 `MDD-073` 与 `MDD-055` 的预览清单，关闭 `MDD-073`。
+- **本阶段验证**：`ucodex --profile full` 11/11 步骤全部通过（耗时 263.77s）：`verify_original_handoff.py`、`check_progress.py`、`reproduce.py --check`、`cargo fmt --all -- --check`、`check-workspace-boundaries.py`、`cargo clippy --offline --locked --workspace --all-targets -- -D warnings`、`cargo test --offline --locked --workspace`（49 组测试汇总 1147 passed / 0 failed / 0 ignored）、`python/tests`（61 tests OK）、`tools/run_ci_conformance.py`（38/38 checks passed in 195.16s）、`mdd-build-probe`；`codegraph sync` 已同步索引（64 changed files, 2,180 nodes）。
 
 ## 2026-11-19 MDD-054 起步：shadow 比较器与运行器已就绪，新引擎在真实输入上跑不动
 

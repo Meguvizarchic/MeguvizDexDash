@@ -1,0 +1,98 @@
+{
+  "schema": "mdd.desktop-preview-manifest.v1",
+  "task": "MDD-073",
+  "product": "MeguvizDexDash",
+  "preview": true,
+  "performance_replacement_qualified": false,
+  "qualification_blocker": "MDD-082",
+  "architecture": {
+    "adr": "docs/adr/ADR-desktop-shell.md",
+    "shell": "Tauri 2 (static HTML/CSS/ES-module frontend, no npm)",
+    "engine_boundary": "subprocess only (`meguvizdexdash mcp`, 12 registered tools)",
+    "core_crates_linked": [],
+    "http_clients_in_graph": []
+  },
+  "tested_platforms": [
+    {
+      "id": "windows-x86_64-local",
+      "os": "windows",
+      "arch": "x86_64",
+      "driver": "cdp (WebView2 140.0.3485.94)",
+      "package_archive": "meguvizdexdash-desktop-preview-0.1.0-dev-windows-x86_64.zip",
+      "archive_sha256": "57ff329492452b4109aca13731016e82a5f2c8137bf5a056def433a1f0d78919",
+      "archive_bytes": 7472555,
+      "flows_passed": 15,
+      "flows_failed": 0,
+      "flows_not_run": 0,
+      "evidence": "artifacts/mdd-073/package-check-windows.json"
+    },
+    {
+      "id": "windows-x86_64-ci",
+      "os": "windows",
+      "arch": "x86_64",
+      "driver": "cdp (WebView2 156.0.4314.58 via policy route)",
+      "package_archive": "meguvizdexdash-desktop-preview-0.1.0-dev-windows-x86_64.zip",
+      "archive_sha256": "cf17d7fdf65a6198af985523ce80efe3a7c9898283157710b80ca44611158f19",
+      "archive_bytes": 7471990,
+      "flows_passed": 14,
+      "flows_failed": 0,
+      "flows_not_run": 1,
+      "not_run_reason": "real_application_newpipe requires local ignored APK",
+      "evidence": "artifacts/mdd-073/package-check-windows-ci.json"
+    },
+    {
+      "id": "linux-x86_64-ci",
+      "os": "linux",
+      "arch": "x86_64",
+      "driver": "webdriver (Ubuntu 24.04 Xvfb + WebKitGTK)",
+      "package_archive": "meguvizdexdash-desktop-preview-0.1.0-dev-linux-x86_64.tar.gz",
+      "archive_sha256": "fe7956d079db796bf49c006f4c20c3243b830e9d5586f1ec38c30d13f60568b3",
+      "archive_bytes": 7600209,
+      "flows_passed": 14,
+      "flows_failed": 0,
+      "flows_not_run": 1,
+      "not_run_reason": "real_application_newpipe requires local ignored APK",
+      "evidence": "artifacts/mdd-073/package-check-linux.json"
+    }
+  ],
+  "capabilities": [
+    {
+      "id": "input_and_provenance",
+      "status": "verified",
+      "summary": "打开并校验输入集，展示外部 SHA-256、snapshot、DEX 成员列表及未准入 profile 标记"
+    },
+    {
+      "id": "sql_query_paging_cancel_export",
+      "status": "verified",
+      "summary": "分页查询、显式未加载/截断边界提示、后台取消与资源清理、计数与逐页核对一致性导出"
+    },
+    {
+      "id": "browse_class_method_smali_xrefs",
+      "status": "verified",
+      "summary": "类/方法浏览、Smali/Context 分页与交叉引用导航，显式声明未加载页"
+    },
+    {
+      "id": "manifest_and_resources",
+      "status": "verified",
+      "summary": "Manifest 组件与资源表/文件查看"
+    },
+    {
+      "id": "definition_diff",
+      "status": "verified",
+      "summary": "双输入定义级差异对比（保留来源/raw 指纹与仅定义对比边界）"
+    },
+    {
+      "id": "local_only_no_upload",
+      "status": "verified",
+      "summary": "CSP default-src 'none'、core:default 权限、无 HTTP 客户端依赖，能力状态源自真实 tools/list"
+    }
+  ],
+  "declared_limitations": [
+    "仅提供中文界面；尚未评估无障碍键盘/读屏支持",
+    "macOS arm64 未运行且不作支持声明",
+    "Windows 与 Linux 预览包未代码签名，无安装器/自动更新器，跨机器打包归档非逐字节复现（以逐文件 sha256 清单核验）",
+    "超过引擎 100000 行分页窗口的 diff 仅支持按类名前缀分片对比；diff 只比较定义而非操作数",
+    "明确标为功能预览 (preview=true)，不可替代性能合格发布；正式性能替代需完成 MDD-082"
+  ],
+  "evidence_record": "artifacts/mdd-073/desktop-workflows.json"
+}
