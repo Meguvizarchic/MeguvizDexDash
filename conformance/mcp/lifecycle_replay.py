@@ -253,8 +253,12 @@ def check_timeout(report: Report, records: list[dict], binary: Path, files: dict
     client.initialize()
     opened = client.call("open_dataset", inputs=[str(files["timeout.dex"])])
     id_ = opened["dataset_id"]
+    # The statement must still be running when the one-millisecond deadline passes. A page of rows from a cross join is
+    # made in well under a millisecond by an engine that reads its tables fast, so the work here is an aggregate over a
+    # cross join large enough that no machine finishes it in that time: the deadline, not the speed of the engine,
+    # decides the outcome.
     late = client.call("query", dataset_id=id_, timeout_ms=1,
-                       sql=["SELECT a.type_idx FROM types a, types b, types c, types d, types e, types f"])
+                       sql=["SELECT COUNT(*) FROM types a, types b, types c, types d, types e, types f, types g, types h"])
     expected = recorded(records, 176)
     error = late.get("error", {})
     report.add("a deadline closes the dataset and says so, in the reference's shape", [176],
