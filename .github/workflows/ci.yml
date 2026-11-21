@@ -36,109 +36,26 @@ jobs:
         run: python tools/verify_original_handoff.py
       - name: Validate committed task/evidence checkpoint
         run: python tools/check_progress.py
-      - name: Reproduce independent fixtures
-        run: python conformance/oracles/reproduce.py
+      - name: Check independent fixtures and oracles
+        run: python conformance/oracles/reproduce.py --check
       - name: Check format
         run: cargo fmt --all -- --check
       - name: Fetch exact locked dependencies
         run: cargo fetch --locked
       - name: Check dependency boundaries
         run: python conformance/check-workspace-boundaries.py
-      - name: Check locked workspace
-        run: python tools/record_command.py --output artifacts/ci/check -- cargo check --locked --workspace --all-targets
-      - name: Lint
+      - name: Lint (covers full typecheck)
         run: python tools/record_command.py --output artifacts/ci/clippy -- cargo clippy --locked --workspace --all-targets -- -D warnings
       - name: Test native implementation
         run: python tools/record_command.py --output artifacts/ci/test -- cargo test --locked --workspace
-      - name: Build actual CLI
-        run: python tools/record_command.py --output artifacts/ci/build -- cargo build --locked -p mdd-cli
+      - name: Build CLI and FFI
+        run: python tools/record_command.py --output artifacts/ci/build -- cargo build --locked -p mdd-cli -p mdd-ffi
       - name: Python SDK tests (library and worker transport)
-        run: |
-          cargo build --locked -p mdd-ffi -p mdd-cli
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -I -m unittest discover -s python/tests -t python
-      - name: Check actual CLI contracts and inspection
+        run: python -I -m unittest discover -s python/tests -t python
+      - name: Run conformance suites and record checks
         run: |
           $binary = if ($IsWindows) { 'target/debug/meguvizdexdash.exe' } else { 'target/debug/meguvizdexdash' }
-          python conformance/check-cli-contract.py --binary $binary
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python conformance/check-inspection.py --binary $binary
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python conformance/cli/cli_cases.py --binary $binary
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python benchmarks/hostlab-b0-pipeline.py verify --binary $binary
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python conformance/mcp/golden_replay.py --binary $binary
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python tests/fixtures/decode/generate.py --check
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python conformance/mcp/lifecycle_replay.py --binary $binary
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python conformance/decode/run_decode_conformance.py --binary $binary
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python conformance/mcp/manifest_replay.py --binary $binary
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python conformance/decode/a0_replay.py --binary $binary
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python conformance/decode/test_a0_replay.py
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python tests/fixtures/decode/generate_class.py --check
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python conformance/decode/run_decode_full.py --binary $binary
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python conformance/decode/build_decode_contract.py --binary $binary --check
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python conformance/decode/test_decode_full.py
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python conformance/mcp/check_hostlab_required_tools.py --binary $binary
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python conformance/mcp/test_hostlab_required_tools.py
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -I -m unittest discover -s integrations/hostlab -p "test_*.py"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -I integrations/hostlab/make_provider_selection.py --check
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -I integrations/hostlab/make_structural_equivalence.py --check
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -I integrations/hostlab/remote_make_records.py --check
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -I tests/fixtures/surface/generate.py --check
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -I conformance/hostlab/surface_import_sources.py --check
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -I integrations/hostlab/surface_make_goldens.py --check
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -I integrations/hostlab/surface_make_equivalence.py --check
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -I artifacts/mdd-084/repro_or_chain_overflow.py --binary $binary --phase post --out artifacts/ci/mdd-084-repro-post.json
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -I artifacts/mdd-084/build_record.py --check
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -I tests/fixtures/public_relations/generate.py --check
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -I conformance/relations/test_public_relations_diff.py
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -I conformance/relations/public_relations_diff.py --binary $binary --dialect dexsql-0.1.0 --out artifacts/ci/public-relations-diff.json --quiet
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -I conformance/relations/public_relations_diff.py --binary $binary --dialect dexsql-0.1.1 --probe-dir artifacts/mdd-070/a1-probe --out artifacts/ci/public-relations-diff-0.1.1.json --quiet
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -I conformance/relations/compare_references.py --check
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -I conformance/relations/build_qualification.py --check
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -I artifacts/mdd-070/build_record.py --check
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -I tests/fixtures/resources/generate.py --check
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -I conformance/mcp/test_resources_replay.py
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -I conformance/mcp/resources_replay.py --binary $binary --out artifacts/ci/resources-replay.json
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -I artifacts/mdd-072/build_record.py --check
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -I benchmarks/test_producer_consumer_pipeline.py
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python conformance/mcp/test_replays.py
+          python -I tools/run_ci_conformance.py --binary $binary --out-dir artifacts/ci
       - name: Run actual dependency and SQL probes
         run: python tools/record_command.py --output artifacts/ci/probe -- cargo run --locked -p mdd-build-probe
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

@@ -30,8 +30,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "tools"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(ROOT / "conformance" / "decode"))
+import mutation_harness as H  # noqa: E402
 import golden_replay  # noqa: E402
 import lifecycle_replay  # noqa: E402
 import manifest_replay  # noqa: E402
@@ -42,7 +44,9 @@ RECORD = "artifacts/mdd-042/mcp-required-conformance.json"
 MUTATION = "artifacts/mdd-042/mutation/results.txt"
 MANIFEST = "conformance/manifests/tools-and-options.json"
 SOURCES = [
-    "crates/mdd-mcp/src/tools.rs", "crates/mdd-mcp/src/server.rs", "crates/mdd-mcp/src/protocol.rs",
+    "crates/mdd-mcp/src/tools.rs", "crates/mdd-mcp/src/tools/decode.rs",
+    "crates/mdd-mcp/src/tools/manifest.rs", "crates/mdd-mcp/src/tools/sql.rs",
+    "crates/mdd-mcp/src/server.rs", "crates/mdd-mcp/src/protocol.rs",
     "crates/mdd-mcp/src/lib.rs", "crates/mdd-mcp/src/tool_schemas.json", "crates/mdd-cli/tests/mcp.rs",
     "crates/mdd-service/src/decode.rs", "crates/mdd-service/src/dataset.rs", "crates/mdd-service/src/manifest.rs",
     "crates/mdd-facts/src/smali_required/mod.rs", "crates/mdd-facts/src/smali_required/render.rs",
@@ -221,16 +225,20 @@ def mutation_summary() -> dict:
     }
 
 
-def check_committed() -> int:
+def check_committed(strict_provenance: bool = False) -> int:
+    spec = importlib.util.spec_from_file_location("mutate_mcp", ROOT / "artifacts/mdd-042/mutation/mutate_mcp.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    issues = H.check_evidence(RECORD, module.SUITE, MUTATION, "artifacts/mdd-042/mutation/mutate_mcp.py", strict_provenance=strict_provenance)
     record = json.loads((ROOT / RECORD).read_text(encoding="utf-8"))
-    stale = [path for path, digest in record["inputs_sha256"].items() if sha256(path) != digest]
-    mutation = mutation_summary()
-    if mutation["present"] and not mutation["current"]:
-        stale.append(MUTATION)
-    for path in stale:
-        print("STALE:", path)
-    print("committed record current:", not stale)
-    return 1 if stale else 0
+    if not record.get("a0_query_replay", {}).get("equal"):
+        issues.append("A0_QUERY_NOT_EQUAL")
+    if record.get("tests", {}).get("rust", {}).get("failed", 1) != 0:
+        issues.append("RECORD_TESTS_FAILED")
+    for path in issues:
+        print("CHECK_FAIL:", path)
+    print("committed record current:", not issues)
+    return 1 if issues else 0
 
 
 def brief(result: dict) -> dict:
@@ -243,9 +251,10 @@ def main() -> int:
     parser.add_argument("--raw-dir", type=Path, default=ROOT / "artifacts/local/mdd-042-runs")
     parser.add_argument("--no-write", action="store_true")
     parser.add_argument("--check", action="store_true")
+    parser.add_argument("--strict-provenance", action="store_true")
     args = parser.parse_args()
     if args.check:
-        return check_committed()
+        return check_committed(strict_provenance=args.strict_provenance)
     raw = args.raw_dir
 
     rust_runs = [run(command, raw, f"rust-{i}") for i, command in enumerate(RUST)]

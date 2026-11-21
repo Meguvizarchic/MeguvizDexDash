@@ -21,8 +21,10 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
+sys.path.insert(0, str(ROOT / "tools"))
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(ROOT / "conformance" / "mcp"))
+import mutation_harness as H  # noqa: E402
 import run_decode_full as full  # noqa: E402
 from mcp_client import DEFAULT_BINARY  # noqa: E402
 
@@ -35,7 +37,9 @@ SOURCES = [
     "crates/mdd-facts/src/smali/mod.rs", "crates/mdd-facts/src/smali/context.rs", "crates/mdd-facts/src/smali/value.rs",
     "crates/mdd-facts/src/smali/annotation.rs", "crates/mdd-facts/src/smali/method.rs", "crates/mdd-facts/src/smali/class.rs",
     "crates/mdd-facts/src/smali_required/mod.rs", "crates/mdd-facts/src/smali_required/render.rs", "crates/mdd-facts/src/smali_required/tests.rs",
-    "crates/mdd-service/src/decode.rs", "crates/mdd-service/src/dataset.rs", "crates/mdd-mcp/src/tools.rs", "crates/mdd-mcp/src/tool_schemas.json",
+    "crates/mdd-service/src/decode.rs", "crates/mdd-service/src/dataset.rs",
+    "crates/mdd-mcp/src/tools.rs", "crates/mdd-mcp/src/tools/decode.rs",
+    "crates/mdd-mcp/src/tools/manifest.rs", "crates/mdd-mcp/src/tools/sql.rs", "crates/mdd-mcp/src/tool_schemas.json",
     "crates/mdd-cli/tests/mcp.rs",
     "conformance/decode/oracle.py", "conformance/decode/oracle_class.py", "conformance/decode/run_decode_full.py", "conformance/decode/test_decode_full.py",
     "conformance/decode/run_decode_conformance.py", "conformance/decode/hand-expected.txt", "conformance/decode/hand-expected-class.txt",
@@ -132,22 +136,30 @@ def mutation_summary() -> dict:
             "skipped": sum(1 for line in lines if line.startswith("SKIPPED"))}
 
 
-def check_committed() -> int:
+def check_committed(strict_provenance: bool = False) -> int:
+    spec = importlib.util.spec_from_file_location("mutate_decode", ROOT / "artifacts/mdd-071/mutation/mutate_decode.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    issues = H.check_evidence(RECORD, module.SUITE, MUTATION, "artifacts/mdd-071/mutation/mutate_decode.py", strict_provenance=strict_provenance)
     record = json.loads((ROOT / RECORD).read_text(encoding="utf-8"))
-    stale = [path for path, digest in record["inputs_sha256"].items() if sha256(path) != digest]
-    for path in stale:
-        print("STALE:", path)
-    print("committed record current:", not stale)
-    return 1 if stale else 0
+    if record.get("full_decode_conformance", {}).get("failed", 1) != 0:
+        issues.append("FULL_DECODE_FAILED")
+    if record.get("tests", {}).get("rust", {}).get("failed", 1) != 0:
+        issues.append("RECORD_TESTS_FAILED")
+    for path in issues:
+        print("CHECK_FAIL:", path)
+    print("committed record current:", not issues)
+    return 1 if issues else 0
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--no-write", action="store_true")
     parser.add_argument("--check", action="store_true")
+    parser.add_argument("--strict-provenance", action="store_true")
     args = parser.parse_args()
     if args.check:
-        return check_committed()
+        return check_committed(strict_provenance=args.strict_provenance)
 
     rust = [run(command, f"rust-{i}") for i, command in enumerate(RUST)]
     fmt, clippy, build = run(FMT, "fmt"), run(CLIPPY, "clippy"), run(BUILD, "build")

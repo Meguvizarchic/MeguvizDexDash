@@ -111,9 +111,9 @@
         "sha256": "4fb86d05d31638a37fd2e39d070bf0e5b307358a736befac5b0ff58032c42c3f"
       },
       {
-        "bytes": 16249,
+        "bytes": 16598,
         "path": "integrations/hostlab/make_structural_equivalence.py",
-        "sha256": "290c67bb601842b05202da5a05bd65fd5df6169e058f9b8b7b1d6b7d42671c03"
+        "sha256": "9a2c083fdbb9b458fdfaf066f824af0f39d4b009c03b072b5522bf9c2eb8df8b"
       },
       {
         "bytes": 39072,
@@ -833,22 +833,22 @@
       "build_id": "source-sha256:1015621189458ae56e46126d03025ec44eca49c0c3b3fff223171bf58e6ca5c9",
       "engine_version": "0.1.0-dev",
       "platform": "Windows/AMD64",
-      "sha256": "b86df848b9188f1748f3f7944690bc97c78f157e91b9fedcc4e6aee2588d1235"
+      "sha256": "4f7c7a56b7c472895a5f9166b943f1d99dabbd16b8e703216b4326d7b4fc7501"
     },
     "dataset": {
       "dex_count": 1,
       "layer_issues": [],
       "profile": "hostlab-contract-unqualified",
       "protocol": "mdd.cli-stream.v1",
-      "scope_id": "sha256:3171d62c84e9d7cb3b2752735eae74f21a2999613ee9323831cfa521fc93419e",
-      "snapshot_id": "snapshot-36de37291c9d0b06f41481bc6a55fce2afb086c7dc6ea3e2f6cab54765d149e8",
+      "scope_id": "sha256:3313013264afef048976badd266d2c7496dcce866135ab19a5f6cdce1fc8093d",
+      "snapshot_id": "snapshot-47f7ec45bac9d122ae8eb02f487bc76b31085d951682f20039c415480c37e260",
       "sql_dialect": "dexsql-0.1.0"
     },
     "engine": {
       "backend": "meguvizdexdash",
-      "binary_sha256": "b86df848b9188f1748f3f7944690bc97c78f157e91b9fedcc4e6aee2588d1235",
+      "binary_sha256": "4f7c7a56b7c472895a5f9166b943f1d99dabbd16b8e703216b4326d7b4fc7501",
       "build_id": "source-sha256:1015621189458ae56e46126d03025ec44eca49c0c3b3fff223171bf58e6ca5c9",
-      "config_digest": "05626919d5d310c676181a658a5cf049825c5a8c4071a174a5d899d5673d402d",
+      "config_digest": "a68c5a0fee4f6c582ccaab580421f21f847cbb8f5e3f591195a4e8dc11850a2c",
       "dialect": {
         "engine": "dexsql-0.1.0",
         "hostlab": "dexsql",

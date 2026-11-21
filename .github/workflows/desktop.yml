@@ -5,7 +5,25 @@ name: Desktop workbench
 # conformance/desktop/user-flow-cases.json (WebView2 over DevTools on Windows, WebKitGTK over WebDriver on Linux).
 on:
   push:
+    paths:
+      - 'apps/desktop/**'
+      - 'crates/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'
+      - 'conformance/desktop/**'
+      - 'tests/fixtures/desktop/**'
+      - '.github/workflows/desktop.yml'
   pull_request:
+    paths:
+      - 'apps/desktop/**'
+      - 'crates/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'
+      - 'conformance/desktop/**'
+      - 'tests/fixtures/desktop/**'
+      - '.github/workflows/desktop.yml'
   workflow_dispatch:
 permissions:
   contents: read

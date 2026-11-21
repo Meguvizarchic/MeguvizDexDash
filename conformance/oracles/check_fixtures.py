@@ -318,7 +318,7 @@ def main():
               "scope": "bounded handwritten header/map/string/table/raw-code/component checks and Python zipfile inventory; not ART execution verification",
               "checks": checks, "failures": failures, "success": not failures,
               "unexecuted": ["AOSP verifier/dexdump", "dexlib2", "AAPT2", "production parser comparison", "fuzz"]}
-    output = ROOT / "artifacts/mdd-004/oracle-checks.json"
+    output = Path(sys.argv[sys.argv.index("--out") + 1]) if "--out" in sys.argv else ROOT / "artifacts/mdd-004/oracle-checks.json"
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(report, ensure_ascii=True, indent=2) + "\n", encoding="utf-8")
     print(f"oracle checks: {len(checks)} passed, {len(failures)} failed")

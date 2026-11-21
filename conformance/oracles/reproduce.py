@@ -39,8 +39,11 @@ records = []
 
 
 def main():
+    check_only = "--check" in sys.argv[1:]
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
     expectation_sha = digest(ROOT / "conformance/oracles/expected-results.json")
+    prior_generated = {p.name: digest(p) for p in sorted(GENERATED.iterdir()) if p.is_file()} if GENERATED.exists() else {}
+    prior_manifest = digest(ROOT / "tests/fixtures/manifest.json") if (ROOT / "tests/fixtures/manifest.json").exists() else None
     snapshots = []
     for _ in range(2):
         run(["tests/fixtures/generate.py"])
@@ -52,6 +55,10 @@ def main():
         checks.append({"id": name, "passed": bool(condition), "details": details})
 
     check("deterministic-generation", snapshots[0] == snapshots[1], {"file_count_including_manifest": len(snapshots[0]), "sha256": snapshots[1]})
+    if check_only and prior_generated:
+        generated_only = {k: v for k, v in snapshots[1].items() if k != "manifest.json"}
+        check("committed-fixtures-match-generator", generated_only == prior_generated and snapshots[1]["manifest.json"] == prior_manifest,
+              {"file_count": len(generated_only)})
     check("independent-expectations-preserved", digest(ROOT / "conformance/oracles/expected-results.json") == expectation_sha, {"sha256": expectation_sha})
     stored, deflated = inventory(GENERATED / "multidex-stored.apk"), inventory(GENERATED / "multidex-deflated.apk")
     check("stored-vs-deflated", stored == deflated and digest(GENERATED / "multidex-stored.apk") != digest(GENERATED / "multidex-deflated.apk"),
@@ -85,8 +92,9 @@ def main():
         check("same-size-same-mtime-change", original_stat.st_size == current_stat.st_size and original_stat.st_mtime_ns == current_stat.st_mtime_ns
               and hashlib.sha256(before).digest() != hashlib.sha256(path.read_bytes()).digest(),
               {"bytes": current_stat.st_size, "mtime_ns": current_stat.st_mtime_ns, "before_sha256": hashlib.sha256(before).hexdigest(), "after_sha256": digest(path)})
-    run(["conformance/oracles/check_fixtures.py"])
-    oracle_report = json.loads((ARTIFACTS / "oracle-checks.json").read_text())
+        oracle_out = (Path(work) / "oracle-checks.json") if check_only else (ARTIFACTS / "oracle-checks.json")
+        run(["conformance/oracles/check_fixtures.py", "--out", str(oracle_out)])
+        oracle_report = json.loads(oracle_out.read_text(encoding="utf-8"))
     encoding_checks = []
     for signed in [False, True]:
         for prefix in [b"\x80" * 4, b"\xff" * 4]:
@@ -110,17 +118,23 @@ def main():
         "checks": encoding_checks, "success": all(item["passed"] for item in encoding_checks),
         "mutf8_review": "Handwritten decoder checked against Python UTF-8 surrogatepass after translating the sole allowed overlong C0 80 to NUL and explicitly rejecting four-byte UTF-8. Negative continuation/overlong/truncation/length vectors are required to agree in both formulations.",
         "not_claimed": "DexSQL profile qualification or complete DEX verifier qualification"}
-    (ARTIFACTS / "encoding-independent-review.json").write_text(json.dumps(encoding_report, ensure_ascii=True, indent=2) + "\n", encoding="utf-8")
-    report = {"schema_version": "mdd.fixture-reproducibility.v1", "python": sys.version, "commands": records, "metamorphic_checks": checks,
-              "fixture_count": len(snapshots[0]) - 1, "oracle_check_count": len(oracle_report["checks"]),
-              "success": all(item["passed"] for item in checks) and oracle_report["success"] and encoding_report["success"],
-              "independent_leb_terminal_checks": len(encoding_checks),
-              "source_sha256": {name: digest(ROOT / name) for name in ["tests/fixtures/generate.py", "conformance/oracles/check_fixtures.py", "conformance/oracles/reproduce.py", "conformance/oracles/expected-results.json"]},
-              "qualification": "fixture reproducibility and bounded reference checks only; no production engine or external full-format oracle qualification",
-              "not_run": ["production parser", "AOSP verifier/dexdump", "AAPT2", "fuzz", "production lifecycle"]}
-    (ARTIFACTS / "fixture-reproducibility.json").write_text(json.dumps(report, ensure_ascii=True, indent=2) + "\n", encoding="utf-8")
-    print(f"reproducibility: {len(checks)} metamorphic checks, {len(oracle_report['checks'])} oracle checks, success={report['success']}")
-    return 0 if report["success"] else 1
+    success = all(item["passed"] for item in checks) and oracle_report["success"] and encoding_report["success"]
+    if not check_only:
+        (ARTIFACTS / "encoding-independent-review.json").write_text(json.dumps(encoding_report, ensure_ascii=True, indent=2) + "\n", encoding="utf-8")
+        report = {"schema_version": "mdd.fixture-reproducibility.v1", "python": sys.version, "commands": records, "metamorphic_checks": checks,
+                  "fixture_count": len(snapshots[0]) - 1, "oracle_check_count": len(oracle_report["checks"]),
+                  "success": success,
+                  "independent_leb_terminal_checks": len(encoding_checks),
+                  "source_sha256": {name: digest(ROOT / name) for name in ["tests/fixtures/generate.py", "conformance/oracles/check_fixtures.py", "conformance/oracles/reproduce.py", "conformance/oracles/expected-results.json"]},
+                  "qualification": "fixture reproducibility and bounded reference checks only; no production engine or external full-format oracle qualification",
+                  "not_run": ["production parser", "AOSP verifier/dexdump", "AAPT2", "fuzz", "production lifecycle"]}
+        (ARTIFACTS / "fixture-reproducibility.json").write_text(json.dumps(report, ensure_ascii=True, indent=2) + "\n", encoding="utf-8")
+    else:
+        committed_report = json.loads((ARTIFACTS / "fixture-reproducibility.json").read_text(encoding="utf-8"))
+        committed_oracles = json.loads((ARTIFACTS / "oracle-checks.json").read_text(encoding="utf-8"))
+        success = success and committed_report.get("success") is True and committed_oracles.get("success") is True
+    print(f"reproducibility: {len(checks)} metamorphic checks, {len(oracle_report['checks'])} oracle checks, success={success}")
+    return 0 if success else 1
 
 
 if __name__ == "__main__":

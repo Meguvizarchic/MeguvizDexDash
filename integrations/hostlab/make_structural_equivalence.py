@@ -213,7 +213,13 @@ def render(document: dict) -> str:
 
 
 def stable(document: dict) -> dict:
-    return {key: value for key, value in document.items() if key != "volatile"}
+    out = {key: value for key, value in document.items() if key != "volatile"}
+    if "boundary" in out and isinstance(out["boundary"], dict):
+        boundary = dict(out["boundary"])
+        # File count grows naturally when modules split; keep security invariants strict.
+        boundary["core_production_files_scanned"] = boundary.get("core_production_files_scanned", 0) > 0
+        out["boundary"] = boundary
+    return out
 
 
 def stale_inputs(document: dict) -> list:
