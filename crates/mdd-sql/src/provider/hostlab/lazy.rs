@@ -972,7 +972,7 @@ fn collect_ready_defined_pairs(
         predicates.push(DirectPredicate::EqU64(file_col, u64::from(fid)));
     }
     let matched = store.exact_lookup_rows(&predicates, false)?;
-    let mut read_row = |row: u64| -> Option<(u32, u32)> {
+    let read_row = |row: u64| -> Option<(u32, u32)> {
         let fid = u32::try_from(store.u64_cell(file_col, row)??).ok()?;
         let idx = u32::try_from(store.u64_cell(idx_col, row)??).ok()?;
         Some((fid, idx))

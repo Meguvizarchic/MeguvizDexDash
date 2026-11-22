@@ -107,7 +107,7 @@ impl LazyDexDecode {
 
     fn class_def_at(&self, class_def_idx: u32) -> Option<usize> {
         let classes = &self.definitions.definitions().classes;
-        if let Some(pos) = usize::try_from(class_def_idx).ok()
+        if let Ok(pos) = usize::try_from(class_def_idx)
             && classes
                 .get(pos)
                 .is_some_and(|class| class.class_def_idx == class_def_idx)

@@ -8533,6 +8533,9 @@ fn hostlab_direct_count_group_by_matches_sqlite_and_streams_identically() {
 
 #[test]
 fn direct_filtered_projection_matches_sqlite_oracle_windowed_and_streamed() {
+    use crate::provider::hostlab::{
+        HostLabOccurrenceFacts, HostLabSqlProvider, LayerNeeds, OccurrenceLoader,
+    };
     use mdd_dex::{definitions::DefinitionLimits, strings::StringLimits};
     use mdd_facts::{DefinitionFacts, MetadataFacts, indexes::SelectedScope};
     use mdd_input::{

@@ -1837,7 +1837,7 @@ fn stream_direct_rows(
     prepared: &PreparedSql,
     control: &SqlControl,
     columns: Vec<String>,
-    rows: Vec<SqlRow>,
+    rows: Vec<Vec<SqlValue>>,
     consumer: &mut dyn crate::column_store::DirectCellRowConsumer,
 ) -> MddResult<usize> {
     let result = (|| {

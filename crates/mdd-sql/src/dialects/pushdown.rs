@@ -385,6 +385,7 @@ pub(crate) fn extract_direct_filtered_projection_from_query(
                 let descending = match item.options.sort {
                     None | Some(OrderBySort::Asc) => false,
                     Some(OrderBySort::Desc) => true,
+                    Some(OrderBySort::Using(_)) => return None,
                 };
                 let ord_idx = match unwrap_nested(&item.expr) {
                     Expr::Identifier(id) => {
