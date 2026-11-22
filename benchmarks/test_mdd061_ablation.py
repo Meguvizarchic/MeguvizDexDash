@@ -126,6 +126,26 @@ class Mdd061AblationControls(unittest.TestCase):
             with self.assertRaises(ValueError):
                 mod.check_outputs(p_abl, p_reg)
 
+    def test_check_accepts_historical_baseline_and_rejects_drift(self) -> None:
+        abl, reg = _dummy_pair_docs()
+        target_rel = "crates/mdd-wire/src/optimized/batch_codec.rs"
+        historical_sha = mod.sha256_git_blob(mod.HISTORICAL_BASELINE_COMMIT, target_rel)
+        for doc in (abl, reg):
+            doc["source_sha256"][target_rel] = historical_sha
+        with tempfile.TemporaryDirectory() as tmp:
+            t = Path(tmp)
+            p_abl = t / "abl.json"
+            p_reg = t / "reg.json"
+            p_abl.write_text(json.dumps(abl), encoding="utf-8")
+            p_reg.write_text(json.dumps(reg), encoding="utf-8")
+            self.assertEqual(mod.check_outputs(p_abl, p_reg), 0)
+
+            drifted = copy.deepcopy(abl)
+            drifted["source_sha256"][target_rel] = "f" * 64
+            p_abl.write_text(json.dumps(drifted), encoding="utf-8")
+            with self.assertRaises(ValueError):
+                mod.check_outputs(p_abl, p_reg)
+
 
 if __name__ == "__main__":
     unittest.main()

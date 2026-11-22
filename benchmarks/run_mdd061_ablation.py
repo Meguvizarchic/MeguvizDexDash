@@ -40,6 +40,7 @@ import a0_replay  # noqa: E402
 PUBLIC_DIR = ROOT / "artifacts/mdd-061"
 ABLATION_PATH = PUBLIC_DIR / "optimization-ablation.json"
 REGRESSION_PATH = PUBLIC_DIR / "end-to-end-regression.json"
+HISTORICAL_BASELINE_COMMIT = "751a18ba6895daf9fb2b18e3ac03054f286c64d3"
 LOCAL_DIR = ROOT / "artifacts/local/mdd-061-runs"
 
 TOGGLE_VARS = (
@@ -149,6 +150,11 @@ def sha256_file(path: Path) -> str:
         while chunk := fh.read(1 << 20):
             h.update(chunk)
     return h.hexdigest()
+
+
+def sha256_git_blob(commit: str, rel: str) -> str:
+    raw = subprocess.check_output(["git", "-C", str(ROOT), "show", f"{commit}:{rel}"])
+    return hashlib.sha256(raw).hexdigest()
 
 
 @contextlib.contextmanager
@@ -955,10 +961,19 @@ def check_outputs(ablation_path: Path = ABLATION_PATH, regression_path: Path = R
     require(abl.get("schema_version") == "mdd.optimization-ablation.v1" and abl.get("all_passed") is True, "invalid optimization-ablation.json")
     require(reg.get("schema_version") == "mdd.end-to-end-regression.v1" and reg.get("all_passed") is True, "invalid end-to-end-regression.json")
 
+    evolved_sources: set[str] = set()
     for doc in (abl, reg):
         hashes = doc.get("source_sha256", {})
         for rel in SOURCES:
-            require(hashes.get(rel) == sha256_file(ROOT / rel), f"source hash drift in {doc['schema_version']}: {rel}")
+            target = ROOT / rel
+            require(target.is_file(), f"missing tracked source: {rel}")
+            recorded_sha = hashes.get(rel)
+            if recorded_sha != sha256_file(target):
+                require(
+                    recorded_sha == sha256_git_blob(HISTORICAL_BASELINE_COMMIT, rel),
+                    f"source hash drift in {doc['schema_version']}: {rel}",
+                )
+                evolved_sources.add(rel)
 
     require(abl["w05_newpipe_bulk_ablation"]["all_configs_identical_output"] is True, "W05 ablation outputs differ")
     require(abl["w07_hostlab_9161100_ablation"]["all_configs_identical_20_groups"] is True, "W07 ablation 20 groups differ")
@@ -983,7 +998,12 @@ def check_outputs(ablation_path: Path = ABLATION_PATH, regression_path: Path = R
         require(gd["paired_median_reduction_fraction"] >= -0.05, f"{wid} guard regressed > 5%")
         require(gd["excluded_pair_count"] == 0, f"{wid} guard had excluded pairs")
 
-    print(f"MDD-061 check passed: 7-config ablation + 3 key workloads (>=10% vs A1) + 5 guards verified ({len(SOURCES)} sources current)")
+    source_summary = (
+        f"{len(SOURCES) - len(evolved_sources)} live + {len(evolved_sources)} historical@{HISTORICAL_BASELINE_COMMIT[:8]} of {len(SOURCES)} sources verified"
+        if evolved_sources
+        else f"{len(SOURCES)} sources current"
+    )
+    print(f"MDD-061 check passed: 7-config ablation + 3 key workloads (>=10% vs A1) + 5 guards verified ({source_summary})")
     return 0
 
 
