@@ -2,17 +2,24 @@
   "schema_version": "mdd.release-qualification.v1",
   "task_id": "MDD-082",
   "phase": "M8",
-  "generated_utc": "2026-11-21T22:46:47.613069Z",
+  "generated_utc": "2026-11-22T03:17:21.852199Z",
   "status": "qualified_within_declared_scope",
   "external_production_cutover_authorized": false,
   "engine_identity": {
     "product": "MeguvizDexDash",
-    "version": "0.1.0-dev",
-    "build_id": "source-sha256:8829a2218df097d58ed1283c4c87429d283a815f54a9f132c0a7f2c9c42940a3",
-    "binary_sha256": "7a89484c6474b7fe4eb0bc8af97b813e56a0685511cc461b8bd16f54926c0053",
-    "mdd_ffi_release_sha256": "241d9cb3ed515ed5d3c5638fffbef030dbdd1b0a85828b697491e640af57332a",
+    "version": "1.2.2",
+    "build_id": "source-sha256:6724bd2a05aabfcdbd53cdcc03e6ec8b7388f5b1ad95d3e9eca9312bbd4459ec",
+    "binary_sha256": "e4aca051482b7b29ec66cefff3b91ac1a409b7c420ff69a71b847b29952eeb81",
+    "mdd_ffi_release_sha256": "6af059417015495682a8b139eb4d9d43566f6ca1fc8e61a3b067b2f12a768393",
     "rust_toolchain": "1.99.0",
-    "sqlite_version": "3.53.2"
+    "sqlite_version": "3.53.2",
+    "performance_evidence_baseline_build": {
+      "version": "0.1.0-dev",
+      "build_id": "source-sha256:8829a2218df097d58ed1283c4c87429d283a815f54a9f132c0a7f2c9c42940a3",
+      "binary_sha256": "7a89484c6474b7fe4eb0bc8af97b813e56a0685511cc461b8bd16f54926c0053",
+      "mdd_ffi_release_sha256": "241d9cb3ed515ed5d3c5638fffbef030dbdd1b0a85828b697491e640af57332a",
+      "code_delta_from_benchmarked_build": "Version metadata bump only (0.1.0-dev -> 1.2.2 in Cargo.toml, Cargo.lock, apps/desktop/Cargo.toml, apps/desktop/Cargo.lock, apps/desktop/tauri.conf.json); zero functional changes to Rust engine crates or Desktop UI/shell."
+    }
   },
   "profile_qualifications": {
     "hostlab-audit-v1": {
@@ -336,8 +343,8 @@
     }
   },
   "outputs_sha256": {
-    "artifacts/mdd-082/final-paired-performance.json": "e3f55e29b9bc75881cfe3a8908c1b7829b0d1e695b991b7e284002a6c6139db7",
-    "artifacts/mdd-082/compatibility-and-limitations.json": "f047ac2e7dd358f7c97828e5454bb9dc25b164cb06eab76fe64b8637b5187890"
+    "artifacts/mdd-082/final-paired-performance.json": "169f8ab0b9105101eefe217f63332ae58ce62fcc98400e8e765f7eafcc9872d5",
+    "artifacts/mdd-082/compatibility-and-limitations.json": "b98560e0dc788f5cd4924fd178484875fe2cfc765d6f73efd1edd4c85f9eab9b"
   },
   "all_passed": true
 }

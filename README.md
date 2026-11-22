@@ -2,7 +2,7 @@
 
 # MeguvizDexDash
 
-MeguvizDexDash 是面向桌面与服务端的 Rust DEX 静态分析引擎（当前版本 `0.1.0-dev`）。开发者既可以通过命令行与 MCP 服务检查 APK 和 DEX，也可以在 Rust、Python 或 C/C++ 应用中按需读取定义、代码布局、引用与资源数据。
+MeguvizDexDash 是面向桌面与服务端的 Rust DEX 静态分析引擎（当前版本 `1.2.2`）。开发者既可以通过命令行与 MCP 服务检查 APK 和 DEX，也可以在 Rust、Python 或 C/C++ 应用中按需读取定义、代码布局、引用与资源数据。
 
 ## 核心能力
 

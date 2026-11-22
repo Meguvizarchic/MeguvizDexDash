@@ -177,7 +177,7 @@ checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
 
 [[package]]
 name = "mdd-build-probe"
-version = "0.1.0-dev"
+version = "1.2.2"
 dependencies = [
  "getrandom",
  "rusqlite",
@@ -189,7 +189,7 @@ dependencies = [
 
 [[package]]
 name = "mdd-cache"
-version = "0.1.0-dev"
+version = "1.2.2"
 dependencies = [
  "getrandom",
  "mdd-dex",
@@ -207,7 +207,7 @@ dependencies = [
 
 [[package]]
 name = "mdd-cli"
-version = "0.1.0-dev"
+version = "1.2.2"
 dependencies = [
  "mdd-dex",
  "mdd-facts",
@@ -225,7 +225,7 @@ dependencies = [
 
 [[package]]
 name = "mdd-dex"
-version = "0.1.0-dev"
+version = "1.2.2"
 dependencies = [
  "mdd-types",
  "serde",
@@ -235,7 +235,7 @@ dependencies = [
 
 [[package]]
 name = "mdd-facts"
-version = "0.1.0-dev"
+version = "1.2.2"
 dependencies = [
  "mdd-dex",
  "mdd-input",
@@ -248,7 +248,7 @@ dependencies = [
 
 [[package]]
 name = "mdd-ffi"
-version = "0.1.0-dev"
+version = "1.2.2"
 dependencies = [
  "mdd-dex",
  "mdd-facts",
@@ -264,7 +264,7 @@ dependencies = [
 
 [[package]]
 name = "mdd-input"
-version = "0.1.0-dev"
+version = "1.2.2"
 dependencies = [
  "mdd-dex",
  "mdd-types",
@@ -278,7 +278,7 @@ dependencies = [
 
 [[package]]
 name = "mdd-mcp"
-version = "0.1.0-dev"
+version = "1.2.2"
 dependencies = [
  "mdd-facts",
  "mdd-service",
@@ -291,7 +291,7 @@ dependencies = [
 
 [[package]]
 name = "mdd-query"
-version = "0.1.0-dev"
+version = "1.2.2"
 dependencies = [
  "mdd-dex",
  "mdd-facts",
@@ -305,7 +305,7 @@ dependencies = [
 
 [[package]]
 name = "mdd-service"
-version = "0.1.0-dev"
+version = "1.2.2"
 dependencies = [
  "mdd-dex",
  "mdd-facts",
@@ -319,7 +319,7 @@ dependencies = [
 
 [[package]]
 name = "mdd-session"
-version = "0.1.0-dev"
+version = "1.2.2"
 dependencies = [
  "mdd-input",
  "mdd-types",
@@ -328,7 +328,7 @@ dependencies = [
 
 [[package]]
 name = "mdd-sql"
-version = "0.1.0-dev"
+version = "1.2.2"
 dependencies = [
  "log",
  "mdd-dex",
@@ -345,7 +345,7 @@ dependencies = [
 
 [[package]]
 name = "mdd-timing"
-version = "0.1.0-dev"
+version = "1.2.2"
 dependencies = [
  "mdd-dex",
  "mdd-facts",
@@ -356,7 +356,7 @@ dependencies = [
 
 [[package]]
 name = "mdd-types"
-version = "0.1.0-dev"
+version = "1.2.2"
 dependencies = [
  "getrandom",
  "serde",
@@ -366,7 +366,7 @@ dependencies = [
 
 [[package]]
 name = "mdd-wire"
-version = "0.1.0-dev"
+version = "1.2.2"
 dependencies = [
  "mdd-types",
  "serde_json",
@@ -374,7 +374,7 @@ dependencies = [
 
 [[package]]
 name = "mdd-worker"
-version = "0.1.0-dev"
+version = "1.2.2"
 dependencies = [
  "mdd-input",
  "mdd-session",

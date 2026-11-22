@@ -1,20 +1,22 @@
-# MeguvizDexDash `0.1.0-dev` 发布与资格说明（MDD-082 / MDD-083）
+# MeguvizDexDash `1.2.2` 发布与资格说明（MDD-082 / MDD-083）
 
 > **发布授权边界**：本仓库完成的是标准 DEX 候选发布包、资格清单（`conformance/manifests/release-qualification.json`）、SBOM 与可复验切换演练；**仓库进度存储与远端推送不构成外部生产切换或部署授权**，所有默认配置仍保持 `dexsql` / `legacy_independent` 显式opt-in 前的状态。
 
 ## 1. 发行身份与锁定依赖
 
 - **产品与命令**：`MeguvizDexDash`（CLI `meguvizdexdash`，工作区 crate 前缀 `mdd-`）
-- **核心版本与工具链**：引擎 `0.1.0-dev`，Rust `1.99.0`，SQLite `3.53.2`，`Cargo.lock` / `apps/desktop/Cargo.lock` / `requirements-dev.lock` 全锁定离线构建
-- **已验证 Windows Release 指纹（Wave 1.7d）**：
-  - `meguvizdexdash.exe`：`11,951,616` 字节，SHA-256 `7a89484c6474b7fe4eb0bc8af97b813e56a0685511cc461b8bd16f54926c0053`，`build_id = source-sha256:8829a2218df097d58ed1283c4c87429d283a815f54a9f132c0a7f2c9c42940a3`
-  - `mdd_ffi.dll`（C ABI `1.0`）：`8,359,936` 字节，SHA-256 `241d9cb3ed515ed5d3c5638fffbef030dbdd1b0a85828b697491e640af57332a`
-  - `meguvizdexdash-desktop-preview-0.1.0-dev-windows-x86_64.zip`：`7,881,162` 字节，SHA-256 `1e3c14e43518fc8ae33327527b5abce45e29871d1f09f9732f3ea28c7694cc3e`
+- **核心版本与工具链**：引擎 `1.2.2`（全工作区与桌面端包版本 `1.2.2`），Rust `1.99.0`，SQLite `3.53.2`，`Cargo.lock` / `apps/desktop/Cargo.lock` / `requirements-dev.lock` 全锁定离线构建
+- **已验证 Windows Release 指纹（`1.2.2`，仅版本元数据提升、零核心/桌面源码改动）**：
+  - `meguvizdexdash.exe`：`11,951,616` 字节，SHA-256 `e4aca051482b7b29ec66cefff3b91ac1a409b7c420ff69a71b847b29952eeb81`，`build_id = source-sha256:6724bd2a05aabfcdbd53cdcc03e6ec8b7388f5b1ad95d3e9eca9312bbd4459ec`
+  - `mdd_ffi.dll`（C ABI `1.0`）：`8,359,936` 字节，SHA-256 `6af059417015495682a8b139eb4d9d43566f6ca1fc8e61a3b067b2f12a768393`
+  - `meguvizdexdash-desktop-preview-1.2.2-windows-x86_64.zip`：`7,881,240` 字节，SHA-256 `8ae37b7ccc02c6c5680b34315c57e672628fc427c413b94e52a07a105107589b`（`15/15` 真实 Windows WebView2 流程通过）
 - **双平台构建说明**：Windows `x86_64` 与 Linux Ubuntu 24.04 `x86_64` 可分别由源码及锁文件独立复现并在 `MDD-080` 全部 5 项标准负载上产出逐字节一致的规范输出（`overall_canonical_sha256 = eb1deaaa26fc0836a1ba064c362cb224a350e5caf5439ae3b775a9c4af05838e`）；跨机器归档包装字节不强求相同，各平台独立校验对应清单元数据。
 
 ## 2. 核心性能、内存与桌面体验升级（MDD-060 / MDD-061 / MDD-062 / MDD-064 / MDD-066）
 
 ### 2.1 同环境配对性能成绩（独占测量窗口，0 污染 / 0 排除配对 / 0 Fallback）
+
+> 性能基线沿用说明：下表同环境配对性能与峰值内存测量采自 `0.1.0-dev` Wave 1.7d 基线构建（`meguvizdexdash.exe` SHA-256 `7a89484c6474b7fe4eb0bc8af97b813e56a0685511cc461b8bd16f54926c0053`，`build_id = source-sha256:8829a2218df097d58ed1283c4c87429d283a815f54a9f132c0a7f2c9c42940a3`）。`1.2.2` 仅修改包版本元数据与发行清单（零 Rust 核心或 UI 代码改动），且已以 `1.2.2` 实测完成 `MDD-082` / `MDD-083` / `15/15` WebView2 与 63/63 CI 一致性核验。
 
 在 `MDD-060` 排除不具备完整端到端资格的 `candidate A2`（`offset + limit > 100000` 拒绝，且缺不可变快照绑定与 HostLab 消费适配）后，以实测最快的合格现成引擎 `A1`（`dexsql 0.1.1`）为基准，`B1` 在校准阈值（关键负载降时 `>= 10%`、其余守护负载退化 `<= 5%`）下全项达标：
 

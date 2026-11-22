@@ -1826,7 +1826,7 @@ dependencies = [
 
 [[package]]
 name = "mdd-desktop"
-version = "0.1.0-dev"
+version = "1.2.2"
 dependencies = [
  "serde",
  "serde_json",

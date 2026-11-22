@@ -1,7 +1,7 @@
 {
   "schema_version": "mdd.final-paired-performance.v1",
   "task_id": "MDD-082",
-  "generated_utc": "2026-11-21T22:46:47.613069Z",
+  "generated_utc": "2026-11-22T03:17:21.852199Z",
   "engine": {
     "product": "MeguvizDexDash",
     "version": "0.1.0-dev",
@@ -11,6 +11,12 @@
       "A0_sha256": "f354ebcf715de9a66ef8ebe08b2b36807ab58e25cd5a1c0812e497fc1fcfc448",
       "A1_sha256": "602105c98232120c14d6124fb33574f2f95f12e50e51d25b8834f893925f28d6",
       "A2_disposition": "excluded_unqualified_see_mdd060"
+    },
+    "release_version_carryover": {
+      "version": "1.2.2",
+      "build_id": "source-sha256:6724bd2a05aabfcdbd53cdcc03e6ec8b7388f5b1ad95d3e9eca9312bbd4459ec",
+      "binary_sha256": "e4aca051482b7b29ec66cefff3b91ac1a409b7c420ff69a71b847b29952eeb81",
+      "code_delta_from_benchmarked_build": "Version metadata bump only (0.1.0-dev -> 1.2.2 in Cargo.toml, Cargo.lock, apps/desktop/Cargo.toml, apps/desktop/Cargo.lock, apps/desktop/tauri.conf.json); zero functional changes to Rust engine crates or Desktop UI/shell."
     }
   },
   "calibration_policy": {

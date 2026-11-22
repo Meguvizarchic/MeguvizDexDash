@@ -21,7 +21,7 @@
         "artifacts/mdd-062/gate-equivalence-and-timing.json",
         "artifacts/mdd-082/final-paired-performance.json"
       ],
-      "conformance_manifest_sha256": "b2263d4faa3a937b93663c8460e833ef25aad6e45b1dec7dd9c550e2a62d0f7b",
+      "conformance_manifest_sha256": "4d3320425c917a4c8e8db4699d985c1d10c98d68bb6f8238803f9883856a5904",
       "admission_policy": "qualified_in_release_manifest_runtime_admitted_false_until_external_cutover_authorization"
     },
     {
@@ -40,7 +40,7 @@
         "artifacts/mdd-081/fault-and-soak-results.json",
         "artifacts/mdd-082/final-paired-performance.json"
       ],
-      "conformance_manifest_sha256": "b2263d4faa3a937b93663c8460e833ef25aad6e45b1dec7dd9c550e2a62d0f7b",
+      "conformance_manifest_sha256": "4d3320425c917a4c8e8db4699d985c1d10c98d68bb6f8238803f9883856a5904",
       "admission_policy": "qualified_in_release_manifest_runtime_admitted_false_until_external_cutover_authorization"
     },
     {
@@ -54,7 +54,7 @@
         "artifacts/mdd-072/twelve-tool-conformance.json",
         "artifacts/mdd-082/compatibility-and-limitations.json"
       ],
-      "conformance_manifest_sha256": "b2263d4faa3a937b93663c8460e833ef25aad6e45b1dec7dd9c550e2a62d0f7b",
+      "conformance_manifest_sha256": "4d3320425c917a4c8e8db4699d985c1d10c98d68bb6f8238803f9883856a5904",
       "admission_policy": "qualified_in_release_manifest_runtime_admitted_false_until_external_cutover_authorization"
     },
     {
@@ -68,7 +68,7 @@
         "artifacts/mdd-072/twelve-tool-conformance.json",
         "artifacts/mdd-082/compatibility-and-limitations.json"
       ],
-      "conformance_manifest_sha256": "b2263d4faa3a937b93663c8460e833ef25aad6e45b1dec7dd9c550e2a62d0f7b",
+      "conformance_manifest_sha256": "4d3320425c917a4c8e8db4699d985c1d10c98d68bb6f8238803f9883856a5904",
       "admission_policy": "qualified_in_release_manifest_runtime_admitted_false_until_external_cutover_authorization"
     }
   ],
@@ -665,7 +665,7 @@
     "mdd_074_optional_formats": "DEX 041 container verified optional off-by-default; external display-only provider isolated & disabled by default; cdex/vdex/oat/split-bundle/protobuf-resources fail closed.",
     "mdd_080_cross_platform": "Windows x86_64 and Linux x86_64 verified identical on 5/5 canonical digests; macOS & ARM64 remain unadmitted.",
     "mdd_081_fault_soak": "9 joint fault injection classes + 27-round soak passed with 0 leaked processes/handles/temp files.",
-    "mdd_082_release_qualification": "Issued conformance/manifests/release-qualification.json, artifacts/mdd-082/final-paired-performance.json, and artifacts/mdd-082/compatibility-and-limitations.json; repository qualification does not authorize external cutover.",
+    "mdd_082_release_qualification": "Issued release version 1.2.2 (carries over 0.1.0-dev Wave 1.7d paired benchmark qualification with zero functional code changes) in conformance/manifests/release-qualification.json, artifacts/mdd-082/final-paired-performance.json, and artifacts/mdd-082/compatibility-and-limitations.json; repository qualification does not authorize external cutover.",
     "all_profiles_qualified": true,
     "runtime_admission_policy": "All 4 standard DEX profiles are status=qualified with pinned conformance_manifest_sha256; ledger and compiled binaries keep admitted=false while external_production_cutover_authorized=false."
   }

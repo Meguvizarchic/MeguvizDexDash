@@ -170,7 +170,7 @@ dependencies = [
 
 [[package]]
 name = "mdd-dex"
-version = "0.1.0-dev"
+version = "1.2.2"
 dependencies = [
  "mdd-types",
  "serde",
@@ -179,7 +179,7 @@ dependencies = [
 
 [[package]]
 name = "mdd-input"
-version = "0.1.0-dev"
+version = "1.2.2"
 dependencies = [
  "mdd-types",
  "quick-xml",
@@ -202,7 +202,7 @@ dependencies = [
 
 [[package]]
 name = "mdd-types"
-version = "0.1.0-dev"
+version = "1.2.2"
 dependencies = [
  "getrandom",
  "serde",

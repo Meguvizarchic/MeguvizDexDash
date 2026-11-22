@@ -1,16 +1,16 @@
 {
   "schema_version": "mdd.release-rehearsal.v1",
   "task_id": "MDD-083",
-  "generated_utc": "2026-11-21T22:46:47.807377Z",
+  "generated_utc": "2026-11-22T03:17:29.586469Z",
   "platform": "windows-x86_64",
   "external_release_published": false,
   "dist_sha256sums_verified": true,
   "dist_files_count": 6,
   "cutover_and_rollback_rehearsal": {
     "engine_pin": {
-      "engine_version": "0.1.0-dev",
-      "build_id": "source-sha256:8829a2218df097d58ed1283c4c87429d283a815f54a9f132c0a7f2c9c42940a3",
-      "binary_sha256": "7a89484c6474b7fe4eb0bc8af97b813e56a0685511cc461b8bd16f54926c0053",
+      "engine_version": "1.2.2",
+      "build_id": "source-sha256:6724bd2a05aabfcdbd53cdcc03e6ec8b7388f5b1ad95d3e9eca9312bbd4459ec",
+      "binary_sha256": "e4aca051482b7b29ec66cefff3b91ac1a409b7c420ff69a71b847b29952eeb81",
       "platform": "Windows/AMD64"
     },
     "fixture": {
@@ -65,14 +65,14 @@
       },
       "reconstructed_provenance": {
         "backend": "meguvizdexdash",
-        "engine_version": "0.1.0-dev",
-        "build_id": "source-sha256:8829a2218df097d58ed1283c4c87429d283a815f54a9f132c0a7f2c9c42940a3",
-        "binary_sha256": "7a89484c6474b7fe4eb0bc8af97b813e56a0685511cc461b8bd16f54926c0053",
+        "engine_version": "1.2.2",
+        "build_id": "source-sha256:6724bd2a05aabfcdbd53cdcc03e6ec8b7388f5b1ad95d3e9eca9312bbd4459ec",
+        "binary_sha256": "e4aca051482b7b29ec66cefff3b91ac1a409b7c420ff69a71b847b29952eeb81",
         "profile": "mdd-native-v1",
         "profile_admitted": false,
         "dialect": "dexsql-0.1.0",
-        "config_digest": "57767ddedc9236676a36e9bb2b119dd9c374ee748b0f5fc1e832c3683c7530b6",
-        "run_id": "eb339b381472af758c805658431bf29d",
+        "config_digest": "3d2fe61fe7681f60e46eaa10170c7d0b71e5aa380edd5df8e0915cd7881a63c8",
+        "run_id": "203624b4f6b8838773174e0530ebf9da",
         "source_sha256": "6b88277747a49dfddcc91900c171ae6420449cc424d57ffd46f896891ad26098",
         "fallback_count": 0
       },
@@ -99,12 +99,12 @@
   },
   "c_abi_release_dll_smoke": {
     "passed": true,
-    "library_sha256": "241d9cb3ed515ed5d3c5638fffbef030dbdd1b0a85828b697491e640af57332a",
+    "library_sha256": "6af059417015495682a8b139eb4d9d43566f6ca1fc8e61a3b067b2f12a768393",
     "abi_major": 1,
     "abi_minor": 0,
     "row_count": 1,
     "live_handles_after_close": 0,
-    "canonical_sha256": "236fe7da3181079c96eea6df09ff8c714b3ff0104578a7054ed259e655a7d8a2"
+    "canonical_sha256": "980d25d3da35627b076cdb09d22e07af2977a34b3b5005c750d194a014f6af08"
   },
   "upgrade_migration_and_cache_isolation": {
     "m5_b0_vs_m8_b1_equal": true,
@@ -117,8 +117,8 @@
     "cross_engine_resume_reason": "checkpoint_engine_identity_changed"
   },
   "desktop_webview2_release_check": {
-    "archive": "meguvizdexdash-desktop-preview-0.1.0-dev-windows-x86_64.zip",
-    "archive_sha256": "1e3c14e43518fc8ae33327527b5abce45e29871d1f09f9732f3ea28c7694cc3e",
+    "archive": "meguvizdexdash-desktop-preview-1.2.2-windows-x86_64.zip",
+    "archive_sha256": "8ae37b7ccc02c6c5680b34315c57e672628fc427c413b94e52a07a105107589b",
     "flows_passed": 15,
     "flows_failed": 0
   },

@@ -2,7 +2,7 @@
 
 ## 1. 工作区结构与工具链基线
 
-- **版本与语言**：`0.1.0-dev`（`edition = "2024"`、`rust-version = "1.99"`、`publish = false`）
+- **版本与语言**：`1.2.2`（`edition = "2024"`、`rust-version = "1.99"`、`publish = false`）
 - **固定工具链**：`rust-toolchain.toml` 锁定 Rust **`1.99.0`**（`profile = "minimal"`，`components = ["clippy", "rustfmt"]`）
 - **Profile 状态**：`capabilities` 中所有 profile（如 `mdd-native-v1`、`mdd-header-inspection-dev-v1`）当前 `admitted` 均为 `false`，仅用于独立分析与功能预览，不可替代已认证的 HostLab DexSQL 生产环境。
 

@@ -12,8 +12,8 @@
     "native_engine": "meguvizdexdash",
     "meguvizdexdash": {
       "manifest": "<STATE_ROOT>/vendor/meguvizdexdash/manifest.json",
-      "expected_binary_sha256": "7a89484c6474b7fe4eb0bc8af97b813e56a0685511cc461b8bd16f54926c0053",
-      "expected_build_id": "source-sha256:8829a2218df097d58ed1283c4c87429d283a815f54a9f132c0a7f2c9c42940a3",
+      "expected_binary_sha256": "e4aca051482b7b29ec66cefff3b91ac1a409b7c420ff69a71b847b29952eeb81",
+      "expected_build_id": "source-sha256:6724bd2a05aabfcdbd53cdcc03e6ec8b7388f5b1ad95d3e9eca9312bbd4459ec",
       "dialect": "dexsql-0.1.0",
       "profile": "hostlab-audit-v1",
       "profile_policy": "allow_unadmitted",

@@ -1,40 +1,40 @@
 {
   "schema_version": "mdd.release-manifest.v1",
   "task_id": "MDD-083",
-  "generated_utc": "2026-11-21T22:46:47.807377Z",
+  "generated_utc": "2026-11-22T03:17:29.586469Z",
   "product": "MeguvizDexDash",
-  "version": "0.1.0-dev",
+  "version": "1.2.2",
   "external_release_published": false,
   "release_qualification_manifest": {
     "path": "conformance/manifests/release-qualification.json",
-    "sha256": "b2263d4faa3a937b93663c8460e833ef25aad6e45b1dec7dd9c550e2a62d0f7b"
+    "sha256": "4d3320425c917a4c8e8db4699d985c1d10c98d68bb6f8238803f9883856a5904"
   },
   "compatibility_ledger": {
     "path": "compatibility/ledger.json",
-    "sha256": "caea37f1c0faeb7ba71f5605d021272c82464ee7767e97f594d4087709c7a1ac"
+    "sha256": "a89da8015dd213051c3f90602a6d28c859a3e5d98206f5c378241514131efd2f"
   },
   "toolchain_and_lockfiles": {
     "rust-toolchain.toml": "b2c19d86958ed6810741488db5cd352856f303c53bcf0ea774e72f94ee4d201e",
-    "Cargo.lock": "044361cbb4c154c297dfa8901a097945ae55804636c1c91927abafc5c06e3174",
-    "apps/desktop/Cargo.lock": "909c53e7a60726b4387cbc4f7580c0b63cd1b836ebd0526a13628d32f1243ccd",
+    "Cargo.lock": "68da117a09c44285cd4634412ec5cb0b823f32ca59a39cb8956a7d5e28c65c25",
+    "apps/desktop/Cargo.lock": "06b0b78397beb2a05b4323eefbc41f2853bb80dc9534204f1df11fd515c6894b",
     "requirements-dev.lock": "3107420d2bf63c170ce47025f3738f8c6d0f9a927a70912affb5e194f5ba1048"
   },
   "verified_windows_x86_64_release_artifacts": {
     "cli_binary": {
       "filename": "meguvizdexdash.exe",
       "bytes": 11951616,
-      "sha256": "7a89484c6474b7fe4eb0bc8af97b813e56a0685511cc461b8bd16f54926c0053",
-      "build_id": "source-sha256:8829a2218df097d58ed1283c4c87429d283a815f54a9f132c0a7f2c9c42940a3"
+      "sha256": "e4aca051482b7b29ec66cefff3b91ac1a409b7c420ff69a71b847b29952eeb81",
+      "build_id": "source-sha256:6724bd2a05aabfcdbd53cdcc03e6ec8b7388f5b1ad95d3e9eca9312bbd4459ec"
     },
     "c_abi_shared_library": {
       "filename": "mdd_ffi.dll",
       "bytes": 8359936,
-      "sha256": "241d9cb3ed515ed5d3c5638fffbef030dbdd1b0a85828b697491e640af57332a"
+      "sha256": "6af059417015495682a8b139eb4d9d43566f6ca1fc8e61a3b067b2f12a768393"
     },
     "desktop_portable_zip": {
-      "filename": "meguvizdexdash-desktop-preview-0.1.0-dev-windows-x86_64.zip",
-      "bytes": 7881162,
-      "sha256": "1e3c14e43518fc8ae33327527b5abce45e29871d1f09f9732f3ea28c7694cc3e",
+      "filename": "meguvizdexdash-desktop-preview-1.2.2-windows-x86_64.zip",
+      "bytes": 7881240,
+      "sha256": "8ae37b7ccc02c6c5680b34315c57e672628fc427c413b94e52a07a105107589b",
       "webview_flows_passed": 15
     },
     "reproduction_commands": [
@@ -58,7 +58,7 @@
     ]
   },
   "docs": {
-    "docs/RELEASE_NOTES.md": "5efa714a95abc57410d8a30a31ba3a0cdf0cd685cbbffb54fb73bbf7569ecf26",
+    "docs/RELEASE_NOTES.md": "f19cbc8332aac61b8c13fcc94ce41d071a7c9980941f46b69b7aae74ebf2cd63",
     "docs/OPERATIONS_AND_ROLLBACK.md": "6f527505e21d02e33fce93c5151a8dcfb4f9d6443b49fe0026a466663b23c490"
   }
 }

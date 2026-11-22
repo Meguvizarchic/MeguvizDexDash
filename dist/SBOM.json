@@ -3,11 +3,11 @@
   "specVersion": "1.5",
   "version": 1,
   "metadata": {
-    "timestamp": "2026-11-21T22:46:47.807377Z",
+    "timestamp": "2026-11-22T03:17:29.586469Z",
     "component": {
       "type": "application",
       "name": "MeguvizDexDash",
-      "version": "0.1.0-dev"
+      "version": "1.2.2"
     },
     "tools": [
       {
@@ -22,11 +22,11 @@
       },
       {
         "name": "mdd:cargo_lock_sha256",
-        "value": "044361cbb4c154c297dfa8901a097945ae55804636c1c91927abafc5c06e3174"
+        "value": "68da117a09c44285cd4634412ec5cb0b823f32ca59a39cb8956a7d5e28c65c25"
       },
       {
         "name": "mdd:desktop_cargo_lock_sha256",
-        "value": "909c53e7a60726b4387cbc4f7580c0b63cd1b836ebd0526a13628d32f1243ccd"
+        "value": "06b0b78397beb2a05b4323eefbc41f2853bb80dc9534204f1df11fd515c6894b"
       },
       {
         "name": "mdd:requirements_dev_lock_sha256",
@@ -616,8 +616,8 @@
     {
       "type": "library",
       "name": "mdd-build-probe",
-      "version": "0.1.0-dev",
-      "purl": "pkg:cargo/mdd-build-probe@0.1.0-dev",
+      "version": "1.2.2",
+      "purl": "pkg:cargo/mdd-build-probe@1.2.2",
       "properties": [
         {
           "name": "mdd:lockfile",
@@ -636,8 +636,8 @@
     {
       "type": "library",
       "name": "mdd-cache",
-      "version": "0.1.0-dev",
-      "purl": "pkg:cargo/mdd-cache@0.1.0-dev",
+      "version": "1.2.2",
+      "purl": "pkg:cargo/mdd-cache@1.2.2",
       "properties": [
         {
           "name": "mdd:lockfile",
@@ -656,8 +656,8 @@
     {
       "type": "library",
       "name": "mdd-cli",
-      "version": "0.1.0-dev",
-      "purl": "pkg:cargo/mdd-cli@0.1.0-dev",
+      "version": "1.2.2",
+      "purl": "pkg:cargo/mdd-cli@1.2.2",
       "properties": [
         {
           "name": "mdd:lockfile",
@@ -676,8 +676,8 @@
     {
       "type": "library",
       "name": "mdd-dex",
-      "version": "0.1.0-dev",
-      "purl": "pkg:cargo/mdd-dex@0.1.0-dev",
+      "version": "1.2.2",
+      "purl": "pkg:cargo/mdd-dex@1.2.2",
       "properties": [
         {
           "name": "mdd:lockfile",
@@ -696,8 +696,8 @@
     {
       "type": "library",
       "name": "mdd-facts",
-      "version": "0.1.0-dev",
-      "purl": "pkg:cargo/mdd-facts@0.1.0-dev",
+      "version": "1.2.2",
+      "purl": "pkg:cargo/mdd-facts@1.2.2",
       "properties": [
         {
           "name": "mdd:lockfile",
@@ -716,8 +716,8 @@
     {
       "type": "library",
       "name": "mdd-ffi",
-      "version": "0.1.0-dev",
-      "purl": "pkg:cargo/mdd-ffi@0.1.0-dev",
+      "version": "1.2.2",
+      "purl": "pkg:cargo/mdd-ffi@1.2.2",
       "properties": [
         {
           "name": "mdd:lockfile",
@@ -736,8 +736,8 @@
     {
       "type": "library",
       "name": "mdd-input",
-      "version": "0.1.0-dev",
-      "purl": "pkg:cargo/mdd-input@0.1.0-dev",
+      "version": "1.2.2",
+      "purl": "pkg:cargo/mdd-input@1.2.2",
       "properties": [
         {
           "name": "mdd:lockfile",
@@ -756,8 +756,8 @@
     {
       "type": "library",
       "name": "mdd-mcp",
-      "version": "0.1.0-dev",
-      "purl": "pkg:cargo/mdd-mcp@0.1.0-dev",
+      "version": "1.2.2",
+      "purl": "pkg:cargo/mdd-mcp@1.2.2",
       "properties": [
         {
           "name": "mdd:lockfile",
@@ -776,8 +776,8 @@
     {
       "type": "library",
       "name": "mdd-query",
-      "version": "0.1.0-dev",
-      "purl": "pkg:cargo/mdd-query@0.1.0-dev",
+      "version": "1.2.2",
+      "purl": "pkg:cargo/mdd-query@1.2.2",
       "properties": [
         {
           "name": "mdd:lockfile",
@@ -796,8 +796,8 @@
     {
       "type": "library",
       "name": "mdd-service",
-      "version": "0.1.0-dev",
-      "purl": "pkg:cargo/mdd-service@0.1.0-dev",
+      "version": "1.2.2",
+      "purl": "pkg:cargo/mdd-service@1.2.2",
       "properties": [
         {
           "name": "mdd:lockfile",
@@ -816,8 +816,8 @@
     {
       "type": "library",
       "name": "mdd-session",
-      "version": "0.1.0-dev",
-      "purl": "pkg:cargo/mdd-session@0.1.0-dev",
+      "version": "1.2.2",
+      "purl": "pkg:cargo/mdd-session@1.2.2",
       "properties": [
         {
           "name": "mdd:lockfile",
@@ -836,8 +836,8 @@
     {
       "type": "library",
       "name": "mdd-sql",
-      "version": "0.1.0-dev",
-      "purl": "pkg:cargo/mdd-sql@0.1.0-dev",
+      "version": "1.2.2",
+      "purl": "pkg:cargo/mdd-sql@1.2.2",
       "properties": [
         {
           "name": "mdd:lockfile",
@@ -856,8 +856,8 @@
     {
       "type": "library",
       "name": "mdd-timing",
-      "version": "0.1.0-dev",
-      "purl": "pkg:cargo/mdd-timing@0.1.0-dev",
+      "version": "1.2.2",
+      "purl": "pkg:cargo/mdd-timing@1.2.2",
       "properties": [
         {
           "name": "mdd:lockfile",
@@ -876,8 +876,8 @@
     {
       "type": "library",
       "name": "mdd-types",
-      "version": "0.1.0-dev",
-      "purl": "pkg:cargo/mdd-types@0.1.0-dev",
+      "version": "1.2.2",
+      "purl": "pkg:cargo/mdd-types@1.2.2",
       "properties": [
         {
           "name": "mdd:lockfile",
@@ -896,8 +896,8 @@
     {
       "type": "library",
       "name": "mdd-wire",
-      "version": "0.1.0-dev",
-      "purl": "pkg:cargo/mdd-wire@0.1.0-dev",
+      "version": "1.2.2",
+      "purl": "pkg:cargo/mdd-wire@1.2.2",
       "properties": [
         {
           "name": "mdd:lockfile",
@@ -916,8 +916,8 @@
     {
       "type": "library",
       "name": "mdd-worker",
-      "version": "0.1.0-dev",
-      "purl": "pkg:cargo/mdd-worker@0.1.0-dev",
+      "version": "1.2.2",
+      "purl": "pkg:cargo/mdd-worker@1.2.2",
       "properties": [
         {
           "name": "mdd:lockfile",
@@ -6292,8 +6292,8 @@
     {
       "type": "library",
       "name": "mdd-desktop",
-      "version": "0.1.0-dev",
-      "purl": "pkg:cargo/mdd-desktop@0.1.0-dev",
+      "version": "1.2.2",
+      "purl": "pkg:cargo/mdd-desktop@1.2.2",
       "properties": [
         {
           "name": "mdd:lockfile",

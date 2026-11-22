@@ -42,6 +42,24 @@ async function runSql(app, sql, { limit } = {}) {
   await app.waitFor(`!!document.querySelector('#query-result table.grid') || !!document.querySelector('#query-result .error-box')`, { what: 'a result or an error', timeout: 60_000 });
 }
 
+async function applyEngineButton(app, selector, { expectToast = false } = {}) {
+  await app.waitFor(
+    `document.querySelector('#busy-text')?.textContent?.trim() === '空闲'`,
+    { what: 'the engine to be idle before applying settings' },
+  );
+  await app.eval(
+    `(() => { const el = document.querySelector('#engine-settings') || document.querySelector(${JSON.stringify(selector)}); if (el) el.dataset.e2eGen = 'prev'; })()`,
+  );
+  await app.click(selector);
+  if (expectToast) {
+    await app.waitFor(`!!document.querySelector('.toast')`, { what: 'the settings toast' });
+  }
+  await app.waitFor(
+    `(() => { const el = document.querySelector('#engine-settings') || document.querySelector(${JSON.stringify(selector)}); return el?.dataset?.e2eGen !== 'prev' && document.querySelector('#busy-text')?.textContent?.trim() === '空闲'; })()`,
+    { what: 'the engine settings update and re-render to settle' },
+  );
+}
+
 const pagerText = (app) => app.text('#query-result .pager [data-complete]');
 const pagerComplete = (app) => app.eval(`document.querySelector('#query-result .pager [data-complete]')?.dataset.complete`);
 const firstCell = (app) => app.text('#query-result tbody tr:first-child td:first-child');
@@ -137,9 +155,7 @@ export const flows = {
 
     await nav(app, 'engine');
     await app.type('#set-steps', '2000');
-    await app.click('#apply-settings');
-    await app.waitFor(`!!document.querySelector('.toast')`, { what: 'the settings toast' });
-    await sleep(500);
+    await applyEngineButton(app, '#apply-settings', { expectToast: true });
     await runSql(app, THREE_WAY);
     const budget = await app.eval(`document.querySelector('#query-result .error-box')?.dataset.code`);
     check('an exhausted budget is QUOTA_EXCEEDED', budget === 'QUOTA_EXCEEDED', budget);
@@ -149,13 +165,11 @@ export const flows = {
     check('no rows are shown', await count(app, '#query-result tbody tr') === 0);
 
     await nav(app, 'engine');
-    await app.click('#reset-settings');
-    await sleep(800);
+    await applyEngineButton(app, '#reset-settings');
     await nav(app, 'engine');
     check('the step budget field is empty after the reset', (await app.eval(`document.querySelector('#set-steps').value`)) === '');
     await app.type('#set-steps', '200000000');
-    await app.click('#apply-settings');
-    await sleep(800);
+    await applyEngineButton(app, '#apply-settings');
     await runSql(app, THREE_WAY, { limit: 50 });
     check('the same query works with a roomy budget', await count(app, '#query-result tbody tr') === 50);
   },
@@ -166,9 +180,7 @@ export const flows = {
     await nav(app, 'engine');
     await app.type('#set-steps', '4000000000');
     await app.type('#set-scanned', '40000000000');
-    await app.click('#apply-settings');
-    await app.waitFor(`!!document.querySelector('.toast')`, { what: 'the settings toast' });
-    await sleep(800);
+    await applyEngineButton(app, '#apply-settings', { expectToast: true });
     await nav(app, 'query');
     await app.type('#sql', HEAVY);
     await app.click('#run-query');

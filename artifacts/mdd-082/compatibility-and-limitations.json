@@ -1,10 +1,15 @@
 {
   "schema_version": "mdd.compatibility-and-limitations.v1",
   "task_id": "MDD-082",
-  "generated_utc": "2026-11-21T22:46:47.613069Z",
-  "engine_version": "0.1.0-dev",
-  "engine_build_id": "source-sha256:8829a2218df097d58ed1283c4c87429d283a815f54a9f132c0a7f2c9c42940a3",
-  "engine_binary_sha256": "7a89484c6474b7fe4eb0bc8af97b813e56a0685511cc461b8bd16f54926c0053",
+  "generated_utc": "2026-11-22T03:17:21.852199Z",
+  "engine_version": "1.2.2",
+  "engine_build_id": "source-sha256:6724bd2a05aabfcdbd53cdcc03e6ec8b7388f5b1ad95d3e9eca9312bbd4459ec",
+  "engine_binary_sha256": "e4aca051482b7b29ec66cefff3b91ac1a409b7c420ff69a71b847b29952eeb81",
+  "performance_evidence_baseline_build": {
+    "version": "0.1.0-dev",
+    "build_id": "source-sha256:8829a2218df097d58ed1283c4c87429d283a815f54a9f132c0a7f2c9c42940a3",
+    "binary_sha256": "7a89484c6474b7fe4eb0bc8af97b813e56a0685511cc461b8bd16f54926c0053"
+  },
   "admitted_surfaces": {
     "standard_dex_formats": [
       "dex-035",

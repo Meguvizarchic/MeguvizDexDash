@@ -6,7 +6,10 @@ import argparse
 import datetime
 import hashlib
 import json
+import os
+import subprocess
 import sys
+import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -124,6 +127,28 @@ def _load_json(rel: str) -> dict[str, Any]:
     return validator.parse_strict_json(path.read_text(encoding="utf-8"))
 
 
+def _workspace_version() -> str:
+    doc = tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))
+    ver = doc.get("workspace", {}).get("package", {}).get("version")
+    require(isinstance(ver, str) and bool(ver), "missing [workspace.package].version in Cargo.toml")
+    return ver
+
+
+def _probe_release_engine_identity(expected_version: str) -> tuple[str, str, str, str]:
+    exe_name = "meguvizdexdash.exe" if os.name == "nt" else "meguvizdexdash"
+    ffi_name = "mdd_ffi.dll" if os.name == "nt" else "libmdd_ffi.so"
+    cli_bin = (ROOT / "target/release" / exe_name).resolve(strict=True)
+    ffi_bin = (ROOT / "target/release" / ffi_name).resolve(strict=True)
+    done = subprocess.run([str(cli_bin), "version"], cwd=ROOT, capture_output=True, text=True, check=False)
+    require(done.returncode == 0, f"release binary version command failed: {done.stderr or done.stdout}")
+    ver_doc = validator.parse_strict_json(done.stdout)
+    ver = str(ver_doc.get("engine_version", ""))
+    build_id = str(ver_doc.get("build_id", ""))
+    require(ver == expected_version, f"release engine_version {ver!r} != Cargo.toml {expected_version!r}")
+    require(build_id.startswith("source-sha256:"), f"unexpected release build_id: {build_id!r}")
+    return ver, build_id, sha256_file(cli_bin), sha256_file(ffi_bin)
+
+
 def _write_clean_json(path: Path, payload: dict[str, Any], *, label: str, check_redaction: bool = True) -> str:
     if check_redaction:
         validator.validate_public_redaction(payload)
@@ -169,6 +194,13 @@ def generate() -> dict[str, Any]:
     a0_sha = reg["engine_binaries_sha256"]["A0"]
     build_id = m66["engine"]["build_id"]
     mdd_ffi_sha = m66["engine"].get("mdd_ffi_release_sha256")
+    ws_ver = _workspace_version()
+    rel_ver, rel_build_id, rel_cli_sha, rel_ffi_sha = _probe_release_engine_identity(ws_ver)
+    carryover_note = (
+        f"Version metadata bump only (0.1.0-dev -> {ws_ver} in Cargo.toml, Cargo.lock, "
+        "apps/desktop/Cargo.toml, apps/desktop/Cargo.lock, apps/desktop/tauri.conf.json); "
+        "zero functional changes to Rust engine crates or Desktop UI/shell."
+    )
     generated_utc = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
 
     key_summary: dict[str, Any] = {}
@@ -234,6 +266,12 @@ def generate() -> dict[str, Any]:
             "build_id": build_id,
             "binary_sha256": b1_sha,
             "baselines": {"A0_sha256": a0_sha, "A1_sha256": a1_sha, "A2_disposition": "excluded_unqualified_see_mdd060"},
+            "release_version_carryover": {
+                "version": rel_ver,
+                "build_id": rel_build_id,
+                "binary_sha256": rel_cli_sha,
+                "code_delta_from_benchmarked_build": carryover_note,
+            },
         },
         "calibration_policy": {
             "source": UPSTREAM_RECORDS["MDD-060-calibration"],
@@ -270,9 +308,14 @@ def generate() -> dict[str, Any]:
         "schema_version": "mdd.compatibility-and-limitations.v1",
         "task_id": "MDD-082",
         "generated_utc": generated_utc,
-        "engine_version": "0.1.0-dev",
-        "engine_build_id": build_id,
-        "engine_binary_sha256": b1_sha,
+        "engine_version": rel_ver,
+        "engine_build_id": rel_build_id,
+        "engine_binary_sha256": rel_cli_sha,
+        "performance_evidence_baseline_build": {
+            "version": "0.1.0-dev",
+            "build_id": build_id,
+            "binary_sha256": b1_sha,
+        },
         "admitted_surfaces": {
             "standard_dex_formats": m74["standard_core_admitted_formats"],
             "hostlab_required_relations": 17,
@@ -323,12 +366,19 @@ def generate() -> dict[str, Any]:
         "external_production_cutover_authorized": False,
         "engine_identity": {
             "product": "MeguvizDexDash",
-            "version": "0.1.0-dev",
-            "build_id": build_id,
-            "binary_sha256": b1_sha,
-            "mdd_ffi_release_sha256": mdd_ffi_sha,
+            "version": rel_ver,
+            "build_id": rel_build_id,
+            "binary_sha256": rel_cli_sha,
+            "mdd_ffi_release_sha256": rel_ffi_sha,
             "rust_toolchain": "1.99.0",
             "sqlite_version": "3.53.2",
+            "performance_evidence_baseline_build": {
+                "version": "0.1.0-dev",
+                "build_id": build_id,
+                "binary_sha256": b1_sha,
+                "mdd_ffi_release_sha256": mdd_ffi_sha,
+                "code_delta_from_benchmarked_build": carryover_note,
+            },
         },
         "profile_qualifications": {
             "hostlab-audit-v1": {
@@ -494,7 +544,9 @@ def generate() -> dict[str, Any]:
     dev_scope["mdd_074_optional_formats"] = "DEX 041 container verified optional off-by-default; external display-only provider isolated & disabled by default; cdex/vdex/oat/split-bundle/protobuf-resources fail closed."
     dev_scope["mdd_080_cross_platform"] = "Windows x86_64 and Linux x86_64 verified identical on 5/5 canonical digests; macOS & ARM64 remain unadmitted."
     dev_scope["mdd_081_fault_soak"] = "9 joint fault injection classes + 27-round soak passed with 0 leaked processes/handles/temp files."
-    dev_scope["mdd_082_release_qualification"] = "Issued conformance/manifests/release-qualification.json, artifacts/mdd-082/final-paired-performance.json, and artifacts/mdd-082/compatibility-and-limitations.json; repository qualification does not authorize external cutover."
+    dev_scope["mdd_082_release_qualification"] = (
+        f"Issued release version {rel_ver} (carries over 0.1.0-dev Wave 1.7d paired benchmark qualification with zero functional code changes) in conformance/manifests/release-qualification.json, artifacts/mdd-082/final-paired-performance.json, and artifacts/mdd-082/compatibility-and-limitations.json; repository qualification does not authorize external cutover."
+    )
 
     new_ledger_sections = {
         "profiles": ledger.get("profiles"),
@@ -543,8 +595,16 @@ def check() -> int:
         for ev in prof.get("evidence", []):
             require((ROOT / ev).is_file(), f"missing ledger profile evidence: {ev}")
 
-    require(manifest["engine_identity"]["binary_sha256"] == reg["engine_binaries_sha256"]["B1"], "B1 SHA mismatch")
-    require(manifest["engine_identity"]["binary_sha256"] == m66["engine"]["binary_sha256"], "B1 SHA mismatch with MDD-066")
+    ws_ver = _workspace_version()
+    eng_id = manifest.get("engine_identity", {})
+    require(eng_id.get("version") == ws_ver, f"release-qualification version {eng_id.get('version')!r} != {ws_ver!r}")
+    require(limits.get("engine_version") == ws_ver, f"compatibility-and-limitations version != {ws_ver!r}")
+    baseline = eng_id.get("performance_evidence_baseline_build", {})
+    require(baseline.get("binary_sha256") == reg["engine_binaries_sha256"]["B1"], "B1 baseline SHA mismatch")
+    require(baseline.get("binary_sha256") == m66["engine"]["binary_sha256"], "B1 baseline SHA mismatch with MDD-066")
+    require(perf["engine"]["binary_sha256"] == baseline.get("binary_sha256"), "perf baseline SHA mismatch")
+    carry = perf["engine"].get("release_version_carryover", {})
+    require(carry.get("version") == ws_ver and carry.get("binary_sha256") == eng_id.get("binary_sha256"), "release carryover mismatch")
     for wid in ("W05-newpipe-bulk", "W07-hostlab-9161100", "W07-hostlab-9170100"):
         kw = perf["key_workloads_vs_fastest_qualified_baseline_a1"][wid]
         require(kw["threshold_passed"] is True and kw["excluded_pair_count"] == 0, f"failed perf gate for {wid}")

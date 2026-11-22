@@ -6,7 +6,7 @@
   "windows_shared_lib": {
     "filename": "mdd_ffi.dll",
     "bytes": 8359936,
-    "sha256": "241d9cb3ed515ed5d3c5638fffbef030dbdd1b0a85828b697491e640af57332a"
+    "sha256": "6af059417015495682a8b139eb4d9d43566f6ca1fc8e61a3b067b2f12a768393"
   },
   "linux_evidence_ref": "artifacts/mdd-080/linux-x86_64-results.json",
   "source_files": [

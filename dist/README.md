@@ -1,4 +1,4 @@
-# MeguvizDexDash `0.1.0-dev` 可复验发行清单目录（MDD-083）
+# MeguvizDexDash `1.2.2` 可复验发行清单目录（MDD-083）
 
 本目录包含标准 DEX 发行所需的无构建噪声清单、 cyclonedx `SBOM.json`、HostLab 显式启用模板、`python/mdd` 与 C ABI `1.0` 源码库存摘要，以及跨平台统一摘要 `SHA256SUMS`（编译出的二进制可执行文件与 `.zip`/`.tar.gz` 安装包由可锁定复现命令本地产出，不直接提交至 Git 仓库）。
 

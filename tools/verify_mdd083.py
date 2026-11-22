@@ -126,7 +126,14 @@ def _parse_pip_lock(rel: str) -> list[dict[str, Any]]:
     return components
 
 
-def _build_sbom(generated_utc: str) -> dict[str, Any]:
+def _workspace_version() -> str:
+    doc = tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))
+    ver = doc.get("workspace", {}).get("package", {}).get("version")
+    require(isinstance(ver, str) and bool(ver), "missing [workspace.package].version in Cargo.toml")
+    return ver
+
+
+def _build_sbom(generated_utc: str, version: str) -> dict[str, Any]:
     cargo_core = _parse_cargo_lock("Cargo.lock", "core-workspace")
     cargo_desktop = _parse_cargo_lock("apps/desktop/Cargo.lock", "desktop-workbench")
     pip_dev = _parse_pip_lock("requirements-dev.lock")
@@ -140,7 +147,7 @@ def _build_sbom(generated_utc: str) -> dict[str, Any]:
             "component": {
                 "type": "application",
                 "name": "MeguvizDexDash",
-                "version": "0.1.0-dev",
+                "version": version,
             },
             "tools": [{"name": "tools/verify_mdd083.py", "version": "1.0"}],
             "properties": [
@@ -204,7 +211,7 @@ def _run_c_abi_release_smoke(dll_path: Path, fixture: Path) -> dict[str, Any]:
     }
 
 
-def _run_m5_to_m8_migration_and_cache_rehearsal(binary_path: Path, fixture: Path) -> dict[str, Any]:
+def _run_m5_to_m8_migration_and_cache_rehearsal(binary_path: Path, fixture: Path, version: str) -> dict[str, Any]:
     example = json.loads((ROOT / "integrations/hostlab/enablement-config.example.json").read_text(encoding="utf-8"))
     with tempfile.TemporaryDirectory(prefix="mdd083-rehearsal-") as tmp_dir:
         tmp = Path(tmp_dir)
@@ -278,7 +285,7 @@ def _run_m5_to_m8_migration_and_cache_rehearsal(binary_path: Path, fixture: Path
             "provider": {
                 "engine": {
                     "backend": "meguvizdexdash",
-                    "engine_version": "0.1.0-dev",
+                    "engine_version": version,
                     "build_id": "test-build",
                     "binary_sha256": sha256_file(binary_path),
                     "profile": "hostlab-audit-v1",
@@ -317,8 +324,10 @@ def generate() -> dict[str, Any]:
         hit = validator.FORBIDDEN_PUBLIC_RE.search(doc_path.read_text(encoding="utf-8"))
         require(hit is None, f"forbidden public token in {doc_rel}: {hit.group(0) if hit else ''}")
 
+    ws_ver = _workspace_version()
     m82 = validator.parse_strict_json(MANIFEST_082_PATH.read_text(encoding="utf-8"))
     require(m82.get("all_passed") is True, "MDD-082 release qualification not passed")
+    require(m82["engine_identity"]["version"] == ws_ver, f"MDD-082 version {m82['engine_identity']['version']!r} != {ws_ver!r}")
 
     exe_name = "meguvizdexdash.exe" if os.name == "nt" else "meguvizdexdash"
     ffi_name = "mdd_ffi.dll" if os.name == "nt" else "libmdd_ffi.so"
@@ -332,7 +341,7 @@ def generate() -> dict[str, Any]:
     generated_utc = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
     DIST_DIR.mkdir(parents=True, exist_ok=True)
 
-    sbom = _build_sbom(generated_utc)
+    sbom = _build_sbom(generated_utc, ws_ver)
     _write_clean_json(DIST_DIR / "SBOM.json", sbom, label="dist/SBOM.json")
 
     enablement_cfg = {
@@ -382,7 +391,7 @@ def generate() -> dict[str, Any]:
         {
             "schema_version": "mdd.python-sdk-distribution.v1",
             "package": "mdd",
-            "version": "0.1.0-dev",
+            "version": ws_ver,
             "dependencies": [],
             "transports": ["in-process (ctypes ABI 1.0)", "worker (mdd.cli-stream.v1)"],
             "files": _build_file_inventory(python_files),
@@ -403,14 +412,23 @@ def generate() -> dict[str, Any]:
         label="dist/c-abi-1.0-manifest.json",
     )
 
-    m66 = validator.parse_strict_json((ROOT / "artifacts/mdd-066/deep-perf-and-ui-qualification.json").read_text(encoding="utf-8"))
-    desktop_pkg = m66["desktop_webview2_ui_qualification"]["packaged_windows_webview2_run"]
+    desktop_check_path = ROOT / f"artifacts/local/v{ws_ver}-desktop-package-check.json"
+    require(desktop_check_path.is_file(), f"missing verified {ws_ver} desktop package check: {desktop_check_path}")
+    desktop_pkg = validator.parse_strict_json(desktop_check_path.read_text(encoding="utf-8"))
+    require(
+        desktop_pkg.get("problems") == []
+        and desktop_pkg.get("flows", {}).get("passed") == 15
+        and desktop_pkg.get("flows", {}).get("failed") == 0
+        and desktop_pkg.get("engine_build_id") == m82["engine_identity"]["build_id"]
+        and ws_ver in str(desktop_pkg.get("archive", "")),
+        f"invalid verified {ws_ver} desktop package check: {desktop_pkg}",
+    )
     release_manifest = {
         "schema_version": "mdd.release-manifest.v1",
         "task_id": "MDD-083",
         "generated_utc": generated_utc,
         "product": "MeguvizDexDash",
-        "version": "0.1.0-dev",
+        "version": ws_ver,
         "external_release_published": False,
         "release_qualification_manifest": {"path": "conformance/manifests/release-qualification.json", "sha256": sha256_file(MANIFEST_082_PATH)},
         "compatibility_ledger": {"path": "compatibility/ledger.json", "sha256": sha256_file(LEDGER_PATH)},
@@ -448,7 +466,7 @@ def generate() -> dict[str, Any]:
     _write_clean_json(DIST_DIR / "release-manifest.json", release_manifest, label="dist/release-manifest.json")
 
     readme_text = "\n".join([
-        "# MeguvizDexDash `0.1.0-dev` 可复验发行清单目录（MDD-083）",
+        f"# MeguvizDexDash `{ws_ver}` 可复验发行清单目录（MDD-083）",
         "",
         "本目录包含标准 DEX 发行所需的无构建噪声清单、 cyclonedx `SBOM.json`、HostLab 显式启用模板、`python/mdd` 与 C ABI `1.0` 源码库存摘要，以及跨平台统一摘要 `SHA256SUMS`（编译出的二进制可执行文件与 `.zip`/`.tar.gz` 安装包由可锁定复现命令本地产出，不直接提交至 Git 仓库）。",
         "",
@@ -483,7 +501,7 @@ def generate() -> dict[str, Any]:
     }
 
     c_abi_smoke = _run_c_abi_release_smoke(ffi_bin, DEFAULT_FIXTURE)
-    migration_and_cache = _run_m5_to_m8_migration_and_cache_rehearsal(cli_bin, DEFAULT_FIXTURE)
+    migration_and_cache = _run_m5_to_m8_migration_and_cache_rehearsal(cli_bin, DEFAULT_FIXTURE, ws_ver)
 
     rehearsal = {
         "schema_version": "mdd.release-rehearsal.v1",
@@ -543,7 +561,9 @@ def check() -> int:
     }
     require(set(recorded_sums) == expected_dist, f"dist inventory mismatch: {sorted(recorded_sums)}")
 
+    ws_ver = _workspace_version()
     rel_man = validator.parse_strict_json((DIST_DIR / "release-manifest.json").read_text(encoding="utf-8"))
+    require(rel_man.get("version") == ws_ver, f"release-manifest version {rel_man.get('version')!r} != {ws_ver!r}")
     require(rel_man.get("external_release_published") is False, "external_release_published must be false")
     require(rel_man["release_qualification_manifest"]["sha256"] == sha256_file(MANIFEST_082_PATH), "stale MDD-082 manifest hash in dist/release-manifest.json")
     require(rel_man["compatibility_ledger"]["sha256"] == sha256_file(LEDGER_PATH), "stale compatibility/ledger.json hash in dist/release-manifest.json")
@@ -554,6 +574,7 @@ def check() -> int:
 
     sbom = validator.parse_strict_json((DIST_DIR / "SBOM.json").read_text(encoding="utf-8"))
     require(sbom.get("bomFormat") == "CycloneDX" and sbom["summary"]["total_components"] >= 50, "invalid dist/SBOM.json")
+    require(sbom["metadata"]["component"]["version"] == ws_ver, f"SBOM component version != {ws_ver!r}")
 
     raw_reh = REHEARSAL_PATH.read_text(encoding="utf-8")
     require(validator.FORBIDDEN_PUBLIC_RE.search(raw_reh) is None, "forbidden public token in release-rehearsal.json")

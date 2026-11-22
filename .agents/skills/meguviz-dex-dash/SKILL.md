@@ -5,7 +5,7 @@ description: 用于在桌面或服务端 Rust、CLI、MCP、Python、C ABI 或 T
 
 # MeguvizDexDash 接入与迁移
 
-MeguvizDexDash 是面向桌面与服务端的 Rust DEX/APK 静态分析引擎（当前版本 `0.1.0-dev`），支持多 DEX 成员清点、字节码与注解事实读取、只读 SQLite 虚表查询、Smali 文本生成、Manifest 与资源解析及 MCP 工具服务。
+MeguvizDexDash 是面向桌面与服务端的 Rust DEX/APK 静态分析引擎（当前版本 `1.2.2`），支持多 DEX 成员清点、字节码与注解事实读取、只读 SQLite 虚表查询、Smali 文本生成、Manifest 与资源解析及 MCP 工具服务。
 
 ## 第 1 阶段：盘点工程现状
 
