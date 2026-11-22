@@ -3452,12 +3452,16 @@ impl RelationStore {
         }
         impl PreparedItem<'_> {
             #[inline]
-            fn exact_contains(&self, id: u32) -> bool {
-                if self.exact_ids.len() <= 8 {
-                    self.exact_ids.contains(&id)
+            fn exact_contains_in(exact_ids: &[u32], sorted_exact: &[u32], id: u32) -> bool {
+                if exact_ids.len() <= 8 {
+                    exact_ids.contains(&id)
                 } else {
-                    self.sorted_exact.binary_search(&id).is_ok()
+                    sorted_exact.binary_search(&id).is_ok()
                 }
+            }
+            #[inline]
+            fn exact_contains(&self, id: u32) -> bool {
+                Self::exact_contains_in(&self.exact_ids, &self.sorted_exact, id)
             }
             fn eval_unseen(&mut self, dict: &TextDict, ids: &[u32]) -> bool {
                 let mut unseen = Vec::new();
@@ -3470,7 +3474,7 @@ impl RelationStore {
                             }
                         }
                         std::collections::hash_map::Entry::Vacant(entry) => {
-                            if self.exact_contains(id) {
+                            if Self::exact_contains_in(&self.exact_ids, &self.sorted_exact, id) {
                                 entry.insert(true);
                                 any_hit = true;
                             } else if !self.has_like {
@@ -4256,7 +4260,7 @@ impl RelationStore {
         if self.derived[col].is_some() {
             // Raise derived CSR build threshold from 1 to 4: probes 1..=4 use `RefTable` + Bloom.
             self.eq_probe_hits[col]
-                .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |v| {
+                .try_update(Ordering::Relaxed, Ordering::Relaxed, |v| {
                     (v < 4).then_some(v + 1)
                 })
                 .is_ok()
@@ -4555,7 +4559,7 @@ impl RelationStore {
                     if bump_probe_hits {
                         for g in &group {
                             if !g.matcher.has_like() {
-                                let _ = self.eq_probe_hits[g.col].fetch_update(
+                                let _ = self.eq_probe_hits[g.col].try_update(
                                     Ordering::Relaxed,
                                     Ordering::Relaxed,
                                     |v| (v < 4).then_some(v + 1),
@@ -6115,7 +6119,7 @@ impl RelationStore {
                             for c in &group {
                                 consumed[c.child_idx] = true;
                                 if !c.matcher.has_like() {
-                                    let _ = self.eq_probe_hits[c.col].fetch_update(
+                                    let _ = self.eq_probe_hits[c.col].try_update(
                                         Ordering::Relaxed,
                                         Ordering::Relaxed,
                                         |v| (v < 4).then_some(v + 1),
@@ -8309,6 +8313,7 @@ mod tests {
 
         let plan = crate::provider::DirectCountGroupBy {
             relation: "class_methods".into(),
+            predicates: Vec::new(),
             group_columns: vec![0, 1],
             projections: vec![
                 crate::provider::DirectGroupItem::GroupCol {
@@ -9080,7 +9085,7 @@ mod tests {
             }
         }
         col.seal();
-        let total = col.len();
+        let total = (CHUNK as u64) * 4 + 512;
         assert_eq!(col.sealed.len(), 5);
         assert!(matches!(col.sealed[0].payload, Payload::Plain { .. }));
         assert!(matches!(col.sealed[1].payload, Payload::Runs { .. }));
