@@ -815,12 +815,14 @@ impl SqlBridge {
     fn validated_schema(
         &self,
         binding: &SqlBinding,
-    ) -> MddResult<Arc<crate::dialects::ast::PreparedSchema>> {
-        if let Ok(guard) = self.schema_cache.lock()
+        use_cache: bool,
+    ) -> MddResult<(Arc<crate::dialects::ast::PreparedSchema>, bool)> {
+        if use_cache
+            && let Ok(guard) = self.schema_cache.lock()
             && let Some((cached_binding, schema)) = guard.as_ref()
             && cached_binding == binding
         {
-            return Ok(Arc::clone(schema));
+            return Ok((Arc::clone(schema), true));
         }
         // A frozen relation the dialect does not advertise is not in the schema the statement is bound against.
         let relations = crate::profiles::compatibility::visible_relations(
@@ -860,10 +862,7 @@ impl SqlBridge {
             relations,
             partition_columns,
         ));
-        if let Ok(mut guard) = self.schema_cache.lock() {
-            *guard = Some((binding.clone(), Arc::clone(&schema)));
-        }
-        Ok(schema)
+        Ok((schema, false))
     }
 
     fn prepare_inner(
@@ -902,7 +901,7 @@ impl SqlBridge {
             cache.push_back((k, entry));
             return Ok(prepared);
         }
-        let schema = self.validated_schema(&binding)?;
+        let (schema, schema_from_cache) = self.validated_schema(&binding, memo_enabled)?;
         let adapted = match crate::dialects::ast::adapt_with_schema(
             sql,
             self.limits,
@@ -1003,6 +1002,13 @@ impl SqlBridge {
             profile: self.profile.clone(),
             profiles: self.profiles.clone(),
         };
+        if memo_enabled
+            && !schema_from_cache
+            && prepared.binding == binding
+            && let Ok(mut guard) = self.schema_cache.lock()
+        {
+            *guard = Some((binding.clone(), Arc::clone(&schema)));
+        }
         if memo_active
             && prepared.binding == binding
             && let Ok(mut cache) = self.prepare_cache.lock()

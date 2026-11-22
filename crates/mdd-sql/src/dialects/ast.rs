@@ -145,6 +145,7 @@ fn call(name: &str, args: Vec<Expr>) -> Expr {
     })
 }
 
+#[cfg(test)]
 pub(crate) fn adapt(
     sql: &str,
     limits: SqlLimits,

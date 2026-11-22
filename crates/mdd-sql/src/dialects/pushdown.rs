@@ -637,6 +637,7 @@ pub(crate) struct QueryHints {
 /// Extract sound single-table candidate filters and inner equi-join edges from `root`.
 /// Handles pure outer `SELECT ... FROM (<inner>) AS alias` wrappers (such as `B0Session`'s
 /// shape/hex wrappers) while refusing any relation mentioned more than once or shadowed by a CTE.
+#[cfg(test)]
 pub(crate) fn query_hints(root: &Query, relations: &[SqlRelation]) -> QueryHints {
     let schema_types: BTreeMap<String, BTreeMap<String, SqlType>> = relations
         .iter()

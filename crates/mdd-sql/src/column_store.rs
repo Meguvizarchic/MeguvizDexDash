@@ -7315,7 +7315,7 @@ mod tests {
         let t_i = dict.intern_str("I");
         let t_j = dict.intern_str("J");
 
-        let build_store = |with_blooms: bool| -> RelationStore {
+        let build_store = |with_blooms: bool| -> Arc<RelationStore> {
             let make_table = |mc: Vec<u32>,
                               mn: Vec<u32>,
                               md: Vec<u32>,

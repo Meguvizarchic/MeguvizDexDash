@@ -213,7 +213,7 @@ fn schema_test_connection(prepared: &PreparedSql, control: &SqlControl) -> Conne
     let db = Connection::open_in_memory().unwrap();
     db.set_limit(Limit::SQLITE_LIMIT_ATTACHED, 0).unwrap();
     db.set_limit(Limit::SQLITE_LIMIT_LENGTH, 65).unwrap();
-    for relation in &prepared.relations {
+    for relation in prepared.relations.iter() {
         virtual_tables::register(
             &db,
             Arc::new(Source {
@@ -246,9 +246,11 @@ fn schema_prewarm_preserves_limits_and_never_opens_facts() {
     use crate::virtual_tables::{TEST_CONNECTS, TEST_OPENS};
     let (provider, bridge) = bridge();
     let mut prepared = bridge.prepare("SELECT id FROM facts").unwrap();
-    let mut unused = prepared.relations[0].clone();
+    let mut relations = prepared.relations.to_vec();
+    let mut unused = relations[0].clone();
     unused.name = "unused".into();
-    prepared.relations.push(unused);
+    relations.push(unused);
+    prepared.relations = relations.into();
     let control = SqlControl::new(SqlLimits::default(), None);
     let db = schema_test_connection(&prepared, &control);
     TEST_CONNECTS.with(|count| count.set(0));
