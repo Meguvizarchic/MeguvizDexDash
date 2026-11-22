@@ -60,6 +60,18 @@ fn push_escaped_control_or_quote(out: &mut Vec<u8>, b: u8) {
     }
 }
 
+#[inline]
+fn push_escaped_char(out: &mut Vec<u8>, ch: char) {
+    if ch < '\u{20}' || ch == '"' || ch == '\\' {
+        push_escaped_control_or_quote(out, ch as u8);
+    } else if ch.is_ascii() {
+        out.push(ch as u8);
+    } else {
+        let mut utf8 = [0u8; 4];
+        out.extend_from_slice(ch.encode_utf8(&mut utf8).as_bytes());
+    }
+}
+
 /// Write a UTF-8 string escaped as a JSON string literal (including surrounding quotes).
 #[inline]
 pub fn push_json_str(out: &mut Vec<u8>, s: &str) {
