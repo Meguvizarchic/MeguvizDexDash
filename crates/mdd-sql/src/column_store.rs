@@ -3473,7 +3473,7 @@ impl RelationStore {
                             let end = w.offset().saturating_add(w.limit()).min(total);
                             let count = end - start;
                             let truncated = end < total;
-                            let total_rows = w.counts_total().then_some(total);
+                            let total_rows = (!truncated || w.counts_total()).then_some(total);
                             let report = crate::window::SqlWindowReport::finish(
                                 w, count, truncated, total_rows,
                             )?;
@@ -7108,5 +7108,28 @@ mod tests {
         let zero_rep = zero_rep.unwrap();
         assert!(!zero_rep.truncated);
         assert_eq!(zero_rep.total_rows, Some(0));
+
+        // Non-counting_total windows still report total_rows when untruncated, and None when truncated.
+        let (_, untrun_zero) = store
+            .direct_filtered_projection(
+                &plan_zero,
+                &control(),
+                Some(crate::window::SqlWindow::new(0, 10).unwrap()),
+            )
+            .unwrap()
+            .unwrap();
+        assert_eq!(untrun_zero.unwrap().total_rows, Some(0));
+
+        let (_, trun_lim) = store
+            .direct_filtered_projection(
+                &plan_lim,
+                &control(),
+                Some(crate::window::SqlWindow::new(0, 1).unwrap()),
+            )
+            .unwrap()
+            .unwrap();
+        let trun_lim = trun_lim.unwrap();
+        assert!(trun_lim.truncated);
+        assert_eq!(trun_lim.total_rows, None);
     }
 }
