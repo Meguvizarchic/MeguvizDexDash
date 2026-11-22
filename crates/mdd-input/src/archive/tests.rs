@@ -784,3 +784,212 @@ fn a_raw_dex_is_held_whatever_the_policy() {
     assert!(blob.is_held());
     assert!(Arc::ptr_eq(&blob.lease(), &snapshot.sources()[0].lease()));
 }
+
+#[test]
+fn spilled_apk_inventory_and_member_reads_match_in_memory_without_materializing() {
+    struct TestDir(PathBuf);
+    impl Drop for TestDir {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    let dir = TestDir(std::env::temp_dir().join(opaque_id("mdd-archive-spill").unwrap()));
+    fs::create_dir(&dir.0).unwrap();
+    let path = dir.0.join("spilled.apk");
+
+    let dex0 = include_bytes!("../../../../tests/fixtures/generated/minimal-035.dex");
+    let dex1 = include_bytes!("../../../../tests/fixtures/generated/structured-035.dex");
+    let stored_payload: Vec<u8> = (0..140_000u32)
+        .map(|i| ((i.wrapping_mul(2_654_435_761)) >> 17) as u8)
+        .collect();
+    let deflated_payload: Vec<u8> = (0..140_000u32)
+        .map(|i| ((i / 17) ^ (i % 251)) as u8)
+        .collect();
+
+    let apk_bytes = {
+        let mut cursor = Cursor::new(Vec::new());
+        {
+            let mut writer = zip::ZipWriter::new(&mut cursor);
+            writer
+                .start_file(
+                    "classes.dex",
+                    zip::write::SimpleFileOptions::default()
+                        .compression_method(zip::CompressionMethod::Stored),
+                )
+                .unwrap();
+            writer.write_all(dex0).unwrap();
+            writer
+                .start_file(
+                    "classes2.dex",
+                    zip::write::SimpleFileOptions::default()
+                        .compression_method(zip::CompressionMethod::Deflated),
+                )
+                .unwrap();
+            writer.write_all(dex1).unwrap();
+            writer
+                .start_file(
+                    "assets/stored_large.bin",
+                    zip::write::SimpleFileOptions::default()
+                        .compression_method(zip::CompressionMethod::Stored),
+                )
+                .unwrap();
+            writer.write_all(&stored_payload).unwrap();
+            writer
+                .start_file(
+                    "assets/deflated_large.bin",
+                    zip::write::SimpleFileOptions::default()
+                        .compression_method(zip::CompressionMethod::Deflated),
+                )
+                .unwrap();
+            writer.write_all(&deflated_payload).unwrap();
+            writer
+                .start_file(
+                    "assets/empty.bin",
+                    zip::write::SimpleFileOptions::default()
+                        .compression_method(zip::CompressionMethod::Stored),
+                )
+                .unwrap();
+            writer.finish().unwrap();
+        }
+        cursor.into_inner()
+    };
+    fs::write(&path, &apk_bytes).unwrap();
+
+    let spec = [InputSpec {
+        path: path.clone(),
+        kind: InputKind::Apk,
+        expected_sha256: None,
+    }];
+    let in_mem =
+        Snapshot::capture_with_spill_threshold(&spec, CaptureLimits::default(), None).unwrap();
+    let spilled =
+        Snapshot::capture_with_spill_threshold(&spec, CaptureLimits::default(), Some(64 * 1024))
+            .unwrap();
+    assert!(in_mem.sources()[0].try_bytes().is_some());
+    assert!(spilled.sources()[0].try_bytes().is_none());
+
+    // Mutate and delete the original APK after capture.
+    fs::write(&path, vec![0u8; apk_bytes.len()]).unwrap();
+    fs::remove_file(&path).unwrap();
+
+    for hold_dex_bytes in [true, false] {
+        let policy = InventoryPolicy {
+            hold_dex_bytes,
+            ..InventoryPolicy::default()
+        };
+        let mem_inv =
+            ArchiveInventory::build(&in_mem.sources()[0], policy, ArchiveLimits::default())
+                .unwrap();
+        let spill_inv =
+            ArchiveInventory::build(&spilled.sources()[0], policy, ArchiveLimits::default())
+                .unwrap();
+        assert!(spilled.sources()[0].try_bytes().is_none());
+
+        assert_eq!(
+            serde_json::to_value(mem_inv.manifest()).unwrap(),
+            serde_json::to_value(spill_inv.manifest()).unwrap()
+        );
+        assert_eq!(mem_inv.selected_dexes().len(), 2);
+        assert_eq!(spill_inv.selected_dexes().len(), 2);
+
+        for (m, s) in mem_inv
+            .selected_dexes()
+            .iter()
+            .zip(spill_inv.selected_dexes())
+        {
+            assert_eq!(m.blob.content_id, s.blob.content_id);
+            assert_eq!(m.physical_dex_id, s.physical_dex_id);
+            assert_eq!(m.detected_version, s.detected_version);
+            assert_eq!(m.blob.len(), s.blob.len());
+            assert_eq!(m.blob.is_held(), s.blob.is_held());
+            assert_eq!(&*m.blob.lease(), &*s.blob.lease());
+            if !hold_dex_bytes {
+                s.blob.release();
+                assert!(s.blob.held_lease().is_none());
+                assert_eq!(&*s.blob.lease(), &*m.blob.lease());
+            }
+        }
+
+        for (member_idx, expected_bytes) in [
+            (2usize, stored_payload.as_slice()),
+            (3, deflated_payload.as_slice()),
+            (4, b"".as_slice()),
+        ] {
+            let member_id = &spill_inv.manifest().members[member_idx].member_id;
+            let blob = spill_inv.read_member(member_id).unwrap();
+            assert_eq!(&*blob.lease(), expected_bytes);
+        }
+        assert!(spilled.sources()[0].try_bytes().is_none());
+    }
+
+    // Inventory outlives Snapshot for spilled sources too.
+    let lazy_inv = ArchiveInventory::build(
+        &spilled.sources()[0],
+        InventoryPolicy {
+            hold_dex_bytes: false,
+            ..InventoryPolicy::default()
+        },
+        ArchiveLimits::default(),
+    )
+    .unwrap();
+    drop(spilled);
+    assert_eq!(&*lazy_inv.selected_dexes()[0].blob.lease(), dex0.as_slice());
+    assert_eq!(&*lazy_inv.selected_dexes()[1].blob.lease(), dex1.as_slice());
+    let stored_id = &lazy_inv.manifest().members[2].member_id;
+    assert_eq!(
+        &*lazy_inv.read_member(stored_id).unwrap().lease(),
+        stored_payload.as_slice()
+    );
+}
+
+#[test]
+fn spilled_corrupt_and_budget_archive_errors_match_in_memory() {
+    let spec = [InputSpec {
+        path: fixture("bad-crc.apk"),
+        kind: InputKind::Apk,
+        expected_sha256: None,
+    }];
+    let spilled =
+        Snapshot::capture_with_spill_threshold(&spec, CaptureLimits::default(), Some(64)).unwrap();
+    assert!(spilled.sources()[0].try_bytes().is_none());
+    let error = ArchiveInventory::build(&spilled.sources()[0], generic(), ArchiveLimits::default())
+        .err()
+        .unwrap();
+    assert_eq!(error.code, ErrorCode::InvalidInput);
+    assert_eq!(error.stage, "archive.member_bytes");
+    assert!(spilled.sources()[0].try_bytes().is_none());
+
+    let ok_spec = [InputSpec {
+        path: fixture("multidex-deflated.apk"),
+        kind: InputKind::Apk,
+        expected_sha256: None,
+    }];
+    let ok_spilled =
+        Snapshot::capture_with_spill_threshold(&ok_spec, CaptureLimits::default(), Some(64))
+            .unwrap();
+    assert!(ok_spilled.sources()[0].try_bytes().is_none());
+    for limits in [
+        ArchiveLimits {
+            max_members: 0,
+            ..ArchiveLimits::default()
+        },
+        ArchiveLimits {
+            max_directory_bytes: 0,
+            ..ArchiveLimits::default()
+        },
+        ArchiveLimits {
+            max_member_bytes: 0,
+            ..ArchiveLimits::default()
+        },
+    ] {
+        assert_eq!(
+            ArchiveInventory::build(&ok_spilled.sources()[0], generic(), limits)
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::QuotaExceeded
+        );
+    }
+    assert!(ok_spilled.sources()[0].try_bytes().is_none());
+}

@@ -178,3 +178,90 @@ fn zip64_tail_uses_u64_without_allocating_a_fake_large_archive() {
         12
     );
 }
+
+#[test]
+fn spilled_zip64_positive_and_negative_vectors_match_in_memory() {
+    let manifest: Value = serde_json::from_str(include_str!(
+        "../../../../tests/fixtures/zip64/manifest.json"
+    ))
+    .unwrap();
+    let dex = include_bytes!("../../../../tests/fixtures/generated/minimal-035.dex");
+    let other = include_bytes!("../../../../tests/fixtures/generated/structured-035.dex");
+    let mut tested = 0;
+    for row in manifest["files"].as_array().unwrap() {
+        let name = row["id"].as_str().unwrap();
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/zip64/generated")
+            .join(format!("{name}.zip"));
+        let snapshot = Snapshot::capture_with_spill_threshold(
+            &[InputSpec {
+                path,
+                kind: InputKind::Apk,
+                expected_sha256: None,
+            }],
+            CaptureLimits::default(),
+            Some(64),
+        )
+        .unwrap();
+        let captured = &snapshot.sources()[0];
+        assert!(captured.try_bytes().is_none(), "{name}");
+        let expected_outcome = row["expected"].as_str().unwrap();
+        if expected_outcome == "ok" {
+            let inv = ArchiveInventory::build(
+                captured,
+                policy(name == "empty"),
+                ArchiveLimits::default(),
+            )
+            .unwrap();
+            let large = row["large_metadata"].as_bool().unwrap_or(false);
+            let count = if large {
+                row["expected_count"].as_u64().unwrap() as usize
+            } else if row["layout"].is_null() {
+                1
+            } else {
+                row["layout"]["members"].as_array().unwrap().len()
+            };
+            assert_eq!(inv.manifest().members.len(), count, "{name}");
+            for (ordinal, member) in inv.manifest().members.iter().enumerate() {
+                if large && ordinal > 0 && ordinal + 1 != count {
+                    continue;
+                }
+                let blob = inv.read_member(&member.member_id).unwrap();
+                let expected: &[u8] = if name == "duplicate-name" && ordinal == 1 {
+                    other
+                } else if member.raw_name.ends_with(b".dex") {
+                    dex
+                } else if large {
+                    b""
+                } else {
+                    b"\0\xffresource"
+                };
+                assert_eq!(&*blob.lease(), expected, "{name}/{ordinal}");
+            }
+        } else {
+            let limits = if name == "declared-total-overflow" {
+                ArchiveLimits {
+                    max_member_bytes: u64::MAX,
+                    max_total_uncompressed_bytes: u64::MAX,
+                    ..ArchiveLimits::default()
+                }
+            } else {
+                ArchiveLimits::default()
+            };
+            let error = ArchiveInventory::build(captured, policy(false), limits)
+                .err()
+                .unwrap();
+            let expected = match expected_outcome {
+                "INVALID_INPUT" => ErrorCode::InvalidInput,
+                "QUOTA_EXCEEDED" => ErrorCode::QuotaExceeded,
+                "UNSUPPORTED_CAPABILITY" => ErrorCode::UnsupportedCapability,
+                _ => panic!("unknown fixture error"),
+            };
+            assert_eq!(error.code, expected, "{name}: {error:?}");
+            assert!(error.details.contains_key("source_occurrence_id"));
+        }
+        assert!(captured.try_bytes().is_none(), "{name}");
+        tested += 1;
+    }
+    assert_eq!(tested, 52);
+}

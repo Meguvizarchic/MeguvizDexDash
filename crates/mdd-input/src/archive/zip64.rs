@@ -1,4 +1,4 @@
-use super::central::{checked, invalid, u16_at, u32_at};
+use super::central::{SourceBytes, checked, invalid, u16_at, u32_at};
 use mdd_types::{ErrorCode, MddError, MddResult};
 
 pub(super) struct Directory {
@@ -33,23 +33,33 @@ fn quota(message: &str, value: u64, limit: u64) -> MddError {
 }
 
 pub(super) fn directory(
-    bytes: &[u8],
+    source: &SourceBytes<'_>,
     end: usize,
     max_members: usize,
     max_metadata: u64,
 ) -> MddResult<Directory> {
-    let disk = u16_at(bytes, end + 4)?;
-    let cd_disk = u16_at(bytes, end + 6)?;
-    let on_disk = u16_at(bytes, end + 8)?;
-    let count = u16_at(bytes, end + 10)?;
-    let size = u32_at(bytes, end + 12)?;
-    let start = u32_at(bytes, end + 16)?;
-    let locator = end
-        .checked_sub(20)
-        .filter(|&at| bytes.get(at..at + 4) == Some(b"PK\x06\x07"));
-    let result = if let Some(locator) = locator {
-        let locator_disk = u32_at(bytes, locator + 4)?;
-        let disks = u32_at(bytes, locator + 16)?;
+    let eocd_cow = source.read_cow(end as u64, 22)?;
+    let eocd = &*eocd_cow;
+    let disk = u16_at(eocd, 4)?;
+    let cd_disk = u16_at(eocd, 6)?;
+    let on_disk = u16_at(eocd, 8)?;
+    let count = u16_at(eocd, 10)?;
+    let size = u32_at(eocd, 12)?;
+    let start = u32_at(eocd, 16)?;
+    let locator = if let Some(at) = end.checked_sub(20) {
+        let loc = source.read_cow(at as u64, 20)?;
+        if &loc[..4] == b"PK\x06\x07" {
+            Some((at, loc))
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+    let result = if let Some((locator, loc_cow)) = locator {
+        let loc = &*loc_cow;
+        let locator_disk = u32_at(loc, 4)?;
+        let disks = u32_at(loc, 16)?;
         if disks == 0 {
             return Err(invalid("ZIP64 locator declares zero disks"));
         }
@@ -60,11 +70,14 @@ pub(super) fn directory(
                 "multi-volume ZIP64 is not qualified",
             ));
         }
-        let record = host(u64_at(bytes, locator + 8)?)?;
-        if checked(bytes, record, 4)? != b"PK\x06\x06" {
+        let record = host(u64_at(loc, 8)?)?;
+        if &*source.read_cow(record as u64, 4)? != b"PK\x06\x06" {
             return Err(invalid("ZIP64 locator does not identify an end record"));
         }
-        let remaining = u64_at(bytes, record + 4)?;
+        let rem_off = (record as u64)
+            .checked_add(4)
+            .ok_or_else(|| invalid("ZIP range overflow"))?;
+        let remaining = u64_at(&source.read_cow(rem_off, 8)?, 0)?;
         if remaining < 44 {
             return Err(invalid("ZIP64 end record is shorter than fixed fields"));
         }
@@ -84,12 +97,14 @@ pub(super) fn directory(
         if record_end != locator as u64 {
             return Err(invalid("ZIP64 end record does not end at its locator"));
         }
-        checked(bytes, record, host(length)?)?;
-        if u16_at(bytes, record + 14)? < 45 {
+        source.check_range(record, host(length)?)?;
+        let rec_cow = source.read_cow(record as u64, 56)?;
+        let rec = &*rec_cow;
+        if u16_at(rec, 14)? < 45 {
             return Err(invalid("ZIP64 end record requires version 4.5 or later"));
         }
-        let disk64 = u32_at(bytes, record + 16)?;
-        let cd_disk64 = u32_at(bytes, record + 20)?;
+        let disk64 = u32_at(rec, 16)?;
+        let cd_disk64 = u32_at(rec, 20)?;
         if disk64 != 0 || cd_disk64 != 0 {
             return Err(MddError::new(
                 ErrorCode::UnsupportedCapability,
@@ -97,10 +112,10 @@ pub(super) fn directory(
                 "multi-volume ZIP64 is not qualified",
             ));
         }
-        let on_disk64 = u64_at(bytes, record + 24)?;
-        let count64 = u64_at(bytes, record + 32)?;
-        let size64 = u64_at(bytes, record + 40)?;
-        let start64 = u64_at(bytes, record + 48)?;
+        let on_disk64 = u64_at(rec, 24)?;
+        let count64 = u64_at(rec, 32)?;
+        let size64 = u64_at(rec, 40)?;
+        let start64 = u64_at(rec, 48)?;
         if on_disk64 != count64 {
             return Err(invalid("single-volume ZIP64 member counts disagree"));
         }
@@ -175,7 +190,7 @@ pub(super) fn directory(
             "central directory range does not end at end records",
         ));
     }
-    checked(bytes, host(result.start)?, host(result.size)?)?;
+    source.check_range(host(result.start)?, host(result.size)?)?;
     Ok(result)
 }
 

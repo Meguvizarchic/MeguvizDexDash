@@ -278,7 +278,7 @@ impl ArchiveInventory {
                         "resources-only profile requires an archive",
                     )));
                 }
-                total = source.bytes().len() as u64;
+                total = source.byte_length();
                 if limits.max_members == 0
                     || total > limits.max_member_bytes
                     || total > limits.max_total_uncompressed_bytes
@@ -306,8 +306,7 @@ impl ArchiveInventory {
                 });
             }
             InputKind::Apk => {
-                (entries, directory_start) =
-                    central::scan(source.bytes(), &limits).map_err(context)?;
+                (entries, directory_start) = central::scan(source, &limits).map_err(context)?;
                 for entry in &entries {
                     total = total.checked_add(entry.size).ok_or_else(|| {
                         context(MddError::new(
@@ -502,11 +501,27 @@ impl ArchiveInventory {
         })?;
         let identity = self.manifest.members[index].clone();
         if matches!(self.source.kind(), InputKind::RawDex) {
+            if let Some(bytes) = self.source.try_bytes() {
+                return Ok(MemberBlob {
+                    identity,
+                    content_id: self.source.identity().content_id.clone(),
+                    len: bytes.len(),
+                    bytes: BlobBytes::Held(self.source.lease()),
+                });
+            }
+            let len = usize::try_from(self.source.byte_length()).map_err(|_| {
+                MddError::new(
+                    ErrorCode::QuotaExceeded,
+                    "archive.budget",
+                    "raw DEX exceeds host address range",
+                )
+            })?;
+            let output = self.source.read_range(0, len)?;
             return Ok(MemberBlob {
                 identity,
                 content_id: self.source.identity().content_id.clone(),
-                len: self.source.bytes().len(),
-                bytes: BlobBytes::Held(self.source.lease()),
+                len: output.len(),
+                bytes: BlobBytes::Held(Arc::from(output)),
             });
         }
         let reader = MemberReader {
@@ -582,8 +597,8 @@ impl MemberReader {
                     .detail("limit", self.limits.max_member_bytes.to_string()),
                 )
             })?;
-        let view = central::MemberView::new(self.source.bytes(), self.directory_start, entry)
-            .map_err(context)?;
+        let view =
+            central::MemberView::new(&self.source, self.directory_start, entry).map_err(context)?;
         let mut archive = zip::ZipArchive::new(view).map_err(|e| {
             context(MddError::new(
                 ErrorCode::InvalidInput,
