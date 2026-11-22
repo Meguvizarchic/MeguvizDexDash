@@ -433,6 +433,9 @@ impl TempSqlSession {
         mut query: Box<Query>,
         bodies: &BTreeMap<String, StoredBody>,
     ) -> MddResult<(String, Vec<String>)> {
+        if bodies.is_empty() {
+            return Ok((sql.to_owned(), Vec::new()));
+        }
         let limits = self.bridge.limits();
         let own_ctes: BTreeSet<String> = query
             .with
@@ -592,6 +595,14 @@ impl TempSqlSession {
         window: Option<SqlWindow>,
     ) -> MddResult<Vec<TempStatementResult>> {
         let statements = script_statements(items)?;
+        self.execute_statements(&statements, window)
+    }
+
+    fn execute_statements(
+        &self,
+        statements: &[String],
+        window: Option<SqlWindow>,
+    ) -> MddResult<Vec<TempStatementResult>> {
         let mut results = Vec::with_capacity(statements.len());
         for (index, sql) in statements.iter().enumerate() {
             match self.execute(sql, window) {
@@ -624,7 +635,7 @@ impl TempSqlSession {
                 .detail("named_temp_queries", named.len().to_string())
                 .detail("maximum", MAX_NAMED_TEMP_QUERIES.to_string()));
         }
-        script_statements(items)?;
+        let statements = script_statements(items)?;
         for definition in named {
             let name = named_identifier(definition.name)?;
             let Parsed::Query(query) = parse_statement(definition.sql, self.bridge.limits())?
@@ -638,7 +649,7 @@ impl TempSqlSession {
             self.create(&name, TempKind::Table, false, &query)
                 .map_err(|error| error.detail("statement_index", "0"))?;
         }
-        self.execute_batch(items, window)
+        self.execute_statements(&statements, window)
     }
 
     fn create(

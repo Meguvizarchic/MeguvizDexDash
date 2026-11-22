@@ -1225,7 +1225,7 @@ impl Rewrite<'_> {
         loop {
             let symbol = format!("__mdd_internal_{}", self.next_symbol);
             self.next_symbol += 1;
-            if self.reserved.insert(symbol.clone()) {
+            if !self.reserved_base.contains(&symbol) && self.reserved.insert(symbol.clone()) {
                 return symbol;
             }
         }
@@ -1379,7 +1379,7 @@ impl Rewrite<'_> {
                         && (current_aggregate(&order.expr, 0, &self.aggregate_scan)?
                             || nested_aggregate_needs_binding(
                                 &order.expr,
-                                &self.schemas,
+                                self.schemas,
                                 &self.cte_names,
                                 0,
                                 &self.aggregate_scan,
@@ -1545,7 +1545,7 @@ impl Rewrite<'_> {
                             && has_top_level_native_eq(expr)
                             && materialize_joined_base_table(
                                 &mut join.relation,
-                                &self.schemas,
+                                self.schemas,
                                 &self.cte_scopes,
                             )
                         {
@@ -1691,7 +1691,7 @@ impl Rewrite<'_> {
                     if let Some(selection) = &select.selection
                         && nested_aggregate_needs_binding(
                             selection,
-                            &self.schemas,
+                            self.schemas,
                             &self.cte_names,
                             0,
                             &self.aggregate_scan,
@@ -1711,7 +1711,7 @@ impl Rewrite<'_> {
                             | SelectItem::ExprWithAlias { expr, .. } = item
                                 && nested_aggregate_needs_binding(
                                     expr,
-                                    &self.schemas,
+                                    self.schemas,
                                     &self.cte_names,
                                     0,
                                     &self.aggregate_scan,

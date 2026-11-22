@@ -12,7 +12,48 @@ use sqlparser::{
 use std::{
     cell::Cell,
     collections::{BTreeMap, BTreeSet},
+    sync::Arc,
 };
+
+pub(crate) struct PreparedSchema {
+    pub relations: Arc<[crate::provider::SqlRelation]>,
+    pub partition_columns: BTreeMap<String, String>,
+    pub schemas: BTreeMap<String, Vec<String>>,
+    pub schema_types: BTreeMap<String, BTreeMap<String, crate::values::SqlType>>,
+    pub reserved_base: BTreeSet<String>,
+}
+
+impl PreparedSchema {
+    pub(crate) fn new(
+        relations: Vec<crate::provider::SqlRelation>,
+        partition_columns: BTreeMap<String, String>,
+    ) -> Self {
+        let mut schemas = BTreeMap::new();
+        let mut schema_types = BTreeMap::new();
+        let mut reserved_base = BTreeSet::new();
+        for r in &relations {
+            let rel_key = r.name.to_ascii_lowercase();
+            reserved_base.insert(rel_key.clone());
+            let mut col_names = Vec::with_capacity(r.columns.len());
+            let mut col_types = BTreeMap::new();
+            for c in &r.columns {
+                let col_key = c.name.to_ascii_lowercase();
+                reserved_base.insert(col_key.clone());
+                col_names.push(c.name.clone());
+                col_types.insert(col_key, c.data_type);
+            }
+            schemas.insert(rel_key.clone(), col_names);
+            schema_types.insert(rel_key, col_types);
+        }
+        Self {
+            relations: relations.into(),
+            partition_columns,
+            schemas,
+            schema_types,
+            reserved_base,
+        }
+    }
+}
 
 pub(crate) struct Adapted {
     pub sql: String,
@@ -112,13 +153,26 @@ pub(crate) fn adapt(
     dialect_policy: super::SqlDialect,
     partition_columns: &BTreeMap<String, String>,
 ) -> MddResult<Adapted> {
+    let schema = Arc::new(PreparedSchema::new(
+        relations.to_vec(),
+        partition_columns.clone(),
+    ));
+    adapt_with_schema(sql, limits, parameters, &schema, dialect_policy)
+}
+
+pub(crate) fn adapt_with_schema(
+    sql: &str,
+    limits: SqlLimits,
+    parameters: &[SqlValue],
+    schema: &Arc<PreparedSchema>,
+    dialect_policy: super::SqlDialect,
+) -> MddResult<Adapted> {
     adapt_with_mode(
         sql,
         limits,
         parameters,
-        relations,
+        schema,
         dialect_policy,
-        partition_columns,
         crate::column_store::sql_fast_udf_enabled(),
     )
 }
@@ -133,24 +187,19 @@ pub(super) fn adapt_with_fast_udf(
     partition_columns: &BTreeMap<String, String>,
     fast_udf: bool,
 ) -> MddResult<Adapted> {
-    adapt_with_mode(
-        sql,
-        limits,
-        parameters,
-        relations,
-        dialect_policy,
-        partition_columns,
-        fast_udf,
-    )
+    let schema = Arc::new(PreparedSchema::new(
+        relations.to_vec(),
+        partition_columns.clone(),
+    ));
+    adapt_with_mode(sql, limits, parameters, &schema, dialect_policy, fast_udf)
 }
 
 struct AstRequest {
     sql: String,
     limits: SqlLimits,
     parameters: Vec<SqlValue>,
-    relations: Vec<crate::provider::SqlRelation>,
+    schema: Arc<PreparedSchema>,
     dialect_policy: super::SqlDialect,
-    partition_columns: BTreeMap<String, String>,
     fast_udf: bool,
     reply: std::sync::mpsc::SyncSender<MddResult<Adapted>>,
 }
@@ -163,9 +212,8 @@ fn adapt_with_mode(
     sql: &str,
     limits: SqlLimits,
     parameters: &[SqlValue],
-    relations: &[crate::provider::SqlRelation],
+    schema: &Arc<PreparedSchema>,
     dialect_policy: super::SqlDialect,
-    partition_columns: &BTreeMap<String, String>,
     fast_udf: bool,
 ) -> MddResult<Adapted> {
     // MDD-084: run the recursive AST rewrite on a stack proven sufficient for the
@@ -187,9 +235,8 @@ fn adapt_with_mode(
                         &req.sql,
                         req.limits,
                         &req.parameters,
-                        &req.relations,
+                        &req.schema,
                         req.dialect_policy,
-                        &req.partition_columns,
                         req.fast_udf,
                     );
                     let _ = req.reply.send(result);
@@ -211,9 +258,8 @@ fn adapt_with_mode(
         sql: sql.to_owned(),
         limits,
         parameters: parameters.to_vec(),
-        relations: relations.to_vec(),
+        schema: Arc::clone(schema),
         dialect_policy,
-        partition_columns: partition_columns.clone(),
         fast_udf,
         reply: reply_tx,
     };
@@ -246,9 +292,8 @@ fn adapt_on_stack(
     sql: &str,
     limits: SqlLimits,
     parameters: &[SqlValue],
-    relations: &[crate::provider::SqlRelation],
+    schema: &PreparedSchema,
     dialect_policy: super::SqlDialect,
-    partition_columns: &BTreeMap<String, String>,
     fast_udf: bool,
 ) -> MddResult<Adapted> {
     if sql.len() > limits.max_sql_bytes {
@@ -310,15 +355,20 @@ fn adapt_on_stack(
         return Err(invalid("SQL_STATEMENT_NOT_READ_ONLY_QUERY"));
     };
     // read before the rewrite turns `file_id = 0` into a function call
-    let partition_hints = super::pushdown::partition_hints(query, &tokens, partition_columns);
-    let query_hints = super::pushdown::query_hints(query, relations);
+    let partition_hints =
+        super::pushdown::partition_hints(query, &tokens, &schema.partition_columns);
+    let query_hints =
+        super::pushdown::query_hints_with_types(query, &schema.relations, &schema.schema_types);
     let empty_ctes = BTreeSet::new();
-    let direct_projection =
-        super::pushdown::extract_direct_projection_from_query(query, relations, &empty_ctes);
+    let direct_projection = super::pushdown::extract_direct_projection_from_query(
+        query,
+        &schema.relations,
+        &empty_ctes,
+    );
     let direct_filtered_projection = if direct_projection.is_none() {
         super::pushdown::extract_direct_filtered_projection_from_query(
             query,
-            relations,
+            &schema.relations,
             &empty_ctes,
         )
     } else {
@@ -326,43 +376,20 @@ fn adapt_on_stack(
     };
     let direct_count_group_by =
         if direct_projection.is_none() && direct_filtered_projection.is_none() {
-            super::pushdown::extract_direct_count_group_by_from_query(query, relations, &empty_ctes)
+            super::pushdown::extract_direct_count_group_by_from_query(
+                query,
+                &schema.relations,
+                &empty_ctes,
+            )
         } else {
             None
         };
-    let mut reserved = relations
-        .iter()
-        .flat_map(|r| {
-            std::iter::once(r.name.to_ascii_lowercase())
-                .chain(r.columns.iter().map(|c| c.name.to_ascii_lowercase()))
-        })
-        .collect::<BTreeSet<_>>();
+    let mut reserved = BTreeSet::new();
     for token in &tokens {
         if let Token::Word(word) = token {
             reserved.insert(word.value.to_ascii_lowercase());
         }
     }
-    let schemas = relations
-        .iter()
-        .map(|r| {
-            (
-                r.name.to_ascii_lowercase(),
-                r.columns.iter().map(|c| c.name.clone()).collect(),
-            )
-        })
-        .collect();
-    let schema_types = relations
-        .iter()
-        .map(|r| {
-            (
-                r.name.to_ascii_lowercase(),
-                r.columns
-                    .iter()
-                    .map(|c| (c.name.to_ascii_lowercase(), c.data_type))
-                    .collect(),
-            )
-        })
-        .collect();
     let mut rewrite = Rewrite {
         limits,
         aggregate_scan: AggregateScan {
@@ -381,9 +408,10 @@ fn adapt_on_stack(
         cte_direct_types: BTreeMap::new(),
         cte_literal_text_columns: BTreeMap::new(),
         cte_literal_text_scopes: Vec::new(),
-        schemas,
-        schema_types,
+        schemas: &schema.schemas,
+        schema_types: &schema.schema_types,
         cte_columns: BTreeMap::new(),
+        reserved_base: &schema.reserved_base,
         reserved,
         next_symbol: 0,
         display_overrides: BTreeMap::new(),
@@ -468,9 +496,10 @@ struct Rewrite<'a> {
     cte_direct_types: BTreeMap<usize, BTreeMap<String, crate::values::SqlType>>,
     cte_literal_text_columns: BTreeMap<usize, String>,
     cte_literal_text_scopes: Vec<Option<(String, String)>>,
-    schemas: BTreeMap<String, Vec<String>>,
-    schema_types: BTreeMap<String, BTreeMap<String, crate::values::SqlType>>,
+    schemas: &'a BTreeMap<String, Vec<String>>,
+    schema_types: &'a BTreeMap<String, BTreeMap<String, crate::values::SqlType>>,
     cte_columns: BTreeMap<usize, Vec<String>>,
+    reserved_base: &'a BTreeSet<String>,
     reserved: BTreeSet<String>,
     next_symbol: usize,
     display_overrides: BTreeMap<String, String>,

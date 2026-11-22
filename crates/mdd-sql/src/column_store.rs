@@ -1384,6 +1384,93 @@ pub struct DerivedColumn {
     pub derive: Derive,
 }
 
+#[derive(Clone)]
+struct U32Bloom {
+    words: Box<[u64]>,
+    word_mask: usize,
+}
+
+impl U32Bloom {
+    #[inline]
+    fn mix32(mut x: u32) -> u32 {
+        x ^= x >> 16;
+        x = x.wrapping_mul(0x85eb_ca6b);
+        x ^= x >> 13;
+        x = x.wrapping_mul(0xc2b2_ae35);
+        x ^ (x >> 16)
+    }
+
+    fn from_slice(values: &[u32], bits_per_entry: usize, max_words: usize) -> Self {
+        if values.is_empty() || max_words == 0 {
+            return Self {
+                words: Box::new([]),
+                word_mask: 0,
+            };
+        }
+        let words_len = values
+            .len()
+            .saturating_mul(bits_per_entry)
+            .div_ceil(64)
+            .next_power_of_two()
+            .clamp(1, max_words);
+        let word_mask = words_len - 1;
+        let mut words = vec![0u64; words_len].into_boxed_slice();
+        for &id in values {
+            let h1 = Self::mix32(id);
+            let h2 = Self::mix32(id ^ 0x9e37_79b9);
+            let word_idx = (h1 as usize) & word_mask;
+            let mask =
+                (1u64 << ((h1 >> 16) & 63)) | (1u64 << (h2 & 63)) | (1u64 << ((h2 >> 16) & 63));
+            words[word_idx] |= mask;
+        }
+        Self { words, word_mask }
+    }
+
+    #[inline]
+    fn might_contain(&self, id: u32) -> bool {
+        if self.words.is_empty() {
+            return false;
+        }
+        let h1 = Self::mix32(id);
+        let h2 = Self::mix32(id ^ 0x9e37_79b9);
+        let word_idx = (h1 as usize) & self.word_mask;
+        let mask = (1u64 << ((h1 >> 16) & 63)) | (1u64 << (h2 & 63)) | (1u64 << ((h2 >> 16) & 63));
+        (self.words[word_idx] & mask) == mask
+    }
+
+    fn bytes_used(&self) -> usize {
+        self.words.len() * std::mem::size_of::<u64>()
+    }
+}
+
+struct RefTableBlooms {
+    type_desc: U32Bloom,
+    method_name: U32Bloom,
+    method_desc: U32Bloom,
+    field_name: U32Bloom,
+    field_desc: U32Bloom,
+}
+
+impl RefTableBlooms {
+    fn from_table(table: &RefTable) -> Self {
+        Self {
+            type_desc: U32Bloom::from_slice(&table.type_desc, 16, 4096),
+            method_name: U32Bloom::from_slice(&table.method_name, 8, 8192),
+            method_desc: U32Bloom::from_slice(&table.method_desc, 8, 8192),
+            field_name: U32Bloom::from_slice(&table.field_name, 8, 2048),
+            field_desc: U32Bloom::from_slice(&table.field_desc, 8, 4096),
+        }
+    }
+
+    fn bytes_used(&self) -> usize {
+        self.type_desc.bytes_used()
+            + self.method_name.bytes_used()
+            + self.method_desc.bytes_used()
+            + self.field_name.bytes_used()
+            + self.field_desc.bytes_used()
+    }
+}
+
 /// The texts that the references of one DEX name, as dictionary ids, by the index the DEX gives each reference.
 /// Stored in SoA layout so derived filters scan contiguous 4-byte dictionary-id arrays for the queried attribute.
 #[derive(Default)]
@@ -1402,9 +1489,66 @@ pub struct RefTable {
     pub type_name: Vec<u32>,
     /// True when every `method_class` and `field_class` entry also appears in `type_desc` (true for valid DEX pools).
     pub type_desc_covers_member_classes: bool,
+    blooms: Option<RefTableBlooms>,
 }
 
 impl RefTable {
+    /// Construct a shrunk [`RefTable`] from SoA columns with blocked per-DEX Bloom filters built.
+    #[expect(clippy::too_many_arguments)]
+    pub fn from_soa(
+        method_class: Vec<u32>,
+        method_name: Vec<u32>,
+        method_desc: Vec<u32>,
+        field_class: Vec<u32>,
+        field_name: Vec<u32>,
+        field_desc: Vec<u32>,
+        field_type: Vec<u32>,
+        type_desc: Vec<u32>,
+        type_name: Vec<u32>,
+        type_desc_covers_member_classes: bool,
+    ) -> Self {
+        let mut table = Self {
+            method_class,
+            method_name,
+            method_desc,
+            field_class,
+            field_name,
+            field_desc,
+            field_type,
+            type_desc,
+            type_name,
+            type_desc_covers_member_classes,
+            blooms: None,
+        };
+        table.shrink_to_fit();
+        table.build_blooms();
+        table
+    }
+
+    /// Build or refresh blocked 64-bit-word Bloom filters over this DEX's SoA identifier slices.
+    pub fn build_blooms(&mut self) {
+        self.blooms = Some(RefTableBlooms::from_table(self));
+    }
+
+    #[inline]
+    fn bloom_might_contain_any(&self, derive: Derive, ids: &[u32]) -> bool {
+        let Some(blooms) = self.blooms.as_ref() else {
+            return true;
+        };
+        let bloom = match derive {
+            Derive::TypeDescriptor => &blooms.type_desc,
+            Derive::MethodClass | Derive::FieldClass if self.type_desc_covers_member_classes => {
+                &blooms.type_desc
+            }
+            Derive::MethodName => &blooms.method_name,
+            Derive::MethodDescriptor => &blooms.method_desc,
+            Derive::FieldName => &blooms.field_name,
+            Derive::FieldDescriptor => &blooms.field_desc,
+            _ => return true,
+        };
+        ids.iter().any(|&id| bloom.might_contain(id))
+    }
+
     pub(crate) fn slice(&self, derive: Derive) -> &[u32] {
         match derive {
             Derive::MethodClass => &self.method_class,
@@ -1426,7 +1570,7 @@ impl RefTable {
 
     /// Bytes this table holds on the heap.
     pub fn bytes_used(&self) -> usize {
-        (self.method_class.capacity()
+        let vec_bytes = (self.method_class.capacity()
             + self.method_name.capacity()
             + self.method_desc.capacity()
             + self.field_class.capacity()
@@ -1435,7 +1579,8 @@ impl RefTable {
             + self.field_type.capacity()
             + self.type_desc.capacity()
             + self.type_name.capacity())
-            * std::mem::size_of::<u32>()
+            * std::mem::size_of::<u32>();
+        vec_bytes + self.blooms.as_ref().map_or(0, RefTableBlooms::bytes_used)
     }
 
     pub fn shrink_to_fit(&mut self) {
@@ -2763,7 +2908,14 @@ impl RelationStore {
                 continue;
             }
             let table = self.table_for(part.key)?;
-            if table.type_desc_covers_member_classes
+            if !predicates
+                .iter()
+                .all(|&(derive, ids)| table.bloom_might_contain_any(derive, ids))
+            {
+                continue;
+            }
+            if table.blooms.is_none()
+                && table.type_desc_covers_member_classes
                 && let Some(class_ids) = class_filter
             {
                 let any_class = if class_ids.len() == 1 {
@@ -7131,5 +7283,217 @@ mod tests {
         let trun_lim = trun_lim.unwrap();
         assert!(trun_lim.truncated);
         assert_eq!(trun_lim.total_rows, None);
+    }
+
+    #[test]
+    fn ref_table_bloom_filters_have_zero_false_negatives_and_match_unbloomed_scans() {
+        let empty = U32Bloom::from_slice(&[], 8, 64);
+        assert!(!empty.might_contain(0));
+        assert_eq!(empty.bytes_used(), 0);
+
+        let sample_ids: Vec<u32> = (0..1_000).map(|i| i * 7 + 13).collect();
+        let bloom = U32Bloom::from_slice(&sample_ids, 8, 512);
+        assert!(bloom.bytes_used() > 0);
+        for &id in &sample_ids {
+            assert!(bloom.might_contain(id), "false negative for {id}");
+        }
+
+        let dict = Arc::new(TextDict::default());
+        let cls_a = dict.intern_str("La;");
+        let cls_b = dict.intern_str("Lb;");
+        let cls_c = dict.intern_str("Lc;");
+        let m_alpha = dict.intern_str("alpha");
+        let m_beta = dict.intern_str("beta");
+        let m_gamma = dict.intern_str("gamma");
+        let md_a = dict.intern_str("La;->alpha()V");
+        let md_b = dict.intern_str("Lb;->beta()V");
+        let md_c = dict.intern_str("Lc;->gamma()V");
+        let f_fa = dict.intern_str("fa");
+        let f_fb = dict.intern_str("fb");
+        let fd_a = dict.intern_str("La;->fa:I");
+        let fd_b = dict.intern_str("Lb;->fb:J");
+        let t_i = dict.intern_str("I");
+        let t_j = dict.intern_str("J");
+
+        let build_store = |with_blooms: bool| -> RelationStore {
+            let make_table = |mc: Vec<u32>,
+                              mn: Vec<u32>,
+                              md: Vec<u32>,
+                              fc: Vec<u32>,
+                              fnm: Vec<u32>,
+                              fd: Vec<u32>,
+                              ft: Vec<u32>,
+                              td: Vec<u32>,
+                              tn: Vec<u32>,
+                              covers: bool| {
+                let tbl = if with_blooms {
+                    RefTable::from_soa(mc, mn, md, fc, fnm, fd, ft, td, tn, covers)
+                } else {
+                    RefTable {
+                        method_class: mc,
+                        method_name: mn,
+                        method_desc: md,
+                        field_class: fc,
+                        field_name: fnm,
+                        field_desc: fd,
+                        field_type: ft,
+                        type_desc: td,
+                        type_name: tn,
+                        type_desc_covers_member_classes: covers,
+                        ..RefTable::default()
+                    }
+                };
+                Arc::new(tbl)
+            };
+            let t0 = make_table(
+                vec![cls_a],
+                vec![m_alpha],
+                vec![md_a],
+                vec![cls_a],
+                vec![f_fa],
+                vec![fd_a],
+                vec![t_i],
+                vec![cls_a],
+                vec![dict.intern_str("a")],
+                true,
+            );
+            let t1 = make_table(
+                vec![cls_b],
+                vec![m_beta],
+                vec![md_b],
+                vec![cls_b],
+                vec![f_fb],
+                vec![fd_b],
+                vec![t_j],
+                vec![cls_b],
+                vec![dict.intern_str("b")],
+                true,
+            );
+            // Partition 2 intentionally sets type_desc_covers_member_classes = false to verify sound bypass.
+            let t2 = make_table(
+                vec![cls_c],
+                vec![m_gamma],
+                vec![md_c],
+                vec![cls_c],
+                vec![f_fb],
+                vec![fd_b],
+                vec![t_j],
+                Vec::new(),
+                Vec::new(),
+                false,
+            );
+
+            let cols = [
+                column("file_id", SqlType::U64, false),
+                column("method_idx", SqlType::U64, false),
+                column("class_descriptor", SqlType::Text, false),
+                column("method_name", SqlType::Text, false),
+                column("method_descriptor", SqlType::Text, false),
+                column("field_idx", SqlType::U64, false),
+                column("field_class", SqlType::Text, false),
+                column("field_name", SqlType::Text, false),
+                column("field_descriptor", SqlType::Text, false),
+            ];
+            let derived = [
+                DerivedColumn {
+                    column: 2,
+                    index_column: 1,
+                    derive: Derive::MethodClass,
+                },
+                DerivedColumn {
+                    column: 3,
+                    index_column: 1,
+                    derive: Derive::MethodName,
+                },
+                DerivedColumn {
+                    column: 4,
+                    index_column: 1,
+                    derive: Derive::MethodDescriptor,
+                },
+                DerivedColumn {
+                    column: 6,
+                    index_column: 5,
+                    derive: Derive::FieldClass,
+                },
+                DerivedColumn {
+                    column: 7,
+                    index_column: 5,
+                    derive: Derive::FieldName,
+                },
+                DerivedColumn {
+                    column: 8,
+                    index_column: 5,
+                    derive: Derive::FieldDescriptor,
+                },
+            ];
+            let mut b = RelationStoreBuilder::with_derived(&cols, Arc::clone(&dict), &derived);
+            for (fid, tbl, cname, mname, mdesc, fname, fdesc) in [
+                (0u64, t0, "La;", "alpha", "La;->alpha()V", "fa", "La;->fa:I"),
+                (1u64, t1, "Lb;", "beta", "Lb;->beta()V", "fb", "Lb;->fb:J"),
+                (2u64, t2, "Lc;", "gamma", "Lc;->gamma()V", "fb", "Lb;->fb:J"),
+            ] {
+                b.begin_partition(fid);
+                b.set_table(tbl);
+                b.push_cells(&[
+                    Cell::U64(fid),
+                    Cell::U64(0),
+                    Cell::Str(cname),
+                    Cell::Str(mname),
+                    Cell::Str(mdesc),
+                    Cell::U64(0),
+                    Cell::Str(cname),
+                    Cell::Str(fname),
+                    Cell::Str(fdesc),
+                ])
+                .unwrap();
+            }
+            b.finish()
+        };
+
+        let plain = build_store(false);
+        let bloomed = build_store(true);
+        assert!(
+            bloomed.table_for(0).unwrap().bytes_used() > plain.table_for(0).unwrap().bytes_used()
+        );
+
+        let queries = [
+            vec![crate::provider::DirectPredicate::EqText(3, "beta".into())],
+            vec![crate::provider::DirectPredicate::EqText(
+                4,
+                "La;->alpha()V".into(),
+            )],
+            vec![
+                crate::provider::DirectPredicate::EqText(6, "Lb;".into()),
+                crate::provider::DirectPredicate::EqText(7, "fb".into()),
+            ],
+            vec![
+                crate::provider::DirectPredicate::EqText(6, "Lc;".into()),
+                crate::provider::DirectPredicate::EqText(7, "fb".into()),
+            ],
+            vec![crate::provider::DirectPredicate::InText(
+                3,
+                vec!["alpha".into(), "gamma".into()],
+            )],
+            vec![crate::provider::DirectPredicate::EqText(
+                8,
+                "Lb;->fb:J".into(),
+            )],
+            vec![crate::provider::DirectPredicate::EqText(
+                4,
+                "Lnone;->missing()V".into(),
+            )],
+        ];
+        let collect = |set: Option<ExactRowSet<'_>>| -> Option<Vec<u32>> {
+            Some(match set? {
+                ExactRowSet::Range(lo, hi) => (lo..hi).map(|r| r as u32).collect(),
+                ExactRowSet::Slice(s) => s.to_vec(),
+                ExactRowSet::Owned(v) => v,
+            })
+        };
+        for preds in &queries {
+            let expected = collect(plain.exact_lookup_rows(preds, false));
+            let actual = collect(bloomed.exact_lookup_rows(preds, false));
+            assert_eq!(actual, expected, "mismatch for predicates {preds:?}");
+        }
     }
 }

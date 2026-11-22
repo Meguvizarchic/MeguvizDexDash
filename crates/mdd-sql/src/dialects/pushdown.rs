@@ -638,9 +638,6 @@ pub(crate) struct QueryHints {
 /// Handles pure outer `SELECT ... FROM (<inner>) AS alias` wrappers (such as `B0Session`'s
 /// shape/hex wrappers) while refusing any relation mentioned more than once or shadowed by a CTE.
 pub(crate) fn query_hints(root: &Query, relations: &[SqlRelation]) -> QueryHints {
-    if relations.is_empty() || has_zero_limit(root) {
-        return QueryHints::default();
-    }
     let schema_types: BTreeMap<String, BTreeMap<String, SqlType>> = relations
         .iter()
         .map(|rel| {
@@ -652,6 +649,17 @@ pub(crate) fn query_hints(root: &Query, relations: &[SqlRelation]) -> QueryHints
             (rel.name.to_ascii_lowercase(), cols)
         })
         .collect();
+    query_hints_with_types(root, relations, &schema_types)
+}
+
+pub(crate) fn query_hints_with_types(
+    root: &Query,
+    relations: &[SqlRelation],
+    schema_types: &BTreeMap<String, BTreeMap<String, SqlType>>,
+) -> QueryHints {
+    if relations.is_empty() || has_zero_limit(root) {
+        return QueryHints::default();
+    }
 
     let inner = unwrap_outer_wrapper(root);
     if has_zero_limit(inner) || inner.with.is_some() {
@@ -746,7 +754,7 @@ pub(crate) fn query_hints(root: &Query, relations: &[SqlRelation]) -> QueryHints
     };
 
     let ctx = ResolveCtx {
-        schema_types: &schema_types,
+        schema_types,
         tables_by_qualifier: &tables_by_qualifier,
         only_table: only_table.as_deref(),
         all_plain_factors,

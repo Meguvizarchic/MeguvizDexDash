@@ -787,21 +787,19 @@ impl HostLabSqlProvider {
         } else {
             (build_methods(), build_fields(), build_types())
         };
-        let mut table = RefTable {
-            method_class: methods.class,
-            method_name: methods.name,
-            method_desc: methods.desc,
-            field_class: fields.class,
-            field_name: fields.name,
-            field_desc: fields.desc,
-            field_type: fields.ty,
-            type_desc: types.desc,
-            type_name: types.name,
+        Ok(RefTable::from_soa(
+            methods.class,
+            methods.name,
+            methods.desc,
+            fields.class,
+            fields.name,
+            fields.desc,
+            fields.ty,
+            types.desc,
+            types.name,
             // Validated DEX definitions resolve all member class descriptors from `type_ids`.
-            type_desc_covers_member_classes: true,
-        };
-        table.shrink_to_fit();
-        Ok(table)
+            true,
+        ))
     }
 
     /// One relation's share of one DEX: the layer check, the coverage state, and the rows into the builder.

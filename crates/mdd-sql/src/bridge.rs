@@ -35,7 +35,7 @@ struct PreparedCacheEntry {
     required_relations: Vec<String>,
     cte_names: BTreeSet<String>,
     required_layers: Vec<FactLayer>,
-    relations: Vec<SqlRelation>,
+    relations: Arc<[SqlRelation]>,
     display_overrides: std::collections::BTreeMap<String, String>,
     partition_hints: std::collections::BTreeMap<String, u64>,
     row_filters: std::collections::BTreeMap<String, crate::provider::RowFilter>,
@@ -54,7 +54,7 @@ impl PreparedCacheEntry {
             required_relations: prepared.required_relations.clone(),
             cte_names: prepared.cte_names.clone(),
             required_layers: prepared.required_layers.clone(),
-            relations: prepared.relations.clone(),
+            relations: Arc::clone(&prepared.relations),
             display_overrides: prepared.display_overrides.clone(),
             partition_hints: prepared.partition_hints.clone(),
             row_filters: prepared.row_filters.clone(),
@@ -86,7 +86,7 @@ impl PreparedCacheEntry {
             required_relations: self.required_relations.clone(),
             cte_names: self.cte_names.clone(),
             required_layers: self.required_layers.clone(),
-            relations: self.relations.clone(),
+            relations: Arc::clone(&self.relations),
             provider,
             dialect,
             limits,
@@ -114,6 +114,7 @@ pub struct SqlBridge {
     /// Registry that must outlive a single query for a block to be enforced.
     profiles: Option<Arc<CompatibilityProfileRegistry>>,
     prepare_cache: Mutex<VecDeque<(PreparedCacheKey, PreparedCacheEntry)>>,
+    schema_cache: Mutex<Option<(SqlBinding, Arc<crate::dialects::ast::PreparedSchema>)>>,
 }
 pub struct PreparedSql {
     binding: SqlBinding,
@@ -127,7 +128,7 @@ pub struct PreparedSql {
     required_relations: Vec<String>,
     cte_names: BTreeSet<String>,
     required_layers: Vec<FactLayer>,
-    relations: Vec<SqlRelation>,
+    relations: Arc<[SqlRelation]>,
     provider: Arc<dyn SqlFactProvider>,
     dialect: SqlDialect,
     limits: SqlLimits,
@@ -452,7 +453,7 @@ fn find_required_relation<'a>(
     required: &str,
     control: &SqlControl,
 ) -> MddResult<&'a SqlRelation> {
-    for relation in &prepared.relations {
+    for relation in prepared.relations.iter() {
         control.checkpoint(1, false)?;
         if relation.name.len() == required.len() {
             let bytes =
@@ -637,7 +638,7 @@ impl PreparedSql {
     }
     pub fn runtime_query_binding(&self) -> MddResult<mdd_session::QueryBinding> {
         let request=serde_json::to_vec(&serde_json::json!({"binding":self.binding,"sql":self.sql,"parameters":self.parameters,"dialect":self.dialect})).map_err(|_|invalid("SQL_REQUEST_BINDING_ENCODING"))?;
-        let schema=serde_json::to_vec(&serde_json::json!({"codec":"mdd.sql.dynamic-values.v1","relations":self.relations,"projection_plan":self.adapted_sql,"display_names":self.display_overrides})).map_err(|_|invalid("SQL_SCHEMA_BINDING_ENCODING"))?;
+        let schema=serde_json::to_vec(&serde_json::json!({"codec":"mdd.sql.dynamic-values.v1","relations":&*self.relations,"projection_plan":self.adapted_sql,"display_names":self.display_overrides})).map_err(|_|invalid("SQL_SCHEMA_BINDING_ENCODING"))?;
         Ok(mdd_session::QueryBinding {
             request_key: mdd_types::sha256(&request),
             schema_id: format!("mdd.sql.dynamic-rows.v1:{}", mdd_types::sha256(&schema)),
@@ -684,6 +685,7 @@ impl SqlBridge {
             profile: None,
             profiles: None,
             prepare_cache: Mutex::new(VecDeque::new()),
+            schema_cache: Mutex::new(None),
         })
     }
     /// Declare the compatibility profile this bridge serves and the registry
@@ -810,6 +812,60 @@ impl SqlBridge {
             Err(error) => Err(self.record_compatibility_failure("prepare", sql, error)),
         }
     }
+    fn validated_schema(
+        &self,
+        binding: &SqlBinding,
+    ) -> MddResult<Arc<crate::dialects::ast::PreparedSchema>> {
+        if let Ok(guard) = self.schema_cache.lock()
+            && let Some((cached_binding, schema)) = guard.as_ref()
+            && cached_binding == binding
+        {
+            return Ok(Arc::clone(schema));
+        }
+        // A frozen relation the dialect does not advertise is not in the schema the statement is bound against.
+        let relations = crate::profiles::compatibility::visible_relations(
+            self.provider.relations()?,
+            self.dialect,
+        );
+        let mut names = BTreeSet::new();
+        for relation in &relations {
+            if relation.name.is_empty()
+                || relation.name.contains('\0')
+                || !names.insert(relation.name.to_ascii_lowercase())
+                || relation.columns.is_empty()
+            {
+                return Err(invalid("PROVIDER_RELATION_SCHEMA"));
+            }
+            let mut columns = BTreeSet::new();
+            for column in &relation.columns {
+                if column.name.is_empty()
+                    || column.name.contains('\0')
+                    || !columns.insert(column.name.to_ascii_lowercase())
+                {
+                    return Err(invalid("PROVIDER_COLUMN_SCHEMA"));
+                }
+            }
+        }
+        let partition_columns: std::collections::BTreeMap<String, String> = relations
+            .iter()
+            .filter_map(|relation| {
+                let column = self.provider.partition_column(&relation.name)?;
+                Some((
+                    relation.name.to_ascii_lowercase(),
+                    column.to_ascii_lowercase(),
+                ))
+            })
+            .collect();
+        let schema = Arc::new(crate::dialects::ast::PreparedSchema::new(
+            relations,
+            partition_columns,
+        ));
+        if let Ok(mut guard) = self.schema_cache.lock() {
+            *guard = Some((binding.clone(), Arc::clone(&schema)));
+        }
+        Ok(schema)
+    }
+
     fn prepare_inner(
         &self,
         sql: &str,
@@ -846,47 +902,13 @@ impl SqlBridge {
             cache.push_back((k, entry));
             return Ok(prepared);
         }
-        // A frozen relation the dialect does not advertise is not in the schema the statement is bound against.
-        let relations = crate::profiles::compatibility::visible_relations(
-            self.provider.relations()?,
-            self.dialect,
-        );
-        let mut names = BTreeSet::new();
-        for relation in &relations {
-            if relation.name.is_empty()
-                || relation.name.contains('\0')
-                || !names.insert(relation.name.to_ascii_lowercase())
-                || relation.columns.is_empty()
-            {
-                return Err(invalid("PROVIDER_RELATION_SCHEMA"));
-            }
-            let mut columns = BTreeSet::new();
-            for column in &relation.columns {
-                if column.name.is_empty()
-                    || column.name.contains('\0')
-                    || !columns.insert(column.name.to_ascii_lowercase())
-                {
-                    return Err(invalid("PROVIDER_COLUMN_SCHEMA"));
-                }
-            }
-        }
-        let partition_columns: std::collections::BTreeMap<String, String> = relations
-            .iter()
-            .filter_map(|relation| {
-                let column = self.provider.partition_column(&relation.name)?;
-                Some((
-                    relation.name.to_ascii_lowercase(),
-                    column.to_ascii_lowercase(),
-                ))
-            })
-            .collect();
-        let adapted = match crate::dialects::ast::adapt(
+        let schema = self.validated_schema(&binding)?;
+        let adapted = match crate::dialects::ast::adapt_with_schema(
             sql,
             self.limits,
             parameters,
-            &relations,
+            &schema,
             self.dialect,
-            &partition_columns,
         ) {
             Ok(adapted) => adapted,
             Err(error)
@@ -907,9 +929,12 @@ impl SqlBridge {
                 let check_parameters = (error.details.get("validate_bare_parameters")
                     == Some(&serde_json::Value::Bool(true)))
                 .then_some(parameters.len());
-                if let Some(cause) =
-                    self.original_binding_error(sql, &relations, &visible_ctes, check_parameters)?
-                {
+                if let Some(cause) = self.original_binding_error(
+                    sql,
+                    &schema.relations,
+                    &visible_ctes,
+                    check_parameters,
+                )? {
                     return Err(cause.detail("ast_error", error.message));
                 }
                 return Err(MddError::new(ErrorCode::UnsupportedQuery,"sql.ast","SQLite accepts this read-only syntax but the AST adapter does not yet implement it").detail("ast_error",error.message));
@@ -917,14 +942,16 @@ impl SqlBridge {
             Err(error) => return Err(error),
         };
         for required in &adapted.required_relations {
-            if !relations
+            if !schema
+                .relations
                 .iter()
                 .any(|r| r.name.eq_ignore_ascii_case(required))
             {
                 return Err(invalid("UNKNOWN_RELATION").detail("relation", required.clone()));
             }
         }
-        let required_layers = relations
+        let required_layers = schema
+            .relations
             .iter()
             .filter(|r| {
                 adapted
@@ -961,7 +988,7 @@ impl SqlBridge {
             required_relations: adapted.required_relations,
             cte_names: adapted.cte_names,
             required_layers,
-            relations,
+            relations: Arc::clone(&schema.relations),
             provider: Arc::clone(&self.provider),
             dialect: self.dialect,
             limits: self.limits,
@@ -1208,7 +1235,7 @@ impl SqlBridge {
         .map_err(sqlite_error)?;
         let only_required_vtabs =
             std::env::var_os("MDD_OPT_SQL_SCAN").as_deref() != Some(std::ffi::OsStr::new("0"));
-        for relation in &prepared.relations {
+        for relation in prepared.relations.iter() {
             if only_required_vtabs
                 && !prepared
                     .required_relations
