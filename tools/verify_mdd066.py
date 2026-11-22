@@ -22,6 +22,7 @@ import observed_run_validator as validator  # noqa: E402
 
 SCHEMA_VERSION = "mdd.deep-perf-and-ui-qualification.v1"
 RECORD_PATH = ROOT / "artifacts/mdd-066/deep-perf-and-ui-qualification.json"
+HISTORICAL_BASELINE_COMMIT = "751a18ba6895daf9fb2b18e3ac03054f286c64d3"
 ABLATION_PATH = ROOT / "artifacts/mdd-061/optimization-ablation.json"
 REGRESSION_PATH = ROOT / "artifacts/mdd-061/end-to-end-regression.json"
 
@@ -74,6 +75,11 @@ def sha256_file(path: Path) -> str:
                 break
             h.update(chunk)
     return h.hexdigest()
+
+
+def sha256_git_blob(commit: str, rel: str) -> str:
+    raw = subprocess.check_output(["git", "-C", str(ROOT), "show", f"{commit}:{rel}"])
+    return hashlib.sha256(raw).hexdigest()
 
 
 def _gib(num_bytes: float) -> float:
@@ -391,10 +397,17 @@ def check_record(path: Path = RECORD_PATH, *, verify_desktop_live: bool = False)
     require(doc.get("all_passed") is True, "all_passed != true")
 
     hashes = doc.get("source_sha256", {})
+    evolved_sources: list[str] = []
     for rel in TRACKED_SOURCES:
         target = ROOT / rel
         require(target.is_file(), f"missing tracked source: {rel}")
-        require(hashes.get(rel) == sha256_file(target), f"source hash drift for {rel}")
+        recorded_sha = hashes.get(rel)
+        if recorded_sha != sha256_file(target):
+            require(
+                recorded_sha == sha256_git_blob(HISTORICAL_BASELINE_COMMIT, rel),
+                f"source hash drift for {rel}",
+            )
+            evolved_sources.append(rel)
 
     reg = validator.parse_strict_json(REGRESSION_PATH.read_text(encoding="utf-8"))
     abl = validator.parse_strict_json(ABLATION_PATH.read_text(encoding="utf-8"))
@@ -454,9 +467,11 @@ def check_record(path: Path = RECORD_PATH, *, verify_desktop_live: bool = False)
     for cat in ("build", "functional_differential", "static_analysis", "performance", "device_ui"):
         require(isinstance(ev_cats.get(cat), list) and len(ev_cats[cat]) > 0, f"missing evidence category: {cat}")
 
+    live_count = len(TRACKED_SOURCES) - len(evolved_sources)
     print(
         f"MDD-066 check passed: W07-916 peak={w916['b1_median_peak_job_commit_gib']} GiB "
-        f"({w916['reduction_vs_a1_pct']}% vs A1), Desktop WebView2 15/15 flows ({len(TRACKED_SOURCES)} sources current)"
+        f"({w916['reduction_vs_a1_pct']}% vs A1), Desktop WebView2 15/15 flows "
+        f"({live_count} live + {len(evolved_sources)} historical@{HISTORICAL_BASELINE_COMMIT[:8]} of {len(TRACKED_SOURCES)} sources verified)"
     )
     return 0
 

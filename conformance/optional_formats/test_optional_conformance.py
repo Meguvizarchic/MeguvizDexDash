@@ -47,6 +47,26 @@ class OptionalFormatControls(unittest.TestCase):
             with self.assertRaises(ValueError):
                 mod.check_record(p)
 
+    def test_rejects_historical_commit_hash_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            hashes = {
+                p: mod.sha256_git_blob(mod.HISTORICAL_COMMIT, p) for p in mod.SOURCES
+            }
+            hashes[mod.SOURCES[0]] = "f" * 64
+            doc = {
+                "schema_version": "mdd.optional-format-qualification.v1",
+                "task_id": "MDD-074",
+                "standard_release_depends_on_mdd_074": False,
+                "source_sha256": hashes,
+                "special_containers_disabled": {k: {"passed": True} for k in ("cdex", "vdex", "oat")},
+                "isolated_provider": {"passed": True},
+                "all_passed": True,
+            }
+            p = Path(tmp) / "historical-drift.json"
+            p.write_text(json.dumps(doc), encoding="utf-8")
+            with self.assertRaises(ValueError):
+                mod.check_record(p, historical_commit=mod.HISTORICAL_COMMIT)
+
 
 if __name__ == "__main__":
     unittest.main()

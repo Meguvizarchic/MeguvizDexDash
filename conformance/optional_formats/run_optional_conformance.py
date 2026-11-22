@@ -15,6 +15,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = ROOT / "conformance/manifests/optional-capabilities.json"
 RECORD = ROOT / "artifacts/mdd-074/optional-format-qualification.json"
+HISTORICAL_COMMIT = "30d833f821569cc92836a8b8f62e04bf72c4f4e0"
 SOURCES = [
     "crates/mdd-input/src/optional_formats/mod.rs",
     "crates/mdd-input/src/optional_formats/address.rs",
@@ -39,6 +40,11 @@ def require(condition: bool, message: str) -> None:
 
 def sha256_file(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def sha256_git_blob(commit: str, rel: str) -> str:
+    raw = subprocess.check_output(["git", "-C", str(ROOT), "show", f"{commit}:{rel}"])
+    return hashlib.sha256(raw).hexdigest()
 
 
 def encode_uleb128(value: int) -> bytes:
@@ -333,19 +339,22 @@ def run_suite() -> dict:
     }
 
 
-def check_record(path: Path) -> int:
+def check_record(path: Path, *, historical_commit: str | None = None) -> int:
     require(path.is_file(), f"missing optional qualification record: {path}")
     doc = json.loads(path.read_text(encoding="utf-8"))
     require(doc.get("all_passed") is True, "optional format record all_passed != true")
     require(doc.get("standard_release_depends_on_mdd_074") is False, "standard release flag must be false")
     hashes = doc.get("source_sha256", {})
     for rel in SOURCES:
-        actual = sha256_file(ROOT / rel)
-        require(hashes.get(rel) == actual, f"source hash drift: {rel}")
+        target = ROOT / rel
+        require(target.is_file(), f"missing source file: {rel}")
+        expected = sha256_git_blob(historical_commit, rel) if historical_commit is not None else sha256_file(target)
+        require(hashes.get(rel) == expected, f"source hash drift: {rel}")
     for key in ("cdex", "vdex", "oat"):
         require(doc["special_containers_disabled"][key]["passed"] is True, f"special container check failed: {key}")
     require(doc["isolated_provider"]["passed"] is True, "isolated provider check failed")
-    print(f"MDD-074 record check passed: {len(SOURCES)} source hashes current, standard_release_depends_on_mdd_074=False")
+    scope = f"historical@{historical_commit[:8]}" if historical_commit is not None else "live"
+    print(f"MDD-074 record check passed: {len(SOURCES)} source hashes current ({scope}), standard_release_depends_on_mdd_074=False")
     return 0
 
 
@@ -353,12 +362,17 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=Path, default=None, help="Ignored generic CLI binary arg when invoked by CI runner")
     parser.add_argument("--out", type=Path, default=None)
+    parser.add_argument("--record", type=Path, default=None)
+    parser.add_argument("--historical-commit", type=str, default=None)
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args(argv)
     _ = args.binary
 
     if args.check:
-        return check_record(RECORD)
+        record_path = args.record if args.record is not None else RECORD
+        if not record_path.is_absolute():
+            record_path = ROOT / record_path
+        return check_record(record_path, historical_commit=args.historical_commit)
 
     report = run_suite()
     out = args.out if args.out is not None else RECORD

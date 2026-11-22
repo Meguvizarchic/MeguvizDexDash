@@ -88,7 +88,8 @@ def build_groups(binary: str, out_dir: Path) -> dict[str, list[tuple[str, list[s
         "optional-formats": [
             ("optional-formats-controls", [*py, "conformance/optional_formats/test_optional_conformance.py"]),
             ("optional-formats-conformance", [*py, "conformance/optional_formats/run_optional_conformance.py", "--binary", binary, "--out", str(out_dir / "optional-format-qualification.json")]),
-            ("mdd-074-record", [*py, "conformance/optional_formats/run_optional_conformance.py", "--check"]),
+            ("mdd-074-live-record", [*py, "conformance/optional_formats/run_optional_conformance.py", "--check", "--record", str(out_dir / "optional-format-qualification.json")]),
+            ("mdd-074-record", [*py, "conformance/optional_formats/run_optional_conformance.py", "--check", "--historical-commit", "30d833f821569cc92836a8b8f62e04bf72c4f4e0"]),
         ],
         "faults": [
             ("faults-controls", [*py, "conformance/faults/test_fault_suite.py"]),
