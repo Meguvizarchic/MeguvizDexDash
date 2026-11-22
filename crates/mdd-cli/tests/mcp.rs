@@ -1891,6 +1891,7 @@ fn the_server_does_not_run_without_a_contract_dialect() {
     for bad in [
         ["--max-datasets", "0"],
         ["--timeout-ms", "0"],
+        ["--non-scalar-text", "bogus"],
         ["--bogus", "1"],
     ] {
         let output = Command::new(BIN).arg("mcp").args(bad).output().unwrap();
@@ -2594,4 +2595,27 @@ fn with_two_archives_open_the_one_to_read_must_be_chosen() {
     );
     assert!(error);
     assert_eq!(not_archive["error"]["kind"], "not_archive");
+}
+
+#[test]
+fn mcp_non_scalar_text_policy_defaults_to_reject_and_allows_opt_in_lossy_replacement() {
+    let surrogate_dex = fixture("tests/fixtures/generated/strings-mutf8-035.dex");
+    let sql = "SELECT string_idx, value FROM strings ORDER BY string_idx";
+
+    let mut default_server = Mcp::ready(&[]);
+    let default_id = open_one(&mut default_server, surrogate_dex.clone());
+    let (rejected, error) =
+        default_server.tool("query", json!({"dataset_id": default_id, "sql": [sql]}));
+    assert!(error, "{rejected}");
+    assert_eq!(rejected["error"]["code"], "INCOMPLETE_FACTS");
+
+    let mut lossy_server = Mcp::ready(&["--non-scalar-text", "lossy-replacement"]);
+    let lossy_id = open_one(&mut lossy_server, surrogate_dex);
+    let (admitted, error) =
+        lossy_server.tool("query", json!({"dataset_id": lossy_id, "sql": [sql]}));
+    assert!(!error, "{admitted}");
+    let rows = admitted["statements"][0]["rows"].as_array().unwrap();
+    assert_eq!(rows.len(), 7);
+    assert_eq!(rows[4][1]["value"], "\u{fffd}");
+    assert_eq!(rows[6][1]["value"], "\u{fffd}");
 }

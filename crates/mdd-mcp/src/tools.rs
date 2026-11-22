@@ -11,6 +11,7 @@
 //! `query_resources`.
 use crate::resource_tools;
 use mdd_facts::{
+    coverage::NonScalarTextPolicy,
     smali,
     smali_required::{self, SmaliLimits, page_text},
 };
@@ -51,6 +52,7 @@ pub const MAX_INPUT_BYTES_PER_DATASET: u64 = 1024 * 1024 * 1024;
 #[derive(Clone, Debug)]
 pub struct Config {
     pub dialect: Dialect,
+    pub non_scalar_text: NonScalarTextPolicy,
     /// The deadline of an operation that does not ask for a shorter one.
     pub operation_timeout_ms: u64,
     pub max_datasets: usize,
@@ -65,6 +67,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             dialect: Dialect::DexSql010,
+            non_scalar_text: NonScalarTextPolicy::Reject,
             operation_timeout_ms: 300_000,
             max_datasets: 8,
             max_total_input_bytes: 2 * 1024 * 1024 * 1024,
@@ -532,6 +535,7 @@ fn open_dataset(registry: &mut Registry, args: OpenArgs) -> Result<Value, Failur
         })
         .collect();
     let dialect = registry.config.dialect;
+    let non_scalar_text = registry.config.non_scalar_text;
     let sql_limits = registry.config.sql_limits;
     let limits = ResourceLimits {
         deadline_ms: registry.config.operation_timeout_ms,
@@ -539,7 +543,13 @@ fn open_dataset(registry: &mut Registry, args: OpenArgs) -> Result<Value, Failur
     };
     let started = Instant::now();
     let opened = match with_deadline(ms, move || {
-        Dataset::open(&requests, dialect, limits, sql_limits)
+        Dataset::open_with_non_scalar_policy(
+            &requests,
+            dialect,
+            limits,
+            sql_limits,
+            non_scalar_text,
+        )
     }) {
         Outcome::Done(result) => result?,
         Outcome::TimedOut => return Err(timed_out("open_dataset", ms).into()),

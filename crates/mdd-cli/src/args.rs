@@ -8,7 +8,7 @@ use mdd_types::{ErrorCode, MddError, MddResult};
 use std::ffi::OsString;
 use std::path::PathBuf;
 
-pub const USAGE: &str = "usage: meguvizdexdash version | capabilities | inspect-dex PATH... | inspect-apk PATH... | query --input PATH... (--sql TEXT | --sql-file PATH|-) [--dialect native-v1|dexsql-0.1.0|dexsql-0.1.1] [--non-scalar-text reject|lossy-replacement] [--format jsonl|text] [--batch-rows N] [--max-rows N] [--deadline-ms N] [SQL BUDGETS] | serve --input PATH... [--dialect NAME] [--non-scalar-text reject|lossy-replacement] [--deadline-ms N] [SQL BUDGETS]; mcp [--dialect dexsql-0.1.0|dexsql-0.1.1] [--timeout-ms N] [--max-datasets N] [--max-total-input-bytes N] [--max-result-bytes N] [SQL BUDGETS]; SQL BUDGETS: --sql-max-steps N --sql-max-scanned-rows N --sql-max-result-rows N";
+pub const USAGE: &str = "usage: meguvizdexdash version | capabilities | inspect-dex PATH... | inspect-apk PATH... | query --input PATH... (--sql TEXT | --sql-file PATH|-) [--dialect native-v1|dexsql-0.1.0|dexsql-0.1.1] [--non-scalar-text reject|lossy-replacement] [--format jsonl|text] [--batch-rows N] [--max-rows N] [--deadline-ms N] [SQL BUDGETS] | serve --input PATH... [--dialect NAME] [--non-scalar-text reject|lossy-replacement] [--deadline-ms N] [SQL BUDGETS]; mcp [--dialect dexsql-0.1.0|dexsql-0.1.1] [--non-scalar-text reject|lossy-replacement] [--timeout-ms N] [--max-datasets N] [--max-total-input-bytes N] [--max-result-bytes N] [SQL BUDGETS]; SQL BUDGETS: --sql-max-steps N --sql-max-scanned-rows N --sql-max-result-rows N";
 
 pub enum Command {
     Version,
@@ -208,6 +208,9 @@ fn mcp_config(found: &Options) -> MddResult<mdd_mcp::Config> {
     if let Some(name) = &found.dialect {
         config.dialect = Dialect::parse(name)?;
     }
+    if let Some(name) = &found.non_scalar_text {
+        config.non_scalar_text = NonScalarTextPolicy::parse(name)?;
+    }
     if config.dialect == Dialect::NativeV1 {
         return Err(MddError::new(
             ErrorCode::UnsupportedCapability,
@@ -316,6 +319,7 @@ pub fn parse(args: &[OsString]) -> MddResult<Command> {
                 rest,
                 &[
                     "--dialect",
+                    "--non-scalar-text",
                     "--timeout-ms",
                     "--max-datasets",
                     "--max-total-input-bytes",
