@@ -432,10 +432,7 @@ pub(crate) fn extract_direct_filtered_projection_from_query(
             if !limit_by.is_empty() {
                 return None;
             }
-            let limit_val = match limit {
-                Some(expr) => Some(parse_i64_nonneg(expr)?),
-                None => return None,
-            };
+            let limit_val = Some(parse_i64_nonneg(limit.as_ref()?)?);
             let offset_val = match offset {
                 None => 0u64,
                 Some(off) => parse_i64_nonneg(&off.value)?,

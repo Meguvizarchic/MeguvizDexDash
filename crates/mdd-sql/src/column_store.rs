@@ -7041,7 +7041,7 @@ mod tests {
         // Empty result under counting_total window.
         let plan_empty = crate::provider::DirectFilteredProjection {
             predicates: vec![crate::provider::DirectPredicate::EqU64(0, 99)],
-            ..plan_asc
+            ..plan_asc.clone()
         };
         let (empty_rows, empty_rep) = store
             .direct_filtered_projection(
