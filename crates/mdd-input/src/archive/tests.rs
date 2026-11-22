@@ -886,9 +886,13 @@ fn spilled_apk_inventory_and_member_reads_match_in_memory_without_materializing(
                 .unwrap();
         assert!(spilled.sources()[0].try_bytes().is_none());
 
+        let normalize = |inv: &ArchiveInventory, snapshot_id: &str| -> serde_json::Value {
+            let raw = serde_json::to_string(inv.manifest()).unwrap();
+            serde_json::from_str(&raw.replace(snapshot_id, "<snapshot_id>")).unwrap()
+        };
         assert_eq!(
-            serde_json::to_value(mem_inv.manifest()).unwrap(),
-            serde_json::to_value(spill_inv.manifest()).unwrap()
+            normalize(&mem_inv, &in_mem.manifest().snapshot_id),
+            normalize(&spill_inv, &spilled.manifest().snapshot_id),
         );
         assert_eq!(mem_inv.selected_dexes().len(), 2);
         assert_eq!(spill_inv.selected_dexes().len(), 2);
