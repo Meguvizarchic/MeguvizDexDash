@@ -33,7 +33,7 @@ use serde::Deserialize;
 use serde_json::{Map, Value, json};
 use std::{
     path::PathBuf,
-    sync::{Arc, mpsc},
+    sync::{Arc, Mutex, mpsc},
     thread,
     time::{Duration, Instant},
 };
@@ -427,22 +427,96 @@ pub(crate) enum Outcome<T> {
     Panicked,
 }
 
-/// Run `work` on its own thread and wait for it, at most `ms`. A thread that outlives
-/// its deadline cannot be stopped; it ends when the engine's own budgets end it, and its
-/// result is dropped.
+type DeadlineJob = Box<dyn FnOnce() + Send + 'static>;
+
+const MAX_IDLE_DEADLINE_WORKERS: usize = 4;
+
+struct DeadlineWorker {
+    tx: mpsc::SyncSender<DeadlineJob>,
+}
+
+impl DeadlineWorker {
+    fn spawn() -> Self {
+        let (tx, rx) = mpsc::sync_channel::<DeadlineJob>(1);
+        thread::spawn(move || {
+            while let Ok(job) = rx.recv() {
+                job();
+            }
+        });
+        Self { tx }
+    }
+}
+
+struct DeadlinePool {
+    workers: Mutex<Vec<DeadlineWorker>>,
+}
+
+impl DeadlinePool {
+    const fn new() -> Self {
+        Self {
+            workers: Mutex::new(Vec::new()),
+        }
+    }
+
+    fn pop(&self) -> DeadlineWorker {
+        let mut guard = self
+            .workers
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        guard.pop().unwrap_or_else(DeadlineWorker::spawn)
+    }
+
+    fn push(&self, worker: DeadlineWorker) {
+        let mut guard = self
+            .workers
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if guard.len() < MAX_IDLE_DEADLINE_WORKERS {
+            guard.push(worker);
+        }
+    }
+
+    fn run<T: Send + 'static>(
+        &self,
+        ms: u64,
+        work: impl FnOnce() -> T + Send + 'static,
+    ) -> Outcome<T> {
+        let (sender, receiver) = mpsc::sync_channel(1);
+        let job: DeadlineJob = Box::new(move || {
+            let _ = sender.send(work());
+        });
+        let candidate = self.pop();
+        let worker = match candidate.tx.send(job) {
+            Ok(()) => candidate,
+            Err(mpsc::SendError(returned)) => {
+                let fresh = DeadlineWorker::spawn();
+                if fresh.tx.send(returned).is_err() {
+                    return Outcome::Panicked;
+                }
+                fresh
+            }
+        };
+        match receiver.recv_timeout(Duration::from_millis(ms)) {
+            Ok(value) => {
+                self.push(worker);
+                Outcome::Done(value)
+            }
+            Err(mpsc::RecvTimeoutError::Timeout) => Outcome::TimedOut,
+            Err(mpsc::RecvTimeoutError::Disconnected) => Outcome::Panicked,
+        }
+    }
+}
+
+static DEADLINE_POOL: DeadlinePool = DeadlinePool::new();
+
+/// Run `work` on a pooled worker thread and wait for it, at most `ms`. A thread that outlives
+/// its deadline cannot be stopped; it is abandoned by the pool, ends when the engine's own
+/// budgets end it, and its result is dropped.
 pub(crate) fn with_deadline<T: Send + 'static>(
     ms: u64,
     work: impl FnOnce() -> T + Send + 'static,
 ) -> Outcome<T> {
-    let (sender, receiver) = mpsc::channel();
-    thread::spawn(move || {
-        let _ = sender.send(work());
-    });
-    match receiver.recv_timeout(Duration::from_millis(ms)) {
-        Ok(value) => Outcome::Done(value),
-        Err(mpsc::RecvTimeoutError::Timeout) => Outcome::TimedOut,
-        Err(mpsc::RecvTimeoutError::Disconnected) => Outcome::Panicked,
-    }
+    DEADLINE_POOL.run(ms, work)
 }
 
 pub(crate) fn timed_out(what: &str, ms: u64) -> MddError {
@@ -472,35 +546,66 @@ fn require_dex(dataset: &Dataset, dataset_id: &str) -> Result<(), Failure> {
 
 // ---- dispatch -----------------------------------------------------------------
 
+pub(crate) enum CallResult {
+    Value(Value),
+    Serialized(String),
+}
+
 pub fn call(registry: &mut Registry, name: &str, arguments_value: Value) -> Result<Value, Failure> {
+    match call_fast(registry, name, arguments_value)? {
+        CallResult::Value(value) => Ok(value),
+        CallResult::Serialized(json) => serde_json::from_str(&json).map_err(|error| {
+            Failure::Execution(refuse(ErrorCode::InternalFault, &error.to_string()))
+        }),
+    }
+}
+
+pub(crate) fn call_fast(
+    registry: &mut Registry,
+    name: &str,
+    arguments_value: Value,
+) -> Result<CallResult, Failure> {
     match name {
-        "open_dataset" => open_dataset(registry, arguments(arguments_value)?),
+        "open_dataset" => {
+            open_dataset(registry, arguments(arguments_value)?).map(CallResult::Value)
+        }
         "list_datasets" => {
             arguments::<NoArgs>(arguments_value)?;
-            Ok(list_datasets(registry))
+            Ok(CallResult::Value(list_datasets(registry)))
         }
-        "close_dataset" => close_dataset(registry, arguments(arguments_value)?),
+        "close_dataset" => {
+            close_dataset(registry, arguments(arguments_value)?).map(CallResult::Value)
+        }
         "decode" => decode_method(registry, arguments(arguments_value)?),
-        "get_manifest" => get_manifest(registry, arguments(arguments_value)?),
+        "get_manifest" => {
+            get_manifest(registry, arguments(arguments_value)?).map(CallResult::Value)
+        }
         "get_manifest_components" => resource_tools::components::get_manifest_components(
             registry,
             arguments(arguments_value)?,
-        ),
+        )
+        .map(CallResult::Value),
         "list_resource_files" => {
             resource_tools::files::list_resource_files(registry, arguments(arguments_value)?)
+                .map(CallResult::Value)
         }
         "read_resource" => {
             resource_tools::read::read_resource(registry, arguments(arguments_value)?)
+                .map(CallResult::Value)
         }
         "query_resources" => {
             resource_tools::query::query_resources(registry, arguments(arguments_value)?)
+                .map(CallResult::Value)
         }
         "list_tables" => {
             arguments::<NoArgs>(arguments_value)?;
-            Ok(list_tables(registry.config().dialect.sql()))
+            Ok(CallResult::Value(list_tables(
+                registry.config().dialect.sql(),
+            )))
         }
         "describe_table" => {
             describe_table(registry.config().dialect.sql(), arguments(arguments_value)?)
+                .map(CallResult::Value)
         }
         "query" => query(registry, arguments(arguments_value)?),
         other => Err(Failure::UnknownTool(other.to_owned())),
@@ -688,3 +793,55 @@ use self::{
 #[cfg(test)]
 #[path = "tools/tests.rs"]
 mod tests;
+
+#[cfg(test)]
+mod deadline_pool_tests {
+    use super::{DeadlinePool, Outcome};
+    use std::{sync::mpsc, thread, time::Duration};
+
+    #[test]
+    fn reuses_idle_worker_and_abandons_after_timeout_or_panic() {
+        let pool = DeadlinePool::new();
+        let id1 = match pool.run(1_000, || thread::current().id()) {
+            Outcome::Done(id) => id,
+            _ => panic!("expected first call to finish"),
+        };
+        let id2 = match pool.run(1_000, || thread::current().id()) {
+            Outcome::Done(id) => id,
+            _ => panic!("expected second call to finish"),
+        };
+        assert_eq!(id1, id2);
+
+        let (release_tx, release_rx) = mpsc::channel::<()>();
+        let timed_out = pool.run(10, move || {
+            let _ = release_rx.recv_timeout(Duration::from_secs(2));
+        });
+        assert!(matches!(timed_out, Outcome::TimedOut));
+        drop(release_tx);
+
+        let id3 = match pool.run(1_000, || thread::current().id()) {
+            Outcome::Done(id) => id,
+            _ => panic!("expected post-timeout call to finish"),
+        };
+        assert_ne!(id3, id1);
+        let id4 = match pool.run(1_000, || thread::current().id()) {
+            Outcome::Done(id) => id,
+            _ => panic!("expected post-timeout worker to be reused"),
+        };
+        assert_eq!(id4, id3);
+
+        let panicked = pool.run(1_000, || -> u8 { panic!("injected deadline panic") });
+        assert!(matches!(panicked, Outcome::Panicked));
+
+        let id5 = match pool.run(1_000, || thread::current().id()) {
+            Outcome::Done(id) => id,
+            _ => panic!("expected post-panic call to finish"),
+        };
+        assert_ne!(id5, id3);
+        let id6 = match pool.run(1_000, || thread::current().id()) {
+            Outcome::Done(id) => id,
+            _ => panic!("expected post-panic worker to be reused"),
+        };
+        assert_eq!(id6, id5);
+    }
+}

@@ -23,7 +23,7 @@ use mdd_facts::{
     DefinitionFacts, MetadataFacts, coverage::NonScalarTextPolicy, indexes::SelectedScope,
 };
 use mdd_input::{
-    archive::{ArchiveInventory, ArchiveLimits, InventoryPolicy},
+    archive::{ArchiveInventory, ArchiveLimits, DexCandidate, InventoryPolicy},
     manifest::ManifestDocument,
     snapshot::{CaptureLimits, InputKind, InputSpec, Snapshot},
 };
@@ -463,6 +463,21 @@ impl Dataset {
         self.layers.as_ref()
     }
 
+    pub(crate) fn dex_candidate(&self, file_id: u32) -> Option<&DexCandidate> {
+        let position = usize::try_from(file_id).ok()?;
+        self.inventories
+            .iter()
+            .flat_map(|inventory| inventory.selected_dexes().iter())
+            .nth(position)
+    }
+
+    pub(crate) fn is_decode_dex_initialized(&self, file_id: u32) -> bool {
+        usize::try_from(file_id)
+            .ok()
+            .and_then(|position| self.lazy_decode.get(position))
+            .is_some_and(|slot| slot.get().is_some())
+    }
+
     pub(crate) fn decode_dex(&self, file_id: u32) -> MddResult<&LazyDexDecode> {
         let position = usize::try_from(file_id).unwrap_or(usize::MAX);
         let slot = self.lazy_decode.get(position).ok_or_else(|| {
@@ -507,7 +522,7 @@ impl Dataset {
         self.snapshot
             .sources()
             .iter()
-            .map(|source| source.bytes().len() as u64)
+            .map(|source| source.identity().byte_length.0)
             .sum()
     }
 

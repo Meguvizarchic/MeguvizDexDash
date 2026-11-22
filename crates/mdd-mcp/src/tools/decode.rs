@@ -68,7 +68,10 @@ pub const MAX_METHOD_LIMIT: u64 = 50;
 pub(super) const CLASS_TEXT_PAGE: &str =
     "continue a class method's text page using its file_id and method_idx, not a class selector";
 
-pub(super) fn decode_method(registry: &mut Registry, args: DecodeArgs) -> Result<Value, Failure> {
+pub(super) fn decode_method(
+    registry: &mut Registry,
+    args: DecodeArgs,
+) -> Result<CallResult, Failure> {
     let requested = match args.mode.as_deref() {
         None => None,
         Some("smali") => Some(DecodeMode::Smali),
@@ -149,6 +152,18 @@ pub(super) fn decode_method(registry: &mut Registry, args: DecodeArgs) -> Result
                 method_idx,
             },
             (None, None) => unreachable!("checked: exactly one selector"),
+        };
+        let _lease = match selector {
+            Selector::Key {
+                file_id,
+                method_idx,
+            } if cached
+                .as_ref()
+                .is_none_or(|(cf, ci, _)| (*cf, *ci) != (file_id, method_idx)) =>
+            {
+                decode::pin_dex_lease(&dataset, file_id)
+            }
+            _ => None,
         };
         let located = decode::select(&dataset, selector)?;
         if let Some((cached_file, cached_idx, decoded)) = cached
@@ -265,9 +280,9 @@ pub(super) fn decode_method(registry: &mut Registry, args: DecodeArgs) -> Result
         "text_format": mode.text_format(),
         "total_methods": 1,
     });
-    let size = serde_json::to_string(&output)
-        .map_err(|error| refuse(ErrorCode::InternalFault, &error.to_string()))?
-        .len() as u64;
+    let json = serde_json::to_string(&output)
+        .map_err(|error| refuse(ErrorCode::InternalFault, &error.to_string()))?;
+    let size = json.len() as u64;
     if size > registry.config.max_result_bytes {
         return Err(refuse(
             ErrorCode::QuotaExceeded,
@@ -278,7 +293,7 @@ pub(super) fn decode_method(registry: &mut Registry, args: DecodeArgs) -> Result
         .detail("observed", size.to_string())
         .into());
     }
-    Ok(output)
+    Ok(CallResult::Serialized(json))
 }
 
 /// The text a mode shows of a method's full smali text, and how many lines the full text has
@@ -410,7 +425,7 @@ pub(super) fn decode_class(
     mode: DecodeMode,
     max_lines: u64,
     ms: u64,
-) -> Result<Value, Failure> {
+) -> Result<CallResult, Failure> {
     let id = args.dataset_id.clone();
     let dataset = registry.find(&args.dataset_id)?;
     require_dex(&dataset, &args.dataset_id)?;
@@ -603,9 +618,9 @@ pub(super) fn decode_class(
         "text_format": mode.text_format(),
         "total_methods": page.total_methods,
     });
-    let size = serde_json::to_string(&output)
-        .map_err(|error| refuse(ErrorCode::InternalFault, &error.to_string()))?
-        .len() as u64;
+    let json = serde_json::to_string(&output)
+        .map_err(|error| refuse(ErrorCode::InternalFault, &error.to_string()))?;
+    let size = json.len() as u64;
     if size > registry.config.max_result_bytes {
         return Err(refuse(
             ErrorCode::QuotaExceeded,
@@ -616,5 +631,5 @@ pub(super) fn decode_class(
         .detail("observed", size.to_string())
         .into());
     }
-    Ok(output)
+    Ok(CallResult::Serialized(json))
 }
