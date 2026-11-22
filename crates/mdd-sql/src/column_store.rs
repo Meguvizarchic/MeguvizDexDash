@@ -2991,12 +2991,14 @@ fn ascii_lowercase_cow(s: &str) -> Cow<'_, [u8]> {
     }
 }
 
+type BytesPair<'a> = (Cow<'a, [u8]>, Cow<'a, [u8]>);
+
 #[derive(Default)]
 struct TextMatcher<'a> {
     exact_strs: Vec<&'a str>,
     exact_ids: &'a [u32],
     prefixes: Vec<Cow<'a, [u8]>>,
-    pairs: Vec<(Cow<'a, [u8]>, Cow<'a, [u8]>)>,
+    pairs: Vec<BytesPair<'a>>,
     contains: Vec<Cow<'a, [u8]>>,
 }
 
@@ -3409,20 +3411,6 @@ impl RelationStore {
             Kind::F64 => f(BorrowedSqlCell::F64Bits(raw)),
             Kind::Dict => self.dict.with_borrowed_cell(raw as u32, f),
         }
-    }
-
-    fn scan_derived_group(
-        &self,
-        index_column: usize,
-        predicates: &[(Derive, &[u32])],
-        narrow: Option<(u32, u32)>,
-    ) -> Option<Vec<u32>> {
-        let items: Vec<(Derive, TextMatcher<'_>)> = predicates
-            .iter()
-            .map(|&(derive, ids)| (derive, TextMatcher::from_exact_ids(ids)))
-            .collect();
-        let refs: Vec<(Derive, &TextMatcher<'_>)> = items.iter().map(|(d, m)| (*d, m)).collect();
-        self.scan_derived_text_matcher_group(index_column, &refs, narrow)
     }
 
     fn scan_derived_text_matcher_group(

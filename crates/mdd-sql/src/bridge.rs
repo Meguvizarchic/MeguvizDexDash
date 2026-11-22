@@ -1951,9 +1951,10 @@ fn reset_sqlite_connection(db: &Connection) -> MddResult<()> {
 
 const STACK_VALUE_REFS: usize = 16;
 
-enum RowValueRefs<'a> {
-    Stack([rusqlite::types::ValueRef<'a>; STACK_VALUE_REFS], usize),
-    Heap(Vec<rusqlite::types::ValueRef<'a>>),
+struct RowValueRefs<'a> {
+    stack: [rusqlite::types::ValueRef<'a>; STACK_VALUE_REFS],
+    heap: Vec<rusqlite::types::ValueRef<'a>>,
+    count: usize,
 }
 
 impl<'a> RowValueRefs<'a> {
@@ -1963,18 +1964,22 @@ impl<'a> RowValueRefs<'a> {
             .and_then(|v| v.checked_mul(2))
             .and_then(|v| v.checked_add((std::mem::size_of::<Vec<SqlValue>>() * 2) as u64))
             .ok_or_else(|| quota("SQL_RESULT_WORKSPACE_OVERFLOW"))?;
-        let mut storage = if count <= STACK_VALUE_REFS {
-            Self::Stack([rusqlite::types::ValueRef::Null; STACK_VALUE_REFS], count)
-        } else {
-            let mut heap = Vec::new();
-            heap.try_reserve_exact(count)
-                .map_err(|_| quota("SQL_RESULT_ALLOCATION"))?;
-            heap.resize(count, rusqlite::types::ValueRef::Null);
-            Self::Heap(heap)
+        let mut storage = Self {
+            stack: [rusqlite::types::ValueRef::Null; STACK_VALUE_REFS],
+            heap: Vec::new(),
+            count,
         };
-        let slots = match &mut storage {
-            Self::Stack(buf, len) => &mut buf[..*len],
-            Self::Heap(buf) => buf.as_mut_slice(),
+        if count > STACK_VALUE_REFS {
+            storage
+                .heap
+                .try_reserve_exact(count)
+                .map_err(|_| quota("SQL_RESULT_ALLOCATION"))?;
+            storage.heap.resize(count, rusqlite::types::ValueRef::Null);
+        }
+        let slots = if count <= STACK_VALUE_REFS {
+            &mut storage.stack[..count]
+        } else {
+            storage.heap.as_mut_slice()
         };
         for (ordinal, slot) in slots.iter_mut().enumerate() {
             let value = row.get_ref(ordinal).map_err(sqlite_error)?;
@@ -1993,9 +1998,10 @@ impl<'a> RowValueRefs<'a> {
     }
 
     fn as_slice(&self) -> &[rusqlite::types::ValueRef<'a>] {
-        match self {
-            Self::Stack(buf, len) => &buf[..*len],
-            Self::Heap(buf) => buf.as_slice(),
+        if self.count <= STACK_VALUE_REFS {
+            &self.stack[..self.count]
+        } else {
+            self.heap.as_slice()
         }
     }
 }
