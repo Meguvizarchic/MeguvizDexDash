@@ -43,25 +43,19 @@ fn push_i64_dec(out: &mut Vec<u8>, value: i64) {
 }
 
 #[inline]
-fn push_escaped_char(out: &mut Vec<u8>, ch: char) {
-    match ch {
-        '"' => out.extend_from_slice(b"\\\""),
-        '\\' => out.extend_from_slice(b"\\\\"),
-        '\x08' => out.extend_from_slice(b"\\b"),
-        '\x0c' => out.extend_from_slice(b"\\f"),
-        '\n' => out.extend_from_slice(b"\\n"),
-        '\r' => out.extend_from_slice(b"\\r"),
-        '\t' => out.extend_from_slice(b"\\t"),
-        c if (c as u32) < 0x20 => {
-            let b = c as u8;
+fn push_escaped_control_or_quote(out: &mut Vec<u8>, b: u8) {
+    match b {
+        b'"' => out.extend_from_slice(b"\\\""),
+        b'\\' => out.extend_from_slice(b"\\\\"),
+        0x08 => out.extend_from_slice(b"\\b"),
+        0x0c => out.extend_from_slice(b"\\f"),
+        b'\n' => out.extend_from_slice(b"\\n"),
+        b'\r' => out.extend_from_slice(b"\\r"),
+        b'\t' => out.extend_from_slice(b"\\t"),
+        b => {
             out.extend_from_slice(b"\\u00");
             out.push(HEX_LOWER[usize::from(b >> 4)]);
             out.push(HEX_LOWER[usize::from(b & 0x0f)]);
-        }
-        c => {
-            let mut utf8 = [0u8; 4];
-            let s = c.encode_utf8(&mut utf8);
-            out.extend_from_slice(s.as_bytes());
         }
     }
 }
@@ -71,15 +65,18 @@ fn push_escaped_char(out: &mut Vec<u8>, ch: char) {
 pub fn push_json_str(out: &mut Vec<u8>, s: &str) {
     out.push(b'"');
     let bytes = s.as_bytes();
-    if bytes
-        .iter()
-        .all(|&b| b >= 0x20 && b != b'"' && b != b'\\' && b < 0x80)
-    {
-        out.extend_from_slice(bytes);
-    } else {
-        for ch in s.chars() {
-            push_escaped_char(out, ch);
+    let mut start = 0usize;
+    for (i, &b) in bytes.iter().enumerate() {
+        if b < 0x20 || b == b'"' || b == b'\\' {
+            if i > start {
+                out.extend_from_slice(&bytes[start..i]);
+            }
+            push_escaped_control_or_quote(out, b);
+            start = i + 1;
         }
+    }
+    if start < bytes.len() {
+        out.extend_from_slice(&bytes[start..]);
     }
     out.push(b'"');
 }

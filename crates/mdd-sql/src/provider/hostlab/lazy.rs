@@ -421,6 +421,7 @@ impl HostLabSqlProvider {
             // The refusals are kept in their slots; what the caller can do about them is up to the statement that asks.
             let _ = Self::settle(guard, built);
         }
+        lazy.dict.shrink_to_fit();
         Ok(())
     }
 
@@ -500,6 +501,13 @@ impl HostLabSqlProvider {
             });
         }
         let threads = pass_threads();
+        let stream_extra = std::env::var_os("MDD_OPT_PARALLEL_PREPARE").as_deref()
+            != Some(std::ffi::OsStr::new("0"));
+        let prep_threads = if stream_extra {
+            parallel_prepare_threads()
+        } else {
+            1
+        };
         let chunk_needs = |passes: &[Pass]| -> LayerNeeds {
             let mut needs = LayerNeeds::default();
             for pass in passes.iter().filter(|pass| pass.stopped.is_none()) {
@@ -550,6 +558,7 @@ impl HostLabSqlProvider {
                 control,
                 table: table.as_ref(),
                 method_views: &method_views,
+                stream_extra,
             };
             // The relations that cost the most so far are taken first, so the last thread to finish is not the one that
             // started the biggest relation late.
@@ -581,63 +590,178 @@ impl HostLabSqlProvider {
         };
 
         if passes.len() > 1
-            && parallel_prepare_threads() > 1
+            && prep_threads > 1
             && lazy.descriptors.len() > 1
             && !passes.iter().all(|pass| pass.stopped.is_some())
         {
-            use std::sync::atomic::{AtomicBool, Ordering};
-            let initial_needs = chunk_needs(&passes);
-            let stop = AtomicBool::new(false);
-            let stop_ref = &stop;
-            let stream_res: MddResult<()> = std::thread::scope(|scope| {
-                let (tx, rx) =
-                    std::sync::mpsc::sync_channel::<(usize, MddResult<HostLabOccurrenceFacts>)>(0);
-                scope.spawn(move || {
-                    for position in 0..lazy.descriptors.len() {
-                        if stop_ref.load(Ordering::Acquire) {
-                            break;
-                        }
-                        let res = lazy.loader.load(position, initial_needs);
-                        let is_err = res.is_err();
-                        if tx.send((position, res)).is_err() || is_err {
-                            break;
-                        }
-                    }
-                });
-                for (position, descriptor) in lazy.descriptors.iter().enumerate() {
-                    if passes.iter().all(|pass| pass.stopped.is_some()) {
-                        stop.store(true, Ordering::Release);
-                        break;
-                    }
-                    let (recv_pos, loaded_res) = rx.recv().map_err(|_| {
-                        stop.store(true, Ordering::Release);
-                        MddError::new(
-                            ErrorCode::InternalFault,
-                            "sql.hostlab",
-                            "occurrence loader thread ended unexpectedly",
-                        )
-                    })?;
-                    debug_assert_eq!(recv_pos, position);
-                    let loaded = match loaded_res {
-                        Ok(facts) => facts,
-                        Err(error) => {
-                            stop.store(true, Ordering::Release);
-                            drop(rx);
-                            return Err(error);
-                        }
-                    };
-                    if let Err(error) = feed_loaded(position, descriptor, loaded, &mut passes) {
-                        stop.store(true, Ordering::Release);
-                        drop(rx);
-                        return Err(error);
-                    }
-                    if passes.iter().all(|pass| pass.stopped.is_some()) {
-                        stop.store(true, Ordering::Release);
-                        break;
+            struct ReorderState {
+                next_to_claim: usize,
+                in_flight: usize,
+                aborted: bool,
+                earliest_err_pos: Option<usize>,
+                ready: std::collections::BTreeMap<usize, MddResult<HostLabOccurrenceFacts>>,
+            }
+            struct InFlightPermit<'a> {
+                state: &'a Mutex<ReorderState>,
+                cv: &'a std::sync::Condvar,
+                active: bool,
+            }
+            impl Drop for InFlightPermit<'_> {
+                fn drop(&mut self) {
+                    if self.active {
+                        let mut guard = self
+                            .state
+                            .lock()
+                            .unwrap_or_else(std::sync::PoisonError::into_inner);
+                        guard.in_flight = guard.in_flight.saturating_sub(1);
+                        guard.aborted = true;
+                        self.cv.notify_all();
                     }
                 }
-                drop(rx);
-                Ok(())
+            }
+
+            let initial_needs = chunk_needs(&passes);
+            let total = lazy.descriptors.len();
+            let loader_workers = prep_threads.min(3).min(total);
+            let max_in_flight = 3usize;
+            let state = Mutex::new(ReorderState {
+                next_to_claim: 0,
+                in_flight: 0,
+                aborted: false,
+                earliest_err_pos: None,
+                ready: std::collections::BTreeMap::new(),
+            });
+            let cv = std::sync::Condvar::new();
+            let state_ref = &state;
+            let cv_ref = &cv;
+
+            let stream_res: MddResult<()> = std::thread::scope(|scope| {
+                for _ in 0..loader_workers {
+                    scope.spawn(move || {
+                        loop {
+                            let position = {
+                                let mut guard = state_ref
+                                    .lock()
+                                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                                loop {
+                                    if guard.aborted
+                                        || guard.next_to_claim >= total
+                                        || guard
+                                            .earliest_err_pos
+                                            .is_some_and(|err_pos| guard.next_to_claim >= err_pos)
+                                    {
+                                        return;
+                                    }
+                                    if guard.in_flight < max_in_flight {
+                                        let pos = guard.next_to_claim;
+                                        guard.next_to_claim += 1;
+                                        guard.in_flight += 1;
+                                        break pos;
+                                    }
+                                    guard = cv_ref
+                                        .wait(guard)
+                                        .unwrap_or_else(std::sync::PoisonError::into_inner);
+                                }
+                            };
+                            let mut permit = InFlightPermit {
+                                state: state_ref,
+                                cv: cv_ref,
+                                active: true,
+                            };
+                            let res = lazy.loader.load(position, initial_needs);
+                            let mut guard = state_ref
+                                .lock()
+                                .unwrap_or_else(std::sync::PoisonError::into_inner);
+                            permit.active = false;
+                            if guard.aborted {
+                                guard.in_flight = guard.in_flight.saturating_sub(1);
+                                cv_ref.notify_all();
+                                drop(guard);
+                                drop(res);
+                                return;
+                            }
+                            if res.is_err() {
+                                guard.earliest_err_pos = Some(
+                                    guard
+                                        .earliest_err_pos
+                                        .map_or(position, |prev| prev.min(position)),
+                                );
+                            }
+                            guard.ready.insert(position, res);
+                            cv_ref.notify_all();
+                        }
+                    });
+                }
+
+                let mut result = Ok(());
+                for (position, descriptor) in lazy.descriptors.iter().enumerate() {
+                    if passes.iter().all(|pass| pass.stopped.is_some()) {
+                        break;
+                    }
+                    let loaded_res = {
+                        let mut guard = state_ref
+                            .lock()
+                            .unwrap_or_else(std::sync::PoisonError::into_inner);
+                        loop {
+                            if let Some(res) = guard.ready.remove(&position) {
+                                break Ok(res);
+                            }
+                            if guard.aborted {
+                                break Err(MddError::new(
+                                    ErrorCode::InternalFault,
+                                    "sql.hostlab",
+                                    "occurrence loader thread ended unexpectedly",
+                                ));
+                            }
+                            guard = cv_ref
+                                .wait(guard)
+                                .unwrap_or_else(std::sync::PoisonError::into_inner);
+                        }
+                    };
+                    let loaded_res = match loaded_res {
+                        Ok(res) => res,
+                        Err(err) => {
+                            result = Err(err);
+                            break;
+                        }
+                    };
+                    let feed_res = match loaded_res {
+                        Ok(loaded) => feed_loaded(position, descriptor, loaded, &mut passes),
+                        Err(error) => Err(error),
+                    };
+                    let mut guard = state_ref
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner);
+                    guard.in_flight = guard.in_flight.saturating_sub(1);
+                    if let Err(error) = feed_res {
+                        guard.aborted = true;
+                        let leftover = std::mem::take(&mut guard.ready);
+                        cv_ref.notify_all();
+                        drop(guard);
+                        drop(leftover);
+                        result = Err(error);
+                        break;
+                    }
+                    if passes.iter().all(|pass| pass.stopped.is_some()) {
+                        guard.aborted = true;
+                        let leftover = std::mem::take(&mut guard.ready);
+                        cv_ref.notify_all();
+                        drop(guard);
+                        drop(leftover);
+                        break;
+                    }
+                    cv_ref.notify_all();
+                }
+
+                let mut guard = state_ref
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                guard.aborted = true;
+                let leftover = std::mem::take(&mut guard.ready);
+                cv_ref.notify_all();
+                drop(guard);
+                drop(leftover);
+                result
             });
             stream_res?;
         } else {
@@ -846,6 +970,7 @@ impl HostLabSqlProvider {
             ctx.control,
             &mut sink,
             Some(ctx.method_views),
+            ctx.stream_extra,
         );
         let refused = sink.refused.take();
         if let Err(error) = produced {
@@ -867,6 +992,7 @@ struct DexFeedContext<'a, 'b> {
     control: &'b SqlControl,
     table: Option<&'b Arc<RefTable>>,
     method_views: &'b OnceLock<MddResult<MethodCodeFactViews<'a>>>,
+    stream_extra: bool,
 }
 
 /// A builder that remembers whether the error that ended a DEX's rows was its own: a row the store cannot hold, as opposed
@@ -983,7 +1109,7 @@ fn collect_ready_defined_pairs(
             }
         }
         ExactRowSet::Slice(slice) => {
-            for &row in slice {
+            for &row in slice.iter() {
                 out.push(read_row(u64::from(row))?);
             }
         }

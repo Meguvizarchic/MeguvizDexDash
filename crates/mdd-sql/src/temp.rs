@@ -100,6 +100,88 @@ fn parse_error(error: ParserError) -> MddError {
     }
 }
 
+/// Conservative O(n) precheck for single-statement plain read-only queries (`SELECT ...`
+/// or `WITH ...`) without comments, bracketed identifiers, multiple statements, or
+/// unbalanced quotes. Any ambiguity falls back to [`parse_statement`] so DDL handling and
+/// error codes stay identical.
+fn is_plain_read_only_query_candidate(sql: &str, limits: SqlLimits) -> bool {
+    if sql.len() > limits.max_sql_bytes {
+        return false;
+    }
+    let bytes = sql.as_bytes();
+    let mut i = 0usize;
+    while i < bytes.len() && bytes[i].is_ascii_whitespace() {
+        i += 1;
+    }
+    let rest = &bytes[i..];
+    let matched_len = if rest.len() >= 6
+        && rest[..6].eq_ignore_ascii_case(b"select")
+        && rest
+            .get(6)
+            .is_some_and(|&b| b.is_ascii_whitespace() || b == b'(' || b == b'*')
+    {
+        6
+    } else if rest.len() >= 4
+        && rest[..4].eq_ignore_ascii_case(b"with")
+        && rest.get(4).is_some_and(u8::is_ascii_whitespace)
+    {
+        4
+    } else {
+        return false;
+    };
+    i += matched_len;
+    let mut nesting = 0usize;
+    let max_nesting = limits.max_ast_depth.min(64);
+    while i < bytes.len() {
+        match bytes[i] {
+            b'-' if bytes.get(i + 1) == Some(&b'-') => return false,
+            b'/' if bytes.get(i + 1) == Some(&b'*') => return false,
+            b'\'' | b'"' | b'`' => {
+                let quote = bytes[i];
+                i += 1;
+                let mut closed = false;
+                while i < bytes.len() {
+                    if bytes[i] == quote {
+                        if bytes.get(i + 1) == Some(&quote) {
+                            i += 2;
+                        } else {
+                            i += 1;
+                            closed = true;
+                            break;
+                        }
+                    } else {
+                        i += 1;
+                    }
+                }
+                if !closed {
+                    return false;
+                }
+            }
+            b'[' => return false,
+            b'(' => {
+                nesting += 1;
+                if nesting > max_nesting {
+                    return false;
+                }
+                i += 1;
+            }
+            b')' => {
+                nesting = nesting.saturating_sub(1);
+                i += 1;
+            }
+            b';' => {
+                i += 1;
+                while i < bytes.len() && bytes[i].is_ascii_whitespace() {
+                    i += 1;
+                }
+                return i == bytes.len();
+            }
+            _ => i += 1,
+        }
+    }
+    true
+}
+
 /// What a statement asks for, after parsing.
 enum Parsed {
     Query(Box<Query>),
@@ -390,8 +472,28 @@ impl TempSqlSession {
         })
     }
 
+    fn try_prepare_plain_when_empty(&self, sql: &str) -> MddResult<Option<TempQuery>> {
+        if !is_plain_read_only_query_candidate(sql, self.bridge.limits()) {
+            return Ok(None);
+        }
+        let bodies = self.bodies()?;
+        if !bodies.is_empty() {
+            return Ok(None);
+        }
+        let prepared = self.bridge.prepare(sql)?;
+        let catalog_epoch = self.lifecycle.temp_catalog_epoch(&self.session)?;
+        Ok(Some(TempQuery {
+            prepared,
+            temp_names: Vec::new(),
+            catalog_epoch,
+        }))
+    }
+
     /// Prepare a plain query, expanding every TEMP definition it reads.
     pub fn prepare(&self, sql: &str) -> MddResult<TempQuery> {
+        if let Some(temp_query) = self.try_prepare_plain_when_empty(sql)? {
+            return Ok(temp_query);
+        }
         let Parsed::Query(query) = parse_statement(sql, self.bridge.limits())? else {
             return Err(invalid("SQL_STATEMENT_NOT_READ_ONLY_QUERY"));
         };
@@ -536,6 +638,15 @@ impl TempSqlSession {
     /// given); a definition changes the catalog and returns the change.
     pub fn execute(&self, sql: &str, window: Option<SqlWindow>) -> MddResult<TempStatementResult> {
         let limits = self.bridge.limits();
+        if let Some(temp_query) = self.try_prepare_plain_when_empty(sql)? {
+            let prepared = temp_query.into_prepared();
+            let control = SqlControl::new(limits, None);
+            let result = match window {
+                Some(window) => self.bridge.execute_window(&prepared, control, window)?,
+                None => self.bridge.execute(&prepared, control)?,
+            };
+            return Ok(TempStatementResult::Rows(Box::new(result)));
+        }
         match parse_statement(sql, limits)? {
             Parsed::Query(query) => {
                 let prepared = {

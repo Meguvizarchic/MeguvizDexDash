@@ -77,6 +77,15 @@ impl DexText {
         String::from_utf16_lossy(&self.utf16_units)
     }
 
+    /// Returns whether [`Self::strict_utf8`] would succeed without allocating a `String`.
+    #[inline]
+    pub fn is_strict_utf8(&self) -> bool {
+        if !self.utf16_units.iter().any(|&u| (u & 0xF800) == 0xD800) {
+            return true;
+        }
+        std::char::decode_utf16(self.utf16_units.iter().copied()).all(|r| r.is_ok())
+    }
+
     pub fn equals_raw(&self, other: &Self) -> bool {
         self.raw_mutf8 == other.raw_mutf8
     }

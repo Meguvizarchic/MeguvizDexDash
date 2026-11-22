@@ -73,7 +73,7 @@ struct Built {
     /// one code item at a time (by `decode`, or via `compact_refs` when `ReferenceFacts` takes its sites).
     compact_code: MddResult<Arc<CodeFacts>>,
     compact_refs: Option<CompactCodeRefs>,
-    annotations: MddResult<Arc<AnnotationFacts>>,
+    annotations: Option<MddResult<Arc<AnnotationFacts>>>,
 }
 
 impl LayerBuilder {
@@ -171,17 +171,15 @@ impl LayerBuilder {
                     DefinitionLimits::default(),
                 )?);
                 let annotations = if capture_compact_refs {
-                    Err(MddError::new(
-                        ErrorCode::InternalFault,
-                        "service.layers",
-                        "deferred for parallel loader pass",
-                    ))
+                    None
                 } else {
-                    AnnotationFacts::build_arc(
-                        Arc::clone(&definitions),
-                        AnnotationLimits::default(),
+                    Some(
+                        AnnotationFacts::build_arc(
+                            Arc::clone(&definitions),
+                            AnnotationLimits::default(),
+                        )
+                        .map(Arc::new),
                     )
-                    .map(Arc::new)
                 };
                 Ok((metadata, definitions, annotations))
             })();
@@ -214,6 +212,13 @@ impl LayerBuilder {
             compact_refs: _,
             annotations,
         } = self.build(position)?;
+        let annotations = annotations.unwrap_or_else(|| {
+            Err(MddError::new(
+                ErrorCode::InternalFault,
+                "service.layers",
+                "annotations were not built for occurrence",
+            ))
+        });
         Ok(Occurrence {
             file_id,
             metadata,
@@ -338,15 +343,13 @@ impl OccurrenceLoader for LayerBuilder {
             Ok(code) => validate_code_meta(code),
             Err(_) => LayerValidation::Failed,
         };
-        let mut ann_valid = if opt_parallel {
-            LayerValidation::Unknown
-        } else if annotations.is_ok() {
-            LayerValidation::Valid(())
-        } else {
-            LayerValidation::Failed
+        let mut ann_valid = match &annotations {
+            None => LayerValidation::Unknown,
+            Some(Ok(_)) => LayerValidation::Valid(()),
+            Some(Err(_)) => LayerValidation::Failed,
         };
         let upper = || -> MddResult<_> {
-            let built_code = Arc::clone(compact_code.as_ref().map_err(Clone::clone)?);
+            let built_code = compact_code?;
             if opt_parallel {
                 let (references, annotations) = std::thread::scope(|scope| {
                     let ann = scope.spawn(|| {
@@ -389,7 +392,14 @@ impl OccurrenceLoader for LayerBuilder {
                 Arc::clone(&built_code),
                 ReferenceLimits::default(),
             )?);
-            let annotations = Arc::clone(annotations.as_ref().map_err(Clone::clone)?);
+            let annotations = match annotations {
+                Some(res) => res?,
+                None => AnnotationFacts::build_arc(
+                    Arc::clone(&definitions),
+                    AnnotationLimits::default(),
+                )
+                .map(Arc::new)?,
+            };
             Ok((built_code, references, annotations))
         };
         let upper = upper();

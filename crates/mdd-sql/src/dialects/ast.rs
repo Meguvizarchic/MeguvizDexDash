@@ -7,7 +7,7 @@ use sqlparser::{
     ast::*,
     dialect::SQLiteDialect,
     parser::{Parser, ParserError},
-    tokenizer::{Token, Tokenizer},
+    tokenizer::{Token, TokenWithSpan, Tokenizer},
 };
 use std::{
     cell::Cell,
@@ -195,8 +195,123 @@ pub(super) fn adapt_with_fast_udf(
     adapt_with_mode(sql, limits, parameters, &schema, dialect_policy, fast_udf)
 }
 
+const MAX_SHALLOW_SQL_BYTES: usize = 4096;
+const MAX_SHALLOW_TOKENS: usize = 256;
+const MAX_SHALLOW_NESTING: usize = 8;
+const MAX_SHALLOW_OPERATORS: usize = 32;
+
+struct PreparedTokens {
+    tokens: Vec<TokenWithSpan>,
+    reserved: BTreeSet<String>,
+    partition_mentions: BTreeMap<String, usize>,
+    is_shallow: bool,
+}
+
+fn is_flat_operator_keyword(word: &str) -> bool {
+    word.eq_ignore_ascii_case("AND")
+        || word.eq_ignore_ascii_case("OR")
+        || word.eq_ignore_ascii_case("NOT")
+        || word.eq_ignore_ascii_case("UNION")
+        || word.eq_ignore_ascii_case("INTERSECT")
+        || word.eq_ignore_ascii_case("EXCEPT")
+        || word.eq_ignore_ascii_case("CASE")
+}
+
+fn scan_word_metadata(
+    tokens: &[TokenWithSpan],
+    schema: &PreparedSchema,
+) -> (BTreeSet<String>, BTreeMap<String, usize>) {
+    let mut reserved = BTreeSet::new();
+    let mut partition_mentions = BTreeMap::new();
+    let check_partitions = !schema.partition_columns.is_empty();
+    for (at, tws) in tokens.iter().enumerate() {
+        let Token::Word(word) = &tws.token else {
+            continue;
+        };
+        let lower = word.value.to_ascii_lowercase();
+        if check_partitions
+            && schema.partition_columns.contains_key(&lower)
+            && !matches!(
+                tokens[at + 1..]
+                    .iter()
+                    .find(|next| !matches!(next.token, Token::Whitespace(_)))
+                    .map(|next| &next.token),
+                Some(Token::Period)
+            )
+        {
+            *partition_mentions.entry(lower.clone()).or_insert(0) += 1;
+        }
+        if !schema.reserved_base.contains(&lower) {
+            reserved.insert(lower);
+        }
+    }
+    (reserved, partition_mentions)
+}
+
+fn preflight_tokenize(
+    sql: &str,
+    limits: SqlLimits,
+    schema: &PreparedSchema,
+) -> MddResult<PreparedTokens> {
+    if sql.len() > limits.max_sql_bytes {
+        return Err(quota("SQL_TEXT_BYTES"));
+    }
+    let dialect = SQLiteDialect {};
+    let tokens = Tokenizer::new(&dialect, sql)
+        .tokenize_with_location()
+        .map_err(|e| invalid(&format!("SQL_TOKEN_ERROR: {e}")))?;
+    if tokens.len() > limits.max_tokens || tokens.len() > limits.max_ast_nodes.saturating_mul(4) {
+        return Err(quota("SQL_TOKEN_OR_NODE_PREFLIGHT"));
+    }
+    // A recursive parser limit alone does not bound left-associative BinaryOp
+    // or UNION trees. Bound their input before any owned recursive AST exists.
+    let mut nesting = 0usize;
+    let mut max_nesting = 0usize;
+    let mut operators = 0usize;
+    for tws in &tokens {
+        match &tws.token {
+            Token::LParen | Token::LBracket => {
+                nesting += 1;
+                if nesting > limits.max_ast_depth {
+                    return Err(quota("SQL_LEXICAL_DEPTH"));
+                }
+                max_nesting = max_nesting.max(nesting);
+            }
+            Token::RParen | Token::RBracket => nesting = nesting.saturating_sub(1),
+            Token::Whitespace(_)
+            | Token::SingleQuotedString(_)
+            | Token::DoubleQuotedString(_)
+            | Token::Number(_, _) => (),
+            Token::Word(word)
+                if word.quote_style.is_none() && is_flat_operator_keyword(&word.value) =>
+            {
+                operators += 1
+            }
+            Token::Word(_) | Token::Comma | Token::Period | Token::SemiColon => (),
+            _ => operators += 1,
+        }
+        if operators > limits.max_ast_operators {
+            return Err(quota("SQL_FLAT_OPERATOR_BUDGET"));
+        }
+    }
+    if limits.max_ast_depth == 0 || limits.max_ast_nodes == 0 {
+        return Err(quota("SQL_AST_BUDGET"));
+    }
+    let is_shallow = sql.len() <= MAX_SHALLOW_SQL_BYTES
+        && tokens.len() <= MAX_SHALLOW_TOKENS
+        && max_nesting <= MAX_SHALLOW_NESTING
+        && operators <= MAX_SHALLOW_OPERATORS;
+    let (reserved, partition_mentions) = scan_word_metadata(&tokens, schema);
+    Ok(PreparedTokens {
+        tokens,
+        reserved,
+        partition_mentions,
+        is_shallow,
+    })
+}
+
 struct AstRequest {
-    sql: String,
+    pre: PreparedTokens,
     limits: SqlLimits,
     parameters: Vec<SqlValue>,
     schema: Arc<PreparedSchema>,
@@ -217,6 +332,11 @@ fn adapt_with_mode(
     dialect_policy: super::SqlDialect,
     fast_udf: bool,
 ) -> MddResult<Adapted> {
+    let pre = preflight_tokenize(sql, limits, schema)?;
+    if pre.is_shallow {
+        return adapt_on_tokens(pre, limits, parameters, schema, dialect_policy, fast_udf);
+    }
+
     // MDD-084: run the recursive AST rewrite on a stack proven sufficient for the
     // validated depth (see AST_REWRITE_STACK_BYTES). A persistent worker thread reuses
     // that stack across statements so simple queries avoid per-statement OS thread creation,
@@ -232,8 +352,8 @@ fn adapt_with_mode(
             .stack_size(AST_REWRITE_STACK_BYTES)
             .spawn(move || {
                 while let Ok(req) = rx.recv() {
-                    let result = adapt_on_stack(
-                        &req.sql,
+                    let result = adapt_on_tokens(
+                        req.pre,
                         req.limits,
                         &req.parameters,
                         &req.schema,
@@ -256,7 +376,7 @@ fn adapt_with_mode(
     }
     let (reply_tx, reply_rx) = std::sync::mpsc::sync_channel::<MddResult<Adapted>>(1);
     let req = AstRequest {
-        sql: sql.to_owned(),
+        pre,
         limits,
         parameters: parameters.to_vec(),
         schema: Arc::clone(schema),
@@ -289,64 +409,24 @@ fn adapt_with_mode(
         }
     }
 }
-fn adapt_on_stack(
-    sql: &str,
+fn adapt_on_tokens(
+    pre: PreparedTokens,
     limits: SqlLimits,
     parameters: &[SqlValue],
     schema: &PreparedSchema,
     dialect_policy: super::SqlDialect,
     fast_udf: bool,
 ) -> MddResult<Adapted> {
-    if sql.len() > limits.max_sql_bytes {
-        return Err(quota("SQL_TEXT_BYTES"));
-    }
+    let PreparedTokens {
+        tokens,
+        reserved,
+        partition_mentions,
+        is_shallow: _,
+    } = pre;
     let dialect = SQLiteDialect {};
-    let tokens = Tokenizer::new(&dialect, sql)
-        .tokenize()
-        .map_err(|e| invalid(&format!("SQL_TOKEN_ERROR: {e}")))?;
-    if tokens.len() > limits.max_tokens || tokens.len() > limits.max_ast_nodes.saturating_mul(4) {
-        return Err(quota("SQL_TOKEN_OR_NODE_PREFLIGHT"));
-    }
-    // A recursive parser limit alone does not bound left-associative BinaryOp
-    // or UNION trees. Bound their input before any owned recursive AST exists.
-    let mut nesting = 0usize;
-    let mut operators = 0usize;
-    for token in &tokens {
-        match token {
-            Token::LParen | Token::LBracket => {
-                nesting += 1;
-                if nesting > limits.max_ast_depth {
-                    return Err(quota("SQL_LEXICAL_DEPTH"));
-                }
-            }
-            Token::RParen | Token::RBracket => nesting = nesting.saturating_sub(1),
-            Token::Whitespace(_)
-            | Token::SingleQuotedString(_)
-            | Token::DoubleQuotedString(_)
-            | Token::Number(_, _) => (),
-            Token::Word(word)
-                if word.quote_style.is_none()
-                    && matches!(
-                        word.value.to_ascii_uppercase().as_str(),
-                        "AND" | "OR" | "NOT" | "UNION" | "INTERSECT" | "EXCEPT" | "CASE"
-                    ) =>
-            {
-                operators += 1
-            }
-            Token::Word(_) | Token::Comma | Token::Period | Token::SemiColon => (),
-            _ => operators += 1,
-        }
-        if operators > limits.max_ast_operators {
-            return Err(quota("SQL_FLAT_OPERATOR_BUDGET"));
-        }
-    }
-    if limits.max_ast_depth == 0 || limits.max_ast_nodes == 0 {
-        return Err(quota("SQL_AST_BUDGET"));
-    }
     let mut statements = Parser::new(&dialect)
         .with_recursion_limit(limits.max_ast_depth)
-        .try_with_sql(sql)
-        .map_err(parse_error)?
+        .with_tokens_with_locations(tokens)
         .parse_statements()
         .map_err(parse_error)?;
     if statements.len() != 1 {
@@ -356,8 +436,11 @@ fn adapt_on_stack(
         return Err(invalid("SQL_STATEMENT_NOT_READ_ONLY_QUERY"));
     };
     // read before the rewrite turns `file_id = 0` into a function call
-    let partition_hints =
-        super::pushdown::partition_hints(query, &tokens, &schema.partition_columns);
+    let partition_hints = super::pushdown::partition_hints_with_counts(
+        query,
+        &partition_mentions,
+        &schema.partition_columns,
+    );
     let query_hints =
         super::pushdown::query_hints_with_types(query, &schema.relations, &schema.schema_types);
     let empty_ctes = BTreeSet::new();
@@ -371,6 +454,7 @@ fn adapt_on_stack(
             query,
             &schema.relations,
             &empty_ctes,
+            dialect_policy,
         )
     } else {
         None
@@ -381,16 +465,11 @@ fn adapt_on_stack(
                 query,
                 &schema.relations,
                 &empty_ctes,
+                dialect_policy,
             )
         } else {
             None
         };
-    let mut reserved = BTreeSet::new();
-    for token in &tokens {
-        if let Token::Word(word) = token {
-            reserved.insert(word.value.to_ascii_lowercase());
-        }
-    }
     let mut rewrite = Rewrite {
         limits,
         aggregate_scan: AggregateScan {

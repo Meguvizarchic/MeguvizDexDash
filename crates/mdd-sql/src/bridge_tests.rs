@@ -8809,3 +8809,760 @@ fn direct_filtered_projection_matches_sqlite_oracle_windowed_and_streamed() {
             .is_empty()
     );
 }
+
+#[test]
+fn direct_expanded_predicates_and_filtered_group_by_match_sqlite_oracle() {
+    use crate::column_store::{BorrowedSqlCell, DirectCellRowConsumer};
+    use crate::provider::hostlab::{
+        HostLabOccurrenceFacts, HostLabSqlProvider, LayerNeeds, OccurrenceLoader,
+    };
+    use crate::temp::{TempSqlSession, TempStatementResult};
+    use crate::window::SqlWindow;
+    use mdd_dex::{definitions::DefinitionLimits, strings::StringLimits};
+    use mdd_facts::{DefinitionFacts, MetadataFacts, indexes::SelectedScope};
+    use mdd_input::{
+        archive::{ArchiveInventory, ArchiveLimits, InventoryPolicy},
+        snapshot::{CaptureLimits, InputKind, InputSpec, Snapshot},
+    };
+    use mdd_session::{Lifecycle, ResourceLimits};
+
+    let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let specs = ["definitions-035.dex", "classic-035.dex"]
+        .into_iter()
+        .map(|name| InputSpec {
+            path: root
+                .join("tests/fixtures")
+                .join(if name.starts_with("def") {
+                    format!("definitions/generated/{name}")
+                } else {
+                    format!("references/generated/{name}")
+                }),
+            kind: InputKind::RawDex,
+            expected_sha256: None,
+        })
+        .collect::<Vec<_>>();
+    let snapshot = Arc::new(Snapshot::capture(&specs, CaptureLimits::default()).unwrap());
+    let inventories: Vec<ArchiveInventory> = snapshot
+        .sources()
+        .iter()
+        .map(|source| {
+            ArchiveInventory::build(source, InventoryPolicy::default(), ArchiveLimits::default())
+                .unwrap()
+        })
+        .collect();
+    let scope = SelectedScope::from_inventories(&snapshot, &inventories.iter().collect::<Vec<_>>())
+        .unwrap();
+
+    let mut pairs = Vec::with_capacity(scope.dexes().len());
+    for (pos, _) in scope.dexes().iter().enumerate() {
+        let mut rem = pos;
+        let (inv, local) = inventories
+            .iter()
+            .find_map(|inv| {
+                let count = inv.selected_dexes().len();
+                if rem < count {
+                    Some((inv, rem))
+                } else {
+                    rem -= count;
+                    None
+                }
+            })
+            .unwrap();
+        let meta =
+            Arc::new(MetadataFacts::build(&snapshot, inv, local, StringLimits::default()).unwrap());
+        let defs = Arc::new(
+            DefinitionFacts::build_arc(Arc::clone(&meta), DefinitionLimits::default()).unwrap(),
+        );
+        pairs.push((meta, defs));
+    }
+
+    struct Loader(Vec<(Arc<MetadataFacts>, Arc<DefinitionFacts>)>);
+    impl OccurrenceLoader for Loader {
+        fn load(&self, position: usize, _: LayerNeeds) -> MddResult<HostLabOccurrenceFacts> {
+            let (meta, defs) = &self.0[position];
+            Ok(HostLabOccurrenceFacts::structural(
+                Arc::clone(meta),
+                Arc::clone(defs),
+            ))
+        }
+    }
+
+    #[derive(Default)]
+    struct CaptureConsumer {
+        columns: Vec<String>,
+        rows: Vec<SqlRow>,
+        current: SqlRow,
+        finished: bool,
+    }
+    impl DirectCellRowConsumer for CaptureConsumer {
+        fn on_columns(&mut self, columns: &[String]) -> MddResult<()> {
+            self.columns = columns.to_vec();
+            Ok(())
+        }
+        fn on_start(&mut self, _row_count: u64) -> MddResult<()> {
+            Ok(())
+        }
+        fn begin_row(&mut self) -> MddResult<()> {
+            self.current.clear();
+            Ok(())
+        }
+        fn push_cell(&mut self, _col_idx: usize, cell: &BorrowedSqlCell<'_>) -> MddResult<()> {
+            let val = match cell {
+                BorrowedSqlCell::Null => SqlValue::Null,
+                BorrowedSqlCell::Bool(b) => SqlValue::Bool(*b),
+                BorrowedSqlCell::I64(v) => SqlValue::I64(mdd_query::ir::Signed64(*v)),
+                BorrowedSqlCell::U64(v) => SqlValue::U64(DecimalU64(*v)),
+                BorrowedSqlCell::F64Bits(bits) => SqlValue::F64(DecimalU64(*bits)),
+                BorrowedSqlCell::Utf8(s) => SqlValue::text(s),
+                BorrowedSqlCell::Utf16Be(raw) => {
+                    let utf16 = raw
+                        .as_chunks::<2>()
+                        .0
+                        .iter()
+                        .copied()
+                        .map(u16::from_be_bytes)
+                        .collect();
+                    SqlValue::Text(crate::values::SqlText {
+                        utf16,
+                        original_mutf8: None,
+                    })
+                }
+                BorrowedSqlCell::Bytes(raw) => SqlValue::Bytes(raw.to_vec()),
+                BorrowedSqlCell::DexMutf8 { bytes, utf16_units } => SqlValue::DexMutf8 {
+                    bytes: bytes.to_vec(),
+                    utf16_code_units: DecimalU64(*utf16_units),
+                },
+                BorrowedSqlCell::Owned(v) => v.clone(),
+            };
+            self.current.push(val);
+            Ok(())
+        }
+        fn end_row(&mut self) -> MddResult<()> {
+            self.rows.push(std::mem::take(&mut self.current));
+            Ok(())
+        }
+        fn on_finish(&mut self) -> MddResult<()> {
+            self.finished = true;
+            Ok(())
+        }
+    }
+
+    let provider: Arc<dyn SqlFactProvider> = Arc::new(
+        HostLabSqlProvider::from_loader(&scope, Arc::new(Loader(pairs)), DecimalU64(0)).unwrap(),
+    );
+    let dex_bridge = SqlBridge::new(
+        Arc::clone(&provider),
+        SqlDialect::DexSql011,
+        SqlLimits::default(),
+    )
+    .unwrap();
+    let native_bridge = SqlBridge::new(
+        Arc::clone(&provider),
+        SqlDialect::NativeV1,
+        SqlLimits::default(),
+    )
+    .unwrap();
+
+    let sample_class = match &dex_bridge
+        .query("SELECT descriptor FROM classes WHERE 1=1 ORDER BY file_id, class_def_idx LIMIT 1")
+        .unwrap()
+        .rows()[0][0]
+    {
+        SqlValue::Text(t) => t.strict_utf8().unwrap(),
+        other => panic!("expected text, got {other:?}"),
+    };
+    let sample_kind = match &dex_bridge
+        .query("SELECT kind FROM class_methods WHERE 1=1 ORDER BY file_id, method_idx LIMIT 1")
+        .unwrap()
+        .rows()[0][0]
+    {
+        SqlValue::Text(t) => t.strict_utf8().unwrap(),
+        other => panic!("expected text, got {other:?}"),
+    };
+    let toggle_ascii_case = |s: &str| -> String {
+        s.chars()
+            .map(|c| {
+                if c.is_ascii_lowercase() {
+                    c.to_ascii_uppercase()
+                } else if c.is_ascii_uppercase() {
+                    c.to_ascii_lowercase()
+                } else {
+                    c
+                }
+            })
+            .collect()
+    };
+    let cls_prefix = toggle_ascii_case(&sample_class[..1]);
+    let raw_mid: String = sample_class
+        .chars()
+        .filter(char::is_ascii_alphanumeric)
+        .skip(1)
+        .take(3)
+        .collect();
+    let cls_mid = if raw_mid.is_empty() {
+        cls_prefix.clone()
+    } else {
+        toggle_ascii_case(&raw_mid)
+    };
+    let kind_prefix = toggle_ascii_case(&sample_kind[..1]);
+
+    let many_or_branches: String = (0..64)
+        .map(|i| format!("descriptor LIKE 'L__nomatch_{i:02}%'"))
+        .chain(std::iter::once(format!("descriptor LIKE '{cls_prefix}%'")))
+        .collect::<Vec<_>>()
+        .join(" OR ");
+
+    let filtered_cases_dex_and_native = [
+        (
+            "SELECT file_id, class_def_idx, descriptor, superclass_descriptor AS SuperCls FROM classes WHERE file_id BETWEEN 0 AND 1 AND class_def_idx BETWEEN 0 AND 3 ORDER BY SuperCls ASC, file_id ASC, class_def_idx ASC".to_owned(),
+            "SELECT file_id, class_def_idx, descriptor, superclass_descriptor AS SuperCls FROM (SELECT * FROM classes WHERE 1=1) WHERE file_id BETWEEN 0 AND 1 AND class_def_idx BETWEEN 0 AND 3 ORDER BY SuperCls ASC, file_id ASC, class_def_idx ASC".to_owned(),
+        ),
+        (
+            "SELECT file_id, descriptor FROM classes WHERE class_def_idx BETWEEN 100 AND 0 ORDER BY file_id ASC".to_owned(),
+            "SELECT file_id, descriptor FROM (SELECT * FROM classes WHERE 1=1) WHERE class_def_idx BETWEEN 100 AND 0 ORDER BY file_id ASC".to_owned(),
+        ),
+    ];
+    for bridge_obj in [&dex_bridge, &native_bridge] {
+        for (direct_sql, oracle_sql) in &filtered_cases_dex_and_native {
+            let direct_prep = bridge_obj.prepare(direct_sql).unwrap();
+            assert!(
+                direct_prep.direct_filtered_projection.is_some(),
+                "expected direct_filtered_projection for `{direct_sql}`"
+            );
+            let oracle_prep = bridge_obj.prepare(oracle_sql).unwrap();
+            assert!(oracle_prep.direct_filtered_projection.is_none());
+
+            let direct_res = direct_prep
+                .execute(SqlControl::new(SqlLimits::default(), None))
+                .unwrap();
+            let oracle_res = oracle_prep
+                .execute(SqlControl::new(SqlLimits::default(), None))
+                .unwrap();
+            assert_eq!(direct_res.columns(), oracle_res.columns());
+            assert_eq!(direct_res.rows(), oracle_res.rows());
+        }
+    }
+
+    let dex_like_or_cases = [
+        (
+            format!("SELECT file_id, class_def_idx, descriptor, superclass_descriptor FROM classes WHERE descriptor LIKE '{cls_prefix}%' ORDER BY superclass_descriptor ASC, file_id ASC, class_def_idx ASC"),
+            format!("SELECT file_id, class_def_idx, descriptor, superclass_descriptor FROM (SELECT * FROM classes WHERE 1=1) WHERE descriptor LIKE '{cls_prefix}%' ORDER BY superclass_descriptor ASC, file_id ASC, class_def_idx ASC"),
+            true,
+        ),
+        (
+            format!("SELECT file_id, descriptor FROM classes WHERE descriptor LIKE '{cls_prefix}%;' ORDER BY file_id ASC, class_def_idx ASC"),
+            format!("SELECT file_id, descriptor FROM (SELECT * FROM classes WHERE 1=1) WHERE descriptor LIKE '{cls_prefix}%;' ORDER BY file_id ASC, class_def_idx ASC"),
+            true,
+        ),
+        (
+            format!("SELECT file_id, descriptor FROM classes WHERE descriptor LIKE '%{cls_mid}%' ORDER BY file_id ASC, class_def_idx ASC"),
+            format!("SELECT file_id, descriptor FROM (SELECT * FROM classes WHERE 1=1) WHERE descriptor LIKE '%{cls_mid}%' ORDER BY file_id ASC, class_def_idx ASC"),
+            true,
+        ),
+        (
+            format!("SELECT file_id, descriptor FROM classes WHERE lower(descriptor) LIKE '{cls_prefix}%' ORDER BY file_id ASC, class_def_idx ASC"),
+            format!("SELECT file_id, descriptor FROM (SELECT * FROM classes WHERE 1=1) WHERE lower(descriptor) LIKE '{cls_prefix}%' ORDER BY file_id ASC, class_def_idx ASC"),
+            true,
+        ),
+        (
+            "SELECT file_id, descriptor, superclass_descriptor FROM classes WHERE superclass_descriptor LIKE '%java%' ORDER BY file_id ASC, class_def_idx ASC".to_owned(),
+            "SELECT file_id, descriptor, superclass_descriptor FROM (SELECT * FROM classes WHERE 1=1) WHERE superclass_descriptor LIKE '%java%' ORDER BY file_id ASC, class_def_idx ASC".to_owned(),
+            true,
+        ),
+        (
+            format!("SELECT file_id, class_def_idx, descriptor FROM classes WHERE (file_id = 0 AND class_def_idx BETWEEN 0 AND 1) OR (file_id = 1 AND descriptor LIKE '%{cls_mid}%') ORDER BY file_id ASC, class_def_idx ASC"),
+            format!("SELECT file_id, class_def_idx, descriptor FROM (SELECT * FROM classes WHERE 1=1) WHERE (file_id = 0 AND class_def_idx BETWEEN 0 AND 1) OR (file_id = 1 AND descriptor LIKE '%{cls_mid}%') ORDER BY file_id ASC, class_def_idx ASC"),
+            true,
+        ),
+        (
+            format!("SELECT file_id, descriptor FROM classes WHERE {many_or_branches} ORDER BY file_id ASC, class_def_idx ASC"),
+            format!("SELECT file_id, descriptor FROM (SELECT * FROM classes WHERE 1=1) WHERE {many_or_branches} ORDER BY file_id ASC, class_def_idx ASC"),
+            true,
+        ),
+        // Underscore wildcard falls back safely to SQLite while still matching row-for-row.
+        (
+            format!("SELECT file_id, descriptor FROM classes WHERE descriptor LIKE '{cls_prefix}_%' ORDER BY file_id ASC, class_def_idx ASC"),
+            format!("SELECT file_id, descriptor FROM (SELECT * FROM classes WHERE 1=1) WHERE descriptor LIKE '{cls_prefix}_%' ORDER BY file_id ASC, class_def_idx ASC"),
+            false,
+        ),
+    ];
+
+    for (sql, oracle_sql, expect_direct) in &dex_like_or_cases {
+        let prep = dex_bridge.prepare(sql).unwrap();
+        assert_eq!(
+            prep.direct_filtered_projection.is_some(),
+            *expect_direct,
+            "unexpected direct plan status for `{sql}`"
+        );
+        let oracle_prep = dex_bridge.prepare(oracle_sql).unwrap();
+        assert!(oracle_prep.direct_filtered_projection.is_none());
+
+        let direct_res = prep
+            .execute(SqlControl::new(SqlLimits::default(), None))
+            .unwrap();
+        let oracle_res = oracle_prep
+            .execute(SqlControl::new(SqlLimits::default(), None))
+            .unwrap();
+        assert_eq!(direct_res.columns(), oracle_res.columns(), "{sql}");
+        assert_eq!(direct_res.rows(), oracle_res.rows(), "{sql}");
+
+        let mut consumer = CaptureConsumer::default();
+        dex_bridge
+            .execute_to_consumer(
+                &prep,
+                SqlControl::new(SqlLimits::default(), None),
+                &mut consumer,
+            )
+            .unwrap();
+        assert!(consumer.finished);
+        assert_eq!(consumer.columns, direct_res.columns());
+        assert_eq!(consumer.rows, direct_res.rows());
+
+        for win in [
+            SqlWindow::new(0, 2).unwrap().counting_total(),
+            SqlWindow::new(1, 3).unwrap(),
+            SqlWindow::new(10_000, 5).unwrap().counting_total(),
+        ] {
+            let d_win = dex_bridge
+                .execute_window(&prep, SqlControl::new(SqlLimits::default(), None), win)
+                .unwrap();
+            let o_win = dex_bridge
+                .execute_window(
+                    &oracle_prep,
+                    SqlControl::new(SqlLimits::default(), None),
+                    win,
+                )
+                .unwrap();
+            assert_eq!(d_win.columns(), o_win.columns());
+            assert_eq!(d_win.rows(), o_win.rows());
+            assert_eq!(d_win.window(), o_win.window());
+        }
+    }
+
+    // NativeV1 must fall back on alphabetic LIKE and lower(col) LIKE.
+    for fallback_sql in [
+        format!("SELECT file_id, descriptor FROM classes WHERE descriptor LIKE '{cls_prefix}%'"),
+        format!(
+            "SELECT file_id, descriptor FROM classes WHERE lower(descriptor) LIKE '{cls_prefix}%'"
+        ),
+    ] {
+        let prep = native_bridge.prepare(&fallback_sql).unwrap();
+        assert!(prep.direct_filtered_projection.is_none(), "{fallback_sql}");
+    }
+
+    // Filtered DirectCountGroupBy with WHERE predicates and U64 + Text ORDER BY (including NULLs).
+    let group_cases = [
+        (
+            "SELECT file_id, kind, COUNT(*) AS cnt FROM class_methods WHERE file_id = 0 GROUP BY file_id, kind ORDER BY file_id ASC, kind ASC".to_owned(),
+            "SELECT file_id, kind, COUNT(*) AS cnt FROM (SELECT file_id, kind FROM class_methods WHERE 1=1) WHERE file_id = 0 GROUP BY file_id, kind ORDER BY file_id ASC, kind ASC".to_owned(),
+        ),
+        (
+            format!("SELECT kind, COUNT(*) AS cnt FROM class_methods WHERE file_id BETWEEN 0 AND 1 AND (kind = '{sample_kind}' OR kind LIKE '{kind_prefix}%') GROUP BY kind ORDER BY kind ASC"),
+            format!("SELECT kind, COUNT(*) AS cnt FROM (SELECT file_id, kind FROM class_methods WHERE 1=1) WHERE file_id BETWEEN 0 AND 1 AND (kind = '{sample_kind}' OR kind LIKE '{kind_prefix}%') GROUP BY kind ORDER BY kind ASC"),
+        ),
+        (
+            format!("SELECT file_id, kind, COUNT(*) AS cnt FROM class_methods WHERE lower(kind) LIKE '{kind_prefix}%' GROUP BY file_id, kind ORDER BY kind ASC, file_id ASC"),
+            format!("SELECT file_id, kind, COUNT(*) AS cnt FROM (SELECT file_id, kind FROM class_methods WHERE 1=1) WHERE lower(kind) LIKE '{kind_prefix}%' GROUP BY file_id, kind ORDER BY kind ASC, file_id ASC"),
+        ),
+        (
+            "SELECT superclass_descriptor, COUNT(*) AS cnt FROM classes WHERE file_id BETWEEN 0 AND 1 GROUP BY superclass_descriptor ORDER BY superclass_descriptor ASC".to_owned(),
+            "SELECT superclass_descriptor, COUNT(*) AS cnt FROM (SELECT file_id, superclass_descriptor FROM classes WHERE 1=1) WHERE file_id BETWEEN 0 AND 1 GROUP BY superclass_descriptor ORDER BY superclass_descriptor ASC".to_owned(),
+        ),
+    ];
+    for (direct_sql, oracle_sql) in &group_cases {
+        let direct_prep = dex_bridge.prepare(direct_sql).unwrap();
+        assert!(
+            direct_prep
+                .direct_count_group_by
+                .as_ref()
+                .is_some_and(|p| !p.predicates.is_empty()),
+            "expected filtered direct_count_group_by for `{direct_sql}`"
+        );
+        let oracle_prep = dex_bridge.prepare(oracle_sql).unwrap();
+        assert!(oracle_prep.direct_count_group_by.is_none());
+
+        let direct_res = direct_prep
+            .execute(SqlControl::new(SqlLimits::default(), None))
+            .unwrap();
+        let oracle_res = oracle_prep
+            .execute(SqlControl::new(SqlLimits::default(), None))
+            .unwrap();
+        assert!(!direct_res.rows().is_empty(), "{direct_sql}");
+        assert_eq!(direct_res.columns(), oracle_res.columns(), "{direct_sql}");
+        assert_eq!(direct_res.rows(), oracle_res.rows(), "{direct_sql}");
+
+        let mut consumer = CaptureConsumer::default();
+        dex_bridge
+            .execute_to_consumer(
+                &direct_prep,
+                SqlControl::new(SqlLimits::default(), None),
+                &mut consumer,
+            )
+            .unwrap();
+        assert!(consumer.finished);
+        assert_eq!(consumer.columns, direct_res.columns());
+        assert_eq!(consumer.rows, direct_res.rows());
+    }
+
+    // TempSqlSession plain read-only fast path vs DDL and error codes.
+    let lifecycle = Arc::new(Lifecycle::new(ResourceLimits::default()).unwrap());
+    let snap_handle = lifecycle.register_snapshot(Arc::clone(&snapshot)).unwrap();
+    let session_handle = lifecycle
+        .open_session(&snap_handle, ResourceLimits::default())
+        .unwrap();
+    let temp_session = TempSqlSession::new(
+        Arc::clone(&lifecycle),
+        session_handle,
+        SqlBridge::new(
+            Arc::clone(&provider),
+            SqlDialect::DexSql011,
+            SqlLimits::default(),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let semi_in_lit = format!(
+        "SELECT file_id, descriptor FROM classes WHERE descriptor = '{sample_class}' ORDER BY file_id, class_def_idx"
+    );
+    let TempStatementResult::Rows(temp_rows) = temp_session.execute(&semi_in_lit, None).unwrap()
+    else {
+        panic!("expected query rows");
+    };
+    assert_eq!(
+        temp_rows.rows(),
+        dex_bridge.query(&semi_in_lit).unwrap().rows()
+    );
+    assert_eq!(
+        temp_session
+            .execute("CREATE TABLE bad_ddl AS SELECT 1", None)
+            .unwrap_err()
+            .code,
+        ErrorCode::UnsupportedQuery
+    );
+    assert_eq!(
+        temp_session
+            .execute("SELECT 1; SELECT 2", None)
+            .unwrap_err()
+            .code,
+        ErrorCode::InvalidArgument
+    );
+    assert_eq!(
+        temp_session.execute("SELECT FROM", None).unwrap_err().code,
+        ErrorCode::InvalidArgument
+    );
+    let TempStatementResult::Definition(_) = temp_session
+        .execute(
+            "CREATE TEMP TABLE c AS SELECT file_id FROM classes WHERE file_id = 0",
+            None,
+        )
+        .unwrap()
+    else {
+        panic!("expected definition report");
+    };
+    let TempStatementResult::Rows(cte_rows) = temp_session
+        .execute("SELECT COUNT(*) FROM c", None)
+        .unwrap()
+    else {
+        panic!("expected rows");
+    };
+    assert_eq!(cte_rows.rows().len(), 1);
+    let TempStatementResult::Definition(_) = temp_session.execute("DROP TABLE c", None).unwrap()
+    else {
+        panic!("expected drop report");
+    };
+}
+
+#[test]
+fn direct_and_fallback_match_rusqlite_oracle_for_nulls_utf16_and_ast_paths() {
+    let provider = Arc::new(RowsProvider {
+        binding: SqlBinding {
+            provider_identity: "nulls-utf16".into(),
+            snapshot_id: "nulls-utf16-snap".into(),
+            catalog_epoch: DecimalU64(0),
+        },
+        columns: vec![
+            SqlColumn {
+                id: "id".into(),
+                name: "id".into(),
+                data_type: SqlType::U64,
+                nullable: false,
+            },
+            SqlColumn {
+                id: "label".into(),
+                name: "label".into(),
+                data_type: SqlType::Text,
+                nullable: true,
+            },
+        ],
+        rows: vec![
+            vec![SqlValue::U64(DecimalU64(0)), SqlValue::Null],
+            vec![SqlValue::U64(DecimalU64(1)), SqlValue::text("Alpha")],
+            vec![SqlValue::U64(DecimalU64(2)), SqlValue::text("alpha")],
+            vec![SqlValue::U64(DecimalU64(3)), SqlValue::text("L_a;")],
+            vec![SqlValue::U64(DecimalU64(4)), SqlValue::text("\u{e000}")],
+            vec![SqlValue::U64(DecimalU64(5)), SqlValue::text("\u{10000}")],
+        ],
+    });
+
+    let sqlite = rusqlite::Connection::open_in_memory().unwrap();
+    sqlite
+        .execute_batch(
+            "CREATE TABLE vals(id INTEGER NOT NULL, label TEXT);
+             INSERT INTO vals VALUES
+                (0, NULL),
+                (1, 'Alpha'),
+                (2, 'alpha'),
+                (3, 'L_a;'),
+                (4, char(57344)),
+                (5, char(65536));",
+        )
+        .unwrap();
+
+    let bridge = SqlBridge::new(provider, SqlDialect::DexSql011, SqlLimits::default()).unwrap();
+
+    let or_terms: String = (0..40)
+        .map(|i| {
+            if i == 39 {
+                "label LIKE 'L\\_%' ESCAPE '\\'".to_owned()
+            } else {
+                format!("id = {}", i + 100)
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" OR ");
+    let deep_paren = format!("{}id BETWEEN 1 AND 3{}", "(".repeat(10), ")".repeat(10));
+
+    let oracle_queries = [
+        "SELECT id, label FROM vals WHERE id BETWEEN 1 AND 3 ORDER BY id ASC".to_owned(),
+        "SELECT id, label FROM vals WHERE label LIKE 'a%' ORDER BY id ASC".to_owned(),
+        "SELECT id, label FROM vals WHERE lower(label) LIKE 'a%' ORDER BY id ASC".to_owned(),
+        "SELECT id, label FROM vals WHERE label LIKE 'l%;' ORDER BY id ASC".to_owned(),
+        "SELECT id, label FROM vals WHERE label LIKE '%lph%' ORDER BY id ASC".to_owned(),
+        "SELECT id, label FROM vals WHERE label LIKE 'l\\_%' ESCAPE '\\' ORDER BY id ASC".to_owned(),
+        "SELECT id, label FROM vals WHERE (id BETWEEN 0 AND 2 AND label LIKE 'a%') OR (id = 3 AND label LIKE 'l%;') ORDER BY id ASC".to_owned(),
+        "SELECT id, label FROM vals WHERE id BETWEEN 0 AND 3 ORDER BY label ASC, id ASC".to_owned(),
+        format!("SELECT id, label FROM vals WHERE {or_terms} ORDER BY id ASC"),
+        format!("SELECT id, label FROM vals WHERE {deep_paren} ORDER BY id ASC"),
+    ];
+
+    for sql in &oracle_queries {
+        let bridge_res = bridge.query(sql).unwrap();
+        let mut stmt = sqlite.prepare(sql).unwrap();
+        let mut oracle_rows = Vec::new();
+        let mut rows = stmt.query([]).unwrap();
+        while let Some(row) = rows.next().unwrap() {
+            let id_val = u64::try_from(row.get::<_, i64>(0).unwrap()).unwrap();
+            let label_val: Option<String> = row.get(1).unwrap();
+            oracle_rows.push(vec![
+                SqlValue::U64(DecimalU64(id_val)),
+                match label_val {
+                    Some(s) => SqlValue::text(&s),
+                    None => SqlValue::Null,
+                },
+            ]);
+        }
+        assert_eq!(bridge_res.rows(), oracle_rows.as_slice(), "query: {sql}");
+    }
+
+    // Verify UTF-16 code-unit order puts NULL first, then supplementary U+10000 before BMP U+E000.
+    let utf16_res = bridge
+        .query("SELECT id FROM vals WHERE id IN (0, 4, 5) ORDER BY label ASC")
+        .unwrap();
+    assert_eq!(
+        utf16_res.rows(),
+        &[
+            vec![SqlValue::U64(DecimalU64(0))],
+            vec![SqlValue::U64(DecimalU64(5))],
+            vec![SqlValue::U64(DecimalU64(4))],
+        ]
+    );
+}
+
+#[test]
+fn reused_sqlite_connection_isolates_limits_vtabs_authorizer_and_errors() {
+    struct TwoTableProvider {
+        binding: SqlBinding,
+    }
+    struct VecCursor {
+        rows: Vec<SqlRow>,
+        pos: usize,
+    }
+    impl SqlFactCursor for VecCursor {
+        fn next_row(&mut self) -> MddResult<Option<SqlRow>> {
+            let row = self.rows.get(self.pos).cloned();
+            self.pos += 1;
+            Ok(row)
+        }
+    }
+    impl SqlFactProvider for TwoTableProvider {
+        fn binding(&self) -> &SqlBinding {
+            &self.binding
+        }
+        fn relations(&self) -> MddResult<Vec<SqlRelation>> {
+            Ok(vec![
+                SqlRelation {
+                    name: "facts".into(),
+                    columns: vec![
+                        SqlColumn {
+                            id: "id".into(),
+                            name: "id".into(),
+                            data_type: SqlType::U64,
+                            nullable: false,
+                        },
+                        SqlColumn {
+                            id: "value".into(),
+                            name: "value".into(),
+                            data_type: SqlType::Text,
+                            nullable: false,
+                        },
+                    ],
+                    required_layers: vec![],
+                    estimated_rows: Some(DecimalU64(2)),
+                },
+                SqlRelation {
+                    name: "extra".into(),
+                    columns: vec![
+                        SqlColumn {
+                            id: "k".into(),
+                            name: "k".into(),
+                            data_type: SqlType::U64,
+                            nullable: false,
+                        },
+                        SqlColumn {
+                            id: "tag".into(),
+                            name: "tag".into(),
+                            data_type: SqlType::Text,
+                            nullable: false,
+                        },
+                    ],
+                    required_layers: vec![],
+                    estimated_rows: Some(DecimalU64(1)),
+                },
+            ])
+        }
+        fn require_relation(&self, _: &str) -> MddResult<()> {
+            Ok(())
+        }
+        fn open_cursor(
+            self: Arc<Self>,
+            relation: &str,
+            _: SqlControl,
+        ) -> MddResult<Box<dyn SqlFactCursor>> {
+            let rows = if relation.eq_ignore_ascii_case("facts") {
+                vec![
+                    vec![SqlValue::U64(DecimalU64(1)), SqlValue::text("hello")],
+                    vec![SqlValue::U64(DecimalU64(2)), SqlValue::text("world")],
+                ]
+            } else {
+                vec![vec![SqlValue::U64(DecimalU64(9)), SqlValue::text("ex")]]
+            };
+            Ok(Box::new(VecCursor { rows, pos: 0 }))
+        }
+    }
+
+    let provider = Arc::new(TwoTableProvider {
+        binding: SqlBinding {
+            provider_identity: "two-table".into(),
+            snapshot_id: "two-table-snap".into(),
+            catalog_epoch: DecimalU64(0),
+        },
+    });
+    let bridge = Arc::new(
+        SqlBridge::new(
+            provider,
+            SqlDialect::DexSql011,
+            SqlLimits {
+                max_cell_bytes: 1024,
+                ..SqlLimits::default()
+            },
+        )
+        .unwrap(),
+    );
+
+    // 1. Query on `facts` succeeds and caches the SQLite connection.
+    let res1 = bridge
+        .query("SELECT id, value || '_1' FROM facts ORDER BY id ASC")
+        .unwrap();
+    assert_eq!(res1.rows().len(), 2);
+
+    // 2. Query on `extra` with tight max_cell_bytes must fail (no SQLITE_LIMIT_LENGTH leak).
+    let tight_prep = bridge
+        .prepare("SELECT tag || '1234567890' FROM extra")
+        .unwrap();
+    let tight_control = SqlControl::new(
+        SqlLimits {
+            max_cell_bytes: 8,
+            ..SqlLimits::default()
+        },
+        None,
+    );
+    assert_eq!(
+        bridge.execute(&tight_prep, tight_control).unwrap_err().code,
+        ErrorCode::QuotaExceeded
+    );
+
+    // 3. Subsequent query on `extra` with normal limits succeeds (failed conn was not recycled).
+    let ok_extra = bridge
+        .query("SELECT k, lower(tag || '_OK') FROM extra")
+        .unwrap();
+    assert_eq!(
+        ok_extra.rows(),
+        &[vec![SqlValue::U64(DecimalU64(9)), SqlValue::text("ex_ok")]]
+    );
+
+    // 4. Exhausted max_steps / cancelled control on one call never leaks into next reused call's UDFs.
+    let cancel_ctrl = SqlControl::new(SqlLimits::default(), None);
+    cancel_ctrl.cancel().unwrap();
+    let cancel_prep = bridge.prepare("SELECT lower(value) FROM facts").unwrap();
+    assert_eq!(
+        bridge.execute(&cancel_prep, cancel_ctrl).unwrap_err().code,
+        ErrorCode::Cancelled
+    );
+    let after_cancel = bridge
+        .execute(&cancel_prep, SqlControl::new(SqlLimits::default(), None))
+        .unwrap();
+    assert_eq!(after_cancel.rows().len(), 2);
+
+    // 5. Non-reusable temp_fingerprint execution leaves cached path isolated.
+    let temp_prep = bridge
+        .prepare("SELECT k FROM extra")
+        .unwrap()
+        .with_temp_fingerprint("tf-1".to_owned());
+    assert_eq!(
+        bridge
+            .execute(&temp_prep, SqlControl::new(SqlLimits::default(), None))
+            .unwrap()
+            .rows(),
+        &[vec![SqlValue::U64(DecimalU64(9))]]
+    );
+
+    // 6. Security authorizer still blocks system catalog access across reused connections.
+    assert!(bridge.query("SELECT name FROM sqlite_master").is_err());
+
+    // 7. Concurrent fallback executions sharing one SqlBridge must remain isolated and safe.
+    std::thread::scope(|scope| {
+        let mut handles = Vec::new();
+        for i in 0..4 {
+            let b = Arc::clone(&bridge);
+            handles.push(scope.spawn(move || {
+                for step in 0..10 {
+                    if (i + step) % 2 == 0 {
+                        let r = b
+                            .query("SELECT id, value FROM facts ORDER BY id ASC")
+                            .unwrap();
+                        assert_eq!(r.rows().len(), 2);
+                    } else {
+                        let r = b.query("SELECT k, tag FROM extra").unwrap();
+                        assert_eq!(
+                            r.rows(),
+                            &[vec![SqlValue::U64(DecimalU64(9)), SqlValue::text("ex")]]
+                        );
+                    }
+                }
+            }));
+        }
+        for handle in handles {
+            handle.join().unwrap();
+        }
+    });
+}

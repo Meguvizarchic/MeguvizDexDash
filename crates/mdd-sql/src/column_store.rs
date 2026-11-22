@@ -17,7 +17,9 @@
 use crate::{
     control::SqlControl,
     provider::{
-        PlannedScan, PositionedCursor, RowFilter, SqlColumn, SqlFactCursor, SqlRow, validate_row,
+        DirectCountGroupBy, DirectFilteredProjection, DirectGroupItem, DirectOrderItem,
+        DirectPredicate, PlannedScan, PositionedCursor, RowFilter, SqlColumn, SqlFactCursor,
+        SqlRow, validate_row,
     },
     values::{SqlText, SqlType, SqlValue},
 };
@@ -27,9 +29,13 @@ use mdd_query::optimized::{
 };
 use mdd_types::{DecimalU64, MddResult};
 use std::{
+    borrow::Cow,
     collections::{BTreeMap, HashMap},
     ops::ControlFlow,
-    sync::{Arc, Mutex, OnceLock, RwLock},
+    sync::{
+        Arc, Mutex, OnceLock, RwLock, Weak,
+        atomic::{AtomicU8, AtomicU64, Ordering},
+    },
 };
 
 /// Rows per chunk. Large enough that the per-chunk header is nothing, small enough that one outlier does not widen a
@@ -171,6 +177,60 @@ impl Default for Shard {
     }
 }
 
+const DEFAULT_INDEX_BUDGET_MIB: usize = 192;
+
+fn index_budget_bytes_from_env() -> usize {
+    let mib = std::env::var("MDD_OPT_INDEX_BUDGET_MIB")
+        .ok()
+        .and_then(|v| v.trim().parse::<usize>().ok())
+        .unwrap_or(DEFAULT_INDEX_BUDGET_MIB);
+    mib.saturating_mul(1024 * 1024)
+}
+
+#[derive(Default)]
+struct IndexSlot {
+    build_lock: Mutex<()>,
+    cached: Mutex<Option<Arc<ValueIndex>>>,
+}
+
+impl IndexSlot {
+    fn is_materialized(&self) -> bool {
+        self.cached.lock().ok().is_some_and(|guard| guard.is_some())
+    }
+
+    fn get_arc(&self) -> Option<Arc<ValueIndex>> {
+        self.cached.lock().ok().and_then(|guard| guard.clone())
+    }
+
+    #[cfg(test)]
+    fn get(&self) -> Option<Arc<ValueIndex>> {
+        self.get_arc()
+    }
+}
+
+struct IndexLruEntry {
+    key: (u64, usize),
+    slot: Weak<IndexSlot>,
+    index: Arc<ValueIndex>,
+    bytes: usize,
+}
+
+struct IndexLruState {
+    budget_bytes: usize,
+    used_bytes: usize,
+    entries: Vec<IndexLruEntry>,
+}
+
+impl IndexLruState {
+    fn new(budget_bytes: usize) -> Self {
+        Self {
+            budget_bytes,
+            used_bytes: 0,
+            entries: Vec::new(),
+        }
+    }
+}
+
 /// The distinct text and byte values of a dataset, each stored once. Append-only: an id never changes meaning.
 ///
 /// Three lossless shortcuts keep it small without knowing what a column means: a text that spells hexadecimal bytes is
@@ -182,12 +242,14 @@ impl Default for Shard {
 /// the dictionary already (nearly every one, after the first DEX) is found under a read lock.
 pub struct TextDict {
     shards: [RwLock<Shard>; SHARDS],
+    index_cache: Mutex<IndexLruState>,
 }
 
 impl Default for TextDict {
     fn default() -> Self {
         Self {
             shards: std::array::from_fn(|_| RwLock::new(Shard::default())),
+            index_cache: Mutex::new(IndexLruState::new(index_budget_bytes_from_env())),
         }
     }
 }
@@ -366,6 +428,138 @@ fn member_head_matches_or_needs_full(head: &[u8], prefix: &[u8]) -> Option<bool>
 impl TextDict {
     pub fn new() -> Arc<Self> {
         Arc::new(Self::default())
+    }
+
+    #[cfg(test)]
+    pub(crate) fn with_index_budget_bytes(budget_bytes: usize) -> Arc<Self> {
+        Arc::new(Self {
+            shards: std::array::from_fn(|_| RwLock::new(Shard::default())),
+            index_cache: Mutex::new(IndexLruState::new(budget_bytes)),
+        })
+    }
+
+    fn get_cached_index(&self, store_id: u64, col: usize) -> Option<Arc<ValueIndex>> {
+        let mut guard = self
+            .index_cache
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let pos = guard
+            .entries
+            .iter()
+            .position(|entry| entry.key == (store_id, col))?;
+        let entry = guard.entries.remove(pos);
+        let arc = Arc::clone(&entry.index);
+        guard.entries.push(entry);
+        Some(arc)
+    }
+
+    fn get_or_build_index(
+        &self,
+        store_id: u64,
+        col: usize,
+        slot: &Arc<IndexSlot>,
+        build: impl FnOnce() -> Option<ValueIndex>,
+    ) -> Option<Arc<ValueIndex>> {
+        if let Some(hit) = self.get_cached_index(store_id, col) {
+            return Some(hit);
+        }
+        let _build_guard = slot
+            .build_lock
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(hit) = self.get_cached_index(store_id, col) {
+            return Some(hit);
+        }
+        let built = Arc::new(build()?);
+        let new_bytes = built.bytes_used();
+        let mut evicted: Vec<(Weak<IndexSlot>, Arc<ValueIndex>)> = Vec::new();
+        {
+            let mut guard = self
+                .index_cache
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if let Some(pos) = guard
+                .entries
+                .iter()
+                .position(|entry| entry.key == (store_id, col))
+            {
+                let old = guard.entries.remove(pos);
+                guard.used_bytes = guard.used_bytes.saturating_sub(old.bytes);
+                evicted.push((old.slot, old.index));
+            }
+            if new_bytes > guard.budget_bytes {
+                let drained = std::mem::take(&mut guard.entries);
+                guard.used_bytes = 0;
+                for old in drained {
+                    evicted.push((old.slot, old.index));
+                }
+            } else {
+                while !guard.entries.is_empty()
+                    && guard.used_bytes.saturating_add(new_bytes) > guard.budget_bytes
+                {
+                    let old = guard.entries.remove(0);
+                    guard.used_bytes = guard.used_bytes.saturating_sub(old.bytes);
+                    evicted.push((old.slot, old.index));
+                }
+                *slot
+                    .cached
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(Arc::clone(&built));
+                guard.used_bytes = guard.used_bytes.saturating_add(new_bytes);
+                guard.entries.push(IndexLruEntry {
+                    key: (store_id, col),
+                    slot: Arc::downgrade(slot),
+                    index: Arc::clone(&built),
+                    bytes: new_bytes,
+                });
+            }
+        }
+        for (weak_slot, old_arc) in evicted {
+            if let Some(ev_slot) = weak_slot.upgrade() {
+                let mut slot_guard = ev_slot
+                    .cached
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                if slot_guard
+                    .as_ref()
+                    .is_some_and(|cur| Arc::ptr_eq(cur, &old_arc))
+                {
+                    *slot_guard = None;
+                }
+            }
+            drop(old_arc);
+        }
+        Some(built)
+    }
+
+    fn evict_store_indexes(&self, store_id: u64) {
+        let mut dropped = Vec::new();
+        {
+            let mut guard = self
+                .index_cache
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let mut idx = 0usize;
+            while idx < guard.entries.len() {
+                if guard.entries[idx].key.0 == store_id {
+                    let removed = guard.entries.remove(idx);
+                    guard.used_bytes = guard.used_bytes.saturating_sub(removed.bytes);
+                    dropped.push(removed.index);
+                } else {
+                    idx += 1;
+                }
+            }
+        }
+        drop(dropped);
+    }
+
+    #[cfg(test)]
+    fn cached_index_stats(&self) -> (usize, usize) {
+        let guard = self
+            .index_cache
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        (guard.entries.len(), guard.used_bytes)
     }
 
     fn lookup_entry(&self, entry: &[u8]) -> Option<u32> {
@@ -1069,7 +1263,7 @@ impl TextDict {
             (tag, member)
         };
         if let Some([head_id, name_id, rest_id]) = member {
-            let mut stack = [0u8; 512];
+            let mut stack = [0u8; 4096];
             let mut pos = 0usize;
             if self.copy_utf8_raw_into(head_id, &mut stack, &mut pos)
                 && pos + 2 <= stack.len()
@@ -1089,7 +1283,7 @@ impl TextDict {
         f(BorrowedSqlCell::Owned(self.get(id)))
     }
 
-    fn copy_utf8_to_stack(&self, id: u32, stack: &mut [u8; 512]) -> Option<usize> {
+    fn copy_utf8_to_stack(&self, id: u32, stack: &mut [u8; 4096]) -> Option<usize> {
         let member = {
             let (shard_idx, local) = split(id);
             let shard = self.shards[shard_idx].read().expect("dictionary lock");
@@ -1130,13 +1324,13 @@ impl TextDict {
     }
 
     /// Compare two dictionary entries in exact UTF-16 code-unit order without heap allocation for
-    /// standard scalar/member texts up to 512 UTF-8 bytes.
+    /// standard scalar/member texts up to 4096 UTF-8 bytes.
     pub(crate) fn cmp_text_ids(&self, left_id: u32, right_id: u32) -> std::cmp::Ordering {
         if left_id == right_id {
             return std::cmp::Ordering::Equal;
         }
-        let mut buf_l = [0u8; 512];
-        let mut buf_r = [0u8; 512];
+        let mut buf_l = [0u8; 4096];
+        let mut buf_r = [0u8; 4096];
         if let (Some(len_l), Some(len_r)) = (
             self.copy_utf8_to_stack(left_id, &mut buf_l),
             self.copy_utf8_to_stack(right_id, &mut buf_r),
@@ -1336,6 +1530,7 @@ impl TextDict {
             let mut shard = shard.write().expect("dictionary lock");
             shard.arena.shrink_to_fit();
             shard.starts.shrink_to_fit();
+            shard.slots.shrink_to_fit();
         }
     }
 
@@ -1614,29 +1809,66 @@ enum Payload {
 
 struct Chunk {
     base: u64,
+    max_delta: u64,
     payload: Payload,
     /// One bit per row, set for NULL; absent when the chunk has none.
     nulls: Option<Box<[u64]>>,
 }
 
-impl Chunk {
-    #[inline]
-    fn payload_width(&self) -> u8 {
-        match &self.payload {
-            Payload::Plain { width, .. } | Payload::Runs { width, .. } => *width,
+fn bitset_bounds(bitset: &[u64], max_val: u64) -> Option<(u64, u64)> {
+    if bitset.is_empty() {
+        return None;
+    }
+    let last_word = ((max_val >> 6) as usize).min(bitset.len() - 1);
+    let tail_bits = (max_val & 63) as u32;
+    let tail_mask = u64::MAX >> (63 - tail_bits);
+    let mut first_nz = None;
+    for (idx, &w) in bitset[..=last_word].iter().enumerate() {
+        let masked = if idx == last_word { w & tail_mask } else { w };
+        if masked != 0 {
+            first_nz = Some((idx, masked));
+            break;
         }
     }
+    let (lo_word, lo_masked) = first_nz?;
+    let min_set = ((lo_word as u64) << 6) + u64::from(lo_masked.trailing_zeros());
+    let mut max_set = min_set;
+    for idx in (lo_word..=last_word).rev() {
+        let w = bitset[idx];
+        let masked = if idx == last_word { w & tail_mask } else { w };
+        if masked != 0 {
+            max_set = ((idx as u64) << 6) + u64::from(63 - masked.leading_zeros());
+            break;
+        }
+    }
+    Some((min_set, max_set))
 }
 
-#[inline]
-fn width_max_delta(width: u8) -> u64 {
-    match width {
-        0 => 0,
-        1 => 0xff,
-        2 => 0xffff,
-        4 => 0xffff_ffff,
-        _ => u64::MAX,
+fn bitset_intersects_u64_range(bitset: &[u64], lo: u64, hi: u64) -> bool {
+    if lo > hi || bitset.is_empty() {
+        return false;
     }
+    let lo_word = (lo >> 6) as usize;
+    if lo_word >= bitset.len() {
+        return false;
+    }
+    let hi_word = ((hi >> 6) as usize).min(bitset.len() - 1);
+    if hi_word - lo_word > 256 {
+        return true;
+    }
+    let lo_mask = u64::MAX << (lo & 63);
+    let hi_mask = if ((hi >> 6) as usize) < bitset.len() {
+        u64::MAX >> (63 - (hi & 63))
+    } else {
+        u64::MAX
+    };
+    if lo_word == hi_word {
+        return (bitset[lo_word] & lo_mask & hi_mask) != 0;
+    }
+    if (bitset[lo_word] & lo_mask) != 0 || (bitset[hi_word] & hi_mask) != 0 {
+        return true;
+    }
+    bitset[lo_word + 1..hi_word].iter().any(|&w| w != 0)
 }
 
 #[inline]
@@ -1918,6 +2150,7 @@ impl IntColumn {
             });
         self.sealed.push(Chunk {
             base,
+            max_delta: span,
             payload,
             nulls,
         });
@@ -1931,75 +2164,12 @@ impl IntColumn {
             return false;
         }
         for chunk in &self.sealed {
-            match &chunk.payload {
-                Payload::Plain { width, data } => match *width {
-                    0 => {
-                        if chunk.base > u64::from(u32::MAX) {
-                            return false;
-                        }
-                    }
-                    1 => {
-                        if chunk.base > u64::from(u32::MAX) - 0xff {
-                            return false;
-                        }
-                    }
-                    2 => {
-                        if chunk.base > u64::from(u32::MAX) - 0xffff {
-                            return false;
-                        }
-                    }
-                    4 => {
-                        if chunk.base > u64::from(u32::MAX) {
-                            return false;
-                        }
-                        if chunk.base > 0 {
-                            let max_delta = u64::from(u32::MAX) - chunk.base;
-                            if !data
-                                .as_chunks::<4>()
-                                .0
-                                .iter()
-                                .all(|raw| u64::from(u32::from_le_bytes(*raw)) <= max_delta)
-                            {
-                                return false;
-                            }
-                        }
-                    }
-                    _ => return false,
-                },
-                Payload::Runs { width, values, .. } => match *width {
-                    0 => {
-                        if chunk.base > u64::from(u32::MAX) {
-                            return false;
-                        }
-                    }
-                    1 => {
-                        if chunk.base > u64::from(u32::MAX) - 0xff {
-                            return false;
-                        }
-                    }
-                    2 => {
-                        if chunk.base > u64::from(u32::MAX) - 0xffff {
-                            return false;
-                        }
-                    }
-                    4 => {
-                        if chunk.base > u64::from(u32::MAX) {
-                            return false;
-                        }
-                        if chunk.base > 0 {
-                            let max_delta = u64::from(u32::MAX) - chunk.base;
-                            if !values
-                                .as_chunks::<4>()
-                                .0
-                                .iter()
-                                .all(|raw| u64::from(u32::from_le_bytes(*raw)) <= max_delta)
-                            {
-                                return false;
-                            }
-                        }
-                    }
-                    _ => return false,
-                },
+            if !chunk
+                .base
+                .checked_add(chunk.max_delta)
+                .is_some_and(|max| max <= u64::from(u32::MAX))
+            {
+                return false;
             }
         }
         true
@@ -2059,7 +2229,7 @@ impl IntColumn {
             let c_lo = start.saturating_sub(chunk_start) as usize;
             let c_hi = (end - chunk_start).min(CHUNK as u64) as usize;
             let row_base = chunk_start as u32;
-            let max_delta = width_max_delta(chunk.payload_width());
+            let max_delta = chunk.max_delta;
             let mut single_delta = None;
             if targets.len() == 1 {
                 let delta = targets[0].wrapping_sub(chunk.base);
@@ -2146,8 +2316,9 @@ impl IntColumn {
         if start >= end || bitset.is_empty() {
             return;
         }
+        let eff_max = max_val.min(((bitset.len() as u64).saturating_mul(64)).saturating_sub(1));
         let has_val = |val: u64| -> bool {
-            val <= max_val && ((bitset[(val >> 6) as usize] >> (val & 63)) & 1 != 0)
+            val <= eff_max && ((bitset[(val >> 6) as usize] >> (val & 63)) & 1 != 0)
         };
         if !self.staging.is_empty() {
             let mut hint = 0usize;
@@ -2160,11 +2331,47 @@ impl IntColumn {
             }
             return;
         }
+        let Some((min_set, max_set)) = bitset_bounds(bitset, eff_max) else {
+            return;
+        };
         let first_chunk = (start / CHUNK as u64) as usize;
         let last_chunk = ((end - 1) / CHUNK as u64) as usize;
         for (offset, chunk) in self.sealed[first_chunk..=last_chunk].iter().enumerate() {
-            if self.order == Order::Unsigned && chunk.base > max_val {
-                continue;
+            match self.order {
+                Order::Unsigned => {
+                    let chunk_min = chunk.base;
+                    let chunk_max = chunk.base.saturating_add(chunk.max_delta);
+                    if chunk_max < min_set || chunk_min > max_set {
+                        continue;
+                    }
+                    if !bitset_intersects_u64_range(
+                        bitset,
+                        chunk_min.max(min_set),
+                        chunk_max.min(max_set),
+                    ) {
+                        continue;
+                    }
+                }
+                Order::Signed => {
+                    let s_lo = chunk.base as i64;
+                    let s_hi = chunk.base.wrapping_add(chunk.max_delta) as i64;
+                    if s_lo >= 0 {
+                        let chunk_min = chunk.base;
+                        let chunk_max = s_hi as u64;
+                        if chunk_max < min_set || chunk_min > max_set {
+                            continue;
+                        }
+                        if !bitset_intersects_u64_range(
+                            bitset,
+                            chunk_min.max(min_set),
+                            chunk_max.min(max_set),
+                        ) {
+                            continue;
+                        }
+                    } else if s_hi < 0 && max_set < (1u64 << 63) {
+                        continue;
+                    }
+                }
             }
             let chunk_idx = first_chunk + offset;
             let chunk_start = (chunk_idx as u64) * (CHUNK as u64);
@@ -2201,6 +2408,86 @@ impl IntColumn {
                         let r_end = c_hi.min(ends[run] as usize);
                         let val = base.wrapping_add(read_width(values, run, wide));
                         if has_val(val) {
+                            push_non_null_range(nulls, row_base, r_start..r_end, out);
+                        }
+                        run += 1;
+                    }
+                }
+            }
+        }
+    }
+
+    /// Append local row indices in `start..end` whose non-null unsigned value lies in `low..=high`.
+    fn collect_range_in_range(
+        &self,
+        start: u64,
+        end: u64,
+        low: u64,
+        high: u64,
+        out: &mut Vec<u32>,
+    ) {
+        if start >= end || low > high || self.order != Order::Unsigned {
+            return;
+        }
+        if !self.staging.is_empty() {
+            let mut hint = 0usize;
+            for row in start..end {
+                if let Some(val) = self.get(row, &mut hint)
+                    && (low..=high).contains(&val)
+                {
+                    out.push(row as u32);
+                }
+            }
+            return;
+        }
+        let first_chunk = (start / CHUNK as u64) as usize;
+        let last_chunk = ((end - 1) / CHUNK as u64) as usize;
+        for (offset, chunk) in self.sealed[first_chunk..=last_chunk].iter().enumerate() {
+            let chunk_min = chunk.base;
+            let chunk_max = chunk.base.saturating_add(chunk.max_delta);
+            if chunk_max < low || chunk_min > high {
+                continue;
+            }
+            let chunk_idx = first_chunk + offset;
+            let chunk_start = (chunk_idx as u64) * (CHUNK as u64);
+            let c_lo = start.saturating_sub(chunk_start) as usize;
+            let c_hi = (end - chunk_start).min(CHUNK as u64) as usize;
+            let row_base = chunk_start as u32;
+            if chunk_min >= low && chunk_max <= high {
+                push_non_null_range(chunk.nulls.as_deref(), row_base, c_lo..c_hi, out);
+                continue;
+            }
+            let delta_lo = low.saturating_sub(chunk_min);
+            let delta_hi = high - chunk_min;
+            match &chunk.payload {
+                Payload::Plain { width, data } => {
+                    scan_plain_deltas(
+                        *width,
+                        data,
+                        chunk.nulls.as_deref(),
+                        row_base,
+                        c_lo..c_hi,
+                        out,
+                        |delta| (delta_lo..=delta_hi).contains(&delta),
+                    );
+                }
+                Payload::Runs {
+                    width,
+                    values,
+                    ends,
+                } => {
+                    let wide = usize::from(*width);
+                    let nulls = chunk.nulls.as_deref();
+                    let mut run = ends.partition_point(|&e| (e as usize) <= c_lo);
+                    while run < ends.len() {
+                        let prev_end = if run == 0 { 0 } else { ends[run - 1] as usize };
+                        if prev_end >= c_hi {
+                            break;
+                        }
+                        let r_start = c_lo.max(prev_end);
+                        let r_end = c_hi.min(ends[run] as usize);
+                        let delta = read_width(values, run, wide);
+                        if (delta_lo..=delta_hi).contains(&delta) {
                             push_non_null_range(nulls, row_base, r_start..r_end, out);
                         }
                         run += 1;
@@ -2265,14 +2552,41 @@ enum IndexKeys {
     U64(Vec<u64>),
 }
 
-/// Compact CSR inverted index for one indexable column of a `RelationStore`.
-struct ColumnIndex {
-    keys: IndexKeys,
-    offsets: Vec<u32>,
-    row_ids: Vec<u32>,
+/// Shared slice view into a [`ValueIndex`] row array, remaining valid even if the index is evicted.
+#[derive(Clone, Debug)]
+pub struct IndexSlice {
+    rows: Arc<[u32]>,
+    start: usize,
+    end: usize,
 }
 
-impl ColumnIndex {
+impl IndexSlice {
+    fn empty() -> Self {
+        static EMPTY: OnceLock<Arc<[u32]>> = OnceLock::new();
+        Self {
+            rows: Arc::clone(EMPTY.get_or_init(|| Arc::from([]))),
+            start: 0,
+            end: 0,
+        }
+    }
+}
+
+impl std::ops::Deref for IndexSlice {
+    type Target = [u32];
+
+    fn deref(&self) -> &[u32] {
+        &self.rows[self.start..self.end]
+    }
+}
+
+/// Compact CSR inverted value index for one indexable column of a `RelationStore`.
+struct ValueIndex {
+    keys: IndexKeys,
+    offsets: Vec<u32>,
+    row_ids: Arc<[u32]>,
+}
+
+impl ValueIndex {
     fn from_packed_u32(mut packed: Vec<u64>) -> Self {
         packed.sort_unstable();
         let mut keys = Vec::new();
@@ -2295,11 +2609,10 @@ impl ColumnIndex {
         }
         keys.shrink_to_fit();
         offsets.shrink_to_fit();
-        row_ids.shrink_to_fit();
         Self {
             keys: IndexKeys::U32(keys),
             offsets,
-            row_ids,
+            row_ids: Arc::from(row_ids),
         }
     }
 
@@ -2323,11 +2636,10 @@ impl ColumnIndex {
         }
         keys.shrink_to_fit();
         offsets.shrink_to_fit();
-        row_ids.shrink_to_fit();
         Self {
             keys: IndexKeys::U64(keys),
             offsets,
-            row_ids,
+            row_ids: Arc::from(row_ids),
         }
     }
 
@@ -2345,27 +2657,54 @@ impl ColumnIndex {
         };
         keys_bytes
             + self.offsets.capacity() * std::mem::size_of::<u32>()
-            + self.row_ids.capacity() * std::mem::size_of::<u32>()
+            + self.row_ids.len() * std::mem::size_of::<u32>()
+    }
+
+    fn key_span(&self, key: u64, range: Option<(u32, u32)>) -> Option<(usize, usize)> {
+        let at = match &self.keys {
+            IndexKeys::U32(keys) => {
+                let k = u32::try_from(key).ok()?;
+                keys.binary_search(&k).ok()?
+            }
+            IndexKeys::U64(keys) => keys.binary_search(&key).ok()?,
+        };
+        let base = self.offsets[at] as usize;
+        let end = self.offsets[at + 1] as usize;
+        let slice = &self.row_ids[base..end];
+        if let Some((lo, hi)) = range {
+            if lo >= hi || slice.is_empty() {
+                return None;
+            }
+            let s = slice.partition_point(|&r| r < lo);
+            let e = s + slice[s..].partition_point(|&r| r < hi);
+            if s >= e {
+                None
+            } else {
+                Some((base + s, base + e))
+            }
+        } else if base >= end {
+            None
+        } else {
+            Some((base, end))
+        }
     }
 
     fn rows_for_key(&self, key: u64, range: Option<(u32, u32)>) -> &[u32] {
-        let at = match &self.keys {
-            IndexKeys::U32(keys) => {
-                let Ok(k) = u32::try_from(key) else {
-                    return &[];
-                };
-                match keys.binary_search(&k) {
-                    Ok(at) => at,
-                    Err(_) => return &[],
-                }
-            }
-            IndexKeys::U64(keys) => match keys.binary_search(&key) {
-                Ok(at) => at,
-                Err(_) => return &[],
-            },
+        let Some((start, end)) = self.key_span(key, range) else {
+            return &[];
         };
-        let slice = &self.row_ids[self.offsets[at] as usize..self.offsets[at + 1] as usize];
-        narrow_slice(slice, range)
+        &self.row_ids[start..end]
+    }
+
+    fn rows_for_key_slice(&self, key: u64, range: Option<(u32, u32)>) -> IndexSlice {
+        let Some((start, end)) = self.key_span(key, range) else {
+            return IndexSlice::empty();
+        };
+        IndexSlice {
+            rows: Arc::clone(&self.row_ids),
+            start,
+            end,
+        }
     }
 
     fn rows_in_range(
@@ -2455,13 +2794,13 @@ fn intersect_into(dst: &mut Vec<u32>, src: &[u32]) {
     dst.truncate(write);
 }
 
-pub enum ExactRowSet<'a> {
+pub enum ExactRowSet {
     Range(u64, u64),
-    Slice(&'a [u32]),
+    Slice(IndexSlice),
     Owned(Vec<u32>),
 }
 
-impl ExactRowSet<'_> {
+impl ExactRowSet {
     pub fn len(&self) -> usize {
         match self {
             Self::Range(start, end) => end.saturating_sub(*start) as usize,
@@ -2483,34 +2822,34 @@ enum SortCellKey {
     Dict(u32),
 }
 
-enum RowPiece<'p> {
-    Slice(&'p [u32]),
+enum RowPiece {
+    Range(u64, u64),
+    Slice(IndexSlice),
     Owned(Vec<u32>),
 }
 
-impl RowPiece<'_> {
+impl RowPiece {
     fn len(&self) -> usize {
         match self {
+            Self::Range(s, e) => e.saturating_sub(*s) as usize,
             Self::Slice(s) => s.len(),
             Self::Owned(v) => v.len(),
         }
     }
-    fn as_slice(&self) -> &[u32] {
-        match self {
-            Self::Slice(s) => s,
-            Self::Owned(v) => v,
-        }
+    fn is_empty(&self) -> bool {
+        self.len() == 0
     }
     fn into_vec(self) -> Vec<u32> {
         match self {
+            Self::Range(s, e) => (s..e).map(|r| r as u32).collect(),
             Self::Slice(s) => s.to_vec(),
             Self::Owned(v) => v,
         }
     }
 }
 
-fn intersect_row_pieces(mut pieces: Vec<RowPiece<'_>>) -> Option<RowPiece<'_>> {
-    if pieces.iter().any(|p| p.len() == 0) {
+fn intersect_row_pieces(mut pieces: Vec<RowPiece>) -> Option<RowPiece> {
+    if pieces.iter().any(RowPiece::is_empty) {
         return Some(RowPiece::Owned(Vec::new()));
     }
     if pieces.is_empty() {
@@ -2523,7 +2862,13 @@ fn intersect_row_pieces(mut pieces: Vec<RowPiece<'_>>) -> Option<RowPiece<'_>> {
     let mut iter = pieces.into_iter();
     let mut acc = iter.next().unwrap().into_vec();
     for piece in iter {
-        intersect_into(&mut acc, piece.as_slice());
+        match piece {
+            RowPiece::Range(s, e) => {
+                acc.retain(|&row| u64::from(row) >= s && u64::from(row) < e);
+            }
+            RowPiece::Slice(s) => intersect_into(&mut acc, &s),
+            RowPiece::Owned(v) => intersect_into(&mut acc, &v),
+        }
         if acc.is_empty() {
             break;
         }
@@ -2531,12 +2876,12 @@ fn intersect_row_pieces(mut pieces: Vec<RowPiece<'_>>) -> Option<RowPiece<'_>> {
     Some(RowPiece::Owned(acc))
 }
 
-enum EvalScan<'a> {
+enum EvalScan {
     All {
         range: Option<(u64, u64)>,
         partition_key: Option<u64>,
     },
-    Slice(&'a [u32]),
+    Slice(IndexSlice),
     Owned(Vec<u32>),
 }
 
@@ -2544,13 +2889,13 @@ type OwnedPrefixSuffixPair = (Box<[u8]>, Box<[u8]>);
 
 #[derive(Clone)]
 enum CachedFilterMatch {
-    /// Sorted full-store row ids matching the filter (capped at <= `MAX_CACHED_ENTRY_ROWS`).
+    /// Sorted row ids matching the filter (capped at <= `MAX_CACHED_ENTRY_ROWS`).
     Rows(Arc<[u32]>),
     /// Fallback dictionary ids when full-store row union exceeds the per-entry cap.
     Ids(Arc<[u32]>),
 }
 
-type FilterIdCacheEntry = (usize, FilterCacheKey, CachedFilterMatch);
+type FilterIdCacheEntry = (usize, Option<(u32, u32)>, FilterCacheKey, CachedFilterMatch);
 
 #[derive(Default)]
 struct FilterCacheState {
@@ -2560,6 +2905,7 @@ struct FilterCacheState {
 
 #[derive(Clone, Eq, PartialEq)]
 struct FilterCacheKey {
+    exact_ids: Vec<u32>,
     prefixes: Vec<Box<[u8]>>,
     pairs: Vec<OwnedPrefixSuffixPair>,
     contains: Vec<Box<[u8]>>,
@@ -2570,13 +2916,49 @@ const MAX_CACHED_ENTRY_ROWS: usize = 2_000_000;
 const MAX_CACHED_FILTER_ROWS: usize = 4_000_000;
 
 impl FilterCacheState {
-    fn insert(&mut self, col_idx: usize, key: FilterCacheKey, value: CachedFilterMatch) {
+    fn get_cached(
+        &mut self,
+        col_idx: usize,
+        narrow: Option<(u32, u32)>,
+        key: &FilterCacheKey,
+    ) -> Option<(bool, CachedFilterMatch)> {
         if let Some(pos) = self
             .entries
             .iter()
-            .position(|(c, k, _)| *c == col_idx && *k == key)
+            .position(|(c, n, k, _)| *c == col_idx && n.is_none() && k == key)
         {
-            let (_, _, old) = self.entries.remove(pos);
+            let entry = self.entries.remove(pos);
+            let cached = entry.3.clone();
+            self.entries.push(entry);
+            return Some((true, cached));
+        }
+        if let Some(req) = narrow
+            && let Some(pos) = self
+                .entries
+                .iter()
+                .position(|(c, n, k, _)| *c == col_idx && *n == Some(req) && k == key)
+        {
+            let entry = self.entries.remove(pos);
+            let cached = entry.3.clone();
+            self.entries.push(entry);
+            return Some((false, cached));
+        }
+        None
+    }
+
+    fn insert(
+        &mut self,
+        col_idx: usize,
+        narrow: Option<(u32, u32)>,
+        key: FilterCacheKey,
+        value: CachedFilterMatch,
+    ) {
+        if let Some(pos) = self
+            .entries
+            .iter()
+            .position(|(c, n, k, _)| *c == col_idx && *n == narrow && *k == key)
+        {
+            let (_, _, _, old) = self.entries.remove(pos);
             if let CachedFilterMatch::Rows(rows) = old {
                 self.cached_rows_total = self.cached_rows_total.saturating_sub(rows.len());
             }
@@ -2590,18 +2972,179 @@ impl FilterCacheState {
                 || (added_rows > 0
                     && self.cached_rows_total.saturating_add(added_rows) > MAX_CACHED_FILTER_ROWS))
         {
-            let (_, _, evicted) = self.entries.remove(0);
+            let (_, _, _, evicted) = self.entries.remove(0);
             if let CachedFilterMatch::Rows(rows) = evicted {
                 self.cached_rows_total = self.cached_rows_total.saturating_sub(rows.len());
             }
         }
         self.cached_rows_total = self.cached_rows_total.saturating_add(added_rows);
-        self.entries.push((col_idx, key, value));
+        self.entries.push((col_idx, narrow, key, value));
     }
 }
 
+fn ascii_lowercase_cow(s: &str) -> Cow<'_, [u8]> {
+    let bytes = s.as_bytes();
+    if bytes.iter().any(u8::is_ascii_uppercase) {
+        Cow::Owned(bytes.iter().map(u8::to_ascii_lowercase).collect())
+    } else {
+        Cow::Borrowed(bytes)
+    }
+}
+
+#[derive(Default)]
+struct TextMatcher<'a> {
+    exact_strs: Vec<&'a str>,
+    exact_ids: &'a [u32],
+    prefixes: Vec<Cow<'a, [u8]>>,
+    pairs: Vec<(Cow<'a, [u8]>, Cow<'a, [u8]>)>,
+    contains: Vec<Cow<'a, [u8]>>,
+}
+
+impl<'a> TextMatcher<'a> {
+    fn from_exact_ids(exact_ids: &'a [u32]) -> Self {
+        Self {
+            exact_ids,
+            ..Self::default()
+        }
+    }
+
+    fn from_eq(val: &'a str) -> Self {
+        Self {
+            exact_strs: vec![val],
+            ..Self::default()
+        }
+    }
+
+    fn from_in(vals: &'a [String]) -> Self {
+        Self {
+            exact_strs: vals.iter().map(String::as_str).collect(),
+            ..Self::default()
+        }
+    }
+
+    fn from_like_prefix(prefix: &'a str) -> Self {
+        Self {
+            prefixes: vec![ascii_lowercase_cow(prefix)],
+            ..Self::default()
+        }
+    }
+
+    fn from_like_prefix_suffix(prefix: &'a str, suffix: &'a str) -> Self {
+        Self {
+            pairs: vec![(ascii_lowercase_cow(prefix), ascii_lowercase_cow(suffix))],
+            ..Self::default()
+        }
+    }
+
+    fn from_like_contains(needle: &'a str) -> Self {
+        Self {
+            contains: vec![ascii_lowercase_cow(needle)],
+            ..Self::default()
+        }
+    }
+
+    fn push_eq(&mut self, val: &'a str) {
+        self.exact_strs.push(val);
+    }
+
+    fn push_in(&mut self, vals: &'a [String]) {
+        self.exact_strs.extend(vals.iter().map(String::as_str));
+    }
+
+    fn push_prefix(&mut self, prefix: &'a str) {
+        self.prefixes.push(ascii_lowercase_cow(prefix));
+    }
+
+    fn push_pair(&mut self, prefix: &'a str, suffix: &'a str) {
+        self.pairs
+            .push((ascii_lowercase_cow(prefix), ascii_lowercase_cow(suffix)));
+    }
+
+    fn push_contains(&mut self, needle: &'a str) {
+        self.contains.push(ascii_lowercase_cow(needle));
+    }
+
+    fn has_like(&self) -> bool {
+        !self.prefixes.is_empty() || !self.pairs.is_empty() || !self.contains.is_empty()
+    }
+
+    fn resolve_exact_ids(&self, dict: &TextDict) -> Vec<u32> {
+        let mut ids = Vec::with_capacity(self.exact_ids.len() + self.exact_strs.len());
+        ids.extend_from_slice(self.exact_ids);
+        for s in &self.exact_strs {
+            if let Some(id) = dict.lookup_str(s) {
+                ids.push(id);
+            }
+        }
+        if ids.len() > 1 {
+            ids.sort_unstable();
+            ids.dedup();
+        }
+        ids
+    }
+
+    fn filter_ids(&self, dict: &TextDict, ids: &[u32]) -> Vec<u32> {
+        self.filter_ids_keys(dict, IndexKeysRef::U32(ids))
+    }
+
+    fn filter_ids_keys(&self, dict: &TextDict, keys: IndexKeysRef<'_>) -> Vec<u32> {
+        if !self.has_like() || keys.is_empty() {
+            return Vec::new();
+        }
+        let pref: Vec<&[u8]> = self.prefixes.iter().map(|c| c.as_ref()).collect();
+        let pairs: Vec<(&[u8], &[u8])> = self
+            .pairs
+            .iter()
+            .map(|(p, s)| (p.as_ref(), s.as_ref()))
+            .collect();
+        let cont: Vec<&[u8]> = self.contains.iter().map(|c| c.as_ref()).collect();
+        dict.filter_ids_by_ascii_filters_ci(keys, &pref, &pairs, &cont)
+    }
+
+    fn cache_key(&self, exact_ids: &[u32]) -> FilterCacheKey {
+        let mut norm_exact = exact_ids.to_vec();
+        norm_exact.sort_unstable();
+        norm_exact.dedup();
+        let mut norm_prefixes: Vec<Box<[u8]>> = self
+            .prefixes
+            .iter()
+            .map(|p| p.as_ref().to_vec().into_boxed_slice())
+            .collect();
+        norm_prefixes.sort();
+        norm_prefixes.dedup();
+        let mut norm_pairs: Vec<OwnedPrefixSuffixPair> = self
+            .pairs
+            .iter()
+            .map(|(p, s)| {
+                (
+                    p.as_ref().to_vec().into_boxed_slice(),
+                    s.as_ref().to_vec().into_boxed_slice(),
+                )
+            })
+            .collect();
+        norm_pairs.sort();
+        norm_pairs.dedup();
+        let mut norm_contains: Vec<Box<[u8]>> = self
+            .contains
+            .iter()
+            .map(|n| n.as_ref().to_vec().into_boxed_slice())
+            .collect();
+        norm_contains.sort();
+        norm_contains.dedup();
+        FilterCacheKey {
+            exact_ids: norm_exact,
+            prefixes: norm_prefixes,
+            pairs: norm_pairs,
+            contains: norm_contains,
+        }
+    }
+}
+
+static NEXT_STORE_ID: AtomicU64 = AtomicU64::new(1);
+
 /// The rows of one relation, immutable. Build with `RelationStoreBuilder`, read with `cursor`.
 pub struct RelationStore {
+    store_id: u64,
     columns: Vec<Column>,
     names: Vec<String>,
     /// Per column, how it is derived when it is not stored (its `Column` then holds no rows).
@@ -2619,12 +3162,18 @@ pub struct RelationStore {
     partitions: Option<Vec<Partition>>,
     /// An upper bound on the size of a cell, in bytes.
     max_cell_bytes: u64,
-    /// Lazy CSR column indexes, initialized on first filtered lookup of an indexable column.
-    indexes: Vec<OnceLock<Option<ColumnIndex>>>,
+    /// Lazy CSR column value indexes managed behind `TextDict`'s byte-budgeted LRU cache.
+    indexes: Vec<Arc<IndexSlot>>,
     /// Per-column count of filtered `EqText`/`InText` lookups before deciding to materialize a full CSR index.
-    eq_probe_hits: Vec<std::sync::atomic::AtomicU8>,
-    /// Bounded cache of matching row slices / dictionary ids per `(column_index, normalized_filter)` to avoid repeated scans.
+    eq_probe_hits: Vec<AtomicU8>,
+    /// Bounded cache of matching row slices / dictionary ids per `(column_index, narrow, normalized_filter)` to avoid repeated scans.
     filter_id_cache: Mutex<FilterCacheState>,
+}
+
+impl Drop for RelationStore {
+    fn drop(&mut self) {
+        self.dict.evict_store_indexes(self.store_id);
+    }
 }
 
 /// The rows `start..end` of a store, which all have the partition column `key`.
@@ -2868,12 +3417,23 @@ impl RelationStore {
         predicates: &[(Derive, &[u32])],
         narrow: Option<(u32, u32)>,
     ) -> Option<Vec<u32>> {
+        let items: Vec<(Derive, TextMatcher<'_>)> = predicates
+            .iter()
+            .map(|&(derive, ids)| (derive, TextMatcher::from_exact_ids(ids)))
+            .collect();
+        let refs: Vec<(Derive, &TextMatcher<'_>)> = items.iter().map(|(d, m)| (*d, m)).collect();
+        self.scan_derived_text_matcher_group(index_column, &refs, narrow)
+    }
+
+    fn scan_derived_text_matcher_group(
+        &self,
+        index_column: usize,
+        predicates: &[(Derive, &TextMatcher<'_>)],
+        narrow: Option<(u32, u32)>,
+    ) -> Option<Vec<u32>> {
         let partitions = self.partitions.as_ref()?;
         if predicates.is_empty() || self.derived.get(index_column).copied().flatten().is_some() {
             return None;
-        }
-        if predicates.iter().any(|(_, ids)| ids.is_empty()) {
-            return Some(Vec::new());
         }
         let (lo, hi) = narrow.map_or((0u64, self.rows), |(a, b)| {
             (u64::from(a).min(self.rows), u64::from(b).min(self.rows))
@@ -2881,26 +3441,112 @@ impl RelationStore {
         if lo >= hi {
             return Some(Vec::new());
         }
-        let derive_priority = |derive: Derive| -> u8 {
-            match derive {
+
+        struct PreparedItem<'a> {
+            derive: Derive,
+            matcher: &'a TextMatcher<'a>,
+            exact_ids: Vec<u32>,
+            sorted_exact: Vec<u32>,
+            has_like: bool,
+            verdict_cache: HashMap<u32, bool>,
+        }
+        impl PreparedItem<'_> {
+            #[inline]
+            fn exact_contains(&self, id: u32) -> bool {
+                if self.exact_ids.len() <= 8 {
+                    self.exact_ids.contains(&id)
+                } else {
+                    self.sorted_exact.binary_search(&id).is_ok()
+                }
+            }
+            fn eval_unseen(&mut self, dict: &TextDict, ids: &[u32]) -> bool {
+                let mut unseen = Vec::new();
+                let mut any_hit = false;
+                for &id in ids {
+                    match self.verdict_cache.entry(id) {
+                        std::collections::hash_map::Entry::Occupied(entry) => {
+                            if *entry.get() {
+                                any_hit = true;
+                            }
+                        }
+                        std::collections::hash_map::Entry::Vacant(entry) => {
+                            if self.exact_contains(id) {
+                                entry.insert(true);
+                                any_hit = true;
+                            } else if !self.has_like {
+                                entry.insert(false);
+                            } else {
+                                entry.insert(false);
+                                unseen.push(id);
+                            }
+                        }
+                    }
+                }
+                if !unseen.is_empty() {
+                    let hits = self.matcher.filter_ids(dict, &unseen);
+                    if !hits.is_empty() {
+                        any_hit = true;
+                        for id in hits {
+                            self.verdict_cache.insert(id, true);
+                        }
+                    }
+                }
+                any_hit
+            }
+        }
+
+        let mut items = Vec::with_capacity(predicates.len());
+        for &(derive, matcher) in predicates {
+            let exact_ids = matcher.resolve_exact_ids(&self.dict);
+            let has_like = matcher.has_like();
+            if exact_ids.is_empty() && !has_like {
+                return Some(Vec::new());
+            }
+            let mut sorted_exact = if exact_ids.len() > 8 {
+                exact_ids.clone()
+            } else {
+                Vec::new()
+            };
+            if !sorted_exact.is_empty() {
+                sorted_exact.sort_unstable();
+                sorted_exact.dedup();
+            }
+            let mut verdict_cache = HashMap::new();
+            for &id in &exact_ids {
+                verdict_cache.insert(id, true);
+            }
+            items.push(PreparedItem {
+                derive,
+                matcher,
+                exact_ids,
+                sorted_exact,
+                has_like,
+                verdict_cache,
+            });
+        }
+
+        let derive_priority = |derive: Derive, has_like: bool| -> (u8, u8) {
+            let kind_rank = u8::from(has_like);
+            let col_rank = match derive {
                 Derive::MethodDescriptor | Derive::FieldDescriptor | Derive::TypeDescriptor => 0,
                 Derive::MethodClass | Derive::FieldClass => 1,
                 Derive::MethodName | Derive::FieldName | Derive::FieldType | Derive::TypeName => 2,
-            }
+            };
+            (kind_rank, col_rank)
         };
-        let (primary_pos, _) = predicates
-            .iter()
-            .enumerate()
-            .min_by_key(|(_, (d, ids))| (derive_priority(*d), ids.len()))?;
-        let (primary_derive, primary_ids) = predicates[primary_pos];
-        let class_filter: Option<&[u32]> = predicates
-            .iter()
-            .find(|(d, _)| matches!(d, Derive::MethodClass | Derive::FieldClass))
-            .map(|(_, ids)| *ids);
+        let (primary_pos, _) = items.iter().enumerate().min_by_key(|(_, item)| {
+            (
+                derive_priority(item.derive, item.has_like),
+                item.exact_ids.len(),
+            )
+        })?;
+
         let ints = &self.columns.get(index_column)?.ints;
         let mut matched = Vec::new();
-        let mut local_indices: Vec<u64> = Vec::new();
         let mut bitset: Vec<u64> = Vec::new();
+        let mut cand_indices: Vec<usize> = Vec::new();
+        let mut sec_ids_buf: Vec<u32> = Vec::new();
+
         for part in partitions {
             let s = part.start.max(lo);
             let e = part.end.min(hi);
@@ -2908,67 +3554,414 @@ impl RelationStore {
                 continue;
             }
             let table = self.table_for(part.key)?;
-            if !predicates
-                .iter()
-                .all(|&(derive, ids)| table.bloom_might_contain_any(derive, ids))
-            {
+            // 1. Exact-ID bloom / type_desc pre-filter.
+            let mut partition_possible = true;
+            for item in &items {
+                if !item.has_like {
+                    if !table.bloom_might_contain_any(item.derive, &item.exact_ids) {
+                        partition_possible = false;
+                        break;
+                    }
+                    if table.blooms.is_none()
+                        && table.type_desc_covers_member_classes
+                        && matches!(item.derive, Derive::MethodClass | Derive::FieldClass)
+                    {
+                        let any_class =
+                            item.exact_ids.iter().any(|id| table.type_desc.contains(id));
+                        if !any_class {
+                            partition_possible = false;
+                            break;
+                        }
+                    }
+                }
+            }
+            if !partition_possible {
                 continue;
             }
-            if table.blooms.is_none()
-                && table.type_desc_covers_member_classes
-                && let Some(class_ids) = class_filter
-            {
-                let any_class = if class_ids.len() == 1 {
-                    table.type_desc.contains(&class_ids[0])
-                } else {
-                    table.type_desc.iter().any(|id| class_ids.contains(id))
-                };
-                if !any_class {
+
+            // 2. Deduplicate `MethodClass` / `FieldClass` `LIKE` checks over `type_desc` when covered.
+            if table.type_desc_covers_member_classes {
+                for item in &mut items {
+                    if item.has_like
+                        && matches!(item.derive, Derive::MethodClass | Derive::FieldClass)
+                        && !item.eval_unseen(&self.dict, &table.type_desc)
+                    {
+                        partition_possible = false;
+                        break;
+                    }
+                }
+                if !partition_possible {
                     continue;
                 }
             }
+
+            let primary_derive = items[primary_pos].derive;
             let primary_slice = table.slice(primary_derive);
-            local_indices.clear();
-            let matches_secondary = |idx: usize| -> bool {
-                predicates.iter().enumerate().all(|(i, &(d, ids))| {
-                    if i == primary_pos {
-                        return true;
-                    }
-                    table.slice(d).get(idx).is_some_and(|v| ids.contains(v))
-                })
-            };
-            if primary_ids.len() == 1 {
-                let target = primary_ids[0];
-                for (idx, &val) in primary_slice.iter().enumerate() {
-                    if val == target && (predicates.len() == 1 || matches_secondary(idx)) {
-                        local_indices.push(idx as u64);
-                    }
-                }
-            } else {
-                for (idx, &val) in primary_slice.iter().enumerate() {
-                    if primary_ids.contains(&val)
-                        && (predicates.len() == 1 || matches_secondary(idx))
-                    {
-                        local_indices.push(idx as u64);
-                    }
-                }
-            }
-            if local_indices.is_empty() {
+            if primary_slice.is_empty() {
                 continue;
             }
-            if local_indices.len() <= 8 {
-                ints.collect_matching_in_range(s, e, &local_indices, &mut matched);
+
+            if items[primary_pos].has_like
+                && !(table.type_desc_covers_member_classes
+                    && matches!(primary_derive, Derive::MethodClass | Derive::FieldClass))
+                && !items[primary_pos].eval_unseen(&self.dict, primary_slice)
+            {
+                continue;
+            }
+
+            if items.len() == 1 {
+                let item = &items[0];
+                let mut small = [0u64; 8];
+                let mut small_len = 0usize;
+                let mut use_bitset = false;
+                if !item.has_like {
+                    if item.exact_ids.len() == 1 {
+                        let target = item.exact_ids[0];
+                        for (idx, &val) in primary_slice.iter().enumerate() {
+                            if val == target {
+                                Self::push_local_index(
+                                    idx,
+                                    primary_slice.len(),
+                                    &mut small,
+                                    &mut small_len,
+                                    &mut use_bitset,
+                                    &mut bitset,
+                                );
+                            }
+                        }
+                    } else {
+                        for (idx, &val) in primary_slice.iter().enumerate() {
+                            if item.exact_contains(val) {
+                                Self::push_local_index(
+                                    idx,
+                                    primary_slice.len(),
+                                    &mut small,
+                                    &mut small_len,
+                                    &mut use_bitset,
+                                    &mut bitset,
+                                );
+                            }
+                        }
+                    }
+                } else {
+                    for (idx, &val) in primary_slice.iter().enumerate() {
+                        if item.verdict_cache.get(&val).copied().unwrap_or(false) {
+                            Self::push_local_index(
+                                idx,
+                                primary_slice.len(),
+                                &mut small,
+                                &mut small_len,
+                                &mut use_bitset,
+                                &mut bitset,
+                            );
+                        }
+                    }
+                }
+                if use_bitset {
+                    let max_val = (primary_slice.len() - 1) as u64;
+                    ints.collect_matching_bitset_in_range(s, e, &bitset, max_val, &mut matched);
+                } else if small_len > 0 {
+                    ints.collect_matching_in_range(s, e, &small[..small_len], &mut matched);
+                }
+                continue;
+            }
+
+            // Conjunction across multiple derived columns sharing `index_column`.
+            cand_indices.clear();
+            {
+                let primary = &items[primary_pos];
+                if !primary.has_like {
+                    if primary.exact_ids.len() == 1 {
+                        let target = primary.exact_ids[0];
+                        for (idx, &val) in primary_slice.iter().enumerate() {
+                            if val == target {
+                                cand_indices.push(idx);
+                            }
+                        }
+                    } else {
+                        for (idx, &val) in primary_slice.iter().enumerate() {
+                            if primary.exact_contains(val) {
+                                cand_indices.push(idx);
+                            }
+                        }
+                    }
+                } else {
+                    for (idx, &val) in primary_slice.iter().enumerate() {
+                        if primary.verdict_cache.get(&val).copied().unwrap_or(false) {
+                            cand_indices.push(idx);
+                        }
+                    }
+                }
+            }
+            if cand_indices.is_empty() {
+                continue;
+            }
+            for (sec_idx, sec_item) in items.iter_mut().enumerate() {
+                if sec_idx == primary_pos {
+                    continue;
+                }
+                let sec_slice = table.slice(sec_item.derive);
+                if !sec_item.has_like {
+                    cand_indices.retain(|&idx| {
+                        sec_slice
+                            .get(idx)
+                            .is_some_and(|&id| sec_item.exact_contains(id))
+                    });
+                } else {
+                    if !(table.type_desc_covers_member_classes
+                        && matches!(sec_item.derive, Derive::MethodClass | Derive::FieldClass))
+                    {
+                        sec_ids_buf.clear();
+                        for &idx in &cand_indices {
+                            if let Some(&id) = sec_slice.get(idx) {
+                                sec_ids_buf.push(id);
+                            }
+                        }
+                        if !sec_item.eval_unseen(&self.dict, &sec_ids_buf) {
+                            cand_indices.clear();
+                            break;
+                        }
+                    }
+                    cand_indices.retain(|&idx| {
+                        sec_slice.get(idx).is_some_and(|id| {
+                            sec_item.verdict_cache.get(id).copied().unwrap_or(false)
+                        })
+                    });
+                }
+                if cand_indices.is_empty() {
+                    break;
+                }
+            }
+            if cand_indices.is_empty() {
+                continue;
+            }
+            if cand_indices.len() <= 8 {
+                let mut small = [0u64; 8];
+                for (slot, &idx) in small.iter_mut().zip(&cand_indices) {
+                    *slot = idx as u64;
+                }
+                ints.collect_matching_in_range(s, e, &small[..cand_indices.len()], &mut matched);
             } else {
                 let words = primary_slice.len().div_ceil(64);
                 bitset.clear();
                 bitset.resize(words, 0);
-                for &idx in &local_indices {
-                    let i = idx as usize;
-                    bitset[i >> 6] |= 1u64 << (i & 63);
+                for &idx in &cand_indices {
+                    bitset[idx >> 6] |= 1u64 << (idx & 63);
                 }
                 let max_val = (primary_slice.len() - 1) as u64;
                 ints.collect_matching_bitset_in_range(s, e, &bitset, max_val, &mut matched);
             }
+        }
+        Some(matched)
+    }
+
+    #[inline]
+    fn push_local_index(
+        idx: usize,
+        slice_len: usize,
+        small: &mut [u64; 8],
+        small_len: &mut usize,
+        use_bitset: &mut bool,
+        bitset: &mut Vec<u64>,
+    ) {
+        if !*use_bitset {
+            if *small_len < 8 {
+                small[*small_len] = idx as u64;
+                *small_len += 1;
+            } else {
+                *use_bitset = true;
+                let words = slice_len.div_ceil(64);
+                bitset.clear();
+                bitset.resize(words, 0);
+                for &prev in small.iter() {
+                    let p = prev as usize;
+                    bitset[p >> 6] |= 1u64 << (p & 63);
+                }
+                bitset[idx >> 6] |= 1u64 << (idx & 63);
+            }
+        } else {
+            bitset[idx >> 6] |= 1u64 << (idx & 63);
+        }
+    }
+
+    fn scan_unindexed_text_matcher(
+        &self,
+        column: usize,
+        matcher: &TextMatcher<'_>,
+        scan_lo: u64,
+        scan_hi: u64,
+    ) -> Option<Vec<u32>> {
+        if !self.is_indexable_text(column) {
+            return None;
+        }
+        if scan_lo >= scan_hi {
+            return Some(Vec::new());
+        }
+        let exact_ids = matcher.resolve_exact_ids(&self.dict);
+        let has_like = matcher.has_like();
+        if exact_ids.is_empty() && !has_like {
+            return Some(Vec::new());
+        }
+        if let Some(derived) = self.derived[column] {
+            if self.partitions.is_some() {
+                let narrow = Some((u32::try_from(scan_lo).ok()?, u32::try_from(scan_hi).ok()?));
+                return self.scan_derived_text_matcher_group(
+                    derived.index_column,
+                    &[(derived.derive, matcher)],
+                    narrow,
+                );
+            }
+            let part_col = self.partition_column?;
+            let mut idx_hint = 0usize;
+            let mut part_hint = 0usize;
+            let mut last_file: Option<u64> = None;
+            let mut last_table: Option<&RefTable> = None;
+            let mut matched = Vec::new();
+            if !has_like {
+                for row in scan_lo..scan_hi {
+                    let file = self.columns[part_col].ints.get(row, &mut part_hint)?;
+                    if last_file != Some(file) {
+                        last_table = self.table_for(file);
+                        last_file = Some(file);
+                    }
+                    let table = last_table?;
+                    let Some(index) = self.columns[derived.index_column]
+                        .ints
+                        .get(row, &mut idx_hint)
+                    else {
+                        continue;
+                    };
+                    if let Some(id) = table.id(derived.derive, index)
+                        && exact_ids.contains(&id)
+                    {
+                        matched.push(row as u32);
+                    }
+                }
+                return Some(matched);
+            }
+            let mut verdict_cache: HashMap<u32, bool> = HashMap::new();
+            for &id in &exact_ids {
+                verdict_cache.insert(id, true);
+            }
+            let mut batch_rows: Vec<(u32, u32)> = Vec::with_capacity(4096);
+            let mut unseen: Vec<u32> = Vec::with_capacity(1024);
+            let flush = |batch_rows: &mut Vec<(u32, u32)>,
+                         unseen: &mut Vec<u32>,
+                         verdict_cache: &mut HashMap<u32, bool>,
+                         matched: &mut Vec<u32>| {
+                if !unseen.is_empty() {
+                    for id in matcher.filter_ids(&self.dict, unseen) {
+                        verdict_cache.insert(id, true);
+                    }
+                    unseen.clear();
+                }
+                for &(row, id) in batch_rows.iter() {
+                    if verdict_cache.get(&id).copied().unwrap_or(false) {
+                        matched.push(row);
+                    }
+                }
+                batch_rows.clear();
+            };
+            for row in scan_lo..scan_hi {
+                let file = self.columns[part_col].ints.get(row, &mut part_hint)?;
+                if last_file != Some(file) {
+                    last_table = self.table_for(file);
+                    last_file = Some(file);
+                }
+                let table = last_table?;
+                let Some(index) = self.columns[derived.index_column]
+                    .ints
+                    .get(row, &mut idx_hint)
+                else {
+                    continue;
+                };
+                let Some(id) = table.id(derived.derive, index) else {
+                    continue;
+                };
+                if let std::collections::hash_map::Entry::Vacant(entry) = verdict_cache.entry(id) {
+                    entry.insert(false);
+                    unseen.push(id);
+                }
+                batch_rows.push((row as u32, id));
+                if batch_rows.len() >= 4096 || unseen.len() >= 1024 {
+                    flush(
+                        &mut batch_rows,
+                        &mut unseen,
+                        &mut verdict_cache,
+                        &mut matched,
+                    );
+                }
+            }
+            if !batch_rows.is_empty() {
+                flush(
+                    &mut batch_rows,
+                    &mut unseen,
+                    &mut verdict_cache,
+                    &mut matched,
+                );
+            }
+            return Some(matched);
+        }
+
+        let ints = &self.columns[column].ints;
+        if !has_like {
+            let targets: Vec<u64> = exact_ids.iter().map(|&id| u64::from(id)).collect();
+            let mut matched = Vec::new();
+            ints.collect_matching_in_range(scan_lo, scan_hi, &targets, &mut matched);
+            return Some(matched);
+        }
+
+        let mut verdict_cache: HashMap<u32, bool> = HashMap::new();
+        for &id in &exact_ids {
+            verdict_cache.insert(id, true);
+        }
+        let mut matched = Vec::new();
+        let mut hint = 0usize;
+        let mut batch_rows: Vec<(u32, u32)> = Vec::with_capacity(4096);
+        let mut unseen: Vec<u32> = Vec::with_capacity(1024);
+        let flush = |batch_rows: &mut Vec<(u32, u32)>,
+                     unseen: &mut Vec<u32>,
+                     verdict_cache: &mut HashMap<u32, bool>,
+                     matched: &mut Vec<u32>| {
+            if !unseen.is_empty() {
+                for id in matcher.filter_ids(&self.dict, unseen) {
+                    verdict_cache.insert(id, true);
+                }
+                unseen.clear();
+            }
+            for &(row, id) in batch_rows.iter() {
+                if verdict_cache.get(&id).copied().unwrap_or(false) {
+                    matched.push(row);
+                }
+            }
+            batch_rows.clear();
+        };
+        for row in scan_lo..scan_hi {
+            let Some(raw) = ints.get(row, &mut hint) else {
+                continue;
+            };
+            let id = raw as u32;
+            if let std::collections::hash_map::Entry::Vacant(entry) = verdict_cache.entry(id) {
+                entry.insert(false);
+                unseen.push(id);
+            }
+            batch_rows.push((row as u32, id));
+            if batch_rows.len() >= 4096 || unseen.len() >= 1024 {
+                flush(
+                    &mut batch_rows,
+                    &mut unseen,
+                    &mut verdict_cache,
+                    &mut matched,
+                );
+            }
+        }
+        if !batch_rows.is_empty() {
+            flush(
+                &mut batch_rows,
+                &mut unseen,
+                &mut verdict_cache,
+                &mut matched,
+            );
         }
         Some(matched)
     }
@@ -2988,57 +3981,36 @@ impl RelationStore {
         let (lo, hi) = narrow.map_or((0u64, self.rows), |(a, b)| {
             (u64::from(a).min(self.rows), u64::from(b).min(self.rows))
         });
-        if lo >= hi {
-            return Some(Vec::new());
-        }
-        if let Some(derived) = self.derived[column] {
-            if self.partitions.is_some() {
-                return self.scan_derived_group(
-                    derived.index_column,
-                    &[(derived.derive, target_ids)],
-                    narrow,
-                );
-            }
-            let part_col = self.partition_column?;
-            let mut idx_hint = 0usize;
-            let mut part_hint = 0usize;
-            let mut last_file: Option<u64> = None;
-            let mut last_table: Option<&RefTable> = None;
-            let mut matched = Vec::new();
-            for row in lo..hi {
-                let file = self.columns[part_col].ints.get(row, &mut part_hint)?;
-                if last_file != Some(file) {
-                    last_table = self.table_for(file);
-                    last_file = Some(file);
-                }
-                let table = last_table?;
-                let Some(index) = self.columns[derived.index_column]
-                    .ints
-                    .get(row, &mut idx_hint)
-                else {
-                    continue;
-                };
-                if let Some(id) = table.id(derived.derive, index)
-                    && target_ids.contains(&id)
-                {
-                    matched.push(row as u32);
-                }
-            }
-            return Some(matched);
-        }
-        let targets: Vec<u64> = target_ids.iter().map(|&id| u64::from(id)).collect();
-        let mut matched = Vec::new();
-        self.columns[column]
-            .ints
-            .collect_matching_in_range(lo, hi, &targets, &mut matched);
-        Some(matched)
+        let matcher = TextMatcher::from_exact_ids(target_ids);
+        self.scan_unindexed_text_matcher(column, &matcher, lo, hi)
     }
 
-    /// Aggregate `COUNT(*)` over 1..=4 direct columns (`I64|U64|Text` without tagged/derived
-    /// representation) matching SQLite ordering and all `SqlControl` work/result budgets.
+    #[inline]
+    fn cmp_group_raw(
+        &self,
+        col: usize,
+        left: Option<u64>,
+        right: Option<u64>,
+    ) -> std::cmp::Ordering {
+        use std::cmp::Ordering;
+        match (left, right) {
+            (None, None) => Ordering::Equal,
+            (None, Some(_)) => Ordering::Less,
+            (Some(_), None) => Ordering::Greater,
+            (Some(a), Some(b)) => match self.columns[col].kind {
+                Kind::I64 => (a as i64).cmp(&(b as i64)),
+                Kind::U64 => a.cmp(&b),
+                Kind::Dict => self.dict.cmp_text_ids(a as u32, b as u32),
+                Kind::Bool | Kind::F64 => Ordering::Equal,
+            },
+        }
+    }
+
+    /// Aggregate `COUNT(*)` over 1..=4 direct or derived columns (`I64|U64|Text` without tagged
+    /// representation) with optional predicates, matching SQLite ordering and all `SqlControl` budgets.
     pub fn direct_count_group_by(
         &self,
-        plan: &crate::provider::DirectCountGroupBy,
+        plan: &DirectCountGroupBy,
         control: &SqlControl,
     ) -> Option<MddResult<Vec<SqlRow>>> {
         let n_groups = plan.group_columns.len();
@@ -3048,19 +4020,21 @@ impl RelationStore {
         for &col in &plan.group_columns {
             let column = self.columns.get(col)?;
             let ty = *self.types.get(col)?;
-            if self.derived.get(col).copied().flatten().is_some() {
-                return None;
-            }
-            let eligible = matches!(column.kind, Kind::I64 | Kind::U64)
-                || (matches!(column.kind, Kind::Dict)
-                    && ty == SqlType::Text
-                    && !column.has_tagged_text);
+            let is_derived = self.derived.get(col).copied().flatten().is_some();
+            let eligible = if is_derived {
+                self.partition_column.is_some() && ty == SqlType::Text
+            } else {
+                matches!(column.kind, Kind::I64 | Kind::U64)
+                    || (matches!(column.kind, Kind::Dict)
+                        && ty == SqlType::Text
+                        && !column.has_tagged_text)
+            };
             if !eligible {
                 return None;
             }
         }
         for item in &plan.projections {
-            if let crate::provider::DirectGroupItem::GroupCol { group_pos, .. } = item
+            if let DirectGroupItem::GroupCol { group_pos, .. } = item
                 && *group_pos >= n_groups
             {
                 return None;
@@ -3069,273 +4043,544 @@ impl RelationStore {
         if plan.order_by_group_asc.iter().any(|&p| p >= n_groups) {
             return None;
         }
-        if let Err(err) = control.checkpoint(1, false) {
-            return Some(Err(err));
-        }
-        if self.rows == 0 {
-            return Some(Ok(Vec::new()));
-        }
 
-        let mut counts: HashMap<[Option<u64>; 4], u64> = HashMap::new();
-        let mut hints = [0usize; 4];
-        for row in 0..self.rows {
-            if let Err(err) = control.checkpoint(1, true) {
-                return Some(Err(err));
-            }
-            let mut key = [None; 4];
-            for (slot, (&col, hint)) in key
-                .iter_mut()
-                .zip(plan.group_columns.iter().zip(hints.iter_mut()))
-            {
-                *slot = self.columns[col].ints.get(row, hint);
-            }
-            *counts.entry(key).or_insert(0) += 1;
-        }
+        let matched = if plan.predicates.is_empty() {
+            ExactRowSet::Range(0, self.rows)
+        } else {
+            self.exact_lookup_rows(&plan.predicates, true)?
+        };
 
-        let max_cell_bytes = control.inner.limits.max_cell_bytes;
-        let mut groups: Vec<(Vec<SqlValue>, i64)> = Vec::with_capacity(counts.len());
-        for (key_raw, raw_cnt) in counts {
-            let Ok(cnt) = i64::try_from(raw_cnt) else {
-                return Some(Err(crate::quota("SQL_RESULT_INT_OVERFLOW")));
+        Some((|| {
+            control.checkpoint(1, false)?;
+            if matched.is_empty() {
+                return Ok(Vec::new());
+            }
+
+            let mut counts: HashMap<[Option<u64>; 4], u64> = HashMap::new();
+            let mut hints = vec![0usize; self.columns.len()];
+            let has_derived = plan
+                .group_columns
+                .iter()
+                .any(|&col| self.derived[col].is_some());
+            let mut last_file: Option<u64> = None;
+            let mut last_table: Option<&RefTable> = None;
+
+            let mut accumulate_row = |row: u64| -> MddResult<()> {
+                control.checkpoint(1, true)?;
+                let mut key = [None; 4];
+                if has_derived {
+                    let part_col = self
+                        .partition_column
+                        .ok_or_else(|| crate::invalid("STORE_DERIVED_REFERENCE_MISSING"))?;
+                    let file = self.columns[part_col]
+                        .ints
+                        .get(row, &mut hints[part_col])
+                        .ok_or_else(|| crate::invalid("STORE_DERIVED_REFERENCE_MISSING"))?;
+                    if last_file != Some(file) {
+                        last_table = self.table_for(file);
+                        last_file = Some(file);
+                    }
+                    let table = last_table
+                        .ok_or_else(|| crate::invalid("STORE_DERIVED_REFERENCE_MISSING"))?;
+                    for (slot, &col) in key.iter_mut().zip(&plan.group_columns) {
+                        *slot = if let Some(derived) = self.derived[col] {
+                            let idx = self.columns[derived.index_column]
+                                .ints
+                                .get(row, &mut hints[derived.index_column])
+                                .ok_or_else(|| crate::invalid("STORE_DERIVED_REFERENCE_MISSING"))?;
+                            let id = table
+                                .id(derived.derive, idx)
+                                .ok_or_else(|| crate::invalid("STORE_DERIVED_REFERENCE_MISSING"))?;
+                            Some(u64::from(id))
+                        } else {
+                            self.columns[col].ints.get(row, &mut hints[col])
+                        };
+                    }
+                } else {
+                    for (slot, &col) in key.iter_mut().zip(&plan.group_columns) {
+                        *slot = self.columns[col].ints.get(row, &mut hints[col]);
+                    }
+                }
+                *counts.entry(key).or_insert(0) += 1;
+                Ok(())
             };
-            let mut decoded = Vec::with_capacity(n_groups);
-            for (&raw, &col) in key_raw.iter().zip(&plan.group_columns) {
-                let value = match raw {
-                    None => SqlValue::Null,
-                    Some(v) => match self.columns[col].kind {
-                        Kind::I64 => SqlValue::I64(Signed64(v as i64)),
-                        Kind::U64 => SqlValue::U64(DecimalU64(v)),
-                        Kind::Dict => self.dict.get(v as u32),
-                        Kind::Bool | Kind::F64 => return None,
-                    },
-                };
-                if value.byte_size() > max_cell_bytes {
-                    return Some(Err(crate::quota("SQL_RESULT_CELL_BYTES")));
-                }
-                decoded.push(value);
-            }
-            groups.push((decoded, cnt));
-        }
 
-        groups.sort_by(|(a, _), (b, _)| {
-            for &pos in &plan.order_by_group_asc {
-                let ord = RelationStore::cmp_same_type_sql_values(&a[pos], &b[pos]);
-                if ord != std::cmp::Ordering::Equal {
-                    return ord;
+            match matched {
+                ExactRowSet::Range(start, end) => {
+                    for row in start..end {
+                        accumulate_row(row)?;
+                    }
+                }
+                ExactRowSet::Slice(slice) => {
+                    for &row in slice.iter() {
+                        accumulate_row(u64::from(row))?;
+                    }
+                }
+                ExactRowSet::Owned(rows) => {
+                    for row in rows {
+                        accumulate_row(u64::from(row))?;
+                    }
                 }
             }
-            for pos in 0..n_groups {
-                let ord = RelationStore::cmp_same_type_sql_values(&a[pos], &b[pos]);
-                if ord != std::cmp::Ordering::Equal {
-                    return ord;
-                }
-            }
-            std::cmp::Ordering::Equal
-        });
 
-        let mut out = Vec::new();
-        if out.try_reserve_exact(groups.len()).is_err() {
-            return Some(Err(crate::quota("SQL_RESULT_ALLOCATION")));
-        }
-        for (decoded, cnt) in groups {
-            let mut row_vals = Vec::new();
-            if row_vals.try_reserve_exact(plan.projections.len()).is_err() {
-                return Some(Err(crate::quota("SQL_RESULT_ALLOCATION")));
-            }
-            let mut row_bytes = 0u64;
-            for item in &plan.projections {
-                let val = match item {
-                    crate::provider::DirectGroupItem::GroupCol { group_pos, .. } => {
-                        decoded[*group_pos].clone()
+            let mut groups: Vec<([Option<u64>; 4], u64)> = counts.into_iter().collect();
+            groups.sort_by(|(a, _), (b, _)| {
+                for &pos in &plan.order_by_group_asc {
+                    let ord = self.cmp_group_raw(plan.group_columns[pos], a[pos], b[pos]);
+                    if ord != std::cmp::Ordering::Equal {
+                        return ord;
                     }
-                    crate::provider::DirectGroupItem::CountStar { .. } => {
-                        SqlValue::I64(Signed64(cnt))
-                    }
-                };
-                let size = val.byte_size();
-                if size > max_cell_bytes {
-                    return Some(Err(crate::quota("SQL_RESULT_CELL_BYTES")));
                 }
-                let work = match &val {
-                    SqlValue::Text(text) => (text.utf16.len() as u64).saturating_mul(4),
-                    SqlValue::Bytes(raw) | SqlValue::DexMutf8 { bytes: raw, .. } => {
-                        (raw.len() as u64).saturating_mul(2)
+                for pos in 0..n_groups {
+                    let ord = self.cmp_group_raw(plan.group_columns[pos], a[pos], b[pos]);
+                    if ord != std::cmp::Ordering::Equal {
+                        return ord;
                     }
-                    _ => 16,
-                };
-                if let Err(err) = control.work(work) {
-                    return Some(Err(err));
                 }
-                let Some(next_bytes) = row_bytes.checked_add(size) else {
-                    return Some(Err(crate::quota("SQL_RESULT_BYTES_OVERFLOW")));
+                std::cmp::Ordering::Equal
+            });
+
+            let max_cell_bytes = control.inner.limits.max_cell_bytes;
+            let mut out = Vec::new();
+            if out.try_reserve_exact(groups.len()).is_err() {
+                return Err(crate::quota("SQL_RESULT_ALLOCATION"));
+            }
+            for (key_raw, raw_cnt) in groups {
+                let Ok(cnt) = i64::try_from(raw_cnt) else {
+                    return Err(crate::quota("SQL_RESULT_INT_OVERFLOW"));
                 };
-                row_bytes = next_bytes;
-                row_vals.push(val);
+                let mut decoded = Vec::with_capacity(n_groups);
+                for (&raw, &col) in key_raw.iter().zip(&plan.group_columns) {
+                    let value = match raw {
+                        None => SqlValue::Null,
+                        Some(v) => match self.columns[col].kind {
+                            Kind::I64 => SqlValue::I64(Signed64(v as i64)),
+                            Kind::U64 => SqlValue::U64(DecimalU64(v)),
+                            Kind::Dict => self.dict.get(v as u32),
+                            Kind::Bool | Kind::F64 => {
+                                return Err(crate::invalid("DIRECT_GROUP_COLUMN"));
+                            }
+                        },
+                    };
+                    if value.byte_size() > max_cell_bytes {
+                        return Err(crate::quota("SQL_RESULT_CELL_BYTES"));
+                    }
+                    decoded.push(value);
+                }
+                let mut row_vals = Vec::new();
+                if row_vals.try_reserve_exact(plan.projections.len()).is_err() {
+                    return Err(crate::quota("SQL_RESULT_ALLOCATION"));
+                }
+                let mut row_bytes = 0u64;
+                for item in &plan.projections {
+                    let val = match item {
+                        DirectGroupItem::GroupCol { group_pos, .. } => decoded[*group_pos].clone(),
+                        DirectGroupItem::CountStar { .. } => SqlValue::I64(Signed64(cnt)),
+                    };
+                    let size = val.byte_size();
+                    if size > max_cell_bytes {
+                        return Err(crate::quota("SQL_RESULT_CELL_BYTES"));
+                    }
+                    let work = match &val {
+                        SqlValue::Text(text) => (text.utf16.len() as u64).saturating_mul(4),
+                        SqlValue::Bytes(raw) | SqlValue::DexMutf8 { bytes: raw, .. } => {
+                            (raw.len() as u64).saturating_mul(2)
+                        }
+                        _ => 16,
+                    };
+                    control.work(work)?;
+                    let Some(next_bytes) = row_bytes.checked_add(size) else {
+                        return Err(crate::quota("SQL_RESULT_BYTES_OVERFLOW"));
+                    };
+                    row_bytes = next_bytes;
+                    row_vals.push(val);
+                }
+                control.output(row_bytes)?;
+                out.push(row_vals);
             }
-            if let Err(err) = control.output(row_bytes) {
-                return Some(Err(err));
-            }
-            out.push(row_vals);
-        }
-        Some(Ok(out))
+            Ok(out)
+        })())
     }
 
-    /// Look up the exact sorted row set matching `predicates` (`AND`-conjoined).
-    ///
-    /// Returns `None` if any predicate cannot be resolved with 100% precision or when
-    /// `bump_probe_hits == false` would require building an uncached CSR index.
-    pub fn exact_lookup_rows(
-        &self,
-        predicates: &[crate::provider::DirectPredicate],
-        bump_probe_hits: bool,
-    ) -> Option<ExactRowSet<'_>> {
-        use crate::provider::DirectPredicate;
-        use std::sync::atomic::Ordering::Relaxed;
-
-        if self.rows > u64::from(u32::MAX) {
-            return None;
-        }
-        for pred in predicates {
+    fn validate_direct_predicates(&self, predicates: &[DirectPredicate]) -> bool {
+        let mut stack: Vec<&DirectPredicate> = predicates.iter().collect();
+        while let Some(pred) = stack.pop() {
             match pred {
-                DirectPredicate::EqU64(col, _) | DirectPredicate::InU64(col, _) => {
+                DirectPredicate::EqU64(col, _)
+                | DirectPredicate::InU64(col, _)
+                | DirectPredicate::BetweenU64(col, _, _) => {
                     if *col >= self.columns.len()
                         || (!self.is_partition_column(*col) && !self.is_indexable_u64(*col))
                     {
-                        return None;
+                        return false;
                     }
                 }
                 DirectPredicate::EqText(col, _) | DirectPredicate::InText(col, _) => {
                     if *col >= self.columns.len() || !self.is_indexable_text(*col) {
-                        return None;
+                        return false;
                     }
+                }
+                DirectPredicate::LikeAsciiPrefix(col, pat)
+                | DirectPredicate::LikeAsciiContains(col, pat) => {
+                    if *col >= self.columns.len()
+                        || !self.is_indexable_text(*col)
+                        || !pat.is_ascii()
+                    {
+                        return false;
+                    }
+                }
+                DirectPredicate::LikeAsciiPrefixSuffix(col, prefix, suffix) => {
+                    if *col >= self.columns.len()
+                        || !self.is_indexable_text(*col)
+                        || !prefix.is_ascii()
+                        || !suffix.is_ascii()
+                    {
+                        return false;
+                    }
+                }
+                DirectPredicate::And(children) | DirectPredicate::Or(children) => {
+                    stack.extend(children.iter());
                 }
             }
         }
-        if self.rows == 0 {
-            return Some(ExactRowSet::Owned(Vec::new()));
+        true
+    }
+
+    fn bump_eq_probe_and_should_scan(&self, col: usize, bump_probe_hits: bool) -> bool {
+        if self.indexes[col].is_materialized() {
+            return false;
+        }
+        if !bump_probe_hits {
+            return true;
+        }
+        if self.derived[col].is_some() {
+            // Raise derived CSR build threshold from 1 to 4: probes 1..=4 use `RefTable` + Bloom.
+            self.eq_probe_hits[col]
+                .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |v| {
+                    (v < 4).then_some(v + 1)
+                })
+                .is_ok()
+        } else {
+            self.eq_probe_hits[col]
+                .compare_exchange(0, 1, Ordering::Relaxed, Ordering::Relaxed)
+                .is_ok()
+        }
+    }
+
+    fn eval_text_matcher_exact(
+        &self,
+        col: usize,
+        matcher: &TextMatcher<'_>,
+        narrow: Option<(u32, u32)>,
+        bump_probe_hits: bool,
+    ) -> Option<RowPiece> {
+        let exact_ids = matcher.resolve_exact_ids(&self.dict);
+        let has_like = matcher.has_like();
+        if exact_ids.is_empty() && !has_like {
+            return Some(RowPiece::Owned(Vec::new()));
+        }
+        let (scan_lo, scan_hi) = narrow.map_or((0u64, self.rows), |(a, b)| {
+            (u64::from(a).min(self.rows), u64::from(b).min(self.rows))
+        });
+        if scan_lo >= scan_hi {
+            return Some(RowPiece::Owned(Vec::new()));
         }
 
-        let mut range: Option<(u64, u64)> = None;
-        let mut consumed = vec![false; predicates.len()];
-        for (i, pred) in predicates.iter().enumerate() {
-            if let DirectPredicate::EqU64(col, val) = pred
-                && self.is_partition_column(*col)
+        if !has_like {
+            if let Some(index) = self.cached_column_index(col) {
+                return Some(self.lookup_ids_in_value_index(&index, &exact_ids, narrow));
+            }
+            let allow_scan = if self.derived[col].is_some() {
+                self.bump_eq_probe_and_should_scan(col, bump_probe_hits)
+            } else {
+                (!bump_probe_hits || exact_ids.len() <= 8)
+                    && self.bump_eq_probe_and_should_scan(col, bump_probe_hits)
+            };
+            if allow_scan
+                && let Some(rows) = self.scan_unindexed_text_matcher(col, matcher, scan_lo, scan_hi)
             {
-                let (start, end) = self.range_of(*val)?;
-                range = Some(match range {
-                    Some((lo, hi)) => (lo.max(start), hi.min(end)),
-                    None => (start, end),
-                });
-                if let Some((lo, hi)) = range
-                    && lo >= hi
-                {
-                    return Some(ExactRowSet::Owned(Vec::new()));
+                return Some(RowPiece::Owned(rows));
+            }
+            if !bump_probe_hits && !self.indexes[col].is_materialized() {
+                return None;
+            }
+            let index = self.column_index(col)?;
+            return Some(self.lookup_ids_in_value_index(&index, &exact_ids, narrow));
+        }
+
+        // `LikeAscii*`: check `filter_id_cache` first, then cached `ValueIndex`, else `RefTable` / direct scan.
+        // NEVER increment `eq_probe_hits` or build a massive CSR `ValueIndex`.
+        let cache_key = matcher.cache_key(&exact_ids);
+        let hit = self
+            .filter_id_cache
+            .lock()
+            .ok()
+            .and_then(|mut guard| guard.get_cached(col, narrow, &cache_key));
+        if let Some((is_full_store, cached)) = hit {
+            match cached {
+                CachedFilterMatch::Rows(all_rows) => {
+                    let slice = if is_full_store {
+                        narrow_slice(&all_rows, narrow)
+                    } else {
+                        &all_rows
+                    };
+                    return Some(RowPiece::Owned(slice.to_vec()));
                 }
-                consumed[i] = true;
+                CachedFilterMatch::Ids(ids) => {
+                    if let Some(index) = self.cached_column_index(col) {
+                        return Some(self.lookup_ids_in_value_index(&index, &ids, narrow));
+                    }
+                    let rows = self.scan_text_ids(col, &ids, narrow)?;
+                    return Some(RowPiece::Owned(rows));
+                }
             }
         }
-        let narrow =
-            range.and_then(|(s, e)| Some((u32::try_from(s).ok()?, u32::try_from(e).ok()?)));
-        let (scan_lo, scan_hi) = range.unwrap_or((0, self.rows));
 
-        let mut resolved_ids: Vec<Option<Vec<u32>>> = vec![None; predicates.len()];
-        for (i, pred) in predicates.iter().enumerate() {
-            match pred {
-                DirectPredicate::EqText(_, val) => {
-                    let Some(id) = self.dict.lookup_str(val) else {
-                        return Some(ExactRowSet::Owned(Vec::new()));
-                    };
-                    resolved_ids[i] = Some(vec![id]);
+        if let Some(index) = self.cached_column_index(col) {
+            let mut matched_ids = exact_ids;
+            let like_ids = matcher.filter_ids_keys(&self.dict, index.keys());
+            if !like_ids.is_empty() {
+                matched_ids.extend(like_ids);
+                matched_ids.sort_unstable();
+                matched_ids.dedup();
+            }
+            if matched_ids.is_empty() {
+                if let Ok(mut guard) = self.filter_id_cache.lock() {
+                    guard.insert(col, None, cache_key, CachedFilterMatch::Rows(Arc::from([])));
                 }
-                DirectPredicate::InText(_, vals) => {
-                    if vals.is_empty() {
-                        return Some(ExactRowSet::Owned(Vec::new()));
+                return Some(RowPiece::Owned(Vec::new()));
+            }
+            if matched_ids.len() == 1 {
+                let ids_arc: Arc<[u32]> = Arc::from(matched_ids.as_slice());
+                let slice = index.rows_for_key_slice(u64::from(matched_ids[0]), narrow);
+                if let Ok(mut guard) = self.filter_id_cache.lock() {
+                    guard.insert(col, None, cache_key, CachedFilterMatch::Ids(ids_arc));
+                }
+                return Some(RowPiece::Slice(slice));
+            }
+            let mut full_slices = Vec::with_capacity(matched_ids.len());
+            let mut full_total = 0usize;
+            for &id in &matched_ids {
+                let slice = index.rows_for_key(u64::from(id), None);
+                if !slice.is_empty() {
+                    full_total = full_total.saturating_add(slice.len());
+                    full_slices.push(slice);
+                }
+            }
+            if full_total <= MAX_CACHED_ENTRY_ROWS {
+                let mut all_rows = Vec::with_capacity(full_total);
+                for slice in full_slices {
+                    all_rows.extend_from_slice(slice);
+                }
+                all_rows.sort_unstable();
+                let arc_rows: Arc<[u32]> = Arc::from(all_rows);
+                if let Ok(mut guard) = self.filter_id_cache.lock() {
+                    guard.insert(
+                        col,
+                        None,
+                        cache_key,
+                        CachedFilterMatch::Rows(Arc::clone(&arc_rows)),
+                    );
+                }
+                return Some(RowPiece::Owned(narrow_slice(&arc_rows, narrow).to_vec()));
+            }
+            let ids_arc: Arc<[u32]> = Arc::from(matched_ids.as_slice());
+            if let Ok(mut guard) = self.filter_id_cache.lock() {
+                guard.insert(col, None, cache_key, CachedFilterMatch::Ids(ids_arc));
+            }
+            return Some(self.lookup_ids_in_value_index(&index, &matched_ids, narrow));
+        }
+
+        let rows = self.scan_unindexed_text_matcher(col, matcher, scan_lo, scan_hi)?;
+        if rows.len() <= MAX_CACHED_ENTRY_ROWS
+            && let Ok(mut guard) = self.filter_id_cache.lock()
+        {
+            guard.insert(
+                col,
+                narrow,
+                cache_key,
+                CachedFilterMatch::Rows(Arc::from(rows.as_slice())),
+            );
+        }
+        Some(RowPiece::Owned(rows))
+    }
+
+    fn lookup_ids_in_value_index(
+        &self,
+        index: &ValueIndex,
+        ids: &[u32],
+        narrow: Option<(u32, u32)>,
+    ) -> RowPiece {
+        if ids.is_empty() {
+            return RowPiece::Owned(Vec::new());
+        }
+        if ids.len() == 1 {
+            return RowPiece::Slice(index.rows_for_key_slice(u64::from(ids[0]), narrow));
+        }
+        let mut rows = Vec::new();
+        for &id in ids {
+            rows.extend_from_slice(index.rows_for_key(u64::from(id), narrow));
+        }
+        rows.sort_unstable();
+        rows.dedup();
+        RowPiece::Owned(rows)
+    }
+
+    fn eval_direct_and(
+        &self,
+        predicates: &[&DirectPredicate],
+        enclosing_range: Option<(u64, u64)>,
+        bump_probe_hits: bool,
+    ) -> Option<RowPiece> {
+        let mut flat: Vec<&DirectPredicate> = Vec::with_capacity(predicates.len());
+        let mut stack: Vec<&DirectPredicate> = predicates.iter().copied().rev().collect();
+        while let Some(pred) = stack.pop() {
+            if let DirectPredicate::And(children) = pred {
+                for child in children.iter().rev() {
+                    stack.push(child);
+                }
+            } else {
+                flat.push(pred);
+            }
+        }
+
+        let mut range = enclosing_range;
+        let mut consumed = vec![false; flat.len()];
+        for (i, pred) in flat.iter().enumerate() {
+            match pred {
+                DirectPredicate::EqU64(col, val) if self.is_partition_column(*col) => {
+                    let (start, end) = self.range_of(*val)?;
+                    range = Some(match range {
+                        Some((lo, hi)) => (lo.max(start), hi.min(end)),
+                        None => (start, end),
+                    });
+                    if let Some((lo, hi)) = range
+                        && lo >= hi
+                    {
+                        return Some(RowPiece::Owned(Vec::new()));
                     }
-                    let mut ids = Vec::with_capacity(vals.len());
-                    for val in vals {
-                        if let Some(id) = self.dict.lookup_str(val)
-                            && !ids.contains(&id)
-                        {
-                            ids.push(id);
-                        }
+                    consumed[i] = true;
+                }
+                DirectPredicate::BetweenU64(col, low, high) if self.is_partition_column(*col) => {
+                    if low > high {
+                        return Some(RowPiece::Owned(Vec::new()));
                     }
-                    if ids.is_empty() {
-                        return Some(ExactRowSet::Owned(Vec::new()));
+                    let partitions = self.partitions.as_ref()?;
+                    let p_lo = partitions.partition_point(|p| p.key < *low);
+                    let p_hi = partitions.partition_point(|p| p.key <= *high);
+                    if p_lo >= p_hi {
+                        return Some(RowPiece::Owned(Vec::new()));
                     }
-                    resolved_ids[i] = Some(ids);
+                    let (start, end) = (partitions[p_lo].start, partitions[p_hi - 1].end);
+                    range = Some(match range {
+                        Some((lo, hi)) => (lo.max(start), hi.min(end)),
+                        None => (start, end),
+                    });
+                    if let Some((lo, hi)) = range
+                        && lo >= hi
+                    {
+                        return Some(RowPiece::Owned(Vec::new()));
+                    }
+                    consumed[i] = true;
                 }
                 _ => {}
             }
         }
 
-        let mut pieces: Vec<RowPiece<'_>> = Vec::new();
+        let narrow =
+            range.and_then(|(s, e)| Some((u32::try_from(s).ok()?, u32::try_from(e).ok()?)));
+        let (scan_lo, scan_hi) = range.unwrap_or((0, self.rows));
+        if scan_lo >= scan_hi {
+            return Some(RowPiece::Owned(Vec::new()));
+        }
+
+        let mut pieces: Vec<RowPiece> = Vec::new();
         if self.partitions.is_some() {
-            struct DerivedPred<'a> {
+            struct DerivedConj<'a> {
                 pred_idx: usize,
                 col: usize,
                 derive: Derive,
-                ids: &'a [u32],
+                matcher: TextMatcher<'a>,
             }
-            let mut by_idx_col: BTreeMap<usize, Vec<DerivedPred<'_>>> = BTreeMap::new();
-            for (i, pred) in predicates.iter().enumerate() {
+            let mut by_idx_col: BTreeMap<usize, Vec<DerivedConj<'_>>> = BTreeMap::new();
+            for (i, pred) in flat.iter().enumerate() {
                 if consumed[i] {
                     continue;
                 }
-                let col = match pred {
-                    DirectPredicate::EqText(col, _) | DirectPredicate::InText(col, _) => *col,
+                let (col, matcher) = match pred {
+                    DirectPredicate::EqText(col, val) => (*col, TextMatcher::from_eq(val)),
+                    DirectPredicate::InText(col, vals) => {
+                        if vals.is_empty() {
+                            return Some(RowPiece::Owned(Vec::new()));
+                        }
+                        (*col, TextMatcher::from_in(vals))
+                    }
+                    DirectPredicate::LikeAsciiPrefix(col, p) => {
+                        (*col, TextMatcher::from_like_prefix(p))
+                    }
+                    DirectPredicate::LikeAsciiPrefixSuffix(col, p, s) => {
+                        (*col, TextMatcher::from_like_prefix_suffix(p, s))
+                    }
+                    DirectPredicate::LikeAsciiContains(col, n) => {
+                        (*col, TextMatcher::from_like_contains(n))
+                    }
                     _ => continue,
                 };
                 if let Some(derived) = self.derived[col]
-                    && self.indexes[col].get().is_none()
-                    && let Some(ids) = resolved_ids[i].as_deref()
-                    && ids.len() <= 8
+                    && !self.indexes[col].is_materialized()
+                    && (matcher.has_like()
+                        || !bump_probe_hits
+                        || self.eq_probe_hits[col].load(Ordering::Relaxed) < 4)
                 {
                     by_idx_col
                         .entry(derived.index_column)
                         .or_default()
-                        .push(DerivedPred {
+                        .push(DerivedConj {
                             pred_idx: i,
                             col,
                             derive: derived.derive,
-                            ids,
+                            matcher,
                         });
                 }
             }
             for (index_column, group) in by_idx_col {
-                let first_probe_any = !bump_probe_hits
-                    || group
-                        .iter()
-                        .any(|g| self.eq_probe_hits[g.col].load(Relaxed) == 0);
-                if first_probe_any {
-                    let group_preds: Vec<(Derive, &[u32])> =
-                        group.iter().map(|g| (g.derive, g.ids)).collect();
-                    if let Some(rows) = self.scan_derived_group(index_column, &group_preds, narrow)
-                    {
-                        if bump_probe_hits {
-                            for g in &group {
-                                let _ = self.eq_probe_hits[g.col]
-                                    .compare_exchange(0, 1, Relaxed, Relaxed);
+                if group.len() < 2 {
+                    continue;
+                }
+                let preds: Vec<(Derive, &TextMatcher<'_>)> =
+                    group.iter().map(|g| (g.derive, &g.matcher)).collect();
+                if let Some(rows) =
+                    self.scan_derived_text_matcher_group(index_column, &preds, narrow)
+                {
+                    if bump_probe_hits {
+                        for g in &group {
+                            if !g.matcher.has_like() {
+                                let _ = self.eq_probe_hits[g.col].fetch_update(
+                                    Ordering::Relaxed,
+                                    Ordering::Relaxed,
+                                    |v| (v < 4).then_some(v + 1),
+                                );
                             }
                         }
-                        for g in &group {
-                            consumed[g.pred_idx] = true;
-                        }
-                        if rows.is_empty() {
-                            return Some(ExactRowSet::Owned(Vec::new()));
-                        }
-                        pieces.push(RowPiece::Owned(rows));
                     }
+                    for g in &group {
+                        consumed[g.pred_idx] = true;
+                    }
+                    if rows.is_empty() {
+                        return Some(RowPiece::Owned(Vec::new()));
+                    }
+                    pieces.push(RowPiece::Owned(rows));
                 }
             }
         }
 
-        for (i, pred) in predicates.iter().enumerate() {
+        for (i, pred) in flat.iter().enumerate() {
             if consumed[i] {
                 continue;
             }
-            match pred {
+            let piece = match pred {
                 DirectPredicate::EqU64(col, val) => {
-                    if !bump_probe_hits && self.indexes[*col].get().is_none() {
+                    if !bump_probe_hits && !self.indexes[*col].is_materialized() {
                         let mut rows = Vec::new();
                         self.columns[*col].ints.collect_matching_in_range(
                             scan_lo,
@@ -3343,22 +4588,15 @@ impl RelationStore {
                             &[*val],
                             &mut rows,
                         );
-                        if rows.is_empty() {
-                            return Some(ExactRowSet::Owned(Vec::new()));
-                        }
-                        pieces.push(RowPiece::Owned(rows));
+                        RowPiece::Owned(rows)
                     } else {
                         let index = self.column_index(*col)?;
-                        let slice = index.rows_for_key(*val, narrow);
-                        if slice.is_empty() {
-                            return Some(ExactRowSet::Owned(Vec::new()));
-                        }
-                        pieces.push(RowPiece::Slice(slice));
+                        RowPiece::Slice(index.rows_for_key_slice(*val, narrow))
                     }
                 }
                 DirectPredicate::InU64(col, vals) => {
                     if vals.is_empty() {
-                        return Some(ExactRowSet::Owned(Vec::new()));
+                        return Some(RowPiece::Owned(Vec::new()));
                     }
                     if self.is_partition_column(*col) {
                         let mut spans = Vec::new();
@@ -3369,7 +4607,7 @@ impl RelationStore {
                             e = e.min(scan_hi);
                             if s < e {
                                 total = total.saturating_add(e - s);
-                                if total > 65_536 {
+                                if total > 2_000_000 {
                                     return None;
                                 }
                                 spans.push((s, e));
@@ -3383,19 +4621,13 @@ impl RelationStore {
                         }
                         rows.sort_unstable();
                         rows.dedup();
-                        if rows.is_empty() {
-                            return Some(ExactRowSet::Owned(Vec::new()));
-                        }
-                        pieces.push(RowPiece::Owned(rows));
-                    } else if !bump_probe_hits && self.indexes[*col].get().is_none() {
+                        RowPiece::Owned(rows)
+                    } else if !bump_probe_hits && !self.indexes[*col].is_materialized() {
                         let mut rows = Vec::new();
                         self.columns[*col]
                             .ints
                             .collect_matching_in_range(scan_lo, scan_hi, vals, &mut rows);
-                        if rows.is_empty() {
-                            return Some(ExactRowSet::Owned(Vec::new()));
-                        }
-                        pieces.push(RowPiece::Owned(rows));
+                        RowPiece::Owned(rows)
                     } else {
                         let index = self.column_index(*col)?;
                         let mut rows = Vec::new();
@@ -3404,63 +4636,194 @@ impl RelationStore {
                         }
                         rows.sort_unstable();
                         rows.dedup();
-                        if rows.is_empty() {
-                            return Some(ExactRowSet::Owned(Vec::new()));
-                        }
-                        pieces.push(RowPiece::Owned(rows));
+                        RowPiece::Owned(rows)
                     }
                 }
-                DirectPredicate::EqText(col, _) | DirectPredicate::InText(col, _) => {
-                    let ids = resolved_ids[i].as_deref()?;
-                    let try_scan = self.indexes[*col].get().is_none()
-                        && ids.len() <= 8
-                        && (!bump_probe_hits
-                            || self.eq_probe_hits[*col]
-                                .compare_exchange(0, 1, Relaxed, Relaxed)
-                                .is_ok());
-                    if try_scan && let Some(rows) = self.scan_text_ids(*col, ids, narrow) {
-                        if rows.is_empty() {
-                            return Some(ExactRowSet::Owned(Vec::new()));
-                        }
-                        pieces.push(RowPiece::Owned(rows));
-                        continue;
+                DirectPredicate::BetweenU64(col, low, high) => {
+                    if low > high {
+                        return Some(RowPiece::Owned(Vec::new()));
                     }
-                    if !bump_probe_hits && self.indexes[*col].get().is_none() {
-                        return None;
-                    }
-                    let index = self.column_index(*col)?;
-                    if ids.len() == 1 {
-                        let slice = index.rows_for_key(u64::from(ids[0]), narrow);
-                        if slice.is_empty() {
-                            return Some(ExactRowSet::Owned(Vec::new()));
+                    if let Some(index) = self.cached_column_index(*col) {
+                        let span_limit = match narrow {
+                            Some((lo, hi)) => (hi - lo) as usize / 2 + 64,
+                            None => (self.rows as usize) / 2,
+                        };
+                        if let Some(rows) = index.rows_in_range(*low, *high, narrow, span_limit) {
+                            RowPiece::Owned(rows)
+                        } else {
+                            let mut rows = Vec::new();
+                            self.columns[*col]
+                                .ints
+                                .collect_range_in_range(scan_lo, scan_hi, *low, *high, &mut rows);
+                            RowPiece::Owned(rows)
                         }
-                        pieces.push(RowPiece::Slice(slice));
                     } else {
                         let mut rows = Vec::new();
-                        for &id in ids {
-                            rows.extend_from_slice(index.rows_for_key(u64::from(id), narrow));
-                        }
-                        rows.sort_unstable();
-                        rows.dedup();
-                        if rows.is_empty() {
-                            return Some(ExactRowSet::Owned(Vec::new()));
-                        }
-                        pieces.push(RowPiece::Owned(rows));
+                        self.columns[*col]
+                            .ints
+                            .collect_range_in_range(scan_lo, scan_hi, *low, *high, &mut rows);
+                        RowPiece::Owned(rows)
                     }
                 }
+                DirectPredicate::EqText(col, val) => {
+                    let matcher = TextMatcher::from_eq(val);
+                    self.eval_text_matcher_exact(*col, &matcher, narrow, bump_probe_hits)?
+                }
+                DirectPredicate::InText(col, vals) => {
+                    if vals.is_empty() {
+                        return Some(RowPiece::Owned(Vec::new()));
+                    }
+                    let matcher = TextMatcher::from_in(vals);
+                    self.eval_text_matcher_exact(*col, &matcher, narrow, bump_probe_hits)?
+                }
+                DirectPredicate::LikeAsciiPrefix(col, prefix) => {
+                    let matcher = TextMatcher::from_like_prefix(prefix);
+                    self.eval_text_matcher_exact(*col, &matcher, narrow, bump_probe_hits)?
+                }
+                DirectPredicate::LikeAsciiPrefixSuffix(col, prefix, suffix) => {
+                    let matcher = TextMatcher::from_like_prefix_suffix(prefix, suffix);
+                    self.eval_text_matcher_exact(*col, &matcher, narrow, bump_probe_hits)?
+                }
+                DirectPredicate::LikeAsciiContains(col, needle) => {
+                    let matcher = TextMatcher::from_like_contains(needle);
+                    self.eval_text_matcher_exact(*col, &matcher, narrow, bump_probe_hits)?
+                }
+                DirectPredicate::Or(children) => {
+                    self.eval_direct_or(children, range, bump_probe_hits)?
+                }
+                DirectPredicate::And(_) => unreachable!("flattened above"),
+            };
+            if piece.is_empty() {
+                return Some(RowPiece::Owned(Vec::new()));
             }
+            pieces.push(piece);
         }
 
         if pieces.is_empty() {
-            return if scan_lo >= scan_hi {
-                Some(ExactRowSet::Owned(Vec::new()))
-            } else {
-                Some(ExactRowSet::Range(scan_lo, scan_hi))
-            };
+            return Some(RowPiece::Range(scan_lo, scan_hi));
         }
-        match intersect_row_pieces(pieces)? {
-            RowPiece::Slice(s) => Some(ExactRowSet::Slice(s)),
-            RowPiece::Owned(v) => Some(ExactRowSet::Owned(v)),
+        intersect_row_pieces(pieces)
+    }
+
+    fn eval_direct_or(
+        &self,
+        children: &[DirectPredicate],
+        range: Option<(u64, u64)>,
+        bump_probe_hits: bool,
+    ) -> Option<RowPiece> {
+        let mut flat: Vec<&DirectPredicate> = Vec::with_capacity(children.len());
+        let mut stack: Vec<&DirectPredicate> = children.iter().rev().collect();
+        while let Some(child) = stack.pop() {
+            if let DirectPredicate::Or(nested) = child {
+                for item in nested.iter().rev() {
+                    stack.push(item);
+                }
+            } else {
+                flat.push(child);
+            }
+        }
+        if flat.is_empty() {
+            return Some(RowPiece::Owned(Vec::new()));
+        }
+        let narrow =
+            range.and_then(|(s, e)| Some((u32::try_from(s).ok()?, u32::try_from(e).ok()?)));
+
+        let mut text_groups: BTreeMap<usize, TextMatcher<'_>> = BTreeMap::new();
+        let mut other_branches: Vec<&DirectPredicate> = Vec::new();
+        for pred in flat {
+            match pred {
+                DirectPredicate::EqText(col, val) => {
+                    text_groups.entry(*col).or_default().push_eq(val);
+                }
+                DirectPredicate::InText(col, vals) => {
+                    if vals.is_empty() {
+                        continue;
+                    }
+                    text_groups.entry(*col).or_default().push_in(vals);
+                }
+                DirectPredicate::LikeAsciiPrefix(col, p) => {
+                    text_groups.entry(*col).or_default().push_prefix(p);
+                }
+                DirectPredicate::LikeAsciiPrefixSuffix(col, p, s) => {
+                    text_groups.entry(*col).or_default().push_pair(p, s);
+                }
+                DirectPredicate::LikeAsciiContains(col, n) => {
+                    text_groups.entry(*col).or_default().push_contains(n);
+                }
+                other => other_branches.push(other),
+            }
+        }
+
+        let mut branch_pieces: Vec<RowPiece> =
+            Vec::with_capacity(text_groups.len() + other_branches.len());
+        for (col, matcher) in text_groups {
+            let piece = self.eval_text_matcher_exact(col, &matcher, narrow, bump_probe_hits)?;
+            if !piece.is_empty() {
+                branch_pieces.push(piece);
+            }
+        }
+        for branch in other_branches {
+            let piece = self.eval_direct_and(&[branch], range, bump_probe_hits)?;
+            if !piece.is_empty() {
+                branch_pieces.push(piece);
+            }
+        }
+        if branch_pieces.is_empty() {
+            return Some(RowPiece::Owned(Vec::new()));
+        }
+        if branch_pieces.len() == 1 {
+            return Some(branch_pieces.pop().unwrap());
+        }
+        let mut total_rows = 0usize;
+        for piece in &branch_pieces {
+            total_rows = total_rows.saturating_add(piece.len());
+            if matches!(piece, RowPiece::Range(..)) && piece.len() > 4_000_000 {
+                return None;
+            }
+        }
+        let mut combined = Vec::with_capacity(total_rows.min(65_536));
+        for piece in branch_pieces {
+            match piece {
+                RowPiece::Range(s, e) => {
+                    for row in s..e {
+                        combined.push(row as u32);
+                    }
+                }
+                RowPiece::Slice(slice) => combined.extend_from_slice(&slice),
+                RowPiece::Owned(rows) => combined.extend(rows),
+            }
+        }
+        combined.sort_unstable();
+        combined.dedup();
+        Some(RowPiece::Owned(combined))
+    }
+
+    /// Look up the exact sorted row set matching `predicates` (`AND`-conjoined).
+    ///
+    /// Returns `None` if any predicate cannot be resolved with 100% precision or when
+    /// `bump_probe_hits == false` would require building an uncached CSR index.
+    pub fn exact_lookup_rows(
+        &self,
+        predicates: &[DirectPredicate],
+        bump_probe_hits: bool,
+    ) -> Option<ExactRowSet> {
+        if self.rows > u64::from(u32::MAX) || !self.validate_direct_predicates(predicates) {
+            return None;
+        }
+        if self.rows == 0 {
+            return Some(ExactRowSet::Owned(Vec::new()));
+        }
+        let refs: Vec<&DirectPredicate> = predicates.iter().collect();
+        match self.eval_direct_and(&refs, None, bump_probe_hits)? {
+            RowPiece::Range(lo, hi) => {
+                if lo >= hi {
+                    Some(ExactRowSet::Owned(Vec::new()))
+                } else {
+                    Some(ExactRowSet::Range(lo, hi))
+                }
+            }
+            RowPiece::Slice(slice) => Some(ExactRowSet::Slice(slice)),
+            RowPiece::Owned(rows) => Some(ExactRowSet::Owned(rows)),
         }
     }
 
@@ -3527,7 +4890,7 @@ impl RelationStore {
         &self,
         left: &[SortCellKey; 4],
         right: &[SortCellKey; 4],
-        order_by: &[crate::provider::DirectOrderItem],
+        order_by: &[DirectOrderItem],
     ) -> std::cmp::Ordering {
         for (i, item) in order_by.iter().enumerate() {
             let ord = self.cmp_sort_key(left[i], right[i], item.descending);
@@ -3578,7 +4941,7 @@ impl RelationStore {
     /// `RefTable`s without opening an in-memory SQLite connection.
     pub fn direct_filtered_projection(
         &self,
-        plan: &crate::provider::DirectFilteredProjection,
+        plan: &DirectFilteredProjection,
         control: &SqlControl,
         window: Option<crate::window::SqlWindow>,
     ) -> Option<MddResult<(Vec<SqlRow>, Option<crate::window::SqlWindowReport>)>> {
@@ -3656,7 +5019,7 @@ impl RelationStore {
                         let mut v = Vec::new();
                         v.try_reserve_exact(n)
                             .map_err(|_| crate::quota("SQL_RESULT_ALLOCATION"))?;
-                        v.extend_from_slice(s);
+                        v.extend_from_slice(&s);
                         v
                     }
                     ExactRowSet::Owned(v) => v,
@@ -3686,7 +5049,13 @@ impl RelationStore {
                 let abs_start = (sql_start as usize) + w_start;
                 let abs_end = (sql_start as usize) + w_end;
                 let mut out = Vec::new();
-                out.try_reserve_exact(abs_end.saturating_sub(abs_start))
+                let out_cap = abs_end
+                    .saturating_sub(abs_start)
+                    .min(
+                        usize::try_from(control.inner.limits.max_result_rows).unwrap_or(usize::MAX),
+                    )
+                    .min(65_536);
+                out.try_reserve_exact(out_cap)
                     .map_err(|_| crate::quota("SQL_RESULT_ALLOCATION"))?;
                 if already_sorted {
                     for &row in &rows[abs_start..abs_end] {
@@ -3742,7 +5111,11 @@ impl RelationStore {
             let abs_start = (sql_start as usize) + w_start;
             let abs_end = (sql_start as usize) + w_end;
             let mut out = Vec::new();
-            out.try_reserve_exact(abs_end.saturating_sub(abs_start))
+            let out_cap = abs_end
+                .saturating_sub(abs_start)
+                .min(usize::try_from(control.inner.limits.max_result_rows).unwrap_or(usize::MAX))
+                .min(65_536);
+            out.try_reserve_exact(out_cap)
                 .map_err(|_| crate::quota("SQL_RESULT_ALLOCATION"))?;
             match matched {
                 ExactRowSet::Range(lo, _) => {
@@ -3964,14 +5337,13 @@ impl RelationStore {
         Ok(true)
     }
 
-    /// Bytes held on the heap by the columns and any initialized column indexes, not counting the shared dictionary.
+    /// Bytes held on the heap by the columns and any cached column indexes, not counting the shared dictionary.
     pub fn bytes_used(&self) -> usize {
         let cols: usize = self.columns.iter().map(|c| c.ints.bytes_used()).sum();
         let indexes: usize = self
             .indexes
             .iter()
-            .filter_map(|slot| slot.get().and_then(Option::as_ref))
-            .map(ColumnIndex::bytes_used)
+            .filter_map(|slot| slot.get_arc().map(|idx| idx.bytes_used()))
             .sum();
         cols + indexes
     }
@@ -4062,84 +5434,97 @@ impl RelationStore {
                     .is_some_and(|c| matches!(c.kind, Kind::Dict) && !c.has_tagged_text))
     }
 
-    fn column_index(&self, column: usize) -> Option<&ColumnIndex> {
+    fn cached_column_index(&self, column: usize) -> Option<Arc<ValueIndex>> {
         if self.rows > u64::from(u32::MAX) || column >= self.columns.len() {
             return None;
         }
-        self.indexes[column]
-            .get_or_init(|| {
-                if let Some(derived) = self.derived[column] {
-                    let part_col = self.partition_column?;
-                    let mut packed = Vec::with_capacity(self.rows as usize);
-                    let mut idx_hint = 0usize;
-                    if let Some(partitions) = &self.partitions {
-                        for part in partitions {
-                            if part.start == part.end {
-                                continue;
-                            }
-                            let table = self.table_for(part.key)?;
-                            for row in part.start..part.end {
-                                let index = self.columns[derived.index_column]
-                                    .ints
-                                    .get(row, &mut idx_hint)?;
-                                if let Some(id) = table.id(derived.derive, index) {
-                                    packed.push((u64::from(id) << 32) | row);
-                                }
-                            }
-                        }
-                    } else {
-                        let mut part_hint = 0usize;
-                        let mut last_file: Option<u64> = None;
-                        let mut last_table: Option<&RefTable> = None;
-                        for row in 0..self.rows {
-                            let file = self.columns[part_col].ints.get(row, &mut part_hint)?;
-                            if last_file != Some(file) {
-                                last_table = self.table_for(file);
-                                last_file = Some(file);
-                            }
-                            let table = last_table?;
-                            let index = self.columns[derived.index_column]
-                                .ints
-                                .get(row, &mut idx_hint)?;
-                            if let Some(id) = table.id(derived.derive, index) {
-                                packed.push((u64::from(id) << 32) | row);
-                            }
+        if !self.indexes[column].is_materialized() {
+            return None;
+        }
+        self.dict.get_cached_index(self.store_id, column)
+    }
+
+    fn build_value_index(&self, column: usize) -> Option<ValueIndex> {
+        if let Some(derived) = self.derived[column] {
+            let part_col = self.partition_column?;
+            let mut packed = Vec::with_capacity(self.rows as usize);
+            let mut idx_hint = 0usize;
+            if let Some(partitions) = &self.partitions {
+                for part in partitions {
+                    if part.start == part.end {
+                        continue;
+                    }
+                    let table = self.table_for(part.key)?;
+                    for row in part.start..part.end {
+                        let index = self.columns[derived.index_column]
+                            .ints
+                            .get(row, &mut idx_hint)?;
+                        if let Some(id) = table.id(derived.derive, index) {
+                            packed.push((u64::from(id) << 32) | row);
                         }
                     }
-                    return Some(ColumnIndex::from_packed_u32(packed));
                 }
-                if !self.is_indexable_u64(column) && !self.is_indexable_text(column) {
-                    return None;
-                }
-                let ints = &self.columns[column].ints;
-                if matches!(self.columns[column].kind, Kind::Dict) || ints.fits_u32_fast() {
-                    let mut packed = Vec::with_capacity(self.rows as usize);
-                    let mut hint = 0usize;
-                    for row in 0..self.rows {
-                        if let Some(raw) = ints.get(row, &mut hint) {
-                            debug_assert!(raw <= u64::from(u32::MAX));
-                            packed.push((raw << 32) | row);
-                        }
+            } else {
+                let mut part_hint = 0usize;
+                let mut last_file: Option<u64> = None;
+                let mut last_table: Option<&RefTable> = None;
+                for row in 0..self.rows {
+                    let file = self.columns[part_col].ints.get(row, &mut part_hint)?;
+                    if last_file != Some(file) {
+                        last_table = self.table_for(file);
+                        last_file = Some(file);
                     }
-                    Some(ColumnIndex::from_packed_u32(packed))
-                } else {
-                    let mut pairs = Vec::with_capacity(self.rows as usize);
-                    let mut hint = 0usize;
-                    for row in 0..self.rows {
-                        if let Some(raw) = ints.get(row, &mut hint) {
-                            pairs.push((raw, row as u32));
-                        }
+                    let table = last_table?;
+                    let index = self.columns[derived.index_column]
+                        .ints
+                        .get(row, &mut idx_hint)?;
+                    if let Some(id) = table.id(derived.derive, index) {
+                        packed.push((u64::from(id) << 32) | row);
                     }
-                    Some(ColumnIndex::from_pairs(pairs))
                 }
+            }
+            return Some(ValueIndex::from_packed_u32(packed));
+        }
+        if !self.is_indexable_u64(column) && !self.is_indexable_text(column) {
+            return None;
+        }
+        let ints = &self.columns[column].ints;
+        if matches!(self.columns[column].kind, Kind::Dict) || ints.fits_u32_fast() {
+            let mut packed = Vec::with_capacity(self.rows as usize);
+            let mut hint = 0usize;
+            for row in 0..self.rows {
+                if let Some(raw) = ints.get(row, &mut hint) {
+                    debug_assert!(raw <= u64::from(u32::MAX));
+                    packed.push((raw << 32) | row);
+                }
+            }
+            Some(ValueIndex::from_packed_u32(packed))
+        } else {
+            let mut pairs = Vec::with_capacity(self.rows as usize);
+            let mut hint = 0usize;
+            for row in 0..self.rows {
+                if let Some(raw) = ints.get(row, &mut hint) {
+                    pairs.push((raw, row as u32));
+                }
+            }
+            Some(ValueIndex::from_pairs(pairs))
+        }
+    }
+
+    fn column_index(&self, column: usize) -> Option<Arc<ValueIndex>> {
+        if self.rows > u64::from(u32::MAX) || column >= self.columns.len() {
+            return None;
+        }
+        self.dict
+            .get_or_build_index(self.store_id, column, &self.indexes[column], || {
+                self.build_value_index(column)
             })
-            .as_ref()
     }
 
     pub fn plan_filter(&self, filter: &RowFilter) -> PlannedScan {
         match self.eval_filter(filter, None, None) {
             EvalScan::Owned(rows) => PlannedScan::Rows(Arc::from(rows)),
-            EvalScan::Slice(slice) => PlannedScan::Rows(Arc::from(slice)),
+            EvalScan::Slice(slice) => PlannedScan::Rows(Arc::from(&*slice)),
             EvalScan::All {
                 range: Some((start, end)),
                 partition_key,
@@ -4197,12 +5582,47 @@ impl RelationStore {
         }
     }
 
-    fn eval_filter<'a>(
-        &'a self,
+    fn eval_text_matcher_filter(
+        &self,
+        col: &str,
+        matcher: &TextMatcher<'_>,
+        enclosing_range: Option<(u64, u64)>,
+        enclosing_partition: Option<u64>,
+    ) -> EvalScan {
+        let Some(at) = self.column_by_name(col) else {
+            return EvalScan::All {
+                range: enclosing_range,
+                partition_key: enclosing_partition,
+            };
+        };
+        if !self.is_indexable_text(at) {
+            return EvalScan::All {
+                range: enclosing_range,
+                partition_key: enclosing_partition,
+            };
+        }
+        let narrow = enclosing_range
+            .and_then(|(s, e)| Some((u32::try_from(s).ok()?, u32::try_from(e).ok()?)));
+        match self.eval_text_matcher_exact(at, matcher, narrow, true) {
+            Some(RowPiece::Slice(slice)) => EvalScan::Slice(slice),
+            Some(RowPiece::Owned(rows)) => EvalScan::Owned(rows),
+            Some(RowPiece::Range(lo, hi)) => EvalScan::All {
+                range: Some((lo, hi)),
+                partition_key: enclosing_partition,
+            },
+            None => EvalScan::All {
+                range: enclosing_range,
+                partition_key: enclosing_partition,
+            },
+        }
+    }
+
+    fn eval_filter(
+        &self,
         filter: &RowFilter,
         enclosing_range: Option<(u64, u64)>,
         enclosing_partition: Option<u64>,
-    ) -> EvalScan<'a> {
+    ) -> EvalScan {
         let narrow = enclosing_range
             .and_then(|(s, e)| Some((u32::try_from(s).ok()?, u32::try_from(e).ok()?)));
         match filter {
@@ -4254,7 +5674,7 @@ impl RelationStore {
                         partition_key: enclosing_partition,
                     };
                 };
-                EvalScan::Slice(index.rows_for_key(*val, narrow))
+                EvalScan::Slice(index.rows_for_key_slice(*val, narrow))
             }
             RowFilter::InU64(col, vals) => {
                 let Some(at) = self.column_by_name(col) else {
@@ -4330,11 +5750,69 @@ impl RelationStore {
                         partition_key: enclosing_partition,
                     };
                 };
+                if self.is_partition_column(at)
+                    && let Some(partitions) = &self.partitions
+                {
+                    let p_lo = partitions.partition_point(|p| p.key < *low);
+                    let p_hi = partitions.partition_point(|p| p.key <= *high);
+                    if p_lo >= p_hi {
+                        return EvalScan::Owned(Vec::new());
+                    }
+                    let (start, end) = (partitions[p_lo].start, partitions[p_hi - 1].end);
+                    let (lo, hi) = match enclosing_range {
+                        Some((e_lo, e_hi)) => (e_lo.max(start), e_hi.min(end)),
+                        None => (start, end),
+                    };
+                    if lo >= hi {
+                        return EvalScan::Owned(Vec::new());
+                    }
+                    return EvalScan::All {
+                        range: Some((lo, hi)),
+                        partition_key: if p_lo + 1 == p_hi && lo == start && hi == end {
+                            Some(partitions[p_lo].key)
+                        } else {
+                            enclosing_partition
+                        },
+                    };
+                }
                 if !self.is_indexable_u64(at) {
                     return EvalScan::All {
                         range: enclosing_range,
                         partition_key: enclosing_partition,
                     };
+                }
+                if let Some(index) = self.cached_column_index(at) {
+                    let span_limit = match narrow {
+                        Some((lo, hi)) => (hi - lo) as usize / 2 + 64,
+                        None => (self.rows as usize) / 2,
+                    };
+                    return match index.rows_in_range(*low, *high, narrow, span_limit) {
+                        Some(rows) => EvalScan::Owned(rows),
+                        None => EvalScan::All {
+                            range: enclosing_range,
+                            partition_key: enclosing_partition,
+                        },
+                    };
+                }
+                if sql_scan_opt_enabled() {
+                    let (scan_lo, scan_hi) = enclosing_range.unwrap_or((0, self.rows));
+                    if scan_lo >= scan_hi {
+                        return EvalScan::Owned(Vec::new());
+                    }
+                    if let Ok(lo) = u32::try_from(scan_lo)
+                        && let Ok(hi) = u32::try_from(scan_hi)
+                        && hi >= lo
+                    {
+                        let mut rows = Vec::new();
+                        self.columns[at].ints.collect_range_in_range(
+                            u64::from(lo),
+                            u64::from(hi),
+                            *low,
+                            *high,
+                            &mut rows,
+                        );
+                        return EvalScan::Owned(rows);
+                    }
                 }
                 let Some(index) = self.column_index(at) else {
                     return EvalScan::All {
@@ -4355,6 +5833,15 @@ impl RelationStore {
                 }
             }
             RowFilter::EqText(col, val) => {
+                if sql_scan_opt_enabled() {
+                    let matcher = TextMatcher::from_eq(val);
+                    return self.eval_text_matcher_filter(
+                        col,
+                        &matcher,
+                        enclosing_range,
+                        enclosing_partition,
+                    );
+                }
                 let Some(at) = self.column_by_name(col) else {
                     return EvalScan::All {
                         range: enclosing_range,
@@ -4370,29 +5857,39 @@ impl RelationStore {
                 let Some(id) = self.dict.lookup_str(val) else {
                     return EvalScan::Owned(Vec::new());
                 };
-                if sql_scan_opt_enabled()
-                    && self.indexes[at].get().is_none()
-                    && self.eq_probe_hits[at]
-                        .compare_exchange(
-                            0,
-                            1,
-                            std::sync::atomic::Ordering::Relaxed,
-                            std::sync::atomic::Ordering::Relaxed,
-                        )
-                        .is_ok()
-                    && let Some(rows) = self.scan_text_ids(at, &[id], narrow)
-                {
-                    return EvalScan::Owned(rows);
-                }
                 let Some(index) = self.column_index(at) else {
                     return EvalScan::All {
                         range: enclosing_range,
                         partition_key: enclosing_partition,
                     };
                 };
-                EvalScan::Slice(index.rows_for_key(u64::from(id), narrow))
+                EvalScan::Slice(index.rows_for_key_slice(u64::from(id), narrow))
             }
             RowFilter::InText(col, vals) => {
+                if sql_scan_opt_enabled() {
+                    let Some(at) = self.column_by_name(col) else {
+                        return EvalScan::All {
+                            range: enclosing_range,
+                            partition_key: enclosing_partition,
+                        };
+                    };
+                    if vals.is_empty() {
+                        return EvalScan::Owned(Vec::new());
+                    }
+                    if !self.is_indexable_text(at) {
+                        return EvalScan::All {
+                            range: enclosing_range,
+                            partition_key: enclosing_partition,
+                        };
+                    }
+                    let matcher = TextMatcher::from_in(vals);
+                    return self.eval_text_matcher_filter(
+                        col,
+                        &matcher,
+                        enclosing_range,
+                        enclosing_partition,
+                    );
+                }
                 let Some(at) = self.column_by_name(col) else {
                     return EvalScan::All {
                         range: enclosing_range,
@@ -4415,21 +5912,6 @@ impl RelationStore {
                 if ids.is_empty() {
                     return EvalScan::Owned(Vec::new());
                 }
-                if sql_scan_opt_enabled()
-                    && self.indexes[at].get().is_none()
-                    && ids.len() <= 8
-                    && self.eq_probe_hits[at]
-                        .compare_exchange(
-                            0,
-                            1,
-                            std::sync::atomic::Ordering::Relaxed,
-                            std::sync::atomic::Ordering::Relaxed,
-                        )
-                        .is_ok()
-                    && let Some(rows) = self.scan_text_ids(at, &ids, narrow)
-                {
-                    return EvalScan::Owned(rows);
-                }
                 let Some(index) = self.column_index(at) else {
                     return EvalScan::All {
                         range: enclosing_range,
@@ -4444,145 +5926,206 @@ impl RelationStore {
                 rows.dedup();
                 EvalScan::Owned(rows)
             }
-            RowFilter::LikeAsciiPrefix(col, prefix) => self.eval_like_ascii_filters(
-                col,
-                &[prefix.as_bytes()],
-                &[],
-                &[],
-                enclosing_range,
-                enclosing_partition,
-            ),
-            RowFilter::LikeAsciiPrefixSuffix(col, prefix, suffix) => self.eval_like_ascii_filters(
-                col,
-                &[],
-                &[(prefix.as_bytes(), suffix.as_bytes())],
-                &[],
-                enclosing_range,
-                enclosing_partition,
-            ),
-            RowFilter::LikeAsciiContains(col, needle) => self.eval_like_ascii_filters(
-                col,
-                &[],
-                &[],
-                &[needle.as_bytes()],
-                enclosing_range,
-                enclosing_partition,
-            ),
+            RowFilter::LikeAsciiPrefix(col, prefix) => {
+                if sql_scan_opt_enabled() {
+                    let matcher = TextMatcher::from_like_prefix(prefix);
+                    return self.eval_text_matcher_filter(
+                        col,
+                        &matcher,
+                        enclosing_range,
+                        enclosing_partition,
+                    );
+                }
+                self.eval_like_ascii_filters(
+                    col,
+                    &[prefix.as_bytes()],
+                    &[],
+                    &[],
+                    enclosing_range,
+                    enclosing_partition,
+                )
+            }
+            RowFilter::LikeAsciiPrefixSuffix(col, prefix, suffix) => {
+                if sql_scan_opt_enabled() {
+                    let matcher = TextMatcher::from_like_prefix_suffix(prefix, suffix);
+                    return self.eval_text_matcher_filter(
+                        col,
+                        &matcher,
+                        enclosing_range,
+                        enclosing_partition,
+                    );
+                }
+                self.eval_like_ascii_filters(
+                    col,
+                    &[],
+                    &[(prefix.as_bytes(), suffix.as_bytes())],
+                    &[],
+                    enclosing_range,
+                    enclosing_partition,
+                )
+            }
+            RowFilter::LikeAsciiContains(col, needle) => {
+                if sql_scan_opt_enabled() {
+                    let matcher = TextMatcher::from_like_contains(needle);
+                    return self.eval_text_matcher_filter(
+                        col,
+                        &matcher,
+                        enclosing_range,
+                        enclosing_partition,
+                    );
+                }
+                self.eval_like_ascii_filters(
+                    col,
+                    &[],
+                    &[],
+                    &[needle.as_bytes()],
+                    enclosing_range,
+                    enclosing_partition,
+                )
+            }
             RowFilter::And(children) => {
                 let mut range = enclosing_range;
                 let mut part_key = enclosing_partition;
                 for child in children {
-                    if let RowFilter::EqU64(col, val) = child
-                        && self
-                            .column_by_name(col)
-                            .is_some_and(|at| self.is_partition_column(at))
-                        && let Some((start, end)) = self.range_of(*val)
-                    {
-                        range = Some(match range {
-                            Some((lo, hi)) => (lo.max(start), hi.min(end)),
-                            None => {
-                                part_key = Some(*val);
-                                (start, end)
-                            }
-                        });
-                        if let Some((lo, hi)) = range
-                            && lo >= hi
+                    match child {
+                        RowFilter::EqU64(col, val)
+                            if self
+                                .column_by_name(col)
+                                .is_some_and(|at| self.is_partition_column(at)) =>
                         {
-                            return EvalScan::Owned(Vec::new());
+                            if let Some((start, end)) = self.range_of(*val) {
+                                range = Some(match range {
+                                    Some((lo, hi)) => (lo.max(start), hi.min(end)),
+                                    None => {
+                                        part_key = Some(*val);
+                                        (start, end)
+                                    }
+                                });
+                                if let Some((lo, hi)) = range
+                                    && lo >= hi
+                                {
+                                    return EvalScan::Owned(Vec::new());
+                                }
+                            }
                         }
+                        RowFilter::BetweenU64(col, low, high)
+                            if self
+                                .column_by_name(col)
+                                .is_some_and(|at| self.is_partition_column(at)) =>
+                        {
+                            if low > high {
+                                return EvalScan::Owned(Vec::new());
+                            }
+                            if let Some(partitions) = &self.partitions {
+                                let p_lo = partitions.partition_point(|p| p.key < *low);
+                                let p_hi = partitions.partition_point(|p| p.key <= *high);
+                                if p_lo >= p_hi {
+                                    return EvalScan::Owned(Vec::new());
+                                }
+                                let (start, end) =
+                                    (partitions[p_lo].start, partitions[p_hi - 1].end);
+                                range = Some(match range {
+                                    Some((lo, hi)) => (lo.max(start), hi.min(end)),
+                                    None => {
+                                        if p_lo + 1 == p_hi {
+                                            part_key = Some(partitions[p_lo].key);
+                                        }
+                                        (start, end)
+                                    }
+                                });
+                                if let Some((lo, hi)) = range
+                                    && lo >= hi
+                                {
+                                    return EvalScan::Owned(Vec::new());
+                                }
+                            }
+                        }
+                        _ => {}
                     }
                 }
                 let narrow =
                     range.and_then(|(s, e)| Some((u32::try_from(s).ok()?, u32::try_from(e).ok()?)));
                 let mut consumed = vec![false; children.len()];
-                let mut pieces: Vec<RowPiece<'_>> = Vec::new();
+                let mut pieces: Vec<RowPiece> = Vec::new();
 
                 if sql_scan_opt_enabled() && self.partitions.is_some() {
-                    use std::sync::atomic::Ordering::Relaxed;
-                    struct DerivedCand {
+                    struct DerivedCand<'a> {
                         child_idx: usize,
                         col: usize,
                         derive: Derive,
-                        ids: Vec<u32>,
+                        matcher: TextMatcher<'a>,
                     }
-                    let mut by_idx_col: BTreeMap<usize, Vec<DerivedCand>> = BTreeMap::new();
+                    let mut by_idx_col: BTreeMap<usize, Vec<DerivedCand<'_>>> = BTreeMap::new();
                     for (idx, child) in children.iter().enumerate() {
-                        match child {
-                            RowFilter::EqText(col, val) => {
-                                if let Some(at) = self.column_by_name(col)
-                                    && self.is_indexable_text(at)
-                                    && let Some(derived) = self.derived[at]
-                                {
-                                    let Some(id) = self.dict.lookup_str(val) else {
-                                        return EvalScan::Owned(Vec::new());
-                                    };
-                                    if self.indexes[at].get().is_none() {
-                                        by_idx_col.entry(derived.index_column).or_default().push(
-                                            DerivedCand {
-                                                child_idx: idx,
-                                                col: at,
-                                                derive: derived.derive,
-                                                ids: vec![id],
-                                            },
-                                        );
-                                    }
-                                }
-                            }
+                        let (col, matcher) = match child {
+                            RowFilter::EqText(col, val) => (col, TextMatcher::from_eq(val)),
                             RowFilter::InText(col, vals) => {
-                                if let Some(at) = self.column_by_name(col)
-                                    && self.is_indexable_text(at)
-                                    && let Some(derived) = self.derived[at]
-                                {
-                                    if vals.is_empty() {
+                                if vals.is_empty() {
+                                    if self.column_by_name(col).is_some() {
                                         return EvalScan::Owned(Vec::new());
                                     }
-                                    let mut ids = Vec::with_capacity(vals.len());
-                                    for val in vals {
-                                        if let Some(id) = self.dict.lookup_str(val)
-                                            && !ids.contains(&id)
-                                        {
-                                            ids.push(id);
-                                        }
-                                    }
-                                    if ids.is_empty() {
-                                        return EvalScan::Owned(Vec::new());
-                                    }
-                                    if ids.len() <= 8 && self.indexes[at].get().is_none() {
-                                        by_idx_col.entry(derived.index_column).or_default().push(
-                                            DerivedCand {
-                                                child_idx: idx,
-                                                col: at,
-                                                derive: derived.derive,
-                                                ids,
-                                            },
-                                        );
-                                    }
+                                    continue;
                                 }
+                                (col, TextMatcher::from_in(vals))
                             }
-                            _ => {}
+                            RowFilter::LikeAsciiPrefix(col, p) => {
+                                (col, TextMatcher::from_like_prefix(p))
+                            }
+                            RowFilter::LikeAsciiPrefixSuffix(col, p, s) => {
+                                (col, TextMatcher::from_like_prefix_suffix(p, s))
+                            }
+                            RowFilter::LikeAsciiContains(col, n) => {
+                                (col, TextMatcher::from_like_contains(n))
+                            }
+                            _ => continue,
+                        };
+                        if let Some(at) = self.column_by_name(col)
+                            && self.is_indexable_text(at)
+                            && let Some(derived) = self.derived[at]
+                        {
+                            if !matcher.has_like()
+                                && matcher.resolve_exact_ids(&self.dict).is_empty()
+                            {
+                                return EvalScan::Owned(Vec::new());
+                            }
+                            if !self.indexes[at].is_materialized()
+                                && (matcher.has_like()
+                                    || self.eq_probe_hits[at].load(Ordering::Relaxed) < 4)
+                            {
+                                by_idx_col.entry(derived.index_column).or_default().push(
+                                    DerivedCand {
+                                        child_idx: idx,
+                                        col: at,
+                                        derive: derived.derive,
+                                        matcher,
+                                    },
+                                );
+                            }
                         }
                     }
                     for (index_column, group) in by_idx_col {
-                        if group.len() >= 2
-                            && group
-                                .iter()
-                                .any(|c| self.eq_probe_hits[c.col].load(Relaxed) == 0)
+                        if group.len() < 2 {
+                            continue;
+                        }
+                        let preds: Vec<(Derive, &TextMatcher<'_>)> =
+                            group.iter().map(|c| (c.derive, &c.matcher)).collect();
+                        if let Some(rows) =
+                            self.scan_derived_text_matcher_group(index_column, &preds, narrow)
                         {
-                            let preds: Vec<(Derive, &[u32])> =
-                                group.iter().map(|c| (c.derive, c.ids.as_slice())).collect();
-                            if let Some(rows) =
-                                self.scan_derived_group(index_column, &preds, narrow)
-                            {
-                                for c in &group {
-                                    consumed[c.child_idx] = true;
-                                    let _ = self.eq_probe_hits[c.col]
-                                        .compare_exchange(0, 1, Relaxed, Relaxed);
+                            for c in &group {
+                                consumed[c.child_idx] = true;
+                                if !c.matcher.has_like() {
+                                    let _ = self.eq_probe_hits[c.col].fetch_update(
+                                        Ordering::Relaxed,
+                                        Ordering::Relaxed,
+                                        |v| (v < 4).then_some(v + 1),
+                                    );
                                 }
-                                if rows.is_empty() {
-                                    return EvalScan::Owned(Vec::new());
-                                }
-                                pieces.push(RowPiece::Owned(rows));
                             }
+                            if rows.is_empty() {
+                                return EvalScan::Owned(Vec::new());
+                            }
+                            pieces.push(RowPiece::Owned(rows));
                         }
                     }
                 }
@@ -4632,6 +6175,10 @@ impl RelationStore {
                     },
                     Some(RowPiece::Slice(s)) => EvalScan::Slice(s),
                     Some(RowPiece::Owned(v)) => EvalScan::Owned(v),
+                    Some(RowPiece::Range(lo, hi)) => EvalScan::All {
+                        range: Some((lo, hi)),
+                        partition_key: part_key,
+                    },
                 }
             }
             RowFilter::Or(children) => {
@@ -4639,19 +6186,98 @@ impl RelationStore {
                     return EvalScan::Owned(Vec::new());
                 }
                 let scan_opt = sql_scan_opt_enabled();
+                if scan_opt {
+                    let mut text_groups: BTreeMap<&str, TextMatcher<'_>> = BTreeMap::new();
+                    let mut other_children: Vec<&RowFilter> = Vec::new();
+                    let mut pending: Vec<&RowFilter> = children.iter().rev().collect();
+                    while let Some(child) = pending.pop() {
+                        if let RowFilter::Or(nested) = child {
+                            for item in nested.iter().rev() {
+                                pending.push(item);
+                            }
+                            continue;
+                        }
+                        match child {
+                            RowFilter::EqText(col, val) => {
+                                text_groups.entry(col.as_str()).or_default().push_eq(val);
+                            }
+                            RowFilter::InText(col, vals) => {
+                                if vals.is_empty() {
+                                    continue;
+                                }
+                                text_groups.entry(col.as_str()).or_default().push_in(vals);
+                            }
+                            RowFilter::LikeAsciiPrefix(col, prefix) => {
+                                text_groups
+                                    .entry(col.as_str())
+                                    .or_default()
+                                    .push_prefix(prefix);
+                            }
+                            RowFilter::LikeAsciiPrefixSuffix(col, prefix, suffix) => {
+                                text_groups
+                                    .entry(col.as_str())
+                                    .or_default()
+                                    .push_pair(prefix, suffix);
+                            }
+                            RowFilter::LikeAsciiContains(col, needle) => {
+                                text_groups
+                                    .entry(col.as_str())
+                                    .or_default()
+                                    .push_contains(needle);
+                            }
+                            other => other_children.push(other),
+                        }
+                    }
+                    let mut combined = Vec::new();
+                    for child in &other_children {
+                        match self.eval_filter(child, enclosing_range, enclosing_partition) {
+                            EvalScan::All { .. } => {
+                                return EvalScan::All {
+                                    range: enclosing_range,
+                                    partition_key: enclosing_partition,
+                                };
+                            }
+                            EvalScan::Slice(s) => combined.extend_from_slice(&s),
+                            EvalScan::Owned(v) => combined.extend(v),
+                        }
+                    }
+                    if other_children.is_empty() && text_groups.len() == 1 {
+                        let (col, matcher) = text_groups.into_iter().next().unwrap();
+                        return self.eval_text_matcher_filter(
+                            col,
+                            &matcher,
+                            enclosing_range,
+                            enclosing_partition,
+                        );
+                    }
+                    for (col, matcher) in text_groups {
+                        match self.eval_text_matcher_filter(
+                            col,
+                            &matcher,
+                            enclosing_range,
+                            enclosing_partition,
+                        ) {
+                            EvalScan::All { .. } => {
+                                return EvalScan::All {
+                                    range: enclosing_range,
+                                    partition_key: enclosing_partition,
+                                };
+                            }
+                            EvalScan::Slice(s) => combined.extend_from_slice(&s),
+                            EvalScan::Owned(v) => combined.extend(v),
+                        }
+                    }
+                    combined.sort_unstable();
+                    combined.dedup();
+                    return EvalScan::Owned(combined);
+                }
+
                 let mut prefix_groups: BTreeMap<&str, Vec<&[u8]>> = BTreeMap::new();
                 type BorrowedPairList<'b> = Vec<(&'b [u8], &'b [u8])>;
                 let mut pair_groups: BTreeMap<&str, BorrowedPairList<'_>> = BTreeMap::new();
                 let mut contains_groups: BTreeMap<&str, Vec<&[u8]>> = BTreeMap::new();
                 let mut combined = Vec::new();
-                let mut pending: Vec<&RowFilter> = children.iter().rev().collect();
-                while let Some(child) = pending.pop() {
-                    if scan_opt && let RowFilter::Or(nested) = child {
-                        for item in nested.iter().rev() {
-                            pending.push(item);
-                        }
-                        continue;
-                    }
+                for child in children {
                     match child {
                         RowFilter::LikeAsciiPrefix(col, prefix) => {
                             prefix_groups
@@ -4683,7 +6309,7 @@ impl RelationStore {
                                 partition_key: enclosing_partition,
                             };
                         }
-                        EvalScan::Slice(s) => combined.extend_from_slice(s),
+                        EvalScan::Slice(s) => combined.extend_from_slice(&s),
                         EvalScan::Owned(v) => combined.extend(v),
                     }
                 }
@@ -4713,7 +6339,7 @@ impl RelationStore {
                                 partition_key: enclosing_partition,
                             };
                         }
-                        EvalScan::Slice(s) => combined.extend_from_slice(s),
+                        EvalScan::Slice(s) => combined.extend_from_slice(&s),
                         EvalScan::Owned(v) => combined.extend(v),
                     }
                 }
@@ -4724,15 +6350,15 @@ impl RelationStore {
         }
     }
 
-    fn eval_like_ascii_filters<'a>(
-        &'a self,
+    fn eval_like_ascii_filters(
+        &self,
         col: &str,
         lower_prefixes: &[&[u8]],
         lower_pairs: &[(&[u8], &[u8])],
         lower_contains: &[&[u8]],
         enclosing_range: Option<(u64, u64)>,
         enclosing_partition: Option<u64>,
-    ) -> EvalScan<'a> {
+    ) -> EvalScan {
         let Some(at) = self.column_by_name(col) else {
             return EvalScan::All {
                 range: enclosing_range,
@@ -4754,133 +6380,6 @@ impl RelationStore {
         let narrow = enclosing_range
             .and_then(|(s, e)| Some((u32::try_from(s).ok()?, u32::try_from(e).ok()?)));
 
-        let merge_ids = |ids: &[u32]| -> EvalScan<'a> {
-            if ids.is_empty() {
-                return EvalScan::Owned(Vec::new());
-            }
-            if ids.len() == 1 {
-                return EvalScan::Slice(index.rows_for_key(u64::from(ids[0]), narrow));
-            }
-            let mut slices = Vec::with_capacity(ids.len());
-            let mut total = 0usize;
-            for &id in ids {
-                let slice = index.rows_for_key(u64::from(id), narrow);
-                if !slice.is_empty() {
-                    total += slice.len();
-                    slices.push(slice);
-                }
-            }
-            let mut rows = Vec::with_capacity(total);
-            for slice in slices {
-                rows.extend_from_slice(slice);
-            }
-            rows.sort_unstable();
-            EvalScan::Owned(rows)
-        };
-
-        let scan_opt = sql_scan_opt_enabled();
-        if scan_opt {
-            let mut norm_prefixes: Vec<Box<[u8]>> = lower_prefixes
-                .iter()
-                .map(|p| p.to_vec().into_boxed_slice())
-                .collect();
-            norm_prefixes.sort();
-            norm_prefixes.dedup();
-            let mut norm_pairs: Vec<OwnedPrefixSuffixPair> = lower_pairs
-                .iter()
-                .map(|(p, s)| (p.to_vec().into_boxed_slice(), s.to_vec().into_boxed_slice()))
-                .collect();
-            norm_pairs.sort();
-            norm_pairs.dedup();
-            let mut norm_contains: Vec<Box<[u8]>> = lower_contains
-                .iter()
-                .map(|n| n.to_vec().into_boxed_slice())
-                .collect();
-            norm_contains.sort();
-            norm_contains.dedup();
-            let cache_key = FilterCacheKey {
-                prefixes: norm_prefixes,
-                pairs: norm_pairs,
-                contains: norm_contains,
-            };
-            let hit = self.filter_id_cache.lock().ok().and_then(|mut guard| {
-                let pos = guard
-                    .entries
-                    .iter()
-                    .position(|(col_idx, k, _)| *col_idx == at && *k == cache_key)?;
-                let entry = guard.entries.remove(pos);
-                let cached = entry.2.clone();
-                guard.entries.push(entry);
-                Some(cached)
-            });
-            match hit {
-                Some(CachedFilterMatch::Rows(all_rows)) => {
-                    return EvalScan::Owned(narrow_slice(&all_rows, narrow).to_vec());
-                }
-                Some(CachedFilterMatch::Ids(ids)) => {
-                    return merge_ids(&ids);
-                }
-                None => {
-                    let computed: Arc<[u32]> = Arc::from(self.dict.filter_ids_by_ascii_filters_ci(
-                        index.keys(),
-                        lower_prefixes,
-                        lower_pairs,
-                        lower_contains,
-                    ));
-                    if computed.is_empty() {
-                        if let Ok(mut guard) = self.filter_id_cache.lock() {
-                            guard.insert(at, cache_key, CachedFilterMatch::Rows(Arc::from([])));
-                        }
-                        return EvalScan::Owned(Vec::new());
-                    }
-                    if computed.len() == 1 {
-                        if let Ok(mut guard) = self.filter_id_cache.lock() {
-                            guard.insert(
-                                at,
-                                cache_key,
-                                CachedFilterMatch::Ids(Arc::clone(&computed)),
-                            );
-                        }
-                        return EvalScan::Slice(index.rows_for_key(u64::from(computed[0]), narrow));
-                    }
-                    let mut full_slices = Vec::with_capacity(computed.len());
-                    let mut full_total = 0usize;
-                    for &id in computed.iter() {
-                        let slice = index.rows_for_key(u64::from(id), None);
-                        if !slice.is_empty() {
-                            full_total = full_total.saturating_add(slice.len());
-                            full_slices.push(slice);
-                        }
-                    }
-                    if full_total == 0 {
-                        if let Ok(mut guard) = self.filter_id_cache.lock() {
-                            guard.insert(at, cache_key, CachedFilterMatch::Rows(Arc::from([])));
-                        }
-                        return EvalScan::Owned(Vec::new());
-                    }
-                    if full_total <= MAX_CACHED_ENTRY_ROWS {
-                        let mut all_rows = Vec::with_capacity(full_total);
-                        for slice in full_slices {
-                            all_rows.extend_from_slice(slice);
-                        }
-                        all_rows.sort_unstable();
-                        let arc_rows: Arc<[u32]> = Arc::from(all_rows);
-                        if let Ok(mut guard) = self.filter_id_cache.lock() {
-                            guard.insert(
-                                at,
-                                cache_key,
-                                CachedFilterMatch::Rows(Arc::clone(&arc_rows)),
-                            );
-                        }
-                        return EvalScan::Owned(narrow_slice(&arc_rows, narrow).to_vec());
-                    }
-                    if let Ok(mut guard) = self.filter_id_cache.lock() {
-                        guard.insert(at, cache_key, CachedFilterMatch::Ids(Arc::clone(&computed)));
-                    }
-                    return merge_ids(&computed);
-                }
-            }
-        }
         let ids = if lower_pairs.is_empty() && lower_contains.is_empty() {
             self.dict
                 .filter_ids_by_ascii_prefixes_ci(index.keys(), lower_prefixes)
@@ -4892,7 +6391,18 @@ impl RelationStore {
                 lower_contains,
             )
         };
-        merge_ids(&ids)
+        if ids.is_empty() {
+            return EvalScan::Owned(Vec::new());
+        }
+        if ids.len() == 1 {
+            return EvalScan::Slice(index.rows_for_key_slice(u64::from(ids[0]), narrow));
+        }
+        let mut rows = Vec::new();
+        for &id in &ids {
+            rows.extend_from_slice(index.rows_for_key(u64::from(id), narrow));
+        }
+        rows.sort_unstable();
+        EvalScan::Owned(rows)
     }
 
     pub fn cursor_for_scan(
@@ -5332,10 +6842,10 @@ impl RelationStoreBuilder {
             .iter()
             .map(|c| c.name.to_ascii_lowercase())
             .collect();
-        let indexes = (0..self.columns.len()).map(|_| OnceLock::new()).collect();
-        let eq_probe_hits = (0..self.columns.len())
-            .map(|_| std::sync::atomic::AtomicU8::new(0))
+        let indexes = (0..self.columns.len())
+            .map(|_| Arc::new(IndexSlot::default()))
             .collect();
+        let eq_probe_hits = (0..self.columns.len()).map(|_| AtomicU8::new(0)).collect();
         let dense_tables = match self.tables.last_key_value() {
             Some((&max_key, _)) if max_key < 4096 => {
                 let mut slots = vec![None; max_key as usize + 1];
@@ -5347,6 +6857,7 @@ impl RelationStoreBuilder {
             _ => Box::new([]),
         };
         Arc::new(RelationStore {
+            store_id: NEXT_STORE_ID.fetch_add(1, Ordering::Relaxed),
             types: self.schema.iter().map(|c| c.data_type).collect(),
             names,
             columns: self.columns,
@@ -6721,6 +8232,7 @@ mod tests {
                 ])
                 .unwrap();
         }
+        // Derived text column: probes 1..=4 (plus LikeAscii*) leave index unbuilt; 5th Eq/In builds it.
         let derived_store = derived_b.finish();
         assert!(derived_store.indexes[2].get().is_none());
         let d1 = derived_store.plan_filter(&RowFilter::EqText("name".into(), "onCreate".into()));
@@ -6733,11 +8245,38 @@ mod tests {
             "name".into(),
             vec!["onDestroy".into(), "onCreate".into()],
         ));
-        assert!(derived_store.indexes[2].get().is_some());
+        assert!(derived_store.indexes[2].get().is_none());
         let PlannedScan::Rows(dr2) = d2 else {
             panic!("expected Rows from 2nd derived probe");
         };
         assert_eq!(dr2.as_ref(), &[0, 1, 2]);
+        // Repeated LikeAscii* probes never advance eq_probe_hits or build CSR.
+        for _ in 0..3 {
+            let d_like =
+                derived_store.plan_filter(&RowFilter::LikeAsciiPrefix("name".into(), "ond".into()));
+            assert!(derived_store.indexes[2].get().is_none());
+            let PlannedScan::Rows(dr_like) = d_like else {
+                panic!("expected Rows from derived LikeAsciiPrefix probe");
+            };
+            assert_eq!(dr_like.as_ref(), &[1]);
+        }
+        // Probes 3 and 4 still stay unindexed, probe 5 materializes CSR.
+        assert!(matches!(
+            derived_store.plan_filter(&RowFilter::EqText("name".into(), "onDestroy".into())),
+            PlannedScan::Rows(ref r) if r.as_ref() == [1]
+        ));
+        assert!(derived_store.indexes[2].get().is_none());
+        assert!(matches!(
+            derived_store.plan_filter(&RowFilter::EqText("name".into(), "onCreate".into())),
+            PlannedScan::Rows(ref r) if r.as_ref() == [0, 2]
+        ));
+        assert!(derived_store.indexes[2].get().is_none());
+        let d5 = derived_store.plan_filter(&RowFilter::EqText("name".into(), "onCreate".into()));
+        assert!(derived_store.indexes[2].get().is_some());
+        let PlannedScan::Rows(dr5) = d5 else {
+            panic!("expected Rows from 5th derived probe");
+        };
+        assert_eq!(dr5.as_ref(), &[0, 2]);
     }
 
     #[test]
@@ -7483,7 +9022,7 @@ mod tests {
                 "Lnone;->missing()V".into(),
             )],
         ];
-        let collect = |set: Option<ExactRowSet<'_>>| -> Option<Vec<u32>> {
+        let collect = |set: Option<ExactRowSet>| -> Option<Vec<u32>> {
             Some(match set? {
                 ExactRowSet::Range(lo, hi) => (lo..hi).map(|r| r as u32).collect(),
                 ExactRowSet::Slice(s) => s.to_vec(),
@@ -7495,5 +9034,540 @@ mod tests {
             let actual = collect(bloomed.exact_lookup_rows(preds, false));
             assert_eq!(actual, expected, "mismatch for predicates {preds:?}");
         }
+    }
+
+    #[test]
+    fn chunk_min_max_pruning_matches_linear_scan_across_plain_runs_and_nulls() {
+        let mut col = IntColumn::new(Order::Unsigned);
+        // Chunk 0 (CHUNK rows): Plain values 100..200 with periodic NULLs.
+        for i in 0..CHUNK as u64 {
+            if i.is_multiple_of(97) {
+                col.push(None);
+            } else {
+                col.push(Some(100 + (i % 101)));
+            }
+        }
+        // Chunk 1 (CHUNK rows): Constant Runs chunk = 42.
+        for _ in 0..CHUNK {
+            col.push(Some(42));
+        }
+        // Chunk 2 (CHUNK rows): Runs of 500 and 600 with NULL gaps.
+        for i in 0..CHUNK as u64 {
+            if i.is_multiple_of(100) {
+                col.push(None);
+            } else if (i / 100).is_multiple_of(2) {
+                col.push(Some(500));
+            } else {
+                col.push(Some(600));
+            }
+        }
+        // Chunk 3 (CHUNK rows): Full width-8 chunk (span = u64::MAX, min = 0, max = u64::MAX).
+        for i in 0..CHUNK as u64 {
+            if i == 0 {
+                col.push(Some(0));
+            } else if i == 17 {
+                col.push(None);
+            } else {
+                col.push(Some(u64::MAX - 10 + (i % 11)));
+            }
+        }
+        // Chunk 4 (partial): large base near u64::MAX with small span (width 1, saturating_add safe).
+        for i in 0..512u64 {
+            if i == 9 {
+                col.push(None);
+            } else {
+                col.push(Some(u64::MAX - 10 + (i % 11)));
+            }
+        }
+        col.seal();
+        let total = col.len();
+        assert_eq!(col.sealed.len(), 5);
+        assert!(matches!(col.sealed[0].payload, Payload::Plain { .. }));
+        assert!(matches!(col.sealed[1].payload, Payload::Runs { .. }));
+        assert!(matches!(col.sealed[2].payload, Payload::Runs { .. }));
+        assert!(matches!(
+            col.sealed[3].payload,
+            Payload::Plain { width: 8, .. }
+        ));
+        assert!(matches!(
+            col.sealed[4].payload,
+            Payload::Plain { width: 1, .. }
+        ));
+
+        let scan_oracle = |lo: u64, hi: u64, targets: &[u64]| -> Vec<u32> {
+            let mut hint = 0usize;
+            let mut want = Vec::new();
+            for r in lo..hi {
+                if let Some(v) = col.get(r, &mut hint)
+                    && targets.contains(&v)
+                {
+                    want.push(r as u32);
+                }
+            }
+            want
+        };
+        let range_oracle = |lo: u64, hi: u64, low: u64, high: u64| -> Vec<u32> {
+            let mut hint = 0usize;
+            let mut want = Vec::new();
+            for r in lo..hi {
+                if let Some(v) = col.get(r, &mut hint)
+                    && (low..=high).contains(&v)
+                {
+                    want.push(r as u32);
+                }
+            }
+            want
+        };
+
+        let chunk_u64 = CHUNK as u64;
+        // Disjoint target completely misses all chunks -> pruned in O(chunks).
+        let mut out = Vec::new();
+        col.collect_matching_in_range(0, total, &[999, 1000], &mut out);
+        assert!(out.is_empty());
+
+        // Multi-target spanning chunk boundaries + width 8 near u64::MAX.
+        let targets = [42, 100, 200, 600, u64::MAX - 10, u64::MAX];
+        out.clear();
+        col.collect_matching_in_range(0, total, &targets, &mut out);
+        assert_eq!(out, scan_oracle(0, total, &targets));
+
+        // Sub-range crossing chunk boundaries 0->1->2.
+        let sub_lo = chunk_u64 - 300;
+        let sub_hi = chunk_u64 * 2 + 350;
+        out.clear();
+        col.collect_matching_in_range(sub_lo, sub_hi, &[42, 150, 500], &mut out);
+        assert_eq!(out, scan_oracle(sub_lo, sub_hi, &[42, 150, 500]));
+
+        // Bitset pruning: bitset targets {101, 499} vs full store -> Chunk 1 (min=max=42) and Chunk 3 skipped.
+        let mut bitset = vec![0u64; (600 / 64) + 1];
+        for t in [42usize, 101, 199, 600] {
+            bitset[t / 64] |= 1u64 << (t % 64);
+        }
+        out.clear();
+        col.collect_matching_bitset_in_range(0, total, &bitset, 600, &mut out);
+        assert_eq!(out, scan_oracle(0, total, &[42, 101, 199, 600]));
+
+        // Disjoint bitset (e.g. target 300 only, falls strictly between Chunk 0 max=200 and Chunk 2 min=500).
+        let mut miss_bitset = vec![0u64; (300 / 64) + 1];
+        miss_bitset[300 / 64] |= 1u64 << (300 % 64);
+        out.clear();
+        col.collect_matching_bitset_in_range(0, total, &miss_bitset, 300, &mut out);
+        assert!(out.is_empty());
+
+        // Range collection [low..=high] across chunks + inverted bounds.
+        for (lo, hi, low, high) in [
+            (0, total, 42, 42),
+            (0, total, 198, 500),
+            (sub_lo, sub_hi, 42, 500),
+            (0, total, u64::MAX - 2, u64::MAX),
+            (0, total, 201, 499),
+            (0, total, 500, 100),
+        ] {
+            out.clear();
+            col.collect_range_in_range(lo, hi, low, high, &mut out);
+            assert_eq!(
+                out,
+                range_oracle(lo, hi, low, high),
+                "range mismatch for ({lo}..{hi}) in [{low}..={high}]"
+            );
+        }
+    }
+
+    #[test]
+    fn derived_like_and_or_fast_path_respects_type_desc_and_leaves_csr_unbuilt() {
+        let dict = Arc::new(TextDict::default());
+        let cls_a = dict.intern_str("Lcom/alpha/Main;");
+        let cls_b = dict.intern_str("Lorg/beta/Util;");
+        let cls_hidden = dict.intern_str("Lcom/alpha/Hidden;");
+        let m_init = dict.intern_str("<init>");
+        let m_http = dict.intern_str("openHttp");
+        let desc_v = dict.intern_str("()V");
+        let desc_s = dict.intern_str("(Ljava/lang/String;)V");
+
+        // Partition 0: covers member classes, omits cls_a/cls_hidden -> type_desc LIKE 'lcom/alpha/%' skips partition!
+        let t0 = Arc::new(RefTable {
+            method_class: vec![cls_b; 4],
+            method_name: vec![m_init, m_http, m_init, m_http],
+            method_desc: vec![desc_v, desc_s, desc_v, desc_s],
+            type_desc: vec![cls_b],
+            type_name: vec![dict.intern_str("Util")],
+            type_desc_covers_member_classes: true,
+            ..RefTable::default()
+        });
+        // Partition 1: repeated cls_a entries (tests type_desc deduplication + bitset threshold > 8).
+        let mut p1_cls = Vec::new();
+        let mut p1_name = Vec::new();
+        let mut p1_desc = Vec::new();
+        for i in 0..14usize {
+            p1_cls.push(if i < 10 { cls_a } else { cls_b });
+            p1_name.push(if i.is_multiple_of(2) { m_http } else { m_init });
+            p1_desc.push(if i.is_multiple_of(3) { desc_s } else { desc_v });
+        }
+        let t1 = Arc::new(RefTable {
+            method_class: p1_cls,
+            method_name: p1_name,
+            method_desc: p1_desc,
+            type_desc: vec![cls_a, cls_b],
+            type_name: vec![dict.intern_str("Main"), dict.intern_str("Util")],
+            type_desc_covers_member_classes: true,
+            ..RefTable::default()
+        });
+        // Partition 2: type_desc_covers_member_classes = false -> cannot skip even though type_desc is empty!
+        let t2 = Arc::new(RefTable {
+            method_class: vec![cls_hidden, cls_b],
+            method_name: vec![m_http, m_init],
+            method_desc: vec![desc_v, desc_s],
+            type_desc: Vec::new(),
+            type_name: Vec::new(),
+            type_desc_covers_member_classes: false,
+            ..RefTable::default()
+        });
+
+        let cols = [
+            column("file_id", SqlType::U64, false),
+            column("method_idx", SqlType::U64, false),
+            column("class_descriptor", SqlType::Text, false),
+            column("name", SqlType::Text, false),
+            column("descriptor", SqlType::Text, false),
+        ];
+        let derived = [
+            DerivedColumn {
+                column: 2,
+                index_column: 1,
+                derive: Derive::MethodClass,
+            },
+            DerivedColumn {
+                column: 3,
+                index_column: 1,
+                derive: Derive::MethodName,
+            },
+            DerivedColumn {
+                column: 4,
+                index_column: 1,
+                derive: Derive::MethodDescriptor,
+            },
+        ];
+        let mut b = RelationStoreBuilder::with_derived(&cols, Arc::clone(&dict), &derived);
+        let mut expected_all = Vec::new();
+        for (fid, tbl) in [(0u64, &t0), (1, &t1), (2, &t2)] {
+            b.begin_partition(fid);
+            b.set_table(Arc::clone(tbl));
+            for m_idx in 0..tbl.method_class.len() as u64 {
+                let row = expected_all.len() as u32;
+                let cls_id = tbl.method_class[m_idx as usize];
+                let name_id = tbl.method_name[m_idx as usize];
+                let desc_id = tbl.method_desc[m_idx as usize];
+                let cls_s = dict.text_of(cls_id);
+                let name_s = dict.text_of(name_id);
+                let desc_s = dict.text_of(desc_id);
+                expected_all.push((row, fid, cls_s, name_s, desc_s));
+                b.push_cells(&[
+                    Cell::U64(fid),
+                    Cell::U64(m_idx),
+                    Cell::Str(&dict.text_of(cls_id)),
+                    Cell::Str(&dict.text_of(name_id)),
+                    Cell::Str(&dict.text_of(desc_id)),
+                ])
+                .unwrap();
+            }
+        }
+        let store = b.finish();
+
+        // Mixed OR tree over EqText + LikeAsciiPrefix + LikeAsciiContains (nested OR) on derived class_descriptor.
+        let or_filter = RowFilter::Or(vec![
+            RowFilter::LikeAsciiPrefix("class_descriptor".into(), "lcom/alpha/main".into()),
+            RowFilter::Or(vec![
+                RowFilter::LikeAsciiContains("class_descriptor".into(), "hidden".into()),
+                RowFilter::EqText("class_descriptor".into(), "Lorg/beta/Util;".into()),
+            ]),
+        ]);
+        let want_or: Vec<u32> = expected_all
+            .iter()
+            .filter(|(_, _, cls, _, _)| {
+                let lower = cls.to_ascii_lowercase();
+                lower.starts_with("lcom/alpha/main")
+                    || lower.contains("hidden")
+                    || cls == "Lorg/beta/Util;"
+            })
+            .map(|(r, ..)| *r)
+            .collect();
+        for _ in 0..8 {
+            let PlannedScan::Rows(got) = store.plan_filter(&or_filter) else {
+                panic!("expected PlannedScan::Rows for derived mixed OR");
+            };
+            assert_eq!(got.as_ref(), want_or.as_slice());
+        }
+        // Repeated LIKE / mixed OR probes NEVER materialize CSR ValueIndex on derived columns!
+        assert!(store.indexes[2].get().is_none());
+
+        // Partition-narrowed fused AND combining LikeAscii* across class, name, and descriptor.
+        let and_filter = RowFilter::And(vec![
+            RowFilter::EqU64("file_id".into(), 1),
+            RowFilter::LikeAsciiPrefix("class_descriptor".into(), "lcom/alpha/".into()),
+            RowFilter::LikeAsciiContains("name".into(), "http".into()),
+            RowFilter::LikeAsciiPrefixSuffix(
+                "descriptor".into(),
+                "(ljava/lang/".into(),
+                ")v".into(),
+            ),
+        ]);
+        let want_and: Vec<u32> = expected_all
+            .iter()
+            .filter(|(_, fid, cls, name, desc)| {
+                *fid == 1
+                    && cls.to_ascii_lowercase().starts_with("lcom/alpha/")
+                    && name.to_ascii_lowercase().contains("http")
+                    && {
+                        let d = desc.to_ascii_lowercase();
+                        d.starts_with("(ljava/lang/") && d.ends_with(")v")
+                    }
+            })
+            .map(|(r, ..)| *r)
+            .collect();
+        let PlannedScan::Rows(got_and) = store.plan_filter(&and_filter) else {
+            panic!("expected PlannedScan::Rows for fused derived LIKE AND");
+        };
+        assert_eq!(got_and.as_ref(), want_and.as_slice());
+        assert!(store.indexes[2].get().is_none());
+        assert!(store.indexes[3].get().is_none());
+        assert!(store.indexes[4].get().is_none());
+    }
+
+    #[test]
+    fn value_index_lru_budget_evicts_cold_indexes_safely_and_preserves_active_slices() {
+        let dict = TextDict::with_index_budget_bytes(usize::MAX);
+        let mut b = RelationStoreBuilder::new(
+            &[
+                column("a", SqlType::U64, false),
+                column("b", SqlType::U64, false),
+            ],
+            Arc::clone(&dict),
+        );
+        for i in 0..64u64 {
+            b.push_cells(&[Cell::U64(i % 8), Cell::U64((i * 3) % 8)])
+                .unwrap();
+        }
+        let measure_store = b.finish();
+        let bytes_a = measure_store.column_index(0).unwrap().bytes_used();
+        let bytes_b = measure_store.column_index(1).unwrap().bytes_used();
+        assert!(bytes_a > 0 && bytes_b > 0);
+        drop(measure_store);
+        assert_eq!(dict.cached_index_stats(), (0, 0));
+
+        // Budget allows either index A or index B, but NOT both simultaneously.
+        let budget = bytes_a.max(bytes_b) + 8;
+        let bounded_dict = TextDict::with_index_budget_bytes(budget);
+        let mut b2 = RelationStoreBuilder::new(
+            &[
+                column("a", SqlType::U64, false),
+                column("b", SqlType::U64, false),
+            ],
+            Arc::clone(&bounded_dict),
+        );
+        for i in 0..64u64 {
+            b2.push_cells(&[Cell::U64(i % 8), Cell::U64((i * 3) % 8)])
+                .unwrap();
+        }
+        let store = b2.finish();
+
+        // Build col 0 and hold an active IndexSlice across eviction.
+        let Some(ExactRowSet::Slice(active_slice)) =
+            store.exact_lookup_rows(&[crate::provider::DirectPredicate::EqU64(0, 3)], true)
+        else {
+            panic!("expected ExactRowSet::Slice for col a");
+        };
+        let expected_a3: Vec<u32> = (0..64u32).filter(|&i| i % 8 == 3).collect();
+        assert_eq!(active_slice.as_ref(), expected_a3.as_slice());
+        assert!(store.indexes[0].get().is_some());
+        assert!(store.indexes[1].get().is_none());
+        assert_eq!(bounded_dict.cached_index_stats(), (1, bytes_a));
+
+        // Building col 1 evicts cold col 0 while keeping `active_slice` valid!
+        let Some(ExactRowSet::Slice(slice_b)) =
+            store.exact_lookup_rows(&[crate::provider::DirectPredicate::EqU64(1, 0)], true)
+        else {
+            panic!("expected ExactRowSet::Slice for col b");
+        };
+        let expected_b0: Vec<u32> = (0..64u32).filter(|&i| (i * 3).is_multiple_of(8)).collect();
+        assert_eq!(slice_b.as_ref(), expected_b0.as_slice());
+        assert!(store.indexes[0].get().is_none());
+        assert!(store.indexes[1].get().is_some());
+        assert_eq!(bounded_dict.cached_index_stats(), (1, bytes_b));
+        assert!(store.bytes_used() >= bytes_b);
+        assert_eq!(active_slice.as_ref(), expected_a3.as_slice());
+
+        // Re-probing col 0 rebuilds cleanly with identical rows and evicts col 1.
+        let Some(ExactRowSet::Slice(rebuilt_a)) =
+            store.exact_lookup_rows(&[crate::provider::DirectPredicate::EqU64(0, 3)], true)
+        else {
+            panic!("expected ExactRowSet::Slice on col a rebuild");
+        };
+        assert_eq!(rebuilt_a.as_ref(), expected_a3.as_slice());
+        assert!(store.indexes[0].get().is_some());
+        assert!(store.indexes[1].get().is_none());
+        assert_eq!(bounded_dict.cached_index_stats(), (1, bytes_a));
+
+        drop(store);
+        assert_eq!(bounded_dict.cached_index_stats(), (0, 0));
+
+        // Tiny budget (smaller than a single index): still answers queries without caching.
+        let zero_dict = TextDict::with_index_budget_bytes(0);
+        let mut b3 =
+            RelationStoreBuilder::new(&[column("a", SqlType::U64, false)], Arc::clone(&zero_dict));
+        for i in 0..16u64 {
+            b3.push_cells(&[Cell::U64(i % 4)]).unwrap();
+        }
+        let zero_store = b3.finish();
+        let Some(ExactRowSet::Slice(zslice)) =
+            zero_store.exact_lookup_rows(&[crate::provider::DirectPredicate::EqU64(0, 2)], true)
+        else {
+            panic!("expected ExactRowSet::Slice even with 0 cache budget");
+        };
+        assert_eq!(zslice.as_ref(), &[2, 6, 10, 14]);
+        assert!(zero_store.indexes[0].get().is_none());
+        assert_eq!(zero_dict.cached_index_stats(), (0, 0));
+    }
+
+    #[test]
+    fn expanded_direct_predicate_and_filtered_count_group_by_text_order_parity() {
+        let dict = Arc::new(TextDict::default());
+        let cols = [
+            column("file_id", SqlType::U64, false),
+            column("pc", SqlType::U64, false),
+            column("tag", SqlType::Text, true),
+        ];
+        let mut b = RelationStoreBuilder::new(&cols, Arc::clone(&dict));
+        // Partition 0: pc 0..5
+        // Partition 1: pc 10..15 (with NULL tag at row 6)
+        // Partition 2: pc 20..25
+        let rows_data: &[(u64, u64, Option<&str>)] = &[
+            (0, 1, Some("La/Alpha;")),
+            (0, 4, Some("Lb/Beta;")),
+            (1, 10, Some("La/Gamma;")),
+            (1, 11, None),
+            (1, 12, Some("Lc/Net;->open(I)V")),
+            (1, 14, Some("Lb/Zeta;")),
+            (2, 20, Some("La/Alpha;")),
+            (2, 24, Some("La/Gamma;")),
+        ];
+        for &(fid, pc, tag) in rows_data {
+            b.begin_partition(fid);
+            b.push_cells(&[
+                Cell::U64(fid),
+                Cell::U64(pc),
+                tag.map_or(Cell::Null, Cell::Str),
+            ])
+            .unwrap();
+        }
+        let store = b.finish();
+
+        // DirectPredicate: BetweenU64 on partition column + non-partition U64 + LikeAscii* + nested And/Or.
+        let complex_preds = [crate::provider::DirectPredicate::And(vec![
+            crate::provider::DirectPredicate::BetweenU64(0, 1, 2),
+            crate::provider::DirectPredicate::Or(vec![
+                crate::provider::DirectPredicate::And(vec![
+                    crate::provider::DirectPredicate::BetweenU64(1, 10, 12),
+                    crate::provider::DirectPredicate::LikeAsciiPrefix(2, "lc/net".into()),
+                ]),
+                crate::provider::DirectPredicate::And(vec![
+                    crate::provider::DirectPredicate::EqU64(0, 2),
+                    crate::provider::DirectPredicate::LikeAsciiPrefixSuffix(
+                        2,
+                        "la/".into(),
+                        "alpha;".into(),
+                    ),
+                ]),
+                crate::provider::DirectPredicate::LikeAsciiContains(2, "zeta".into()),
+            ]),
+        ])];
+        let Some(ExactRowSet::Owned(got_rows)) = store.exact_lookup_rows(&complex_preds, true)
+        else {
+            panic!("expected ExactRowSet::Owned for complex DirectPredicate");
+        };
+        assert_eq!(got_rows, vec![4, 5, 6]);
+        // Inverted BetweenU64 yields empty cleanly.
+        let Some(ExactRowSet::Owned(inv)) = store.exact_lookup_rows(
+            &[crate::provider::DirectPredicate::BetweenU64(0, 5, 1)],
+            true,
+        ) else {
+            panic!("expected empty ExactRowSet::Owned for inverted BetweenU64");
+        };
+        assert!(inv.is_empty());
+
+        // Filtered DirectCountGroupBy with GROUP BY Text + ORDER BY Text ASC (NULLs first, UTF-16/UTF-8 parity).
+        let plan = crate::provider::DirectCountGroupBy {
+            relation: "t".into(),
+            predicates: vec![
+                crate::provider::DirectPredicate::BetweenU64(0, 1, 2),
+                crate::provider::DirectPredicate::BetweenU64(1, 10, 22),
+            ],
+            group_columns: vec![2],
+            projections: vec![
+                crate::provider::DirectGroupItem::GroupCol {
+                    group_pos: 0,
+                    output_name: "tag".into(),
+                },
+                crate::provider::DirectGroupItem::CountStar {
+                    output_name: "cnt".into(),
+                },
+            ],
+            order_by_group_asc: vec![0],
+        };
+        let grouped = store
+            .direct_count_group_by(&plan, &control())
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            grouped,
+            vec![
+                vec![SqlValue::Null, SqlValue::I64(Signed64(1))],
+                vec![SqlValue::text("La/Alpha;"), SqlValue::I64(Signed64(1))],
+                vec![SqlValue::text("La/Gamma;"), SqlValue::I64(Signed64(1))],
+                vec![
+                    SqlValue::text("Lc/Net;->open(I)V"),
+                    SqlValue::I64(Signed64(1)),
+                ],
+            ]
+        );
+    }
+
+    #[test]
+    fn text_dict_long_member_borrowed_cell_and_shrink_to_fit() {
+        let dict = TextDict::default();
+        let long_head = format!("Lpkg/{};", "a".repeat(700));
+        let long_member = format!("{long_head}->methodName(Ljava/lang/String;)V");
+        let giant_head = format!("Lpkg/{};", "b".repeat(4500));
+        let giant_member = format!("{giant_head}->huge()V");
+
+        let id_short = dict.intern_str("La/B;->m()V");
+        let id_long = dict.intern_str(&long_member);
+        let id_giant = dict.intern_str(&giant_member);
+        dict.shrink_to_fit();
+
+        assert_eq!(dict.get(id_long), SqlValue::text(&long_member));
+        assert_eq!(dict.get(id_giant), SqlValue::text(&giant_member));
+        // > 512B and <= 4096B now stays borrowed on stack without heap SqlValue allocation.
+        let was_borrowed = dict.with_borrowed_cell(
+            id_long,
+            |cell| matches!(cell, BorrowedSqlCell::Utf8(s) if s == long_member),
+        );
+        assert!(was_borrowed);
+        // > 4096B safely falls back to Owned while decoding identically.
+        let giant_ok = dict.with_borrowed_cell(id_giant, |cell| match cell {
+            BorrowedSqlCell::Owned(SqlValue::Text(t)) => {
+                t.strict_utf8().ok().as_deref() == Some(giant_member.as_str())
+            }
+            _ => false,
+        });
+        assert!(giant_ok);
+        // cmp_text_ids agrees across short/long/giant member descriptors.
+        assert_eq!(
+            dict.cmp_text_ids(id_short, id_long),
+            std::cmp::Ordering::Less
+        );
+        assert_eq!(
+            dict.cmp_text_ids(id_long, id_giant),
+            std::cmp::Ordering::Less
+        );
     }
 }

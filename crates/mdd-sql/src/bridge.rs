@@ -136,6 +136,7 @@ pub struct SqlBridge {
     profiles: Option<Arc<CompatibilityProfileRegistry>>,
     prepare_cache: Mutex<VecDeque<(PreparedCacheKey, PreparedCacheEntry)>>,
     schema_cache: Mutex<Option<SchemaCacheEntry>>,
+    sqlite_conn_cache: Mutex<Option<Connection>>,
 }
 pub struct PreparedSql {
     binding: SqlBinding,
@@ -707,6 +708,7 @@ impl SqlBridge {
             profiles: None,
             prepare_cache: Mutex::new(VecDeque::new()),
             schema_cache: Mutex::new(None),
+            sqlite_conn_cache: Mutex::new(None),
         })
     }
     /// Declare the compatibility profile this bridge serves and the registry
@@ -999,7 +1001,7 @@ impl SqlBridge {
         let direct_filtered_projection = allow_direct_filtered
             .then_some(adapted.direct_filtered_projection)
             .flatten();
-        let direct_count_group_by = allow_direct_unfiltered
+        let direct_count_group_by = allow_direct_filtered
             .then_some(adapted.direct_count_group_by)
             .flatten();
         let prepared = PreparedSql {
@@ -1222,52 +1224,27 @@ impl SqlBridge {
         &self,
         prepared: &PreparedSql,
         control: &SqlControl,
-    ) -> MddResult<Connection> {
+    ) -> MddResult<(Connection, bool)> {
         let planned_scans = prepared.provider.plan_scans(
             &prepared.required_relations,
             &prepared.row_filters,
             &prepared.equi_joins,
             &prepared.partition_hints,
         )?;
-        let db = Connection::open_in_memory().map_err(sqlite_error)?;
-        // SAFETY: the connection is exclusively owned here, has no statements
-        // or callbacks in flight, and remains alive throughout this C call.
-        // rusqlite's wrapper is feature-gated; enabling extensions is not needed.
-        let extension_rc = unsafe { rusqlite::ffi::sqlite3_enable_load_extension(db.handle(), 0) };
-        if extension_rc != rusqlite::ffi::SQLITE_OK {
-            return Err(sqlite_error(rusqlite::Error::SqliteFailure(
-                rusqlite::ffi::Error::new(extension_rc),
-                None,
-            )));
-        }
-        db.set_db_config(DbConfig::SQLITE_DBCONFIG_DEFENSIVE, true)
-            .map_err(sqlite_error)?;
-        db.set_db_config(DbConfig::SQLITE_DBCONFIG_TRUSTED_SCHEMA, false)
-            .map_err(sqlite_error)?;
-        db.set_db_config(DbConfig::SQLITE_DBCONFIG_DQS_DML, false)
-            .map_err(sqlite_error)?;
-        db.set_db_config(DbConfig::SQLITE_DBCONFIG_DQS_DDL, false)
-            .map_err(sqlite_error)?;
-        db.set_limit(Limit::SQLITE_LIMIT_ATTACHED, 0)
-            .map_err(sqlite_error)?;
-        db.set_limit(Limit::SQLITE_LIMIT_WORKER_THREADS, 0)
-            .map_err(sqlite_error)?;
-        db.set_limit(
-            Limit::SQLITE_LIMIT_SQL_LENGTH,
-            i32::try_from(self.limits.max_sql_bytes.saturating_mul(8)).unwrap_or(i32::MAX),
-        )
-        .map_err(sqlite_error)?;
-        db.set_limit(
-            Limit::SQLITE_LIMIT_LENGTH,
-            i32::try_from(control.inner.limits.max_cell_bytes.saturating_add(64))
-                .unwrap_or(i32::MAX),
-        )
-        .map_err(sqlite_error)?;
-        db.set_limit(
-            Limit::SQLITE_LIMIT_EXPR_DEPTH,
-            i32::try_from(self.limits.max_ast_depth).unwrap_or(i32::MAX),
-        )
-        .map_err(sqlite_error)?;
+        let reusable = control.runtime().is_none() && prepared.temp_fingerprint.is_none();
+        let cached = if reusable {
+            self.sqlite_conn_cache
+                .lock()
+                .ok()
+                .and_then(|mut guard| guard.take())
+        } else {
+            None
+        };
+        let db = match cached {
+            Some(db) => db,
+            None => open_fresh_sqlite_connection()?,
+        };
+        apply_sqlite_limits(&db, self.limits, control)?;
         let only_required_vtabs =
             std::env::var_os("MDD_OPT_SQL_SCAN").as_deref() != Some(std::ffi::OsStr::new("0"));
         for relation in prepared.relations.iter() {
@@ -1401,7 +1378,18 @@ impl SqlBridge {
         )
         .map_err(sqlite_error)?;
         preconnect_required_schemas(&db, prepared, control)?;
-        Ok(db)
+        Ok((db, reusable))
+    }
+
+    fn recycle_sqlite_connection(&self, db: Connection, reusable: bool) {
+        if !reusable || reset_sqlite_connection(&db).is_err() {
+            return;
+        }
+        if let Ok(mut guard) = self.sqlite_conn_cache.lock()
+            && guard.is_none()
+        {
+            *guard = Some(db);
+        }
     }
     fn execute_to_consumer_inner(
         &self,
@@ -1428,8 +1416,7 @@ impl SqlBridge {
                     direct_projection_columns(&filtered_plan.projected_columns, prepared.dialect);
                 return stream_direct_rows(prepared, &control, columns, rows, consumer);
             }
-            if prepared.parameters.is_empty()
-                && let Some(group_plan) = prepared.direct_count_group_by.as_ref()
+            if let Some(group_plan) = prepared.direct_count_group_by.as_ref()
                 && let Some(result_rows) = prepared
                     .provider
                     .try_direct_count_group_by(group_plan, &control)
@@ -1439,7 +1426,7 @@ impl SqlBridge {
                 return stream_direct_rows(prepared, &control, columns, rows, consumer);
             }
         }
-        let db = self.open_sqlite_connection(prepared, &control)?;
+        let (db, reusable) = self.open_sqlite_connection(prepared, &control)?;
         let result = (|| {
             let mut statement = db.prepare(&prepared.adapted_sql).map_err(sqlite_error)?;
             if !statement.readonly() {
@@ -1462,28 +1449,11 @@ impl SqlBridge {
             let mut total_rows = 0usize;
             while let Some(row) = cursor.next().map_err(sqlite_error)? {
                 control.checkpoint(1, false)?;
-                let mut reserved_bytes = (count as u64)
-                    .checked_mul(std::mem::size_of::<SqlValue>() as u64)
-                    .and_then(|v| v.checked_mul(2))
-                    .and_then(|v| v.checked_add((std::mem::size_of::<Vec<SqlValue>>() * 2) as u64))
-                    .ok_or_else(|| quota("SQL_RESULT_WORKSPACE_OVERFLOW"))?;
-                for ordinal in 0..count {
-                    let value = row.get_ref(ordinal).map_err(sqlite_error)?;
-                    let extra = match value {
-                        rusqlite::types::ValueRef::Text(v) => (v.len() as u64).checked_mul(2),
-                        rusqlite::types::ValueRef::Blob(v) => Some(v.len() as u64),
-                        _ => Some(0),
-                    }
-                    .ok_or_else(|| quota("SQL_RESULT_WORKSPACE_OVERFLOW"))?;
-                    reserved_bytes = reserved_bytes
-                        .checked_add(extra)
-                        .ok_or_else(|| quota("SQL_RESULT_WORKSPACE_OVERFLOW"))?;
-                }
+                let (value_refs, reserved_bytes) = RowValueRefs::collect(row, count)?;
                 result_memory.admit(&control, reserved_bytes)?;
                 consumer.begin_row()?;
                 let mut bytes = 0u64;
-                for ordinal in 0..count {
-                    let value_ref = row.get_ref(ordinal).map_err(sqlite_error)?;
+                for (ordinal, &value_ref) in value_refs.as_slice().iter().enumerate() {
                     let work = match value_ref {
                         rusqlite::types::ValueRef::Text(v) => (v.len() as u64).checked_mul(2),
                         rusqlite::types::ValueRef::Blob(v) => Some(v.len() as u64),
@@ -1512,6 +1482,9 @@ impl SqlBridge {
             consumer.on_finish()?;
             Ok(total_rows)
         })();
+        if result.is_ok() {
+            self.recycle_sqlite_connection(db, reusable);
+        }
         result.map_err(|error| control.error().unwrap_or(error))
     }
     fn execute_inner(
@@ -1542,8 +1515,9 @@ impl SqlBridge {
                     direct_projection_columns(&filtered.projected_columns, prepared.dialect);
                 return finish_direct_sql_result(prepared, &control, columns, rows, window_report);
             }
-            if prepared.parameters.is_empty() && window.is_none() {
-                if let Some(direct) = prepared.direct_projection.as_ref()
+            if window.is_none() {
+                if prepared.parameters.is_empty()
+                    && let Some(direct) = prepared.direct_projection.as_ref()
                     && let Some(result_rows) =
                         prepared.provider.try_direct_projection(direct, &control)
                 {
@@ -1563,7 +1537,7 @@ impl SqlBridge {
                 }
             }
         }
-        let db = self.open_sqlite_connection(prepared, &control)?;
+        let (db, reusable) = self.open_sqlite_connection(prepared, &control)?;
         let result = (|| {
             let mut statement = db.prepare(&prepared.adapted_sql).map_err(sqlite_error)?;
             if !statement.readonly() {
@@ -1601,26 +1575,7 @@ impl SqlBridge {
                         continue;
                     }
                 }
-                // Admit a conservative logical bound before any owned output
-                // allocation. SQLite's internal buffers are explicitly outside
-                // this result-only reservation.
-                let mut reserved_bytes = (count as u64)
-                    .checked_mul(std::mem::size_of::<SqlValue>() as u64)
-                    .and_then(|v| v.checked_mul(2))
-                    .and_then(|v| v.checked_add((std::mem::size_of::<Vec<SqlValue>>() * 2) as u64))
-                    .ok_or_else(|| quota("SQL_RESULT_WORKSPACE_OVERFLOW"))?;
-                for ordinal in 0..count {
-                    let value = row.get_ref(ordinal).map_err(sqlite_error)?;
-                    let extra = match value {
-                        rusqlite::types::ValueRef::Text(v) => (v.len() as u64).checked_mul(2),
-                        rusqlite::types::ValueRef::Blob(v) => Some(v.len() as u64),
-                        _ => Some(0),
-                    }
-                    .ok_or_else(|| quota("SQL_RESULT_WORKSPACE_OVERFLOW"))?;
-                    reserved_bytes = reserved_bytes
-                        .checked_add(extra)
-                        .ok_or_else(|| quota("SQL_RESULT_WORKSPACE_OVERFLOW"))?;
-                }
+                let (value_refs, reserved_bytes) = RowValueRefs::collect(row, count)?;
                 result_memory.admit(&control, reserved_bytes)?;
                 rows.try_reserve(1)
                     .map_err(|_| quota("SQL_RESULT_ALLOCATION"))?;
@@ -1629,8 +1584,7 @@ impl SqlBridge {
                     .try_reserve_exact(count)
                     .map_err(|_| quota("SQL_RESULT_ALLOCATION"))?;
                 let mut bytes = 0u64;
-                for ordinal in 0..count {
-                    let value_ref = row.get_ref(ordinal).map_err(sqlite_error)?;
+                for &value_ref in value_refs.as_slice() {
                     // Text UTF-8 may expand to two bytes per code unit. Charge
                     // conservatively before allocating an owned result value.
                     let work = match value_ref {
@@ -1693,6 +1647,9 @@ impl SqlBridge {
                 _result_memory: result_memory,
             })
         })();
+        if result.is_ok() {
+            self.recycle_sqlite_connection(db, reusable);
+        }
         result.map_err(|error| control.error().unwrap_or(error))
     }
     pub fn query(&self, sql: &str) -> MddResult<SqlResult> {
@@ -1926,6 +1883,121 @@ fn stream_direct_rows(
         Ok(total_rows)
     })();
     result.map_err(|error| control.error().unwrap_or(error))
+}
+
+fn open_fresh_sqlite_connection() -> MddResult<Connection> {
+    let db = Connection::open_in_memory().map_err(sqlite_error)?;
+    // SAFETY: the connection is exclusively owned here, has no statements
+    // or callbacks in flight, and remains alive throughout this C call.
+    // rusqlite's wrapper is feature-gated; enabling extensions is not needed.
+    let extension_rc = unsafe { rusqlite::ffi::sqlite3_enable_load_extension(db.handle(), 0) };
+    if extension_rc != rusqlite::ffi::SQLITE_OK {
+        return Err(sqlite_error(rusqlite::Error::SqliteFailure(
+            rusqlite::ffi::Error::new(extension_rc),
+            None,
+        )));
+    }
+    db.set_db_config(DbConfig::SQLITE_DBCONFIG_DEFENSIVE, true)
+        .map_err(sqlite_error)?;
+    db.set_db_config(DbConfig::SQLITE_DBCONFIG_TRUSTED_SCHEMA, false)
+        .map_err(sqlite_error)?;
+    db.set_db_config(DbConfig::SQLITE_DBCONFIG_DQS_DML, false)
+        .map_err(sqlite_error)?;
+    db.set_db_config(DbConfig::SQLITE_DBCONFIG_DQS_DDL, false)
+        .map_err(sqlite_error)?;
+    Ok(db)
+}
+
+fn apply_sqlite_limits(db: &Connection, limits: SqlLimits, control: &SqlControl) -> MddResult<()> {
+    db.set_limit(Limit::SQLITE_LIMIT_ATTACHED, 0)
+        .map_err(sqlite_error)?;
+    db.set_limit(Limit::SQLITE_LIMIT_WORKER_THREADS, 0)
+        .map_err(sqlite_error)?;
+    db.set_limit(
+        Limit::SQLITE_LIMIT_SQL_LENGTH,
+        i32::try_from(limits.max_sql_bytes.saturating_mul(8)).unwrap_or(i32::MAX),
+    )
+    .map_err(sqlite_error)?;
+    db.set_limit(
+        Limit::SQLITE_LIMIT_LENGTH,
+        i32::try_from(control.inner.limits.max_cell_bytes.saturating_add(64)).unwrap_or(i32::MAX),
+    )
+    .map_err(sqlite_error)?;
+    db.set_limit(
+        Limit::SQLITE_LIMIT_EXPR_DEPTH,
+        i32::try_from(limits.max_ast_depth).unwrap_or(i32::MAX),
+    )
+    .map_err(sqlite_error)?;
+    Ok(())
+}
+
+fn reset_sqlite_connection(db: &Connection) -> MddResult<()> {
+    db.progress_handler(0, None::<fn() -> bool>)
+        .map_err(sqlite_error)?;
+    db.authorizer(None::<fn(AuthContext<'_>) -> Authorization>)
+        .map_err(sqlite_error)?;
+    // SAFETY: `statement` and `cursor` have already dropped, so no SQLite
+    // prepared statements or virtual-table cursors remain open on `db`. Passing
+    // null drops every module and clears eponymous `pEpoTab` state before reuse.
+    let rc = unsafe { rusqlite::ffi::sqlite3_drop_modules(db.handle(), std::ptr::null_mut()) };
+    if rc != rusqlite::ffi::SQLITE_OK {
+        return Err(sqlite_error(rusqlite::Error::SqliteFailure(
+            rusqlite::ffi::Error::new(rc),
+            None,
+        )));
+    }
+    Ok(())
+}
+
+const STACK_VALUE_REFS: usize = 16;
+
+enum RowValueRefs<'a> {
+    Stack([rusqlite::types::ValueRef<'a>; STACK_VALUE_REFS], usize),
+    Heap(Vec<rusqlite::types::ValueRef<'a>>),
+}
+
+impl<'a> RowValueRefs<'a> {
+    fn collect(row: &'a rusqlite::Row<'_>, count: usize) -> MddResult<(Self, u64)> {
+        let mut reserved_bytes = (count as u64)
+            .checked_mul(std::mem::size_of::<SqlValue>() as u64)
+            .and_then(|v| v.checked_mul(2))
+            .and_then(|v| v.checked_add((std::mem::size_of::<Vec<SqlValue>>() * 2) as u64))
+            .ok_or_else(|| quota("SQL_RESULT_WORKSPACE_OVERFLOW"))?;
+        let mut storage = if count <= STACK_VALUE_REFS {
+            Self::Stack([rusqlite::types::ValueRef::Null; STACK_VALUE_REFS], count)
+        } else {
+            let mut heap = Vec::new();
+            heap.try_reserve_exact(count)
+                .map_err(|_| quota("SQL_RESULT_ALLOCATION"))?;
+            heap.resize(count, rusqlite::types::ValueRef::Null);
+            Self::Heap(heap)
+        };
+        let slots = match &mut storage {
+            Self::Stack(buf, len) => &mut buf[..*len],
+            Self::Heap(buf) => buf.as_mut_slice(),
+        };
+        for (ordinal, slot) in slots.iter_mut().enumerate() {
+            let value = row.get_ref(ordinal).map_err(sqlite_error)?;
+            let extra = match value {
+                rusqlite::types::ValueRef::Text(v) => (v.len() as u64).checked_mul(2),
+                rusqlite::types::ValueRef::Blob(v) => Some(v.len() as u64),
+                _ => Some(0),
+            }
+            .ok_or_else(|| quota("SQL_RESULT_WORKSPACE_OVERFLOW"))?;
+            reserved_bytes = reserved_bytes
+                .checked_add(extra)
+                .ok_or_else(|| quota("SQL_RESULT_WORKSPACE_OVERFLOW"))?;
+            *slot = value;
+        }
+        Ok((storage, reserved_bytes))
+    }
+
+    fn as_slice(&self) -> &[rusqlite::types::ValueRef<'a>] {
+        match self {
+            Self::Stack(buf, len) => &buf[..*len],
+            Self::Heap(buf) => buf.as_slice(),
+        }
+    }
 }
 
 fn direct_group_columns(

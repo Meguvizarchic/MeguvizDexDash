@@ -20,6 +20,7 @@ impl HostLabSqlProvider {
         control: &SqlControl,
         sink: &mut dyn RowSink,
         shared_views: Option<&std::sync::OnceLock<MddResult<MethodCodeFactViews<'a>>>>,
+        stream_extra: bool,
     ) -> MddResult<()> {
         let file_id = u64::from(occurrence.file_id);
         let ContractRelation::Required(required) = relation else {
@@ -31,8 +32,6 @@ impl HostLabSqlProvider {
             }
             return Ok(());
         };
-        let stream_extra = std::env::var_os("MDD_OPT_PARALLEL_PREPARE").as_deref()
-            != Some(std::ffi::OsStr::new("0"));
         let local_views: std::sync::OnceLock<MddResult<MethodCodeFactViews<'a>>> =
             std::sync::OnceLock::new();
         let method_code_views = || -> MddResult<&MethodCodeFactViews<'a>> {

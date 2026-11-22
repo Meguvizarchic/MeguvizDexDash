@@ -191,66 +191,117 @@ impl AnnotationFacts {
             .map(|entry| entry.target_byte_offset)
             .collect()
     }
-    pub(crate) fn reachable_offsets(&self) -> (BTreeSet<u32>, BTreeSet<u32>) {
-        let directories: BTreeMap<_, _> = self
+    fn collect_reachable_sets(&self) -> Vec<u32> {
+        let dirs_sorted = self
             .data
             .directories
-            .iter()
-            .map(|item| (item.byte_offset, item))
-            .collect();
-        let ref_lists: BTreeMap<_, _> = self
+            .windows(2)
+            .all(|w| w[0].byte_offset < w[1].byte_offset);
+        let dir_map = (!dirs_sorted).then(|| {
+            self.data
+                .directories
+                .iter()
+                .map(|item| (item.byte_offset, item))
+                .collect::<BTreeMap<_, _>>()
+        });
+        let lists_sorted = self
             .data
             .ref_lists
-            .iter()
-            .map(|list| (list.byte_offset, list))
-            .collect();
-        let mut sets = BTreeSet::new();
+            .windows(2)
+            .all(|w| w[0].byte_offset < w[1].byte_offset);
+        let list_map = (!lists_sorted).then(|| {
+            self.data
+                .ref_lists
+                .iter()
+                .map(|list| (list.byte_offset, list))
+                .collect::<BTreeMap<_, _>>()
+        });
+        let lookup_dir = |off: u32| {
+            if let Some(map) = dir_map.as_ref() {
+                map.get(&off).copied()
+            } else {
+                self.data
+                    .directories
+                    .binary_search_by_key(&off, |d| d.byte_offset)
+                    .ok()
+                    .map(|idx| &self.data.directories[idx])
+            }
+        };
+        let lookup_list = |off: u32| {
+            if let Some(map) = list_map.as_ref() {
+                map.get(&off).copied()
+            } else {
+                self.data
+                    .ref_lists
+                    .binary_search_by_key(&off, |l| l.byte_offset)
+                    .ok()
+                    .map(|idx| &self.data.ref_lists[idx])
+            }
+        };
+
+        let mut sets = Vec::new();
         for binding in &self.data.directory_bindings {
-            let Some(directory) = directories.get(&binding.directory_byte_offset) else {
+            let Some(directory) = lookup_dir(binding.directory_byte_offset) else {
                 continue;
             };
             sets.extend(directory.class_annotation_set_offset);
             for entry in &directory.entries {
                 if entry.kind == AnnotationOwnerKind::Parameter {
-                    if let Some(list) = ref_lists.get(&entry.target_byte_offset) {
+                    if let Some(list) = lookup_list(entry.target_byte_offset) {
                         sets.extend(list.annotation_set_offsets.iter().flatten().copied());
                     }
                 } else {
-                    sets.insert(entry.target_byte_offset);
+                    sets.push(entry.target_byte_offset);
                 }
             }
         }
-        let annotations = self
-            .data
-            .sets
-            .iter()
-            .filter(|set| sets.contains(&set.byte_offset))
-            .flat_map(|set| set.annotation_offsets.iter().copied())
-            .collect();
-        (sets, annotations)
+        sets.sort_unstable();
+        sets.dedup();
+        sets
+    }
+    fn collect_reachable_annotations(&self, sets: &[u32]) -> Vec<u32> {
+        let mut annotations = Vec::new();
+        for set in &self.data.sets {
+            if sets.binary_search(&set.byte_offset).is_ok() {
+                annotations.extend_from_slice(&set.annotation_offsets);
+            }
+        }
+        annotations.sort_unstable();
+        annotations.dedup();
+        annotations
+    }
+    pub(crate) fn reachable_offsets(&self) -> (BTreeSet<u32>, BTreeSet<u32>) {
+        let sets = self.collect_reachable_sets();
+        let annotations = self.collect_reachable_annotations(&sets);
+        (
+            sets.into_iter().collect(),
+            annotations.into_iter().collect(),
+        )
     }
     /// `annotation_set_entries` rows of the sets a class directory reaches.
     pub fn reachable_set_entry_rows(&self, file_id: u32) -> Vec<AnnotationSetEntryRow> {
-        let (sets, _) = self.reachable_offsets();
+        let sets = self.collect_reachable_sets();
         self.set_entry_rows(file_id)
             .into_iter()
-            .filter(|row| sets.contains(&row.annotation_set_off))
+            .filter(|row| sets.binary_search(&row.annotation_set_off).is_ok())
             .collect()
     }
     /// `annotations` rows of the items a reachable set contains.
     pub fn reachable_annotation_rows(&self, file_id: u32) -> Vec<AnnotationRow> {
-        let (_, annotations) = self.reachable_offsets();
+        let sets = self.collect_reachable_sets();
+        let annotations = self.collect_reachable_annotations(&sets);
         self.annotation_rows(file_id)
             .into_iter()
-            .filter(|row| annotations.contains(&row.annotation_off))
+            .filter(|row| annotations.binary_search(&row.annotation_off).is_ok())
             .collect()
     }
     /// `annotation_elements` rows whose root annotation is reachable.
     pub fn reachable_element_rows(&self, file_id: u32) -> Vec<AnnotationElementRow> {
-        let (_, annotations) = self.reachable_offsets();
+        let sets = self.collect_reachable_sets();
+        let annotations = self.collect_reachable_annotations(&sets);
         self.element_rows(file_id)
             .into_iter()
-            .filter(|row| annotations.contains(&row.annotation_off))
+            .filter(|row| annotations.binary_search(&row.annotation_off).is_ok())
             .collect()
     }
     pub fn annotation_rows(&self, file_id: u32) -> Vec<AnnotationRow> {
@@ -292,14 +343,30 @@ impl AnnotationFacts {
     }
 
     pub fn for_each_directory_entry_row(&self, each: DirectoryEntryVisitor<'_>) -> MddResult<()> {
-        let items: BTreeMap<_, _> = self
+        let sorted = self
             .data
             .directories
-            .iter()
-            .map(|item| (item.byte_offset, item))
-            .collect();
+            .windows(2)
+            .all(|w| w[0].byte_offset < w[1].byte_offset);
+        let items = (!sorted).then(|| {
+            self.data
+                .directories
+                .iter()
+                .map(|item| (item.byte_offset, item))
+                .collect::<BTreeMap<_, _>>()
+        });
         for binding in &self.data.directory_bindings {
-            for entry in &items[&binding.directory_byte_offset].entries {
+            let directory = if let Some(map) = items.as_ref() {
+                map[&binding.directory_byte_offset]
+            } else {
+                let idx = self
+                    .data
+                    .directories
+                    .binary_search_by_key(&binding.directory_byte_offset, |item| item.byte_offset)
+                    .expect("validated directory binding offset");
+                &self.data.directories[idx]
+            };
+            for entry in &directory.entries {
                 let kind = match entry.kind {
                     AnnotationOwnerKind::Field => "field",
                     AnnotationOwnerKind::Method => "method",
@@ -327,9 +394,9 @@ impl AnnotationFacts {
         &self,
         each: &mut dyn FnMut(u32, u32, u32) -> MddResult<()>,
     ) -> MddResult<()> {
-        let (sets, _) = self.reachable_offsets();
+        let sets = self.collect_reachable_sets();
         for set in &self.data.sets {
-            if !sets.contains(&set.byte_offset) {
+            if sets.binary_search(&set.byte_offset).is_err() {
                 continue;
             }
             for (ordinal, offset) in set.annotation_offsets.iter().enumerate() {
@@ -343,9 +410,10 @@ impl AnnotationFacts {
         &self,
         each: &mut dyn FnMut(u32, u32, u32, u32) -> MddResult<()>,
     ) -> MddResult<()> {
-        let (_, annotations) = self.reachable_offsets();
+        let sets = self.collect_reachable_sets();
+        let annotations = self.collect_reachable_annotations(&sets);
         for item in &self.data.annotation_items {
-            if !annotations.contains(&item.byte_offset) {
+            if annotations.binary_search(&item.byte_offset).is_err() {
                 continue;
             }
             each(
@@ -362,12 +430,13 @@ impl AnnotationFacts {
         &self,
         each: &mut dyn FnMut(&ReachableElementRef<'_>) -> MddResult<()>,
     ) -> MddResult<()> {
-        let (_, annotations) = self.reachable_offsets();
+        let sets = self.collect_reachable_sets();
+        let annotations = self.collect_reachable_annotations(&sets);
         for item in &self.data.values {
             let Some(root) = item.annotation_byte_offset else {
                 continue;
             };
-            if !annotations.contains(&root) {
+            if annotations.binary_search(&root).is_err() {
                 continue;
             }
             each(&ReachableElementRef {

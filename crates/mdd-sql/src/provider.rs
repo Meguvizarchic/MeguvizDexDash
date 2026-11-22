@@ -200,13 +200,19 @@ pub struct DirectTableProjection {
     pub order_by_u64_asc: Vec<usize>,
 }
 
-/// Conjunctive equality/IN predicate pushed directly into column-store execution.
+/// Predicate tree pushed directly into column-store execution.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum DirectPredicate {
     EqU64(usize, u64),
     InU64(usize, Vec<u64>),
+    BetweenU64(usize, u64, u64),
     EqText(usize, String),
     InText(usize, Vec<String>),
+    LikeAsciiPrefix(usize, String),
+    LikeAsciiPrefixSuffix(usize, String, String),
+    LikeAsciiContains(usize, String),
+    And(Vec<DirectPredicate>),
+    Or(Vec<DirectPredicate>),
 }
 
 /// Output ordering term for [`DirectFilteredProjection`].
@@ -239,10 +245,11 @@ pub enum DirectGroupItem {
     },
 }
 
-/// Direct single-table unfiltered `GROUP BY <1..=4 direct cols> [ORDER BY ...]` plan.
+/// Direct single-table `GROUP BY <1..=4 direct cols> [ORDER BY ...]` plan with optional predicates.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DirectCountGroupBy {
     pub relation: String,
+    pub predicates: Vec<DirectPredicate>,
     pub group_columns: Vec<usize>,
     pub projections: Vec<DirectGroupItem>,
     pub order_by_group_asc: Vec<usize>,

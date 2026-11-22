@@ -830,21 +830,21 @@ impl<'a> CoverageLedger<'a> {
                             .metadata()
                             .strings()
                             .get(site.target_local_index as usize)
-                            .is_some_and(|fact| fact.data.text.strict_utf8().is_ok())
+                            .is_some_and(|fact| fact.data.text.is_strict_utf8())
                     })
             }),
             ("strings", "value") => view.metadata.is_some_and(|metadata| {
                 metadata
                     .strings()
                     .iter()
-                    .any(|fact| fact.data.text.strict_utf8().is_err())
+                    .any(|fact| !fact.data.text.is_strict_utf8())
             }),
             ("classes", "source_file") => view.definitions.is_some_and(|definitions| {
                 definitions.definitions().classes.iter().any(|class| {
                     class
                         .source_file
                         .as_ref()
-                        .is_some_and(|text| text.strict_utf8().is_err())
+                        .is_some_and(|text| !text.is_strict_utf8())
                 })
             }),
             _ => false,

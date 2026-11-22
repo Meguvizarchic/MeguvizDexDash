@@ -11,6 +11,7 @@
 //! however the relation is joined, and an outer join does not change that (the `WHERE` removes the row it makes up).
 //! The statement still contains the condition, so a cursor that returns more rows than asked for changes nothing but the
 //! time; this only chooses a smaller cursor.
+use super::SqlDialect;
 use crate::{
     provider::{
         DirectCountGroupBy, DirectFilteredProjection, DirectGroupItem, DirectOrderItem,
@@ -229,8 +230,406 @@ pub(crate) fn extract_direct_projection_from_query(
     })
 }
 
-/// Extract a filtered single-table projection with conjunctive equality/`IN` predicates and
-/// optional multi-column `U64`/`I64`/`Text` `ORDER BY`.
+#[derive(Default)]
+struct AliasTracker {
+    alias_targets: BTreeMap<String, Option<usize>>,
+    shadowed_cols: BTreeSet<usize>,
+}
+
+impl AliasTracker {
+    fn record_alias(&mut self, name: &str, col_idx: usize, conflicting: bool) {
+        let lower = name.to_ascii_lowercase();
+        if conflicting {
+            self.alias_targets.insert(lower, None);
+            return;
+        }
+        if let Some(prev) = self.alias_targets.get_mut(&lower) {
+            if *prev != Some(col_idx) {
+                *prev = None;
+            }
+        } else {
+            self.alias_targets.insert(lower, Some(col_idx));
+        }
+    }
+
+    fn record_aliased_col(&mut self, rel: &SqlRelation, col_idx: usize, alias: &str) {
+        let mut shadows = false;
+        if let Some(other_idx) = rel
+            .columns
+            .iter()
+            .position(|c| c.name.eq_ignore_ascii_case(alias))
+            && other_idx != col_idx
+        {
+            self.shadowed_cols.insert(other_idx);
+            shadows = true;
+        }
+        self.record_alias(alias, col_idx, shadows);
+    }
+
+    fn record_non_col_alias(&mut self, rel: &SqlRelation, alias: &str) {
+        if let Some(other_idx) = rel
+            .columns
+            .iter()
+            .position(|c| c.name.eq_ignore_ascii_case(alias))
+        {
+            self.shadowed_cols.insert(other_idx);
+        }
+        self.record_alias(alias, 0, true);
+    }
+
+    fn resolve_order_col(&self, rel: &SqlRelation, qualifier: &str, expr: &Expr) -> Option<usize> {
+        match unwrap_nested(expr) {
+            Expr::Identifier(id) => {
+                let lower = id.value.to_ascii_lowercase();
+                if let Some(target) = self.alias_targets.get(&lower) {
+                    *target
+                } else {
+                    let idx = resolve_plain_col(rel, qualifier, expr)?;
+                    if self.shadowed_cols.contains(&idx) {
+                        return None;
+                    }
+                    Some(idx)
+                }
+            }
+            _ => resolve_plain_col(rel, qualifier, expr),
+        }
+    }
+}
+
+const MAX_DIRECT_PRED_DEPTH: usize = 64;
+const MAX_DIRECT_PRED_NODES: usize = 16_384;
+
+fn parse_u64_lit_for_dialect(expr: &Expr, dialect: SqlDialect) -> Option<u64> {
+    let v = parse_u64_lit(expr)?;
+    if dialect != SqlDialect::NativeV1 && i64::try_from(v).is_err() {
+        return None;
+    }
+    Some(v)
+}
+
+enum ExactAsciiLike {
+    Prefix {
+        prefix: String,
+        has_ascii_alpha: bool,
+    },
+    PrefixSuffix {
+        prefix: String,
+        suffix: String,
+        has_ascii_alpha: bool,
+    },
+    Contains {
+        needle: String,
+        has_ascii_alpha: bool,
+    },
+}
+
+impl ExactAsciiLike {
+    fn has_ascii_alpha(&self) -> bool {
+        match self {
+            Self::Prefix {
+                has_ascii_alpha, ..
+            }
+            | Self::PrefixSuffix {
+                has_ascii_alpha, ..
+            }
+            | Self::Contains {
+                has_ascii_alpha, ..
+            } => *has_ascii_alpha,
+        }
+    }
+
+    fn into_predicate(self, col_idx: usize) -> DirectPredicate {
+        match self {
+            Self::Prefix { prefix, .. } => DirectPredicate::LikeAsciiPrefix(col_idx, prefix),
+            Self::PrefixSuffix { prefix, suffix, .. } => {
+                DirectPredicate::LikeAsciiPrefixSuffix(col_idx, prefix, suffix)
+            }
+            Self::Contains { needle, .. } => DirectPredicate::LikeAsciiContains(col_idx, needle),
+        }
+    }
+}
+
+fn extract_exact_ascii_like(pattern: &str, escape: Option<char>) -> Option<ExactAsciiLike> {
+    if !pattern.is_ascii() {
+        return None;
+    }
+    if let Some(esc) = escape
+        && !esc.is_ascii()
+    {
+        return None;
+    }
+    enum Part {
+        Percent,
+        Lit(String),
+    }
+    let mut parts: Vec<Part> = Vec::new();
+    let mut chars = pattern.chars();
+    while let Some(ch) = chars.next() {
+        if Some(ch) == escape {
+            let escaped = chars.next()?;
+            match parts.last_mut() {
+                Some(Part::Lit(buf)) => buf.push(escaped),
+                _ => parts.push(Part::Lit(String::from(escaped))),
+            }
+        } else if ch == '_' {
+            return None;
+        } else if ch == '%' {
+            if !matches!(parts.last(), Some(Part::Percent)) {
+                parts.push(Part::Percent);
+            }
+        } else {
+            match parts.last_mut() {
+                Some(Part::Lit(buf)) => buf.push(ch),
+                _ => parts.push(Part::Lit(String::from(ch))),
+            }
+        }
+    }
+    match parts.as_slice() {
+        [Part::Lit(prefix), Part::Percent] if !prefix.is_empty() => {
+            let has_ascii_alpha = prefix.bytes().any(|b| b.is_ascii_alphabetic());
+            Some(ExactAsciiLike::Prefix {
+                prefix: prefix.to_ascii_lowercase(),
+                has_ascii_alpha,
+            })
+        }
+        [Part::Lit(prefix), Part::Percent, Part::Lit(suffix)]
+            if !prefix.is_empty() && !suffix.is_empty() =>
+        {
+            let has_ascii_alpha = prefix.bytes().any(|b| b.is_ascii_alphabetic())
+                || suffix.bytes().any(|b| b.is_ascii_alphabetic());
+            Some(ExactAsciiLike::PrefixSuffix {
+                prefix: prefix.to_ascii_lowercase(),
+                suffix: suffix.to_ascii_lowercase(),
+                has_ascii_alpha,
+            })
+        }
+        [Part::Percent, Part::Lit(needle), Part::Percent] if !needle.is_empty() => {
+            let has_ascii_alpha = needle.bytes().any(|b| b.is_ascii_alphabetic());
+            Some(ExactAsciiLike::Contains {
+                needle: needle.to_ascii_lowercase(),
+                has_ascii_alpha,
+            })
+        }
+        _ => None,
+    }
+}
+
+fn unwrap_like_target(rel: &SqlRelation, qualifier: &str, expr: &Expr) -> Option<(usize, bool)> {
+    if let Some(col_idx) = resolve_plain_col(rel, qualifier, expr) {
+        return Some((col_idx, false));
+    }
+    let Expr::Function(func) = unwrap_nested(expr) else {
+        return None;
+    };
+    if func.name.0.len() != 1
+        || !func.name.0[0]
+            .as_ident()
+            .is_some_and(|id| id.value.eq_ignore_ascii_case("lower"))
+        || func.filter.is_some()
+        || func.over.is_some()
+        || !func.within_group.is_empty()
+        || func.null_treatment.is_some()
+        || func.uses_odbc_syntax
+        || !matches!(func.parameters, FunctionArguments::None)
+    {
+        return None;
+    }
+    let FunctionArguments::List(list) = &func.args else {
+        return None;
+    };
+    if list.duplicate_treatment.is_none()
+        && list.clauses.is_empty()
+        && list.args.len() == 1
+        && let FunctionArg::Unnamed(FunctionArgExpr::Expr(arg)) = &list.args[0]
+        && let Some(col_idx) = resolve_plain_col(rel, qualifier, arg)
+    {
+        return Some((col_idx, true));
+    }
+    None
+}
+
+fn extract_direct_predicates(
+    rel: &SqlRelation,
+    qualifier: &str,
+    selection: &Expr,
+    dialect: SqlDialect,
+) -> Option<Vec<DirectPredicate>> {
+    let parts = flatten_bool_chain(selection, BinaryOperator::And);
+    if parts.is_empty() {
+        return None;
+    }
+    let mut budget = MAX_DIRECT_PRED_NODES;
+    let mut predicates = Vec::with_capacity(parts.len());
+    for part in parts {
+        predicates.push(extract_direct_predicate_node(
+            rel,
+            qualifier,
+            part,
+            dialect,
+            1,
+            &mut budget,
+        )?);
+    }
+    (!predicates.is_empty()).then_some(predicates)
+}
+
+fn extract_direct_predicate_node(
+    rel: &SqlRelation,
+    qualifier: &str,
+    expr: &Expr,
+    dialect: SqlDialect,
+    depth: usize,
+    budget: &mut usize,
+) -> Option<DirectPredicate> {
+    if depth > MAX_DIRECT_PRED_DEPTH || *budget == 0 {
+        return None;
+    }
+    *budget -= 1;
+    let expr = unwrap_nested(expr);
+    match expr {
+        Expr::BinaryOp {
+            op: op @ (BinaryOperator::And | BinaryOperator::Or),
+            ..
+        } => {
+            let is_or = *op == BinaryOperator::Or;
+            let parts = flatten_bool_chain(
+                expr,
+                if is_or {
+                    BinaryOperator::Or
+                } else {
+                    BinaryOperator::And
+                },
+            );
+            if parts.is_empty() {
+                return None;
+            }
+            let mut items = Vec::with_capacity(parts.len());
+            for part in parts {
+                items.push(extract_direct_predicate_node(
+                    rel,
+                    qualifier,
+                    part,
+                    dialect,
+                    depth + 1,
+                    budget,
+                )?);
+            }
+            if items.len() == 1 {
+                items.pop()
+            } else if is_or {
+                Some(DirectPredicate::Or(items))
+            } else {
+                Some(DirectPredicate::And(items))
+            }
+        }
+        Expr::BinaryOp {
+            left,
+            op: BinaryOperator::Eq,
+            right,
+        } => {
+            let (col_idx, lit) = if let Some(idx) = resolve_plain_col(rel, qualifier, left) {
+                (idx, right)
+            } else {
+                let idx = resolve_plain_col(rel, qualifier, right)?;
+                (idx, left)
+            };
+            match rel.columns[col_idx].data_type {
+                SqlType::U64 => Some(DirectPredicate::EqU64(
+                    col_idx,
+                    parse_u64_lit_for_dialect(lit, dialect)?,
+                )),
+                SqlType::Text => Some(DirectPredicate::EqText(col_idx, parse_text_lit(lit)?)),
+                _ => None,
+            }
+        }
+        Expr::InList {
+            expr: target,
+            list,
+            negated: false,
+        } => {
+            if list.is_empty() {
+                return None;
+            }
+            let col_idx = resolve_plain_col(rel, qualifier, target)?;
+            match rel.columns[col_idx].data_type {
+                SqlType::U64 => Some(DirectPredicate::InU64(
+                    col_idx,
+                    list.iter()
+                        .map(|e| parse_u64_lit_for_dialect(e, dialect))
+                        .collect::<Option<Vec<_>>>()?,
+                )),
+                SqlType::Text => Some(DirectPredicate::InText(
+                    col_idx,
+                    list.iter()
+                        .map(parse_text_lit)
+                        .collect::<Option<Vec<_>>>()?,
+                )),
+                _ => None,
+            }
+        }
+        Expr::Between {
+            expr: target,
+            negated: false,
+            low,
+            high,
+        } => {
+            let col_idx = resolve_plain_col(rel, qualifier, target)?;
+            if rel.columns[col_idx].data_type != SqlType::U64 {
+                return None;
+            }
+            let lo = parse_u64_lit_for_dialect(low, dialect)?;
+            let hi = parse_u64_lit_for_dialect(high, dialect)?;
+            Some(DirectPredicate::BetweenU64(col_idx, lo, hi))
+        }
+        Expr::Like {
+            negated: false,
+            any: false,
+            expr: target,
+            pattern,
+            escape_char,
+        } => {
+            let (col_idx, used_lower) = unwrap_like_target(rel, qualifier, target)?;
+            if rel.columns[col_idx].data_type != SqlType::Text {
+                return None;
+            }
+            let pat = parse_text_lit(pattern)?;
+            let escape = match escape_char {
+                Some(esc_expr) => {
+                    let s = parse_text_lit(esc_expr)?;
+                    let mut chars = s.chars();
+                    let ch = chars.next()?;
+                    if chars.next().is_some() || !ch.is_ascii() {
+                        return None;
+                    }
+                    Some(ch)
+                }
+                None => None,
+            };
+            let extracted = extract_exact_ascii_like(&pat, escape)?;
+            // NativeV1 LIKE is case-sensitive, and SQLite's lower() differs from ASCII-only folding.
+            if dialect == SqlDialect::NativeV1 && (used_lower || extracted.has_ascii_alpha()) {
+                return None;
+            }
+            Some(extracted.into_predicate(col_idx))
+        }
+        _ => None,
+    }
+}
+
+/// Extract a filtered single-table projection with boolean predicate trees (`=`, `IN`,
+/// `BETWEEN`, exact ASCII `LIKE`, `AND`, `OR`) and optional multi-column `U64`/`I64`/`Text` `ORDER BY`.
+#[cfg(test)]
+pub(crate) fn extract_direct_filtered_projection_with_dialect(
+    sql: &str,
+    relations: &[SqlRelation],
+    cte_names: &BTreeSet<String>,
+    max_ast_depth: usize,
+    dialect: SqlDialect,
+) -> Option<DirectFilteredProjection> {
+    let root = parse_single_query(sql, max_ast_depth)?;
+    extract_direct_filtered_projection_from_query(&root, relations, cte_names, dialect)
+}
+
 #[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn extract_direct_filtered_projection(
     sql: &str,
@@ -239,7 +638,12 @@ pub(crate) fn extract_direct_filtered_projection(
     max_ast_depth: usize,
 ) -> Option<DirectFilteredProjection> {
     let root = parse_single_query(sql, max_ast_depth)?;
-    extract_direct_filtered_projection_from_query(&root, relations, cte_names)
+    extract_direct_filtered_projection_from_query(
+        &root,
+        relations,
+        cte_names,
+        SqlDialect::DexSql011,
+    )
 }
 
 /// As [`extract_direct_filtered_projection`], reusing an already-parsed [`Query`] AST.
@@ -247,6 +651,7 @@ pub(crate) fn extract_direct_filtered_projection_from_query(
     root: &Query,
     relations: &[SqlRelation],
     cte_names: &BTreeSet<String>,
+    dialect: SqlDialect,
 ) -> Option<DirectFilteredProjection> {
     let (select, rel, qualifier) = extract_plain_single_table(root, relations, cte_names, true)?;
     if !has_empty_group_by(select) {
@@ -255,22 +660,7 @@ pub(crate) fn extract_direct_filtered_projection_from_query(
     let selection = select.selection.as_ref()?;
 
     let mut projected_columns = Vec::with_capacity(select.projection.len());
-    let mut alias_targets: BTreeMap<String, Option<usize>> = BTreeMap::new();
-    let mut shadowed_cols = BTreeSet::new();
-    let mut record_alias = |name: &str, col_idx: usize, conflicting: bool| {
-        let lower = name.to_ascii_lowercase();
-        if conflicting {
-            alias_targets.insert(lower, None);
-            return;
-        }
-        if let Some(prev) = alias_targets.get_mut(&lower) {
-            if *prev != Some(col_idx) {
-                *prev = None;
-            }
-        } else {
-            alias_targets.insert(lower, Some(col_idx));
-        }
-    };
+    let mut aliases = AliasTracker::default();
     for item in &select.projection {
         match item {
             SelectItem::UnnamedExpr(expr) => {
@@ -279,91 +669,19 @@ pub(crate) fn extract_direct_filtered_projection_from_query(
                     return None;
                 }
                 let col_idx = resolve_plain_col(rel, &qualifier, expr)?;
-                record_alias(&rel.columns[col_idx].name, col_idx, false);
+                aliases.record_alias(&rel.columns[col_idx].name, col_idx, false);
                 projected_columns.push((col_idx, rel.columns[col_idx].name.clone()));
             }
             SelectItem::ExprWithAlias { expr, alias } => {
                 let col_idx = resolve_plain_col(rel, &qualifier, expr)?;
-                let mut shadows = false;
-                if let Some(other_idx) = rel
-                    .columns
-                    .iter()
-                    .position(|c| c.name.eq_ignore_ascii_case(&alias.value))
-                    && other_idx != col_idx
-                {
-                    shadowed_cols.insert(other_idx);
-                    shadows = true;
-                }
-                record_alias(&alias.value, col_idx, shadows);
+                aliases.record_aliased_col(rel, col_idx, &alias.value);
                 projected_columns.push((col_idx, alias.value.clone()));
             }
             _ => return None,
         }
     }
 
-    let mut predicates = Vec::new();
-    let mut pending = vec![selection];
-    while let Some(expr) = pending.pop() {
-        match unwrap_nested(expr) {
-            Expr::BinaryOp {
-                left,
-                op: BinaryOperator::And,
-                right,
-            } => {
-                pending.push(right);
-                pending.push(left);
-            }
-            Expr::BinaryOp {
-                left,
-                op: BinaryOperator::Eq,
-                right,
-            } => {
-                if predicates.len() >= 32 {
-                    return None;
-                }
-                let (col_idx, lit) = if let Some(idx) = resolve_plain_col(rel, &qualifier, left) {
-                    (idx, right)
-                } else {
-                    let idx = resolve_plain_col(rel, &qualifier, right)?;
-                    (idx, left)
-                };
-                let pred = match rel.columns[col_idx].data_type {
-                    SqlType::U64 => DirectPredicate::EqU64(col_idx, parse_u64_lit(lit)?),
-                    SqlType::Text => DirectPredicate::EqText(col_idx, parse_text_lit(lit)?),
-                    _ => return None,
-                };
-                predicates.push(pred);
-            }
-            Expr::InList {
-                expr: target,
-                list,
-                negated: false,
-            } => {
-                if predicates.len() >= 32 || list.is_empty() {
-                    return None;
-                }
-                let col_idx = resolve_plain_col(rel, &qualifier, target)?;
-                let pred = match rel.columns[col_idx].data_type {
-                    SqlType::U64 => DirectPredicate::InU64(
-                        col_idx,
-                        list.iter().map(parse_u64_lit).collect::<Option<Vec<_>>>()?,
-                    ),
-                    SqlType::Text => DirectPredicate::InText(
-                        col_idx,
-                        list.iter()
-                            .map(parse_text_lit)
-                            .collect::<Option<Vec<_>>>()?,
-                    ),
-                    _ => return None,
-                };
-                predicates.push(pred);
-            }
-            _ => return None,
-        }
-    }
-    if predicates.is_empty() {
-        return None;
-    }
+    let predicates = extract_direct_predicates(rel, &qualifier, selection, dialect)?;
 
     let order_by = match &root.order_by {
         None => Vec::new(),
@@ -387,21 +705,7 @@ pub(crate) fn extract_direct_filtered_projection_from_query(
                     Some(OrderBySort::Desc) => true,
                     Some(OrderBySort::Using(_)) => return None,
                 };
-                let ord_idx = match unwrap_nested(&item.expr) {
-                    Expr::Identifier(id) => {
-                        let lower = id.value.to_ascii_lowercase();
-                        if let Some(target) = alias_targets.get(&lower) {
-                            (*target)?
-                        } else {
-                            let idx = resolve_plain_col(rel, &qualifier, &item.expr)?;
-                            if shadowed_cols.contains(&idx) {
-                                return None;
-                            }
-                            idx
-                        }
-                    }
-                    _ => resolve_plain_col(rel, &qualifier, &item.expr)?,
-                };
+                let ord_idx = aliases.resolve_order_col(rel, &qualifier, &item.expr)?;
                 if !matches!(
                     rel.columns[ord_idx].data_type,
                     SqlType::U64 | SqlType::I64 | SqlType::Text
@@ -483,8 +787,8 @@ fn is_count_star(expr: &Expr) -> bool {
         )
 }
 
-/// Extract a sound single-table unfiltered `GROUP BY <cols> COUNT(*) [ORDER BY <cols> ASC]`
-/// fast path, excluding wrappers, CTEs, filters, HAVING, DISTINCT, LIMIT/OFFSET, or ambiguous aliases.
+/// Extract a sound single-table `GROUP BY <cols> COUNT(*) [WHERE ...] [ORDER BY <cols> ASC]`
+/// fast path, excluding wrappers, CTEs, HAVING, DISTINCT, LIMIT/OFFSET, or ambiguous aliases.
 #[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn extract_direct_count_group_by(
     sql: &str,
@@ -493,7 +797,19 @@ pub(crate) fn extract_direct_count_group_by(
     max_ast_depth: usize,
 ) -> Option<DirectCountGroupBy> {
     let root = parse_single_query(sql, max_ast_depth)?;
-    extract_direct_count_group_by_from_query(&root, relations, cte_names)
+    extract_direct_count_group_by_from_query(&root, relations, cte_names, SqlDialect::DexSql011)
+}
+
+#[cfg(test)]
+pub(crate) fn extract_direct_count_group_by_with_dialect(
+    sql: &str,
+    relations: &[SqlRelation],
+    cte_names: &BTreeSet<String>,
+    max_ast_depth: usize,
+    dialect: SqlDialect,
+) -> Option<DirectCountGroupBy> {
+    let root = parse_single_query(sql, max_ast_depth)?;
+    extract_direct_count_group_by_from_query(&root, relations, cte_names, dialect)
 }
 
 /// As [`extract_direct_count_group_by`], reusing an already-parsed [`Query`] AST.
@@ -501,11 +817,13 @@ pub(crate) fn extract_direct_count_group_by_from_query(
     root: &Query,
     relations: &[SqlRelation],
     cte_names: &BTreeSet<String>,
+    dialect: SqlDialect,
 ) -> Option<DirectCountGroupBy> {
     let (select, rel, qualifier) = extract_plain_single_table(root, relations, cte_names, false)?;
-    if select.selection.is_some() {
-        return None;
-    }
+    let predicates = match &select.selection {
+        None => Vec::new(),
+        Some(selection) => extract_direct_predicates(rel, &qualifier, selection, dialect)?,
+    };
 
     let resolve_col = |expr: &Expr| resolve_plain_col(rel, &qualifier, expr);
 
@@ -530,44 +848,32 @@ pub(crate) fn extract_direct_count_group_by_from_query(
     }
 
     let mut projections = Vec::with_capacity(select.projection.len());
-    let mut shadowed_cols = BTreeSet::new();
-    let mut alias_targets: BTreeMap<String, Option<usize>> = BTreeMap::new();
+    let mut aliases = AliasTracker::default();
     for item in &select.projection {
         match item {
             SelectItem::UnnamedExpr(expr) => {
+                // Reject outer parenthesized `(col)` so SQLite output column naming never diverges.
+                if matches!(expr, Expr::Nested(_)) {
+                    return None;
+                }
                 let col_idx = resolve_col(expr)?;
                 let group_pos = group_columns.iter().position(|&c| c == col_idx)?;
+                aliases.record_alias(&rel.columns[col_idx].name, col_idx, false);
                 projections.push(DirectGroupItem::GroupCol {
                     group_pos,
                     output_name: rel.columns[col_idx].name.clone(),
                 });
             }
             SelectItem::ExprWithAlias { expr, alias } => {
-                let alias_lower = alias.value.to_ascii_lowercase();
                 if is_count_star(expr) {
-                    if let Some(other_idx) = rel
-                        .columns
-                        .iter()
-                        .position(|c| c.name.eq_ignore_ascii_case(&alias.value))
-                    {
-                        shadowed_cols.insert(other_idx);
-                    }
-                    alias_targets.insert(alias_lower, None);
+                    aliases.record_non_col_alias(rel, &alias.value);
                     projections.push(DirectGroupItem::CountStar {
                         output_name: alias.value.clone(),
                     });
                 } else {
                     let col_idx = resolve_col(expr)?;
                     let group_pos = group_columns.iter().position(|&c| c == col_idx)?;
-                    if let Some(other_idx) = rel
-                        .columns
-                        .iter()
-                        .position(|c| c.name.eq_ignore_ascii_case(&alias.value))
-                        && other_idx != col_idx
-                    {
-                        shadowed_cols.insert(other_idx);
-                    }
-                    alias_targets.insert(alias_lower, Some(col_idx));
+                    aliases.record_aliased_col(rel, col_idx, &alias.value);
                     projections.push(DirectGroupItem::GroupCol {
                         group_pos,
                         output_name: alias.value.clone(),
@@ -598,21 +904,7 @@ pub(crate) fn extract_direct_count_group_by_from_query(
                 {
                     return None;
                 }
-                let ord_idx = match unwrap_nested(&item.expr) {
-                    Expr::Identifier(id) => {
-                        let lower = id.value.to_ascii_lowercase();
-                        if let Some(target) = alias_targets.get(&lower) {
-                            (*target)?
-                        } else {
-                            let idx = resolve_col(&item.expr)?;
-                            if shadowed_cols.contains(&idx) {
-                                return None;
-                            }
-                            idx
-                        }
-                    }
-                    _ => resolve_col(&item.expr)?,
-                };
+                let ord_idx = aliases.resolve_order_col(rel, &qualifier, &item.expr)?;
                 let group_pos = group_columns.iter().position(|&c| c == ord_idx)?;
                 cols.push(group_pos);
             }
@@ -624,6 +916,7 @@ pub(crate) fn extract_direct_count_group_by_from_query(
         relation: rel.name.clone(),
         group_columns,
         projections,
+        predicates,
         order_by_group_asc,
     })
 }
@@ -1405,9 +1698,32 @@ fn extract_ascii_like_contains(pattern: &str, escape: Option<char>) -> Option<St
 
 /// `partition_columns` maps a relation name (lower case) to its partition column (lower case). The result maps a relation
 /// name (lower case) to the value its partition column must have.
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn partition_hints(
     query: &Query,
     tokens: &[Token],
+    partition_columns: &BTreeMap<String, String>,
+) -> BTreeMap<String, u64> {
+    let mut hints = raw_partition_hints(query, partition_columns);
+    // the relation must be named once in the whole statement; anything else may use its other rows. A name followed by a
+    // period is a qualifier of a column (`classes.file_id`), not a mention of the table.
+    hints.retain(|relation, _| mentions(tokens, relation) == 1);
+    hints
+}
+
+/// As [`partition_hints`], using precomputed non-qualifier word counts per lowercased partition relation name.
+pub(crate) fn partition_hints_with_counts(
+    query: &Query,
+    mention_counts: &BTreeMap<String, usize>,
+    partition_columns: &BTreeMap<String, String>,
+) -> BTreeMap<String, u64> {
+    let mut hints = raw_partition_hints(query, partition_columns);
+    hints.retain(|relation, _| mention_counts.get(relation).copied().unwrap_or(0) == 1);
+    hints
+}
+
+fn raw_partition_hints(
+    query: &Query,
     partition_columns: &BTreeMap<String, String>,
 ) -> BTreeMap<String, u64> {
     let mut hints = BTreeMap::new();
@@ -1493,13 +1809,11 @@ pub(crate) fn partition_hints(
     for relation in conflicting {
         hints.remove(&relation);
     }
-    // the relation must be named once in the whole statement; anything else may use its other rows. A name followed by a
-    // period is a qualifier of a column (`classes.file_id`), not a mention of the table.
-    hints.retain(|relation, _| mentions(tokens, relation) == 1);
     hints
 }
 
 /// How many times `name` appears in the statement other than as the qualifier of a column.
+#[cfg_attr(not(test), allow(dead_code))]
 fn mentions(tokens: &[Token], name: &str) -> usize {
     tokens
         .iter()
@@ -2006,14 +2320,65 @@ mod tests {
         assert_eq!(got_aliased.group_columns, vec![1]);
         assert_eq!(got_aliased.order_by_group_asc, vec![0]);
 
+        let filtered = extract_direct_count_group_by(
+            "SELECT file_id, kind, COUNT(*) AS cnt FROM class_methods WHERE file_id = 0 AND kind LIKE 'v%' GROUP BY file_id, kind ORDER BY file_id, kind",
+            &rels,
+            &no_ctes,
+            64,
+        )
+        .expect("must extract filtered class_methods GROUP BY plan");
+        assert_eq!(
+            filtered.predicates,
+            vec![
+                DirectPredicate::EqU64(0, 0),
+                DirectPredicate::LikeAsciiPrefix(1, "v".into()),
+            ]
+        );
+        assert_eq!(filtered.order_by_group_asc, vec![0, 1]);
+
+        let text_group = extract_direct_count_group_by(
+            "SELECT kind, COUNT(*) AS cnt FROM class_methods WHERE file_id BETWEEN 1 AND 3 AND (kind = 'direct' OR kind LIKE '%_v%' ESCAPE '\\') GROUP BY kind ORDER BY kind ASC",
+            &rels,
+            &no_ctes,
+            64,
+        )
+        .expect("must extract filtered Text GROUP BY with ORDER BY");
+        assert_eq!(text_group.group_columns, vec![1]);
+        assert_eq!(text_group.order_by_group_asc, vec![0]);
+        assert_eq!(
+            text_group.predicates,
+            vec![
+                DirectPredicate::BetweenU64(0, 1, 3),
+                DirectPredicate::Or(vec![
+                    DirectPredicate::EqText(1, "direct".into()),
+                    DirectPredicate::LikeAsciiContains(1, "_v".into()),
+                ]),
+            ]
+        );
+
+        assert!(
+            extract_direct_count_group_by_with_dialect(
+                "SELECT kind, COUNT(*) AS cnt FROM class_methods WHERE kind LIKE 'd%' GROUP BY kind",
+                &rels,
+                &no_ctes,
+                64,
+                SqlDialect::NativeV1,
+            )
+            .is_none(),
+            "NativeV1 alphabetic LIKE must fall back in GROUP BY"
+        );
+
         for rejected in [
             "SELECT file_id, kind, COUNT(*) FROM class_methods GROUP BY file_id, kind",
-            "SELECT file_id, kind, COUNT(*) AS cnt FROM class_methods WHERE file_id = 0 GROUP BY file_id, kind",
+            "SELECT (file_id), kind, COUNT(*) AS cnt FROM class_methods GROUP BY file_id, kind",
+            "SELECT file_id, kind, COUNT(*) AS cnt FROM class_methods WHERE kind LIKE 'v_' GROUP BY file_id, kind",
+            "SELECT file_id, kind, COUNT(*) AS cnt FROM class_methods WHERE file_id != 0 GROUP BY file_id, kind",
             "SELECT file_id, kind, COUNT(*) AS cnt FROM class_methods GROUP BY file_id, kind HAVING COUNT(*) > 1",
             "SELECT DISTINCT file_id, kind FROM class_methods GROUP BY file_id, kind",
             "SELECT file_id, kind, COUNT(*) AS cnt FROM class_methods GROUP BY file_id, kind LIMIT 2",
             "SELECT file_id, kind, COUNT(*) AS cnt FROM class_methods GROUP BY file_id, kind ORDER BY kind DESC",
             "SELECT file_id, COUNT(*) AS kind FROM class_methods GROUP BY file_id ORDER BY kind",
+            "SELECT file_id AS x, kind AS x, COUNT(*) AS cnt FROM class_methods GROUP BY file_id, kind ORDER BY x",
             "SELECT file_id, method_name, COUNT(*) AS cnt FROM class_methods GROUP BY file_id",
             "SELECT COUNT(*) AS cnt FROM class_methods",
             "SELECT a.file_id, COUNT(*) AS cnt FROM class_methods a JOIN class_methods b ON a.file_id = b.file_id GROUP BY a.file_id",
@@ -2124,11 +2489,138 @@ mod tests {
         .expect("LIMIT 0");
         assert_eq!((lim_zero.limit, lim_zero.offset), (Some(0), 0));
 
+        let like_or = extract_direct_filtered_projection(
+            "SELECT file_id FROM classes WHERE file_id = 0 OR descriptor LIKE 'La%'",
+            &rels,
+            &no_ctes,
+            64,
+        )
+        .expect("OR + exact LIKE prefix");
+        assert_eq!(
+            like_or.predicates,
+            vec![DirectPredicate::Or(vec![
+                DirectPredicate::EqU64(0, 0),
+                DirectPredicate::LikeAsciiPrefix(2, "la".into()),
+            ])]
+        );
+
+        let between_like_variants = extract_direct_filtered_projection(
+            "SELECT file_id FROM classes WHERE (file_id BETWEEN 1 AND 5 AND lower(descriptor) LIKE 'La%%;') OR (class_idx BETWEEN 10 AND 2 AND descriptor LIKE '%%Init%%' AND descriptor LIKE 'La\\_%' ESCAPE '\\')",
+            &rels,
+            &no_ctes,
+            64,
+        )
+        .expect("BETWEEN + LIKE PrefixSuffix/Contains/lower/ESCAPE + nested AND inside OR");
+        assert_eq!(
+            between_like_variants.predicates,
+            vec![DirectPredicate::Or(vec![
+                DirectPredicate::And(vec![
+                    DirectPredicate::BetweenU64(0, 1, 5),
+                    DirectPredicate::LikeAsciiPrefixSuffix(2, "la".into(), ";".into()),
+                ]),
+                DirectPredicate::And(vec![
+                    DirectPredicate::BetweenU64(1, 10, 2),
+                    DirectPredicate::LikeAsciiContains(2, "init".into()),
+                    DirectPredicate::LikeAsciiPrefix(2, "la_".into()),
+                ]),
+            ])]
+        );
+
+        let mut many_or_clauses = Vec::with_capacity(120);
+        for idx in 0..120 {
+            many_or_clauses.push(format!("descriptor LIKE 'Lp{idx:03}%'"));
+        }
+        let many_or_sql = format!(
+            "SELECT file_id FROM classes WHERE {}",
+            many_or_clauses.join(" OR ")
+        );
+        let many_or = extract_direct_filtered_projection(&many_or_sql, &rels, &no_ctes, 64)
+            .expect("120-branch flat OR chain must flatten cleanly");
+        match many_or.predicates.as_slice() {
+            [DirectPredicate::Or(branches)] => assert_eq!(branches.len(), 120),
+            other => panic!("expected flattened Or(120), got {other:?}"),
+        }
+
+        // NativeV1 allows non-alphabetic ASCII LIKE, but refuses alphabetic LIKE and lower(...) LIKE.
+        let native_num_like = extract_direct_filtered_projection_with_dialect(
+            "SELECT file_id FROM classes WHERE descriptor LIKE '123%'",
+            &rels,
+            &no_ctes,
+            64,
+            SqlDialect::NativeV1,
+        )
+        .expect("NativeV1 non-alpha ASCII LIKE prefix");
+        assert_eq!(
+            native_num_like.predicates,
+            vec![DirectPredicate::LikeAsciiPrefix(2, "123".into())]
+        );
+        for native_rejected in [
+            "SELECT file_id FROM classes WHERE descriptor LIKE 'La%'",
+            "SELECT file_id FROM classes WHERE lower(descriptor) LIKE '123%'",
+            "SELECT file_id FROM classes WHERE lower(descriptor) LIKE 'la%'",
+        ] {
+            assert!(
+                extract_direct_filtered_projection_with_dialect(
+                    native_rejected,
+                    &rels,
+                    &no_ctes,
+                    64,
+                    SqlDialect::NativeV1,
+                )
+                .is_none(),
+                "NativeV1 must refuse {native_rejected}"
+            );
+        }
+
+        let u64_above_i64_max = format!(
+            "SELECT file_id FROM classes WHERE file_id = {}",
+            i64::MAX as u64 + 1
+        );
+        assert!(
+            extract_direct_filtered_projection_with_dialect(
+                &u64_above_i64_max,
+                &rels,
+                &no_ctes,
+                64,
+                SqlDialect::DexSql011,
+            )
+            .is_none(),
+            "DexSql011 must fall back on u64 literals > i64::MAX"
+        );
+        assert!(
+            extract_direct_filtered_projection_with_dialect(
+                &u64_above_i64_max,
+                &rels,
+                &no_ctes,
+                64,
+                SqlDialect::NativeV1,
+            )
+            .is_some(),
+            "NativeV1 accepts full u64 range"
+        );
+
         for rejected in [
             "SELECT file_id FROM classes",
             "SELECT (file_id) FROM classes WHERE file_id = 0",
-            "SELECT file_id FROM classes WHERE file_id = 0 OR descriptor = 'La;'",
-            "SELECT file_id FROM classes WHERE descriptor LIKE 'La%'",
+            "SELECT file_id FROM classes WHERE NOT (file_id = 0)",
+            "SELECT file_id FROM classes WHERE file_id NOT BETWEEN 1 AND 5",
+            "SELECT file_id FROM classes WHERE file_id BETWEEN -1 AND 5",
+            "SELECT file_id FROM classes WHERE file_id BETWEEN 1 AND class_idx",
+            "SELECT file_id FROM classes WHERE descriptor BETWEEN 'a' AND 'z'",
+            "SELECT file_id FROM classes WHERE descriptor NOT LIKE 'La%'",
+            "SELECT file_id FROM classes WHERE descriptor LIKE 'La_'",
+            "SELECT file_id FROM classes WHERE descriptor LIKE '%La'",
+            "SELECT file_id FROM classes WHERE descriptor LIKE 'La'",
+            "SELECT file_id FROM classes WHERE descriptor LIKE '%'",
+            "SELECT file_id FROM classes WHERE descriptor LIKE 'La%b%'",
+            "SELECT file_id FROM classes WHERE descriptor LIKE '%a%b%'",
+            "SELECT file_id FROM classes WHERE descriptor LIKE 'é%'",
+            "SELECT file_id FROM classes WHERE descriptor LIKE 'La\\' ESCAPE '\\'",
+            "SELECT file_id FROM classes WHERE descriptor LIKE 'La%' ESCAPE ''",
+            "SELECT file_id FROM classes WHERE descriptor LIKE 'La%' ESCAPE 'ab'",
+            "SELECT file_id FROM classes WHERE descriptor LIKE 'La%' ESCAPE 'é'",
+            "SELECT file_id FROM classes WHERE file_id LIKE '1%'",
+            "SELECT file_id FROM classes WHERE lower(descriptor, 'x') LIKE 'la%'",
             "SELECT file_id FROM classes WHERE file_id = -1",
             "SELECT file_id FROM classes WHERE descriptor = 123",
             "SELECT file_id FROM classes WHERE file_id = ?",
