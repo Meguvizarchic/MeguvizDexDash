@@ -2337,7 +2337,7 @@ mod tests {
         assert_eq!(filtered.order_by_group_asc, vec![0, 1]);
 
         let text_group = extract_direct_count_group_by(
-            "SELECT kind, COUNT(*) AS cnt FROM class_methods WHERE file_id BETWEEN 1 AND 3 AND (kind = 'direct' OR kind LIKE '%_v%' ESCAPE '\\') GROUP BY kind ORDER BY kind ASC",
+            "SELECT kind, COUNT(*) AS cnt FROM class_methods WHERE file_id BETWEEN 1 AND 3 AND (kind = 'direct' OR kind LIKE '%\\_v%' ESCAPE '\\') GROUP BY kind ORDER BY kind ASC",
             &rels,
             &no_ctes,
             64,

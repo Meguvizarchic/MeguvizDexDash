@@ -9076,7 +9076,10 @@ mod tests {
         let total = (CHUNK as u64) * 4 + 512;
         assert_eq!(col.sealed.len(), 5);
         assert!(matches!(col.sealed[0].payload, Payload::Plain { .. }));
-        assert!(matches!(col.sealed[1].payload, Payload::Runs { .. }));
+        assert!(matches!(
+            col.sealed[1].payload,
+            Payload::Plain { width: 0, .. }
+        ));
         assert!(matches!(col.sealed[2].payload, Payload::Runs { .. }));
         assert!(matches!(
             col.sealed[3].payload,
@@ -9516,6 +9519,7 @@ mod tests {
                 vec![SqlValue::Null, SqlValue::I64(Signed64(1))],
                 vec![SqlValue::text("La/Alpha;"), SqlValue::I64(Signed64(1))],
                 vec![SqlValue::text("La/Gamma;"), SqlValue::I64(Signed64(1))],
+                vec![SqlValue::text("Lb/Zeta;"), SqlValue::I64(Signed64(1))],
                 vec![
                     SqlValue::text("Lc/Net;->open(I)V"),
                     SqlValue::I64(Signed64(1)),

@@ -9007,7 +9007,7 @@ fn direct_expanded_predicates_and_filtered_group_by_match_sqlite_oracle() {
     let kind_prefix = toggle_ascii_case(&sample_kind[..1]);
 
     let many_or_branches: String = (0..64)
-        .map(|i| format!("descriptor LIKE 'L__nomatch_{i:02}%'"))
+        .map(|i| format!("descriptor LIKE 'Lxxnomatch{i:02}%'"))
         .chain(std::iter::once(format!("descriptor LIKE '{cls_prefix}%'")))
         .collect::<Vec<_>>()
         .join(" OR ");
