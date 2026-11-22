@@ -40,6 +40,26 @@ pub struct Occurrence {
 
 /// Lazily loaded per-DEX decode state: only the target DEX's base facts and the single requested
 /// `CodeItem` are parsed and decoded, avoiding loading or indexing all other DEXes in the dataset.
+struct AnnotationStore {
+    annotations: Option<Arc<AnnotationFacts>>,
+}
+
+struct AnnotationLookup {
+    annotation_index: Option<AnnotationIndex>,
+}
+
+struct CachedAnnotations {
+    store: AnnotationStore,
+    lookup: AnnotationLookup,
+}
+
+static EMPTY_ANNOTATIONS: CachedAnnotations = CachedAnnotations {
+    store: AnnotationStore { annotations: None },
+    lookup: AnnotationLookup {
+        annotation_index: None,
+    },
+};
+
 pub(crate) struct LazyDexDecode {
     file_id: u32,
     metadata: Arc<MetadataFacts>,
@@ -48,7 +68,7 @@ pub(crate) struct LazyDexDecode {
     annotations_validation: LayerValidation<()>,
     decoder: Mutex<Option<CodeItemDecoder<Arc<[u8]>>>>,
     fallback_code: OnceLock<Option<Arc<CodeFacts>>>,
-    annotations: OnceLock<Option<(Arc<AnnotationFacts>, AnnotationIndex)>>,
+    annotations: OnceLock<CachedAnnotations>,
 }
 
 impl LazyDexDecode {
@@ -200,25 +220,51 @@ impl LazyDexDecode {
         }
     }
 
-    fn annotations(&self) -> Option<(&AnnotationFacts, &AnnotationIndex)> {
-        if matches!(self.annotations_validation, LayerValidation::Failed) {
-            return None;
+    pub(crate) fn method_positions_for_class(&self, class_def_idx: u32) -> Vec<usize> {
+        let defs = self.definitions.definitions();
+        let mut positions: Vec<usize> = defs
+            .method_definitions
+            .iter()
+            .enumerate()
+            .filter(|(_, def)| def.class_def_idx == class_def_idx)
+            .map(|(position, _)| position)
+            .collect();
+        if positions.len() > 1 {
+            positions.sort_by_key(|&position| defs.method_definitions[position].method_idx);
         }
-        self.annotations
-            .get_or_init(|| {
-                AnnotationFacts::build_arc(
-                    Arc::clone(&self.definitions),
-                    AnnotationLimits::default(),
-                )
-                .ok()
-                .map(|facts| {
+        positions
+    }
+
+    fn annotations_parts(&self, skip: bool) -> (&AnnotationStore, &AnnotationLookup) {
+        if skip || matches!(self.annotations_validation, LayerValidation::Failed) {
+            return (&EMPTY_ANNOTATIONS.store, &EMPTY_ANNOTATIONS.lookup);
+        }
+        let cached = self.annotations.get_or_init(|| {
+            match AnnotationFacts::build_arc(
+                Arc::clone(&self.definitions),
+                AnnotationLimits::default(),
+            ) {
+                Ok(facts) => {
                     let facts = Arc::new(facts);
                     let index = AnnotationIndex::build(&facts);
-                    (facts, index)
-                })
-            })
-            .as_ref()
-            .map(|(facts, index)| (facts.as_ref(), index))
+                    CachedAnnotations {
+                        store: AnnotationStore {
+                            annotations: Some(facts),
+                        },
+                        lookup: AnnotationLookup {
+                            annotation_index: Some(index),
+                        },
+                    }
+                }
+                Err(_) => CachedAnnotations {
+                    store: AnnotationStore { annotations: None },
+                    lookup: AnnotationLookup {
+                        annotation_index: None,
+                    },
+                },
+            }
+        });
+        (&cached.store, &cached.lookup)
     }
 }
 
@@ -308,6 +354,14 @@ fn resolve_duplicate_or_ambiguous(file_ids: &[u32], duplicate_message: &str) -> 
     Failure::Ambiguous { file_ids: ids }
 }
 
+fn dex_file_range(dex_count: usize, file_id: Option<u32>) -> std::ops::Range<u32> {
+    match file_id {
+        Some(wanted) if (wanted as usize) < dex_count => wanted..wanted + 1,
+        Some(_) => 0..0,
+        None => 0..(dex_count as u32),
+    }
+}
+
 /// Find the class `descriptor` names. A descriptor defined in several DEX files names none of
 /// them: say which with `file_id`.
 pub fn select_class(
@@ -320,14 +374,13 @@ pub fn select_class(
             what: "class is not defined in the selected DEX".to_owned(),
         });
     }
+    let mut found = Vec::new();
     if let Some(matches) = dataset
         .hostlab_provider()
         .and_then(|provider| provider.find_defined_classes_by_descriptor(descriptor, file_id))
     {
-        return match matches.as_slice() {
-            [] => Err(Failure::NotFound {
-                what: "class is not defined in the selected DEX".to_owned(),
-            }),
+        match matches.as_slice() {
+            [] => {}
             [(fid, class_def_idx)] => {
                 let dex = dataset.decode_dex(*fid)?;
                 let class = dex.class_def_at(*class_def_idx).ok_or_else(|| {
@@ -337,39 +390,28 @@ pub fn select_class(
                         "a located class disappeared from DEX definitions",
                     )
                 })?;
-                Ok(LocatedClass {
-                    file_id: *fid,
-                    class,
-                })
+                found.push((*fid, class));
             }
             many => {
-                let ids: Vec<u32> = many.iter().map(|(fid, _)| *fid).collect();
-                Err(resolve_duplicate_or_ambiguous(
-                    &ids,
-                    "a DEX defines the same class more than once",
-                ))
+                for &(fid, _) in many {
+                    found.push((fid, 0));
+                }
             }
-        };
-    }
-
-    let mut found = Vec::new();
-    let range = match file_id {
-        Some(wanted) if (wanted as usize) < dataset.dex_count() => wanted..wanted + 1,
-        Some(_) => 0..0,
-        None => 0..(dataset.dex_count() as u32),
-    };
-    for fid in range {
-        let dex = dataset.decode_dex(fid)?;
-        for class in dex.find_classes_by_descriptor(descriptor) {
-            found.push((fid, class));
+        }
+    } else {
+        for fid in dex_file_range(dataset.dex_count(), file_id) {
+            let dex = dataset.decode_dex(fid)?;
+            for class in dex.find_classes_by_descriptor(descriptor) {
+                found.push((fid, class));
+            }
         }
     }
     match found.as_slice() {
         [] => Err(Failure::NotFound {
             what: "class is not defined in the selected DEX".to_owned(),
         }),
-        [(fid, class)] => Ok(LocatedClass {
-            file_id: *fid,
+        [(file_id, class)] => Ok(LocatedClass {
+            file_id: *file_id,
             class: *class,
         }),
         many => {
@@ -393,14 +435,7 @@ pub fn class_page(
     let dex = dataset.decode_dex(class.file_id)?;
     let definitions = dex.definitions.definitions();
     let class_def = &definitions.classes[class.class];
-    let mut all: Vec<usize> = definitions
-        .method_definitions
-        .iter()
-        .enumerate()
-        .filter(|(_, def)| def.class_def_idx == class_def.class_def_idx)
-        .map(|(position, _)| position)
-        .collect();
-    all.sort_by_key(|&position| definitions.method_definitions[position].method_idx);
+    let all = dex.method_positions_for_class(class_def.class_def_idx);
     let total = all.len() as u64;
     if offset > total {
         return Err(MddError::new(
@@ -489,56 +524,43 @@ pub fn select(dataset: &Dataset, selector: Selector<'_>) -> Result<Located, Fail
                     what: format!("method {descriptor} is not defined in this dataset"),
                 });
             }
+            let mut found = Vec::new();
             if let Some(matches) = dataset.hostlab_provider().and_then(|provider| {
                 provider.find_defined_methods_by_descriptor(descriptor, file_id)
             }) {
-                return match matches.as_slice() {
-                    [] => Err(Failure::NotFound {
-                        what: format!("method {descriptor} is not defined in this dataset"),
-                    }),
+                match matches.as_slice() {
+                    [] => {}
                     [(fid, midx)] => {
                         let dex = dataset.decode_dex(*fid)?;
-                        let definition = dex
+                        let position = dex
                             .find_method_def_by_idx(*midx)
                             .ok_or_else(|| not_defined(*fid, *midx))?;
-                        Ok(Located {
-                            file_id: *fid,
-                            method_idx: *midx,
-                            definition,
-                        })
+                        found.push((*fid, position));
                     }
                     many => {
-                        let ids: Vec<u32> = many.iter().map(|(fid, _)| *fid).collect();
-                        Err(resolve_duplicate_or_ambiguous(
-                            &ids,
-                            "a DEX defines the same method more than once",
-                        ))
+                        for &(fid, _) in many {
+                            found.push((fid, 0));
+                        }
                     }
-                };
-            }
-
-            let mut found = Vec::new();
-            let range = match file_id {
-                Some(wanted) if (wanted as usize) < dataset.dex_count() => wanted..wanted + 1,
-                Some(_) => 0..0,
-                None => 0..(dataset.dex_count() as u32),
-            };
-            for fid in range {
-                let dex = dataset.decode_dex(fid)?;
-                for position in dex.find_method_defs_by_descriptor(descriptor) {
-                    found.push((fid, position));
+                }
+            } else {
+                for fid in dex_file_range(dataset.dex_count(), file_id) {
+                    let dex = dataset.decode_dex(fid)?;
+                    for position in dex.find_method_defs_by_descriptor(descriptor) {
+                        found.push((fid, position));
+                    }
                 }
             }
             match found.as_slice() {
                 [] => Err(Failure::NotFound {
                     what: format!("method {descriptor} is not defined in this dataset"),
                 }),
-                [(fid, position)] => {
-                    let dex = dataset.decode_dex(*fid)?;
+                [(file_id, position)] => {
+                    let dex = dataset.decode_dex(*file_id)?;
                     let method_idx =
                         dex.definitions.definitions().method_definitions[*position].method_idx;
                     Ok(Located {
-                        file_id: *fid,
+                        file_id: *file_id,
                         method_idx,
                         definition: *position,
                     })
@@ -594,17 +616,17 @@ pub fn summarize(dataset: &Dataset, located: Located) -> MddResult<Summary> {
     let definitions = dex.definitions.definitions();
     let definition = &definitions.method_definitions[located.definition];
     let reference = &definitions.method_references[located.method_idx as usize];
-    let code = dex.decode_code_item(layers, &definition.body, false)?;
+    let code_item = dex.decode_code_item(layers, &definition.body, false)?;
+    let code = code_item.as_ref();
     Ok(Summary {
         file_id: located.file_id,
         method_idx: located.method_idx,
         descriptor: reference.descriptor.clone(),
         access_flags: definition.access_flags,
         declaration: method_declaration(reference, definition.access_flags),
-        registers: code.as_ref().map(|c| c.registers_size),
-        code_units: code.as_ref().map(|c| c.insns_size_code_units),
+        registers: code.map(|c| c.registers_size),
+        code_units: code.map(|c| c.insns_size_code_units),
         try_count: code
-            .as_ref()
             .map(|c| {
                 u16::try_from(c.tries.len()).map_err(|_| {
                     MddError::new(
@@ -636,18 +658,16 @@ pub fn render(dataset: &Dataset, located: Located, limits: SmaliLimits) -> MddRe
         .map(|pos| &definitions.classes[pos]);
     let skip_annotations = matches!(dex.annotations_validation, LayerValidation::Valid(()))
         && class_def.is_some_and(|c| c.annotations_byte_offset.is_none());
-    let (annotations, options) = if skip_annotations {
-        (
-            None,
-            SmaliOptions {
-                annotations: false,
-                parameters: true,
-                debug: true,
-            },
-        )
+    let options = if skip_annotations {
+        SmaliOptions {
+            annotations: false,
+            parameters: true,
+            debug: true,
+        }
     } else {
-        (dex.annotations(), SmaliOptions::default())
+        SmaliOptions::default()
     };
+    let (occurrence, index) = dex.annotations_parts(skip_annotations);
     let view = FullMethodView {
         method: MethodView {
             metadata: &dex.metadata,
@@ -655,7 +675,10 @@ pub fn render(dataset: &Dataset, located: Located, limits: SmaliLimits) -> MddRe
             definition,
             code: decoded.as_ref(),
         },
-        annotations,
+        annotations: occurrence
+            .annotations
+            .as_deref()
+            .zip(index.annotation_index.as_ref()),
     };
     let full = render_method_full(&view, limits, options)?;
     Ok(Decoded {
@@ -675,11 +698,15 @@ pub fn render(dataset: &Dataset, located: Located, limits: SmaliLimits) -> MddRe
 pub fn render_class_text(dataset: &Dataset, class: LocatedClass) -> MddResult<RenderedClass> {
     let dex = dataset.decode_dex(class.file_id)?;
     let definitions = dex.definitions.definitions();
+    let (occurrence, index) = dex.annotations_parts(false);
     let view = ClassView {
         metadata: &dex.metadata,
         definitions,
         class: &definitions.classes[class.class],
-        annotations: dex.annotations(),
+        annotations: occurrence
+            .annotations
+            .as_deref()
+            .zip(index.annotation_index.as_ref()),
     };
     render_class(&view, ClassLimits::default())
 }

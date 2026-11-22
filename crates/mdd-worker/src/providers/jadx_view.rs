@@ -217,7 +217,7 @@ pub fn invoke_isolated_provider(
         )
     })?;
     let cap = config.max_output_bytes;
-    let reader_handle = thread::spawn(move || -> Result<Vec<u8>, String> {
+    let mut reader_handle = Some(thread::spawn(move || -> Result<Vec<u8>, String> {
         let mut collected = Vec::new();
         let mut chunk = [0u8; 4096];
         loop {
@@ -232,37 +232,45 @@ pub fn invoke_isolated_provider(
                 Err(e) => return Err(format!("READ_ERROR: {e}")),
             }
         }
-    });
+    }));
 
     let deadline = Duration::from_millis(config.timeout_ms.max(1));
     let started = Instant::now();
+    let mut finished_output: Option<Result<Vec<u8>, String>> = None;
     let status = loop {
         match child.try_wait() {
             Ok(Some(status)) => break status,
             Ok(None) => {
-                if reader_handle.is_finished() {
-                    // If reader aborted early due to output cap, reap child immediately.
-                    if let Ok(Err(reason)) = reader_handle.join()
-                        && reason == "OUTPUT_LIMIT_EXCEEDED"
-                    {
-                        kill_and_reap(&mut child);
-                        return Err(MddError::new(
-                            ErrorCode::QuotaExceeded,
-                            "worker.provider",
-                            "isolated provider stdout exceeded max_output_bytes budget",
-                        )
-                        .detail("reason", "OUTPUT_LIMIT_EXCEEDED"));
+                if let Some(handle) = reader_handle.take_if(|h| h.is_finished()) {
+                    match handle.join() {
+                        Ok(Ok(bytes)) => {
+                            // Stdout EOF can arrive slightly before the OS marks the child exited.
+                            finished_output = Some(Ok(bytes));
+                        }
+                        Ok(Err(reason)) if reason == "OUTPUT_LIMIT_EXCEEDED" => {
+                            kill_and_reap(&mut child);
+                            return Err(MddError::new(
+                                ErrorCode::QuotaExceeded,
+                                "worker.provider",
+                                "isolated provider stdout exceeded max_output_bytes budget",
+                            )
+                            .detail("reason", "OUTPUT_LIMIT_EXCEEDED"));
+                        }
+                        Ok(Err(_)) | Err(_) => {
+                            kill_and_reap(&mut child);
+                            return Err(MddError::new(
+                                ErrorCode::InternalFault,
+                                "worker.provider",
+                                "isolated provider output stream failed",
+                            ));
+                        }
                     }
-                    kill_and_reap(&mut child);
-                    return Err(MddError::new(
-                        ErrorCode::InternalFault,
-                        "worker.provider",
-                        "isolated provider output stream failed",
-                    ));
                 }
                 if started.elapsed() >= deadline {
                     kill_and_reap(&mut child);
-                    let _ = reader_handle.join();
+                    if let Some(handle) = reader_handle.take() {
+                        let _ = handle.join();
+                    }
                     return Err(MddError::new(
                         ErrorCode::DeadlineExceeded,
                         "worker.provider",
@@ -274,7 +282,9 @@ pub fn invoke_isolated_provider(
             }
             Err(e) => {
                 kill_and_reap(&mut child);
-                let _ = reader_handle.join();
+                if let Some(handle) = reader_handle.take() {
+                    let _ = handle.join();
+                }
                 return Err(MddError::new(
                     ErrorCode::InternalFault,
                     "worker.provider",
@@ -284,13 +294,25 @@ pub fn invoke_isolated_provider(
         }
     };
 
-    let output = reader_handle.join().map_err(|_| {
-        MddError::new(
-            ErrorCode::InternalFault,
-            "worker.provider",
-            "provider stdout reader panicked",
-        )
-    })?;
+    let output = match finished_output {
+        Some(out) => out,
+        None => match reader_handle.take() {
+            Some(handle) => handle.join().map_err(|_| {
+                MddError::new(
+                    ErrorCode::InternalFault,
+                    "worker.provider",
+                    "provider stdout reader panicked",
+                )
+            })?,
+            None => {
+                return Err(MddError::new(
+                    ErrorCode::InternalFault,
+                    "worker.provider",
+                    "provider stdout reader state missing",
+                ));
+            }
+        },
+    };
     let bytes = match output {
         Ok(b) => b,
         Err(reason) if reason == "OUTPUT_LIMIT_EXCEEDED" => {
