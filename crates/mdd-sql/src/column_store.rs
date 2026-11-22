@@ -6689,7 +6689,8 @@ mod tests {
     #[test]
     fn int_column_collect_matching_covers_all_widths_runs_nulls_and_bitset() {
         // Test width 0, 1, 2, 4, 8 plain chunks and Runs chunks, plus subranges and NULLs.
-        let plain_cases: Vec<(u64, Vec<Option<u64>>, u64, u64, Vec<u64>, Vec<u32>)> = vec![
+        type IntMatchCase = (u64, Vec<Option<u64>>, u64, u64, Vec<u64>, Vec<u32>);
+        let plain_cases: Vec<IntMatchCase> = vec![
             // width 0 (constant chunk with NULL at row 2)
             (
                 0,

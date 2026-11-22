@@ -345,7 +345,7 @@ impl OccurrenceLoader for LayerBuilder {
         } else {
             LayerValidation::Failed
         };
-        let mut upper = || -> MddResult<_> {
+        let upper = || -> MddResult<_> {
             let built_code = Arc::clone(compact_code.as_ref().map_err(Clone::clone)?);
             if opt_parallel {
                 let (references, annotations) = std::thread::scope(|scope| {

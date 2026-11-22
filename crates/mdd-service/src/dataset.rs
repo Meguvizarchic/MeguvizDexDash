@@ -140,6 +140,13 @@ pub struct Dataset {
     pub(crate) resources: Mutex<crate::resources::ResourceCache>,
 }
 
+struct BuiltSqlBridge {
+    bridge: SqlBridge,
+    layer_issues: Vec<LayerIssue>,
+    layers: Option<Arc<LayerBuilder>>,
+    hostlab_provider: Option<Arc<HostLabSqlProvider>>,
+}
+
 impl Dataset {
     pub fn open(
         inputs: &[InputRequest],
@@ -201,8 +208,16 @@ impl Dataset {
         // No DEX, no SQL: the facts every relation reads do not exist, and an empty provider
         // would answer "no rows" where the truth is "nothing to ask".
         let built = (dex_count > 0).then(|| match dialect {
-            Dialect::NativeV1 => Self::native_bridge(&snapshot, &inventories, sql_limits)
-                .map(|bridge| (bridge, Vec::new(), None, None)),
+            Dialect::NativeV1 => {
+                Self::native_bridge(&snapshot, &inventories, sql_limits).map(|bridge| {
+                    BuiltSqlBridge {
+                        bridge,
+                        layer_issues: Vec::new(),
+                        layers: None,
+                        hostlab_provider: None,
+                    }
+                })
+            }
             Dialect::DexSql010 | Dialect::DexSql011 => Self::contract_bridge(
                 dialect,
                 &snapshot,
@@ -224,7 +239,12 @@ impl Dataset {
         let snapshot_handle = lifecycle.register_snapshot(Arc::clone(&snapshot))?;
         let session = lifecycle.open_session(&snapshot_handle, limits)?;
         let (temp, layer_issues, layers, hostlab_provider) = match built {
-            Some((bridge, layer_issues, layers, provider)) => (
+            Some(BuiltSqlBridge {
+                bridge,
+                layer_issues,
+                layers,
+                hostlab_provider,
+            }) => (
                 Some(TempSqlSession::new(
                     Arc::clone(&lifecycle),
                     session.clone(),
@@ -232,7 +252,7 @@ impl Dataset {
                 )?),
                 layer_issues,
                 layers,
-                provider,
+                hostlab_provider,
             ),
             None => (None, Vec::new(), None, None),
         };
@@ -299,12 +319,7 @@ impl Dataset {
         scope: &SelectedScope,
         sql_limits: SqlLimits,
         non_scalar_text_policy: NonScalarTextPolicy,
-    ) -> MddResult<(
-        SqlBridge,
-        Vec<LayerIssue>,
-        Option<Arc<LayerBuilder>>,
-        Option<Arc<HostLabSqlProvider>>,
-    )> {
+    ) -> MddResult<BuiltSqlBridge> {
         let layers = Arc::new(LayerBuilder::new(
             Arc::clone(snapshot),
             Arc::clone(inventories),
@@ -323,7 +338,12 @@ impl Dataset {
         provider.prepare_required(None)?;
         let provider_handle = Arc::clone(&provider);
         let bridge = SqlBridge::new(provider, dialect.sql(), sql_limits)?;
-        Ok((bridge, layers.issues(), Some(layers), Some(provider_handle)))
+        Ok(BuiltSqlBridge {
+            bridge,
+            layer_issues: layers.issues(),
+            layers: Some(layers),
+            hostlab_provider: Some(provider_handle),
+        })
     }
 
     /// The session's SQL front, for callers that run TEMP definitions and windows. A dataset

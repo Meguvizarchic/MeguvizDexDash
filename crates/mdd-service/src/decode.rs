@@ -914,7 +914,7 @@ mod tests {
                     .unwrap();
                 Some(code_facts.decoded_item(ordinal).unwrap().into_owned())
             }
-            MethodBody::Absent { .. } => None,
+            MethodBody::Abstract | MethodBody::Native => None,
         };
         let ann_idx = occ.annotations.as_deref().map(AnnotationIndex::build);
         let expected_full = render_method_full(
