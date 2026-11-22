@@ -1065,13 +1065,7 @@ fn lease_for_fast_path<'a>(
     dataset: &'a Dataset,
     layers: &'a LayerBuilder,
     file_id: u32,
-) -> MddResult<
-    Option<(
-        DexLeaseGuard<'a>,
-        &'a ValidatedCodeMeta,
-        LayerValidation<()>,
-    )>,
-> {
+) -> MddResult<Option<(DexLeaseGuard<'a>, ValidatedCodeMeta, LayerValidation<()>)>> {
     let Ok(position) = usize::try_from(file_id) else {
         return Ok(None);
     };
@@ -2160,7 +2154,7 @@ fn fast_summarize_method(
     let Some(reference) = pools.method_reference(method_idx) else {
         return Ok(None);
     };
-    let code_item = decode_fast_code_item(&guard, &layout, meta, &entry.body, false)?;
+    let code_item = decode_fast_code_item(&guard, &layout, &meta, &entry.body, false)?;
     build_summary(
         file_id,
         method_idx,
@@ -2204,7 +2198,7 @@ fn fast_render_method(
     let Some(reference) = pools.method_reference(method_idx) else {
         return Ok(None);
     };
-    let code_item = decode_fast_code_item(&guard, &layout, meta, &entry.body, true)?;
+    let code_item = decode_fast_code_item(&guard, &layout, &meta, &entry.body, true)?;
     let (extras, report) = build_fast_extras(
         &reference,
         entry.access_flags,
@@ -2566,7 +2560,7 @@ mod tests {
                 assert_eq!(fast.stage, lazy.stage, "{context}");
                 assert_eq!(fast.message, lazy.message, "{context}");
             }
-            (fast, lazy) => panic!("{context} render parity mismatch"),
+            (_fast, _lazy) => panic!("{context} render parity mismatch"),
         }
     }
 

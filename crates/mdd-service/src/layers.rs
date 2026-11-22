@@ -39,8 +39,8 @@ pub(crate) struct LayerBuilder {
 
 #[derive(Clone)]
 pub(crate) struct ValidatedCodeMeta {
-    pub(crate) declared_code_offsets: Box<[u32]>,
-    pub(crate) debug_starts: Box<[u32]>,
+    pub(crate) declared_code_offsets: Arc<[u32]>,
+    pub(crate) debug_starts: Arc<[u32]>,
 }
 
 #[derive(Clone, Default)]
@@ -318,8 +318,8 @@ fn validate_code_meta(code: &CodeFacts) -> LayerValidation<ValidatedCodeMeta> {
     offsets.sort_unstable();
     debug_starts.sort_unstable();
     LayerValidation::Valid(ValidatedCodeMeta {
-        declared_code_offsets: offsets.into_boxed_slice(),
-        debug_starts: debug_starts.into_boxed_slice(),
+        declared_code_offsets: Arc::from(offsets),
+        debug_starts: Arc::from(debug_starts),
     })
 }
 
