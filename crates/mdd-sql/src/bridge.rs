@@ -936,14 +936,19 @@ impl SqlBridge {
             .collect::<BTreeSet<_>>()
             .into_iter()
             .collect();
-        let allow_direct = adapted.parameters.is_empty()
+        let allow_direct_unfiltered = adapted.parameters.is_empty()
             && adapted.cte_names.is_empty()
             && adapted.display_overrides.is_empty();
-        let direct_projection = allow_direct.then_some(adapted.direct_projection).flatten();
-        let direct_filtered_projection = allow_direct
+        let allow_direct_filtered = parameters.is_empty()
+            && adapted.cte_names.is_empty()
+            && adapted.display_overrides.is_empty();
+        let direct_projection = allow_direct_unfiltered
+            .then_some(adapted.direct_projection)
+            .flatten();
+        let direct_filtered_projection = allow_direct_filtered
             .then_some(adapted.direct_filtered_projection)
             .flatten();
-        let direct_count_group_by = allow_direct
+        let direct_count_group_by = allow_direct_unfiltered
             .then_some(adapted.direct_count_group_by)
             .flatten();
         let prepared = PreparedSql {
@@ -1346,8 +1351,7 @@ impl SqlBridge {
         for name in &prepared.required_relations {
             prepared.provider.require_relation(name)?;
         }
-        if prepared.parameters.is_empty()
-            && prepared.temp_fingerprint.is_none()
+        if prepared.temp_fingerprint.is_none()
             && control.runtime().is_none()
             && crate::column_store::sql_scan_opt_enabled()
         {
@@ -1362,7 +1366,8 @@ impl SqlBridge {
                     direct_projection_columns(&filtered_plan.projected_columns, prepared.dialect);
                 return stream_direct_rows(prepared, &control, columns, rows, consumer);
             }
-            if let Some(group_plan) = prepared.direct_count_group_by.as_ref()
+            if prepared.parameters.is_empty()
+                && let Some(group_plan) = prepared.direct_count_group_by.as_ref()
                 && let Some(result_rows) = prepared
                     .provider
                     .try_direct_count_group_by(group_plan, &control)
@@ -1460,8 +1465,7 @@ impl SqlBridge {
         for name in &prepared.required_relations {
             prepared.provider.require_relation(name)?;
         }
-        if prepared.parameters.is_empty()
-            && prepared.temp_fingerprint.is_none()
+        if prepared.temp_fingerprint.is_none()
             && control.runtime().is_none()
             && crate::column_store::sql_scan_opt_enabled()
         {
@@ -1476,7 +1480,7 @@ impl SqlBridge {
                     direct_projection_columns(&filtered.projected_columns, prepared.dialect);
                 return finish_direct_sql_result(prepared, &control, columns, rows, window_report);
             }
-            if window.is_none() {
+            if prepared.parameters.is_empty() && window.is_none() {
                 if let Some(direct) = prepared.direct_projection.as_ref()
                     && let Some(result_rows) =
                         prepared.provider.try_direct_projection(direct, &control)

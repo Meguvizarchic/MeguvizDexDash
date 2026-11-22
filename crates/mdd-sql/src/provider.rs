@@ -216,13 +216,15 @@ pub struct DirectOrderItem {
     pub descending: bool,
 }
 
-/// Direct single-table filtered projection with optional ordering and windowing.
+/// Direct single-table filtered projection with optional ordering, LIMIT/OFFSET, and windowing.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DirectFilteredProjection {
     pub relation: String,
     pub projected_columns: Vec<(usize, String)>,
     pub predicates: Vec<DirectPredicate>,
     pub order_by: Vec<DirectOrderItem>,
+    pub limit: Option<u64>,
+    pub offset: u64,
 }
 
 /// Output projection item for an unfiltered single-table `GROUP BY ... COUNT(*)`.

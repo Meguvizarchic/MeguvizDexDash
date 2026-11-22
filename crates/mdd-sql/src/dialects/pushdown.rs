@@ -41,10 +41,11 @@ fn extract_plain_single_table<'a>(
     root: &'a Query,
     relations: &'a [SqlRelation],
     cte_names: &BTreeSet<String>,
+    allow_limit: bool,
 ) -> Option<(&'a Select, &'a SqlRelation, String)> {
     if relations.is_empty()
         || root.with.is_some()
-        || root.limit_clause.is_some()
+        || (!allow_limit && root.limit_clause.is_some())
         || root.fetch.is_some()
         || !root.locks.is_empty()
         || root.settings.is_some()
@@ -156,7 +157,7 @@ pub(crate) fn extract_direct_projection_from_query(
     relations: &[SqlRelation],
     cte_names: &BTreeSet<String>,
 ) -> Option<DirectTableProjection> {
-    let (select, rel, qualifier) = extract_plain_single_table(root, relations, cte_names)?;
+    let (select, rel, qualifier) = extract_plain_single_table(root, relations, cte_names, false)?;
     if select.selection.is_some() || !has_empty_group_by(select) {
         return None;
     }
@@ -247,7 +248,7 @@ pub(crate) fn extract_direct_filtered_projection_from_query(
     relations: &[SqlRelation],
     cte_names: &BTreeSet<String>,
 ) -> Option<DirectFilteredProjection> {
-    let (select, rel, qualifier) = extract_plain_single_table(root, relations, cte_names)?;
+    let (select, rel, qualifier) = extract_plain_single_table(root, relations, cte_names, true)?;
     if !has_empty_group_by(select) {
         return None;
     }
@@ -416,11 +417,43 @@ pub(crate) fn extract_direct_filtered_projection_from_query(
         }
     };
 
+    let parse_i64_nonneg = |expr: &Expr| -> Option<u64> {
+        let v = parse_u64_lit(expr)?;
+        i64::try_from(v).ok()?;
+        Some(v)
+    };
+    let (limit, offset) = match &root.limit_clause {
+        None => (None, 0u64),
+        Some(LimitClause::LimitOffset {
+            limit,
+            offset,
+            limit_by,
+        }) => {
+            if !limit_by.is_empty() {
+                return None;
+            }
+            let limit_val = match limit {
+                Some(expr) => Some(parse_i64_nonneg(expr)?),
+                None => return None,
+            };
+            let offset_val = match offset {
+                None => 0u64,
+                Some(off) => parse_i64_nonneg(&off.value)?,
+            };
+            (limit_val, offset_val)
+        }
+        Some(LimitClause::OffsetCommaLimit { offset, limit }) => {
+            (Some(parse_i64_nonneg(limit)?), parse_i64_nonneg(offset)?)
+        }
+    };
+
     Some(DirectFilteredProjection {
         relation: rel.name.clone(),
         projected_columns,
         predicates,
         order_by,
+        limit,
+        offset,
     })
 }
 
@@ -472,7 +505,7 @@ pub(crate) fn extract_direct_count_group_by_from_query(
     relations: &[SqlRelation],
     cte_names: &BTreeSet<String>,
 ) -> Option<DirectCountGroupBy> {
-    let (select, rel, qualifier) = extract_plain_single_table(root, relations, cte_names)?;
+    let (select, rel, qualifier) = extract_plain_single_table(root, relations, cte_names, false)?;
     if select.selection.is_some() {
         return None;
     }
@@ -2046,6 +2079,44 @@ mod tests {
                 descending: true
             }]
         );
+        assert_eq!(fused.limit, None);
+        assert_eq!(fused.offset, 0);
+
+        let lim = extract_direct_filtered_projection(
+            "SELECT file_id FROM classes WHERE descriptor = 'La;' LIMIT 10",
+            &rels,
+            &no_ctes,
+            64,
+        )
+        .expect("LIMIT 10");
+        assert_eq!((lim.limit, lim.offset), (Some(10), 0));
+
+        let lim_off = extract_direct_filtered_projection(
+            "SELECT file_id FROM classes WHERE descriptor = 'La;' LIMIT 5 OFFSET 2",
+            &rels,
+            &no_ctes,
+            64,
+        )
+        .expect("LIMIT 5 OFFSET 2");
+        assert_eq!((lim_off.limit, lim_off.offset), (Some(5), 2));
+
+        let comma_lim = extract_direct_filtered_projection(
+            "SELECT file_id FROM classes WHERE descriptor = 'La;' LIMIT 2, 5",
+            &rels,
+            &no_ctes,
+            64,
+        )
+        .expect("LIMIT 2, 5");
+        assert_eq!((comma_lim.limit, comma_lim.offset), (Some(5), 2));
+
+        let lim_zero = extract_direct_filtered_projection(
+            "SELECT file_id FROM classes WHERE descriptor = 'La;' LIMIT 0",
+            &rels,
+            &no_ctes,
+            64,
+        )
+        .expect("LIMIT 0");
+        assert_eq!((lim_zero.limit, lim_zero.offset), (Some(0), 0));
 
         for rejected in [
             "SELECT file_id FROM classes",
@@ -2056,7 +2127,8 @@ mod tests {
             "SELECT file_id FROM classes WHERE descriptor = 123",
             "SELECT file_id FROM classes WHERE file_id = ?",
             "SELECT DISTINCT file_id FROM classes WHERE descriptor = 'La;'",
-            "SELECT file_id FROM classes WHERE descriptor = 'La;' LIMIT 10",
+            "SELECT file_id FROM classes WHERE descriptor = 'La;' LIMIT -1",
+            "SELECT file_id FROM classes WHERE descriptor = 'La;' LIMIT ?",
             "SELECT file_id FROM classes WHERE descriptor = 'La;' GROUP BY file_id",
             "SELECT file_id AS x, class_idx AS x FROM classes WHERE descriptor = 'La;' ORDER BY x",
             "SELECT class_idx AS file_id FROM classes WHERE descriptor = 'La;' ORDER BY file_id",

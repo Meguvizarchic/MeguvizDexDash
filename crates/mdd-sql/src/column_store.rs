@@ -3451,7 +3451,13 @@ impl RelationStore {
 
         let matched = self.exact_lookup_rows(&plan.predicates, true)?;
         let total_count = matched.len() as u64;
-        if !plan.order_by.is_empty() && total_count > 65_536 {
+        let sql_start = plan.offset.min(total_count);
+        let sql_end = match plan.limit {
+            Some(lim) => sql_start.saturating_add(lim).min(total_count),
+            None => total_count,
+        };
+        let sql_total = sql_end - sql_start;
+        if sql_total > 0 && !plan.order_by.is_empty() && total_count > 65_536 {
             return None;
         }
 
@@ -3476,7 +3482,7 @@ impl RelationStore {
                     }
                 };
 
-            if total_count == 0 {
+            if sql_total == 0 {
                 let (_, _, report) = compute_window(0)?;
                 return Ok((Vec::new(), report));
             }
@@ -3524,12 +3530,14 @@ impl RelationStore {
                     }
                     keys.push(row_keys);
                 }
-                let (w_start, w_end, report) = compute_window(total_count)?;
+                let (w_start, w_end, report) = compute_window(sql_total)?;
+                let abs_start = (sql_start as usize) + w_start;
+                let abs_end = (sql_start as usize) + w_end;
                 let mut out = Vec::new();
-                out.try_reserve_exact(w_end.saturating_sub(w_start))
+                out.try_reserve_exact(abs_end.saturating_sub(abs_start))
                     .map_err(|_| crate::quota("SQL_RESULT_ALLOCATION"))?;
                 if already_sorted {
-                    for &row in &rows[w_start..w_end] {
+                    for &row in &rows[abs_start..abs_end] {
                         out.push(self.materialize_direct_row(
                             &plan.projected_columns,
                             u64::from(row),
@@ -3553,7 +3561,7 @@ impl RelationStore {
                             rows[a].cmp(&rows[b])
                         }
                     });
-                    for &idx in &order[w_start..w_end] {
+                    for &idx in &order[abs_start..abs_end] {
                         out.push(self.materialize_direct_row(
                             &plan.projected_columns,
                             u64::from(rows[idx]),
@@ -3567,24 +3575,27 @@ impl RelationStore {
             }
 
             let scanned = match window {
-                Some(w) if !w.counts_total() => w
-                    .offset()
-                    .saturating_add(w.limit())
-                    .saturating_add(1)
-                    .min(total_count),
-                _ => total_count,
+                Some(w) if !w.counts_total() => sql_start.saturating_add(
+                    w.offset()
+                        .saturating_add(w.limit())
+                        .saturating_add(1)
+                        .min(sql_total),
+                ),
+                _ => sql_end,
             };
             for _ in 0..scanned {
                 control.checkpoint(1, true)?;
             }
-            let (w_start, w_end, report) = compute_window(total_count)?;
+            let (w_start, w_end, report) = compute_window(sql_total)?;
+            let abs_start = (sql_start as usize) + w_start;
+            let abs_end = (sql_start as usize) + w_end;
             let mut out = Vec::new();
-            out.try_reserve_exact(w_end.saturating_sub(w_start))
+            out.try_reserve_exact(abs_end.saturating_sub(abs_start))
                 .map_err(|_| crate::quota("SQL_RESULT_ALLOCATION"))?;
             match matched {
                 ExactRowSet::Range(lo, _) => {
-                    let row_start = lo + w_start as u64;
-                    let row_end = lo + w_end as u64;
+                    let row_start = lo + abs_start as u64;
+                    let row_end = lo + abs_end as u64;
                     for row in row_start..row_end {
                         out.push(self.materialize_direct_row(
                             &plan.projected_columns,
@@ -3596,7 +3607,7 @@ impl RelationStore {
                     }
                 }
                 ExactRowSet::Slice(slice) => {
-                    for &row in &slice[w_start..w_end] {
+                    for &row in &slice[abs_start..abs_end] {
                         out.push(self.materialize_direct_row(
                             &plan.projected_columns,
                             u64::from(row),
@@ -3607,7 +3618,7 @@ impl RelationStore {
                     }
                 }
                 ExactRowSet::Owned(rows) => {
-                    for &row in &rows[w_start..w_end] {
+                    for &row in &rows[abs_start..abs_end] {
                         out.push(self.materialize_direct_row(
                             &plan.projected_columns,
                             u64::from(row),
@@ -6975,6 +6986,8 @@ mod tests {
                     descending: false,
                 },
             ],
+            limit: None,
+            offset: 0,
         };
         let win = crate::window::SqlWindow::new(1, 2)
             .unwrap()
@@ -7046,5 +7059,54 @@ mod tests {
         let empty_rep = empty_rep.unwrap();
         assert!(!empty_rep.truncated);
         assert_eq!(empty_rep.total_rows, Some(0));
+
+        // SQL LIMIT/OFFSET combined with SqlWindow slices the post-LIMIT statement result.
+        let plan_lim = crate::provider::DirectFilteredProjection {
+            limit: Some(2),
+            offset: 1,
+            ..plan_asc.clone()
+        };
+        let (lim_rows, lim_rep) = store
+            .direct_filtered_projection(
+                &plan_lim,
+                &control(),
+                Some(
+                    crate::window::SqlWindow::new(0, 1)
+                        .unwrap()
+                        .counting_total(),
+                ),
+            )
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            lim_rows,
+            vec![vec![SqlValue::text(suppl), SqlValue::I64(Signed64(-5))]]
+        );
+        let lim_rep = lim_rep.unwrap();
+        assert!(lim_rep.truncated);
+        assert_eq!(lim_rep.next_offset, Some(1));
+        assert_eq!(lim_rep.total_rows, Some(2));
+
+        let plan_zero = crate::provider::DirectFilteredProjection {
+            limit: Some(0),
+            offset: 0,
+            ..plan_asc
+        };
+        let (zero_rows, zero_rep) = store
+            .direct_filtered_projection(
+                &plan_zero,
+                &control(),
+                Some(
+                    crate::window::SqlWindow::new(0, 10)
+                        .unwrap()
+                        .counting_total(),
+                ),
+            )
+            .unwrap()
+            .unwrap();
+        assert!(zero_rows.is_empty());
+        let zero_rep = zero_rep.unwrap();
+        assert!(!zero_rep.truncated);
+        assert_eq!(zero_rep.total_rows, Some(0));
     }
 }

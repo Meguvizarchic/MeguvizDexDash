@@ -8719,6 +8719,14 @@ fn direct_filtered_projection_matches_sqlite_oracle_windowed_and_streamed() {
             "SELECT file_id, descriptor FROM classes WHERE file_id IN (0, 1, 99) ORDER BY superclass_descriptor ASC, file_id ASC, class_def_idx ASC".to_owned(),
             "SELECT file_id, descriptor FROM (SELECT * FROM classes WHERE 1=1) WHERE file_id IN (0, 1, 99) ORDER BY superclass_descriptor ASC, file_id ASC, class_def_idx ASC".to_owned(),
         ),
+        (
+            format!("SELECT file_id, descriptor FROM classes WHERE descriptor = '{sample_class}' ORDER BY file_id LIMIT 1001"),
+            format!("SELECT file_id, descriptor FROM (SELECT * FROM classes WHERE 1=1) WHERE descriptor = '{sample_class}' ORDER BY file_id LIMIT 1001"),
+        ),
+        (
+            "SELECT file_id, descriptor FROM classes WHERE file_id IN (0, 1, 99) ORDER BY superclass_descriptor ASC, file_id ASC, class_def_idx ASC LIMIT 2 OFFSET 1".to_owned(),
+            "SELECT file_id, descriptor FROM (SELECT * FROM classes WHERE 1=1) WHERE file_id IN (0, 1, 99) ORDER BY superclass_descriptor ASC, file_id ASC, class_def_idx ASC LIMIT 2 OFFSET 1".to_owned(),
+        ),
     ];
 
     for dialect in [SqlDialect::NativeV1, SqlDialect::DexSql011] {
