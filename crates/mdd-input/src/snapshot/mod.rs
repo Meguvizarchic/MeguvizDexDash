@@ -862,7 +862,7 @@ mod tests {
         let mut input = spec(path);
         input.expected_sha256 = Some("0".repeat(64));
         assert_eq!(
-            Snapshot::capture(&[input.clone()], CaptureLimits::default())
+            Snapshot::capture(std::slice::from_ref(&input), CaptureLimits::default())
                 .err()
                 .unwrap()
                 .code,
@@ -943,7 +943,7 @@ mod tests {
             expected_sha256: Some(sha256(&apk)),
         };
         let in_mem = Snapshot::capture_with_spill_threshold(
-            &[input.clone()],
+            std::slice::from_ref(&input),
             CaptureLimits::default(),
             None,
         )
