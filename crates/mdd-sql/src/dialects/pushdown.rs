@@ -322,10 +322,9 @@ pub(crate) fn extract_direct_filtered_projection_from_query(
                 }
                 let (col_idx, lit) = if let Some(idx) = resolve_plain_col(rel, &qualifier, left) {
                     (idx, right)
-                } else if let Some(idx) = resolve_plain_col(rel, &qualifier, right) {
-                    (idx, left)
                 } else {
-                    return None;
+                    let idx = resolve_plain_col(rel, &qualifier, right)?;
+                    (idx, left)
                 };
                 let pred = match rel.columns[col_idx].data_type {
                     SqlType::U64 => DirectPredicate::EqU64(col_idx, parse_u64_lit(lit)?),

@@ -8671,30 +8671,30 @@ fn direct_filtered_projection_matches_sqlite_oracle_windowed_and_streamed() {
         SqlValue::Text(t) => t.strict_utf8().unwrap(),
         other => panic!("expected text, got {other:?}"),
     };
-    let cm_row = &probe_bridge
+    let cm_res = probe_bridge
         .execute(
             &probe_bridge
                 .prepare("SELECT class_descriptor, method_name FROM class_methods WHERE 1=1 ORDER BY file_id, method_idx LIMIT 1")
                 .unwrap(),
             SqlControl::new(SqlLimits::default(), None),
         )
-        .unwrap()
-        .rows()[0];
+        .unwrap();
+    let cm_row = &cm_res.rows()[0];
     let (cm_cls, cm_name) = match (&cm_row[0], &cm_row[1]) {
         (SqlValue::Text(a), SqlValue::Text(b)) => {
             (a.strict_utf8().unwrap(), b.strict_utf8().unwrap())
         }
         other => panic!("expected text pair, got {other:?}"),
     };
-    let cf_row = &probe_bridge
+    let cf_res = probe_bridge
         .execute(
             &probe_bridge
                 .prepare("SELECT class_descriptor, field_name FROM class_fields WHERE 1=1 ORDER BY file_id, field_idx LIMIT 1")
                 .unwrap(),
             SqlControl::new(SqlLimits::default(), None),
         )
-        .unwrap()
-        .rows()[0];
+        .unwrap();
+    let cf_row = &cf_res.rows()[0];
     let (cf_cls, cf_name) = match (&cf_row[0], &cf_row[1]) {
         (SqlValue::Text(a), SqlValue::Text(b)) => {
             (a.strict_utf8().unwrap(), b.strict_utf8().unwrap())
