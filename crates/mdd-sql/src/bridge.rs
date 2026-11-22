@@ -104,6 +104,27 @@ impl PreparedCacheEntry {
     }
 }
 
+struct SchemaCacheEntry {
+    binding: SqlBinding,
+    visibility: Vec<&'static str>,
+    schema: Arc<crate::dialects::ast::PreparedSchema>,
+}
+
+fn schema_visibility_key(dialect: SqlDialect) -> Vec<&'static str> {
+    #[cfg(test)]
+    {
+        crate::profiles::compatibility::advertised_relations(dialect)
+            .into_iter()
+            .map(|relation| relation.name())
+            .collect()
+    }
+    #[cfg(not(test))]
+    {
+        let _ = dialect;
+        Vec::new()
+    }
+}
+
 pub struct SqlBridge {
     provider: Arc<dyn SqlFactProvider>,
     dialect: SqlDialect,
@@ -114,7 +135,7 @@ pub struct SqlBridge {
     /// Registry that must outlive a single query for a block to be enforced.
     profiles: Option<Arc<CompatibilityProfileRegistry>>,
     prepare_cache: Mutex<VecDeque<(PreparedCacheKey, PreparedCacheEntry)>>,
-    schema_cache: Mutex<Option<(SqlBinding, Arc<crate::dialects::ast::PreparedSchema>)>>,
+    schema_cache: Mutex<Option<SchemaCacheEntry>>,
 }
 pub struct PreparedSql {
     binding: SqlBinding,
@@ -815,14 +836,16 @@ impl SqlBridge {
     fn validated_schema(
         &self,
         binding: &SqlBinding,
+        visibility: &[&'static str],
         use_cache: bool,
     ) -> MddResult<(Arc<crate::dialects::ast::PreparedSchema>, bool)> {
         if use_cache
             && let Ok(guard) = self.schema_cache.lock()
-            && let Some((cached_binding, schema)) = guard.as_ref()
-            && cached_binding == binding
+            && let Some(entry) = guard.as_ref()
+            && entry.binding == *binding
+            && entry.visibility.as_slice() == visibility
         {
-            return Ok((Arc::clone(schema), true));
+            return Ok((Arc::clone(&entry.schema), true));
         }
         // A frozen relation the dialect does not advertise is not in the schema the statement is bound against.
         let relations = crate::profiles::compatibility::visible_relations(
@@ -901,7 +924,9 @@ impl SqlBridge {
             cache.push_back((k, entry));
             return Ok(prepared);
         }
-        let (schema, schema_from_cache) = self.validated_schema(&binding, memo_enabled)?;
+        let visibility = schema_visibility_key(self.dialect);
+        let (schema, schema_from_cache) =
+            self.validated_schema(&binding, &visibility, memo_enabled)?;
         let adapted = match crate::dialects::ast::adapt_with_schema(
             sql,
             self.limits,
@@ -1007,7 +1032,11 @@ impl SqlBridge {
             && prepared.binding == binding
             && let Ok(mut guard) = self.schema_cache.lock()
         {
-            *guard = Some((binding.clone(), Arc::clone(&schema)));
+            *guard = Some(SchemaCacheEntry {
+                binding: binding.clone(),
+                visibility,
+                schema: Arc::clone(&schema),
+            });
         }
         if memo_active
             && prepared.binding == binding
