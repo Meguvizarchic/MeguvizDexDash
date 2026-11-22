@@ -8530,3 +8530,269 @@ fn hostlab_direct_count_group_by_matches_sqlite_and_streams_identically() {
         }
     }
 }
+
+#[test]
+fn direct_filtered_projection_matches_sqlite_oracle_windowed_and_streamed() {
+    use mdd_dex::{definitions::DefinitionLimits, strings::StringLimits};
+    use mdd_facts::{DefinitionFacts, MetadataFacts, indexes::SelectedScope};
+    use mdd_input::{
+        archive::{ArchiveInventory, ArchiveLimits, InventoryPolicy},
+        snapshot::{CaptureLimits, InputKind, InputSpec, Snapshot},
+    };
+    use mdd_types::DecimalU64;
+
+    let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let specs = ["definitions-035.dex", "classic-035.dex"]
+        .into_iter()
+        .map(|name| InputSpec {
+            path: root
+                .join("tests/fixtures")
+                .join(if name.starts_with("def") {
+                    format!("definitions/generated/{name}")
+                } else {
+                    format!("references/generated/{name}")
+                }),
+            kind: InputKind::RawDex,
+            expected_sha256: None,
+        })
+        .collect::<Vec<_>>();
+    let snapshot = Arc::new(Snapshot::capture(&specs, CaptureLimits::default()).unwrap());
+    let inventories: Vec<ArchiveInventory> = snapshot
+        .sources()
+        .iter()
+        .map(|source| {
+            ArchiveInventory::build(source, InventoryPolicy::default(), ArchiveLimits::default())
+                .unwrap()
+        })
+        .collect();
+    let scope = SelectedScope::from_inventories(&snapshot, &inventories.iter().collect::<Vec<_>>())
+        .unwrap();
+
+    let mut pairs = Vec::with_capacity(scope.dexes().len());
+    for (pos, _) in scope.dexes().iter().enumerate() {
+        let mut rem = pos;
+        let (inv, local) = inventories
+            .iter()
+            .find_map(|inv| {
+                let count = inv.selected_dexes().len();
+                if rem < count {
+                    Some((inv, rem))
+                } else {
+                    rem -= count;
+                    None
+                }
+            })
+            .unwrap();
+        let meta =
+            Arc::new(MetadataFacts::build(&snapshot, inv, local, StringLimits::default()).unwrap());
+        let defs = Arc::new(
+            DefinitionFacts::build_arc(Arc::clone(&meta), DefinitionLimits::default()).unwrap(),
+        );
+        pairs.push((meta, defs));
+    }
+
+    struct Loader(Vec<(Arc<MetadataFacts>, Arc<DefinitionFacts>)>);
+    impl OccurrenceLoader for Loader {
+        fn load(&self, position: usize, _: LayerNeeds) -> MddResult<HostLabOccurrenceFacts> {
+            let (meta, defs) = &self.0[position];
+            Ok(HostLabOccurrenceFacts::structural(
+                Arc::clone(meta),
+                Arc::clone(defs),
+            ))
+        }
+    }
+
+    #[derive(Default)]
+    struct CaptureConsumer {
+        columns: Vec<String>,
+        rows: Vec<SqlRow>,
+        current: SqlRow,
+        finished: bool,
+    }
+    impl crate::column_store::DirectCellRowConsumer for CaptureConsumer {
+        fn on_columns(&mut self, columns: &[String]) -> MddResult<()> {
+            self.columns = columns.to_vec();
+            Ok(())
+        }
+        fn on_start(&mut self, _row_count: u64) -> MddResult<()> {
+            Ok(())
+        }
+        fn begin_row(&mut self) -> MddResult<()> {
+            self.current.clear();
+            Ok(())
+        }
+        fn push_cell(
+            &mut self,
+            _col_idx: usize,
+            cell: &crate::column_store::BorrowedSqlCell<'_>,
+        ) -> MddResult<()> {
+            let val = match cell {
+                crate::column_store::BorrowedSqlCell::Owned(v) => v.clone(),
+                _ => panic!("unexpected borrowed cell variant"),
+            };
+            self.current.push(val);
+            Ok(())
+        }
+        fn end_row(&mut self) -> MddResult<()> {
+            self.rows.push(std::mem::take(&mut self.current));
+            Ok(())
+        }
+        fn on_finish(&mut self) -> MddResult<()> {
+            self.finished = true;
+            Ok(())
+        }
+    }
+
+    let provider_arc = Arc::new(
+        HostLabSqlProvider::from_loader(&scope, Arc::new(Loader(pairs)), DecimalU64(0)).unwrap(),
+    );
+    let provider: Arc<dyn SqlFactProvider> = Arc::clone(&provider_arc) as Arc<dyn SqlFactProvider>;
+
+    // Warm up sample targets directly via SQLite oracle queries.
+    let probe_bridge = SqlBridge::new(
+        Arc::clone(&provider),
+        SqlDialect::DexSql011,
+        SqlLimits::default(),
+    )
+    .unwrap();
+    let sample_class = match &probe_bridge
+        .execute(
+            &probe_bridge
+                .prepare("SELECT descriptor FROM classes WHERE 1=1 ORDER BY file_id, class_def_idx LIMIT 1")
+                .unwrap(),
+            SqlControl::new(SqlLimits::default(), None),
+        )
+        .unwrap()
+        .rows()[0][0]
+    {
+        SqlValue::Text(t) => t.strict_utf8().unwrap(),
+        other => panic!("expected text, got {other:?}"),
+    };
+    let cm_row = &probe_bridge
+        .execute(
+            &probe_bridge
+                .prepare("SELECT class_descriptor, method_name FROM class_methods WHERE 1=1 ORDER BY file_id, method_idx LIMIT 1")
+                .unwrap(),
+            SqlControl::new(SqlLimits::default(), None),
+        )
+        .unwrap()
+        .rows()[0];
+    let (cm_cls, cm_name) = match (&cm_row[0], &cm_row[1]) {
+        (SqlValue::Text(a), SqlValue::Text(b)) => {
+            (a.strict_utf8().unwrap(), b.strict_utf8().unwrap())
+        }
+        other => panic!("expected text pair, got {other:?}"),
+    };
+    let cf_row = &probe_bridge
+        .execute(
+            &probe_bridge
+                .prepare("SELECT class_descriptor, field_name FROM class_fields WHERE 1=1 ORDER BY file_id, field_idx LIMIT 1")
+                .unwrap(),
+            SqlControl::new(SqlLimits::default(), None),
+        )
+        .unwrap()
+        .rows()[0];
+    let (cf_cls, cf_name) = match (&cf_row[0], &cf_row[1]) {
+        (SqlValue::Text(a), SqlValue::Text(b)) => {
+            (a.strict_utf8().unwrap(), b.strict_utf8().unwrap())
+        }
+        other => panic!("expected text pair, got {other:?}"),
+    };
+
+    let cases = [
+        (
+            format!("SELECT file_id, class_def_idx, descriptor, superclass_descriptor AS SuperCls FROM classes WHERE descriptor = '{sample_class}' ORDER BY file_id DESC, class_def_idx ASC"),
+            format!("SELECT file_id, class_def_idx, descriptor, superclass_descriptor AS SuperCls FROM (SELECT * FROM classes WHERE 1=1) WHERE descriptor = '{sample_class}' ORDER BY file_id DESC, class_def_idx ASC"),
+        ),
+        (
+            format!("SELECT file_id, method_idx, method_descriptor FROM class_methods WHERE class_descriptor = '{cm_cls}' AND method_name = '{cm_name}' ORDER BY file_id ASC, method_idx DESC"),
+            format!("SELECT file_id, method_idx, method_descriptor FROM (SELECT * FROM class_methods WHERE 1=1) WHERE class_descriptor = '{cm_cls}' AND method_name = '{cm_name}' ORDER BY file_id ASC, method_idx DESC"),
+        ),
+        (
+            format!("SELECT cf.file_id, cf.field_idx, cf.field_descriptor AS DescOut FROM class_fields cf WHERE cf.class_descriptor = '{cf_cls}' AND cf.field_name IN ('{cf_name}', '__nonexistent__') ORDER BY DescOut ASC, cf.file_id DESC"),
+            format!("SELECT cf.file_id, cf.field_idx, cf.field_descriptor AS DescOut FROM (SELECT * FROM class_fields WHERE 1=1) cf WHERE cf.class_descriptor = '{cf_cls}' AND cf.field_name IN ('{cf_name}', '__nonexistent__') ORDER BY DescOut ASC, cf.file_id DESC"),
+        ),
+        (
+            "SELECT file_id, descriptor FROM classes WHERE file_id IN (0, 1, 99) ORDER BY superclass_descriptor ASC, file_id ASC, class_def_idx ASC".to_owned(),
+            "SELECT file_id, descriptor FROM (SELECT * FROM classes WHERE 1=1) WHERE file_id IN (0, 1, 99) ORDER BY superclass_descriptor ASC, file_id ASC, class_def_idx ASC".to_owned(),
+        ),
+    ];
+
+    for dialect in [SqlDialect::NativeV1, SqlDialect::DexSql011] {
+        let bridge_obj =
+            SqlBridge::new(Arc::clone(&provider), dialect, SqlLimits::default()).unwrap();
+        for (direct_sql, oracle_sql) in &cases {
+            let direct_prep = bridge_obj.prepare(direct_sql).unwrap();
+            assert!(!direct_prep.has_direct_projection());
+            assert!(
+                direct_prep.direct_filtered_projection.is_some(),
+                "expected direct_filtered_projection for `{direct_sql}`"
+            );
+            let oracle_prep = bridge_obj.prepare(oracle_sql).unwrap();
+            assert!(oracle_prep.direct_filtered_projection.is_none());
+
+            let direct_res = direct_prep
+                .execute(SqlControl::new(SqlLimits::default(), None))
+                .unwrap();
+            let oracle_res = oracle_prep
+                .execute(SqlControl::new(SqlLimits::default(), None))
+                .unwrap();
+            assert_eq!(direct_res.columns(), oracle_res.columns());
+            assert_eq!(direct_res.rows(), oracle_res.rows());
+
+            let mut consumer = CaptureConsumer::default();
+            bridge_obj
+                .execute_to_consumer(
+                    &direct_prep,
+                    SqlControl::new(SqlLimits::default(), None),
+                    &mut consumer,
+                )
+                .unwrap();
+            assert!(consumer.finished);
+            assert_eq!(consumer.columns, direct_res.columns());
+            assert_eq!(consumer.rows, direct_res.rows());
+
+            for win in [
+                crate::window::SqlWindow::new(0, 1)
+                    .unwrap()
+                    .counting_total(),
+                crate::window::SqlWindow::new(0, 1).unwrap(),
+                crate::window::SqlWindow::new(10_000, 5)
+                    .unwrap()
+                    .counting_total(),
+            ] {
+                let d_win = bridge_obj
+                    .execute_window(
+                        &direct_prep,
+                        SqlControl::new(SqlLimits::default(), None),
+                        win,
+                    )
+                    .unwrap();
+                let o_win = bridge_obj
+                    .execute_window(
+                        &oracle_prep,
+                        SqlControl::new(SqlLimits::default(), None),
+                        win,
+                    )
+                    .unwrap();
+                assert_eq!(d_win.columns(), o_win.columns());
+                assert_eq!(d_win.rows(), o_win.rows());
+                assert_eq!(d_win.window(), o_win.window());
+            }
+        }
+    }
+
+    // Verify zero-index-build descriptor helpers on ready HostLabSqlProvider stores.
+    assert!(
+        !provider_arc
+            .find_defined_classes_by_descriptor(&sample_class, None)
+            .unwrap()
+            .is_empty()
+    );
+    assert!(
+        provider_arc
+            .find_defined_classes_by_descriptor("Ldoes/NotExist;", None)
+            .unwrap()
+            .is_empty()
+    );
+}

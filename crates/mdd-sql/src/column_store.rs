@@ -1089,6 +1089,70 @@ impl TextDict {
         f(BorrowedSqlCell::Owned(self.get(id)))
     }
 
+    fn copy_utf8_to_stack(&self, id: u32, stack: &mut [u8; 512]) -> Option<usize> {
+        let member = {
+            let (shard_idx, local) = split(id);
+            let shard = self.shards[shard_idx].read().expect("dictionary lock");
+            let entry = shard.entry(local);
+            let tag = entry[0];
+            if tag == TAG_UTF8 {
+                let payload = &entry[1..];
+                if payload.len() <= stack.len() {
+                    stack[..payload.len()].copy_from_slice(payload);
+                    return Some(payload.len());
+                }
+                return None;
+            }
+            if tag == TAG_MEMBER && entry.len() >= 13 {
+                let part =
+                    |n: usize| u32::from_le_bytes(entry[1 + n * 4..5 + n * 4].try_into().unwrap());
+                Some([part(0), part(1), part(2)])
+            } else {
+                None
+            }
+        }?;
+        let [head_id, name_id, rest_id] = member;
+        let mut pos = 0usize;
+        if self.copy_utf8_raw_into(head_id, stack, &mut pos)
+            && pos + 2 <= stack.len()
+            && {
+                stack[pos..pos + 2].copy_from_slice(b"->");
+                pos += 2;
+                true
+            }
+            && self.copy_utf8_raw_into(name_id, stack, &mut pos)
+            && self.copy_utf8_raw_into(rest_id, stack, &mut pos)
+        {
+            Some(pos)
+        } else {
+            None
+        }
+    }
+
+    /// Compare two dictionary entries in exact UTF-16 code-unit order without heap allocation for
+    /// standard scalar/member texts up to 512 UTF-8 bytes.
+    pub(crate) fn cmp_text_ids(&self, left_id: u32, right_id: u32) -> std::cmp::Ordering {
+        if left_id == right_id {
+            return std::cmp::Ordering::Equal;
+        }
+        let mut buf_l = [0u8; 512];
+        let mut buf_r = [0u8; 512];
+        if let (Some(len_l), Some(len_r)) = (
+            self.copy_utf8_to_stack(left_id, &mut buf_l),
+            self.copy_utf8_to_stack(right_id, &mut buf_r),
+        ) {
+            let l = &buf_l[..len_l];
+            let r = &buf_r[..len_r];
+            if l.is_ascii() && r.is_ascii() {
+                return l.cmp(r);
+            }
+            let ls = std::str::from_utf8(l).expect("a UTF-8 entry holds UTF-8");
+            let rs = std::str::from_utf8(r).expect("a UTF-8 entry holds UTF-8");
+            return ls.encode_utf16().cmp(rs.encode_utf16());
+        }
+        RelationStore::cmp_same_type_sql_values(&self.get(left_id), &self.get(right_id))
+    }
+
     pub fn get(&self, id: u32) -> SqlValue {
         // a member's pieces live in other shards: copy what is needed out of this one before looking at them
         let (tag, member) = self.with_entry(id, |entry| {
@@ -1321,41 +1385,69 @@ pub struct DerivedColumn {
 }
 
 /// The texts that the references of one DEX name, as dictionary ids, by the index the DEX gives each reference.
+/// Stored in SoA layout so derived filters scan contiguous 4-byte dictionary-id arrays for the queried attribute.
 #[derive(Default)]
 pub struct RefTable {
     /// Per method reference: class descriptor, name, descriptor.
-    pub methods: Vec<[u32; 3]>,
+    pub method_class: Vec<u32>,
+    pub method_name: Vec<u32>,
+    pub method_desc: Vec<u32>,
     /// Per field reference: class descriptor, name, descriptor, type descriptor.
-    pub fields: Vec<[u32; 4]>,
+    pub field_class: Vec<u32>,
+    pub field_name: Vec<u32>,
+    pub field_desc: Vec<u32>,
+    pub field_type: Vec<u32>,
     /// Per type: descriptor, Java name.
-    pub types: Vec<[u32; 2]>,
+    pub type_desc: Vec<u32>,
+    pub type_name: Vec<u32>,
+    /// True when every `method_class` and `field_class` entry also appears in `type_desc` (true for valid DEX pools).
+    pub type_desc_covers_member_classes: bool,
 }
 
 impl RefTable {
+    pub(crate) fn slice(&self, derive: Derive) -> &[u32] {
+        match derive {
+            Derive::MethodClass => &self.method_class,
+            Derive::MethodName => &self.method_name,
+            Derive::MethodDescriptor => &self.method_desc,
+            Derive::FieldClass => &self.field_class,
+            Derive::FieldName => &self.field_name,
+            Derive::FieldDescriptor => &self.field_desc,
+            Derive::FieldType => &self.field_type,
+            Derive::TypeDescriptor => &self.type_desc,
+            Derive::TypeName => &self.type_name,
+        }
+    }
+
     fn id(&self, derive: Derive, index: u64) -> Option<u32> {
         let at = usize::try_from(index).ok()?;
-        match derive {
-            Derive::MethodClass => self.methods.get(at).map(|m| m[0]),
-            Derive::MethodName => self.methods.get(at).map(|m| m[1]),
-            Derive::MethodDescriptor => self.methods.get(at).map(|m| m[2]),
-            Derive::FieldClass => self.fields.get(at).map(|f| f[0]),
-            Derive::FieldName => self.fields.get(at).map(|f| f[1]),
-            Derive::FieldDescriptor => self.fields.get(at).map(|f| f[2]),
-            Derive::FieldType => self.fields.get(at).map(|f| f[3]),
-            Derive::TypeDescriptor => self.types.get(at).map(|t| t[0]),
-            Derive::TypeName => self.types.get(at).map(|t| t[1]),
-        }
+        self.slice(derive).get(at).copied()
     }
 
     /// Bytes this table holds on the heap.
     pub fn bytes_used(&self) -> usize {
-        self.methods.capacity() * 12 + self.fields.capacity() * 16 + self.types.capacity() * 8
+        (self.method_class.capacity()
+            + self.method_name.capacity()
+            + self.method_desc.capacity()
+            + self.field_class.capacity()
+            + self.field_name.capacity()
+            + self.field_desc.capacity()
+            + self.field_type.capacity()
+            + self.type_desc.capacity()
+            + self.type_name.capacity())
+            * std::mem::size_of::<u32>()
     }
 
     pub fn shrink_to_fit(&mut self) {
-        self.methods.shrink_to_fit();
-        self.fields.shrink_to_fit();
-        self.types.shrink_to_fit();
+        self.method_class.shrink_to_fit();
+        self.method_name.shrink_to_fit();
+        self.method_desc.shrink_to_fit();
+        self.field_class.shrink_to_fit();
+        self.field_name.shrink_to_fit();
+        self.field_desc.shrink_to_fit();
+        self.field_type.shrink_to_fit();
+        self.type_desc.shrink_to_fit();
+        self.type_name.shrink_to_fit();
     }
 }
 
@@ -1380,6 +1472,135 @@ struct Chunk {
     payload: Payload,
     /// One bit per row, set for NULL; absent when the chunk has none.
     nulls: Option<Box<[u64]>>,
+}
+
+impl Chunk {
+    #[inline]
+    fn payload_width(&self) -> u8 {
+        match &self.payload {
+            Payload::Plain { width, .. } | Payload::Runs { width, .. } => *width,
+        }
+    }
+}
+
+#[inline]
+fn width_max_delta(width: u8) -> u64 {
+    match width {
+        0 => 0,
+        1 => 0xff,
+        2 => 0xffff,
+        4 => 0xffff_ffff,
+        _ => u64::MAX,
+    }
+}
+
+#[inline]
+fn push_non_null_range(
+    nulls: Option<&[u64]>,
+    row_base: u32,
+    range: std::ops::Range<usize>,
+    out: &mut Vec<u32>,
+) {
+    if let Some(bits) = nulls {
+        for at in range {
+            if (bits[at >> 6] >> (at & 63)) & 1 == 0 {
+                out.push(row_base + at as u32);
+            }
+        }
+    } else {
+        out.extend((row_base + range.start as u32)..(row_base + range.end as u32));
+    }
+}
+
+#[inline]
+fn scan_plain_deltas<P: Fn(u64) -> bool>(
+    width: u8,
+    data: &[u8],
+    nulls: Option<&[u64]>,
+    row_base: u32,
+    range: std::ops::Range<usize>,
+    out: &mut Vec<u32>,
+    pred: P,
+) {
+    let start = range.start;
+    match width {
+        0 => {
+            if pred(0) {
+                push_non_null_range(nulls, row_base, range, out);
+            }
+        }
+        1 => {
+            if let Some(bits) = nulls {
+                for (i, &b) in data[range].iter().enumerate() {
+                    let at = start + i;
+                    if (bits[at >> 6] >> (at & 63)) & 1 == 0 && pred(u64::from(b)) {
+                        out.push(row_base + at as u32);
+                    }
+                }
+            } else {
+                for (i, &b) in data[range].iter().enumerate() {
+                    if pred(u64::from(b)) {
+                        out.push(row_base + (start + i) as u32);
+                    }
+                }
+            }
+        }
+        2 => {
+            let (chunks, _) = data[range.start * 2..range.end * 2].as_chunks::<2>();
+            if let Some(bits) = nulls {
+                for (i, &raw) in chunks.iter().enumerate() {
+                    let at = start + i;
+                    if (bits[at >> 6] >> (at & 63)) & 1 == 0
+                        && pred(u64::from(u16::from_le_bytes(raw)))
+                    {
+                        out.push(row_base + at as u32);
+                    }
+                }
+            } else {
+                for (i, &raw) in chunks.iter().enumerate() {
+                    if pred(u64::from(u16::from_le_bytes(raw))) {
+                        out.push(row_base + (start + i) as u32);
+                    }
+                }
+            }
+        }
+        4 => {
+            let (chunks, _) = data[range.start * 4..range.end * 4].as_chunks::<4>();
+            if let Some(bits) = nulls {
+                for (i, &raw) in chunks.iter().enumerate() {
+                    let at = start + i;
+                    if (bits[at >> 6] >> (at & 63)) & 1 == 0
+                        && pred(u64::from(u32::from_le_bytes(raw)))
+                    {
+                        out.push(row_base + at as u32);
+                    }
+                }
+            } else {
+                for (i, &raw) in chunks.iter().enumerate() {
+                    if pred(u64::from(u32::from_le_bytes(raw))) {
+                        out.push(row_base + (start + i) as u32);
+                    }
+                }
+            }
+        }
+        _ => {
+            let (chunks, _) = data[range.start * 8..range.end * 8].as_chunks::<8>();
+            if let Some(bits) = nulls {
+                for (i, &raw) in chunks.iter().enumerate() {
+                    let at = start + i;
+                    if (bits[at >> 6] >> (at & 63)) & 1 == 0 && pred(u64::from_le_bytes(raw)) {
+                        out.push(row_base + at as u32);
+                    }
+                }
+            } else {
+                for (i, &raw) in chunks.iter().enumerate() {
+                    if pred(u64::from_le_bytes(raw)) {
+                        out.push(row_base + (start + i) as u32);
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -1668,6 +1889,182 @@ impl IntColumn {
         Some(chunk.base.wrapping_add(delta))
     }
 
+    /// Append local row indices in `start..end` whose non-null value equals any entry in `targets`.
+    fn collect_matching_in_range(&self, start: u64, end: u64, targets: &[u64], out: &mut Vec<u32>) {
+        if start >= end || targets.is_empty() {
+            return;
+        }
+        if !self.staging.is_empty() {
+            let mut hint = 0usize;
+            for row in start..end {
+                if let Some(val) = self.get(row, &mut hint)
+                    && targets.contains(&val)
+                {
+                    out.push(row as u32);
+                }
+            }
+            return;
+        }
+        let first_chunk = (start / CHUNK as u64) as usize;
+        let last_chunk = ((end - 1) / CHUNK as u64) as usize;
+        let mut deltas_buf = Vec::new();
+        for (offset, chunk) in self.sealed[first_chunk..=last_chunk].iter().enumerate() {
+            let chunk_idx = first_chunk + offset;
+            let chunk_start = (chunk_idx as u64) * (CHUNK as u64);
+            let c_lo = start.saturating_sub(chunk_start) as usize;
+            let c_hi = (end - chunk_start).min(CHUNK as u64) as usize;
+            let row_base = chunk_start as u32;
+            let max_delta = width_max_delta(chunk.payload_width());
+            let mut single_delta = None;
+            if targets.len() == 1 {
+                let delta = targets[0].wrapping_sub(chunk.base);
+                if delta > max_delta {
+                    continue;
+                }
+                single_delta = Some(delta);
+            } else {
+                deltas_buf.clear();
+                for &target in targets {
+                    let delta = target.wrapping_sub(chunk.base);
+                    if delta <= max_delta && !deltas_buf.contains(&delta) {
+                        deltas_buf.push(delta);
+                    }
+                }
+                if deltas_buf.is_empty() {
+                    continue;
+                }
+                if deltas_buf.len() == 1 {
+                    single_delta = Some(deltas_buf[0]);
+                }
+            }
+            match &chunk.payload {
+                Payload::Plain { width, data } => {
+                    if let Some(target_delta) = single_delta {
+                        scan_plain_deltas(
+                            *width,
+                            data,
+                            chunk.nulls.as_deref(),
+                            row_base,
+                            c_lo..c_hi,
+                            out,
+                            |delta| delta == target_delta,
+                        );
+                    } else {
+                        scan_plain_deltas(
+                            *width,
+                            data,
+                            chunk.nulls.as_deref(),
+                            row_base,
+                            c_lo..c_hi,
+                            out,
+                            |delta| deltas_buf.contains(&delta),
+                        );
+                    }
+                }
+                Payload::Runs {
+                    width,
+                    values,
+                    ends,
+                } => {
+                    let wide = usize::from(*width);
+                    let nulls = chunk.nulls.as_deref();
+                    let mut run = ends.partition_point(|&e| (e as usize) <= c_lo);
+                    while run < ends.len() {
+                        let prev_end = if run == 0 { 0 } else { ends[run - 1] as usize };
+                        if prev_end >= c_hi {
+                            break;
+                        }
+                        let r_start = c_lo.max(prev_end);
+                        let r_end = c_hi.min(ends[run] as usize);
+                        let delta = read_width(values, run, wide);
+                        let matched = single_delta
+                            .map_or_else(|| deltas_buf.contains(&delta), |d| delta == d);
+                        if matched {
+                            push_non_null_range(nulls, row_base, r_start..r_end, out);
+                        }
+                        run += 1;
+                    }
+                }
+            }
+        }
+    }
+
+    /// Append local row indices in `start..end` whose non-null value is `<= max_val` and has its bit set in `bitset`.
+    fn collect_matching_bitset_in_range(
+        &self,
+        start: u64,
+        end: u64,
+        bitset: &[u64],
+        max_val: u64,
+        out: &mut Vec<u32>,
+    ) {
+        if start >= end || bitset.is_empty() {
+            return;
+        }
+        let has_val = |val: u64| -> bool {
+            val <= max_val && ((bitset[(val >> 6) as usize] >> (val & 63)) & 1 != 0)
+        };
+        if !self.staging.is_empty() {
+            let mut hint = 0usize;
+            for row in start..end {
+                if let Some(val) = self.get(row, &mut hint)
+                    && has_val(val)
+                {
+                    out.push(row as u32);
+                }
+            }
+            return;
+        }
+        let first_chunk = (start / CHUNK as u64) as usize;
+        let last_chunk = ((end - 1) / CHUNK as u64) as usize;
+        for (offset, chunk) in self.sealed[first_chunk..=last_chunk].iter().enumerate() {
+            if self.order == Order::Unsigned && chunk.base > max_val {
+                continue;
+            }
+            let chunk_idx = first_chunk + offset;
+            let chunk_start = (chunk_idx as u64) * (CHUNK as u64);
+            let c_lo = start.saturating_sub(chunk_start) as usize;
+            let c_hi = (end - chunk_start).min(CHUNK as u64) as usize;
+            let row_base = chunk_start as u32;
+            let base = chunk.base;
+            match &chunk.payload {
+                Payload::Plain { width, data } => {
+                    scan_plain_deltas(
+                        *width,
+                        data,
+                        chunk.nulls.as_deref(),
+                        row_base,
+                        c_lo..c_hi,
+                        out,
+                        |delta| has_val(base.wrapping_add(delta)),
+                    );
+                }
+                Payload::Runs {
+                    width,
+                    values,
+                    ends,
+                } => {
+                    let wide = usize::from(*width);
+                    let nulls = chunk.nulls.as_deref();
+                    let mut run = ends.partition_point(|&e| (e as usize) <= c_lo);
+                    while run < ends.len() {
+                        let prev_end = if run == 0 { 0 } else { ends[run - 1] as usize };
+                        if prev_end >= c_hi {
+                            break;
+                        }
+                        let r_start = c_lo.max(prev_end);
+                        let r_end = c_hi.min(ends[run] as usize);
+                        let val = base.wrapping_add(read_width(values, run, wide));
+                        if has_val(val) {
+                            push_non_null_range(nulls, row_base, r_start..r_end, out);
+                        }
+                        run += 1;
+                    }
+                }
+            }
+        }
+    }
+
     fn bytes_used(&self) -> usize {
         self.sealed
             .iter()
@@ -1911,6 +2308,82 @@ fn intersect_into(dst: &mut Vec<u32>, src: &[u32]) {
         }
     }
     dst.truncate(write);
+}
+
+pub enum ExactRowSet<'a> {
+    Range(u64, u64),
+    Slice(&'a [u32]),
+    Owned(Vec<u32>),
+}
+
+impl ExactRowSet<'_> {
+    pub fn len(&self) -> usize {
+        match self {
+            Self::Range(start, end) => end.saturating_sub(*start) as usize,
+            Self::Slice(s) => s.len(),
+            Self::Owned(v) => v.len(),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
+#[derive(Clone, Copy)]
+enum SortCellKey {
+    Null,
+    U64(u64),
+    I64(i64),
+    Dict(u32),
+}
+
+enum RowPiece<'p> {
+    Slice(&'p [u32]),
+    Owned(Vec<u32>),
+}
+
+impl RowPiece<'_> {
+    fn len(&self) -> usize {
+        match self {
+            Self::Slice(s) => s.len(),
+            Self::Owned(v) => v.len(),
+        }
+    }
+    fn as_slice(&self) -> &[u32] {
+        match self {
+            Self::Slice(s) => s,
+            Self::Owned(v) => v,
+        }
+    }
+    fn into_vec(self) -> Vec<u32> {
+        match self {
+            Self::Slice(s) => s.to_vec(),
+            Self::Owned(v) => v,
+        }
+    }
+}
+
+fn intersect_row_pieces(mut pieces: Vec<RowPiece<'_>>) -> Option<RowPiece<'_>> {
+    if pieces.iter().any(|p| p.len() == 0) {
+        return Some(RowPiece::Owned(Vec::new()));
+    }
+    if pieces.is_empty() {
+        return None;
+    }
+    if pieces.len() == 1 {
+        return Some(pieces.pop().unwrap());
+    }
+    pieces.sort_by_key(RowPiece::len);
+    let mut iter = pieces.into_iter();
+    let mut acc = iter.next().unwrap().into_vec();
+    for piece in iter {
+        intersect_into(&mut acc, piece.as_slice());
+        if acc.is_empty() {
+            break;
+        }
+    }
+    Some(RowPiece::Owned(acc))
 }
 
 enum EvalScan<'a> {
@@ -2244,6 +2717,110 @@ impl RelationStore {
         }
     }
 
+    fn scan_derived_group(
+        &self,
+        index_column: usize,
+        predicates: &[(Derive, &[u32])],
+        narrow: Option<(u32, u32)>,
+    ) -> Option<Vec<u32>> {
+        let partitions = self.partitions.as_ref()?;
+        if predicates.is_empty() || self.derived.get(index_column).copied().flatten().is_some() {
+            return None;
+        }
+        if predicates.iter().any(|(_, ids)| ids.is_empty()) {
+            return Some(Vec::new());
+        }
+        let (lo, hi) = narrow.map_or((0u64, self.rows), |(a, b)| {
+            (u64::from(a).min(self.rows), u64::from(b).min(self.rows))
+        });
+        if lo >= hi {
+            return Some(Vec::new());
+        }
+        let derive_priority = |derive: Derive| -> u8 {
+            match derive {
+                Derive::MethodDescriptor | Derive::FieldDescriptor | Derive::TypeDescriptor => 0,
+                Derive::MethodClass | Derive::FieldClass => 1,
+                Derive::MethodName | Derive::FieldName | Derive::FieldType | Derive::TypeName => 2,
+            }
+        };
+        let (primary_pos, _) = predicates
+            .iter()
+            .enumerate()
+            .min_by_key(|(_, (d, ids))| (derive_priority(*d), ids.len()))?;
+        let (primary_derive, primary_ids) = predicates[primary_pos];
+        let class_filter: Option<&[u32]> = predicates
+            .iter()
+            .find(|(d, _)| matches!(d, Derive::MethodClass | Derive::FieldClass))
+            .map(|(_, ids)| *ids);
+        let ints = &self.columns.get(index_column)?.ints;
+        let mut matched = Vec::new();
+        let mut local_indices: Vec<u64> = Vec::new();
+        let mut bitset: Vec<u64> = Vec::new();
+        for part in partitions {
+            let s = part.start.max(lo);
+            let e = part.end.min(hi);
+            if s >= e {
+                continue;
+            }
+            let table = self.table_for(part.key)?;
+            if table.type_desc_covers_member_classes
+                && let Some(class_ids) = class_filter
+            {
+                let any_class = if class_ids.len() == 1 {
+                    table.type_desc.contains(&class_ids[0])
+                } else {
+                    table.type_desc.iter().any(|id| class_ids.contains(id))
+                };
+                if !any_class {
+                    continue;
+                }
+            }
+            let primary_slice = table.slice(primary_derive);
+            local_indices.clear();
+            let matches_secondary = |idx: usize| -> bool {
+                predicates.iter().enumerate().all(|(i, &(d, ids))| {
+                    if i == primary_pos {
+                        return true;
+                    }
+                    table.slice(d).get(idx).is_some_and(|v| ids.contains(v))
+                })
+            };
+            if primary_ids.len() == 1 {
+                let target = primary_ids[0];
+                for (idx, &val) in primary_slice.iter().enumerate() {
+                    if val == target && (predicates.len() == 1 || matches_secondary(idx)) {
+                        local_indices.push(idx as u64);
+                    }
+                }
+            } else {
+                for (idx, &val) in primary_slice.iter().enumerate() {
+                    if primary_ids.contains(&val)
+                        && (predicates.len() == 1 || matches_secondary(idx))
+                    {
+                        local_indices.push(idx as u64);
+                    }
+                }
+            }
+            if local_indices.is_empty() {
+                continue;
+            }
+            if local_indices.len() <= 8 {
+                ints.collect_matching_in_range(s, e, &local_indices, &mut matched);
+            } else {
+                let words = primary_slice.len().div_ceil(64);
+                bitset.clear();
+                bitset.resize(words, 0);
+                for &idx in &local_indices {
+                    let i = idx as usize;
+                    bitset[i >> 6] |= 1u64 << (i & 63);
+                }
+                let max_val = (primary_slice.len() - 1) as u64;
+                ints.collect_matching_bitset_in_range(s, e, &bitset, max_val, &mut matched);
+            }
+        }
+        Some(matched)
+    }
+
     fn scan_text_ids(
         &self,
         column: usize,
@@ -2262,67 +2839,46 @@ impl RelationStore {
         if lo >= hi {
             return Some(Vec::new());
         }
-        let mut matched = Vec::new();
         if let Some(derived) = self.derived[column] {
+            if self.partitions.is_some() {
+                return self.scan_derived_group(
+                    derived.index_column,
+                    &[(derived.derive, target_ids)],
+                    narrow,
+                );
+            }
             let part_col = self.partition_column?;
             let mut idx_hint = 0usize;
-            if let Some(partitions) = &self.partitions {
-                for part in partitions {
-                    let s = part.start.max(lo);
-                    let e = part.end.min(hi);
-                    if s >= e {
-                        continue;
-                    }
-                    let table = self.table_for(part.key)?;
-                    for row in s..e {
-                        let Some(index) = self.columns[derived.index_column]
-                            .ints
-                            .get(row, &mut idx_hint)
-                        else {
-                            continue;
-                        };
-                        if let Some(id) = table.id(derived.derive, index)
-                            && target_ids.contains(&id)
-                        {
-                            matched.push(row as u32);
-                        }
-                    }
+            let mut part_hint = 0usize;
+            let mut last_file: Option<u64> = None;
+            let mut last_table: Option<&RefTable> = None;
+            let mut matched = Vec::new();
+            for row in lo..hi {
+                let file = self.columns[part_col].ints.get(row, &mut part_hint)?;
+                if last_file != Some(file) {
+                    last_table = self.table_for(file);
+                    last_file = Some(file);
                 }
-            } else {
-                let mut part_hint = 0usize;
-                let mut last_file: Option<u64> = None;
-                let mut last_table: Option<&RefTable> = None;
-                for row in lo..hi {
-                    let file = self.columns[part_col].ints.get(row, &mut part_hint)?;
-                    if last_file != Some(file) {
-                        last_table = self.table_for(file);
-                        last_file = Some(file);
-                    }
-                    let table = last_table?;
-                    let Some(index) = self.columns[derived.index_column]
-                        .ints
-                        .get(row, &mut idx_hint)
-                    else {
-                        continue;
-                    };
-                    if let Some(id) = table.id(derived.derive, index)
-                        && target_ids.contains(&id)
-                    {
-                        matched.push(row as u32);
-                    }
+                let table = last_table?;
+                let Some(index) = self.columns[derived.index_column]
+                    .ints
+                    .get(row, &mut idx_hint)
+                else {
+                    continue;
+                };
+                if let Some(id) = table.id(derived.derive, index)
+                    && target_ids.contains(&id)
+                {
+                    matched.push(row as u32);
                 }
             }
             return Some(matched);
         }
-        let ints = &self.columns[column].ints;
-        let mut hint = 0usize;
-        for row in lo..hi {
-            if let Some(raw) = ints.get(row, &mut hint)
-                && target_ids.contains(&(raw as u32))
-            {
-                matched.push(row as u32);
-            }
-        }
+        let targets: Vec<u64> = target_ids.iter().map(|&id| u64::from(id)).collect();
+        let mut matched = Vec::new();
+        self.columns[column]
+            .ints
+            .collect_matching_in_range(lo, hi, &targets, &mut matched);
         Some(matched)
     }
 
@@ -2470,6 +3026,600 @@ impl RelationStore {
             out.push(row_vals);
         }
         Some(Ok(out))
+    }
+
+    /// Look up the exact sorted row set matching `predicates` (`AND`-conjoined).
+    ///
+    /// Returns `None` if any predicate cannot be resolved with 100% precision or when
+    /// `bump_probe_hits == false` would require building an uncached CSR index.
+    pub fn exact_lookup_rows(
+        &self,
+        predicates: &[crate::provider::DirectPredicate],
+        bump_probe_hits: bool,
+    ) -> Option<ExactRowSet<'_>> {
+        use crate::provider::DirectPredicate;
+        use std::sync::atomic::Ordering::Relaxed;
+
+        if self.rows > u64::from(u32::MAX) {
+            return None;
+        }
+        for pred in predicates {
+            match pred {
+                DirectPredicate::EqU64(col, _) | DirectPredicate::InU64(col, _) => {
+                    if *col >= self.columns.len()
+                        || (!self.is_partition_column(*col) && !self.is_indexable_u64(*col))
+                    {
+                        return None;
+                    }
+                }
+                DirectPredicate::EqText(col, _) | DirectPredicate::InText(col, _) => {
+                    if *col >= self.columns.len() || !self.is_indexable_text(*col) {
+                        return None;
+                    }
+                }
+            }
+        }
+        if self.rows == 0 {
+            return Some(ExactRowSet::Owned(Vec::new()));
+        }
+
+        let mut range: Option<(u64, u64)> = None;
+        let mut consumed = vec![false; predicates.len()];
+        for (i, pred) in predicates.iter().enumerate() {
+            if let DirectPredicate::EqU64(col, val) = pred
+                && self.is_partition_column(*col)
+            {
+                let (start, end) = self.range_of(*val)?;
+                range = Some(match range {
+                    Some((lo, hi)) => (lo.max(start), hi.min(end)),
+                    None => (start, end),
+                });
+                if let Some((lo, hi)) = range
+                    && lo >= hi
+                {
+                    return Some(ExactRowSet::Owned(Vec::new()));
+                }
+                consumed[i] = true;
+            }
+        }
+        let narrow =
+            range.and_then(|(s, e)| Some((u32::try_from(s).ok()?, u32::try_from(e).ok()?)));
+        let (scan_lo, scan_hi) = range.unwrap_or((0, self.rows));
+
+        let mut resolved_ids: Vec<Option<Vec<u32>>> = vec![None; predicates.len()];
+        for (i, pred) in predicates.iter().enumerate() {
+            match pred {
+                DirectPredicate::EqText(_, val) => {
+                    let Some(id) = self.dict.lookup_str(val) else {
+                        return Some(ExactRowSet::Owned(Vec::new()));
+                    };
+                    resolved_ids[i] = Some(vec![id]);
+                }
+                DirectPredicate::InText(_, vals) => {
+                    if vals.is_empty() {
+                        return Some(ExactRowSet::Owned(Vec::new()));
+                    }
+                    let mut ids = Vec::with_capacity(vals.len());
+                    for val in vals {
+                        if let Some(id) = self.dict.lookup_str(val)
+                            && !ids.contains(&id)
+                        {
+                            ids.push(id);
+                        }
+                    }
+                    if ids.is_empty() {
+                        return Some(ExactRowSet::Owned(Vec::new()));
+                    }
+                    resolved_ids[i] = Some(ids);
+                }
+                _ => {}
+            }
+        }
+
+        let mut pieces: Vec<RowPiece<'_>> = Vec::new();
+        if self.partitions.is_some() {
+            struct DerivedPred<'a> {
+                pred_idx: usize,
+                col: usize,
+                derive: Derive,
+                ids: &'a [u32],
+            }
+            let mut by_idx_col: BTreeMap<usize, Vec<DerivedPred<'_>>> = BTreeMap::new();
+            for (i, pred) in predicates.iter().enumerate() {
+                if consumed[i] {
+                    continue;
+                }
+                let col = match pred {
+                    DirectPredicate::EqText(col, _) | DirectPredicate::InText(col, _) => *col,
+                    _ => continue,
+                };
+                if let Some(derived) = self.derived[col]
+                    && self.indexes[col].get().is_none()
+                    && let Some(ids) = resolved_ids[i].as_deref()
+                    && ids.len() <= 8
+                {
+                    by_idx_col
+                        .entry(derived.index_column)
+                        .or_default()
+                        .push(DerivedPred {
+                            pred_idx: i,
+                            col,
+                            derive: derived.derive,
+                            ids,
+                        });
+                }
+            }
+            for (index_column, group) in by_idx_col {
+                let first_probe_any = !bump_probe_hits
+                    || group
+                        .iter()
+                        .any(|g| self.eq_probe_hits[g.col].load(Relaxed) == 0);
+                if first_probe_any {
+                    let group_preds: Vec<(Derive, &[u32])> =
+                        group.iter().map(|g| (g.derive, g.ids)).collect();
+                    if let Some(rows) = self.scan_derived_group(index_column, &group_preds, narrow)
+                    {
+                        if bump_probe_hits {
+                            for g in &group {
+                                let _ = self.eq_probe_hits[g.col]
+                                    .compare_exchange(0, 1, Relaxed, Relaxed);
+                            }
+                        }
+                        for g in &group {
+                            consumed[g.pred_idx] = true;
+                        }
+                        if rows.is_empty() {
+                            return Some(ExactRowSet::Owned(Vec::new()));
+                        }
+                        pieces.push(RowPiece::Owned(rows));
+                    }
+                }
+            }
+        }
+
+        for (i, pred) in predicates.iter().enumerate() {
+            if consumed[i] {
+                continue;
+            }
+            match pred {
+                DirectPredicate::EqU64(col, val) => {
+                    if !bump_probe_hits && self.indexes[*col].get().is_none() {
+                        let mut rows = Vec::new();
+                        self.columns[*col].ints.collect_matching_in_range(
+                            scan_lo,
+                            scan_hi,
+                            &[*val],
+                            &mut rows,
+                        );
+                        if rows.is_empty() {
+                            return Some(ExactRowSet::Owned(Vec::new()));
+                        }
+                        pieces.push(RowPiece::Owned(rows));
+                    } else {
+                        let index = self.column_index(*col)?;
+                        let slice = index.rows_for_key(*val, narrow);
+                        if slice.is_empty() {
+                            return Some(ExactRowSet::Owned(Vec::new()));
+                        }
+                        pieces.push(RowPiece::Slice(slice));
+                    }
+                }
+                DirectPredicate::InU64(col, vals) => {
+                    if vals.is_empty() {
+                        return Some(ExactRowSet::Owned(Vec::new()));
+                    }
+                    if self.is_partition_column(*col) {
+                        let mut spans = Vec::new();
+                        let mut total = 0u64;
+                        for val in vals {
+                            let (mut s, mut e) = self.range_of(*val)?;
+                            s = s.max(scan_lo);
+                            e = e.min(scan_hi);
+                            if s < e {
+                                total = total.saturating_add(e - s);
+                                if total > 65_536 {
+                                    return None;
+                                }
+                                spans.push((s, e));
+                            }
+                        }
+                        let mut rows = Vec::with_capacity(total as usize);
+                        for (s, e) in spans {
+                            for row in s..e {
+                                rows.push(row as u32);
+                            }
+                        }
+                        rows.sort_unstable();
+                        rows.dedup();
+                        if rows.is_empty() {
+                            return Some(ExactRowSet::Owned(Vec::new()));
+                        }
+                        pieces.push(RowPiece::Owned(rows));
+                    } else if !bump_probe_hits && self.indexes[*col].get().is_none() {
+                        let mut rows = Vec::new();
+                        self.columns[*col]
+                            .ints
+                            .collect_matching_in_range(scan_lo, scan_hi, vals, &mut rows);
+                        if rows.is_empty() {
+                            return Some(ExactRowSet::Owned(Vec::new()));
+                        }
+                        pieces.push(RowPiece::Owned(rows));
+                    } else {
+                        let index = self.column_index(*col)?;
+                        let mut rows = Vec::new();
+                        for val in vals {
+                            rows.extend_from_slice(index.rows_for_key(*val, narrow));
+                        }
+                        rows.sort_unstable();
+                        rows.dedup();
+                        if rows.is_empty() {
+                            return Some(ExactRowSet::Owned(Vec::new()));
+                        }
+                        pieces.push(RowPiece::Owned(rows));
+                    }
+                }
+                DirectPredicate::EqText(col, _) | DirectPredicate::InText(col, _) => {
+                    let ids = resolved_ids[i].as_deref()?;
+                    let try_scan = self.indexes[*col].get().is_none()
+                        && ids.len() <= 8
+                        && (!bump_probe_hits
+                            || self.eq_probe_hits[*col]
+                                .compare_exchange(0, 1, Relaxed, Relaxed)
+                                .is_ok());
+                    if try_scan && let Some(rows) = self.scan_text_ids(*col, ids, narrow) {
+                        if rows.is_empty() {
+                            return Some(ExactRowSet::Owned(Vec::new()));
+                        }
+                        pieces.push(RowPiece::Owned(rows));
+                        continue;
+                    }
+                    if !bump_probe_hits && self.indexes[*col].get().is_none() {
+                        return None;
+                    }
+                    let index = self.column_index(*col)?;
+                    if ids.len() == 1 {
+                        let slice = index.rows_for_key(u64::from(ids[0]), narrow);
+                        if slice.is_empty() {
+                            return Some(ExactRowSet::Owned(Vec::new()));
+                        }
+                        pieces.push(RowPiece::Slice(slice));
+                    } else {
+                        let mut rows = Vec::new();
+                        for &id in ids {
+                            rows.extend_from_slice(index.rows_for_key(u64::from(id), narrow));
+                        }
+                        rows.sort_unstable();
+                        rows.dedup();
+                        if rows.is_empty() {
+                            return Some(ExactRowSet::Owned(Vec::new()));
+                        }
+                        pieces.push(RowPiece::Owned(rows));
+                    }
+                }
+            }
+        }
+
+        if pieces.is_empty() {
+            return if scan_lo >= scan_hi {
+                Some(ExactRowSet::Owned(Vec::new()))
+            } else {
+                Some(ExactRowSet::Range(scan_lo, scan_hi))
+            };
+        }
+        match intersect_row_pieces(pieces)? {
+            RowPiece::Slice(s) => Some(ExactRowSet::Slice(s)),
+            RowPiece::Owned(v) => Some(ExactRowSet::Owned(v)),
+        }
+    }
+
+    fn sort_key_cell(
+        &self,
+        column: usize,
+        row: u64,
+        hints: &[std::cell::Cell<usize>],
+    ) -> MddResult<SortCellKey> {
+        if let Some(Some(derived)) = self.derived.get(column) {
+            let missing = || crate::invalid("STORE_DERIVED_REFERENCE_MISSING");
+            let read = |at: usize| -> MddResult<u64> {
+                let hint = hints.get(at).ok_or_else(missing)?;
+                let mut run = hint.get();
+                let raw = self.columns[at].ints.get(row, &mut run);
+                hint.set(run);
+                raw.ok_or_else(missing)
+            };
+            let file = read(self.partition_column.ok_or_else(missing)?)?;
+            let index = read(derived.index_column)?;
+            let id = self
+                .table_for(file)
+                .and_then(|table| table.id(derived.derive, index))
+                .ok_or_else(missing)?;
+            return Ok(SortCellKey::Dict(id));
+        }
+        let hint = hints
+            .get(column)
+            .ok_or_else(|| crate::invalid("CURSOR_COORDINATE"))?;
+        let mut run = hint.get();
+        let raw = self.columns[column].ints.get(row, &mut run);
+        hint.set(run);
+        let Some(raw) = raw else {
+            return Ok(SortCellKey::Null);
+        };
+        Ok(match self.columns[column].kind {
+            Kind::U64 => SortCellKey::U64(raw),
+            Kind::I64 => SortCellKey::I64(raw as i64),
+            Kind::Dict => SortCellKey::Dict(raw as u32),
+            Kind::Bool | Kind::F64 => return Err(crate::invalid("DIRECT_FILTERED_ORDER_COLUMN")),
+        })
+    }
+
+    fn cmp_sort_key(
+        &self,
+        left: SortCellKey,
+        right: SortCellKey,
+        desc: bool,
+    ) -> std::cmp::Ordering {
+        use std::cmp::Ordering;
+        let asc = match (left, right) {
+            (SortCellKey::Null, SortCellKey::Null) => Ordering::Equal,
+            (SortCellKey::Null, _) => Ordering::Less,
+            (_, SortCellKey::Null) => Ordering::Greater,
+            (SortCellKey::U64(a), SortCellKey::U64(b)) => a.cmp(&b),
+            (SortCellKey::I64(a), SortCellKey::I64(b)) => a.cmp(&b),
+            (SortCellKey::Dict(a), SortCellKey::Dict(b)) => self.dict.cmp_text_ids(a, b),
+            _ => Ordering::Equal,
+        };
+        if desc { asc.reverse() } else { asc }
+    }
+
+    fn cmp_sort_row(
+        &self,
+        left: &[SortCellKey; 4],
+        right: &[SortCellKey; 4],
+        order_by: &[crate::provider::DirectOrderItem],
+    ) -> std::cmp::Ordering {
+        for (i, item) in order_by.iter().enumerate() {
+            let ord = self.cmp_sort_key(left[i], right[i], item.descending);
+            if ord != std::cmp::Ordering::Equal {
+                return ord;
+            }
+        }
+        std::cmp::Ordering::Equal
+    }
+
+    fn materialize_direct_row(
+        &self,
+        projected_columns: &[(usize, String)],
+        row: u64,
+        hints: &[std::cell::Cell<usize>],
+        max_cell_bytes: u64,
+        control: &SqlControl,
+    ) -> MddResult<SqlRow> {
+        let mut values = Vec::new();
+        values
+            .try_reserve_exact(projected_columns.len())
+            .map_err(|_| crate::quota("SQL_RESULT_ALLOCATION"))?;
+        let mut bytes = 0u64;
+        for &(col_idx, _) in projected_columns {
+            let value = self.cell_at(col_idx, row, hints)?;
+            let size = value.byte_size();
+            if size > max_cell_bytes {
+                return Err(crate::quota("SQL_RESULT_CELL_BYTES"));
+            }
+            let work = match &value {
+                SqlValue::Text(text) => (text.utf16.len() as u64).saturating_mul(4),
+                SqlValue::Bytes(raw) | SqlValue::DexMutf8 { bytes: raw, .. } => {
+                    (raw.len() as u64).saturating_mul(2)
+                }
+                _ => 16,
+            };
+            control.work(work)?;
+            bytes = bytes
+                .checked_add(size)
+                .ok_or_else(|| crate::quota("SQL_RESULT_BYTES_OVERFLOW"))?;
+            values.push(value);
+        }
+        control.output(bytes)?;
+        Ok(values)
+    }
+
+    /// Execute a filtered single-table projection directly against columnar storage and SoA
+    /// `RefTable`s without opening an in-memory SQLite connection.
+    pub fn direct_filtered_projection(
+        &self,
+        plan: &crate::provider::DirectFilteredProjection,
+        control: &SqlControl,
+        window: Option<crate::window::SqlWindow>,
+    ) -> Option<MddResult<(Vec<SqlRow>, Option<crate::window::SqlWindowReport>)>> {
+        if !sql_scan_opt_enabled()
+            || control.runtime().is_some()
+            || self.max_cell_bytes > control.inner.limits.max_cell_bytes
+            || plan.order_by.len() > 4
+        {
+            return None;
+        }
+        for &(col_idx, _) in &plan.projected_columns {
+            if col_idx >= self.columns.len() {
+                return None;
+            }
+        }
+        for item in &plan.order_by {
+            let ty = *self.types.get(item.column)?;
+            if !matches!(ty, SqlType::U64 | SqlType::I64 | SqlType::Text) {
+                return None;
+            }
+        }
+
+        let matched = self.exact_lookup_rows(&plan.predicates, true)?;
+        let total_count = matched.len() as u64;
+        if !plan.order_by.is_empty() && total_count > 65_536 {
+            return None;
+        }
+
+        Some((|| {
+            control.checkpoint(1, false)?;
+            let max_cell_bytes = control.inner.limits.max_cell_bytes;
+            let compute_window =
+                |total: u64| -> MddResult<(usize, usize, Option<crate::window::SqlWindowReport>)> {
+                    match window {
+                        None => Ok((0, total as usize, None)),
+                        Some(w) => {
+                            let start = w.offset().min(total);
+                            let end = w.offset().saturating_add(w.limit()).min(total);
+                            let count = end - start;
+                            let truncated = end < total;
+                            let total_rows = w.counts_total().then_some(total);
+                            let report = crate::window::SqlWindowReport::finish(
+                                w, count, truncated, total_rows,
+                            )?;
+                            Ok((start as usize, end as usize, Some(report)))
+                        }
+                    }
+                };
+
+            if total_count == 0 {
+                let (_, _, report) = compute_window(0)?;
+                return Ok((Vec::new(), report));
+            }
+
+            let hints = vec![std::cell::Cell::new(0); self.columns.len()];
+            if !plan.order_by.is_empty() && total_count > 1 {
+                let n = total_count as usize;
+                let rows = match matched {
+                    ExactRowSet::Range(lo, hi) => {
+                        let mut v = Vec::new();
+                        v.try_reserve_exact(n)
+                            .map_err(|_| crate::quota("SQL_RESULT_ALLOCATION"))?;
+                        for r in lo..hi {
+                            v.push(r as u32);
+                        }
+                        v
+                    }
+                    ExactRowSet::Slice(s) => {
+                        let mut v = Vec::new();
+                        v.try_reserve_exact(n)
+                            .map_err(|_| crate::quota("SQL_RESULT_ALLOCATION"))?;
+                        v.extend_from_slice(s);
+                        v
+                    }
+                    ExactRowSet::Owned(v) => v,
+                };
+                for _ in 0..rows.len() {
+                    control.checkpoint(1, true)?;
+                }
+                let mut keys: Vec<[SortCellKey; 4]> = Vec::new();
+                keys.try_reserve_exact(n)
+                    .map_err(|_| crate::quota("SQL_RESULT_ALLOCATION"))?;
+                let mut already_sorted = true;
+                for (idx, &row) in rows.iter().enumerate() {
+                    let mut row_keys = [SortCellKey::Null; 4];
+                    for (slot, item) in row_keys.iter_mut().zip(&plan.order_by) {
+                        *slot = self.sort_key_cell(item.column, u64::from(row), &hints)?;
+                    }
+                    if idx > 0
+                        && already_sorted
+                        && self.cmp_sort_row(&keys[idx - 1], &row_keys, &plan.order_by)
+                            == std::cmp::Ordering::Greater
+                    {
+                        already_sorted = false;
+                    }
+                    keys.push(row_keys);
+                }
+                let (w_start, w_end, report) = compute_window(total_count)?;
+                let mut out = Vec::new();
+                out.try_reserve_exact(w_end.saturating_sub(w_start))
+                    .map_err(|_| crate::quota("SQL_RESULT_ALLOCATION"))?;
+                if already_sorted {
+                    for &row in &rows[w_start..w_end] {
+                        out.push(self.materialize_direct_row(
+                            &plan.projected_columns,
+                            u64::from(row),
+                            &hints,
+                            max_cell_bytes,
+                            control,
+                        )?);
+                    }
+                } else {
+                    control.work((n as u64).saturating_mul(16))?;
+                    let mut order: Vec<usize> = Vec::new();
+                    order
+                        .try_reserve_exact(n)
+                        .map_err(|_| crate::quota("SQL_RESULT_ALLOCATION"))?;
+                    order.extend(0..n);
+                    order.sort_by(|&a, &b| {
+                        let ord = self.cmp_sort_row(&keys[a], &keys[b], &plan.order_by);
+                        if ord != std::cmp::Ordering::Equal {
+                            ord
+                        } else {
+                            rows[a].cmp(&rows[b])
+                        }
+                    });
+                    for &idx in &order[w_start..w_end] {
+                        out.push(self.materialize_direct_row(
+                            &plan.projected_columns,
+                            u64::from(rows[idx]),
+                            &hints,
+                            max_cell_bytes,
+                            control,
+                        )?);
+                    }
+                }
+                return Ok((out, report));
+            }
+
+            let scanned = match window {
+                Some(w) if !w.counts_total() => w
+                    .offset()
+                    .saturating_add(w.limit())
+                    .saturating_add(1)
+                    .min(total_count),
+                _ => total_count,
+            };
+            for _ in 0..scanned {
+                control.checkpoint(1, true)?;
+            }
+            let (w_start, w_end, report) = compute_window(total_count)?;
+            let mut out = Vec::new();
+            out.try_reserve_exact(w_end.saturating_sub(w_start))
+                .map_err(|_| crate::quota("SQL_RESULT_ALLOCATION"))?;
+            match matched {
+                ExactRowSet::Range(lo, _) => {
+                    let row_start = lo + w_start as u64;
+                    let row_end = lo + w_end as u64;
+                    for row in row_start..row_end {
+                        out.push(self.materialize_direct_row(
+                            &plan.projected_columns,
+                            row,
+                            &hints,
+                            max_cell_bytes,
+                            control,
+                        )?);
+                    }
+                }
+                ExactRowSet::Slice(slice) => {
+                    for &row in &slice[w_start..w_end] {
+                        out.push(self.materialize_direct_row(
+                            &plan.projected_columns,
+                            u64::from(row),
+                            &hints,
+                            max_cell_bytes,
+                            control,
+                        )?);
+                    }
+                }
+                ExactRowSet::Owned(rows) => {
+                    for &row in &rows[w_start..w_end] {
+                        out.push(self.materialize_direct_row(
+                            &plan.projected_columns,
+                            u64::from(row),
+                            &hints,
+                            max_cell_bytes,
+                            control,
+                        )?);
+                    }
+                }
+            }
+            Ok((out, report))
+        })())
     }
 
     fn cmp_same_type_sql_values(a: &SqlValue, b: &SqlValue) -> std::cmp::Ordering {
@@ -3179,32 +4329,105 @@ impl RelationStore {
                         }
                     }
                 }
-                enum Piece<'p> {
-                    Slice(&'p [u32]),
-                    Owned(Vec<u32>),
+                let narrow =
+                    range.and_then(|(s, e)| Some((u32::try_from(s).ok()?, u32::try_from(e).ok()?)));
+                let mut consumed = vec![false; children.len()];
+                let mut pieces: Vec<RowPiece<'_>> = Vec::new();
+
+                if sql_scan_opt_enabled() && self.partitions.is_some() {
+                    use std::sync::atomic::Ordering::Relaxed;
+                    struct DerivedCand {
+                        child_idx: usize,
+                        col: usize,
+                        derive: Derive,
+                        ids: Vec<u32>,
+                    }
+                    let mut by_idx_col: BTreeMap<usize, Vec<DerivedCand>> = BTreeMap::new();
+                    for (idx, child) in children.iter().enumerate() {
+                        match child {
+                            RowFilter::EqText(col, val) => {
+                                if let Some(at) = self.column_by_name(col)
+                                    && self.is_indexable_text(at)
+                                    && let Some(derived) = self.derived[at]
+                                {
+                                    let Some(id) = self.dict.lookup_str(val) else {
+                                        return EvalScan::Owned(Vec::new());
+                                    };
+                                    if self.indexes[at].get().is_none() {
+                                        by_idx_col.entry(derived.index_column).or_default().push(
+                                            DerivedCand {
+                                                child_idx: idx,
+                                                col: at,
+                                                derive: derived.derive,
+                                                ids: vec![id],
+                                            },
+                                        );
+                                    }
+                                }
+                            }
+                            RowFilter::InText(col, vals) => {
+                                if let Some(at) = self.column_by_name(col)
+                                    && self.is_indexable_text(at)
+                                    && let Some(derived) = self.derived[at]
+                                {
+                                    if vals.is_empty() {
+                                        return EvalScan::Owned(Vec::new());
+                                    }
+                                    let mut ids = Vec::with_capacity(vals.len());
+                                    for val in vals {
+                                        if let Some(id) = self.dict.lookup_str(val)
+                                            && !ids.contains(&id)
+                                        {
+                                            ids.push(id);
+                                        }
+                                    }
+                                    if ids.is_empty() {
+                                        return EvalScan::Owned(Vec::new());
+                                    }
+                                    if ids.len() <= 8 && self.indexes[at].get().is_none() {
+                                        by_idx_col.entry(derived.index_column).or_default().push(
+                                            DerivedCand {
+                                                child_idx: idx,
+                                                col: at,
+                                                derive: derived.derive,
+                                                ids,
+                                            },
+                                        );
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    for (index_column, group) in by_idx_col {
+                        if group.len() >= 2
+                            && group
+                                .iter()
+                                .any(|c| self.eq_probe_hits[c.col].load(Relaxed) == 0)
+                        {
+                            let preds: Vec<(Derive, &[u32])> =
+                                group.iter().map(|c| (c.derive, c.ids.as_slice())).collect();
+                            if let Some(rows) =
+                                self.scan_derived_group(index_column, &preds, narrow)
+                            {
+                                for c in &group {
+                                    consumed[c.child_idx] = true;
+                                    let _ = self.eq_probe_hits[c.col]
+                                        .compare_exchange(0, 1, Relaxed, Relaxed);
+                                }
+                                if rows.is_empty() {
+                                    return EvalScan::Owned(Vec::new());
+                                }
+                                pieces.push(RowPiece::Owned(rows));
+                            }
+                        }
+                    }
                 }
-                impl Piece<'_> {
-                    fn len(&self) -> usize {
-                        match self {
-                            Self::Slice(s) => s.len(),
-                            Self::Owned(v) => v.len(),
-                        }
+
+                for (idx, child) in children.iter().enumerate() {
+                    if consumed[idx] {
+                        continue;
                     }
-                    fn as_slice(&self) -> &[u32] {
-                        match self {
-                            Self::Slice(s) => s,
-                            Self::Owned(v) => v,
-                        }
-                    }
-                    fn into_vec(self) -> Vec<u32> {
-                        match self {
-                            Self::Slice(s) => s.to_vec(),
-                            Self::Owned(v) => v,
-                        }
-                    }
-                }
-                let mut pieces: Vec<Piece<'_>> = Vec::new();
-                for child in children {
                     match self.eval_filter(child, range, part_key) {
                         EvalScan::All {
                             range: r,
@@ -3229,32 +4452,24 @@ impl RelationStore {
                             if s.is_empty() {
                                 return EvalScan::Owned(Vec::new());
                             }
-                            pieces.push(Piece::Slice(s));
+                            pieces.push(RowPiece::Slice(s));
                         }
                         EvalScan::Owned(v) => {
                             if v.is_empty() {
                                 return EvalScan::Owned(Vec::new());
                             }
-                            pieces.push(Piece::Owned(v));
+                            pieces.push(RowPiece::Owned(v));
                         }
                     }
                 }
-                if pieces.is_empty() {
-                    return EvalScan::All {
+                match intersect_row_pieces(pieces) {
+                    None => EvalScan::All {
                         range,
                         partition_key: part_key,
-                    };
+                    },
+                    Some(RowPiece::Slice(s)) => EvalScan::Slice(s),
+                    Some(RowPiece::Owned(v)) => EvalScan::Owned(v),
                 }
-                pieces.sort_by_key(Piece::len);
-                let mut iter = pieces.into_iter();
-                let mut acc = iter.next().unwrap().into_vec();
-                for piece in iter {
-                    intersect_into(&mut acc, piece.as_slice());
-                    if acc.is_empty() {
-                        break;
-                    }
-                }
-                EvalScan::Owned(acc)
             }
             RowFilter::Or(children) => {
                 if children.is_empty() {
@@ -4470,17 +5685,18 @@ mod tests {
         let dict = TextDict::new();
         // two DEX that give the same index different methods
         let table = |names: &[(&str, &str)]| {
+            let mut method_class = Vec::with_capacity(names.len());
+            let mut method_name = Vec::with_capacity(names.len());
+            let mut method_desc = Vec::with_capacity(names.len());
+            for (class, name) in names {
+                method_class.push(dict.intern_str(class));
+                method_name.push(dict.intern_str(name));
+                method_desc.push(dict.intern_str(&format!("{class}->{name}()V")));
+            }
             Arc::new(RefTable {
-                methods: names
-                    .iter()
-                    .map(|(class, name)| {
-                        [
-                            dict.intern_str(class),
-                            dict.intern_str(name),
-                            dict.intern_str(&format!("{class}->{name}()V")),
-                        ]
-                    })
-                    .collect(),
+                method_class,
+                method_name,
+                method_desc,
                 ..RefTable::default()
             })
         };
@@ -4589,11 +5805,9 @@ mod tests {
         ];
         let dict = TextDict::new();
         let table = Arc::new(RefTable {
-            methods: vec![[
-                dict.intern_str("La;"),
-                dict.intern_str("run"),
-                dict.intern_str("La;->run()V"),
-            ]],
+            method_class: vec![dict.intern_str("La;")],
+            method_name: vec![dict.intern_str("run")],
+            method_desc: vec![dict.intern_str("La;->run()V")],
             ..RefTable::default()
         });
         let mut builder = RelationStoreBuilder::with_derived(
@@ -5314,20 +6528,10 @@ mod tests {
 
         // Derived text column: 1st probe leaves index unbuilt, 2nd builds it; both agree.
         let table = Arc::new(RefTable {
-            methods: vec![
-                [
-                    dict.intern_str("La;"),
-                    dict.intern_str("onCreate"),
-                    dict.intern_str("()V"),
-                ],
-                [
-                    dict.intern_str("Lb;"),
-                    dict.intern_str("onDestroy"),
-                    dict.intern_str("()V"),
-                ],
-            ],
-            fields: vec![],
-            types: vec![],
+            method_class: vec![dict.intern_str("La;"), dict.intern_str("Lb;")],
+            method_name: vec![dict.intern_str("onCreate"), dict.intern_str("onDestroy")],
+            method_desc: vec![dict.intern_str("()V"), dict.intern_str("()V")],
+            ..RefTable::default()
         });
         let derived_cols = [DerivedColumn {
             column: 2,
@@ -5480,5 +6684,366 @@ mod tests {
                 .unwrap()
                 .is_err()
         );
+    }
+
+    #[test]
+    fn int_column_collect_matching_covers_all_widths_runs_nulls_and_bitset() {
+        // Test width 0, 1, 2, 4, 8 plain chunks and Runs chunks, plus subranges and NULLs.
+        let plain_cases: Vec<(u64, Vec<Option<u64>>, u64, u64, Vec<u64>, Vec<u32>)> = vec![
+            // width 0 (constant chunk with NULL at row 2)
+            (
+                0,
+                vec![Some(42), Some(42), None, Some(42), Some(42)],
+                1,
+                5,
+                vec![42],
+                vec![1, 3, 4],
+            ),
+            // width 1
+            (
+                1,
+                vec![Some(10), None, Some(25), Some(10), Some(200)],
+                0,
+                5,
+                vec![10, 200],
+                vec![0, 3, 4],
+            ),
+            // width 2
+            (
+                2,
+                vec![Some(100), Some(5000), Some(5000), Some(100)],
+                0,
+                4,
+                vec![5000],
+                vec![1, 2],
+            ),
+            // width 4
+            (
+                4,
+                vec![Some(10), Some(100_000), Some(200_000), Some(100_000)],
+                1,
+                4,
+                vec![10, 100_000],
+                vec![1, 3],
+            ),
+            // width 8
+            (
+                8,
+                vec![Some(5), Some(u64::MAX - 3), Some(7), Some(u64::MAX - 3)],
+                0,
+                4,
+                vec![u64::MAX - 3],
+                vec![1, 3],
+            ),
+        ];
+        for (expected_width, values, lo, hi, targets, want) in plain_cases {
+            let mut col = IntColumn::new(Order::Unsigned);
+            for val in values {
+                col.push(val);
+            }
+            col.seal();
+            assert!(
+                matches!(col.sealed[0].payload, Payload::Plain { width, .. } if u64::from(width) == expected_width)
+            );
+            let mut out = Vec::new();
+            col.collect_matching_in_range(lo, hi, &targets, &mut out);
+            assert_eq!(out, want, "width {expected_width}");
+        }
+
+        // Explicitly force Payload::Runs on chunk size 200 with NULLs and subrange slicing.
+        let mut runs_col = IntColumn::new(Order::Unsigned);
+        for i in 0..200u64 {
+            if i == 50 || i == 120 {
+                runs_col.push(None);
+            } else if (40..70).contains(&i) {
+                runs_col.push(Some(7));
+            } else if (110..130).contains(&i) {
+                runs_col.push(Some(9));
+            } else {
+                runs_col.push(Some(3));
+            }
+        }
+        runs_col.seal();
+        assert!(matches!(runs_col.sealed[0].payload, Payload::Runs { .. }));
+        let mut out_runs = Vec::new();
+        runs_col.collect_matching_in_range(48, 122, &[7, 9], &mut out_runs);
+        let mut expected_runs: Vec<u32> = (48..70).filter(|&i| i != 50).collect();
+        expected_runs.extend((110..122).filter(|&i| i != 120));
+        assert_eq!(out_runs, expected_runs);
+
+        // Bitset path (> 8 distinct targets) across Plain and Runs chunks + NULL filtering.
+        let mut bit_col = IntColumn::new(Order::Unsigned);
+        for i in 0..64u64 {
+            bit_col.push(if i == 12 { None } else { Some(i % 20) });
+        }
+        bit_col.seal();
+        let bitset = [((1u64 << 2) | (1u64 << 10) | (1u64 << 12) | (1u64 << 19))];
+        let mut bit_out = Vec::new();
+        bit_col.collect_matching_bitset_in_range(0, 64, &bitset, 19, &mut bit_out);
+        let want_bits: Vec<u32> = (0..64u32)
+            .filter(|&i| i != 12 && matches!(i % 20, 2 | 10 | 12 | 19))
+            .collect();
+        assert_eq!(bit_out, want_bits);
+    }
+
+    #[test]
+    fn fused_derived_and_respects_type_desc_flag_and_bitset_threshold() {
+        let dict = Arc::new(TextDict::default());
+        // Partition 0 omits La; from type_desc with type_desc_covers_member_classes=true (never matches La;).
+        // Partition 1 includes La; and > 8 distinct local field_idx entries matching f1 -> exercises bitset path.
+        let cls_a = dict.intern_str("La;");
+        let cls_b = dict.intern_str("Lb;");
+        let f_keep = dict.intern_str("keep");
+        let f_other = dict.intern_str("other");
+        let desc_keep = dict.intern_str("I");
+
+        let t0 = Arc::new(RefTable {
+            field_class: vec![cls_b],
+            field_name: vec![f_keep],
+            field_desc: vec![desc_keep],
+            field_type: vec![desc_keep],
+            type_desc: vec![cls_b],
+            type_name: vec![dict.intern_str("b")],
+            type_desc_covers_member_classes: true,
+            ..RefTable::default()
+        });
+        let mut t1 = RefTable {
+            type_desc: vec![cls_a, cls_b],
+            type_name: vec![dict.intern_str("a"), dict.intern_str("b")],
+            type_desc_covers_member_classes: true,
+            ..RefTable::default()
+        };
+        for i in 0..12 {
+            t1.field_class.push(if i % 2 == 0 { cls_a } else { cls_b });
+            t1.field_name
+                .push(if i < 10 || i == 11 { f_keep } else { f_other });
+            t1.field_desc.push(desc_keep);
+            t1.field_type.push(desc_keep);
+        }
+        let t1 = Arc::new(t1);
+
+        let schema_cols = [
+            column("file_id", SqlType::U64, false),
+            column("field_idx", SqlType::U64, false),
+            column("class_descriptor", SqlType::Text, false),
+            column("field_name", SqlType::Text, false),
+        ];
+        let derived_cols = [
+            DerivedColumn {
+                column: 2,
+                index_column: 1,
+                derive: Derive::FieldClass,
+            },
+            DerivedColumn {
+                column: 3,
+                index_column: 1,
+                derive: Derive::FieldName,
+            },
+        ];
+        let mut b =
+            RelationStoreBuilder::with_derived(&schema_cols, Arc::clone(&dict), &derived_cols);
+        b.begin_partition(0);
+        b.set_table(t0);
+        b.push_cells(&[
+            Cell::U64(0),
+            Cell::U64(0),
+            Cell::Str("Lb;"),
+            Cell::Str("keep"),
+        ])
+        .unwrap();
+        b.begin_partition(1);
+        b.set_table(t1);
+        // Add all 12 entries twice so > 8 local indices trigger bitset.
+        for i in 0..12usize {
+            let cls = if i % 2 == 0 { "La;" } else { "Lb;" };
+            let nm = if i < 10 || i == 11 { "keep" } else { "other" };
+            b.push_cells(&[
+                Cell::U64(1),
+                Cell::U64(i as u64),
+                Cell::Str(cls),
+                Cell::Str(nm),
+            ])
+            .unwrap();
+        }
+        let store = b.finish();
+
+        // Fused RowFilter::And leaves both CSR indexes unbuilt while finding exact rows.
+        let filter = RowFilter::And(vec![
+            RowFilter::EqText("class_descriptor".into(), "La;".into()),
+            RowFilter::EqText("field_name".into(), "keep".into()),
+        ]);
+        let PlannedScan::Rows(rows) = store.plan_filter(&filter) else {
+            panic!("expected Rows");
+        };
+        // Partition 0 row 0 is Lb; Partition 1 rows map to indices 0..12 -> row = 1 + i.
+        // Matching i: even (cls=La;) and i < 10 => i in {0, 2, 4, 6, 8} => rows {1, 3, 5, 7, 9}.
+        assert_eq!(rows.as_ref(), &[1, 3, 5, 7, 9]);
+        assert!(store.indexes[2].get().is_none());
+        assert!(store.indexes[3].get().is_none());
+
+        // Single derived predicate with > 8 matching local indices ("keep" -> i in 0..10, 11 -> 11 local indices > 8).
+        let single_many = store.exact_lookup_rows(
+            &[crate::provider::DirectPredicate::EqText(3, "keep".into())],
+            false,
+        );
+        let Some(ExactRowSet::Owned(many_rows)) = single_many else {
+            panic!("expected Owned rows for unindexed >8 bitset lookup");
+        };
+        let mut expected_keep: Vec<u32> = vec![0];
+        expected_keep.extend((0..12u32).filter(|&i| i < 10 || i == 11).map(|i| 1 + i));
+        assert_eq!(many_rows, expected_keep);
+        assert!(store.indexes[3].get().is_none());
+
+        // Synthetic table with type_desc_covers_member_classes=false must NOT skip a partition whose type_desc lacks cls_a.
+        let mut b2 =
+            RelationStoreBuilder::with_derived(&schema_cols, Arc::clone(&dict), &derived_cols);
+        b2.begin_partition(0);
+        b2.set_table(Arc::new(RefTable {
+            field_class: vec![cls_a],
+            field_name: vec![f_keep],
+            field_desc: vec![desc_keep],
+            field_type: vec![desc_keep],
+            type_desc: Vec::new(),
+            type_name: Vec::new(),
+            type_desc_covers_member_classes: false,
+            ..RefTable::default()
+        }));
+        b2.push_cells(&[
+            Cell::U64(0),
+            Cell::U64(0),
+            Cell::Str("La;"),
+            Cell::Str("keep"),
+        ])
+        .unwrap();
+        let store2 = b2.finish();
+        let Some(ExactRowSet::Owned(unskipped)) = store2.exact_lookup_rows(
+            &[
+                crate::provider::DirectPredicate::EqText(2, "La;".into()),
+                crate::provider::DirectPredicate::EqText(3, "keep".into()),
+            ],
+            false,
+        ) else {
+            panic!("expected Owned rows");
+        };
+        assert_eq!(unskipped, vec![0]);
+    }
+
+    #[test]
+    fn direct_filtered_projection_orders_utf16_nulls_and_windows_accurately() {
+        let dict = Arc::new(TextDict::default());
+        let mut b = RelationStoreBuilder::new(
+            &[
+                column("file_id", SqlType::U64, false),
+                column("label", SqlType::Text, true),
+                column("score", SqlType::I64, true),
+            ],
+            Arc::clone(&dict),
+        );
+        b.begin_partition(0);
+        // U+10000 encodes to UTF-16 surrogates [0xD800, 0xDC00] < U+E000 [0xE000], whereas in UTF-8
+        // U+10000 (0xF0 0x90 0x80 0x80) > U+E000 (0xEE 0x80 0x80). Sort MUST follow UTF-16!
+        let suppl = "\u{10000}";
+        let bmp_high = "\u{E000}";
+        for (label, score) in [
+            (Some(bmp_high), Some(10i64)),
+            (None, Some(30)),
+            (Some(suppl), Some(-5)),
+            (Some(suppl), Some(20)),
+        ] {
+            b.row(vec![
+                SqlValue::U64(DecimalU64(0)),
+                label.map_or(SqlValue::Null, SqlValue::text),
+                score.map_or(SqlValue::Null, |v| SqlValue::I64(Signed64(v))),
+            ])
+            .unwrap();
+        }
+        let store = b.finish();
+
+        // ASC sort: NULL first, then U+10000 (sorted by score ASC: -5 then 20), then U+E000.
+        let plan_asc = crate::provider::DirectFilteredProjection {
+            relation: "t".into(),
+            projected_columns: vec![(1, "label".into()), (2, "score".into())],
+            predicates: vec![crate::provider::DirectPredicate::EqU64(0, 0)],
+            order_by: vec![
+                crate::provider::DirectOrderItem {
+                    column: 1,
+                    descending: false,
+                },
+                crate::provider::DirectOrderItem {
+                    column: 2,
+                    descending: false,
+                },
+            ],
+        };
+        let win = crate::window::SqlWindow::new(1, 2)
+            .unwrap()
+            .counting_total();
+        let (rows, report) = store
+            .direct_filtered_projection(&plan_asc, &control(), Some(win))
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            rows,
+            vec![
+                vec![SqlValue::text(suppl), SqlValue::I64(Signed64(-5))],
+                vec![SqlValue::text(suppl), SqlValue::I64(Signed64(20))],
+            ]
+        );
+        let report = report.unwrap();
+        assert_eq!(report.offset, 1);
+        assert_eq!(report.rows, 2);
+        assert!(report.truncated);
+        assert_eq!(report.next_offset, Some(3));
+        assert_eq!(report.total_rows, Some(4));
+
+        // DESC sort: U+E000, U+10000 (20), U+10000 (-5), NULL last.
+        let plan_desc = crate::provider::DirectFilteredProjection {
+            order_by: vec![
+                crate::provider::DirectOrderItem {
+                    column: 1,
+                    descending: true,
+                },
+                crate::provider::DirectOrderItem {
+                    column: 2,
+                    descending: true,
+                },
+            ],
+            ..plan_asc.clone()
+        };
+        let (rows_desc, _) = store
+            .direct_filtered_projection(&plan_desc, &control(), None)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            rows_desc,
+            vec![
+                vec![SqlValue::text(bmp_high), SqlValue::I64(Signed64(10))],
+                vec![SqlValue::text(suppl), SqlValue::I64(Signed64(20))],
+                vec![SqlValue::text(suppl), SqlValue::I64(Signed64(-5))],
+                vec![SqlValue::Null, SqlValue::I64(Signed64(30))],
+            ]
+        );
+
+        // Empty result under counting_total window.
+        let plan_empty = crate::provider::DirectFilteredProjection {
+            predicates: vec![crate::provider::DirectPredicate::EqU64(0, 99)],
+            ..plan_asc
+        };
+        let (empty_rows, empty_rep) = store
+            .direct_filtered_projection(
+                &plan_empty,
+                &control(),
+                Some(
+                    crate::window::SqlWindow::new(0, 10)
+                        .unwrap()
+                        .counting_total(),
+                ),
+            )
+            .unwrap()
+            .unwrap();
+        assert!(empty_rows.is_empty());
+        let empty_rep = empty_rep.unwrap();
+        assert!(!empty_rep.truncated);
+        assert_eq!(empty_rep.total_rows, Some(0));
     }
 }

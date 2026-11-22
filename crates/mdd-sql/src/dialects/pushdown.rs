@@ -13,26 +13,16 @@
 //! time; this only chooses a smaller cursor.
 use crate::{
     provider::{
-        DirectCountGroupBy, DirectGroupItem, DirectTableProjection, EquiJoinEdge, RowFilter,
-        SqlRelation,
+        DirectCountGroupBy, DirectFilteredProjection, DirectGroupItem, DirectOrderItem,
+        DirectPredicate, DirectTableProjection, EquiJoinEdge, RowFilter, SqlRelation,
     },
     values::SqlType,
 };
 use sqlparser::{ast::*, dialect::SQLiteDialect, parser::Parser, tokenizer::Token};
 use std::collections::{BTreeMap, BTreeSet};
 
-/// Extract a sound direct single-table projection with optional ascending `U64` ORDER BY,
-/// excluding wrappers, CTEs, filters, aggregates, LIMIT/OFFSET, or ambiguous aliases.
-pub(crate) fn extract_direct_projection(
-    sql: &str,
-    relations: &[SqlRelation],
-    cte_names: &BTreeSet<String>,
-    max_ast_depth: usize,
-) -> Option<DirectTableProjection> {
-    if relations.is_empty() {
-        return None;
-    }
-    let stmts = Parser::new(&SQLiteDialect {})
+fn parse_single_query(sql: &str, max_ast_depth: usize) -> Option<Box<Query>> {
+    let mut stmts = Parser::new(&SQLiteDialect {})
         .with_recursion_limit(max_ast_depth)
         .try_with_sql(sql)
         .ok()?
@@ -41,218 +31,19 @@ pub(crate) fn extract_direct_projection(
     if stmts.len() != 1 {
         return None;
     }
-    let Statement::Query(root) = &stmts[0] else {
-        return None;
-    };
-    if root.with.is_some()
-        || root.limit_clause.is_some()
-        || root.fetch.is_some()
-        || !root.locks.is_empty()
-        || root.settings.is_some()
-        || root.format_clause.is_some()
-        || !root.pipe_operators.is_empty()
-    {
-        return None;
+    match stmts.pop()? {
+        Statement::Query(root) => Some(root),
+        _ => None,
     }
-    let SetExpr::Select(select) = &*root.body else {
-        return None;
-    };
-    let empty_group = matches!(
-        &select.group_by,
-        GroupByExpr::Expressions(exprs, modifiers) if exprs.is_empty() && modifiers.is_empty()
-    );
-    if select.distinct.is_some()
-        || select.top.is_some()
-        || select.into.is_some()
-        || select.selection.is_some()
-        || !empty_group
-        || !select.cluster_by.is_empty()
-        || !select.distribute_by.is_empty()
-        || !select.sort_by.is_empty()
-        || select.having.is_some()
-        || !select.named_window.is_empty()
-        || select.qualify.is_some()
-        || !select.connect_by.is_empty()
-        || select.prewhere.is_some()
-        || !select.lateral_views.is_empty()
-        || select.value_table_mode.is_some()
-        || select.from.len() != 1
-        || !select.from[0].joins.is_empty()
-        || select.projection.is_empty()
-    {
-        return None;
-    }
-    let TableFactor::Table {
-        name,
-        alias,
-        args: None,
-        with_hints,
-        version: None,
-        with_ordinality: false,
-        partitions,
-        json_path: None,
-        sample: None,
-        index_hints,
-    } = &select.from[0].relation
-    else {
-        return None;
-    };
-    if !with_hints.is_empty() || !partitions.is_empty() || !index_hints.is_empty() {
-        return None;
-    }
-    if alias.as_ref().is_some_and(|a| !a.columns.is_empty()) || name.0.len() != 1 {
-        return None;
-    }
-    let rel_ident = name.0[0].as_ident()?;
-    let rel_lower = rel_ident.value.to_ascii_lowercase();
-    if cte_names.contains(&rel_lower) {
-        return None;
-    }
-    let rel = relations
-        .iter()
-        .find(|r| r.name.eq_ignore_ascii_case(&rel_lower))?;
-    let qualifier = alias
-        .as_ref()
-        .map_or_else(|| rel_lower.clone(), |a| a.name.value.to_ascii_lowercase());
-
-    let resolve_col = |expr: &Expr| -> Option<usize> {
-        match unwrap_nested(expr) {
-            Expr::Identifier(id) => rel
-                .columns
-                .iter()
-                .position(|c| c.name.eq_ignore_ascii_case(&id.value)),
-            Expr::CompoundIdentifier(parts) if parts.len() == 2 => {
-                if !parts[0].value.eq_ignore_ascii_case(&qualifier) {
-                    return None;
-                }
-                rel.columns
-                    .iter()
-                    .position(|c| c.name.eq_ignore_ascii_case(&parts[1].value))
-            }
-            _ => None,
-        }
-    };
-
-    let mut projected_columns = Vec::with_capacity(select.projection.len());
-    let mut shadowed_cols = BTreeSet::new();
-    for item in &select.projection {
-        match item {
-            SelectItem::UnnamedExpr(expr) => {
-                let col_idx = resolve_col(expr)?;
-                projected_columns.push((col_idx, rel.columns[col_idx].name.clone()));
-            }
-            SelectItem::ExprWithAlias { expr, alias } => {
-                let col_idx = resolve_col(expr)?;
-                if let Some(other_idx) = rel
-                    .columns
-                    .iter()
-                    .position(|c| c.name.eq_ignore_ascii_case(&alias.value))
-                    && other_idx != col_idx
-                {
-                    shadowed_cols.insert(other_idx);
-                }
-                projected_columns.push((col_idx, alias.value.clone()));
-            }
-            _ => return None,
-        }
-    }
-
-    let order_by_u64_asc = match &root.order_by {
-        None => Vec::new(),
-        Some(order) => {
-            if order.interpolate.is_some() {
-                return None;
-            }
-            let OrderByKind::Expressions(exprs) = &order.kind else {
-                return None;
-            };
-            if exprs.is_empty() || exprs.len() > 2 {
-                return None;
-            }
-            let mut cols = Vec::with_capacity(exprs.len());
-            for item in exprs {
-                if item.with_fill.is_some()
-                    || !matches!(item.options.sort, None | Some(OrderBySort::Asc))
-                    || item.options.nulls_first.is_some()
-                {
-                    return None;
-                }
-                let ord_idx = resolve_col(&item.expr)?;
-                if shadowed_cols.contains(&ord_idx)
-                    && matches!(unwrap_nested(&item.expr), Expr::Identifier(_))
-                {
-                    return None;
-                }
-                let col = &rel.columns[ord_idx];
-                if col.data_type != SqlType::U64 || col.nullable {
-                    return None;
-                }
-                cols.push(ord_idx);
-            }
-            cols
-        }
-    };
-
-    Some(DirectTableProjection {
-        relation: rel.name.clone(),
-        projected_columns,
-        order_by_u64_asc,
-    })
 }
 
-fn is_count_star(expr: &Expr) -> bool {
-    let Expr::Function(func) = unwrap_nested(expr) else {
-        return false;
-    };
-    if func.name.0.len() != 1
-        || !func.name.0[0]
-            .as_ident()
-            .is_some_and(|id| id.value.eq_ignore_ascii_case("count"))
-        || func.filter.is_some()
-        || func.over.is_some()
-        || !func.within_group.is_empty()
-        || func.null_treatment.is_some()
-        || func.uses_odbc_syntax
-        || !matches!(func.parameters, FunctionArguments::None)
-    {
-        return false;
-    }
-    let FunctionArguments::List(list) = &func.args else {
-        return false;
-    };
-    list.duplicate_treatment.is_none()
-        && list.clauses.is_empty()
-        && list.args.len() == 1
-        && matches!(
-            &list.args[0],
-            FunctionArg::Unnamed(FunctionArgExpr::Wildcard)
-        )
-}
-
-/// Extract a sound single-table unfiltered `GROUP BY <cols> COUNT(*) [ORDER BY <cols> ASC]`
-/// fast path, excluding wrappers, CTEs, filters, HAVING, DISTINCT, LIMIT/OFFSET, or ambiguous aliases.
-pub(crate) fn extract_direct_count_group_by(
-    sql: &str,
-    relations: &[SqlRelation],
+fn extract_plain_single_table<'a>(
+    root: &'a Query,
+    relations: &'a [SqlRelation],
     cte_names: &BTreeSet<String>,
-    max_ast_depth: usize,
-) -> Option<DirectCountGroupBy> {
-    if relations.is_empty() {
-        return None;
-    }
-    let stmts = Parser::new(&SQLiteDialect {})
-        .with_recursion_limit(max_ast_depth)
-        .try_with_sql(sql)
-        .ok()?
-        .parse_statements()
-        .ok()?;
-    if stmts.len() != 1 {
-        return None;
-    }
-    let Statement::Query(root) = &stmts[0] else {
-        return None;
-    };
-    if root.with.is_some()
+) -> Option<(&'a Select, &'a SqlRelation, String)> {
+    if relations.is_empty()
+        || root.with.is_some()
         || root.limit_clause.is_some()
         || root.fetch.is_some()
         || !root.locks.is_empty()
@@ -268,11 +59,10 @@ pub(crate) fn extract_direct_count_group_by(
     if select.distinct.is_some()
         || select.top.is_some()
         || select.into.is_some()
-        || select.selection.is_some()
-        || select.having.is_some()
         || !select.cluster_by.is_empty()
         || !select.distribute_by.is_empty()
         || !select.sort_by.is_empty()
+        || select.having.is_some()
         || !select.named_window.is_empty()
         || select.qualify.is_some()
         || !select.connect_by.is_empty()
@@ -318,25 +108,376 @@ pub(crate) fn extract_direct_count_group_by(
         .find(|r| r.name.eq_ignore_ascii_case(&rel_lower))?;
     let qualifier = alias
         .as_ref()
-        .map_or_else(|| rel_lower.clone(), |a| a.name.value.to_ascii_lowercase());
+        .map_or_else(|| rel_lower, |a| a.name.value.to_ascii_lowercase());
+    Some((select, rel, qualifier))
+}
 
-    let resolve_col = |expr: &Expr| -> Option<usize> {
-        match unwrap_nested(expr) {
-            Expr::Identifier(id) => rel
-                .columns
+fn has_empty_group_by(select: &Select) -> bool {
+    matches!(
+        &select.group_by,
+        GroupByExpr::Expressions(exprs, modifiers) if exprs.is_empty() && modifiers.is_empty()
+    )
+}
+
+fn resolve_plain_col(rel: &SqlRelation, qualifier: &str, expr: &Expr) -> Option<usize> {
+    match unwrap_nested(expr) {
+        Expr::Identifier(id) => rel
+            .columns
+            .iter()
+            .position(|c| c.name.eq_ignore_ascii_case(&id.value)),
+        Expr::CompoundIdentifier(parts) if parts.len() == 2 => {
+            if !parts[0].value.eq_ignore_ascii_case(qualifier) {
+                return None;
+            }
+            rel.columns
                 .iter()
-                .position(|c| c.name.eq_ignore_ascii_case(&id.value)),
-            Expr::CompoundIdentifier(parts) if parts.len() == 2 => {
-                if !parts[0].value.eq_ignore_ascii_case(&qualifier) {
+                .position(|c| c.name.eq_ignore_ascii_case(&parts[1].value))
+        }
+        _ => None,
+    }
+}
+
+/// Extract a sound direct single-table projection with optional ascending `U64` ORDER BY,
+/// excluding wrappers, CTEs, filters, aggregates, LIMIT/OFFSET, or ambiguous aliases.
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) fn extract_direct_projection(
+    sql: &str,
+    relations: &[SqlRelation],
+    cte_names: &BTreeSet<String>,
+    max_ast_depth: usize,
+) -> Option<DirectTableProjection> {
+    let root = parse_single_query(sql, max_ast_depth)?;
+    extract_direct_projection_from_query(&root, relations, cte_names)
+}
+
+/// As [`extract_direct_projection`], reusing an already-parsed [`Query`] AST.
+pub(crate) fn extract_direct_projection_from_query(
+    root: &Query,
+    relations: &[SqlRelation],
+    cte_names: &BTreeSet<String>,
+) -> Option<DirectTableProjection> {
+    let (select, rel, qualifier) = extract_plain_single_table(root, relations, cte_names)?;
+    if select.selection.is_some() || !has_empty_group_by(select) {
+        return None;
+    }
+
+    let mut projected_columns = Vec::with_capacity(select.projection.len());
+    let mut shadowed_cols = BTreeSet::new();
+    for item in &select.projection {
+        match item {
+            SelectItem::UnnamedExpr(expr) => {
+                let col_idx = resolve_plain_col(rel, &qualifier, expr)?;
+                projected_columns.push((col_idx, rel.columns[col_idx].name.clone()));
+            }
+            SelectItem::ExprWithAlias { expr, alias } => {
+                let col_idx = resolve_plain_col(rel, &qualifier, expr)?;
+                if let Some(other_idx) = rel
+                    .columns
+                    .iter()
+                    .position(|c| c.name.eq_ignore_ascii_case(&alias.value))
+                    && other_idx != col_idx
+                {
+                    shadowed_cols.insert(other_idx);
+                }
+                projected_columns.push((col_idx, alias.value.clone()));
+            }
+            _ => return None,
+        }
+    }
+
+    let order_by_u64_asc = match &root.order_by {
+        None => Vec::new(),
+        Some(order) => {
+            if order.interpolate.is_some() {
+                return None;
+            }
+            let OrderByKind::Expressions(exprs) = &order.kind else {
+                return None;
+            };
+            if exprs.is_empty() || exprs.len() > 2 {
+                return None;
+            }
+            let mut cols = Vec::with_capacity(exprs.len());
+            for item in exprs {
+                if item.with_fill.is_some()
+                    || !matches!(item.options.sort, None | Some(OrderBySort::Asc))
+                    || item.options.nulls_first.is_some()
+                {
                     return None;
                 }
-                rel.columns
-                    .iter()
-                    .position(|c| c.name.eq_ignore_ascii_case(&parts[1].value))
+                let ord_idx = resolve_plain_col(rel, &qualifier, &item.expr)?;
+                if shadowed_cols.contains(&ord_idx)
+                    && matches!(unwrap_nested(&item.expr), Expr::Identifier(_))
+                {
+                    return None;
+                }
+                let col = &rel.columns[ord_idx];
+                if col.data_type != SqlType::U64 || col.nullable {
+                    return None;
+                }
+                cols.push(ord_idx);
             }
-            _ => None,
+            cols
         }
     };
+
+    Some(DirectTableProjection {
+        relation: rel.name.clone(),
+        projected_columns,
+        order_by_u64_asc,
+    })
+}
+
+/// Extract a filtered single-table projection with conjunctive equality/`IN` predicates and
+/// optional multi-column `U64`/`I64`/`Text` `ORDER BY`.
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) fn extract_direct_filtered_projection(
+    sql: &str,
+    relations: &[SqlRelation],
+    cte_names: &BTreeSet<String>,
+    max_ast_depth: usize,
+) -> Option<DirectFilteredProjection> {
+    let root = parse_single_query(sql, max_ast_depth)?;
+    extract_direct_filtered_projection_from_query(&root, relations, cte_names)
+}
+
+/// As [`extract_direct_filtered_projection`], reusing an already-parsed [`Query`] AST.
+pub(crate) fn extract_direct_filtered_projection_from_query(
+    root: &Query,
+    relations: &[SqlRelation],
+    cte_names: &BTreeSet<String>,
+) -> Option<DirectFilteredProjection> {
+    let (select, rel, qualifier) = extract_plain_single_table(root, relations, cte_names)?;
+    if !has_empty_group_by(select) {
+        return None;
+    }
+    let selection = select.selection.as_ref()?;
+
+    let mut projected_columns = Vec::with_capacity(select.projection.len());
+    let mut alias_targets: BTreeMap<String, Option<usize>> = BTreeMap::new();
+    let mut shadowed_cols = BTreeSet::new();
+    let mut record_alias = |name: &str, col_idx: usize, conflicting: bool| {
+        let lower = name.to_ascii_lowercase();
+        if conflicting {
+            alias_targets.insert(lower, None);
+            return;
+        }
+        if let Some(prev) = alias_targets.get_mut(&lower) {
+            if *prev != Some(col_idx) {
+                *prev = None;
+            }
+        } else {
+            alias_targets.insert(lower, Some(col_idx));
+        }
+    };
+    for item in &select.projection {
+        match item {
+            SelectItem::UnnamedExpr(expr) => {
+                // Reject outer parenthesized `(col)` so SQLite output column naming never diverges.
+                if matches!(expr, Expr::Nested(_)) {
+                    return None;
+                }
+                let col_idx = resolve_plain_col(rel, &qualifier, expr)?;
+                record_alias(&rel.columns[col_idx].name, col_idx, false);
+                projected_columns.push((col_idx, rel.columns[col_idx].name.clone()));
+            }
+            SelectItem::ExprWithAlias { expr, alias } => {
+                let col_idx = resolve_plain_col(rel, &qualifier, expr)?;
+                let mut shadows = false;
+                if let Some(other_idx) = rel
+                    .columns
+                    .iter()
+                    .position(|c| c.name.eq_ignore_ascii_case(&alias.value))
+                    && other_idx != col_idx
+                {
+                    shadowed_cols.insert(other_idx);
+                    shadows = true;
+                }
+                record_alias(&alias.value, col_idx, shadows);
+                projected_columns.push((col_idx, alias.value.clone()));
+            }
+            _ => return None,
+        }
+    }
+
+    let mut predicates = Vec::new();
+    let mut pending = vec![selection];
+    while let Some(expr) = pending.pop() {
+        match unwrap_nested(expr) {
+            Expr::BinaryOp {
+                left,
+                op: BinaryOperator::And,
+                right,
+            } => {
+                pending.push(right);
+                pending.push(left);
+            }
+            Expr::BinaryOp {
+                left,
+                op: BinaryOperator::Eq,
+                right,
+            } => {
+                if predicates.len() >= 32 {
+                    return None;
+                }
+                let (col_idx, lit) = if let Some(idx) = resolve_plain_col(rel, &qualifier, left) {
+                    (idx, right)
+                } else if let Some(idx) = resolve_plain_col(rel, &qualifier, right) {
+                    (idx, left)
+                } else {
+                    return None;
+                };
+                let pred = match rel.columns[col_idx].data_type {
+                    SqlType::U64 => DirectPredicate::EqU64(col_idx, parse_u64_lit(lit)?),
+                    SqlType::Text => DirectPredicate::EqText(col_idx, parse_text_lit(lit)?),
+                    _ => return None,
+                };
+                predicates.push(pred);
+            }
+            Expr::InList {
+                expr: target,
+                list,
+                negated: false,
+            } => {
+                if predicates.len() >= 32 || list.is_empty() {
+                    return None;
+                }
+                let col_idx = resolve_plain_col(rel, &qualifier, target)?;
+                let pred = match rel.columns[col_idx].data_type {
+                    SqlType::U64 => DirectPredicate::InU64(
+                        col_idx,
+                        list.iter().map(parse_u64_lit).collect::<Option<Vec<_>>>()?,
+                    ),
+                    SqlType::Text => DirectPredicate::InText(
+                        col_idx,
+                        list.iter()
+                            .map(parse_text_lit)
+                            .collect::<Option<Vec<_>>>()?,
+                    ),
+                    _ => return None,
+                };
+                predicates.push(pred);
+            }
+            _ => return None,
+        }
+    }
+    if predicates.is_empty() {
+        return None;
+    }
+
+    let order_by = match &root.order_by {
+        None => Vec::new(),
+        Some(order) => {
+            if order.interpolate.is_some() {
+                return None;
+            }
+            let OrderByKind::Expressions(exprs) = &order.kind else {
+                return None;
+            };
+            if exprs.is_empty() || exprs.len() > 4 {
+                return None;
+            }
+            let mut items = Vec::with_capacity(exprs.len());
+            for item in exprs {
+                if item.with_fill.is_some() || item.options.nulls_first.is_some() {
+                    return None;
+                }
+                let descending = match item.options.sort {
+                    None | Some(OrderBySort::Asc) => false,
+                    Some(OrderBySort::Desc) => true,
+                };
+                let ord_idx = match unwrap_nested(&item.expr) {
+                    Expr::Identifier(id) => {
+                        let lower = id.value.to_ascii_lowercase();
+                        if let Some(target) = alias_targets.get(&lower) {
+                            (*target)?
+                        } else {
+                            let idx = resolve_plain_col(rel, &qualifier, &item.expr)?;
+                            if shadowed_cols.contains(&idx) {
+                                return None;
+                            }
+                            idx
+                        }
+                    }
+                    _ => resolve_plain_col(rel, &qualifier, &item.expr)?,
+                };
+                if !matches!(
+                    rel.columns[ord_idx].data_type,
+                    SqlType::U64 | SqlType::I64 | SqlType::Text
+                ) {
+                    return None;
+                }
+                items.push(DirectOrderItem {
+                    column: ord_idx,
+                    descending,
+                });
+            }
+            items
+        }
+    };
+
+    Some(DirectFilteredProjection {
+        relation: rel.name.clone(),
+        projected_columns,
+        predicates,
+        order_by,
+    })
+}
+
+fn is_count_star(expr: &Expr) -> bool {
+    let Expr::Function(func) = unwrap_nested(expr) else {
+        return false;
+    };
+    if func.name.0.len() != 1
+        || !func.name.0[0]
+            .as_ident()
+            .is_some_and(|id| id.value.eq_ignore_ascii_case("count"))
+        || func.filter.is_some()
+        || func.over.is_some()
+        || !func.within_group.is_empty()
+        || func.null_treatment.is_some()
+        || func.uses_odbc_syntax
+        || !matches!(func.parameters, FunctionArguments::None)
+    {
+        return false;
+    }
+    let FunctionArguments::List(list) = &func.args else {
+        return false;
+    };
+    list.duplicate_treatment.is_none()
+        && list.clauses.is_empty()
+        && list.args.len() == 1
+        && matches!(
+            &list.args[0],
+            FunctionArg::Unnamed(FunctionArgExpr::Wildcard)
+        )
+}
+
+/// Extract a sound single-table unfiltered `GROUP BY <cols> COUNT(*) [ORDER BY <cols> ASC]`
+/// fast path, excluding wrappers, CTEs, filters, HAVING, DISTINCT, LIMIT/OFFSET, or ambiguous aliases.
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) fn extract_direct_count_group_by(
+    sql: &str,
+    relations: &[SqlRelation],
+    cte_names: &BTreeSet<String>,
+    max_ast_depth: usize,
+) -> Option<DirectCountGroupBy> {
+    let root = parse_single_query(sql, max_ast_depth)?;
+    extract_direct_count_group_by_from_query(&root, relations, cte_names)
+}
+
+/// As [`extract_direct_count_group_by`], reusing an already-parsed [`Query`] AST.
+pub(crate) fn extract_direct_count_group_by_from_query(
+    root: &Query,
+    relations: &[SqlRelation],
+    cte_names: &BTreeSet<String>,
+) -> Option<DirectCountGroupBy> {
+    let (select, rel, qualifier) = extract_plain_single_table(root, relations, cte_names)?;
+    if select.selection.is_some() {
+        return None;
+    }
+
+    let resolve_col = |expr: &Expr| resolve_plain_col(rel, &qualifier, expr);
 
     let GroupByExpr::Expressions(group_exprs, modifiers) = &select.group_by else {
         return None;
@@ -1846,5 +1987,97 @@ mod tests {
 
         let cte_shadow = BTreeSet::from(["class_methods".to_owned()]);
         assert!(extract_direct_count_group_by(w04, &rels, &cte_shadow, 64).is_none());
+    }
+
+    #[test]
+    fn direct_filtered_projection_extractor_handles_filters_orders_aliases_and_rejections() {
+        let rels = bulk_test_relations();
+        let no_ctes = BTreeSet::new();
+
+        let simple = extract_direct_filtered_projection(
+            "SELECT file_id, descriptor FROM classes WHERE descriptor = 'La;' ORDER BY file_id ASC, class_idx DESC",
+            &rels,
+            &no_ctes,
+            64,
+        )
+        .expect("simple WHERE = with ORDER BY");
+        assert_eq!(simple.relation, "classes");
+        assert_eq!(
+            simple.projected_columns,
+            vec![(0, "file_id".into()), (2, "descriptor".into())]
+        );
+        assert_eq!(
+            simple.predicates,
+            vec![DirectPredicate::EqText(2, "La;".into())]
+        );
+        assert_eq!(
+            simple.order_by,
+            vec![
+                DirectOrderItem {
+                    column: 0,
+                    descending: false
+                },
+                DirectOrderItem {
+                    column: 1,
+                    descending: true
+                },
+            ]
+        );
+
+        let fused = extract_direct_filtered_projection(
+            "SELECT m.descriptor AS d, m.file_id FROM methods m WHERE m.class_descriptor = 'La;' AND (m.name IN ('f', 'g') AND 0 = m.file_id) ORDER BY d DESC",
+            &rels,
+            &no_ctes,
+            64,
+        )
+        .expect("aliased fused AND + IN + reversed u64 literal");
+        assert_eq!(
+            fused.predicates,
+            vec![
+                DirectPredicate::EqText(2, "La;".into()),
+                DirectPredicate::InText(3, vec!["f".into(), "g".into()]),
+                DirectPredicate::EqU64(0, 0),
+            ]
+        );
+        assert_eq!(
+            fused.order_by,
+            vec![DirectOrderItem {
+                column: 4,
+                descending: true
+            }]
+        );
+
+        for rejected in [
+            "SELECT file_id FROM classes",
+            "SELECT (file_id) FROM classes WHERE file_id = 0",
+            "SELECT file_id FROM classes WHERE file_id = 0 OR descriptor = 'La;'",
+            "SELECT file_id FROM classes WHERE descriptor LIKE 'La%'",
+            "SELECT file_id FROM classes WHERE file_id = -1",
+            "SELECT file_id FROM classes WHERE descriptor = 123",
+            "SELECT file_id FROM classes WHERE file_id = ?",
+            "SELECT DISTINCT file_id FROM classes WHERE descriptor = 'La;'",
+            "SELECT file_id FROM classes WHERE descriptor = 'La;' LIMIT 10",
+            "SELECT file_id FROM classes WHERE descriptor = 'La;' GROUP BY file_id",
+            "SELECT file_id AS x, class_idx AS x FROM classes WHERE descriptor = 'La;' ORDER BY x",
+            "SELECT class_idx AS file_id FROM classes WHERE descriptor = 'La;' ORDER BY file_id",
+            "SELECT file_id FROM classes WHERE descriptor = 'La;' ORDER BY 1",
+            "SELECT file_id FROM classes WHERE descriptor = 'La;' ORDER BY file_id NULLS LAST",
+        ] {
+            assert!(
+                extract_direct_filtered_projection(rejected, &rels, &no_ctes, 64).is_none(),
+                "must refuse direct filtered projection for {rejected}"
+            );
+        }
+
+        let cte_shadow = BTreeSet::from(["classes".to_owned()]);
+        assert!(
+            extract_direct_filtered_projection(
+                "SELECT file_id FROM classes WHERE file_id = 0",
+                &rels,
+                &cte_shadow,
+                64
+            )
+            .is_none()
+        );
     }
 }

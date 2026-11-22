@@ -41,6 +41,7 @@ struct PreparedCacheEntry {
     row_filters: std::collections::BTreeMap<String, crate::provider::RowFilter>,
     equi_joins: Vec<crate::provider::EquiJoinEdge>,
     direct_projection: Option<crate::provider::DirectTableProjection>,
+    direct_filtered_projection: Option<crate::provider::DirectFilteredProjection>,
     direct_count_group_by: Option<crate::provider::DirectCountGroupBy>,
 }
 
@@ -59,6 +60,7 @@ impl PreparedCacheEntry {
             row_filters: prepared.row_filters.clone(),
             equi_joins: prepared.equi_joins.clone(),
             direct_projection: prepared.direct_projection.clone(),
+            direct_filtered_projection: prepared.direct_filtered_projection.clone(),
             direct_count_group_by: prepared.direct_count_group_by.clone(),
         }
     }
@@ -93,6 +95,7 @@ impl PreparedCacheEntry {
             row_filters: self.row_filters.clone(),
             equi_joins: self.equi_joins.clone(),
             direct_projection: self.direct_projection.clone(),
+            direct_filtered_projection: self.direct_filtered_projection.clone(),
             direct_count_group_by: self.direct_count_group_by.clone(),
             execution_binding: None,
             profile,
@@ -134,6 +137,7 @@ pub struct PreparedSql {
     row_filters: std::collections::BTreeMap<String, crate::provider::RowFilter>,
     equi_joins: Vec<crate::provider::EquiJoinEdge>,
     direct_projection: Option<crate::provider::DirectTableProjection>,
+    direct_filtered_projection: Option<crate::provider::DirectFilteredProjection>,
     direct_count_group_by: Option<crate::provider::DirectCountGroupBy>,
     execution_binding: Option<crate::runtime::SqlExecutionBinding>,
     profile: Option<CompatibilityProfile>,
@@ -932,33 +936,16 @@ impl SqlBridge {
             .collect::<BTreeSet<_>>()
             .into_iter()
             .collect();
-        let direct_projection = if adapted.parameters.is_empty()
+        let allow_direct = adapted.parameters.is_empty()
             && adapted.cte_names.is_empty()
-            && adapted.display_overrides.is_empty()
-        {
-            crate::dialects::pushdown::extract_direct_projection(
-                sql,
-                &relations,
-                &adapted.cte_names,
-                self.limits.max_ast_depth,
-            )
-        } else {
-            None
-        };
-        let direct_count_group_by = if direct_projection.is_none()
-            && adapted.parameters.is_empty()
-            && adapted.cte_names.is_empty()
-            && adapted.display_overrides.is_empty()
-        {
-            crate::dialects::pushdown::extract_direct_count_group_by(
-                sql,
-                &relations,
-                &adapted.cte_names,
-                self.limits.max_ast_depth,
-            )
-        } else {
-            None
-        };
+            && adapted.display_overrides.is_empty();
+        let direct_projection = allow_direct.then_some(adapted.direct_projection).flatten();
+        let direct_filtered_projection = allow_direct
+            .then_some(adapted.direct_filtered_projection)
+            .flatten();
+        let direct_count_group_by = allow_direct
+            .then_some(adapted.direct_count_group_by)
+            .flatten();
         let prepared = PreparedSql {
             binding: self.provider.binding().clone(),
             temp_fingerprint: None,
@@ -978,6 +965,7 @@ impl SqlBridge {
             row_filters: adapted.row_filters,
             equi_joins: adapted.equi_joins,
             direct_projection,
+            direct_filtered_projection,
             direct_count_group_by,
             execution_binding: None,
             profile: self.profile.clone(),
@@ -1024,17 +1012,7 @@ impl SqlBridge {
         for name in &prepared.required_relations {
             prepared.provider.require_relation(name)?;
         }
-        let columns: Vec<String> = direct
-            .projected_columns
-            .iter()
-            .map(|(_, shown)| {
-                if prepared.dialect == SqlDialect::NativeV1 {
-                    shown.clone()
-                } else {
-                    shown.to_ascii_lowercase()
-                }
-            })
-            .collect();
+        let columns = direct_projection_columns(&direct.projected_columns, prepared.dialect);
         struct Adapter<'a> {
             columns: &'a [String],
             inner: &'a mut dyn crate::column_store::DirectCellRowConsumer,
@@ -1372,36 +1350,27 @@ impl SqlBridge {
             && prepared.temp_fingerprint.is_none()
             && control.runtime().is_none()
             && crate::column_store::sql_scan_opt_enabled()
-            && let Some(group_plan) = prepared.direct_count_group_by.as_ref()
-            && let Some(result_rows) = prepared
-                .provider
-                .try_direct_count_group_by(group_plan, &control)
         {
-            let rows = result_rows.map_err(|error| control.error().unwrap_or(error))?;
-            let columns = direct_group_columns(group_plan, prepared.dialect);
-            let result = (|| {
-                consumer.on_columns(&columns)?;
-                consumer.on_start(rows.len() as u64)?;
-                let total_rows = rows.len();
-                for row in rows {
-                    control.checkpoint(1, false)?;
-                    consumer.begin_row()?;
-                    for (ordinal, val) in row.into_iter().enumerate() {
-                        consumer.push_cell(
-                            ordinal,
-                            &crate::column_store::BorrowedSqlCell::Owned(val),
-                        )?;
-                    }
-                    consumer.end_row()?;
-                }
-                if prepared.provider.binding() != &prepared.binding {
-                    return Err(invalid("SQL_GENERATION_CHANGED_BEFORE_END"));
-                }
-                control.checkpoint(1, false)?;
-                consumer.on_finish()?;
-                Ok(total_rows)
-            })();
-            return result.map_err(|error| control.error().unwrap_or(error));
+            if let Some(filtered_plan) = prepared.direct_filtered_projection.as_ref()
+                && let Some(result_rows) =
+                    prepared
+                        .provider
+                        .try_direct_filtered_projection(filtered_plan, &control, None)
+            {
+                let (rows, _) = result_rows.map_err(|error| control.error().unwrap_or(error))?;
+                let columns =
+                    direct_projection_columns(&filtered_plan.projected_columns, prepared.dialect);
+                return stream_direct_rows(prepared, &control, columns, rows, consumer);
+            }
+            if let Some(group_plan) = prepared.direct_count_group_by.as_ref()
+                && let Some(result_rows) = prepared
+                    .provider
+                    .try_direct_count_group_by(group_plan, &control)
+            {
+                let rows = result_rows.map_err(|error| control.error().unwrap_or(error))?;
+                let columns = direct_group_columns(group_plan, prepared.dialect);
+                return stream_direct_rows(prepared, &control, columns, rows, consumer);
+            }
         }
         let db = self.open_sqlite_connection(prepared, &control)?;
         let result = (|| {
@@ -1491,37 +1460,41 @@ impl SqlBridge {
         for name in &prepared.required_relations {
             prepared.provider.require_relation(name)?;
         }
-        if window.is_none()
-            && prepared.parameters.is_empty()
+        if prepared.parameters.is_empty()
             && prepared.temp_fingerprint.is_none()
             && control.runtime().is_none()
             && crate::column_store::sql_scan_opt_enabled()
         {
-            if let Some(direct) = prepared.direct_projection.as_ref()
-                && let Some(result_rows) = prepared.provider.try_direct_projection(direct, &control)
-            {
-                let rows = result_rows.map_err(|error| control.error().unwrap_or(error))?;
-                let columns: Vec<String> = direct
-                    .projected_columns
-                    .iter()
-                    .map(|(_, shown)| {
-                        if prepared.dialect == SqlDialect::NativeV1 {
-                            shown.clone()
-                        } else {
-                            shown.to_ascii_lowercase()
-                        }
-                    })
-                    .collect();
-                return finish_direct_sql_result(prepared, &control, columns, rows);
-            }
-            if let Some(group_plan) = prepared.direct_count_group_by.as_ref()
+            if let Some(filtered) = prepared.direct_filtered_projection.as_ref()
                 && let Some(result_rows) = prepared
                     .provider
-                    .try_direct_count_group_by(group_plan, &control)
+                    .try_direct_filtered_projection(filtered, &control, window)
             {
-                let rows = result_rows.map_err(|error| control.error().unwrap_or(error))?;
-                let columns = direct_group_columns(group_plan, prepared.dialect);
-                return finish_direct_sql_result(prepared, &control, columns, rows);
+                let (rows, window_report) =
+                    result_rows.map_err(|error| control.error().unwrap_or(error))?;
+                let columns =
+                    direct_projection_columns(&filtered.projected_columns, prepared.dialect);
+                return finish_direct_sql_result(prepared, &control, columns, rows, window_report);
+            }
+            if window.is_none() {
+                if let Some(direct) = prepared.direct_projection.as_ref()
+                    && let Some(result_rows) =
+                        prepared.provider.try_direct_projection(direct, &control)
+                {
+                    let rows = result_rows.map_err(|error| control.error().unwrap_or(error))?;
+                    let columns =
+                        direct_projection_columns(&direct.projected_columns, prepared.dialect);
+                    return finish_direct_sql_result(prepared, &control, columns, rows, None);
+                }
+                if let Some(group_plan) = prepared.direct_count_group_by.as_ref()
+                    && let Some(result_rows) = prepared
+                        .provider
+                        .try_direct_count_group_by(group_plan, &control)
+                {
+                    let rows = result_rows.map_err(|error| control.error().unwrap_or(error))?;
+                    let columns = direct_group_columns(group_plan, prepared.dialect);
+                    return finish_direct_sql_result(prepared, &control, columns, rows, None);
+                }
             }
         }
         let db = self.open_sqlite_connection(prepared, &control)?;
@@ -1844,6 +1817,51 @@ fn output_columns(
     Ok(columns)
 }
 
+fn direct_projection_columns(
+    projected_columns: &[(usize, String)],
+    dialect: SqlDialect,
+) -> Vec<String> {
+    projected_columns
+        .iter()
+        .map(|(_, shown)| {
+            if dialect == SqlDialect::NativeV1 {
+                shown.clone()
+            } else {
+                shown.to_ascii_lowercase()
+            }
+        })
+        .collect()
+}
+
+fn stream_direct_rows(
+    prepared: &PreparedSql,
+    control: &SqlControl,
+    columns: Vec<String>,
+    rows: Vec<SqlRow>,
+    consumer: &mut dyn crate::column_store::DirectCellRowConsumer,
+) -> MddResult<usize> {
+    let result = (|| {
+        consumer.on_columns(&columns)?;
+        consumer.on_start(rows.len() as u64)?;
+        let total_rows = rows.len();
+        for row in rows {
+            control.checkpoint(1, false)?;
+            consumer.begin_row()?;
+            for (ordinal, val) in row.into_iter().enumerate() {
+                consumer.push_cell(ordinal, &crate::column_store::BorrowedSqlCell::Owned(val))?;
+            }
+            consumer.end_row()?;
+        }
+        if prepared.provider.binding() != &prepared.binding {
+            return Err(invalid("SQL_GENERATION_CHANGED_BEFORE_END"));
+        }
+        control.checkpoint(1, false)?;
+        consumer.on_finish()?;
+        Ok(total_rows)
+    })();
+    result.map_err(|error| control.error().unwrap_or(error))
+}
+
 fn direct_group_columns(
     plan: &crate::provider::DirectCountGroupBy,
     dialect: SqlDialect,
@@ -1869,6 +1887,7 @@ fn finish_direct_sql_result(
     control: &SqlControl,
     columns: Vec<String>,
     rows: Vec<Vec<SqlValue>>,
+    window: Option<SqlWindowReport>,
 ) -> MddResult<SqlResult> {
     if prepared.provider.binding() != &prepared.binding {
         return Err(invalid("SQL_GENERATION_CHANGED_BEFORE_END"));
@@ -1895,7 +1914,7 @@ fn finish_direct_sql_result(
         required_layers: prepared.required_layers.clone(),
         ast_nodes: prepared.ast_nodes,
         execution_binding: prepared.execution_binding.clone(),
-        window: None,
+        window,
         _result_memory: ResultMemory::default(),
     })
 }

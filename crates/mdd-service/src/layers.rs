@@ -33,6 +33,28 @@ pub(crate) struct LayerBuilder {
     roster: Vec<(usize, usize)>,
     /// The layers a DEX could not build, by roster position; the last load of a DEX decides.
     issues: Mutex<Vec<(usize, LayerIssue)>>,
+    /// Compact per-DEX validation metadata captured during SQL relation builds for lazy single-DEX decode.
+    validated: Vec<Mutex<ValidatedDexLayers>>,
+}
+
+#[derive(Clone)]
+pub(crate) struct ValidatedCodeMeta {
+    pub(crate) declared_code_offsets: Box<[u32]>,
+    pub(crate) debug_starts: Box<[u32]>,
+}
+
+#[derive(Clone, Default)]
+pub(crate) enum LayerValidation<T> {
+    #[default]
+    Unknown,
+    Valid(T),
+    Failed,
+}
+
+#[derive(Clone, Default)]
+struct ValidatedDexLayers {
+    code: LayerValidation<ValidatedCodeMeta>,
+    annotations: LayerValidation<()>,
 }
 
 struct ReleaseOnDrop<'a>(&'a mdd_input::archive::MemberBlob);
@@ -56,18 +78,22 @@ struct Built {
 
 impl LayerBuilder {
     pub(crate) fn new(snapshot: Arc<Snapshot>, inventories: Arc<Vec<ArchiveInventory>>) -> Self {
-        let roster = inventories
+        let roster: Vec<(usize, usize)> = inventories
             .iter()
             .enumerate()
             .flat_map(|(inventory, value)| {
                 (0..value.selected_dexes().len()).map(move |local| (inventory, local))
             })
             .collect();
+        let validated = (0..roster.len())
+            .map(|_| Mutex::new(ValidatedDexLayers::default()))
+            .collect();
         Self {
             snapshot,
             inventories,
             roster,
             issues: Mutex::new(Vec::new()),
+            validated,
         }
     }
 
@@ -197,6 +223,64 @@ impl LayerBuilder {
         })
     }
 
+    pub(crate) fn build_base(
+        &self,
+        position: usize,
+    ) -> MddResult<(Arc<MetadataFacts>, Arc<DefinitionFacts>)> {
+        let (inventory, local) = self.dex(position)?;
+        let _release = ReleaseOnDrop(&inventory.selected_dexes()[local].blob);
+        let metadata = Arc::new(MetadataFacts::build(
+            &self.snapshot,
+            inventory,
+            local,
+            StringLimits::default(),
+        )?);
+        let definitions = Arc::new(DefinitionFacts::build_arc(
+            Arc::clone(&metadata),
+            DefinitionLimits::default(),
+        )?);
+        Ok((metadata, definitions))
+    }
+
+    pub(crate) fn build_compact_code(&self, position: usize) -> MddResult<Arc<CodeFacts>> {
+        let (inventory, local) = self.dex(position)?;
+        let _release = ReleaseOnDrop(&inventory.selected_dexes()[local].blob);
+        CodeFacts::build_all_code_items_compact(
+            &self.snapshot,
+            inventory,
+            local,
+            CodeLimits::default(),
+        )
+        .map(Arc::new)
+    }
+
+    pub(crate) fn code_validation(&self, position: usize) -> LayerValidation<ValidatedCodeMeta> {
+        self.validated
+            .get(position)
+            .and_then(|slot| slot.lock().ok().map(|v| v.code.clone()))
+            .unwrap_or_default()
+    }
+
+    pub(crate) fn annotations_validation(&self, position: usize) -> LayerValidation<()> {
+        self.validated
+            .get(position)
+            .and_then(|slot| slot.lock().ok().map(|v| v.annotations.clone()))
+            .unwrap_or_default()
+    }
+
+    fn note_validation(
+        &self,
+        position: usize,
+        code: LayerValidation<ValidatedCodeMeta>,
+        annotations: LayerValidation<()>,
+    ) {
+        if let Some(slot) = self.validated.get(position)
+            && let Ok(mut guard) = slot.lock()
+        {
+            *guard = ValidatedDexLayers { code, annotations };
+        }
+    }
+
     fn note(&self, position: usize, issue: Option<LayerIssue>) {
         if let Ok(mut issues) = self.issues.lock() {
             issues.retain(|(noted, _)| *noted != position);
@@ -205,6 +289,33 @@ impl LayerBuilder {
             }
         }
     }
+}
+
+fn validate_code_meta(code: &CodeFacts) -> LayerValidation<ValidatedCodeMeta> {
+    let Some(starts) = code.debug_starts() else {
+        return LayerValidation::Unknown;
+    };
+    let Some(mut offsets) = code
+        .declared_code_item_byte_offsets()
+        .iter()
+        .map(|d| u32::try_from(d.0).ok())
+        .collect::<Option<Vec<u32>>>()
+    else {
+        return LayerValidation::Unknown;
+    };
+    let Some(mut debug_starts) = starts
+        .iter()
+        .map(|&s| u32::try_from(s).ok())
+        .collect::<Option<Vec<u32>>>()
+    else {
+        return LayerValidation::Unknown;
+    };
+    offsets.sort_unstable();
+    debug_starts.sort_unstable();
+    LayerValidation::Valid(ValidatedCodeMeta {
+        declared_code_offsets: offsets.into_boxed_slice(),
+        debug_starts: debug_starts.into_boxed_slice(),
+    })
 }
 
 impl OccurrenceLoader for LayerBuilder {
@@ -223,7 +334,18 @@ impl OccurrenceLoader for LayerBuilder {
             compact_refs,
             annotations,
         } = built;
-        let upper = || -> MddResult<_> {
+        let code_valid = match &compact_code {
+            Ok(code) => validate_code_meta(code),
+            Err(_) => LayerValidation::Failed,
+        };
+        let mut ann_valid = if opt_parallel {
+            LayerValidation::Unknown
+        } else if annotations.is_ok() {
+            LayerValidation::Valid(())
+        } else {
+            LayerValidation::Failed
+        };
+        let mut upper = || -> MddResult<_> {
             let built_code = Arc::clone(compact_code.as_ref().map_err(Clone::clone)?);
             if opt_parallel {
                 let (references, annotations) = std::thread::scope(|scope| {
@@ -254,6 +376,11 @@ impl OccurrenceLoader for LayerBuilder {
                     };
                     (refs, ann)
                 });
+                ann_valid = if annotations.is_ok() {
+                    LayerValidation::Valid(())
+                } else {
+                    LayerValidation::Failed
+                };
                 return Ok((built_code, references?, annotations?));
             }
             drop(compact_refs);
@@ -266,6 +393,7 @@ impl OccurrenceLoader for LayerBuilder {
             Ok((built_code, references, annotations))
         };
         let upper = upper();
+        self.note_validation(position, code_valid, ann_valid);
         match upper {
             Ok((code, references, annotations)) => {
                 self.note(position, None);

@@ -4,8 +4,15 @@
 //! (`file_id`, `method_idx`). A descriptor that is defined in several DEX files of the
 //! dataset names none of them: the caller must say which, with `file_id`. A method that
 //! is only referred to, never defined, has no body and is not found.
-use crate::Dataset;
-use mdd_dex::{definitions::MethodBody, instructions::CodeItem};
+use crate::{
+    Dataset,
+    layers::{LayerBuilder, LayerValidation, ValidatedCodeMeta},
+};
+use mdd_dex::{
+    annotations::AnnotationLimits,
+    definitions::MethodBody,
+    instructions::{CodeItem, CodeItemDecoder, CodeLimits},
+};
 use mdd_facts::{
     CodeFacts, DefinitionFacts, MetadataFacts,
     annotations::AnnotationFacts,
@@ -16,11 +23,9 @@ use mdd_facts::{
     smali_required::{MethodView, RenderedMethod, SmaliLimits, method_declaration},
 };
 use mdd_types::{ErrorCode, MddError, MddResult};
-use std::borrow::Cow;
-use std::{collections::HashMap, sync::Arc};
+use std::sync::{Arc, Mutex, OnceLock};
 
-/// The facts of one DEX of a dataset, kept so a method can be decoded long after the
-/// SQL relations were built from them.
+/// The facts of one DEX of a dataset, returned by `Dataset::occurrences`.
 pub struct Occurrence {
     pub file_id: u32,
     pub metadata: Arc<MetadataFacts>,
@@ -33,11 +38,188 @@ pub struct Occurrence {
     pub annotations: Option<Arc<AnnotationFacts>>,
 }
 
-/// What a decode reads: the facts of each DEX of the dataset, in `file_id` order, and the indexes over them.
-#[derive(Default)]
-pub(crate) struct DecodeState {
-    pub(crate) occurrences: Vec<Occurrence>,
-    pub(crate) indexes: Vec<OccurrenceIndex>,
+/// Lazily loaded per-DEX decode state: only the target DEX's base facts and the single requested
+/// `CodeItem` are parsed and decoded, avoiding loading or indexing all other DEXes in the dataset.
+pub(crate) struct LazyDexDecode {
+    file_id: u32,
+    metadata: Arc<MetadataFacts>,
+    definitions: Arc<DefinitionFacts>,
+    code_validation: LayerValidation<ValidatedCodeMeta>,
+    annotations_validation: LayerValidation<()>,
+    decoder: Mutex<Option<CodeItemDecoder<Arc<[u8]>>>>,
+    fallback_code: OnceLock<Option<Arc<CodeFacts>>>,
+    annotations: OnceLock<Option<(Arc<AnnotationFacts>, AnnotationIndex)>>,
+}
+
+impl LazyDexDecode {
+    pub(crate) fn new(
+        file_id: u32,
+        metadata: Arc<MetadataFacts>,
+        definitions: Arc<DefinitionFacts>,
+        code_validation: LayerValidation<ValidatedCodeMeta>,
+        annotations_validation: LayerValidation<()>,
+    ) -> Self {
+        Self {
+            file_id,
+            metadata,
+            definitions,
+            code_validation,
+            annotations_validation,
+            decoder: Mutex::new(None),
+            fallback_code: OnceLock::new(),
+            annotations: OnceLock::new(),
+        }
+    }
+
+    fn find_method_def_by_idx(&self, method_idx: u32) -> Option<usize> {
+        self.definitions
+            .definitions()
+            .method_definitions
+            .iter()
+            .position(|def| def.method_idx == method_idx)
+    }
+
+    fn find_method_defs_by_descriptor(&self, descriptor: &str) -> Vec<usize> {
+        let defs = self.definitions.definitions();
+        let mut out = Vec::new();
+        for (position, def) in defs.method_definitions.iter().enumerate() {
+            if defs
+                .method_references
+                .get(def.method_idx as usize)
+                .is_some_and(|reference| reference.descriptor == descriptor)
+            {
+                out.push(position);
+            }
+        }
+        out
+    }
+
+    fn find_classes_by_descriptor(&self, descriptor: &str) -> Vec<usize> {
+        self.definitions
+            .definitions()
+            .classes
+            .iter()
+            .enumerate()
+            .filter(|(_, class)| class.descriptor == descriptor)
+            .map(|(position, _)| position)
+            .collect()
+    }
+
+    fn class_def_at(&self, class_def_idx: u32) -> Option<usize> {
+        let classes = &self.definitions.definitions().classes;
+        if let Some(pos) = usize::try_from(class_def_idx).ok()
+            && classes
+                .get(pos)
+                .is_some_and(|class| class.class_def_idx == class_def_idx)
+        {
+            return Some(pos);
+        }
+        classes
+            .iter()
+            .position(|class| class.class_def_idx == class_def_idx)
+    }
+
+    fn code_layer_missing_error(&self) -> MddError {
+        MddError::new(
+            ErrorCode::IncompleteFacts,
+            "service.decode",
+            "the code layer of this DEX could not be built, so no method body can be shown",
+        )
+        .detail("file_id", self.file_id.to_string())
+    }
+
+    pub(crate) fn decode_code_item(
+        &self,
+        layers: &LayerBuilder,
+        body: &MethodBody,
+        with_debug: bool,
+    ) -> MddResult<Option<CodeItem>> {
+        let MethodBody::Present {
+            code_byte_offset, ..
+        } = body
+        else {
+            return Ok(None);
+        };
+        match &self.code_validation {
+            LayerValidation::Failed => Err(self.code_layer_missing_error()),
+            LayerValidation::Valid(meta) => {
+                let known = u32::try_from(code_byte_offset.0)
+                    .ok()
+                    .and_then(|off| meta.declared_code_offsets.binary_search(&off).ok())
+                    .is_some();
+                if !known {
+                    return Err(MddError::new(
+                        ErrorCode::IncompleteFacts,
+                        "service.decode",
+                        "the method's code item is not among the code facts",
+                    )
+                    .detail("code_item_byte_offset", code_byte_offset.0.to_string()));
+                }
+                let mut guard = self
+                    .decoder
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                if guard.is_none() {
+                    let starts: Vec<u64> =
+                        meta.debug_starts.iter().copied().map(u64::from).collect();
+                    *guard = Some(CodeItemDecoder::new(
+                        self.metadata.lease(),
+                        self.metadata.header().clone(),
+                        CodeLimits::default(),
+                        &starts,
+                    ));
+                }
+                let decoder = guard.as_mut().expect("initialized decoder");
+                let item = if with_debug {
+                    decoder.decode(code_byte_offset.0)?
+                } else {
+                    decoder.decode_instructions(code_byte_offset.0)?
+                };
+                Ok(Some(item))
+            }
+            LayerValidation::Unknown => {
+                let code = self
+                    .fallback_code
+                    .get_or_init(|| layers.build_compact_code(self.file_id as usize).ok())
+                    .as_ref()
+                    .ok_or_else(|| self.code_layer_missing_error())?;
+                let ordinal = code
+                    .items()
+                    .iter()
+                    .position(|item| item.data().raw_range.byte_offset.0 == code_byte_offset.0)
+                    .ok_or_else(|| {
+                        MddError::new(
+                            ErrorCode::IncompleteFacts,
+                            "service.decode",
+                            "the method's code item is not among the code facts",
+                        )
+                        .detail("code_item_byte_offset", code_byte_offset.0.to_string())
+                    })?;
+                Ok(Some(code.decoded_item(ordinal)?.into_owned()))
+            }
+        }
+    }
+
+    fn annotations(&self) -> Option<(&AnnotationFacts, &AnnotationIndex)> {
+        if matches!(self.annotations_validation, LayerValidation::Failed) {
+            return None;
+        }
+        self.annotations
+            .get_or_init(|| {
+                AnnotationFacts::build_arc(
+                    Arc::clone(&self.definitions),
+                    AnnotationLimits::default(),
+                )
+                .ok()
+                .map(|facts| {
+                    let facts = Arc::new(facts);
+                    let index = AnnotationIndex::build(&facts);
+                    (facts, index)
+                })
+            })
+            .as_ref()
+            .map(|(facts, index)| (facts.as_ref(), index))
+    }
 }
 
 /// What `select` takes.
@@ -72,77 +254,13 @@ impl From<MddError> for Failure {
     }
 }
 
-/// A method found, not yet rendered.
+/// A located method, not yet rendered.
 #[derive(Clone, Copy, Debug)]
 pub struct Located {
     pub file_id: u32,
     pub method_idx: u32,
     /// Position in the occurrence's `method_definitions`.
     definition: usize,
-}
-
-/// Per occurrence: defined methods by descriptor, defined classes by descriptor and their
-/// methods in method-index order, and code items by their byte offset.
-pub(crate) struct OccurrenceIndex {
-    by_descriptor: HashMap<String, Vec<usize>>,
-    by_method_idx: HashMap<u32, usize>,
-    code_by_offset: HashMap<u64, usize>,
-    /// Class descriptor to the positions in `definitions.classes` that define it.
-    classes_by_descriptor: HashMap<String, Vec<usize>>,
-    /// `class_def_idx` to the positions in `method_definitions` of that class, ordered by
-    /// `method_idx` (the order `method_offset` counts in).
-    class_methods: HashMap<u32, Vec<usize>>,
-    /// Which annotation set each owner has; `None` when the annotation layer is not built.
-    annotation_index: Option<AnnotationIndex>,
-}
-
-impl OccurrenceIndex {
-    pub(crate) fn build(occurrence: &Occurrence) -> Self {
-        let defs = occurrence.definitions.definitions();
-        let mut by_descriptor: HashMap<String, Vec<usize>> = HashMap::new();
-        let mut by_method_idx = HashMap::new();
-        let mut class_methods: HashMap<u32, Vec<usize>> = HashMap::new();
-        for (position, definition) in defs.method_definitions.iter().enumerate() {
-            by_method_idx.insert(definition.method_idx, position);
-            class_methods
-                .entry(definition.class_def_idx)
-                .or_default()
-                .push(position);
-            if let Some(reference) = defs.method_references.get(definition.method_idx as usize) {
-                by_descriptor
-                    .entry(reference.descriptor.clone())
-                    .or_default()
-                    .push(position);
-            }
-        }
-        for positions in class_methods.values_mut() {
-            positions.sort_by_key(|&position| defs.method_definitions[position].method_idx);
-        }
-        let mut classes_by_descriptor: HashMap<String, Vec<usize>> = HashMap::new();
-        for (position, class) in defs.classes.iter().enumerate() {
-            classes_by_descriptor
-                .entry(class.descriptor.clone())
-                .or_default()
-                .push(position);
-        }
-        let mut code_by_offset = HashMap::new();
-        if let Some(code) = &occurrence.code {
-            for (ordinal, item) in code.items().iter().enumerate() {
-                code_by_offset.insert(item.data().raw_range.byte_offset.0, ordinal);
-            }
-        }
-        Self {
-            by_descriptor,
-            by_method_idx,
-            code_by_offset,
-            classes_by_descriptor,
-            class_methods,
-            annotation_index: occurrence
-                .annotations
-                .as_deref()
-                .map(AnnotationIndex::build),
-        }
-    }
 }
 
 /// The message of the error that a `method_offset` past the last method raises.
@@ -177,6 +295,19 @@ pub struct ClassPage {
     pub methods: Vec<Located>,
 }
 
+fn resolve_duplicate_or_ambiguous(file_ids: &[u32], duplicate_message: &str) -> Failure {
+    let mut ids: Vec<u32> = file_ids.to_vec();
+    ids.sort_unstable();
+    ids.dedup();
+    if ids.len() == 1 {
+        return Failure::Error(
+            MddError::new(ErrorCode::InvalidInput, "service.decode", duplicate_message)
+                .detail("file_id", ids[0].to_string()),
+        );
+    }
+    Failure::Ambiguous { file_ids: ids }
+}
+
 /// Find the class `descriptor` names. A descriptor defined in several DEX files names none of
 /// them: say which with `file_id`.
 pub fn select_class(
@@ -184,45 +315,69 @@ pub fn select_class(
     descriptor: &str,
     file_id: Option<u32>,
 ) -> Result<LocatedClass, Failure> {
-    let state = dataset.decode_state()?;
-    let (occurrences, indexes) = (&state.occurrences, &state.indexes);
+    if !dataset.has_decode_layers() {
+        return Err(Failure::NotFound {
+            what: "class is not defined in the selected DEX".to_owned(),
+        });
+    }
+    if let Some(matches) = dataset
+        .hostlab_provider()
+        .and_then(|provider| provider.find_defined_classes_by_descriptor(descriptor, file_id))
+    {
+        return match matches.as_slice() {
+            [] => Err(Failure::NotFound {
+                what: "class is not defined in the selected DEX".to_owned(),
+            }),
+            [(fid, class_def_idx)] => {
+                let dex = dataset.decode_dex(*fid)?;
+                let class = dex.class_def_at(*class_def_idx).ok_or_else(|| {
+                    MddError::new(
+                        ErrorCode::InternalFault,
+                        "service.decode",
+                        "a located class disappeared from DEX definitions",
+                    )
+                })?;
+                Ok(LocatedClass {
+                    file_id: *fid,
+                    class,
+                })
+            }
+            many => {
+                let ids: Vec<u32> = many.iter().map(|(fid, _)| *fid).collect();
+                Err(resolve_duplicate_or_ambiguous(
+                    &ids,
+                    "a DEX defines the same class more than once",
+                ))
+            }
+        };
+    }
+
     let mut found = Vec::new();
-    for (occurrence, index) in occurrences.iter().zip(indexes) {
-        if file_id.is_some_and(|wanted| wanted != occurrence.file_id) {
-            continue;
-        }
-        for &class in index
-            .classes_by_descriptor
-            .get(descriptor)
-            .into_iter()
-            .flatten()
-        {
-            found.push((occurrence.file_id, class));
+    let range = match file_id {
+        Some(wanted) if (wanted as usize) < dataset.dex_count() => wanted..wanted + 1,
+        Some(_) => 0..0,
+        None => 0..(dataset.dex_count() as u32),
+    };
+    for fid in range {
+        let dex = dataset.decode_dex(fid)?;
+        for class in dex.find_classes_by_descriptor(descriptor) {
+            found.push((fid, class));
         }
     }
     match found.as_slice() {
         [] => Err(Failure::NotFound {
             what: "class is not defined in the selected DEX".to_owned(),
         }),
-        [(file_id, class)] => Ok(LocatedClass {
-            file_id: *file_id,
+        [(fid, class)] => Ok(LocatedClass {
+            file_id: *fid,
             class: *class,
         }),
         many => {
-            let mut ids: Vec<u32> = many.iter().map(|(file_id, _)| *file_id).collect();
-            ids.sort_unstable();
-            ids.dedup();
-            if ids.len() == 1 {
-                return Err(Failure::Error(
-                    MddError::new(
-                        ErrorCode::InvalidInput,
-                        "service.decode",
-                        "a DEX defines the same class more than once",
-                    )
-                    .detail("file_id", ids[0].to_string()),
-                ));
-            }
-            Err(Failure::Ambiguous { file_ids: ids })
+            let ids: Vec<u32> = many.iter().map(|(fid, _)| *fid).collect();
+            Err(resolve_duplicate_or_ambiguous(
+                &ids,
+                "a DEX defines the same class more than once",
+            ))
         }
     }
 }
@@ -235,26 +390,17 @@ pub fn class_page(
     offset: u64,
     limit: u64,
 ) -> MddResult<ClassPage> {
-    let state = dataset.decode_state()?;
-    let occurrences = &state.occurrences;
-    let position = occurrences
-        .iter()
-        .position(|o| o.file_id == class.file_id)
-        .ok_or_else(|| {
-            MddError::new(
-                ErrorCode::InternalFault,
-                "service.decode",
-                "a located file_id vanished",
-            )
-        })?;
-    let occurrence = &occurrences[position];
-    let index = &state.indexes[position];
-    let definitions = occurrence.definitions.definitions();
+    let dex = dataset.decode_dex(class.file_id)?;
+    let definitions = dex.definitions.definitions();
     let class_def = &definitions.classes[class.class];
-    let all = index
-        .class_methods
-        .get(&class_def.class_def_idx)
-        .map_or(&[][..], Vec::as_slice);
+    let mut all: Vec<usize> = definitions
+        .method_definitions
+        .iter()
+        .enumerate()
+        .filter(|(_, def)| def.class_def_idx == class_def.class_def_idx)
+        .map(|(position, _)| position)
+        .collect();
+    all.sort_by_key(|&position| definitions.method_definitions[position].method_idx);
     let total = all.len() as u64;
     if offset > total {
         return Err(MddError::new(
@@ -314,22 +460,19 @@ fn not_defined(file_id: u32, method_idx: u32) -> Failure {
 
 /// Find the method `selector` names.
 pub fn select(dataset: &Dataset, selector: Selector<'_>) -> Result<Located, Failure> {
-    let state = dataset.decode_state()?;
-    let (occurrences, indexes) = (&state.occurrences, &state.indexes);
     match selector {
         Selector::Key {
             file_id,
             method_idx,
         } => {
-            let index = occurrences
-                .iter()
-                .position(|o| o.file_id == file_id)
-                .ok_or_else(|| Failure::NotFound {
+            if !dataset.has_decode_layers() || (file_id as usize) >= dataset.dex_count() {
+                return Err(Failure::NotFound {
                     what: format!("file_id {file_id} is not in this dataset"),
-                })?;
-            let definition = *indexes[index]
-                .by_method_idx
-                .get(&method_idx)
+                });
+            }
+            let dex = dataset.decode_dex(file_id)?;
+            let definition = dex
+                .find_method_def_by_idx(method_idx)
                 .ok_or_else(|| not_defined(file_id, method_idx))?;
             Ok(Located {
                 file_id,
@@ -341,48 +484,71 @@ pub fn select(dataset: &Dataset, selector: Selector<'_>) -> Result<Located, Fail
             descriptor,
             file_id,
         } => {
+            if !dataset.has_decode_layers() {
+                return Err(Failure::NotFound {
+                    what: format!("method {descriptor} is not defined in this dataset"),
+                });
+            }
+            if let Some(matches) = dataset.hostlab_provider().and_then(|provider| {
+                provider.find_defined_methods_by_descriptor(descriptor, file_id)
+            }) {
+                return match matches.as_slice() {
+                    [] => Err(Failure::NotFound {
+                        what: format!("method {descriptor} is not defined in this dataset"),
+                    }),
+                    [(fid, midx)] => {
+                        let dex = dataset.decode_dex(*fid)?;
+                        let definition = dex
+                            .find_method_def_by_idx(*midx)
+                            .ok_or_else(|| not_defined(*fid, *midx))?;
+                        Ok(Located {
+                            file_id: *fid,
+                            method_idx: *midx,
+                            definition,
+                        })
+                    }
+                    many => {
+                        let ids: Vec<u32> = many.iter().map(|(fid, _)| *fid).collect();
+                        Err(resolve_duplicate_or_ambiguous(
+                            &ids,
+                            "a DEX defines the same method more than once",
+                        ))
+                    }
+                };
+            }
+
             let mut found = Vec::new();
-            for (occurrence, index) in occurrences.iter().zip(indexes) {
-                if file_id.is_some_and(|wanted| wanted != occurrence.file_id) {
-                    continue;
-                }
-                for &position in index.by_descriptor.get(descriptor).into_iter().flatten() {
-                    found.push((occurrence.file_id, position));
+            let range = match file_id {
+                Some(wanted) if (wanted as usize) < dataset.dex_count() => wanted..wanted + 1,
+                Some(_) => 0..0,
+                None => 0..(dataset.dex_count() as u32),
+            };
+            for fid in range {
+                let dex = dataset.decode_dex(fid)?;
+                for position in dex.find_method_defs_by_descriptor(descriptor) {
+                    found.push((fid, position));
                 }
             }
             match found.as_slice() {
                 [] => Err(Failure::NotFound {
                     what: format!("method {descriptor} is not defined in this dataset"),
                 }),
-                [(file_id, position)] => {
-                    let occurrence = occurrences
-                        .iter()
-                        .find(|o| o.file_id == *file_id)
-                        .expect("a found file_id belongs to an occurrence");
-                    let method_idx = occurrence.definitions.definitions().method_definitions
-                        [*position]
-                        .method_idx;
+                [(fid, position)] => {
+                    let dex = dataset.decode_dex(*fid)?;
+                    let method_idx =
+                        dex.definitions.definitions().method_definitions[*position].method_idx;
                     Ok(Located {
-                        file_id: *file_id,
+                        file_id: *fid,
                         method_idx,
                         definition: *position,
                     })
                 }
                 many => {
-                    let mut ids: Vec<u32> = many.iter().map(|(file_id, _)| *file_id).collect();
-                    ids.sort_unstable();
-                    ids.dedup();
-                    if ids.len() == 1 {
-                        return Err(Failure::Error(
-                            MddError::new(
-                                ErrorCode::InvalidInput,
-                                "service.decode",
-                                "a DEX defines the same method more than once",
-                            )
-                            .detail("file_id", ids[0].to_string()),
-                        ));
-                    }
-                    Err(Failure::Ambiguous { file_ids: ids })
+                    let ids: Vec<u32> = many.iter().map(|(fid, _)| *fid).collect();
+                    Err(resolve_duplicate_or_ambiguous(
+                        &ids,
+                        "a DEX defines the same method more than once",
+                    ))
                 }
             }
         }
@@ -401,62 +567,6 @@ pub struct Decoded {
     pub report: ExtrasReport,
 }
 
-/// The facts of a located method: its definition and its code item.
-/// The code facts of an occurrence and the ordinal of the item a method body names, or `None` for a body without code.
-fn locate_code<'a>(
-    occurrence: &'a Occurrence,
-    index: &OccurrenceIndex,
-    body: &MethodBody,
-) -> Result<Option<(&'a CodeFacts, usize)>, MddError> {
-    let MethodBody::Present {
-        code_byte_offset, ..
-    } = body
-    else {
-        return Ok(None);
-    };
-    let code = occurrence.code.as_ref().ok_or_else(|| {
-        MddError::new(
-            ErrorCode::IncompleteFacts,
-            "service.decode",
-            "the code layer of this DEX could not be built, so no method body can be shown",
-        )
-        .detail("file_id", occurrence.file_id.to_string())
-    })?;
-    let ordinal = *index
-        .code_by_offset
-        .get(&code_byte_offset.0)
-        .ok_or_else(|| {
-            MddError::new(
-                ErrorCode::IncompleteFacts,
-                "service.decode",
-                "the method's code item is not among the code facts",
-            )
-            .detail("code_item_byte_offset", code_byte_offset.0.to_string())
-        })?;
-    Ok(Some((code.as_ref(), ordinal)))
-}
-
-/// The code item of a method with its instructions and debug program, for rendering. The facts an opened dataset
-/// keeps are compact (headers and opcodes), so this decodes that one item again; `Cow` is borrowed when they are not.
-fn code_of<'a>(
-    occurrence: &'a Occurrence,
-    index: &OccurrenceIndex,
-    body: &MethodBody,
-) -> Result<Option<Cow<'a, CodeItem>>, MddError> {
-    locate_code(occurrence, index, body)?
-        .map(|(code, ordinal)| code.decoded_item(ordinal))
-        .transpose()
-}
-
-/// The header of the code item of a method: registers, code units, tries. No instruction is read, so nothing is decoded.
-fn code_header_of<'a>(
-    occurrence: &'a Occurrence,
-    index: &OccurrenceIndex,
-    body: &MethodBody,
-) -> Result<Option<&'a CodeItem>, MddError> {
-    Ok(locate_code(occurrence, index, body)?.map(|(code, ordinal)| code.items()[ordinal].data()))
-}
-
 /// What a located method is, without its text: a method row of a class summary.
 #[derive(Clone, Debug)]
 pub struct Summary {
@@ -473,33 +583,28 @@ pub struct Summary {
 /// The facts of the located method that need no text. A method without a body has `None`
 /// for registers, code units and tries, as opposed to a body that is empty.
 pub fn summarize(dataset: &Dataset, located: Located) -> MddResult<Summary> {
-    let state = dataset.decode_state()?;
-    let occurrences = &state.occurrences;
-    let position = occurrences
-        .iter()
-        .position(|o| o.file_id == located.file_id)
-        .ok_or_else(|| {
-            MddError::new(
-                ErrorCode::InternalFault,
-                "service.decode",
-                "a located file_id vanished",
-            )
-        })?;
-    let occurrence = &occurrences[position];
-    let index = &state.indexes[position];
-    let definitions = occurrence.definitions.definitions();
+    let layers = dataset.layers().ok_or_else(|| {
+        MddError::new(
+            ErrorCode::InternalFault,
+            "service.decode",
+            "a located file_id vanished",
+        )
+    })?;
+    let dex = dataset.decode_dex(located.file_id)?;
+    let definitions = dex.definitions.definitions();
     let definition = &definitions.method_definitions[located.definition];
     let reference = &definitions.method_references[located.method_idx as usize];
-    let code = code_header_of(occurrence, index, &definition.body)?;
+    let code = dex.decode_code_item(layers, &definition.body, false)?;
     Ok(Summary {
         file_id: located.file_id,
         method_idx: located.method_idx,
         descriptor: reference.descriptor.clone(),
         access_flags: definition.access_flags,
         declaration: method_declaration(reference, definition.access_flags),
-        registers: code.map(|c| c.registers_size),
-        code_units: code.map(|c| c.insns_size_code_units),
+        registers: code.as_ref().map(|c| c.registers_size),
+        code_units: code.as_ref().map(|c| c.insns_size_code_units),
         try_count: code
+            .as_ref()
             .map(|c| {
                 u16::try_from(c.tries.len()).map_err(|_| {
                     MddError::new(
@@ -515,36 +620,44 @@ pub fn summarize(dataset: &Dataset, located: Located) -> MddResult<Summary> {
 
 /// Render the located method.
 pub fn render(dataset: &Dataset, located: Located, limits: SmaliLimits) -> MddResult<Decoded> {
-    let state = dataset.decode_state()?;
-    let occurrences = &state.occurrences;
-    let position = occurrences
-        .iter()
-        .position(|o| o.file_id == located.file_id)
-        .ok_or_else(|| {
-            MddError::new(
-                ErrorCode::InternalFault,
-                "service.decode",
-                "a located file_id vanished",
-            )
-        })?;
-    let occurrence = &occurrences[position];
-    let index = &state.indexes[position];
-    let definitions = occurrence.definitions.definitions();
+    let layers = dataset.layers().ok_or_else(|| {
+        MddError::new(
+            ErrorCode::InternalFault,
+            "service.decode",
+            "a located file_id vanished",
+        )
+    })?;
+    let dex = dataset.decode_dex(located.file_id)?;
+    let definitions = dex.definitions.definitions();
     let definition = &definitions.method_definitions[located.definition];
-    let decoded = code_of(occurrence, index, &definition.body)?;
+    let decoded = dex.decode_code_item(layers, &definition.body, true)?;
+    let class_def = dex
+        .class_def_at(definition.class_def_idx)
+        .map(|pos| &definitions.classes[pos]);
+    let skip_annotations = matches!(dex.annotations_validation, LayerValidation::Valid(()))
+        && class_def.is_some_and(|c| c.annotations_byte_offset.is_none());
+    let (annotations, options) = if skip_annotations {
+        (
+            None,
+            SmaliOptions {
+                annotations: false,
+                parameters: true,
+                debug: true,
+            },
+        )
+    } else {
+        (dex.annotations(), SmaliOptions::default())
+    };
     let view = FullMethodView {
         method: MethodView {
-            metadata: &occurrence.metadata,
+            metadata: &dex.metadata,
             definitions,
             definition,
-            code: decoded.as_deref(),
+            code: decoded.as_ref(),
         },
-        annotations: occurrence
-            .annotations
-            .as_deref()
-            .zip(index.annotation_index.as_ref()),
+        annotations,
     };
-    let full = render_method_full(&view, limits, SmaliOptions::default())?;
+    let full = render_method_full(&view, limits, options)?;
     Ok(Decoded {
         file_id: located.file_id,
         method_idx: located.method_idx,
@@ -560,29 +673,13 @@ pub fn render(dataset: &Dataset, located: Located, limits: SmaliLimits) -> MddRe
 /// The text of a class without its methods: declaration, superclass, source file, interfaces,
 /// class annotations and fields with their initial values.
 pub fn render_class_text(dataset: &Dataset, class: LocatedClass) -> MddResult<RenderedClass> {
-    let state = dataset.decode_state()?;
-    let occurrences = &state.occurrences;
-    let position = occurrences
-        .iter()
-        .position(|o| o.file_id == class.file_id)
-        .ok_or_else(|| {
-            MddError::new(
-                ErrorCode::InternalFault,
-                "service.decode",
-                "a located file_id vanished",
-            )
-        })?;
-    let occurrence = &occurrences[position];
-    let index = &state.indexes[position];
-    let definitions = occurrence.definitions.definitions();
+    let dex = dataset.decode_dex(class.file_id)?;
+    let definitions = dex.definitions.definitions();
     let view = ClassView {
-        metadata: &occurrence.metadata,
+        metadata: &dex.metadata,
         definitions,
         class: &definitions.classes[class.class],
-        annotations: occurrence
-            .annotations
-            .as_deref()
-            .zip(index.annotation_index.as_ref()),
+        annotations: dex.annotations(),
     };
     render_class(&view, ClassLimits::default())
 }
@@ -625,22 +722,15 @@ mod tests {
             },
         )
         .expect("the method is defined");
-        let state = dataset.decode_state().unwrap();
-        let occurrences = &state.occurrences;
-        let position = occurrences
-            .iter()
-            .position(|o| o.file_id == located.file_id)
-            .unwrap();
-        let occurrence = &occurrences[position];
-        let index = &state.indexes[position];
-        let definitions = occurrence.definitions.definitions();
+        let dex = dataset.decode_dex(located.file_id)?;
+        let definitions = dex.definitions.definitions();
         let definition = &definitions.method_definitions[located.definition];
-        let decoded = code_of(occurrence, index, &definition.body)?;
+        let decoded = dex.decode_code_item(dataset.layers().unwrap(), &definition.body, true)?;
         let view = MethodView {
-            metadata: &occurrence.metadata,
+            metadata: &dex.metadata,
             definitions,
             definition,
-            code: decoded.as_deref(),
+            code: decoded.as_ref(),
         };
         render_method_with(&view, SmaliLimits::default(), extras)
     }
@@ -747,5 +837,113 @@ mod tests {
             select_class(&dataset, "Ldecode/K;", Some(3)),
             Err(Failure::NotFound { .. })
         ));
+    }
+
+    #[test]
+    fn multi_dex_lazy_decode_loads_only_target_dex_and_matches_full_occurrence() {
+        let base = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures");
+        let dataset = Dataset::open(
+            &[
+                InputRequest {
+                    path: base.join("decode/generated/decode-class.dex"),
+                    kind: None,
+                },
+                InputRequest {
+                    path: base.join("references/generated/classic-035.dex"),
+                    kind: None,
+                },
+            ],
+            Dialect::DexSql011,
+            ResourceLimits::default(),
+            SqlLimits::default(),
+        )
+        .expect("multi-dex dataset opens");
+
+        // Missing descriptor is rejected directly via HostLabSqlProvider without loading any DEX.
+        assert!(matches!(
+            select(
+                &dataset,
+                Selector::Descriptor {
+                    descriptor: "Lno/Such;->missing()V",
+                    file_id: None,
+                },
+            ),
+            Err(Failure::NotFound { .. })
+        ));
+        assert!(matches!(
+            select_class(&dataset, "Lno/Such;", None),
+            Err(Failure::NotFound { .. })
+        ));
+        assert_eq!(dataset.loaded_decode_dex_count(), 0);
+
+        // Selecting and decoding one method/class on DEX 0 loads ONLY DEX 0, leaving DEX 1 untouched.
+        let located = select(
+            &dataset,
+            Selector::Descriptor {
+                descriptor: F,
+                file_id: None,
+            },
+        )
+        .expect("method F exists in DEX 0");
+        assert_eq!(located.file_id, 0);
+        assert_eq!(dataset.loaded_decode_dex_count(), 1);
+
+        let lazy_decoded = render(&dataset, located, SmaliLimits::default()).unwrap();
+        let lazy_summary = summarize(&dataset, located).unwrap();
+        let class_loc = select_class(&dataset, "Ldecode/K;", None).unwrap();
+        let lazy_page = class_page(&dataset, class_loc, 0, 50).unwrap();
+        let lazy_class = render_class_text(&dataset, class_loc).unwrap();
+        assert_eq!(dataset.loaded_decode_dex_count(), 1);
+        assert_eq!(lazy_page.total_methods, 6);
+        assert_eq!(lazy_summary.descriptor, F);
+
+        // Verify byte-for-byte equivalence against full Occurrence + CodeFacts::decoded_item rendering.
+        let occurrences = dataset.occurrences().unwrap();
+        let occ = &occurrences[0];
+        let defs = occ.definitions.definitions();
+        let def = &defs.method_definitions[located.definition];
+        let full_code = match &def.body {
+            MethodBody::Present {
+                code_byte_offset, ..
+            } => {
+                let code_facts = occ.code.as_ref().unwrap();
+                let ordinal = code_facts
+                    .items()
+                    .iter()
+                    .position(|item| item.data().raw_range.byte_offset.0 == code_byte_offset.0)
+                    .unwrap();
+                Some(code_facts.decoded_item(ordinal).unwrap().into_owned())
+            }
+            MethodBody::Absent { .. } => None,
+        };
+        let ann_idx = occ.annotations.as_deref().map(AnnotationIndex::build);
+        let expected_full = render_method_full(
+            &FullMethodView {
+                method: MethodView {
+                    metadata: &occ.metadata,
+                    definitions: defs,
+                    definition: def,
+                    code: full_code.as_ref(),
+                },
+                annotations: occ.annotations.as_deref().zip(ann_idx.as_ref()),
+            },
+            SmaliLimits::default(),
+            SmaliOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(lazy_decoded.rendered.text, expected_full.rendered.text);
+        assert_eq!(lazy_decoded.report, expected_full.report);
+
+        let expected_class = render_class(
+            &ClassView {
+                metadata: &occ.metadata,
+                definitions: defs,
+                class: &defs.classes[class_loc.class],
+                annotations: occ.annotations.as_deref().zip(ann_idx.as_ref()),
+            },
+            ClassLimits::default(),
+        )
+        .unwrap();
+        assert_eq!(lazy_class, expected_class);
     }
 }

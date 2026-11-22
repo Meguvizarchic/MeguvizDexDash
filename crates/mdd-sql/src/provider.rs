@@ -200,6 +200,31 @@ pub struct DirectTableProjection {
     pub order_by_u64_asc: Vec<usize>,
 }
 
+/// Conjunctive equality/IN predicate pushed directly into column-store execution.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum DirectPredicate {
+    EqU64(usize, u64),
+    InU64(usize, Vec<u64>),
+    EqText(usize, String),
+    InText(usize, Vec<String>),
+}
+
+/// Output ordering term for [`DirectFilteredProjection`].
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct DirectOrderItem {
+    pub column: usize,
+    pub descending: bool,
+}
+
+/// Direct single-table filtered projection with optional ordering and windowing.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DirectFilteredProjection {
+    pub relation: String,
+    pub projected_columns: Vec<(usize, String)>,
+    pub predicates: Vec<DirectPredicate>,
+    pub order_by: Vec<DirectOrderItem>,
+}
+
 /// Output projection item for an unfiltered single-table `GROUP BY ... COUNT(*)`.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum DirectGroupItem {
@@ -338,6 +363,16 @@ pub trait SqlFactProvider: Send + Sync {
         _plan: &DirectCountGroupBy,
         _control: &SqlControl,
     ) -> Option<MddResult<Vec<SqlRow>>> {
+        None
+    }
+
+    /// Optional fast path for filtered single-table equality/IN projections with optional ordering and windowing.
+    fn try_direct_filtered_projection(
+        &self,
+        _plan: &DirectFilteredProjection,
+        _control: &SqlControl,
+        _window: Option<crate::window::SqlWindow>,
+    ) -> Option<MddResult<(Vec<SqlRow>, Option<crate::window::SqlWindowReport>)>> {
         None
     }
 }

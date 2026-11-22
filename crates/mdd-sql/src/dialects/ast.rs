@@ -25,6 +25,9 @@ pub(crate) struct Adapted {
     pub partition_hints: BTreeMap<String, u64>,
     pub row_filters: BTreeMap<String, crate::provider::RowFilter>,
     pub equi_joins: Vec<crate::provider::EquiJoinEdge>,
+    pub direct_projection: Option<crate::provider::DirectTableProjection>,
+    pub direct_filtered_projection: Option<crate::provider::DirectFilteredProjection>,
+    pub direct_count_group_by: Option<crate::provider::DirectCountGroupBy>,
 }
 #[derive(Clone)]
 enum Dependency {
@@ -309,6 +312,24 @@ fn adapt_on_stack(
     // read before the rewrite turns `file_id = 0` into a function call
     let partition_hints = super::pushdown::partition_hints(query, &tokens, partition_columns);
     let query_hints = super::pushdown::query_hints(query, relations);
+    let empty_ctes = BTreeSet::new();
+    let direct_projection =
+        super::pushdown::extract_direct_projection_from_query(query, relations, &empty_ctes);
+    let direct_filtered_projection = if direct_projection.is_none() {
+        super::pushdown::extract_direct_filtered_projection_from_query(
+            query,
+            relations,
+            &empty_ctes,
+        )
+    } else {
+        None
+    };
+    let direct_count_group_by =
+        if direct_projection.is_none() && direct_filtered_projection.is_none() {
+            super::pushdown::extract_direct_count_group_by_from_query(query, relations, &empty_ctes)
+        } else {
+            None
+        };
     let mut reserved = relations
         .iter()
         .flat_map(|r| {
@@ -422,6 +443,9 @@ fn adapt_on_stack(
         partition_hints,
         row_filters: query_hints.row_filters,
         equi_joins: query_hints.equi_joins,
+        direct_projection,
+        direct_filtered_projection,
+        direct_count_group_by,
     })
 }
 struct Rewrite<'a> {

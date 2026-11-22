@@ -1656,6 +1656,26 @@ impl SqlFactProvider for HostLabSqlProvider {
         };
         store.direct_count_group_by(plan, control)
     }
+
+    fn try_direct_filtered_projection(
+        &self,
+        plan: &crate::provider::DirectFilteredProjection,
+        control: &SqlControl,
+        window: Option<crate::window::SqlWindow>,
+    ) -> Option<MddResult<(Vec<SqlRow>, Option<crate::window::SqlWindowReport>)>> {
+        if self.lazy.is_none()
+            || !crate::column_store::sql_scan_opt_enabled()
+            || control.runtime().is_some()
+        {
+            return None;
+        }
+        let parsed = ContractRelation::parse(&plan.relation)?;
+        let store = match self.ensure_store(parsed, Some(control)) {
+            Ok(store) => store,
+            Err(error) => return Some(Err(error)),
+        };
+        store.direct_filtered_projection(plan, control, window)
+    }
 }
 
 fn build_semi_join_filter(

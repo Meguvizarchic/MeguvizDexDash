@@ -15,7 +15,7 @@
 //!   relations that need it refuse with the layer's own error, and the dataset says
 //!   which layer is missing and why in `layer_issues`.
 use crate::{
-    decode::{DecodeState, Occurrence, OccurrenceIndex},
+    decode::{LazyDexDecode, Occurrence},
     layers::LayerBuilder,
 };
 use mdd_dex::{definitions::DefinitionLimits, strings::StringLimits};
@@ -124,10 +124,14 @@ pub struct Dataset {
     layer_issues: Vec<LayerIssue>,
     dex_count: usize,
     /// Builds the layers of one DEX on request; `None` for the native dialect. The dataset keeps no layer of its own: the
-    /// SQL relations were filled from them at open, and `decode` builds the facts it renders from on its first call.
+    /// SQL relations were filled from them at open, and `decode` builds the facts it renders from on demand per DEX.
     layers: Option<Arc<LayerBuilder>>,
-    /// What `decode` reads, built on the first decode; empty for the native dialect.
-    decode: OnceLock<MddResult<DecodeState>>,
+    /// HostLab SQL provider retained for fast in-memory descriptor resolution without loading unrelated DEXes.
+    hostlab_provider: Option<Arc<HostLabSqlProvider>>,
+    /// Per-DEX lazy decode cache (indexed by `file_id`); only touched DEXes are opened and parsed.
+    lazy_decode: Vec<OnceLock<MddResult<LazyDexDecode>>>,
+    /// What `occurrences()` reads, built on demand; empty for the native dialect.
+    decode: OnceLock<MddResult<Vec<Occurrence>>>,
     /// One inventory per input, in the order given; `get_manifest` reads from them.
     pub(crate) inventories: Arc<Vec<ArchiveInventory>>,
     /// Parsed manifests by input position, so paging the permissions parses once.
@@ -198,7 +202,7 @@ impl Dataset {
         // would answer "no rows" where the truth is "nothing to ask".
         let built = (dex_count > 0).then(|| match dialect {
             Dialect::NativeV1 => Self::native_bridge(&snapshot, &inventories, sql_limits)
-                .map(|bridge| (bridge, Vec::new(), None)),
+                .map(|bridge| (bridge, Vec::new(), None, None)),
             Dialect::DexSql010 | Dialect::DexSql011 => Self::contract_bridge(
                 dialect,
                 &snapshot,
@@ -219,8 +223,8 @@ impl Dataset {
         })?);
         let snapshot_handle = lifecycle.register_snapshot(Arc::clone(&snapshot))?;
         let session = lifecycle.open_session(&snapshot_handle, limits)?;
-        let (temp, layer_issues, layers) = match built {
-            Some((bridge, layer_issues, layers)) => (
+        let (temp, layer_issues, layers, hostlab_provider) = match built {
+            Some((bridge, layer_issues, layers, provider)) => (
                 Some(TempSqlSession::new(
                     Arc::clone(&lifecycle),
                     session.clone(),
@@ -228,9 +232,11 @@ impl Dataset {
                 )?),
                 layer_issues,
                 layers,
+                provider,
             ),
-            None => (None, Vec::new(), None),
+            None => (None, Vec::new(), None, None),
         };
+        let lazy_decode = (0..dex_count).map(|_| OnceLock::new()).collect();
         Ok(Self {
             lifecycle,
             snapshot,
@@ -244,6 +250,8 @@ impl Dataset {
             layer_issues,
             dex_count,
             layers,
+            hostlab_provider,
+            lazy_decode,
             decode: OnceLock::new(),
             inventories,
             manifests: Mutex::new(HashMap::new()),
@@ -291,7 +299,12 @@ impl Dataset {
         scope: &SelectedScope,
         sql_limits: SqlLimits,
         non_scalar_text_policy: NonScalarTextPolicy,
-    ) -> MddResult<(SqlBridge, Vec<LayerIssue>, Option<Arc<LayerBuilder>>)> {
+    ) -> MddResult<(
+        SqlBridge,
+        Vec<LayerIssue>,
+        Option<Arc<LayerBuilder>>,
+        Option<Arc<HostLabSqlProvider>>,
+    )> {
         let layers = Arc::new(LayerBuilder::new(
             Arc::clone(snapshot),
             Arc::clone(inventories),
@@ -308,8 +321,9 @@ impl Dataset {
         // above them that cannot be built is not an error here: the relations that need it refuse with its error, and the
         // dataset names it in `layer_issues`.
         provider.prepare_required(None)?;
+        let provider_handle = Arc::clone(&provider);
         let bridge = SqlBridge::new(provider, dialect.sql(), sql_limits)?;
-        Ok((bridge, layers.issues(), Some(layers)))
+        Ok((bridge, layers.issues(), Some(layers), Some(provider_handle)))
     }
 
     /// The session's SQL front, for callers that run TEMP definitions and windows. A dataset
@@ -360,17 +374,12 @@ impl Dataset {
 
     /// The facts of each DEX, in `file_id` order; empty for the native dialect. Built on the first call and kept.
     pub fn occurrences(&self) -> MddResult<&[Occurrence]> {
-        Ok(&self.decode_state()?.occurrences)
-    }
-
-    /// What `decode` reads: the facts of each DEX and the indexes over them. Built on the first decode, once.
-    pub(crate) fn decode_state(&self) -> MddResult<&DecodeState> {
         self.decode
             .get_or_init(|| {
                 let Some(layers) = &self.layers else {
-                    return Ok(DecodeState::default());
+                    return Ok(Vec::new());
                 };
-                let occurrences = if self.dex_count > 1 && self.limits.max_threads > 1 {
+                if self.dex_count > 1 && self.limits.max_threads > 1 {
                     let workers = self.limits.max_threads.min(self.dex_count);
                     let next = std::sync::atomic::AtomicUsize::new(0);
                     let slots: Vec<Mutex<Option<MddResult<Occurrence>>>> =
@@ -411,20 +420,65 @@ impl Dataset {
                                     ))
                                 })
                         })
-                        .collect::<MddResult<Vec<_>>>()?
+                        .collect::<MddResult<Vec<_>>>()
                 } else {
                     (0..self.dex_count)
                         .map(|position| layers.occurrence(position))
-                        .collect::<MddResult<Vec<_>>>()?
-                };
-                let indexes = occurrences.iter().map(OccurrenceIndex::build).collect();
-                Ok(DecodeState {
-                    occurrences,
-                    indexes,
-                })
+                        .collect::<MddResult<Vec<_>>>()
+                }
             })
-            .as_ref()
+            .as_deref()
             .map_err(Clone::clone)
+    }
+
+    pub(crate) fn has_decode_layers(&self) -> bool {
+        self.layers.is_some()
+    }
+
+    pub(crate) fn hostlab_provider(&self) -> Option<&Arc<HostLabSqlProvider>> {
+        self.hostlab_provider.as_ref()
+    }
+
+    pub(crate) fn layers(&self) -> Option<&Arc<LayerBuilder>> {
+        self.layers.as_ref()
+    }
+
+    pub(crate) fn decode_dex(&self, file_id: u32) -> MddResult<&LazyDexDecode> {
+        let position = usize::try_from(file_id).unwrap_or(usize::MAX);
+        let slot = self.lazy_decode.get(position).ok_or_else(|| {
+            MddError::new(
+                ErrorCode::InternalFault,
+                "service.decode",
+                "a located file_id vanished",
+            )
+        })?;
+        let layers = self.layers.as_ref().ok_or_else(|| {
+            MddError::new(
+                ErrorCode::InternalFault,
+                "service.decode",
+                "no decode layers on this dialect",
+            )
+        })?;
+        slot.get_or_init(|| {
+            let (metadata, definitions) = layers.build_base(position)?;
+            Ok(LazyDexDecode::new(
+                file_id,
+                metadata,
+                definitions,
+                layers.code_validation(position),
+                layers.annotations_validation(position),
+            ))
+        })
+        .as_ref()
+        .map_err(Clone::clone)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn loaded_decode_dex_count(&self) -> usize {
+        self.lazy_decode
+            .iter()
+            .filter(|slot| slot.get().is_some())
+            .count()
     }
 
     /// The bytes captured from all inputs: what the snapshot holds, not what a later

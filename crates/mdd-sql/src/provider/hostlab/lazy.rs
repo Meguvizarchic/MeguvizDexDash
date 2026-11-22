@@ -14,10 +14,11 @@
 use super::*;
 use crate::{
     column_store::{
-        Cell, Derive, DerivedColumn, RefTable, RelationStore, RelationStoreBuilder, RowSink,
-        TextDict,
+        Cell, Derive, DerivedColumn, ExactRowSet, RefTable, RelationStore, RelationStoreBuilder,
+        RowSink, TextDict,
     },
     control::SqlLimits,
+    provider::DirectPredicate,
 };
 use mdd_facts::coverage::OccurrenceStates;
 use std::sync::{Mutex, OnceLock};
@@ -73,6 +74,18 @@ pub(super) struct LazyStores {
 }
 
 impl LazyStores {
+    /// Return a built `RelationStore` if its slot is already `Ready`, without triggering a build.
+    pub(super) fn ready_store(&self, relation: ContractRelation) -> Option<Arc<RelationStore>> {
+        let (_, slot) = self
+            .slots
+            .iter()
+            .find(|(candidate, _)| candidate.name() == relation.name())?;
+        match &*slot.lock().ok()? {
+            Slot::Ready(store) => Some(Arc::clone(store)),
+            _ => None,
+        }
+    }
+
     /// Rows of a relation whose store is built; nothing is claimed for one that is not.
     pub(super) fn stored_rows(&self, relation: ContractRelation) -> Option<u64> {
         let (_, slot) = self
@@ -252,6 +265,40 @@ impl HostLabSqlProvider {
             non_scalar_text_policy: NonScalarTextPolicy::Reject,
             coverage: std::array::from_fn(|_| std::sync::OnceLock::new()),
         })
+    }
+
+    /// Lookup defined `(file_id, method_idx)` occurrences matching `descriptor` (and optional `file_id`)
+    /// directly from an already-ready `class_methods` store without building CSR indexes or loading DEXes.
+    pub fn find_defined_methods_by_descriptor(
+        &self,
+        descriptor: &str,
+        file_id: Option<u32>,
+    ) -> Option<Vec<(u32, u32)>> {
+        let store = self
+            .lazy
+            .as_ref()?
+            .ready_store(ContractRelation::Required(HostLabRelation::ClassMethods))?;
+        let file_col = store.column_by_name("file_id")?;
+        let idx_col = store.column_by_name("method_idx")?;
+        let desc_col = store.column_by_name("method_descriptor")?;
+        collect_ready_defined_pairs(&store, file_col, idx_col, desc_col, descriptor, file_id)
+    }
+
+    /// Lookup defined `(file_id, class_def_idx)` occurrences matching `descriptor` (and optional `file_id`)
+    /// directly from an already-ready `classes` store without building CSR indexes or loading DEXes.
+    pub fn find_defined_classes_by_descriptor(
+        &self,
+        descriptor: &str,
+        file_id: Option<u32>,
+    ) -> Option<Vec<(u32, u32)>> {
+        let store = self
+            .lazy
+            .as_ref()?
+            .ready_store(ContractRelation::Required(HostLabRelation::Classes))?;
+        let file_col = store.column_by_name("file_id")?;
+        let idx_col = store.column_by_name("class_def_idx")?;
+        let desc_col = store.column_by_name("descriptor")?;
+        collect_ready_defined_pairs(&store, file_col, idx_col, desc_col, descriptor, file_id)
     }
 
     /// Bytes held by the stores built so far and their shared dictionary; `None` for a provider that holds the layers.
@@ -642,53 +689,84 @@ impl HostLabSqlProvider {
         let parallel = parallel_prepare_threads() > 1
             && (definitions.method_references.len() > 256 || types_meta.len() > 256);
 
-        let build_methods = || -> Vec<[u32; 3]> {
-            definitions
-                .method_references
-                .iter()
-                .map(|r| {
-                    let head_id = dict.intern_str(&r.class_descriptor);
-                    let name_id = dict.intern_str(&r.method_name);
-                    let desc_id = dict.intern_member_with_ids(
-                        &r.descriptor,
-                        &r.class_descriptor,
-                        &r.method_name,
-                        head_id,
-                        name_id,
-                    );
-                    [head_id, name_id, desc_id]
-                })
-                .collect()
+        struct MethodCols {
+            class: Vec<u32>,
+            name: Vec<u32>,
+            desc: Vec<u32>,
+        }
+        struct FieldCols {
+            class: Vec<u32>,
+            name: Vec<u32>,
+            desc: Vec<u32>,
+            ty: Vec<u32>,
+        }
+        struct TypeCols {
+            desc: Vec<u32>,
+            name: Vec<u32>,
+        }
+
+        let build_methods = || -> MethodCols {
+            let n = definitions.method_references.len();
+            let mut class = Vec::with_capacity(n);
+            let mut name = Vec::with_capacity(n);
+            let mut desc = Vec::with_capacity(n);
+            for r in &definitions.method_references {
+                let head_id = dict.intern_str(&r.class_descriptor);
+                let name_id = dict.intern_str(&r.method_name);
+                let desc_id = dict.intern_member_with_ids(
+                    &r.descriptor,
+                    &r.class_descriptor,
+                    &r.method_name,
+                    head_id,
+                    name_id,
+                );
+                class.push(head_id);
+                name.push(name_id);
+                desc.push(desc_id);
+            }
+            MethodCols { class, name, desc }
         };
-        let build_fields = || -> Vec<[u32; 4]> {
-            definitions
-                .field_references
-                .iter()
-                .map(|r| {
-                    let head_id = dict.intern_str(&r.class_descriptor);
-                    let name_id = dict.intern_str(&r.field_name);
-                    let desc_id = dict.intern_member_with_ids(
-                        &r.descriptor,
-                        &r.class_descriptor,
-                        &r.field_name,
-                        head_id,
-                        name_id,
-                    );
-                    let ty_id = dict.intern_str(&r.type_descriptor);
-                    [head_id, name_id, desc_id, ty_id]
-                })
-                .collect()
+        let build_fields = || -> FieldCols {
+            let n = definitions.field_references.len();
+            let mut class = Vec::with_capacity(n);
+            let mut name = Vec::with_capacity(n);
+            let mut desc = Vec::with_capacity(n);
+            let mut ty = Vec::with_capacity(n);
+            for r in &definitions.field_references {
+                let head_id = dict.intern_str(&r.class_descriptor);
+                let name_id = dict.intern_str(&r.field_name);
+                let desc_id = dict.intern_member_with_ids(
+                    &r.descriptor,
+                    &r.class_descriptor,
+                    &r.field_name,
+                    head_id,
+                    name_id,
+                );
+                let ty_id = dict.intern_str(&r.type_descriptor);
+                class.push(head_id);
+                name.push(name_id);
+                desc.push(desc_id);
+                ty.push(ty_id);
+            }
+            FieldCols {
+                class,
+                name,
+                desc,
+                ty,
+            }
         };
-        let build_types = || -> Vec<[u32; 2]> {
-            types_meta
-                .iter()
-                .map(|t| {
-                    let descriptor = &t.data.descriptor;
-                    let desc_id = dict.intern_str(descriptor);
-                    let name_id = with_type_name(descriptor, |name| dict.intern_str(name));
-                    [desc_id, name_id]
-                })
-                .collect()
+        let build_types = || -> TypeCols {
+            let n = types_meta.len();
+            let mut desc = Vec::with_capacity(n);
+            let mut name = Vec::with_capacity(n);
+            for t in types_meta {
+                let descriptor = &t.data.descriptor;
+                let desc_id = dict.intern_str(descriptor);
+                let name_id = with_type_name(descriptor, |type_name| dict.intern_str(type_name));
+                desc.push(desc_id);
+                name.push(name_id);
+            }
+            TypeCols { desc, name }
         };
 
         let (methods, fields, types) = if parallel {
@@ -710,9 +788,17 @@ impl HostLabSqlProvider {
             (build_methods(), build_fields(), build_types())
         };
         let mut table = RefTable {
-            methods,
-            fields,
-            types,
+            method_class: methods.class,
+            method_name: methods.name,
+            method_desc: methods.desc,
+            field_class: fields.class,
+            field_name: fields.name,
+            field_desc: fields.desc,
+            field_type: fields.ty,
+            type_desc: types.desc,
+            type_name: types.name,
+            // Validated DEX definitions resolve all member class descriptors from `type_ids`.
+            type_desc_covers_member_classes: true,
         };
         table.shrink_to_fit();
         Ok(table)
@@ -870,4 +956,44 @@ fn unbounded_control() -> SqlControl {
         },
         None,
     )
+}
+
+fn collect_ready_defined_pairs(
+    store: &RelationStore,
+    file_col: usize,
+    idx_col: usize,
+    desc_col: usize,
+    descriptor: &str,
+    file_id: Option<u32>,
+) -> Option<Vec<(u32, u32)>> {
+    let mut predicates = Vec::with_capacity(2);
+    predicates.push(DirectPredicate::EqText(desc_col, descriptor.to_owned()));
+    if let Some(fid) = file_id {
+        predicates.push(DirectPredicate::EqU64(file_col, u64::from(fid)));
+    }
+    let matched = store.exact_lookup_rows(&predicates, false)?;
+    let mut read_row = |row: u64| -> Option<(u32, u32)> {
+        let fid = u32::try_from(store.u64_cell(file_col, row)??).ok()?;
+        let idx = u32::try_from(store.u64_cell(idx_col, row)??).ok()?;
+        Some((fid, idx))
+    };
+    let mut out = Vec::with_capacity(matched.len());
+    match matched {
+        ExactRowSet::Range(start, end) => {
+            for row in start..end {
+                out.push(read_row(row)?);
+            }
+        }
+        ExactRowSet::Slice(slice) => {
+            for &row in slice {
+                out.push(read_row(u64::from(row))?);
+            }
+        }
+        ExactRowSet::Owned(rows) => {
+            for row in rows {
+                out.push(read_row(u64::from(row))?);
+            }
+        }
+    }
+    Some(out)
 }

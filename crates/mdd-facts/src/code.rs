@@ -644,6 +644,9 @@ impl CodeFacts {
     pub fn declared_code_item_byte_offsets(&self) -> &[DecimalU64] {
         &self.declared_code_item_byte_offsets
     }
+    pub fn debug_starts(&self) -> Option<&Arc<[u64]>> {
+        self.debug_starts.as_ref()
+    }
     pub fn known_code_item_start(&self, offset: u64) -> bool {
         self.declared_code_item_byte_offsets
             .binary_search_by_key(&offset, |item| item.0)
