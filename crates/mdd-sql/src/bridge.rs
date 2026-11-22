@@ -1946,6 +1946,7 @@ fn reset_sqlite_connection(db: &Connection) -> MddResult<()> {
             None,
         )));
     }
+    let _ = db.execute_batch("PRAGMA shrink_memory;");
     Ok(())
 }
 

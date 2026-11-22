@@ -1,7 +1,7 @@
 use crate::MetadataFacts;
 use mdd_input::{
     archive::{ArchiveInventory, DexCandidate, DexSelection},
-    snapshot::Snapshot,
+    snapshot::{CapturedSource, Snapshot},
 };
 use mdd_types::{Completeness, DecimalU64, ErrorCode, MddError, MddResult, content_id};
 use serde::Serialize;
@@ -1021,6 +1021,13 @@ pub struct SelectedInput {
     pub selected_bytes_complete: bool,
     pub origin_display: Option<String>,
 }
+#[derive(Clone)]
+#[allow(dead_code)] // Variants exist solely to retain backing allocations/spilled files until drop.
+enum RetainedLease {
+    Source(CapturedSource),
+    Blob(Arc<[u8]>),
+}
+
 #[derive(Clone, Serialize)]
 pub struct SelectedScope {
     snapshot_id: String,
@@ -1031,7 +1038,7 @@ pub struct SelectedScope {
     roster_complete: bool,
     covers_all_captured_sources: bool,
     #[serde(skip)]
-    leases: Vec<Arc<[u8]>>,
+    leases: Vec<RetainedLease>,
 }
 fn error(message: &str) -> MddError {
     MddError::new(ErrorCode::InvalidArgument, "facts.index_scope", message)
@@ -1073,7 +1080,8 @@ impl SelectedScope {
             leases: snapshot
                 .sources()
                 .iter()
-                .map(|source| source.lease())
+                .cloned()
+                .map(RetainedLease::Source)
                 .collect(),
         }
     }
@@ -1127,7 +1135,7 @@ impl SelectedScope {
             part(&mut canonical, &identity.input_ordinal.0.to_le_bytes());
             part(&mut canonical, identity.content_id.as_bytes());
             part(&mut canonical, policy.as_bytes());
-            leases.push(source.lease());
+            leases.push(RetainedLease::Source(source.clone()));
             inputs.push(SelectedInput {
                 source_occurrence_id: identity.occurrence_id.clone(),
                 content_id: identity.content_id.clone(),
@@ -1173,7 +1181,7 @@ impl SelectedScope {
                 });
                 // A DEX the inventory does not hold is not read here: the scope holds the archive it is read from.
                 if let Some(lease) = dex.blob.held_lease() {
-                    leases.push(lease);
+                    leases.push(RetainedLease::Blob(lease));
                 }
             }
         }

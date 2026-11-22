@@ -177,7 +177,7 @@ impl Default for Shard {
     }
 }
 
-const DEFAULT_INDEX_BUDGET_MIB: usize = 192;
+const DEFAULT_INDEX_BUDGET_MIB: usize = 96;
 
 fn index_budget_bytes_from_env() -> usize {
     let mib = std::env::var("MDD_OPT_INDEX_BUDGET_MIB")

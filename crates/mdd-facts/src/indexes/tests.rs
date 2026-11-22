@@ -2204,3 +2204,136 @@ fn coverage_for_relations_fills_columns_and_uses_the_provider_gate() {
         ErrorCode::InvalidArgument
     );
 }
+
+#[test]
+fn selected_scope_does_not_materialize_spilled_apk_snapshot() {
+    fn crc32_ieee(bytes: &[u8]) -> u32 {
+        let mut crc = 0xffff_ffffu32;
+        for &byte in bytes {
+            crc ^= u32::from(byte);
+            for _ in 0..8 {
+                let mask = (crc & 1).wrapping_neg();
+                crc = (crc >> 1) ^ (0xedb8_8320u32 & mask);
+            }
+        }
+        !crc
+    }
+
+    fn build_stored_zip(entries: &[(&[u8], &[u8])]) -> Vec<u8> {
+        let mut out = Vec::new();
+        let mut central = Vec::new();
+        for &(name, data) in entries {
+            let offset = out.len() as u32;
+            let crc = crc32_ieee(data);
+            let size = data.len() as u32;
+            let name_len = name.len() as u16;
+
+            out.extend_from_slice(&0x0403_4b50u32.to_le_bytes());
+            out.extend_from_slice(&20u16.to_le_bytes());
+            out.extend_from_slice(&0u16.to_le_bytes());
+            out.extend_from_slice(&0u16.to_le_bytes());
+            out.extend_from_slice(&0u16.to_le_bytes());
+            out.extend_from_slice(&0u16.to_le_bytes());
+            out.extend_from_slice(&crc.to_le_bytes());
+            out.extend_from_slice(&size.to_le_bytes());
+            out.extend_from_slice(&size.to_le_bytes());
+            out.extend_from_slice(&name_len.to_le_bytes());
+            out.extend_from_slice(&0u16.to_le_bytes());
+            out.extend_from_slice(name);
+            out.extend_from_slice(data);
+
+            central.extend_from_slice(&0x0201_4b50u32.to_le_bytes());
+            central.extend_from_slice(&20u16.to_le_bytes());
+            central.extend_from_slice(&20u16.to_le_bytes());
+            central.extend_from_slice(&0u16.to_le_bytes());
+            central.extend_from_slice(&0u16.to_le_bytes());
+            central.extend_from_slice(&0u16.to_le_bytes());
+            central.extend_from_slice(&0u16.to_le_bytes());
+            central.extend_from_slice(&crc.to_le_bytes());
+            central.extend_from_slice(&size.to_le_bytes());
+            central.extend_from_slice(&size.to_le_bytes());
+            central.extend_from_slice(&name_len.to_le_bytes());
+            central.extend_from_slice(&0u16.to_le_bytes());
+            central.extend_from_slice(&0u16.to_le_bytes());
+            central.extend_from_slice(&0u16.to_le_bytes());
+            central.extend_from_slice(&0u16.to_le_bytes());
+            central.extend_from_slice(&0u32.to_le_bytes());
+            central.extend_from_slice(&offset.to_le_bytes());
+            central.extend_from_slice(name);
+        }
+
+        let cd_offset = out.len() as u32;
+        let cd_size = central.len() as u32;
+        let count = entries.len() as u16;
+        out.extend_from_slice(&central);
+        out.extend_from_slice(&0x0605_4b50u32.to_le_bytes());
+        out.extend_from_slice(&0u16.to_le_bytes());
+        out.extend_from_slice(&0u16.to_le_bytes());
+        out.extend_from_slice(&count.to_le_bytes());
+        out.extend_from_slice(&count.to_le_bytes());
+        out.extend_from_slice(&cd_size.to_le_bytes());
+        out.extend_from_slice(&cd_offset.to_le_bytes());
+        out.extend_from_slice(&0u16.to_le_bytes());
+        out
+    }
+
+    struct TempApk(PathBuf);
+    impl Drop for TempApk {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_file(&self.0);
+        }
+    }
+
+    let dex_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/generated/minimal-035.dex");
+    let dex_bytes = std::fs::read(&dex_path).unwrap();
+    let pad = vec![0u8; 16 * 1024 * 1024 + 1024];
+    let apk_bytes = build_stored_zip(&[(b"classes.dex", &dex_bytes), (b"assets/pad.bin", &pad)]);
+
+    let tmp = TempApk(std::env::temp_dir().join(format!(
+        "mdd-facts-spill-scope-{}-{:?}.apk",
+        std::process::id(),
+        std::thread::current().id()
+    )));
+    std::fs::write(&tmp.0, &apk_bytes).unwrap();
+    drop(pad);
+    drop(apk_bytes);
+
+    let snapshot = Snapshot::capture(
+        &[InputSpec {
+            path: tmp.0.clone(),
+            kind: InputKind::Apk,
+            expected_sha256: None,
+        }],
+        CaptureLimits::default(),
+    )
+    .unwrap();
+    let source = &snapshot.sources()[0];
+    assert!(
+        source.try_bytes().is_none(),
+        "16+ MiB APK snapshot must spill instead of holding bytes in heap"
+    );
+
+    let pending = SelectedScope::pending(&snapshot);
+    assert_eq!(pending.retained_blob_leases(), 1);
+    assert!(
+        source.try_bytes().is_none(),
+        "SelectedScope::pending must not materialize spilled APK bytes"
+    );
+
+    let inventory = ArchiveInventory::build(
+        source,
+        InventoryPolicy {
+            hold_dex_bytes: false,
+            ..InventoryPolicy::default()
+        },
+        ArchiveLimits::default(),
+    )
+    .unwrap();
+    let scoped = SelectedScope::from_inventories(&snapshot, &[&inventory]).unwrap();
+    assert_eq!(scoped.retained_blob_leases(), 1);
+    assert!(
+        source.try_bytes().is_none(),
+        "SelectedScope::from_inventories must not materialize spilled APK bytes"
+    );
+}
