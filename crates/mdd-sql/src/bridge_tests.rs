@@ -344,6 +344,26 @@ fn schema_prewarm_cap_and_cancellation_leave_original_length() {
 }
 
 #[test]
+fn self_join_slots_preconnect_and_recycle_under_tight_cell_budget() {
+    let (provider, _) = bridge();
+    let limits = SqlLimits {
+        max_cell_bytes: 16,
+        ..SqlLimits::default()
+    };
+    let tiny = SqlBridge::new(provider, SqlDialect::DexSql011, limits).unwrap();
+    let self_join = tiny
+        .query("SELECT a.id, b.value FROM facts a JOIN facts b ON a.id = b.id WHERE a.id = 2 AND b.id = 2")
+        .unwrap();
+    assert_eq!(
+        self_join.rows(),
+        &[vec![SqlValue::U64(DecimalU64(2)), SqlValue::text("a\0b")]]
+    );
+    // Recycled SQLite connection must cleanly drop temporary `__mdd_scan_*` modules.
+    let single = tiny.query("SELECT id FROM facts WHERE id = 1").unwrap();
+    assert_eq!(single.rows(), &[vec![SqlValue::U64(DecimalU64(1))]]);
+}
+
+#[test]
 fn reported_restore_failure_preserves_first_error_and_existing_details() {
     let control = SqlControl::new(SqlLimits::default(), None);
     let first = MddError::new(ErrorCode::Cancelled, "first", "cancelled").detail("origin", "kept");

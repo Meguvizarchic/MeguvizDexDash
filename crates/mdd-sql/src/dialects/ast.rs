@@ -66,6 +66,7 @@ pub(crate) struct Adapted {
     pub partition_hints: BTreeMap<String, u64>,
     pub row_filters: BTreeMap<String, crate::provider::RowFilter>,
     pub equi_joins: Vec<crate::provider::EquiJoinEdge>,
+    pub scan_slots: Vec<crate::provider::ScanSlot>,
     pub direct_projection: Option<crate::provider::DirectTableProjection>,
     pub direct_filtered_projection: Option<crate::provider::DirectFilteredProjection>,
     pub direct_count_group_by: Option<crate::provider::DirectCountGroupBy>,
@@ -441,8 +442,14 @@ fn adapt_on_tokens(
         &partition_mentions,
         &schema.partition_columns,
     );
-    let query_hints =
-        super::pushdown::query_hints_with_types(query, &schema.relations, &schema.schema_types);
+    let mut query_hints = super::pushdown::query_hints_with_options(
+        query,
+        &schema.relations,
+        &schema.schema_types,
+        &reserved,
+        &schema.reserved_base,
+        crate::column_store::sql_scan_opt_enabled(),
+    );
     let empty_ctes = BTreeSet::new();
     let direct_projection = super::pushdown::extract_direct_projection_from_query(
         query,
@@ -533,9 +540,10 @@ fn adapt_on_tokens(
     if rewrite.next_input != parameters.len() {
         return Err(invalid("UNUSED_SQL_PARAMETERS"));
     }
-    let Statement::Query(query) = &statements[0] else {
+    let Statement::Query(query) = &mut statements[0] else {
         return Err(invalid("INTERNAL_QUERY_KIND"));
     };
+    super::pushdown::apply_scan_slots(query, &mut query_hints);
     let actual_nodes = validate_iterative(query, limits)?;
     let adapted = statements[0].to_string();
     if adapted.len() > limits.max_sql_bytes.saturating_mul(8) {
@@ -551,6 +559,7 @@ fn adapt_on_tokens(
         partition_hints,
         row_filters: query_hints.row_filters,
         equi_joins: query_hints.equi_joins,
+        scan_slots: query_hints.scan_slots,
         direct_projection,
         direct_filtered_projection,
         direct_count_group_by,

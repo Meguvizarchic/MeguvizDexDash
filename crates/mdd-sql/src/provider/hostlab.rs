@@ -1467,8 +1467,25 @@ impl SqlFactProvider for HostLabSqlProvider {
         equi_joins: &[EquiJoinEdge],
         partition_hints: &BTreeMap<String, u64>,
     ) -> MddResult<BTreeMap<String, PlannedScan>> {
+        self.plan_scan_slots(
+            required_relations,
+            &[],
+            row_filters,
+            equi_joins,
+            partition_hints,
+        )
+    }
+
+    fn plan_scan_slots(
+        &self,
+        required_relations: &[String],
+        scan_slots: &[crate::provider::ScanSlot],
+        row_filters: &BTreeMap<String, RowFilter>,
+        equi_joins: &[EquiJoinEdge],
+        partition_hints: &BTreeMap<String, u64>,
+    ) -> MddResult<BTreeMap<String, PlannedScan>> {
         if self.lazy.is_none() {
-            return Ok(partition_hints
+            let mut scans: BTreeMap<String, PlannedScan> = partition_hints
                 .iter()
                 .map(|(relation, key)| {
                     (
@@ -1479,7 +1496,25 @@ impl SqlFactProvider for HostLabSqlProvider {
                         },
                     )
                 })
-                .collect());
+                .collect();
+            for slot in scan_slots {
+                let scan = if let Some(RowFilter::EqU64(col, val)) = &slot.row_filter
+                    && self
+                        .partition_column(&slot.base_relation)
+                        .is_some_and(|part_col| part_col == col.as_str())
+                {
+                    PlannedScan::Partition {
+                        key: *val,
+                        estimated_rows: None,
+                    }
+                } else {
+                    PlannedScan::All {
+                        estimated_rows: None,
+                    }
+                };
+                scans.insert(slot.slot_name.clone(), scan);
+            }
+            return Ok(scans);
         }
         let mut stores: BTreeMap<String, Arc<crate::column_store::RelationStore>> = BTreeMap::new();
         let mut scans: BTreeMap<String, PlannedScan> = BTreeMap::new();
@@ -1505,15 +1540,104 @@ impl SqlFactProvider for HostLabSqlProvider {
             stores.insert(key.clone(), store);
             scans.insert(key, scan);
         }
+        for slot in scan_slots {
+            let base_key = slot.base_relation.to_ascii_lowercase();
+            let Some(parsed) = ContractRelation::parse(&base_key) else {
+                continue;
+            };
+            let store = self.ensure_store(parsed, None)?;
+            let scan = match &slot.row_filter {
+                Some(filter) => store.plan_filter(filter),
+                None => PlannedScan::All {
+                    estimated_rows: Some(store.rows()),
+                },
+            };
+            stores.insert(slot.slot_name.clone(), store);
+            scans.insert(slot.slot_name.clone(), scan);
+        }
 
         const MAX_SEMI_JOIN_ROWS: u64 = 4096;
-        for _ in 0..2 {
+        const MAX_ROWS_IN_MEM_NARROW: usize = 16_384;
+        let edge_directions = |edge: &EquiJoinEdge| {
+            if edge.bidirectional {
+                [
+                    Some((&edge.left_relation, &edge.right_relation, false)),
+                    Some((&edge.right_relation, &edge.left_relation, true)),
+                ]
+            } else {
+                [
+                    Some((&edge.left_relation, &edge.right_relation, false)),
+                    None,
+                ]
+            }
+        };
+        for _ in 0..4 {
             let mut changed = false;
+
+            // Phase A: intersect already-materialized small row sets in memory (zero CSR builds)
+            // so self-joins collapse down to ~1-10 keys before probing large stores.
+            for _ in 0..3 {
+                let mut inner_changed = false;
+                for edge in equi_joins {
+                    for (src_name, dst_name, reverse) in edge_directions(edge).into_iter().flatten()
+                    {
+                        let (Some(src_store), Some(dst_store)) =
+                            (stores.get(src_name), stores.get(dst_name))
+                        else {
+                            continue;
+                        };
+                        let (Some(src_scan), Some(dst_scan)) =
+                            (scans.get(src_name), scans.get(dst_name))
+                        else {
+                            continue;
+                        };
+                        let PlannedScan::Rows(dst_rows) = dst_scan else {
+                            continue;
+                        };
+                        if dst_rows.is_empty() || dst_rows.len() > MAX_ROWS_IN_MEM_NARROW {
+                            continue;
+                        }
+                        let src_len = src_store.scan_len(src_scan);
+                        if src_len == 0 {
+                            scans.insert(dst_name.clone(), PlannedScan::Rows(Arc::from([])));
+                            inner_changed = true;
+                            changed = true;
+                            continue;
+                        }
+                        if src_len > MAX_SEMI_JOIN_ROWS {
+                            continue;
+                        }
+                        let pairs: Vec<(&str, &str)> = edge
+                            .columns
+                            .iter()
+                            .map(|(left, right)| {
+                                if reverse {
+                                    (right.as_str(), left.as_str())
+                                } else {
+                                    (left.as_str(), right.as_str())
+                                }
+                            })
+                            .collect();
+                        let Some(kept) = narrow_rows_by_semi_join(
+                            src_store, src_scan, dst_store, dst_rows, &pairs,
+                        ) else {
+                            continue;
+                        };
+                        if kept.len() < dst_rows.len() {
+                            scans.insert(dst_name.clone(), PlannedScan::Rows(Arc::from(kept)));
+                            inner_changed = true;
+                            changed = true;
+                        }
+                    }
+                }
+                if !inner_changed {
+                    break;
+                }
+            }
+
+            // Phase B: propagate small candidate sets into large / unindexed stores via ValueIndex.
             for edge in equi_joins {
-                for (src_name, dst_name, reverse) in [
-                    (&edge.left_relation, &edge.right_relation, false),
-                    (&edge.right_relation, &edge.left_relation, true),
-                ] {
+                for (src_name, dst_name, reverse) in edge_directions(edge).into_iter().flatten() {
                     let (Some(src_store), Some(dst_store)) =
                         (stores.get(src_name), stores.get(dst_name))
                     else {
@@ -1534,6 +1658,10 @@ impl SqlFactProvider for HostLabSqlProvider {
                         continue;
                     }
                     if src_len > MAX_SEMI_JOIN_ROWS || dst_len <= src_len.saturating_mul(4) {
+                        continue;
+                    }
+                    if matches!(dst_scan, PlannedScan::Rows(rows) if rows.len() <= MAX_ROWS_IN_MEM_NARROW)
+                    {
                         continue;
                     }
                     let pairs: Vec<(&str, &str)> = edge
@@ -1845,6 +1973,174 @@ fn build_semi_join_filter(
     } else {
         RowFilter::Or(branches)
     })
+}
+
+fn narrow_rows_by_semi_join(
+    src_store: &crate::column_store::RelationStore,
+    src_scan: &PlannedScan,
+    dst_store: &crate::column_store::RelationStore,
+    dst_rows: &[u32],
+    pairs: &[(&str, &str)],
+) -> Option<Vec<u32>> {
+    use std::collections::HashSet;
+    use std::ops::ControlFlow;
+
+    #[derive(Eq, Hash, PartialEq)]
+    enum SemiKeyVal {
+        U64(u64),
+        Text(String),
+    }
+
+    if pairs.is_empty() || dst_rows.is_empty() {
+        return None;
+    }
+
+    let mut cols: Vec<(usize, usize, bool)> = Vec::with_capacity(pairs.len());
+    for &(src_name, dst_name) in pairs {
+        let src_col = src_store.column_by_name(src_name)?;
+        let dst_col = dst_store.column_by_name(dst_name)?;
+        let src_ty = src_store.column_type(src_col)?;
+        let dst_ty = dst_store.column_type(dst_col)?;
+        if src_ty != dst_ty || !matches!(src_ty, SqlType::U64 | SqlType::Text) {
+            return None;
+        }
+        cols.push((src_col, dst_col, src_ty == SqlType::U64));
+    }
+
+    let mut aborted = false;
+    let src_cap = (src_store.scan_len(src_scan) as usize).min(4096);
+    if cols.len() == 1 {
+        let (src_col, dst_col, is_u64) = cols[0];
+        if is_u64 {
+            let mut keys = HashSet::with_capacity(src_cap);
+            src_store.for_each_scan_row(src_scan, |row| {
+                match src_store.u64_cell(src_col, row) {
+                    Some(Some(v)) => {
+                        keys.insert(v);
+                    }
+                    Some(None) => {}
+                    None => {
+                        aborted = true;
+                        return ControlFlow::Break(());
+                    }
+                }
+                ControlFlow::Continue(())
+            });
+            if aborted {
+                return None;
+            }
+            if keys.is_empty() {
+                return Some(Vec::new());
+            }
+            let mut kept = Vec::with_capacity(dst_rows.len().min(keys.len().saturating_mul(4)));
+            for &row_u32 in dst_rows {
+                match dst_store.u64_cell(dst_col, u64::from(row_u32)) {
+                    Some(Some(v)) if keys.contains(&v) => kept.push(row_u32),
+                    Some(Some(_)) | Some(None) => {}
+                    None => kept.push(row_u32),
+                }
+            }
+            return Some(kept);
+        }
+
+        let mut keys = HashSet::with_capacity(src_cap);
+        src_store.for_each_scan_row(src_scan, |row| {
+            match src_store.text_cell(src_col, row) {
+                Some(Some(v)) => {
+                    keys.insert(v);
+                }
+                Some(None) => {}
+                None => {
+                    aborted = true;
+                    return ControlFlow::Break(());
+                }
+            }
+            ControlFlow::Continue(())
+        });
+        if aborted {
+            return None;
+        }
+        if keys.is_empty() {
+            return Some(Vec::new());
+        }
+        let mut kept = Vec::with_capacity(dst_rows.len().min(keys.len().saturating_mul(4)));
+        for &row_u32 in dst_rows {
+            match dst_store.text_cell(dst_col, u64::from(row_u32)) {
+                Some(Some(v)) if keys.contains(&v) => kept.push(row_u32),
+                Some(Some(_)) | Some(None) => {}
+                None => kept.push(row_u32),
+            }
+        }
+        return Some(kept);
+    }
+
+    let mut keys: HashSet<Vec<SemiKeyVal>> = HashSet::with_capacity(src_cap);
+    src_store.for_each_scan_row(src_scan, |row| {
+        let mut tuple = Vec::with_capacity(cols.len());
+        for &(src_col, _, is_u64) in &cols {
+            let val = if is_u64 {
+                match src_store.u64_cell(src_col, row) {
+                    Some(Some(v)) => SemiKeyVal::U64(v),
+                    Some(None) => return ControlFlow::Continue(()),
+                    None => {
+                        aborted = true;
+                        return ControlFlow::Break(());
+                    }
+                }
+            } else {
+                match src_store.text_cell(src_col, row) {
+                    Some(Some(v)) => SemiKeyVal::Text(v),
+                    Some(None) => return ControlFlow::Continue(()),
+                    None => {
+                        aborted = true;
+                        return ControlFlow::Break(());
+                    }
+                }
+            };
+            tuple.push(val);
+        }
+        keys.insert(tuple);
+        ControlFlow::Continue(())
+    });
+    if aborted {
+        return None;
+    }
+    if keys.is_empty() {
+        return Some(Vec::new());
+    }
+    let mut kept = Vec::with_capacity(dst_rows.len().min(keys.len().saturating_mul(4)));
+    for &row_u32 in dst_rows {
+        let row = u64::from(row_u32);
+        let mut tuple = Vec::with_capacity(cols.len());
+        let mut has_null = false;
+        let mut has_unknown = false;
+        for &(_, dst_col, is_u64) in &cols {
+            let cell = if is_u64 {
+                dst_store
+                    .u64_cell(dst_col, row)
+                    .map(|o| o.map(SemiKeyVal::U64))
+            } else {
+                dst_store
+                    .text_cell(dst_col, row)
+                    .map(|o| o.map(SemiKeyVal::Text))
+            };
+            match cell {
+                Some(Some(val)) => tuple.push(val),
+                Some(None) => {
+                    has_null = true;
+                    break;
+                }
+                None => has_unknown = true,
+            }
+        }
+        if has_null {
+            continue;
+        }
+        if has_unknown || keys.contains(&tuple) {
+            kept.push(row_u32);
+        }
+    }
+    Some(kept)
 }
 
 impl HostLabSqlProvider {

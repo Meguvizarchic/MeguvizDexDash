@@ -15,7 +15,7 @@ use super::SqlDialect;
 use crate::{
     provider::{
         DirectCountGroupBy, DirectFilteredProjection, DirectGroupItem, DirectOrderItem,
-        DirectPredicate, DirectTableProjection, EquiJoinEdge, RowFilter, SqlRelation,
+        DirectPredicate, DirectTableProjection, EquiJoinEdge, RowFilter, ScanSlot, SqlRelation,
     },
     values::SqlType,
 };
@@ -921,15 +921,39 @@ pub(crate) fn extract_direct_count_group_by_from_query(
     })
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum QueryStep {
+    Cte(usize),
+    DerivedFrom(usize),
+    DerivedJoin(usize, usize),
+    NestedQuery,
+    SetLeft,
+    SetRight,
+    SelectionSubquery(usize),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct SlotTarget {
+    pub path: Vec<QueryStep>,
+    pub from_idx: usize,
+    pub join_idx: Option<usize>,
+    pub base_relation: String,
+    pub slot_name: String,
+}
+
 #[derive(Default, Clone, Debug)]
 pub(crate) struct QueryHints {
     pub row_filters: BTreeMap<String, RowFilter>,
     pub equi_joins: Vec<EquiJoinEdge>,
+    pub scan_slots: Vec<ScanSlot>,
+    pub slot_targets: Vec<SlotTarget>,
 }
 
-/// Extract sound single-table candidate filters and inner equi-join edges from `root`.
-/// Handles pure outer `SELECT ... FROM (<inner>) AS alias` wrappers (such as `B0Session`'s
-/// shape/hex wrappers) while refusing any relation mentioned more than once or shadowed by a CTE.
+/// Extract sound single-table candidate filters, per-occurrence synthetic scan slots (for
+/// repeated base relations), and inner/CTE/LEFT-JOIN equi-join edges from `root`.
+/// Handles nested derived wrappers (e.g. `B0Session`), `WITH` CTEs, set operations, and
+/// `WHERE` subqueries while refusing recursive CTEs, outer `LIMIT 0`, ambiguous/duplicate
+/// qualifiers, and unsafe `OR`/`LEFT JOIN` filter placements.
 #[cfg(test)]
 pub(crate) fn query_hints(root: &Query, relations: &[SqlRelation]) -> QueryHints {
     let schema_types: BTreeMap<String, BTreeMap<String, SqlType>> = relations
@@ -943,212 +967,1173 @@ pub(crate) fn query_hints(root: &Query, relations: &[SqlRelation]) -> QueryHints
             (rel.name.to_ascii_lowercase(), cols)
         })
         .collect();
-    query_hints_with_types(root, relations, &schema_types)
+    query_hints_with_options(
+        root,
+        relations,
+        &schema_types,
+        &BTreeSet::new(),
+        &BTreeSet::new(),
+        true,
+    )
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn query_hints_with_types(
     root: &Query,
     relations: &[SqlRelation],
     schema_types: &BTreeMap<String, BTreeMap<String, SqlType>>,
 ) -> QueryHints {
+    query_hints_with_options(
+        root,
+        relations,
+        schema_types,
+        &BTreeSet::new(),
+        &BTreeSet::new(),
+        true,
+    )
+}
+
+pub(crate) fn query_hints_with_options(
+    root: &Query,
+    relations: &[SqlRelation],
+    schema_types: &BTreeMap<String, BTreeMap<String, SqlType>>,
+    reserved: &BTreeSet<String>,
+    reserved_base: &BTreeSet<String>,
+    allow_synthetic_slots: bool,
+) -> QueryHints {
     if relations.is_empty() || has_zero_limit(root) {
         return QueryHints::default();
     }
 
-    let inner = unwrap_outer_wrapper(root);
-    if has_zero_limit(inner) || inner.with.is_some() {
-        return QueryHints::default();
-    }
-    let (table_mentions, cte_names) = count_table_mentions(root);
-    let SetExpr::Select(select) = &*inner.body else {
-        return QueryHints::default();
-    };
-    if select.from.is_empty() {
-        return QueryHints::default();
-    }
-
-    let mut tables_by_qualifier: BTreeMap<String, String> = BTreeMap::new();
-    let mut all_plain_factors = true;
-    let mut all_inner = true;
-    let mut left_outer_only = select.from.len() == 1;
-    let mut leftmost_relation: Option<String> = None;
-
-    for (from_idx, from) in select.from.iter().enumerate() {
-        let mut register_factor = |factor: &TableFactor, is_leftmost: bool| {
-            let TableFactor::Table {
-                name,
-                alias,
-                args: None,
-                ..
-            } = factor
-            else {
-                all_plain_factors = false;
-                return false;
-            };
-            if name.0.len() != 1 {
-                all_plain_factors = false;
-                return false;
-            }
-            let Some(ident) = name.0[0].as_ident() else {
-                all_plain_factors = false;
-                return false;
-            };
-            let rel_name = ident.value.to_ascii_lowercase();
-            let qual = alias
-                .as_ref()
-                .map_or_else(|| rel_name.clone(), |a| a.name.value.to_ascii_lowercase());
-            if cte_names.contains(&rel_name)
-                || !schema_types.contains_key(&rel_name)
-                || table_mentions.get(&rel_name) != Some(&1)
-                || tables_by_qualifier.insert(qual, rel_name.clone()).is_some()
-            {
-                return false;
-            }
-            if is_leftmost {
-                leftmost_relation = Some(rel_name);
-            }
-            true
-        };
-
-        if !register_factor(&from.relation, from_idx == 0) {
-            return QueryHints::default();
-        }
-        for join in &from.joins {
-            match &join.join_operator {
-                JoinOperator::Join(c) | JoinOperator::Inner(c) | JoinOperator::CrossJoin(c) => {
-                    if matches!(c, JoinConstraint::Natural) {
-                        return QueryHints::default();
-                    }
-                }
-                JoinOperator::Left(c) | JoinOperator::LeftOuter(c) => {
-                    all_inner = false;
-                    if matches!(c, JoinConstraint::Natural) {
-                        return QueryHints::default();
-                    }
-                }
-                _ => {
-                    all_inner = false;
-                    left_outer_only = false;
-                }
-            }
-            if !register_factor(&join.relation, false) {
-                return QueryHints::default();
-            }
-        }
-    }
-
-    if !all_inner && !left_outer_only {
-        return QueryHints::default();
-    }
-
-    let only_table = if all_plain_factors && tables_by_qualifier.len() == 1 {
-        tables_by_qualifier.values().next().cloned()
-    } else {
-        None
-    };
-
-    let ctx = ResolveCtx {
+    let (table_mentions, _ctes, sql_identifiers) = count_table_mentions(root);
+    let mut state = HintExtractState {
         schema_types,
-        tables_by_qualifier: &tables_by_qualifier,
-        only_table: only_table.as_deref(),
-        all_plain_factors,
+        table_mentions: &table_mentions,
+        reserved,
+        reserved_base,
+        sql_identifiers: &sql_identifiers,
+        allow_synthetic_slots,
+        path: Vec::new(),
+        visible_ctes: Vec::new(),
+        next_slot_id: 0,
+        per_key_filters: BTreeMap::new(),
+        slot_targets_by_name: BTreeMap::new(),
+        join_pairs: BTreeMap::new(),
     };
+    state.visit_query(root, 0);
 
-    let mut conjunct_roots: Vec<&Expr> = Vec::new();
-    if let Some(sel) = &select.selection {
-        conjunct_roots.push(sel);
+    let mut used_keys: BTreeSet<String> = state.per_key_filters.keys().cloned().collect();
+    for (left_key, right_key, _) in state.join_pairs.keys() {
+        used_keys.insert(left_key.clone());
+        used_keys.insert(right_key.clone());
     }
-    if all_inner {
-        for from in &select.from {
-            for join in &from.joins {
-                let constraint = match &join.join_operator {
-                    JoinOperator::Join(c) | JoinOperator::Inner(c) | JoinOperator::CrossJoin(c) => {
-                        Some(c)
-                    }
-                    _ => None,
-                };
-                if let Some(JoinConstraint::On(expr)) = constraint {
-                    conjunct_roots.push(expr);
-                }
-            }
-        }
-    }
+    state
+        .slot_targets_by_name
+        .retain(|slot_name, _| used_keys.contains(slot_name));
 
-    let mut pending = conjunct_roots;
-    let mut per_table_filters: BTreeMap<String, Vec<RowFilter>> = BTreeMap::new();
-    let mut join_pairs: BTreeMap<(String, String), Vec<(String, String)>> = BTreeMap::new();
-
-    while let Some(expr) = pending.pop() {
-        let expr = unwrap_nested(expr);
-        if let Expr::BinaryOp {
-            left,
-            op: BinaryOperator::And,
-            right,
-        } = expr
-        {
-            pending.push(right);
-            pending.push(left);
+    let mut row_filters: BTreeMap<String, RowFilter> = BTreeMap::new();
+    let mut slot_filters: BTreeMap<String, RowFilter> = BTreeMap::new();
+    for (key, mut list) in state.per_key_filters {
+        if list.is_empty() {
             continue;
         }
-        if all_inner
-            && let Expr::BinaryOp {
+        let combined = if list.len() == 1 {
+            list.pop().unwrap()
+        } else {
+            RowFilter::And(list)
+        };
+        if state.slot_targets_by_name.contains_key(&key) {
+            slot_filters.insert(key, combined);
+        } else {
+            row_filters.insert(key, combined);
+        }
+    }
+
+    let mut scan_slots = Vec::with_capacity(state.slot_targets_by_name.len());
+    let mut slot_targets = Vec::with_capacity(state.slot_targets_by_name.len());
+    for (slot_name, target) in state.slot_targets_by_name {
+        let row_filter = slot_filters.remove(&slot_name);
+        scan_slots.push(ScanSlot {
+            slot_name,
+            base_relation: target.base_relation.clone(),
+            row_filter,
+        });
+        slot_targets.push(target);
+    }
+
+    let equi_joins = state
+        .join_pairs
+        .into_iter()
+        .map(
+            |((left_relation, right_relation, bidirectional), columns)| EquiJoinEdge {
+                left_relation,
+                right_relation,
+                columns,
+                bidirectional,
+            },
+        )
+        .collect();
+
+    QueryHints {
+        row_filters,
+        equi_joins,
+        scan_slots,
+        slot_targets,
+    }
+}
+
+/// Apply generated synthetic scan slot names to the post-rewrite AST so each repeated base
+/// relation occurrence points at its dedicated eponymous virtual table while preserving
+/// qualifier names and `materialize_joined_base_table` derived wrappers.
+pub(crate) fn apply_scan_slots(root: &mut Query, hints: &mut QueryHints) {
+    if hints.slot_targets.is_empty() {
+        return;
+    }
+    let mut applied: BTreeSet<String> = BTreeSet::new();
+    for target in &hints.slot_targets {
+        if apply_one_scan_slot(root, target) {
+            applied.insert(target.slot_name.clone());
+        }
+    }
+    if applied.len() != hints.scan_slots.len() {
+        hints
+            .scan_slots
+            .retain(|slot| applied.contains(&slot.slot_name));
+        hints
+            .slot_targets
+            .retain(|t| applied.contains(&t.slot_name));
+        hints.equi_joins.retain(|edge| {
+            (!edge.left_relation.starts_with("__mdd_scan_")
+                || applied.contains(&edge.left_relation))
+                && (!edge.right_relation.starts_with("__mdd_scan_")
+                    || applied.contains(&edge.right_relation))
+        });
+    }
+}
+
+type CteDirectMap = BTreeMap<String, (String, String, SqlType)>;
+
+struct HintExtractState<'a> {
+    schema_types: &'a BTreeMap<String, BTreeMap<String, SqlType>>,
+    table_mentions: &'a BTreeMap<String, usize>,
+    reserved: &'a BTreeSet<String>,
+    reserved_base: &'a BTreeSet<String>,
+    sql_identifiers: &'a BTreeSet<String>,
+    allow_synthetic_slots: bool,
+    path: Vec<QueryStep>,
+    visible_ctes: Vec<BTreeMap<String, Option<CteDirectMap>>>,
+    next_slot_id: usize,
+    per_key_filters: BTreeMap<String, Vec<RowFilter>>,
+    slot_targets_by_name: BTreeMap<String, SlotTarget>,
+    join_pairs: BTreeMap<(String, String, bool), Vec<(String, String)>>,
+}
+
+impl<'a> HintExtractState<'a> {
+    fn is_cte_shadowed(&self, rel_lower: &str) -> Option<Option<&CteDirectMap>> {
+        self.visible_ctes
+            .iter()
+            .rev()
+            .find_map(|frame| frame.get(rel_lower).map(|opt| opt.as_ref()))
+    }
+
+    fn alloc_slot_name(&mut self) -> String {
+        loop {
+            let candidate = format!("__mdd_scan_{}", self.next_slot_id);
+            self.next_slot_id += 1;
+            if !self.reserved.contains(&candidate)
+                && !self.reserved_base.contains(&candidate)
+                && !self.sql_identifiers.contains(&candidate)
+                && !self.slot_targets_by_name.contains_key(&candidate)
+            {
+                return candidate;
+            }
+        }
+    }
+
+    fn add_filter(&mut self, slot_key: String, filter: RowFilter) {
+        self.per_key_filters
+            .entry(slot_key)
+            .or_default()
+            .push(filter);
+    }
+
+    fn add_join_edge(
+        &mut self,
+        left_key: String,
+        left_col: String,
+        right_key: String,
+        right_col: String,
+        bidirectional: bool,
+    ) {
+        if left_key == right_key {
+            return;
+        }
+        let (lk, lc, rk, rc) = if bidirectional && right_key < left_key {
+            (right_key, right_col, left_key, left_col)
+        } else {
+            (left_key, left_col, right_key, right_col)
+        };
+        let cols = self.join_pairs.entry((lk, rk, bidirectional)).or_default();
+        if !cols
+            .iter()
+            .any(|existing| existing == &(lc.clone(), rc.clone()))
+        {
+            cols.push((lc, rc));
+        }
+    }
+
+    fn visit_query(&mut self, query: &Query, depth: usize) {
+        if depth > MAX_HINT_DEPTH || has_zero_limit(query) {
+            return;
+        }
+        let has_with = if let Some(with) = &query.with {
+            if with.recursive {
+                return;
+            }
+            self.visible_ctes.push(BTreeMap::new());
+            for (idx, cte) in with.cte_tables.iter().enumerate() {
+                self.path.push(QueryStep::Cte(idx));
+                let cte_map = self.visit_cte_query(cte, depth + 1);
+                self.path.pop();
+                let name = cte.alias.name.value.to_ascii_lowercase();
+                if let Some(frame) = self.visible_ctes.last_mut() {
+                    frame.insert(name, cte_map);
+                }
+            }
+            true
+        } else {
+            false
+        };
+        self.visit_set_expr(&query.body, depth + 1);
+        if has_with {
+            self.visible_ctes.pop();
+        }
+    }
+
+    fn visit_cte_query(&mut self, cte: &Cte, depth: usize) -> Option<CteDirectMap> {
+        let query = &cte.query;
+        if depth > MAX_HINT_DEPTH || has_zero_limit(query) {
+            return None;
+        }
+        if let Some(with) = &query.with {
+            if with.recursive {
+                return None;
+            }
+            self.visible_ctes.push(BTreeMap::new());
+            for (idx, nested) in with.cte_tables.iter().enumerate() {
+                self.path.push(QueryStep::Cte(idx));
+                let nested_map = self.visit_cte_query(nested, depth + 1);
+                self.path.pop();
+                let name = nested.alias.name.value.to_ascii_lowercase();
+                if let Some(frame) = self.visible_ctes.last_mut() {
+                    frame.insert(name, nested_map);
+                }
+            }
+        }
+        let col_aliases = if cte.alias.columns.is_empty() {
+            None
+        } else {
+            Some(cte.alias.columns.as_slice())
+        };
+        let out = self.visit_set_expr_for_cte(&query.body, depth + 1, col_aliases);
+        if query.with.is_some() {
+            self.visible_ctes.pop();
+        }
+        out
+    }
+
+    fn visit_set_expr(&mut self, body: &SetExpr, depth: usize) {
+        if depth > MAX_HINT_DEPTH {
+            return;
+        }
+        match body {
+            SetExpr::Select(select) => {
+                let _ = self.visit_select(select, depth + 1, None);
+            }
+            SetExpr::Query(inner) => {
+                self.path.push(QueryStep::NestedQuery);
+                self.visit_query(inner, depth + 1);
+                self.path.pop();
+            }
+            SetExpr::SetOperation { left, right, .. } => {
+                self.path.push(QueryStep::SetLeft);
+                self.visit_set_expr(left, depth + 1);
+                self.path.pop();
+                self.path.push(QueryStep::SetRight);
+                self.visit_set_expr(right, depth + 1);
+                self.path.pop();
+            }
+            _ => {}
+        }
+    }
+
+    fn visit_set_expr_for_cte(
+        &mut self,
+        body: &SetExpr,
+        depth: usize,
+        col_aliases: Option<&[TableAliasColumnDef]>,
+    ) -> Option<CteDirectMap> {
+        if depth > MAX_HINT_DEPTH {
+            return None;
+        }
+        match body {
+            SetExpr::Select(select) => {
+                let alias_slice = col_aliases.unwrap_or(&[]);
+                let capture = Some(alias_slice);
+                self.visit_select(select, depth + 1, capture)
+            }
+            SetExpr::Query(inner) => {
+                self.path.push(QueryStep::NestedQuery);
+                self.visit_query(inner, depth + 1);
+                self.path.pop();
+                None
+            }
+            SetExpr::SetOperation { left, right, .. } => {
+                self.path.push(QueryStep::SetLeft);
+                self.visit_set_expr(left, depth + 1);
+                self.path.pop();
+                self.path.push(QueryStep::SetRight);
+                self.visit_set_expr(right, depth + 1);
+                self.path.pop();
+                None
+            }
+            _ => None,
+        }
+    }
+
+    fn visit_select(
+        &mut self,
+        select: &Select,
+        depth: usize,
+        cte_col_aliases: Option<&[TableAliasColumnDef]>,
+    ) -> Option<CteDirectMap> {
+        if depth > MAX_HINT_DEPTH {
+            return None;
+        }
+
+        // Step A: descend into Derived tables and WHERE subqueries before touching the current SELECT.
+        for (from_idx, from) in select.from.iter().enumerate() {
+            if let TableFactor::Derived {
+                lateral: false,
+                subquery,
+                ..
+            } = &from.relation
+            {
+                self.path.push(QueryStep::DerivedFrom(from_idx));
+                self.visit_query(subquery, depth + 1);
+                self.path.pop();
+            }
+            for (join_idx, join) in from.joins.iter().enumerate() {
+                if let TableFactor::Derived {
+                    lateral: false,
+                    subquery,
+                    ..
+                } = &join.relation
+                {
+                    self.path.push(QueryStep::DerivedJoin(from_idx, join_idx));
+                    self.visit_query(subquery, depth + 1);
+                    self.path.pop();
+                }
+            }
+        }
+        if let Some(selection) = &select.selection {
+            let mut subqueries = Vec::new();
+            collect_selection_subqueries(selection, 0, &mut subqueries);
+            for (ordinal, subquery) in subqueries.into_iter().enumerate() {
+                self.path.push(QueryStep::SelectionSubquery(ordinal));
+                self.visit_query(subquery, depth + 1);
+                self.path.pop();
+            }
+        }
+
+        // Step B: validate FROM list & join operators before allocating any slot names.
+        if select.from.is_empty() {
+            return None;
+        }
+        let multi_from = select.from.len() > 1;
+        for from in &select.from {
+            for join in &from.joins {
+                match &join.join_operator {
+                    JoinOperator::Join(c) | JoinOperator::Inner(c) | JoinOperator::CrossJoin(c) => {
+                        if matches!(c, JoinConstraint::Natural) {
+                            return None;
+                        }
+                    }
+                    JoinOperator::Left(c) | JoinOperator::LeftOuter(c) => {
+                        if multi_from || matches!(c, JoinConstraint::Natural) {
+                            return None;
+                        }
+                    }
+                    _ => return None,
+                }
+            }
+        }
+
+        // Step C: pre-validate factors and detect duplicate qualifiers before slot allocation.
+        #[derive(Clone)]
+        enum PreFactor<'b> {
+            Base {
+                qual: String,
+                from_idx: usize,
+                join_idx: Option<usize>,
+                base_rel: String,
+                needs_slot: bool,
+            },
+            Cte {
+                qual: String,
+                map: &'b CteDirectMap,
+            },
+            Opaque {
+                qual: Option<String>,
+            },
+        }
+        let mut pre_factors: Vec<PreFactor<'_>> = Vec::new();
+        let mut seen_quals: BTreeSet<String> = BTreeSet::new();
+
+        for (from_idx, from) in select.from.iter().enumerate() {
+            let factors = std::iter::once((None, &from.relation)).chain(
+                from.joins
+                    .iter()
+                    .enumerate()
+                    .map(|(j, join)| (Some(j), &join.relation)),
+            );
+            for (join_idx, factor) in factors {
+                let pre = match factor {
+                    TableFactor::Table {
+                        name,
+                        alias,
+                        args: None,
+                        with_hints,
+                        version: None,
+                        with_ordinality: false,
+                        partitions,
+                        json_path: None,
+                        sample: None,
+                        index_hints,
+                    } if with_hints.is_empty()
+                        && partitions.is_empty()
+                        && index_hints.is_empty()
+                        && name.0.len() == 1 =>
+                    {
+                        let Some(ident) = name.0[0].as_ident() else {
+                            return None;
+                        };
+                        let rel_lower = ident.value.to_ascii_lowercase();
+                        let qual = alias.as_ref().map_or_else(
+                            || rel_lower.clone(),
+                            |a| a.name.value.to_ascii_lowercase(),
+                        );
+                        if alias.as_ref().is_some_and(|a| !a.columns.is_empty()) {
+                            PreFactor::Opaque { qual: Some(qual) }
+                        } else if let Some(cte_opt) = self.is_cte_shadowed(&rel_lower) {
+                            if let Some(map) = cte_opt {
+                                PreFactor::Cte { qual, map }
+                            } else {
+                                PreFactor::Opaque { qual: Some(qual) }
+                            }
+                        } else if self.schema_types.contains_key(&rel_lower) {
+                            let mentions =
+                                self.table_mentions.get(&rel_lower).copied().unwrap_or(0);
+                            if mentions == 1 {
+                                PreFactor::Base {
+                                    qual,
+                                    from_idx,
+                                    join_idx,
+                                    base_rel: rel_lower,
+                                    needs_slot: false,
+                                }
+                            } else if mentions > 1 && self.allow_synthetic_slots {
+                                PreFactor::Base {
+                                    qual,
+                                    from_idx,
+                                    join_idx,
+                                    base_rel: rel_lower,
+                                    needs_slot: true,
+                                }
+                            } else {
+                                PreFactor::Opaque { qual: Some(qual) }
+                            }
+                        } else {
+                            PreFactor::Opaque { qual: Some(qual) }
+                        }
+                    }
+                    TableFactor::Derived { alias, .. } => PreFactor::Opaque {
+                        qual: alias.as_ref().map(|a| a.name.value.to_ascii_lowercase()),
+                    },
+                    _ => return None,
+                };
+                if let Some(q) = match &pre {
+                    PreFactor::Base { qual, .. } | PreFactor::Cte { qual, .. } => Some(qual),
+                    PreFactor::Opaque { qual } => qual.as_ref(),
+                } && !seen_quals.insert(q.clone())
+                {
+                    return None;
+                }
+                pre_factors.push(pre);
+            }
+        }
+
+        // Step D: materialize FactorInfo map (allocating synthetic slots only now).
+        let mut factors_by_qual: BTreeMap<String, FactorInfo> = BTreeMap::new();
+        let mut ordered_quals: Vec<Option<String>> = Vec::with_capacity(pre_factors.len());
+        let mut all_plain_base = true;
+        for pre in pre_factors {
+            match pre {
+                PreFactor::Base {
+                    qual,
+                    from_idx,
+                    join_idx,
+                    base_rel,
+                    needs_slot,
+                } => {
+                    let slot_key = if needs_slot {
+                        let slot_name = self.alloc_slot_name();
+                        self.slot_targets_by_name.insert(
+                            slot_name.clone(),
+                            SlotTarget {
+                                path: self.path.clone(),
+                                from_idx,
+                                join_idx,
+                                base_relation: base_rel.clone(),
+                                slot_name: slot_name.clone(),
+                            },
+                        );
+                        slot_name
+                    } else {
+                        base_rel.clone()
+                    };
+                    ordered_quals.push(Some(qual.clone()));
+                    factors_by_qual.insert(qual, FactorInfo::Base { slot_key, base_rel });
+                }
+                PreFactor::Cte { qual, map } => {
+                    all_plain_base = false;
+                    ordered_quals.push(Some(qual.clone()));
+                    factors_by_qual.insert(qual, FactorInfo::Cte(map.clone()));
+                }
+                PreFactor::Opaque { qual } => {
+                    all_plain_base = false;
+                    if let Some(q) = qual {
+                        ordered_quals.push(Some(q.clone()));
+                        factors_by_qual.insert(q, FactorInfo::Opaque);
+                    } else {
+                        ordered_quals.push(None);
+                    }
+                }
+            }
+        }
+
+        let mut inner_core_quals: BTreeSet<String> = BTreeSet::new();
+        let mut available_left_quals: BTreeSet<String> = BTreeSet::new();
+        let mut inner_on_exprs: Vec<&Expr> = Vec::new();
+        let mut left_join_ons: Vec<(String, BTreeSet<String>, &Expr)> = Vec::new();
+        let mut factor_cursor = 0usize;
+        let mut seen_left_join = false;
+
+        for from in &select.from {
+            if let Some(q) = ordered_quals.get(factor_cursor).and_then(Option::as_ref) {
+                inner_core_quals.insert(q.clone());
+                available_left_quals.insert(q.clone());
+            }
+            factor_cursor += 1;
+            for join in &from.joins {
+                let join_qual_opt = ordered_quals
+                    .get(factor_cursor)
+                    .and_then(Option::as_ref)
+                    .cloned();
+                factor_cursor += 1;
+                match &join.join_operator {
+                    JoinOperator::Join(c) | JoinOperator::Inner(c) | JoinOperator::CrossJoin(c) => {
+                        if !seen_left_join {
+                            if let Some(q) = &join_qual_opt {
+                                inner_core_quals.insert(q.clone());
+                            }
+                            if let JoinConstraint::On(expr) = c {
+                                inner_on_exprs.push(expr);
+                            }
+                        }
+                        if let Some(q) = join_qual_opt {
+                            available_left_quals.insert(q);
+                        }
+                    }
+                    JoinOperator::Left(c) | JoinOperator::LeftOuter(c) => {
+                        seen_left_join = true;
+                        if let (Some(q), JoinConstraint::On(expr)) = (&join_qual_opt, c) {
+                            left_join_ons.push((q.clone(), available_left_quals.clone(), expr));
+                        }
+                        if let Some(q) = join_qual_opt {
+                            available_left_quals.insert(q);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        let only_qual = (all_plain_base && factors_by_qual.len() == 1)
+            .then(|| factors_by_qual.keys().next().cloned())
+            .flatten();
+        let ctx = ResolveCtx {
+            schema_types: self.schema_types,
+            factors_by_qual: &factors_by_qual,
+            only_qual: only_qual.as_deref(),
+            all_plain_base,
+        };
+
+        let mut pending: Vec<&Expr> = Vec::new();
+        if let Some(sel) = &select.selection {
+            pending.push(sel);
+        }
+        pending.extend(inner_on_exprs);
+
+        while let Some(expr) = pending.pop() {
+            let expr = unwrap_nested(expr);
+            if let Expr::BinaryOp {
+                left,
+                op: BinaryOperator::And,
+                right,
+            } = expr
+            {
+                pending.push(right);
+                pending.push(left);
+                continue;
+            }
+            if let Expr::BinaryOp {
                 left,
                 op: BinaryOperator::Eq,
                 right,
             } = expr
-            && let (Some((r1, c1, t1)), Some((r2, c2, t2))) =
-                (ctx.resolve_col(left), ctx.resolve_col(right))
-            && r1 != r2
-            && t1 == t2
-            && matches!(t1, SqlType::U64 | SqlType::Text)
-        {
-            let ((lr, lc), (rr, rc)) = if r1 < r2 {
-                ((r1, c1), (r2, c2))
-            } else {
-                ((r2, c2), (r1, c1))
-            };
-            let cols = join_pairs.entry((lr, rr)).or_default();
-            if !cols
-                .iter()
-                .any(|existing| existing == &(lc.clone(), rc.clone()))
+                && let (Some(c1), Some(c2)) = (ctx.resolve_col(left), ctx.resolve_col(right))
+                && c1.sql_type() == c2.sql_type()
+                && matches!(c1.sql_type(), SqlType::U64 | SqlType::Text)
             {
-                cols.push((lc, rc));
+                match (c1, c2) {
+                    (
+                        ResolvedCol::Base {
+                            qual: q1,
+                            slot_key: s1,
+                            col: col1,
+                            ..
+                        },
+                        ResolvedCol::Base {
+                            qual: q2,
+                            slot_key: s2,
+                            col: col2,
+                            ..
+                        },
+                    ) if inner_core_quals.contains(&q1) && inner_core_quals.contains(&q2) => {
+                        self.add_join_edge(s1, col1, s2, col2, true);
+                        continue;
+                    }
+                    (
+                        ResolvedCol::CteDirect {
+                            qual: q_cte,
+                            src_slot,
+                            src_col,
+                            ..
+                        },
+                        ResolvedCol::Base {
+                            qual: q_base,
+                            slot_key: dst_slot,
+                            col: dst_col,
+                            ..
+                        },
+                    )
+                    | (
+                        ResolvedCol::Base {
+                            qual: q_base,
+                            slot_key: dst_slot,
+                            col: dst_col,
+                            ..
+                        },
+                        ResolvedCol::CteDirect {
+                            qual: q_cte,
+                            src_slot,
+                            src_col,
+                            ..
+                        },
+                    ) if inner_core_quals.contains(&q_cte)
+                        && inner_core_quals.contains(&q_base) =>
+                    {
+                        self.add_join_edge(src_slot, src_col, dst_slot, dst_col, false);
+                        continue;
+                    }
+                    _ => {}
+                }
             }
+            if let Some((qual, filter)) = extract_single_table_filter(&ctx, expr, 0)
+                && inner_core_quals.contains(&qual)
+                && let Some(FactorInfo::Base { slot_key, .. }) = factors_by_qual.get(&qual)
+            {
+                self.add_filter(slot_key.clone(), filter);
+            }
+        }
+
+        for (join_qual, left_quals, on_expr) in left_join_ons {
+            let Some(FactorInfo::Base {
+                slot_key: rhs_slot, ..
+            }) = factors_by_qual.get(&join_qual)
+            else {
+                continue;
+            };
+            let mut on_pending = vec![on_expr];
+            while let Some(expr) = on_pending.pop() {
+                let expr = unwrap_nested(expr);
+                if let Expr::BinaryOp {
+                    left,
+                    op: BinaryOperator::And,
+                    right,
+                } = expr
+                {
+                    on_pending.push(right);
+                    on_pending.push(left);
+                    continue;
+                }
+                if let Expr::BinaryOp {
+                    left,
+                    op: BinaryOperator::Eq,
+                    right,
+                } = expr
+                    && let (Some(c1), Some(c2)) = (ctx.resolve_col(left), ctx.resolve_col(right))
+                    && c1.sql_type() == c2.sql_type()
+                    && matches!(c1.sql_type(), SqlType::U64 | SqlType::Text)
+                {
+                    let pair = match (&c1, &c2) {
+                        (
+                            ResolvedCol::Base {
+                                qual: rq, col: rc, ..
+                            },
+                            lhs,
+                        ) if rq == &join_qual && left_quals.contains(lhs.qual()) => {
+                            Some((lhs.slot_key(), lhs.col_name(), rc.clone()))
+                        }
+                        (
+                            lhs,
+                            ResolvedCol::Base {
+                                qual: rq, col: rc, ..
+                            },
+                        ) if rq == &join_qual && left_quals.contains(lhs.qual()) => {
+                            Some((lhs.slot_key(), lhs.col_name(), rc.clone()))
+                        }
+                        _ => None,
+                    };
+                    if let Some((src_slot, src_col, dst_col)) = pair {
+                        self.add_join_edge(
+                            src_slot.to_owned(),
+                            src_col.to_owned(),
+                            rhs_slot.clone(),
+                            dst_col,
+                            false,
+                        );
+                        continue;
+                    }
+                }
+                if let Some((qual, filter)) = extract_single_table_filter(&ctx, expr, 0)
+                    && qual == join_qual
+                {
+                    self.add_filter(rhs_slot.clone(), filter);
+                }
+            }
+        }
+
+        // Compute CteDirectMap only when building a CTE whose outputs come directly
+        // from unambiguous column projections of inner_core factors without GROUP BY/HAVING.
+        let alias_defs = cte_col_aliases?;
+        if select.having.is_some() || !has_empty_group_by(select) || select.projection.is_empty() {
+            return None;
+        }
+        if !alias_defs.is_empty() && alias_defs.len() != select.projection.len() {
+            return None;
+        }
+        let mut by_name: BTreeMap<String, Option<(String, String, SqlType)>> = BTreeMap::new();
+        for (ordinal, item) in select.projection.iter().enumerate() {
+            let (expr, default_name) = match item {
+                SelectItem::UnnamedExpr(e) => match unwrap_nested(e) {
+                    Expr::Identifier(id) => (e, Some(id.value.to_ascii_lowercase())),
+                    Expr::CompoundIdentifier(parts) if parts.len() == 2 => {
+                        (e, Some(parts[1].value.to_ascii_lowercase()))
+                    }
+                    _ => (e, None),
+                },
+                SelectItem::ExprWithAlias { expr, alias } => {
+                    (expr, Some(alias.value.to_ascii_lowercase()))
+                }
+                SelectItem::Wildcard(_) | SelectItem::QualifiedWildcard(_, _) => return None,
+                _ => return None,
+            };
+            let out_name = if let Some(col_def) = alias_defs.get(ordinal) {
+                col_def.name.value.to_ascii_lowercase()
+            } else if let Some(name) = default_name {
+                name
+            } else {
+                continue;
+            };
+            let resolved = ctx
+                .resolve_col(expr)
+                .filter(|col| inner_core_quals.contains(col.qual()))
+                .map(|col| {
+                    (
+                        col.slot_key().to_owned(),
+                        col.col_name().to_owned(),
+                        col.sql_type(),
+                    )
+                });
+            match by_name.entry(out_name) {
+                std::collections::btree_map::Entry::Vacant(v) => {
+                    v.insert(resolved);
+                }
+                std::collections::btree_map::Entry::Occupied(mut o) => {
+                    // Duplicate output names are ambiguous in callers; drop mapping.
+                    o.insert(None);
+                }
+            }
+        }
+        let map: CteDirectMap = by_name
+            .into_iter()
+            .filter_map(|(k, v)| v.map(|entry| (k, entry)))
+            .collect();
+        (!map.is_empty()).then_some(map)
+    }
+}
+
+fn unwrap_mdd_truth_input(expr: &Expr) -> Option<&Expr> {
+    let Expr::Function(func) = expr else {
+        return None;
+    };
+    if func.name.0.len() != 1
+        || func.name.0[0]
+            .as_ident()
+            .is_none_or(|id| !id.value.eq_ignore_ascii_case("mdd_truth_input"))
+    {
+        return None;
+    }
+    let FunctionArguments::List(list) = &func.args else {
+        return None;
+    };
+    if list.args.len() != 1 {
+        return None;
+    }
+    let FunctionArg::Unnamed(FunctionArgExpr::Expr(inner)) = &list.args[0] else {
+        return None;
+    };
+    Some(inner)
+}
+
+fn unwrap_mdd_truth_input_mut(expr: &mut Expr) -> Option<&mut Expr> {
+    let is_truth_wrapper = match expr {
+        Expr::Function(func)
+            if func.name.0.len() == 1
+                && func.name.0[0]
+                    .as_ident()
+                    .is_some_and(|id| id.value.eq_ignore_ascii_case("mdd_truth_input")) =>
+        {
+            matches!(&func.args, FunctionArguments::List(list) if list.args.len() == 1 && matches!(list.args[0], FunctionArg::Unnamed(FunctionArgExpr::Expr(_))))
+        }
+        _ => false,
+    };
+    if !is_truth_wrapper {
+        return None;
+    }
+    let Expr::Function(func) = expr else {
+        unreachable!();
+    };
+    let FunctionArguments::List(list) = &mut func.args else {
+        unreachable!();
+    };
+    let FunctionArg::Unnamed(FunctionArgExpr::Expr(inner)) = &mut list.args[0] else {
+        unreachable!();
+    };
+    Some(inner)
+}
+
+fn collect_selection_subqueries<'a>(expr: &'a Expr, depth: usize, out: &mut Vec<&'a Query>) {
+    let mut stack = vec![(expr, depth)];
+    while let Some((cur, d)) = stack.pop() {
+        if d > MAX_HINT_DEPTH {
             continue;
         }
-        if let Some((rel, filter)) = extract_single_table_filter(&ctx, expr, 0)
-            && (all_inner || leftmost_relation.as_deref() == Some(rel.as_str()))
-        {
-            per_table_filters.entry(rel).or_default().push(filter);
+        let mut node = unwrap_nested(cur);
+        while let Some(inner) = unwrap_mdd_truth_input(node) {
+            node = unwrap_nested(inner);
+        }
+        match node {
+            Expr::BinaryOp {
+                left,
+                op: BinaryOperator::And | BinaryOperator::Or,
+                right,
+            } => {
+                stack.push((right, d + 1));
+                stack.push((left, d + 1));
+            }
+            Expr::UnaryOp {
+                op: UnaryOperator::Not,
+                expr: inner,
+            } => stack.push((inner, d + 1)),
+            Expr::InSubquery { subquery, .. }
+            | Expr::Exists { subquery, .. }
+            | Expr::Subquery(subquery) => out.push(subquery),
+            _ => {}
         }
     }
+}
 
-    let row_filters = per_table_filters
-        .into_iter()
-        .map(|(rel, mut list)| {
-            let combined = if list.len() == 1 {
-                list.pop().unwrap()
-            } else {
-                RowFilter::And(list)
-            };
-            (rel, combined)
-        })
-        .collect();
-    let equi_joins = if all_inner {
-        join_pairs
-            .into_iter()
-            .map(|((left_relation, right_relation), columns)| EquiJoinEdge {
-                left_relation,
-                right_relation,
-                columns,
-            })
-            .collect()
-    } else {
-        Vec::new()
+fn selection_subquery_mut(expr: &mut Expr, target_ordinal: usize) -> Option<&mut Query> {
+    let mut stack: Vec<(&mut Expr, usize)> = vec![(expr, 0)];
+    let mut seen = 0usize;
+    while let Some((cur, d)) = stack.pop() {
+        if d > MAX_HINT_DEPTH {
+            continue;
+        }
+        let mut node = cur;
+        loop {
+            let is_nested = matches!(node, Expr::Nested(_));
+            if is_nested {
+                let Expr::Nested(inner) = node else {
+                    unreachable!();
+                };
+                node = inner;
+                continue;
+            }
+            if unwrap_mdd_truth_input(node).is_some() {
+                node = unwrap_mdd_truth_input_mut(node).expect("validated truth wrapper");
+                continue;
+            }
+            break;
+        }
+        match node {
+            Expr::BinaryOp {
+                left,
+                op: BinaryOperator::And | BinaryOperator::Or,
+                right,
+            } => {
+                stack.push((right, d + 1));
+                stack.push((left, d + 1));
+            }
+            Expr::UnaryOp {
+                op: UnaryOperator::Not,
+                expr: inner,
+            } => stack.push((inner, d + 1)),
+            Expr::InSubquery { subquery, .. }
+            | Expr::Exists { subquery, .. }
+            | Expr::Subquery(subquery) => {
+                if seen == target_ordinal {
+                    return Some(subquery);
+                }
+                seen += 1;
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+enum AstNodeMut<'a> {
+    Query(&'a mut Query),
+    SetExpr(&'a mut SetExpr),
+}
+
+impl<'a> AstNodeMut<'a> {
+    fn select_mut(self) -> Option<&'a mut Select> {
+        match self {
+            Self::Query(q) => match q.body.as_mut() {
+                SetExpr::Select(sel) => Some(sel),
+                _ => None,
+            },
+            Self::SetExpr(se) => match se {
+                SetExpr::Select(sel) => Some(sel),
+                _ => None,
+            },
+        }
+    }
+}
+
+fn is_compound_order_wrapper(query: &Query) -> bool {
+    if query.with.is_some() {
+        return false;
+    }
+    matches!(
+        &*query.body,
+        SetExpr::Select(sel)
+            if sel.from.len() == 1
+                && sel.from[0].joins.is_empty()
+                && matches!(
+                    &sel.from[0].relation,
+                    TableFactor::Derived { subquery, .. }
+                        if matches!(&*subquery.body, SetExpr::SetOperation { .. })
+                )
+    )
+}
+
+fn unwrap_compound_order_wrapper_mut(query: &mut Query) -> &mut Query {
+    let SetExpr::Select(sel) = &mut *query.body else {
+        unreachable!("validated compound_order wrapper body");
     };
-    QueryHints {
-        row_filters,
-        equi_joins,
+    let TableFactor::Derived { subquery, .. } = &mut sel.from[0].relation else {
+        unreachable!("validated compound_order wrapper derived");
+    };
+    subquery
+}
+
+fn apply_one_scan_slot(root: &mut Query, target: &SlotTarget) -> bool {
+    let mut cur = AstNodeMut::Query(root);
+    for step in &target.path {
+        if matches!(
+            step,
+            QueryStep::Cte(_) | QueryStep::SetLeft | QueryStep::SetRight
+        ) && let AstNodeMut::Query(q) = cur
+        {
+            cur = if is_compound_order_wrapper(q) {
+                AstNodeMut::Query(unwrap_compound_order_wrapper_mut(q))
+            } else {
+                AstNodeMut::Query(q)
+            };
+        }
+        cur = match step {
+            QueryStep::Cte(idx) => {
+                let AstNodeMut::Query(q) = cur else {
+                    return false;
+                };
+                let Some(with) = q.with.as_mut() else {
+                    return false;
+                };
+                let Some(cte) = with.cte_tables.get_mut(*idx) else {
+                    return false;
+                };
+                AstNodeMut::Query(&mut cte.query)
+            }
+            QueryStep::NestedQuery => {
+                let se = match cur {
+                    AstNodeMut::Query(q) => q.body.as_mut(),
+                    AstNodeMut::SetExpr(se) => se,
+                };
+                let SetExpr::Query(inner) = se else {
+                    return false;
+                };
+                AstNodeMut::Query(inner)
+            }
+            QueryStep::SetLeft => {
+                let se = match cur {
+                    AstNodeMut::Query(q) => q.body.as_mut(),
+                    AstNodeMut::SetExpr(se) => se,
+                };
+                let SetExpr::SetOperation { left, .. } = se else {
+                    return false;
+                };
+                AstNodeMut::SetExpr(left)
+            }
+            QueryStep::SetRight => {
+                let se = match cur {
+                    AstNodeMut::Query(q) => q.body.as_mut(),
+                    AstNodeMut::SetExpr(se) => se,
+                };
+                let SetExpr::SetOperation { right, .. } = se else {
+                    return false;
+                };
+                AstNodeMut::SetExpr(right)
+            }
+            QueryStep::DerivedFrom(from_idx) => {
+                let Some(sel) = cur.select_mut() else {
+                    return false;
+                };
+                let Some(from) = sel.from.get_mut(*from_idx) else {
+                    return false;
+                };
+                let TableFactor::Derived { subquery, .. } = &mut from.relation else {
+                    return false;
+                };
+                AstNodeMut::Query(subquery)
+            }
+            QueryStep::DerivedJoin(from_idx, join_idx) => {
+                let Some(sel) = cur.select_mut() else {
+                    return false;
+                };
+                let Some(from) = sel.from.get_mut(*from_idx) else {
+                    return false;
+                };
+                let Some(join) = from.joins.get_mut(*join_idx) else {
+                    return false;
+                };
+                let TableFactor::Derived { subquery, .. } = &mut join.relation else {
+                    return false;
+                };
+                AstNodeMut::Query(subquery)
+            }
+            QueryStep::SelectionSubquery(ordinal) => {
+                let Some(sel) = cur.select_mut() else {
+                    return false;
+                };
+                let Some(selection) = sel.selection.as_mut() else {
+                    return false;
+                };
+                let Some(subquery) = selection_subquery_mut(selection, *ordinal) else {
+                    return false;
+                };
+                AstNodeMut::Query(subquery)
+            }
+        };
+    }
+
+    let Some(select) = cur.select_mut() else {
+        return false;
+    };
+    let Some(from) = select.from.get_mut(target.from_idx) else {
+        return false;
+    };
+    let factor = match target.join_idx {
+        None => &mut from.relation,
+        Some(join_idx) => {
+            let Some(join) = from.joins.get_mut(join_idx) else {
+                return false;
+            };
+            &mut join.relation
+        }
+    };
+    rewrite_factor_to_slot(factor, &target.base_relation, &target.slot_name)
+}
+
+fn rewrite_factor_to_slot(factor: &mut TableFactor, base_relation: &str, slot_name: &str) -> bool {
+    match factor {
+        TableFactor::Table { name, alias, .. } if name.0.len() == 1 => {
+            let Some(orig_ident) = name.0[0].as_ident().cloned() else {
+                return false;
+            };
+            if !orig_ident.value.eq_ignore_ascii_case(base_relation) {
+                return false;
+            }
+            *name = ObjectName::from(vec![Ident::with_quote('"', slot_name)]);
+            if alias.is_none() {
+                *alias = Some(TableAlias {
+                    name: orig_ident,
+                    columns: Vec::new(),
+                    explicit: true,
+                    at: None,
+                });
+            }
+            true
+        }
+        // `materialize_joined_base_table` wraps `join.relation` as `(SELECT * FROM <tbl> LIMIT -1) AS <alias>`.
+        TableFactor::Derived { subquery, .. } => {
+            let SetExpr::Select(inner) = subquery.body.as_mut() else {
+                return false;
+            };
+            if inner.from.len() != 1 || !inner.from[0].joins.is_empty() {
+                return false;
+            }
+            let TableFactor::Table { name, .. } = &mut inner.from[0].relation else {
+                return false;
+            };
+            if name.0.len() != 1 {
+                return false;
+            }
+            let Some(orig_ident) = name.0[0].as_ident() else {
+                return false;
+            };
+            if !orig_ident.value.eq_ignore_ascii_case(base_relation) {
+                return false;
+            }
+            *name = ObjectName::from(vec![Ident::with_quote('"', slot_name)]);
+            true
+        }
+        _ => false,
     }
 }
 
@@ -1169,60 +2154,29 @@ fn has_zero_limit(query: &Query) -> bool {
     }
 }
 
-fn unwrap_outer_wrapper(mut query: &Query) -> &Query {
-    for _ in 0..8 {
-        if query.with.is_some() {
-            break;
-        }
-        let SetExpr::Select(select) = &*query.body else {
-            break;
-        };
-        let empty_group = matches!(
-            &select.group_by,
-            GroupByExpr::Expressions(exprs, modifiers) if exprs.is_empty() && modifiers.is_empty()
-        );
-        if select.distinct.is_some()
-            || select.top.is_some()
-            || select.into.is_some()
-            || !select.lateral_views.is_empty()
-            || select.prewhere.is_some()
-            || select.selection.is_some()
-            || !empty_group
-            || !select.cluster_by.is_empty()
-            || !select.distribute_by.is_empty()
-            || !select.sort_by.is_empty()
-            || select.having.is_some()
-            || select.qualify.is_some()
-            || select.from.len() != 1
-            || !select.from[0].joins.is_empty()
-        {
-            break;
-        }
-        let TableFactor::Derived {
-            lateral: false,
-            subquery,
-            ..
-        } = &select.from[0].relation
-        else {
-            break;
-        };
-        query = subquery;
-    }
-    query
-}
-
-fn count_table_mentions(root: &Query) -> (BTreeMap<String, usize>, BTreeSet<String>) {
+fn count_table_mentions(
+    root: &Query,
+) -> (BTreeMap<String, usize>, BTreeSet<String>, BTreeSet<String>) {
     let mut counts: BTreeMap<String, usize> = BTreeMap::new();
     let mut ctes: BTreeSet<String> = BTreeSet::new();
+    let mut identifiers: BTreeSet<String> = BTreeSet::new();
     let mut queries: Vec<&Query> = vec![root];
     let mut exprs: Vec<&Expr> = Vec::new();
     let mut set_exprs: Vec<&SetExpr> = Vec::new();
+
+    let mut record_alias = |alias: &TableAlias| {
+        identifiers.insert(alias.name.value.to_ascii_lowercase());
+        for col in &alias.columns {
+            identifiers.insert(col.name.value.to_ascii_lowercase());
+        }
+    };
 
     while !queries.is_empty() || !set_exprs.is_empty() || !exprs.is_empty() {
         while let Some(q) = queries.pop() {
             if let Some(with) = &q.with {
                 for cte in &with.cte_tables {
                     ctes.insert(cte.alias.name.value.to_ascii_lowercase());
+                    record_alias(&cte.alias);
                     queries.push(&cte.query);
                 }
             }
@@ -1233,8 +2187,9 @@ fn count_table_mentions(root: &Query) -> (BTreeMap<String, usize>, BTreeSet<Stri
                 SetExpr::Select(sel) => {
                     for item in &sel.projection {
                         match item {
-                            SelectItem::UnnamedExpr(e)
-                            | SelectItem::ExprWithAlias { expr: e, .. } => {
+                            SelectItem::UnnamedExpr(e) => exprs.push(e),
+                            SelectItem::ExprWithAlias { expr: e, alias } => {
+                                identifiers.insert(alias.value.to_ascii_lowercase());
                                 exprs.push(e);
                             }
                             _ => {}
@@ -1268,16 +2223,26 @@ fn count_table_mentions(root: &Query) -> (BTreeMap<String, usize>, BTreeSet<Stri
                         }
                         while let Some(f) = factors.pop() {
                             match f {
-                                TableFactor::Table { name, .. } => {
+                                TableFactor::Table { name, alias, .. } => {
+                                    if let Some(alias) = alias {
+                                        record_alias(alias);
+                                    }
                                     if name.0.len() == 1
                                         && let Some(id) = name.0[0].as_ident()
                                     {
-                                        *counts
-                                            .entry(id.value.to_ascii_lowercase())
-                                            .or_insert(0) += 1;
+                                        let lower = id.value.to_ascii_lowercase();
+                                        identifiers.insert(lower.clone());
+                                        *counts.entry(lower).or_insert(0) += 1;
                                     }
                                 }
-                                TableFactor::Derived { subquery, .. } => queries.push(subquery),
+                                TableFactor::Derived {
+                                    subquery, alias, ..
+                                } => {
+                                    if let Some(alias) = alias {
+                                        record_alias(alias);
+                                    }
+                                    queries.push(subquery);
+                                }
                                 TableFactor::NestedJoin {
                                     table_with_joins, ..
                                 } => {
@@ -1301,6 +2266,14 @@ fn count_table_mentions(root: &Query) -> (BTreeMap<String, usize>, BTreeSet<Stri
         }
         while let Some(e) = exprs.pop() {
             match e {
+                Expr::Identifier(id) => {
+                    identifiers.insert(id.value.to_ascii_lowercase());
+                }
+                Expr::CompoundIdentifier(parts) => {
+                    for part in parts {
+                        identifiers.insert(part.value.to_ascii_lowercase());
+                    }
+                }
                 Expr::Nested(inner)
                 | Expr::UnaryOp { expr: inner, .. }
                 | Expr::IsNull(inner)
@@ -1379,47 +2352,128 @@ fn count_table_mentions(root: &Query) -> (BTreeMap<String, usize>, BTreeSet<Stri
             }
         }
     }
-    (counts, ctes)
+    (counts, ctes, identifiers)
+}
+
+#[derive(Clone)]
+enum FactorInfo {
+    Base { slot_key: String, base_rel: String },
+    Cte(CteDirectMap),
+    Opaque,
+}
+
+#[derive(Clone)]
+enum ResolvedCol {
+    Base {
+        qual: String,
+        slot_key: String,
+        col: String,
+        ty: SqlType,
+    },
+    CteDirect {
+        qual: String,
+        src_slot: String,
+        src_col: String,
+        ty: SqlType,
+    },
+}
+
+impl ResolvedCol {
+    fn qual(&self) -> &str {
+        match self {
+            Self::Base { qual, .. } | Self::CteDirect { qual, .. } => qual,
+        }
+    }
+
+    fn slot_key(&self) -> &str {
+        match self {
+            Self::Base { slot_key, .. } => slot_key,
+            Self::CteDirect { src_slot, .. } => src_slot,
+        }
+    }
+
+    fn col_name(&self) -> &str {
+        match self {
+            Self::Base { col, .. } => col,
+            Self::CteDirect { src_col, .. } => src_col,
+        }
+    }
+
+    fn sql_type(&self) -> SqlType {
+        match self {
+            Self::Base { ty, .. } | Self::CteDirect { ty, .. } => *ty,
+        }
+    }
 }
 
 struct ResolveCtx<'a> {
     schema_types: &'a BTreeMap<String, BTreeMap<String, SqlType>>,
-    tables_by_qualifier: &'a BTreeMap<String, String>,
-    only_table: Option<&'a str>,
-    all_plain_factors: bool,
+    factors_by_qual: &'a BTreeMap<String, FactorInfo>,
+    only_qual: Option<&'a str>,
+    all_plain_base: bool,
 }
 
 impl ResolveCtx<'_> {
-    fn resolve_col(&self, expr: &Expr) -> Option<(String, String, SqlType)> {
+    fn resolve_in_factor(&self, qual: &str, info: &FactorInfo, col: &str) -> Option<ResolvedCol> {
+        match info {
+            FactorInfo::Base { slot_key, base_rel } => {
+                let ty = *self.schema_types.get(base_rel)?.get(col)?;
+                Some(ResolvedCol::Base {
+                    qual: qual.to_owned(),
+                    slot_key: slot_key.clone(),
+                    col: col.to_owned(),
+                    ty,
+                })
+            }
+            FactorInfo::Cte(map) => {
+                let (src_slot, src_col, ty) = map.get(col)?;
+                Some(ResolvedCol::CteDirect {
+                    qual: qual.to_owned(),
+                    src_slot: src_slot.clone(),
+                    src_col: src_col.clone(),
+                    ty: *ty,
+                })
+            }
+            FactorInfo::Opaque => None,
+        }
+    }
+
+    fn resolve_col(&self, expr: &Expr) -> Option<ResolvedCol> {
         match unwrap_nested(expr) {
             Expr::CompoundIdentifier(parts) if parts.len() == 2 => {
                 let qual = parts[0].value.to_ascii_lowercase();
                 let col = parts[1].value.to_ascii_lowercase();
-                let rel = self.tables_by_qualifier.get(&qual)?.clone();
-                let ty = *self.schema_types.get(&rel)?.get(&col)?;
-                Some((rel, col, ty))
+                let info = self.factors_by_qual.get(&qual)?;
+                self.resolve_in_factor(&qual, info, &col)
             }
             Expr::Identifier(ident) => {
                 let col = ident.value.to_ascii_lowercase();
-                if let Some(only) = self.only_table {
-                    let ty = *self.schema_types.get(only)?.get(&col)?;
-                    return Some((only.to_owned(), col, ty));
+                if let Some(only) = self.only_qual {
+                    let info = self.factors_by_qual.get(only)?;
+                    return self.resolve_in_factor(only, info, &col);
                 }
-                if !self.all_plain_factors {
+                if !self.all_plain_base {
                     return None;
                 }
-                let mut found: Option<(String, SqlType)> = None;
-                for rel in self.tables_by_qualifier.values() {
-                    if let Some(&ty) = self.schema_types.get(rel).and_then(|m| m.get(&col)) {
+                let mut found: Option<ResolvedCol> = None;
+                for (qual, info) in self.factors_by_qual {
+                    if let Some(resolved) = self.resolve_in_factor(qual, info, &col) {
                         if found.is_some() {
                             return None;
                         }
-                        found = Some((rel.clone(), ty));
+                        found = Some(resolved);
                     }
                 }
-                found.map(|(rel, ty)| (rel, col, ty))
+                found
             }
             _ => None,
+        }
+    }
+
+    fn resolve_base_for_filter(&self, expr: &Expr) -> Option<(String, String, SqlType)> {
+        match self.resolve_col(expr)? {
+            ResolvedCol::Base { qual, col, ty, .. } => Some((qual, col, ty)),
+            ResolvedCol::CteDirect { .. } => None,
         }
     }
 }
@@ -1521,7 +2575,7 @@ fn extract_single_table_filter(
             op: BinaryOperator::Eq,
             right,
         } => {
-            if let Some((rel, col, ty)) = ctx.resolve_col(left) {
+            if let Some((rel, col, ty)) = ctx.resolve_base_for_filter(left) {
                 match ty {
                     SqlType::U64 => parse_u64_lit(right).map(|v| (rel, RowFilter::EqU64(col, v))),
                     SqlType::Text => {
@@ -1529,7 +2583,7 @@ fn extract_single_table_filter(
                     }
                     _ => None,
                 }
-            } else if let Some((rel, col, ty)) = ctx.resolve_col(right) {
+            } else if let Some((rel, col, ty)) = ctx.resolve_base_for_filter(right) {
                 match ty {
                     SqlType::U64 => parse_u64_lit(left).map(|v| (rel, RowFilter::EqU64(col, v))),
                     SqlType::Text => parse_text_lit(left).map(|v| (rel, RowFilter::EqText(col, v))),
@@ -1544,7 +2598,7 @@ fn extract_single_table_filter(
             list,
             negated: false,
         } => {
-            let (rel, col, ty) = ctx.resolve_col(child)?;
+            let (rel, col, ty) = ctx.resolve_base_for_filter(child)?;
             match ty {
                 SqlType::U64 => {
                     let vals = list.iter().map(parse_u64_lit).collect::<Option<Vec<_>>>()?;
@@ -1566,7 +2620,7 @@ fn extract_single_table_filter(
             low,
             high,
         } => {
-            let (rel, col, ty) = ctx.resolve_col(child)?;
+            let (rel, col, ty) = ctx.resolve_base_for_filter(child)?;
             if ty != SqlType::U64 {
                 return None;
             }
@@ -1581,7 +2635,7 @@ fn extract_single_table_filter(
             pattern,
             escape_char,
         } => {
-            let (rel, col, ty) = ctx.resolve_col(child)?;
+            let (rel, col, ty) = ctx.resolve_base_for_filter(child)?;
             if ty != SqlType::Text {
                 return None;
             }
@@ -2655,6 +3709,268 @@ mod tests {
                 64
             )
             .is_none()
+        );
+    }
+
+    #[test]
+    fn query_hints_supports_self_join_cte_left_join_and_collision_safety() {
+        let col = |name: &str, data_type: SqlType| crate::provider::SqlColumn {
+            id: name.to_owned(),
+            name: name.to_owned(),
+            data_type,
+            nullable: false,
+        };
+        let rels = vec![
+            SqlRelation {
+                name: "method_strings".to_owned(),
+                columns: vec![
+                    col("method", SqlType::Text),
+                    col("value", SqlType::Text),
+                    col("file_id", SqlType::U64),
+                ],
+                required_layers: vec![],
+                estimated_rows: None,
+            },
+            SqlRelation {
+                name: "class_methods".to_owned(),
+                columns: vec![
+                    col("file_id", SqlType::U64),
+                    col("class_idx", SqlType::U64),
+                    col("class_descriptor", SqlType::Text),
+                    col("method_descriptor", SqlType::Text),
+                    col("access_flags", SqlType::U64),
+                ],
+                required_layers: vec![],
+                estimated_rows: None,
+            },
+            SqlRelation {
+                name: "classes".to_owned(),
+                columns: vec![
+                    col("file_id", SqlType::U64),
+                    col("class_idx", SqlType::U64),
+                    col("descriptor", SqlType::Text),
+                ],
+                required_layers: vec![],
+                estimated_rows: None,
+            },
+            SqlRelation {
+                name: "class_fields".to_owned(),
+                columns: vec![
+                    col("file_id", SqlType::U64),
+                    col("class_idx", SqlType::U64),
+                    col("class_descriptor", SqlType::Text),
+                    col("field_idx", SqlType::U64),
+                ],
+                required_layers: vec![],
+                estimated_rows: None,
+            },
+            SqlRelation {
+                name: "fields".to_owned(),
+                columns: vec![
+                    col("file_id", SqlType::U64),
+                    col("field_idx", SqlType::U64),
+                    col("descriptor", SqlType::Text),
+                ],
+                required_layers: vec![],
+                estimated_rows: None,
+            },
+        ];
+        let parse_q = |sql: &str| {
+            let mut stmts = sqlparser::parser::Parser::parse_sql(&SQLiteDialect {}, sql).unwrap();
+            let Statement::Query(q) = stmts.remove(0) else {
+                panic!("expected Query for {sql}");
+            };
+            *q
+        };
+
+        // 1. 3-way self-join on method_strings joined with class_methods.
+        let holder_sql = "SELECT DISTINCT ms1.method, cm.class_descriptor, cm.access_flags \
+            FROM method_strings ms1 \
+            JOIN method_strings ms2 ON ms1.method = ms2.method \
+            JOIN method_strings ms3 ON ms1.method = ms3.method \
+            JOIN class_methods cm ON ms1.method = cm.method_descriptor \
+            WHERE ms1.value = 'AlphaTag' \
+              AND ms2.value = 'BetaTag' \
+              AND ms3.value = 'GammaTag' \
+            ORDER BY ms1.method";
+        let q_holder = parse_q(holder_sql);
+        let hints_holder = query_hints(&q_holder, &rels);
+        assert!(hints_holder.row_filters.is_empty());
+        assert_eq!(hints_holder.scan_slots.len(), 3);
+        assert_eq!(
+            hints_holder.scan_slots,
+            vec![
+                ScanSlot {
+                    slot_name: "__mdd_scan_0".to_owned(),
+                    base_relation: "method_strings".to_owned(),
+                    row_filter: Some(RowFilter::EqText("value".to_owned(), "AlphaTag".to_owned())),
+                },
+                ScanSlot {
+                    slot_name: "__mdd_scan_1".to_owned(),
+                    base_relation: "method_strings".to_owned(),
+                    row_filter: Some(RowFilter::EqText("value".to_owned(), "BetaTag".to_owned())),
+                },
+                ScanSlot {
+                    slot_name: "__mdd_scan_2".to_owned(),
+                    base_relation: "method_strings".to_owned(),
+                    row_filter: Some(RowFilter::EqText("value".to_owned(), "GammaTag".to_owned())),
+                },
+            ]
+        );
+        assert_eq!(
+            hints_holder.equi_joins,
+            vec![
+                EquiJoinEdge {
+                    left_relation: "__mdd_scan_0".to_owned(),
+                    right_relation: "__mdd_scan_1".to_owned(),
+                    columns: vec![("method".to_owned(), "method".to_owned())],
+                    bidirectional: true,
+                },
+                EquiJoinEdge {
+                    left_relation: "__mdd_scan_0".to_owned(),
+                    right_relation: "__mdd_scan_2".to_owned(),
+                    columns: vec![("method".to_owned(), "method".to_owned())],
+                    bidirectional: true,
+                },
+                EquiJoinEdge {
+                    left_relation: "__mdd_scan_0".to_owned(),
+                    right_relation: "class_methods".to_owned(),
+                    columns: vec![("method".to_owned(), "method_descriptor".to_owned())],
+                    bidirectional: true,
+                },
+            ]
+        );
+        let adapted = crate::dialects::ast::adapt(
+            holder_sql,
+            crate::control::SqlLimits::default(),
+            &[],
+            &rels,
+            SqlDialect::DexSql011,
+            &BTreeMap::new(),
+        )
+        .unwrap();
+        assert!(
+            adapted.sql.contains("\"__mdd_scan_0\" ms1"),
+            "{}",
+            adapted.sql
+        );
+        assert!(
+            adapted.sql.contains("\"__mdd_scan_1\" ms2"),
+            "{}",
+            adapted.sql
+        );
+        assert!(
+            adapted.sql.contains("\"__mdd_scan_2\" ms3"),
+            "{}",
+            adapted.sql
+        );
+        assert!(adapted.sql.contains("class_methods cm"), "{}", adapted.sql);
+
+        // 2. CTE targets joined with class_fields and fields (both composite and class_descriptor keys).
+        let cte_sql = "WITH targets AS (SELECT c.file_id, c.class_idx, c.descriptor FROM classes c WHERE c.descriptor IN ('La;', 'Lb;')) \
+            SELECT t.descriptor, f.descriptor FROM class_fields cf \
+            JOIN fields f ON f.file_id = cf.file_id AND f.field_idx = cf.field_idx \
+            JOIN targets t ON cf.class_descriptor = t.descriptor";
+        let hints_cte = query_hints(&parse_q(cte_sql), &rels);
+        assert!(hints_cte.scan_slots.is_empty());
+        assert_eq!(
+            hints_cte.row_filters.get("classes"),
+            Some(&RowFilter::InText(
+                "descriptor".to_owned(),
+                vec!["La;".to_owned(), "Lb;".to_owned()]
+            ))
+        );
+        assert!(hints_cte.equi_joins.contains(&EquiJoinEdge {
+            left_relation: "classes".to_owned(),
+            right_relation: "class_fields".to_owned(),
+            columns: vec![("descriptor".to_owned(), "class_descriptor".to_owned())],
+            bidirectional: false,
+        }));
+        assert!(hints_cte.equi_joins.contains(&EquiJoinEdge {
+            left_relation: "class_fields".to_owned(),
+            right_relation: "fields".to_owned(),
+            columns: vec![
+                ("file_id".to_owned(), "file_id".to_owned()),
+                ("field_idx".to_owned(), "field_idx".to_owned()),
+            ],
+            bidirectional: true,
+        }));
+
+        // 3. Negative soundness: cross-alias OR must not push filters onto either slot.
+        let cross_or = "SELECT ms1.method FROM method_strings ms1 \
+            JOIN method_strings ms2 ON ms1.method = ms2.method \
+            WHERE ms1.value = 'A' OR ms2.value = 'B'";
+        let hints_or = query_hints(&parse_q(cross_or), &rels);
+        assert!(hints_or.row_filters.is_empty());
+        assert!(
+            hints_or
+                .scan_slots
+                .iter()
+                .all(|slot| slot.row_filter.is_none())
+        );
+
+        // 4. Negative soundness: LEFT JOIN filter placement and unidirectional semi-join edge.
+        let left_self = "SELECT a.descriptor, b.descriptor FROM classes a \
+            LEFT JOIN classes b ON a.class_idx = b.class_idx AND a.file_id = 0 AND b.file_id = 1 \
+            WHERE a.descriptor = 'La;' AND b.descriptor = 'Lb;'";
+        let hints_left = query_hints(&parse_q(left_self), &rels);
+        assert_eq!(
+            hints_left.scan_slots,
+            vec![
+                ScanSlot {
+                    slot_name: "__mdd_scan_0".to_owned(),
+                    base_relation: "classes".to_owned(),
+                    row_filter: Some(RowFilter::EqText("descriptor".to_owned(), "La;".to_owned())),
+                },
+                ScanSlot {
+                    slot_name: "__mdd_scan_1".to_owned(),
+                    base_relation: "classes".to_owned(),
+                    row_filter: Some(RowFilter::EqU64("file_id".to_owned(), 1)),
+                },
+            ]
+        );
+        assert_eq!(
+            hints_left.equi_joins,
+            vec![EquiJoinEdge {
+                left_relation: "__mdd_scan_0".to_owned(),
+                right_relation: "__mdd_scan_1".to_owned(),
+                columns: vec![("class_idx".to_owned(), "class_idx".to_owned())],
+                bidirectional: false,
+            }]
+        );
+
+        // 5. Negative soundness: WITH RECURSIVE returns empty hints.
+        let rec_sql = "WITH RECURSIVE r(x) AS (SELECT file_id FROM classes UNION ALL SELECT x FROM r WHERE x < 1) \
+            SELECT * FROM r";
+        let hints_rec = query_hints(&parse_q(rec_sql), &rels);
+        assert!(hints_rec.row_filters.is_empty());
+        assert!(hints_rec.scan_slots.is_empty());
+        assert!(hints_rec.equi_joins.is_empty());
+
+        // 6. Negative soundness: CTE shadowing a base table hides base relation filter.
+        let shadow_sql = "WITH classes AS (SELECT method AS descriptor FROM method_strings WHERE value = 'X') \
+            SELECT descriptor FROM classes WHERE descriptor = 'La;'";
+        let hints_shadow = query_hints(&parse_q(shadow_sql), &rels);
+        assert!(!hints_shadow.row_filters.contains_key("classes"));
+        assert_eq!(
+            hints_shadow.row_filters.get("method_strings"),
+            Some(&RowFilter::EqText("value".to_owned(), "X".to_owned()))
+        );
+        assert!(hints_shadow.scan_slots.is_empty());
+
+        // 7. Collision avoidance when caller already uses identifier `__mdd_scan_0`.
+        let collide_sql = "SELECT __mdd_scan_0.method FROM method_strings __mdd_scan_0 \
+            JOIN method_strings ms2 ON __mdd_scan_0.method = ms2.method \
+            WHERE __mdd_scan_0.value = 'A' AND ms2.value = 'B'";
+        let hints_collide = query_hints(&parse_q(collide_sql), &rels);
+        assert_eq!(hints_collide.scan_slots.len(), 2);
+        assert!(
+            hints_collide
+                .scan_slots
+                .iter()
+                .all(|slot| slot.slot_name != "__mdd_scan_0"),
+            "{:?}",
+            hints_collide.scan_slots
         );
     }
 }

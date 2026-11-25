@@ -328,8 +328,19 @@ unsafe impl VTabCursor for Cursor {
     }
 }
 pub(crate) fn register(db: &Connection, source: Arc<Source>) -> Result<()> {
+    let name = source.relation.name.clone();
+    register_named(db, &name, source)
+}
+
+/// Register `source` as an eponymous virtual table under an explicit module name (used for
+/// per-occurrence scan slots while keeping `source.relation.name` as the underlying base relation).
+pub(crate) fn register_named(
+    db: &Connection,
+    module_name: &str,
+    source: Arc<Source>,
+) -> Result<()> {
     const MODULE: Module<FactTable> = Module::eponymous_only_module();
-    let name = CString::new(source.relation.name.as_str())
-        .map_err(|_| error(crate::invalid("INVALID_RELATION_NAME")))?;
+    let name =
+        CString::new(module_name).map_err(|_| error(crate::invalid("INVALID_RELATION_NAME")))?;
     db.create_module(name.as_c_str(), &MODULE, Some(source))
 }

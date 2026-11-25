@@ -183,13 +183,26 @@ pub enum RowFilter {
     Or(Vec<RowFilter>),
 }
 
-/// Equality join edge across two base relations (`INNER JOIN` / comma join `ON` conjuncts).
-/// Both relation names and column names are normalized to ASCII lower case.
+/// Equality join edge across two base relations or scan slots (`INNER JOIN` / comma join / `LEFT JOIN`).
+/// Relation/slot keys and column names are normalized to ASCII lower case.
+/// When `bidirectional` is `true`, semi-join narrowing may propagate in either direction;
+/// when `false` (e.g. CTE direct source -> base table, or left -> nullable right of `LEFT JOIN`),
+/// narrowing propagates ONLY from `left_relation` to `right_relation`.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EquiJoinEdge {
     pub left_relation: String,
     pub right_relation: String,
     pub columns: Vec<(String, String)>,
+    pub bidirectional: bool,
+}
+
+/// Per-occurrence scan slot for repeated base-table scans (self-joins, CTEs, subqueries).
+/// Registered in SQLite under `slot_name` while backed by `base_relation`.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ScanSlot {
+    pub slot_name: String,
+    pub base_relation: String,
+    pub row_filter: Option<RowFilter>,
 }
 
 /// Direct single-table projection descriptor eligible to bypass SQLite VM overhead when unbounded/unfiltered.
@@ -330,6 +343,29 @@ pub trait SqlFactProvider: Send + Sync {
                 )
             })
             .collect())
+    }
+
+    /// Slot-aware candidate scan planner supporting per-occurrence `ScanSlot`s in addition to
+    /// base `required_relations`. Defaults to delegating to [`Self::plan_scans`] and leaving
+    /// synthetic scan slots unpruned.
+    fn plan_scan_slots(
+        &self,
+        required_relations: &[String],
+        scan_slots: &[ScanSlot],
+        row_filters: &BTreeMap<String, RowFilter>,
+        equi_joins: &[EquiJoinEdge],
+        partition_hints: &BTreeMap<String, u64>,
+    ) -> MddResult<BTreeMap<String, PlannedScan>> {
+        let mut scans =
+            self.plan_scans(required_relations, row_filters, equi_joins, partition_hints)?;
+        for slot in scan_slots {
+            scans
+                .entry(slot.slot_name.clone())
+                .or_insert(PlannedScan::All {
+                    estimated_rows: None,
+                });
+        }
+        Ok(scans)
     }
 
     /// Open a cursor restricted to the candidate set in `scan`.

@@ -40,6 +40,7 @@ struct PreparedCacheEntry {
     partition_hints: std::collections::BTreeMap<String, u64>,
     row_filters: std::collections::BTreeMap<String, crate::provider::RowFilter>,
     equi_joins: Vec<crate::provider::EquiJoinEdge>,
+    scan_slots: Vec<crate::provider::ScanSlot>,
     direct_projection: Option<crate::provider::DirectTableProjection>,
     direct_filtered_projection: Option<crate::provider::DirectFilteredProjection>,
     direct_count_group_by: Option<crate::provider::DirectCountGroupBy>,
@@ -59,6 +60,7 @@ impl PreparedCacheEntry {
             partition_hints: prepared.partition_hints.clone(),
             row_filters: prepared.row_filters.clone(),
             equi_joins: prepared.equi_joins.clone(),
+            scan_slots: prepared.scan_slots.clone(),
             direct_projection: prepared.direct_projection.clone(),
             direct_filtered_projection: prepared.direct_filtered_projection.clone(),
             direct_count_group_by: prepared.direct_count_group_by.clone(),
@@ -94,6 +96,7 @@ impl PreparedCacheEntry {
             partition_hints: self.partition_hints.clone(),
             row_filters: self.row_filters.clone(),
             equi_joins: self.equi_joins.clone(),
+            scan_slots: self.scan_slots.clone(),
             direct_projection: self.direct_projection.clone(),
             direct_filtered_projection: self.direct_filtered_projection.clone(),
             direct_count_group_by: self.direct_count_group_by.clone(),
@@ -159,6 +162,7 @@ pub struct PreparedSql {
     partition_hints: std::collections::BTreeMap<String, u64>,
     row_filters: std::collections::BTreeMap<String, crate::provider::RowFilter>,
     equi_joins: Vec<crate::provider::EquiJoinEdge>,
+    scan_slots: Vec<crate::provider::ScanSlot>,
     direct_projection: Option<crate::provider::DirectTableProjection>,
     direct_filtered_projection: Option<crate::provider::DirectFilteredProjection>,
     direct_count_group_by: Option<crate::provider::DirectCountGroupBy>,
@@ -381,7 +385,15 @@ fn schema_bounds(
     control: &SqlControl,
     cap: u64,
 ) -> MddResult<SchemaBounds> {
-    let name = quoted_identifier_bytes(&relation.name, control, cap)?;
+    schema_bounds_named(&relation.name, relation, control, cap)
+}
+fn schema_bounds_named(
+    table_name: &str,
+    relation: &SqlRelation,
+    control: &SqlControl,
+    cap: u64,
+) -> MddResult<SchemaBounds> {
+    let name = quoted_identifier_bytes(table_name, control, cap)?;
     let warmup = ("SELECT * FROM ".len() as u64)
         .checked_add(name)
         .and_then(|n| n.checked_add(" LIMIT 0".len() as u64))
@@ -525,6 +537,22 @@ fn preconnect_required_schemas(
             .ok_or_else(|| quota("VTAB_SCHEMA_SIZE_OVERFLOW"))?;
         max_workspace = max_workspace.max(bounds.workspace);
     }
+    for slot in &prepared.scan_slots {
+        control.checkpoint(1, false)?;
+        let relation = find_required_relation(prepared, &slot.base_relation, control)?;
+        let bounds = schema_bounds_named(&slot.slot_name, relation, control, cap)?;
+        total = total
+            .checked_add(bounds.ddl)
+            .and_then(|n| n.checked_add(bounds.warmup))
+            .ok_or_else(|| quota("VTAB_SCHEMA_SIZE_OVERFLOW"))?;
+        if total > cap || bounds.warmup > sql_limit {
+            return Err(quota("VTAB_SCHEMA_BYTE_BUDGET"));
+        }
+        work = work
+            .checked_add(bounds.workspace)
+            .ok_or_else(|| quota("VTAB_SCHEMA_SIZE_OVERFLOW"))?;
+        max_workspace = max_workspace.max(bounds.workspace);
+    }
     if max_workspace == 0 {
         return Ok(());
     }
@@ -553,17 +581,16 @@ fn preconnect_required_schemas(
         if db.limit(Limit::SQLITE_LIMIT_LENGTH).map_err(sqlite_error)? < raised {
             return Err(quota("VTAB_SCHEMA_SQLITE_LIMIT"));
         }
-        for required in &prepared.required_relations {
+        let warm_table = |table_name: &str, relation: &SqlRelation| -> MddResult<()> {
             control.checkpoint(1, false)?;
-            let relation = find_required_relation(prepared, required, control)?;
-            let bounds = schema_bounds(relation, control, cap)?;
+            let bounds = schema_bounds_named(table_name, relation, control, cap)?;
             let capacity =
                 usize::try_from(bounds.warmup).map_err(|_| quota("VTAB_SCHEMA_SIZE_OVERFLOW"))?;
             let mut sql = String::new();
             sql.try_reserve_exact(capacity)
                 .map_err(|_| quota("VTAB_SCHEMA_ALLOCATION"))?;
             sql.push_str("SELECT * FROM \"");
-            for ch in relation.name.chars() {
+            for ch in table_name.chars() {
                 control.checkpoint(1, false)?;
                 if ch == '"' {
                     sql.push('"');
@@ -582,6 +609,15 @@ fn preconnect_required_schemas(
             }
             // Deliberately do not step: no xOpen, cursor, or provider fact scan.
             drop(statement);
+            Ok(())
+        };
+        for required in &prepared.required_relations {
+            let relation = find_required_relation(prepared, required, control)?;
+            warm_table(&relation.name, relation)?;
+        }
+        for slot in &prepared.scan_slots {
+            let relation = find_required_relation(prepared, &slot.base_relation, control)?;
+            warm_table(&slot.slot_name, relation)?;
         }
         Ok(())
     })();
@@ -1022,6 +1058,7 @@ impl SqlBridge {
             partition_hints: adapted.partition_hints,
             row_filters: adapted.row_filters,
             equi_joins: adapted.equi_joins,
+            scan_slots: adapted.scan_slots,
             direct_projection,
             direct_filtered_projection,
             direct_count_group_by,
@@ -1225,8 +1262,9 @@ impl SqlBridge {
         prepared: &PreparedSql,
         control: &SqlControl,
     ) -> MddResult<(Connection, bool)> {
-        let planned_scans = prepared.provider.plan_scans(
+        let planned_scans = prepared.provider.plan_scan_slots(
             &prepared.required_relations,
+            &prepared.scan_slots,
             &prepared.row_filters,
             &prepared.equi_joins,
             &prepared.partition_hints,
@@ -1278,13 +1316,51 @@ impl SqlBridge {
             )
             .map_err(sqlite_error)?;
         }
+        for slot in &prepared.scan_slots {
+            let Some(base_rel) = prepared
+                .relations
+                .iter()
+                .find(|r| r.name.eq_ignore_ascii_case(&slot.base_relation))
+            else {
+                return Err(
+                    invalid("UNKNOWN_RELATION").detail("relation", slot.base_relation.clone())
+                );
+            };
+            let mut relation = base_rel.clone();
+            let planned_scan = planned_scans.get(&slot.slot_name).cloned();
+            if let Some(est) = planned_scan
+                .as_ref()
+                .and_then(crate::provider::PlannedScan::estimated_rows)
+            {
+                relation.estimated_rows = Some(mdd_types::DecimalU64(est));
+            }
+            virtual_tables::register_named(
+                &db,
+                &slot.slot_name,
+                Arc::new(Source {
+                    provider: Arc::clone(&prepared.provider),
+                    relation,
+                    binding: prepared.binding.clone(),
+                    control: control.clone(),
+                    partition_key: None,
+                    planned_scan,
+                }),
+            )
+            .map_err(sqlite_error)?;
+        }
         crate::dialects::functions::register(&db, prepared.dialect, control.clone())
             .map_err(sqlite_error)?;
-        let names = prepared
+        let mut names = prepared
             .relations
             .iter()
             .map(|r| r.name.to_ascii_lowercase())
             .collect::<BTreeSet<_>>();
+        names.extend(
+            prepared
+                .scan_slots
+                .iter()
+                .map(|slot| slot.slot_name.to_ascii_lowercase()),
+        );
         let ctes = prepared.cte_names.clone();
         db.authorizer(Some(move |context: AuthContext<'_>| match context.action {
             AuthAction::Select | AuthAction::Recursive => Authorization::Allow,

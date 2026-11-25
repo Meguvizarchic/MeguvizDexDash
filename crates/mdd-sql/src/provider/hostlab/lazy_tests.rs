@@ -849,3 +849,223 @@ fn stream_projected_ordered_matches_project_ordered_and_declines_tight_quotas_up
         assert!(consumer.rows.is_empty());
     }
 }
+
+#[test]
+fn self_join_cte_left_join_subquery_and_connection_reuse_match_eager_and_prune_scans() {
+    let harness = harness();
+    let eager = harness.provider(true, true, true);
+    let lazy_provider = lazy(&harness, HarnessLoader::new(&harness, EVERYTHING));
+    lazy_provider.prepare_all(None).unwrap();
+
+    let held = SqlBridge::new(eager, SqlDialect::DexSql011, SqlLimits::default()).unwrap();
+    let stored = SqlBridge::new(
+        Arc::clone(&lazy_provider) as Arc<dyn SqlFactProvider>,
+        SqlDialect::DexSql011,
+        SqlLimits::default(),
+    )
+    .unwrap();
+
+    let mut queries = vec![
+        "SELECT a.descriptor FROM classes a JOIN classes b ON a.class_idx = b.class_idx AND b.file_id = 1 WHERE a.file_id = 0 ORDER BY a.descriptor".to_owned(),
+        "SELECT a.descriptor, b.descriptor FROM classes a LEFT JOIN classes b ON a.class_idx = b.class_idx AND b.file_id = 1 WHERE a.file_id = 0 ORDER BY a.descriptor, b.descriptor".to_owned(),
+        "SELECT descriptor FROM classes WHERE file_id = 1 AND class_idx IN (SELECT class_idx FROM classes WHERE file_id = 0) ORDER BY class_idx".to_owned(),
+        "SELECT descriptor FROM classes WHERE file_id = 0 UNION ALL SELECT descriptor FROM classes WHERE file_id = 1 ORDER BY descriptor".to_owned(),
+        "SELECT (SELECT COUNT(*) FROM classes), descriptor FROM classes WHERE file_id = 0 ORDER BY descriptor".to_owned(),
+        "SELECT COUNT(*) FROM classes".to_owned(),
+        // Empty-intersection self-join with class_methods join.
+        "SELECT DISTINCT ms1.method, cm.class_descriptor, cm.access_flags FROM method_strings ms1 JOIN method_strings ms2 ON ms1.method = ms2.method JOIN method_strings ms3 ON ms1.method = ms3.method JOIN class_methods cm ON ms1.method = cm.method_descriptor WHERE ms1.value = '__definitely_missing_1__' AND ms2.value = '__definitely_missing_2__' AND ms3.value = '__definitely_missing_3__' ORDER BY ms1.method".to_owned(),
+    ];
+
+    // Discover real string pairs on one method in `method_strings` if fixtures include any.
+    let pair_rows = held
+        .query("SELECT method, value FROM method_strings ORDER BY method, value")
+        .unwrap();
+    let mut by_method: std::collections::BTreeMap<String, Vec<String>> =
+        std::collections::BTreeMap::new();
+    for row in pair_rows.rows() {
+        if let [SqlValue::Text(m), SqlValue::Text(v)] = row.as_slice()
+            && let (Ok(ms), Ok(vs)) = (m.strict_utf8(), v.strict_utf8())
+        {
+            let entry = by_method.entry(ms).or_default();
+            if !entry.contains(&vs) {
+                entry.push(vs);
+            }
+        }
+    }
+    if let Some((_, vals)) = by_method.into_iter().find(|(_, v)| v.len() >= 2) {
+        let v1 = vals[0].replace('\'', "''");
+        let v2 = vals[1].replace('\'', "''");
+        let v3 = vals.get(2).unwrap_or(&vals[0]).replace('\'', "''");
+        queries.push(format!(
+            "SELECT DISTINCT ms1.method, cm.class_descriptor, cm.access_flags \
+             FROM method_strings ms1 \
+             JOIN method_strings ms2 ON ms1.method = ms2.method \
+             JOIN method_strings ms3 ON ms1.method = ms3.method \
+             JOIN class_methods cm ON ms1.method = cm.method_descriptor \
+             WHERE ms1.value = '{v1}' AND ms2.value = '{v2}' AND ms3.value = '{v3}' \
+             ORDER BY ms1.method"
+        ));
+    }
+
+    // Discover one class with fields for `discover_consumer_field_layouts` CTE + fields queries.
+    let cf_sample = held
+        .query("SELECT class_descriptor FROM class_fields ORDER BY class_descriptor LIMIT 1")
+        .unwrap();
+    let target_desc = cf_sample
+        .rows()
+        .first()
+        .and_then(|r| match &r[0] {
+            SqlValue::Text(t) => t.strict_utf8().ok(),
+            _ => None,
+        })
+        .unwrap_or_else(|| "Ljava/lang/Object;".to_owned())
+        .replace('\'', "''");
+    queries.push(format!(
+        "WITH targets AS (SELECT c.file_id, c.class_idx, c.descriptor FROM classes c WHERE c.descriptor IN ('{target_desc}', 'Lmissing/Never;')) \
+         SELECT t.descriptor, group_concat(f.descriptor, char(10) ORDER BY cf.field_idx) AS layout \
+         FROM class_fields cf \
+         JOIN fields f ON f.file_id = cf.file_id AND f.field_idx = cf.field_idx \
+         JOIN targets t ON t.file_id = cf.file_id AND t.class_idx = cf.class_idx \
+         GROUP BY t.descriptor \
+         ORDER BY t.descriptor"
+    ));
+    queries.push(format!(
+        "WITH targets AS (SELECT c.descriptor FROM classes c WHERE c.descriptor IN ('{target_desc}', 'Lmissing/Never;')) \
+         SELECT t.descriptor, group_concat(f.descriptor, char(10) ORDER BY cf.field_idx) AS layout \
+         FROM class_fields cf \
+         JOIN fields f ON f.file_id = cf.file_id AND f.field_idx = cf.field_idx \
+         JOIN targets t ON cf.class_descriptor = t.descriptor \
+         GROUP BY t.descriptor \
+         ORDER BY t.descriptor"
+    ));
+
+    for sql in &queries {
+        let a = held
+            .query(sql)
+            .unwrap_or_else(|e| panic!("held {sql}: {e:?}"));
+        let b = stored
+            .query(sql)
+            .unwrap_or_else(|e| panic!("stored {sql}: {e:?}"));
+        assert_eq!(a.columns(), b.columns(), "{sql}");
+        assert_eq!(a.rows(), b.rows(), "{sql}");
+    }
+
+    // Verify `plan_scan_slots` narrows both `method_strings` slots + `class_methods` and CTE -> class_fields -> fields.
+    let ms_rows = lazy_provider
+        .ensure_store(
+            ContractRelation::Required(HostLabRelation::MethodStrings),
+            None,
+        )
+        .unwrap()
+        .rows();
+    let cm_rows = lazy_provider
+        .ensure_store(
+            ContractRelation::Required(HostLabRelation::ClassMethods),
+            None,
+        )
+        .unwrap()
+        .rows();
+    if ms_rows > 0 && cm_rows > 0 {
+        let slots = vec![
+            crate::provider::ScanSlot {
+                slot_name: "__mdd_scan_0".to_owned(),
+                base_relation: "method_strings".to_owned(),
+                row_filter: Some(crate::provider::RowFilter::EqText(
+                    "value".to_owned(),
+                    "__definitely_missing_1__".to_owned(),
+                )),
+            },
+            crate::provider::ScanSlot {
+                slot_name: "__mdd_scan_1".to_owned(),
+                base_relation: "method_strings".to_owned(),
+                row_filter: Some(crate::provider::RowFilter::EqText(
+                    "value".to_owned(),
+                    "__definitely_missing_2__".to_owned(),
+                )),
+            },
+        ];
+        let edges = vec![
+            crate::provider::EquiJoinEdge {
+                left_relation: "__mdd_scan_0".to_owned(),
+                right_relation: "__mdd_scan_1".to_owned(),
+                columns: vec![("method".to_owned(), "method".to_owned())],
+                bidirectional: true,
+            },
+            crate::provider::EquiJoinEdge {
+                left_relation: "__mdd_scan_0".to_owned(),
+                right_relation: "class_methods".to_owned(),
+                columns: vec![("method".to_owned(), "method_descriptor".to_owned())],
+                bidirectional: true,
+            },
+        ];
+        let planned = lazy_provider
+            .plan_scan_slots(
+                &["method_strings".to_owned(), "class_methods".to_owned()],
+                &slots,
+                &std::collections::BTreeMap::new(),
+                &edges,
+                &std::collections::BTreeMap::new(),
+            )
+            .unwrap();
+        assert!(matches!(planned.get("__mdd_scan_0"), Some(PlannedScan::Rows(r)) if r.is_empty()));
+        assert!(matches!(planned.get("__mdd_scan_1"), Some(PlannedScan::Rows(r)) if r.is_empty()));
+        assert!(matches!(planned.get("class_methods"), Some(PlannedScan::Rows(r)) if r.is_empty()));
+    }
+
+    let cf_rows = lazy_provider
+        .ensure_store(
+            ContractRelation::Required(HostLabRelation::ClassFields),
+            None,
+        )
+        .unwrap()
+        .rows();
+    let f_rows = lazy_provider
+        .ensure_store(ContractRelation::Public(PublicRelation::Fields), None)
+        .unwrap()
+        .rows();
+    if cf_rows > 0 && f_rows > 0 {
+        let planned_cte = lazy_provider
+            .plan_scan_slots(
+                &[
+                    "classes".to_owned(),
+                    "class_fields".to_owned(),
+                    "fields".to_owned(),
+                ],
+                &[],
+                &std::collections::BTreeMap::from([(
+                    "classes".to_owned(),
+                    crate::provider::RowFilter::InText(
+                        "descriptor".to_owned(),
+                        vec!["Lmissing/Never;".to_owned()],
+                    ),
+                )]),
+                &[
+                    crate::provider::EquiJoinEdge {
+                        left_relation: "classes".to_owned(),
+                        right_relation: "class_fields".to_owned(),
+                        columns: vec![
+                            ("file_id".to_owned(), "file_id".to_owned()),
+                            ("class_idx".to_owned(), "class_idx".to_owned()),
+                        ],
+                        bidirectional: false,
+                    },
+                    crate::provider::EquiJoinEdge {
+                        left_relation: "class_fields".to_owned(),
+                        right_relation: "fields".to_owned(),
+                        columns: vec![
+                            ("file_id".to_owned(), "file_id".to_owned()),
+                            ("field_idx".to_owned(), "field_idx".to_owned()),
+                        ],
+                        bidirectional: true,
+                    },
+                ],
+                &std::collections::BTreeMap::new(),
+            )
+            .unwrap();
+        assert!(matches!(planned_cte.get("classes"), Some(PlannedScan::Rows(r)) if r.is_empty()));
+        assert!(
+            matches!(planned_cte.get("class_fields"), Some(PlannedScan::Rows(r)) if r.is_empty())
+        );
+        assert!(matches!(planned_cte.get("fields"), Some(PlannedScan::Rows(r)) if r.is_empty()));
+    }
+}
