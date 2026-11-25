@@ -317,20 +317,6 @@ impl Rewrite<'_> {
             {
                 CompoundCarrier::Integer
             }
-            Expr::Function(function)
-                if function.name.0.len() == 1
-                    && function.name.0[0]
-                        .as_ident()
-                        .is_some_and(|id| id.value.eq_ignore_ascii_case("typeof"))
-                    && function.over.is_none()
-                    && function.filter.is_none()
-                    && matches!(&function.args, FunctionArguments::List(arguments)
-                        if arguments.duplicate_treatment.is_none()
-                        && arguments.clauses.is_empty()
-                        && matches!(arguments.args.as_slice(), [FunctionArg::Unnamed(FunctionArgExpr::Expr(_))])) =>
-            {
-                CompoundCarrier::Text
-            }
             _ => CompoundCarrier::Unknown,
         };
         Ok(value)
@@ -2506,7 +2492,6 @@ impl Rewrite<'_> {
                     "ltrim" => Some("mdd_ltrim"),
                     "rtrim" => Some("mdd_rtrim"),
                     "unicode" => Some("mdd_unicode"),
-                    "typeof" => Some("mdd_typeof"),
                     "group_concat" | "string_agg" => Some("mdd_group_concat"),
                     "count" | "coalesce" | "ifnull" => None,
                     _ => {
@@ -2524,7 +2509,6 @@ impl Rewrite<'_> {
                         return Err(invalid("TRIM_ARITY"));
                     }
                     "unicode" if arguments.args.len() != 1 => return Err(invalid("UNICODE_ARITY")),
-                    "typeof" if arguments.args.len() != 1 => return Err(invalid("TYPEOF_ARITY")),
                     "group_concat" if !(1..=2).contains(&arguments.args.len()) => {
                         return Err(invalid("GROUP_CONCAT_ARITY"));
                     }

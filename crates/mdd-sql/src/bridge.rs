@@ -1321,7 +1321,6 @@ impl SqlBridge {
                     "mdd_ltrim",
                     "mdd_rtrim",
                     "mdd_unicode",
-                    "mdd_typeof",
                     "mdd_group_concat",
                     "mdd_group_concat_distinct",
                     "mdd_hex",

@@ -9695,15 +9695,14 @@ fn scalar_and_group_concat_functions_match_sqlite_and_enforce_limits() {
         ]]
     );
 
-    // 2. char(), unicode(), typeof(), replace(), ltrim(), rtrim()
+    // 2. char(), unicode(), replace(), ltrim(), rtrim()
     let scalar_rows = bridge
         .query(
             "SELECT char(), char(65, 10, 66), hex(char(NULL)), length(char(NULL)), unicode(char(NULL)), \
                     hex(char(-1)), hex(char(1114112)), \
                     char(128512), unicode('😀a'), unicode(''), unicode(NULL), \
                     replace('a-b-c', '-', '_'), replace('aaa', '', 'x'), replace('a', NULL, 'b'), \
-                    ltrim('  abc  '), rtrim('  abc  '), ltrim('xxabxx', 'x'), rtrim('xyabcyx', 'xy'), \
-                    typeof(NULL), typeof(1), typeof(1.5), typeof('a'), typeof(X'01')",
+                    ltrim('  abc  '), rtrim('  abc  '), ltrim('xxabxx', 'x'), rtrim('xyabcyx', 'xy')",
         )
         .unwrap();
     assert_eq!(
@@ -9727,11 +9726,6 @@ fn scalar_and_group_concat_functions_match_sqlite_and_enforce_limits() {
             SqlValue::text("  abc"),
             SqlValue::text("abxx"),
             SqlValue::text("xyabc"),
-            SqlValue::text("null"),
-            SqlValue::text("integer"),
-            SqlValue::text("real"),
-            SqlValue::text("text"),
-            SqlValue::text("blob"),
         ]]
     );
     let native_bridge = SqlBridge::new(

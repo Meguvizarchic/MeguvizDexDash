@@ -1502,16 +1502,6 @@ fn scalar(
     control: &SqlControl,
 ) -> MddResult<SqlValue> {
     control.checkpoint(1, false)?;
-    if name == "mdd_typeof" {
-        let label = match &args[0] {
-            SqlValue::Null => "null",
-            SqlValue::I64(_) | SqlValue::U64(_) | SqlValue::Bool(_) => "integer",
-            SqlValue::F64(_) => "real",
-            SqlValue::Text(_) | SqlValue::DexMutf8 { .. } => "text",
-            SqlValue::Bytes(_) => "blob",
-        };
-        return Ok(SqlValue::Text(SqlText::from_utf8(label)));
-    }
     if name == "mdd_char" {
         let mut units = Vec::new();
         let max_bytes = control.inner.limits.max_cell_bytes;
@@ -2890,7 +2880,6 @@ pub(crate) fn register(
         ("mdd_rtrim", 1),
         ("mdd_rtrim", 2),
         ("mdd_unicode", 1),
-        ("mdd_typeof", 1),
         ("mdd_hex", 1),
         ("mdd_lower", 1),
         ("mdd_upper", 1),
