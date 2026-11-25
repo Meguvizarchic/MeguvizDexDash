@@ -977,22 +977,6 @@ pub(crate) fn query_hints(root: &Query, relations: &[SqlRelation]) -> QueryHints
     )
 }
 
-#[cfg_attr(not(test), allow(dead_code))]
-pub(crate) fn query_hints_with_types(
-    root: &Query,
-    relations: &[SqlRelation],
-    schema_types: &BTreeMap<String, BTreeMap<String, SqlType>>,
-) -> QueryHints {
-    query_hints_with_options(
-        root,
-        relations,
-        schema_types,
-        &BTreeSet::new(),
-        &BTreeSet::new(),
-        true,
-    )
-}
-
 pub(crate) fn query_hints_with_options(
     root: &Query,
     relations: &[SqlRelation],
@@ -1415,9 +1399,7 @@ impl<'a> HintExtractState<'a> {
                         && index_hints.is_empty()
                         && name.0.len() == 1 =>
                     {
-                        let Some(ident) = name.0[0].as_ident() else {
-                            return None;
-                        };
+                        let ident = name.0[0].as_ident()?;
                         let rel_lower = ident.value.to_ascii_lowercase();
                         let qual = alias.as_ref().map_or_else(
                             || rel_lower.clone(),
