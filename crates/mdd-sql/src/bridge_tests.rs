@@ -9318,12 +9318,7 @@ fn direct_and_fallback_match_rusqlite_oracle_for_nulls_utf16_and_ast_paths() {
         )
         .unwrap();
 
-    let bridge = SqlBridge::new(
-        Arc::clone(&provider),
-        SqlDialect::DexSql011,
-        SqlLimits::default(),
-    )
-    .unwrap();
+    let bridge = SqlBridge::new(provider, SqlDialect::DexSql011, SqlLimits::default()).unwrap();
 
     let or_terms: String = (0..40)
         .map(|i| {
@@ -9575,7 +9570,7 @@ fn reused_sqlite_connection_isolates_limits_vtabs_authorizer_and_errors() {
 #[test]
 fn scalar_and_group_concat_functions_match_sqlite_and_enforce_limits() {
     use mdd_query::ir::Signed64;
-    let provider = Arc::new(RowsProvider {
+    let provider: Arc<dyn SqlFactProvider> = Arc::new(RowsProvider {
         binding: SqlBinding {
             provider_identity: "extra-funcs".into(),
             snapshot_id: "extra-funcs-snap".into(),
