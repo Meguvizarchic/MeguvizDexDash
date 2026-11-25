@@ -1558,7 +1558,7 @@ impl SqlFactProvider for HostLabSqlProvider {
 
         const MAX_SEMI_JOIN_ROWS: u64 = 4096;
         const MAX_ROWS_IN_MEM_NARROW: usize = 16_384;
-        let edge_directions = |edge: &EquiJoinEdge| {
+        fn edge_directions(edge: &EquiJoinEdge) -> [Option<(&String, &String, bool)>; 2] {
             if edge.bidirectional {
                 [
                     Some((&edge.left_relation, &edge.right_relation, false)),
@@ -1570,7 +1570,7 @@ impl SqlFactProvider for HostLabSqlProvider {
                     None,
                 ]
             }
-        };
+        }
         for _ in 0..4 {
             let mut changed = false;
 

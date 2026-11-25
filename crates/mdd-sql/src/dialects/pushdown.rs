@@ -1371,7 +1371,7 @@ impl<'a> HintExtractState<'a> {
 
         // Step C: pre-validate factors and detect duplicate qualifiers before slot allocation.
         #[derive(Clone)]
-        enum PreFactor<'b> {
+        enum PreFactor {
             Base {
                 qual: String,
                 from_idx: usize,
@@ -1381,13 +1381,13 @@ impl<'a> HintExtractState<'a> {
             },
             Cte {
                 qual: String,
-                map: &'b CteDirectMap,
+                map: CteDirectMap,
             },
             Opaque {
                 qual: Option<String>,
             },
         }
-        let mut pre_factors: Vec<PreFactor<'_>> = Vec::new();
+        let mut pre_factors: Vec<PreFactor> = Vec::new();
         let mut seen_quals: BTreeSet<String> = BTreeSet::new();
 
         for (from_idx, from) in select.from.iter().enumerate() {
@@ -1427,7 +1427,10 @@ impl<'a> HintExtractState<'a> {
                             PreFactor::Opaque { qual: Some(qual) }
                         } else if let Some(cte_opt) = self.is_cte_shadowed(&rel_lower) {
                             if let Some(map) = cte_opt {
-                                PreFactor::Cte { qual, map }
+                                PreFactor::Cte {
+                                    qual,
+                                    map: map.clone(),
+                                }
                             } else {
                                 PreFactor::Opaque { qual: Some(qual) }
                             }
@@ -1508,7 +1511,7 @@ impl<'a> HintExtractState<'a> {
                 PreFactor::Cte { qual, map } => {
                     all_plain_base = false;
                     ordered_quals.push(Some(qual.clone()));
-                    factors_by_qual.insert(qual, FactorInfo::Cte(map.clone()));
+                    factors_by_qual.insert(qual, FactorInfo::Cte(map));
                 }
                 PreFactor::Opaque { qual } => {
                     all_plain_base = false;
@@ -2164,19 +2167,19 @@ fn count_table_mentions(
     let mut exprs: Vec<&Expr> = Vec::new();
     let mut set_exprs: Vec<&SetExpr> = Vec::new();
 
-    let mut record_alias = |alias: &TableAlias| {
+    fn record_alias(identifiers: &mut BTreeSet<String>, alias: &TableAlias) {
         identifiers.insert(alias.name.value.to_ascii_lowercase());
         for col in &alias.columns {
             identifiers.insert(col.name.value.to_ascii_lowercase());
         }
-    };
+    }
 
     while !queries.is_empty() || !set_exprs.is_empty() || !exprs.is_empty() {
         while let Some(q) = queries.pop() {
             if let Some(with) = &q.with {
                 for cte in &with.cte_tables {
                     ctes.insert(cte.alias.name.value.to_ascii_lowercase());
-                    record_alias(&cte.alias);
+                    record_alias(&mut identifiers, &cte.alias);
                     queries.push(&cte.query);
                 }
             }
@@ -2225,7 +2228,7 @@ fn count_table_mentions(
                             match f {
                                 TableFactor::Table { name, alias, .. } => {
                                     if let Some(alias) = alias {
-                                        record_alias(alias);
+                                        record_alias(&mut identifiers, alias);
                                     }
                                     if name.0.len() == 1
                                         && let Some(id) = name.0[0].as_ident()
@@ -2239,7 +2242,7 @@ fn count_table_mentions(
                                     subquery, alias, ..
                                 } => {
                                     if let Some(alias) = alias {
-                                        record_alias(alias);
+                                        record_alias(&mut identifiers, alias);
                                     }
                                     queries.push(subquery);
                                 }
