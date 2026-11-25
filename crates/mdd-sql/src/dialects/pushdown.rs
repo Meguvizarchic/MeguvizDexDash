@@ -1366,6 +1366,13 @@ fn count_table_mentions(root: &Query) -> (BTreeMap<String, usize>, BTreeSet<Stri
                                 _ => {}
                             }
                         }
+                        for clause in &list.clauses {
+                            if let FunctionArgumentClause::OrderBy(order_exprs) = clause {
+                                for order in order_exprs {
+                                    exprs.push(&order.expr);
+                                }
+                            }
+                        }
                     }
                 }
                 _ => {}

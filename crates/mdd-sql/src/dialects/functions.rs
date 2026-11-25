@@ -11,7 +11,7 @@ use rusqlite::{
     functions::{Aggregate, Context, FunctionFlags},
     types::{ToSql, ToSqlOutput, Value as Cell, ValueRef},
 };
-use std::{borrow::Cow, cmp::Ordering};
+use std::{borrow::Cow, cmp::Ordering, collections::BTreeSet};
 
 fn integer(value: &SqlValue) -> MddResult<i128> {
     match value {
@@ -1363,6 +1363,138 @@ pub(crate) fn hex_with_lease(
     Ok((Cell::Blob(carrier), lease))
 }
 
+fn value_to_utf16_cow<'a>(
+    value: &'a SqlValue,
+    dialect: SqlDialect,
+    control: &SqlControl,
+) -> MddResult<Cow<'a, [u16]>> {
+    match value {
+        SqlValue::Text(text) => Ok(Cow::Borrowed(&text.utf16)),
+        SqlValue::Bytes(bytes) => {
+            if dialect == SqlDialect::NativeV1 {
+                Ok(Cow::Owned(decoded_text(bytes, dialect, control)?.utf16))
+            } else {
+                let mut units = Vec::new();
+                legacy_concat_units(value, control, |unit| {
+                    units.push(unit);
+                    Ok(())
+                })?;
+                Ok(Cow::Owned(units))
+            }
+        }
+        other => Ok(Cow::Owned(scalar_text(other, control)?.utf16)),
+    }
+}
+
+#[inline]
+fn is_surrogate_pair(units: &[u16], at: usize) -> bool {
+    (0xd800..=0xdbff).contains(&units[at])
+        && units
+            .get(at + 1)
+            .is_some_and(|low| (0xdc00..=0xdfff).contains(low))
+}
+
+fn next_char_span(units: &[u16], at: usize, dialect: SqlDialect) -> (u32, usize) {
+    if dialect != SqlDialect::NativeV1 && is_surrogate_pair(units, at) {
+        let high = u32::from(units[at]) - 0xd800;
+        let low = u32::from(units[at + 1]) - 0xdc00;
+        (0x10000 + (high << 10) + low, 2)
+    } else {
+        (u32::from(units[at]), 1)
+    }
+}
+
+fn prev_char_span(units: &[u16], end: usize, dialect: SqlDialect) -> (u32, usize) {
+    if dialect != SqlDialect::NativeV1 && end >= 2 && is_surrogate_pair(units, end - 2) {
+        let high = u32::from(units[end - 2]) - 0xd800;
+        let low = u32::from(units[end - 1]) - 0xdc00;
+        (0x10000 + (high << 10) + low, 2)
+    } else {
+        (u32::from(units[end - 1]), 1)
+    }
+}
+
+fn slices_equal_checked<T: PartialEq>(
+    left: &[T],
+    right: &[T],
+    control: &SqlControl,
+) -> MddResult<bool> {
+    for (a, b) in left.iter().zip(right) {
+        control.checkpoint(1, false)?;
+        if a != b {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+#[inline]
+fn splits_trailing_surrogate_pair(hay: &[u16], end: usize, dialect: SqlDialect) -> bool {
+    dialect != SqlDialect::NativeV1
+        && end > 0
+        && end < hay.len()
+        && (0xd800..=0xdbff).contains(&hay[end - 1])
+        && (0xdc00..=0xdfff).contains(&hay[end])
+}
+
+fn text_instr_index(
+    hay: &[u16],
+    needle: &[u16],
+    dialect: SqlDialect,
+    control: &SqlControl,
+) -> MddResult<i64> {
+    if needle.is_empty() {
+        return Ok(1);
+    }
+    if needle.len() > hay.len() {
+        return Ok(0);
+    }
+    let mut at = 0usize;
+    let mut char_pos = 1i64;
+    while at + needle.len() <= hay.len() {
+        control.checkpoint(1, false)?;
+        if slices_equal_checked(&hay[at..at + needle.len()], needle, control)?
+            && !splits_trailing_surrogate_pair(hay, at + needle.len(), dialect)
+        {
+            return Ok(char_pos);
+        }
+        let (_, step) = next_char_span(hay, at, dialect);
+        at += step;
+        char_pos = char_pos
+            .checked_add(1)
+            .ok_or_else(|| quota("INSTR_OVERFLOW"))?;
+    }
+    Ok(0)
+}
+
+fn char_codepoint(value: &SqlValue, control: &SqlControl) -> MddResult<i128> {
+    Ok(match value {
+        SqlValue::Null => 0,
+        SqlValue::I64(v) => i128::from(v.0),
+        SqlValue::U64(v) => i128::from(v.0),
+        SqlValue::Bool(v) => i128::from(*v),
+        SqlValue::F64(bits) => {
+            let number = f64::from_bits(bits.0);
+            if number.is_finite() {
+                let truncated = number.trunc();
+                if truncated < (i64::MIN as f64) || truncated > (i64::MAX as f64) {
+                    i128::from(i64::MAX) + 1
+                } else {
+                    i128::from(truncated as i64)
+                }
+            } else {
+                0
+            }
+        }
+        SqlValue::Text(text) => {
+            i128::from(sqlite_integer_prefix(text.utf16.iter().copied(), control)?)
+        }
+        SqlValue::Bytes(bytes) | SqlValue::DexMutf8 { bytes, .. } => i128::from(
+            sqlite_integer_prefix(bytes.iter().copied().map(u16::from), control)?,
+        ),
+    })
+}
+
 fn scalar(
     name: &str,
     args: &[SqlValue],
@@ -1370,6 +1502,52 @@ fn scalar(
     control: &SqlControl,
 ) -> MddResult<SqlValue> {
     control.checkpoint(1, false)?;
+    if name == "mdd_typeof" {
+        let label = match &args[0] {
+            SqlValue::Null => "null",
+            SqlValue::I64(_) | SqlValue::U64(_) | SqlValue::Bool(_) => "integer",
+            SqlValue::F64(_) => "real",
+            SqlValue::Text(_) | SqlValue::DexMutf8 { .. } => "text",
+            SqlValue::Bytes(_) => "blob",
+        };
+        return Ok(SqlValue::Text(SqlText::from_utf8(label)));
+    }
+    if name == "mdd_char" {
+        let mut units = Vec::new();
+        let max_bytes = control.inner.limits.max_cell_bytes;
+        for arg in args {
+            control.checkpoint(1, false)?;
+            let cp = char_codepoint(arg, control)?;
+            let emit_len = usize::from((0x10000..=0x10ffff).contains(&cp)) + 1;
+            let new_len = units
+                .len()
+                .checked_add(emit_len)
+                .ok_or_else(|| quota("CHAR_CELL_BYTES"))?;
+            let new_bytes = u64::try_from(new_len)
+                .ok()
+                .and_then(|n| n.checked_mul(2))
+                .ok_or_else(|| quota("CHAR_CELL_BYTES"))?;
+            if new_bytes > max_bytes {
+                return Err(quota("CHAR_CELL_BYTES"));
+            }
+            units
+                .try_reserve(emit_len)
+                .map_err(|_| control.fail(quota("CHAR_ALLOCATION")))?;
+            if (0..=0xffff).contains(&cp) {
+                units.push(cp as u16);
+            } else if (0x10000..=0x10ffff).contains(&cp) {
+                let adj = (cp - 0x10000) as u32;
+                units.push(0xd800 | (adj >> 10) as u16);
+                units.push(0xdc00 | (adj & 0x3ff) as u16);
+            } else {
+                units.push(0xfffd);
+            }
+        }
+        return Ok(SqlValue::Text(SqlText {
+            utf16: units,
+            original_mutf8: None,
+        }));
+    }
     if name == "mdd_key" || name == "mdd_sort_key" {
         if args[0] == SqlValue::Null {
             return Ok(SqlValue::Null);
@@ -1491,6 +1669,185 @@ fn scalar(
                 }
             }
             Ok(SqlValue::I64(Signed64(length as i64)))
+        }
+        "mdd_instr" => {
+            if let (SqlValue::Bytes(hay), SqlValue::Bytes(needle)) = (&args[0], &args[1]) {
+                if needle.is_empty() {
+                    return Ok(SqlValue::I64(Signed64(1)));
+                }
+                if needle.len() > hay.len() {
+                    return Ok(SqlValue::I64(Signed64(0)));
+                }
+                for at in 0..=hay.len() - needle.len() {
+                    control.checkpoint(1, false)?;
+                    if slices_equal_checked(&hay[at..at + needle.len()], needle, control)? {
+                        return Ok(SqlValue::I64(Signed64((at + 1) as i64)));
+                    }
+                }
+                return Ok(SqlValue::I64(Signed64(0)));
+            }
+            let hay = value_to_utf16_cow(&args[0], dialect, control)?;
+            let needle = value_to_utf16_cow(&args[1], dialect, control)?;
+            let index = text_instr_index(&hay, &needle, dialect, control)?;
+            Ok(SqlValue::I64(Signed64(index)))
+        }
+        "mdd_replace" => {
+            let hay = value_to_utf16_cow(&args[0], dialect, control)?;
+            let needle = value_to_utf16_cow(&args[1], dialect, control)?;
+            let repl = value_to_utf16_cow(&args[2], dialect, control)?;
+            let max_bytes = control.inner.limits.max_cell_bytes;
+            if needle.is_empty() || needle.len() > hay.len() {
+                let bytes = u64::try_from(hay.len())
+                    .ok()
+                    .and_then(|n| n.checked_mul(2))
+                    .ok_or_else(|| quota("REPLACE_CELL_BYTES"))?;
+                if bytes > max_bytes {
+                    return Err(quota("REPLACE_CELL_BYTES"));
+                }
+                return Ok(SqlValue::Text(SqlText {
+                    utf16: hay.into_owned(),
+                    original_mutf8: None,
+                }));
+            }
+            let mut matches = 0usize;
+            let mut at = 0usize;
+            while at < hay.len() {
+                control.checkpoint(1, false)?;
+                if at + needle.len() <= hay.len()
+                    && slices_equal_checked(&hay[at..at + needle.len()], &needle, control)?
+                    && !splits_trailing_surrogate_pair(&hay, at + needle.len(), dialect)
+                {
+                    matches = matches
+                        .checked_add(1)
+                        .ok_or_else(|| quota("REPLACE_CELL_BYTES"))?;
+                    at += needle.len();
+                } else {
+                    let (_, step) = next_char_span(&hay, at, dialect);
+                    at += step;
+                }
+            }
+            if matches == 0 {
+                let bytes = u64::try_from(hay.len())
+                    .ok()
+                    .and_then(|n| n.checked_mul(2))
+                    .ok_or_else(|| quota("REPLACE_CELL_BYTES"))?;
+                if bytes > max_bytes {
+                    return Err(quota("REPLACE_CELL_BYTES"));
+                }
+                return Ok(SqlValue::Text(SqlText {
+                    utf16: hay.into_owned(),
+                    original_mutf8: None,
+                }));
+            }
+            let removed = matches
+                .checked_mul(needle.len())
+                .ok_or_else(|| quota("REPLACE_CELL_BYTES"))?;
+            let added = matches
+                .checked_mul(repl.len())
+                .ok_or_else(|| quota("REPLACE_CELL_BYTES"))?;
+            let out_units = hay
+                .len()
+                .checked_sub(removed)
+                .and_then(|n| n.checked_add(added))
+                .ok_or_else(|| quota("REPLACE_CELL_BYTES"))?;
+            let out_bytes = u64::try_from(out_units)
+                .ok()
+                .and_then(|n| n.checked_mul(2))
+                .ok_or_else(|| quota("REPLACE_CELL_BYTES"))?;
+            if out_bytes > max_bytes {
+                return Err(quota("REPLACE_CELL_BYTES"));
+            }
+            let mut out = Vec::new();
+            out.try_reserve_exact(out_units)
+                .map_err(|_| control.fail(quota("REPLACE_ALLOCATION")))?;
+            let mut at = 0usize;
+            while at < hay.len() {
+                control.checkpoint(1, false)?;
+                if at + needle.len() <= hay.len()
+                    && slices_equal_checked(&hay[at..at + needle.len()], &needle, control)?
+                    && !splits_trailing_surrogate_pair(&hay, at + needle.len(), dialect)
+                {
+                    for &unit in repl.iter() {
+                        control.checkpoint(1, false)?;
+                        out.push(unit);
+                    }
+                    at += needle.len();
+                } else {
+                    let (_, step) = next_char_span(&hay, at, dialect);
+                    out.extend_from_slice(&hay[at..at + step]);
+                    at += step;
+                }
+            }
+            Ok(SqlValue::Text(SqlText {
+                utf16: out,
+                original_mutf8: None,
+            }))
+        }
+        "mdd_ltrim" | "mdd_rtrim" => {
+            let hay = value_to_utf16_cow(&args[0], dialect, control)?;
+            let mut charset = Vec::new();
+            if let Some(trim_arg) = args.get(1) {
+                let trim_units = value_to_utf16_cow(trim_arg, dialect, control)?;
+                charset
+                    .try_reserve(trim_units.len())
+                    .map_err(|_| control.fail(quota("TRIM_ALLOCATION")))?;
+                let mut at = 0usize;
+                while at < trim_units.len() {
+                    control.checkpoint(1, false)?;
+                    let (cp, step) = next_char_span(&trim_units, at, dialect);
+                    charset.push(cp);
+                    at += step;
+                }
+                charset.sort_unstable();
+                charset.dedup();
+            } else {
+                charset.push(u32::from(b' '));
+            }
+            let mut begin = 0usize;
+            let mut end = hay.len();
+            if name == "mdd_ltrim" {
+                while begin < end {
+                    control.checkpoint(1, false)?;
+                    let (cp, step) = next_char_span(&hay, begin, dialect);
+                    if charset.binary_search(&cp).is_err() {
+                        break;
+                    }
+                    begin += step;
+                }
+            } else {
+                while end > begin {
+                    control.checkpoint(1, false)?;
+                    let (cp, step) = prev_char_span(&hay, end, dialect);
+                    if charset.binary_search(&cp).is_err() {
+                        break;
+                    }
+                    end -= step;
+                }
+            }
+            let out_len = end - begin;
+            let out_bytes = u64::try_from(out_len)
+                .ok()
+                .and_then(|n| n.checked_mul(2))
+                .ok_or_else(|| quota("TRIM_CELL_BYTES"))?;
+            if out_bytes > control.inner.limits.max_cell_bytes {
+                return Err(quota("TRIM_CELL_BYTES"));
+            }
+            let mut out = Vec::new();
+            out.try_reserve_exact(out_len)
+                .map_err(|_| control.fail(quota("TRIM_ALLOCATION")))?;
+            out.extend_from_slice(&hay[begin..end]);
+            Ok(SqlValue::Text(SqlText {
+                utf16: out,
+                original_mutf8: None,
+            }))
+        }
+        "mdd_unicode" => {
+            let hay = value_to_utf16_cow(&args[0], dialect, control)?;
+            if hay.is_empty() {
+                return Ok(SqlValue::Null);
+            }
+            let (cp, _) = next_char_span(&hay, 0, dialect);
+            Ok(SqlValue::I64(Signed64(i64::from(cp))))
         }
         "mdd_cast" => cast(
             args[0].clone(),
@@ -2376,6 +2733,92 @@ fn borrowed_cmp(
     }
 }
 
+#[inline]
+fn be_pair_to_u16(pair: [u8; 2]) -> u16 {
+    u16::from_be_bytes(pair)
+}
+
+fn borrowed_text_instr(
+    context: &Context<'_>,
+    dialect: SqlDialect,
+    control: &SqlControl,
+) -> Option<MddResult<Cell>> {
+    if control.runtime().is_some() {
+        return None;
+    }
+    let hay_raw = match context.get_raw(0) {
+        ValueRef::Null => None,
+        ValueRef::Blob(bytes) => {
+            let raw = bytes.strip_prefix(TEXT)?;
+            if !raw.len().is_multiple_of(2) {
+                return None;
+            }
+            Some(raw)
+        }
+        _ => return None,
+    };
+    let needle_raw = match context.get_raw(1) {
+        ValueRef::Null => None,
+        ValueRef::Blob(bytes) => {
+            let raw = bytes.strip_prefix(TEXT)?;
+            if !raw.len().is_multiple_of(2) {
+                return None;
+            }
+            Some(raw)
+        }
+        _ => return None,
+    };
+    Some((|| {
+        control.checkpoint(1, false)?;
+        let (Some(hay_raw), Some(needle_raw)) = (hay_raw, needle_raw) else {
+            return Ok(Cell::Null);
+        };
+        if needle_raw.is_empty() {
+            return Ok(Cell::Integer(1));
+        }
+        if needle_raw.len() > hay_raw.len() {
+            return Ok(Cell::Integer(0));
+        }
+        let hay_pairs = hay_raw.as_chunks::<2>().0;
+        let needle_pairs = needle_raw.as_chunks::<2>().0;
+        let mut at = 0usize;
+        let mut char_pos = 1i64;
+        while at + needle_pairs.len() <= hay_pairs.len() {
+            control.checkpoint(1, false)?;
+            if slices_equal_checked(
+                &hay_pairs[at..at + needle_pairs.len()],
+                needle_pairs,
+                control,
+            )? {
+                let end = at + needle_pairs.len();
+                let splits_pair = dialect != SqlDialect::NativeV1
+                    && end > 0
+                    && end < hay_pairs.len()
+                    && (0xd800..=0xdbff).contains(&be_pair_to_u16(hay_pairs[end - 1]))
+                    && (0xdc00..=0xdfff).contains(&be_pair_to_u16(hay_pairs[end]));
+                if !splits_pair {
+                    return Ok(Cell::Integer(char_pos));
+                }
+            }
+            let step = if dialect != SqlDialect::NativeV1
+                && (0xd800..=0xdbff).contains(&be_pair_to_u16(hay_pairs[at]))
+                && hay_pairs
+                    .get(at + 1)
+                    .is_some_and(|p| (0xdc00..=0xdfff).contains(&be_pair_to_u16(*p)))
+            {
+                2
+            } else {
+                1
+            };
+            at += step;
+            char_pos = char_pos
+                .checked_add(1)
+                .ok_or_else(|| quota("INSTR_OVERFLOW"))?;
+        }
+        Ok(Cell::Integer(0))
+    })())
+}
+
 pub(crate) fn register(
     db: &Connection,
     dialect: SqlDialect,
@@ -2439,6 +2882,15 @@ pub(crate) fn register(
         ("mdd_length", 1),
         ("mdd_substr", 2),
         ("mdd_substr", 3),
+        ("mdd_instr", 2),
+        ("mdd_char", -1),
+        ("mdd_replace", 3),
+        ("mdd_ltrim", 1),
+        ("mdd_ltrim", 2),
+        ("mdd_rtrim", 1),
+        ("mdd_rtrim", 2),
+        ("mdd_unicode", 1),
+        ("mdd_typeof", 1),
         ("mdd_hex", 1),
         ("mdd_lower", 1),
         ("mdd_upper", 1),
@@ -2485,6 +2937,16 @@ pub(crate) fn register(
                 let value = result
                     .and_then(|value| value.sqlite(control.inner.limits.max_cell_bytes))
                     .map_err(|e| failure(&control, e))?;
+                return Ok(SqlCellWithWorkspaceLease {
+                    value: ReturnPayload::Cell(value),
+                    _workspace: None,
+                });
+            }
+            if fast_udf
+                && name == "mdd_instr"
+                && let Some(result) = borrowed_text_instr(context, dialect, &control)
+            {
+                let value = result.map_err(|e| failure(&control, e))?;
                 return Ok(SqlCellWithWorkspaceLease {
                     value: ReturnPayload::Cell(value),
                     _workspace: None,
@@ -2623,6 +3085,22 @@ pub(crate) fn register(
             },
         )?;
     }
+    for (name, count, distinct) in [
+        ("mdd_group_concat", 1, false),
+        ("mdd_group_concat", 2, false),
+        ("mdd_group_concat_distinct", 1, true),
+    ] {
+        db.create_aggregate_function(
+            name,
+            count,
+            flags,
+            GroupConcatAggregate {
+                dialect,
+                distinct,
+                control: control.clone(),
+            },
+        )?;
+    }
     Ok(())
 }
 struct AggregateValue {
@@ -2639,6 +3117,59 @@ struct AggregateState {
     // The lease is only moved or dropped, never inspected across callbacks.
     // A caught callback panic leaves the state safe to drop during finalize.
     _workspace: std::panic::AssertUnwindSafe<Option<Reservation>>,
+}
+
+fn finalize_aggregate_value<S>(
+    control: &SqlControl,
+    value: SqlValue,
+    state: S,
+) -> rusqlite::Result<SqlCellWithWorkspaceLease> {
+    control
+        .checkpoint(0, false)
+        .map_err(|e| failure(control, e))?;
+    let size = value
+        .sqlite_blob_size(control.inner.limits.max_cell_bytes)
+        .map_err(|e| failure(control, e))?;
+    let overflow = || failure(control, quota("SQL_OUTPUT_WORK_OVERFLOW"));
+    let work = match &value {
+        SqlValue::Text(text) => u64::try_from(text.utf16.len()).map_err(|_| overflow())?,
+        SqlValue::Bytes(bytes) => u64::try_from(bytes.len()).map_err(|_| overflow())?,
+        SqlValue::DexMutf8 { bytes, .. } => u64::try_from(bytes.len())
+            .map_err(|_| overflow())?
+            .checked_mul(2)
+            .ok_or_else(overflow)?,
+        _ => 0,
+    };
+    control
+        .checkpoint(work, false)
+        .map_err(|e| failure(control, e))?;
+    let workspace = match size {
+        Some(size) if size != 0 => {
+            let amount = u64::try_from(size)
+                .map_err(|_| failure(control, quota("SQL_OUTPUT_BYTES_OVERFLOW")))?;
+            control
+                .runtime()
+                .map(|runtime| {
+                    runtime
+                        .pool()
+                        .reserve(mdd_query::budget::Resource::QueryWorkspaceBytes, amount)
+                })
+                .transpose()
+                .map_err(|e| failure(control, e))?
+        }
+        _ => None,
+    };
+    // Both leases remain live during encoding. The output lease then
+    // accompanies the carrier through rusqlite's ToSql callback.
+    let result = value
+        .sqlite(control.inner.limits.max_cell_bytes)
+        .map_err(|e| failure(control, e))?;
+    drop(value);
+    drop(state);
+    Ok(SqlCellWithWorkspaceLease {
+        value: ReturnPayload::Cell(result),
+        _workspace: workspace,
+    })
 }
 
 impl Aggregate<AggregateState, SqlCellWithWorkspaceLease> for AggregateValue {
@@ -2688,53 +3219,143 @@ impl Aggregate<AggregateState, SqlCellWithWorkspaceLease> for AggregateValue {
         _: &mut Context<'_>,
         state: Option<AggregateState>,
     ) -> rusqlite::Result<SqlCellWithWorkspaceLease> {
+        let mut state = state.unwrap_or_default();
+        let value = state.value.take().unwrap_or(SqlValue::Null);
+        finalize_aggregate_value(&self.control, value, state)
+    }
+}
+
+struct GroupConcatAggregate {
+    dialect: SqlDialect,
+    distinct: bool,
+    control: SqlControl,
+}
+
+#[derive(Default)]
+struct GroupConcatState {
+    has_value: bool,
+    units: Vec<u16>,
+    seen: BTreeSet<Vec<u8>>,
+    charged_units_cap: usize,
+    // Declared last so `units` and `seen` are dropped before their leases.
+    _leases: std::panic::AssertUnwindSafe<Vec<Reservation>>,
+}
+
+impl Aggregate<GroupConcatState, SqlCellWithWorkspaceLease> for GroupConcatAggregate {
+    fn init(&self, _: &mut Context<'_>) -> rusqlite::Result<GroupConcatState> {
+        Ok(GroupConcatState::default())
+    }
+    fn step(
+        &self,
+        context: &mut Context<'_>,
+        state: &mut GroupConcatState,
+    ) -> rusqlite::Result<()> {
         self.control
-            .checkpoint(0, false)
+            .checkpoint(1, false)
             .map_err(|e| failure(&self.control, e))?;
-        let state = state.unwrap_or_default();
-        let value = state.value.as_ref().unwrap_or(&SqlValue::Null);
-        let size = value
-            .sqlite_blob_size(self.control.inner.limits.max_cell_bytes)
-            .map_err(|e| failure(&self.control, e))?;
-        let overflow = || failure(&self.control, quota("SQL_OUTPUT_WORK_OVERFLOW"));
-        let work = match value {
-            SqlValue::Text(text) => u64::try_from(text.utf16.len()).map_err(|_| overflow())?,
-            SqlValue::Bytes(bytes) => u64::try_from(bytes.len()).map_err(|_| overflow())?,
-            SqlValue::DexMutf8 { bytes, .. } => u64::try_from(bytes.len())
-                .map_err(|_| overflow())?
-                .checked_mul(2)
-                .ok_or_else(overflow)?,
-            _ => 0,
-        };
-        self.control
-            .checkpoint(work, false)
-            .map_err(|e| failure(&self.control, e))?;
-        let workspace = match size {
-            Some(size) if size != 0 => {
-                let amount = u64::try_from(size)
-                    .map_err(|_| failure(&self.control, quota("SQL_OUTPUT_BYTES_OVERFLOW")))?;
-                self.control
-                    .runtime()
-                    .map(|runtime| {
-                        runtime
-                            .pool()
-                            .reserve(mdd_query::budget::Resource::QueryWorkspaceBytes, amount)
-                    })
-                    .transpose()
-                    .map_err(|e| failure(&self.control, e))?
+        let arguments = args(context, &self.control).map_err(|e| failure(&self.control, e))?;
+        let value = arguments
+            .values
+            .first()
+            .ok_or_else(|| failure(&self.control, invalid("AGGREGATE_ARGUMENT_MISSING")))?;
+        if *value == SqlValue::Null {
+            return Ok(());
+        }
+        if self.distinct {
+            let key = equality_key(value, &self.control).map_err(|e| failure(&self.control, e))?;
+            if state.seen.contains(&key) {
+                return Ok(());
             }
-            _ => None,
+            if let Some(runtime) = self.control.runtime() {
+                let amount = u64::try_from(key.len()).map_err(|_| {
+                    failure(&self.control, quota("GROUP_CONCAT_WORKSPACE_OVERFLOW"))
+                })?;
+                if amount > 0 {
+                    let lease = runtime
+                        .pool()
+                        .reserve(mdd_query::budget::Resource::QueryWorkspaceBytes, amount)
+                        .map_err(|e| failure(&self.control, e))?;
+                    state._leases.0.push(lease);
+                }
+            }
+            state.seen.insert(key);
+        }
+        const COMMA: [u16; 1] = [b',' as u16];
+        let sep: Cow<'_, [u16]> = if !state.has_value {
+            Cow::Borrowed(&[])
+        } else {
+            match arguments.values.get(1) {
+                None => Cow::Borrowed(&COMMA),
+                Some(SqlValue::Null) => Cow::Borrowed(&[]),
+                Some(sep_value) => value_to_utf16_cow(sep_value, self.dialect, &self.control)
+                    .map_err(|e| failure(&self.control, e))?,
+            }
         };
-        // Both leases remain live during encoding. The output lease then
-        // accompanies the carrier through rusqlite's ToSql callback.
-        let result = value
-            .sqlite(self.control.inner.limits.max_cell_bytes)
+        let val_units = value_to_utf16_cow(value, self.dialect, &self.control)
             .map_err(|e| failure(&self.control, e))?;
-        drop(state);
-        Ok(SqlCellWithWorkspaceLease {
-            value: ReturnPayload::Cell(result),
-            _workspace: workspace,
-        })
+        let extra = sep
+            .len()
+            .checked_add(val_units.len())
+            .ok_or_else(|| failure(&self.control, quota("GROUP_CONCAT_CELL_BYTES")))?;
+        let new_len = state
+            .units
+            .len()
+            .checked_add(extra)
+            .ok_or_else(|| failure(&self.control, quota("GROUP_CONCAT_CELL_BYTES")))?;
+        let new_bytes = u64::try_from(new_len)
+            .ok()
+            .and_then(|n| n.checked_mul(2))
+            .ok_or_else(|| failure(&self.control, quota("GROUP_CONCAT_CELL_BYTES")))?;
+        if new_bytes > self.control.inner.limits.max_cell_bytes {
+            return Err(failure(&self.control, quota("GROUP_CONCAT_CELL_BYTES")));
+        }
+        state
+            .units
+            .try_reserve(extra)
+            .map_err(|_| failure(&self.control, quota("GROUP_CONCAT_ALLOCATION")))?;
+        let cap = state.units.capacity();
+        if cap > state.charged_units_cap {
+            let delta = cap - state.charged_units_cap;
+            if let Some(runtime) = self.control.runtime() {
+                let amount = u64::try_from(delta)
+                    .ok()
+                    .and_then(|n| n.checked_mul(2))
+                    .ok_or_else(|| {
+                        failure(&self.control, quota("GROUP_CONCAT_WORKSPACE_OVERFLOW"))
+                    })?;
+                if amount > 0 {
+                    let lease = runtime
+                        .pool()
+                        .reserve(mdd_query::budget::Resource::QueryWorkspaceBytes, amount)
+                        .map_err(|e| failure(&self.control, e))?;
+                    state._leases.0.push(lease);
+                }
+            }
+            state.charged_units_cap = cap;
+        }
+        for &unit in sep.iter().chain(val_units.iter()) {
+            self.control
+                .checkpoint(1, false)
+                .map_err(|e| failure(&self.control, e))?;
+            state.units.push(unit);
+        }
+        state.has_value = true;
+        Ok(())
+    }
+    fn finalize(
+        &self,
+        _: &mut Context<'_>,
+        state: Option<GroupConcatState>,
+    ) -> rusqlite::Result<SqlCellWithWorkspaceLease> {
+        let mut state = state.unwrap_or_default();
+        if !state.has_value {
+            return finalize_aggregate_value(&self.control, SqlValue::Null, state);
+        }
+        let value = SqlValue::Text(SqlText {
+            utf16: std::mem::take(&mut state.units),
+            original_mutf8: None,
+        });
+        finalize_aggregate_value(&self.control, value, state)
     }
 }
 

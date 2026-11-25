@@ -9318,7 +9318,12 @@ fn direct_and_fallback_match_rusqlite_oracle_for_nulls_utf16_and_ast_paths() {
         )
         .unwrap();
 
-    let bridge = SqlBridge::new(provider, SqlDialect::DexSql011, SqlLimits::default()).unwrap();
+    let bridge = SqlBridge::new(
+        Arc::clone(&provider),
+        SqlDialect::DexSql011,
+        SqlLimits::default(),
+    )
+    .unwrap();
 
     let or_terms: String = (0..40)
         .map(|i| {
@@ -9565,4 +9570,279 @@ fn reused_sqlite_connection_isolates_limits_vtabs_authorizer_and_errors() {
             handle.join().unwrap();
         }
     });
+}
+
+#[test]
+fn scalar_and_group_concat_functions_match_sqlite_and_enforce_limits() {
+    use mdd_query::ir::Signed64;
+    let provider = Arc::new(RowsProvider {
+        binding: SqlBinding {
+            provider_identity: "extra-funcs".into(),
+            snapshot_id: "extra-funcs-snap".into(),
+            catalog_epoch: DecimalU64(0),
+        },
+        columns: vec![
+            SqlColumn {
+                id: "grp".into(),
+                name: "grp".into(),
+                data_type: SqlType::U64,
+                nullable: false,
+            },
+            SqlColumn {
+                id: "ord".into(),
+                name: "ord".into(),
+                data_type: SqlType::U64,
+                nullable: false,
+            },
+            SqlColumn {
+                id: "txt".into(),
+                name: "txt".into(),
+                data_type: SqlType::Text,
+                nullable: true,
+            },
+            SqlColumn {
+                id: "sep".into(),
+                name: "sep".into(),
+                data_type: SqlType::Text,
+                nullable: true,
+            },
+        ],
+        rows: vec![
+            vec![
+                SqlValue::U64(DecimalU64(1)),
+                SqlValue::U64(DecimalU64(2)),
+                SqlValue::text("Lb/c;->m()V"),
+                SqlValue::text(","),
+            ],
+            vec![
+                SqlValue::U64(DecimalU64(1)),
+                SqlValue::U64(DecimalU64(1)),
+                SqlValue::text("La/b;->n()V"),
+                SqlValue::text(","),
+            ],
+            vec![
+                SqlValue::U64(DecimalU64(1)),
+                SqlValue::U64(DecimalU64(0)),
+                SqlValue::Null,
+                SqlValue::text(","),
+            ],
+            vec![
+                SqlValue::U64(DecimalU64(1)),
+                SqlValue::U64(DecimalU64(3)),
+                SqlValue::text("La/b;->p()V"),
+                SqlValue::text(","),
+            ],
+            vec![
+                SqlValue::U64(DecimalU64(2)),
+                SqlValue::U64(DecimalU64(2)),
+                SqlValue::text("a\u{1f600}b->c"),
+                SqlValue::Null,
+            ],
+            vec![
+                SqlValue::U64(DecimalU64(2)),
+                SqlValue::U64(DecimalU64(1)),
+                SqlValue::text("  x->y  "),
+                SqlValue::text("|"),
+            ],
+            vec![
+                SqlValue::U64(DecimalU64(3)),
+                SqlValue::U64(DecimalU64(1)),
+                SqlValue::Null,
+                SqlValue::text(","),
+            ],
+        ],
+    });
+    let bridge = SqlBridge::new(
+        Arc::clone(&provider),
+        SqlDialect::DexSql011,
+        SqlLimits::default(),
+    )
+    .unwrap();
+
+    // 1. instr + substr owner extraction pattern & unicode surrogate pairs
+    let owner_rows = bridge
+        .query(
+            "SELECT substr(txt, 1, instr(txt, '->') - 1) AS owner, count(DISTINCT txt) AS callers \
+             FROM vals \
+             WHERE txt IS NOT NULL AND instr(txt, '->') > 0 \
+             GROUP BY owner \
+             ORDER BY owner",
+        )
+        .unwrap();
+    assert_eq!(
+        owner_rows.rows(),
+        &[
+            vec![SqlValue::text("  x"), SqlValue::I64(Signed64(1))],
+            vec![SqlValue::text("La/b;"), SqlValue::I64(Signed64(2))],
+            vec![SqlValue::text("Lb/c;"), SqlValue::I64(Signed64(1))],
+            vec![SqlValue::text("a\u{1f600}b"), SqlValue::I64(Signed64(1))],
+        ]
+    );
+
+    // Edge cases for instr
+    let instr_edges = bridge
+        .query(
+            "SELECT instr('abc', ''), instr('', ''), instr('', 'a'), \
+                    instr(NULL, 'a'), instr('a', NULL), instr(X'010203', X'0203'), \
+                    instr('😀😀', '😀')",
+        )
+        .unwrap();
+    assert_eq!(
+        instr_edges.rows(),
+        &[vec![
+            SqlValue::I64(Signed64(1)),
+            SqlValue::I64(Signed64(1)),
+            SqlValue::I64(Signed64(0)),
+            SqlValue::Null,
+            SqlValue::Null,
+            SqlValue::I64(Signed64(2)),
+            SqlValue::I64(Signed64(1)),
+        ]]
+    );
+
+    // 2. char(), unicode(), typeof(), replace(), ltrim(), rtrim()
+    let scalar_rows = bridge
+        .query(
+            "SELECT char(), char(65, 10, 66), hex(char(NULL)), length(char(NULL)), unicode(char(NULL)), \
+                    hex(char(-1)), hex(char(1114112)), \
+                    char(128512), unicode('😀a'), unicode(''), unicode(NULL), \
+                    replace('a-b-c', '-', '_'), replace('aaa', '', 'x'), replace('a', NULL, 'b'), \
+                    ltrim('  abc  '), rtrim('  abc  '), ltrim('xxabxx', 'x'), rtrim('xyabcyx', 'xy'), \
+                    typeof(NULL), typeof(1), typeof(1.5), typeof('a'), typeof(X'01')",
+        )
+        .unwrap();
+    assert_eq!(
+        scalar_rows.rows(),
+        &[vec![
+            SqlValue::text(""),
+            SqlValue::text("A\nB"),
+            SqlValue::text("C080"),
+            SqlValue::I64(Signed64(1)),
+            SqlValue::I64(Signed64(0)),
+            SqlValue::text("EFBFBD"),
+            SqlValue::text("EFBFBD"),
+            SqlValue::text("\u{1f600}"),
+            SqlValue::I64(Signed64(128512)),
+            SqlValue::Null,
+            SqlValue::Null,
+            SqlValue::text("a_b_c"),
+            SqlValue::text("aaa"),
+            SqlValue::Null,
+            SqlValue::text("abc  "),
+            SqlValue::text("  abc"),
+            SqlValue::text("abxx"),
+            SqlValue::text("xyabc"),
+            SqlValue::text("null"),
+            SqlValue::text("integer"),
+            SqlValue::text("real"),
+            SqlValue::text("text"),
+            SqlValue::text("blob"),
+        ]]
+    );
+    let native_bridge = SqlBridge::new(
+        Arc::clone(&provider),
+        SqlDialect::NativeV1,
+        SqlLimits::default(),
+    )
+    .unwrap();
+    let native_char_null = native_bridge.query("SELECT hex(char(NULL))").unwrap();
+    assert_eq!(native_char_null.rows(), &[vec![SqlValue::text("00")]]);
+
+    // 3. group_concat / string_agg with ORDER BY, DISTINCT, NULL skipping, and char(10)
+    let gc_rows = bridge
+        .query(
+            "SELECT grp, \
+                    group_concat(txt) AS gc_default, \
+                    group_concat(txt, char(10) ORDER BY ord) AS gc_ordered, \
+                    group_concat(txt, sep ORDER BY ord) AS gc_col_sep, \
+                    group_concat(DISTINCT substr(txt, 1, 5) ORDER BY ord DESC) AS gc_distinct_ord \
+             FROM vals \
+             GROUP BY grp \
+             ORDER BY grp ASC",
+        )
+        .unwrap();
+    assert_eq!(
+        gc_rows.rows(),
+        &[
+            vec![
+                SqlValue::U64(DecimalU64(1)),
+                SqlValue::text("Lb/c;->m()V,La/b;->n()V,La/b;->p()V"),
+                SqlValue::text("La/b;->n()V\nLb/c;->m()V\nLa/b;->p()V"),
+                SqlValue::text("La/b;->n()V,Lb/c;->m()V,La/b;->p()V"),
+                SqlValue::text("La/b;,Lb/c;"),
+            ],
+            vec![
+                SqlValue::U64(DecimalU64(2)),
+                SqlValue::text("a\u{1f600}b->c,  x->y  "),
+                SqlValue::text("  x->y  \na\u{1f600}b->c"),
+                SqlValue::text("  x->y  a\u{1f600}b->c"),
+                SqlValue::text("a\u{1f600}b->,  x->"),
+            ],
+            vec![
+                SqlValue::U64(DecimalU64(3)),
+                SqlValue::Null,
+                SqlValue::Null,
+                SqlValue::Null,
+                SqlValue::Null,
+            ],
+        ]
+    );
+
+    // 4. string_agg & SELECT DISTINCT + group_concat binding
+    let agg_rows = bridge
+        .query("SELECT DISTINCT string_agg(txt, '|' ORDER BY ord) FROM vals WHERE grp = 1")
+        .unwrap();
+    assert_eq!(
+        agg_rows.rows(),
+        &[vec![SqlValue::text("La/b;->n()V|Lb/c;->m()V|La/b;->p()V")]]
+    );
+
+    // 5. Rejections: DISTINCT with 2 args, non-aggregate ORDER BY clause, replace/group_concat cell budget
+    assert_eq!(
+        bridge
+            .query("SELECT group_concat(DISTINCT txt, ',') FROM vals")
+            .unwrap_err()
+            .code,
+        ErrorCode::InvalidArgument
+    );
+    assert_eq!(
+        bridge
+            .query("SELECT replace(txt, 'a', 'b' ORDER BY ord) FROM vals")
+            .unwrap_err()
+            .code,
+        ErrorCode::UnsupportedQuery
+    );
+
+    let tight_prep = bridge
+        .prepare("SELECT replace('aaaa', 'a', 'bbbb')")
+        .unwrap();
+    let tight_ctrl = SqlControl::new(
+        SqlLimits {
+            max_cell_bytes: 16,
+            ..SqlLimits::default()
+        },
+        None,
+    );
+    assert_eq!(
+        bridge.execute(&tight_prep, tight_ctrl).unwrap_err().code,
+        ErrorCode::QuotaExceeded
+    );
+
+    let gc_tight_prep = bridge
+        .prepare("SELECT group_concat(txt, char(10) ORDER BY ord) FROM vals WHERE grp = 1")
+        .unwrap();
+    let gc_tight_ctrl = SqlControl::new(
+        SqlLimits {
+            max_cell_bytes: 20,
+            ..SqlLimits::default()
+        },
+        None,
+    );
+    assert_eq!(
+        bridge
+            .execute(&gc_tight_prep, gc_tight_ctrl)
+            .unwrap_err()
+            .code,
+        ErrorCode::QuotaExceeded
+    );
 }

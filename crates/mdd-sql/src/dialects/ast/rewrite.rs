@@ -290,9 +290,10 @@ impl Rewrite<'_> {
             }
             Expr::Function(function)
                 if function.name.0.len() == 1
-                    && function.name.0[0]
-                        .as_ident()
-                        .is_some_and(|id| id.value.eq_ignore_ascii_case("length"))
+                    && function.name.0[0].as_ident().is_some_and(|id| {
+                        id.value.eq_ignore_ascii_case("length")
+                            || id.value.eq_ignore_ascii_case("unicode")
+                    })
                     && function.over.is_none()
                     && function.filter.is_none()
                     && matches!(&function.args, FunctionArguments::List(arguments)
@@ -301,6 +302,34 @@ impl Rewrite<'_> {
                         && matches!(arguments.args.as_slice(), [FunctionArg::Unnamed(FunctionArgExpr::Expr(_))])) =>
             {
                 CompoundCarrier::Integer
+            }
+            Expr::Function(function)
+                if function.name.0.len() == 1
+                    && function.name.0[0]
+                        .as_ident()
+                        .is_some_and(|id| id.value.eq_ignore_ascii_case("instr"))
+                    && function.over.is_none()
+                    && function.filter.is_none()
+                    && matches!(&function.args, FunctionArguments::List(arguments)
+                        if arguments.duplicate_treatment.is_none()
+                        && arguments.clauses.is_empty()
+                        && matches!(arguments.args.as_slice(), [FunctionArg::Unnamed(FunctionArgExpr::Expr(_)), FunctionArg::Unnamed(FunctionArgExpr::Expr(_))])) =>
+            {
+                CompoundCarrier::Integer
+            }
+            Expr::Function(function)
+                if function.name.0.len() == 1
+                    && function.name.0[0]
+                        .as_ident()
+                        .is_some_and(|id| id.value.eq_ignore_ascii_case("typeof"))
+                    && function.over.is_none()
+                    && function.filter.is_none()
+                    && matches!(&function.args, FunctionArguments::List(arguments)
+                        if arguments.duplicate_treatment.is_none()
+                        && arguments.clauses.is_empty()
+                        && matches!(arguments.args.as_slice(), [FunctionArg::Unnamed(FunctionArgExpr::Expr(_))])) =>
+            {
+                CompoundCarrier::Text
             }
             _ => CompoundCarrier::Unknown,
         };
@@ -2471,6 +2500,14 @@ impl Rewrite<'_> {
                     "max" => Some("mdd_max"),
                     "sum" => Some("mdd_sum"),
                     "nullif" => Some("mdd_nullif"),
+                    "instr" => Some("mdd_instr"),
+                    "char" => Some("mdd_char"),
+                    "replace" => Some("mdd_replace"),
+                    "ltrim" => Some("mdd_ltrim"),
+                    "rtrim" => Some("mdd_rtrim"),
+                    "unicode" => Some("mdd_unicode"),
+                    "typeof" => Some("mdd_typeof"),
+                    "group_concat" | "string_agg" => Some("mdd_group_concat"),
                     "count" | "coalesce" | "ifnull" => None,
                     _ => {
                         return Err(unsupported("FUNCTION_NOT_IMPLEMENTED")
@@ -2480,6 +2517,22 @@ impl Rewrite<'_> {
                 let FunctionArguments::List(arguments) = &mut function.args else {
                     return Err(unsupported("FUNCTION_ARGUMENT_FORM"));
                 };
+                match name.as_str() {
+                    "instr" if arguments.args.len() != 2 => return Err(invalid("INSTR_ARITY")),
+                    "replace" if arguments.args.len() != 3 => return Err(invalid("REPLACE_ARITY")),
+                    "ltrim" | "rtrim" if !(1..=2).contains(&arguments.args.len()) => {
+                        return Err(invalid("TRIM_ARITY"));
+                    }
+                    "unicode" if arguments.args.len() != 1 => return Err(invalid("UNICODE_ARITY")),
+                    "typeof" if arguments.args.len() != 1 => return Err(invalid("TYPEOF_ARITY")),
+                    "group_concat" if !(1..=2).contains(&arguments.args.len()) => {
+                        return Err(invalid("GROUP_CONCAT_ARITY"));
+                    }
+                    "string_agg" if arguments.args.len() != 2 => {
+                        return Err(invalid("STRING_AGG_ARITY"));
+                    }
+                    _ => {}
+                }
                 if arguments.args.len() >= 2 {
                     replacement = match name.as_str() {
                         "min" => Some("mdd_min_scalar"),
@@ -2487,11 +2540,63 @@ impl Rewrite<'_> {
                         _ => replacement,
                     };
                 }
-                if !arguments.clauses.is_empty() {
-                    return Err(unsupported("FUNCTION_ARGUMENT_CLAUSE"));
-                }
                 let count_distinct = name == "count"
                     && arguments.duplicate_treatment == Some(DuplicateTreatment::Distinct);
+                if arguments.duplicate_treatment == Some(DuplicateTreatment::Distinct) {
+                    if name == "group_concat" {
+                        if arguments.args.len() != 1 {
+                            return Err(invalid("DISTINCT_REQUIRES_ONE_ARGUMENT"));
+                        }
+                        arguments.duplicate_treatment = None;
+                        replacement = Some("mdd_group_concat_distinct");
+                    } else if name == "string_agg" {
+                        return Err(invalid("DISTINCT_REQUIRES_ONE_ARGUMENT"));
+                    }
+                } else if arguments.duplicate_treatment.is_some()
+                    && !matches!(
+                        name.as_str(),
+                        "count" | "min" | "max" | "sum" | "group_concat" | "string_agg"
+                    )
+                {
+                    return Err(invalid("DISTINCT_NOT_ALLOWED"));
+                }
+                let is_aggregate = matches!(
+                    replacement,
+                    Some(
+                        "mdd_sum"
+                            | "mdd_min"
+                            | "mdd_max"
+                            | "mdd_group_concat"
+                            | "mdd_group_concat_distinct"
+                    )
+                ) || name == "count";
+                for clause in &mut arguments.clauses {
+                    if !is_aggregate {
+                        return Err(unsupported("FUNCTION_ARGUMENT_CLAUSE"));
+                    }
+                    let FunctionArgumentClause::OrderBy(order_exprs) = clause else {
+                        return Err(unsupported("FUNCTION_ARGUMENT_CLAUSE"));
+                    };
+                    for order in order_exprs {
+                        if order.with_fill.is_some() {
+                            return Err(unsupported("ORDER_WITH_FILL"));
+                        }
+                        self.expr(&mut order.expr, depth + 1)?;
+                        let keep_native_order = self.fast_udf
+                            && matches!(
+                                self.in_column_type(&order.expr),
+                                Some(
+                                    crate::values::SqlType::U64
+                                        | crate::values::SqlType::I64
+                                        | crate::values::SqlType::Bool
+                                        | crate::values::SqlType::Text
+                                )
+                            );
+                        if !keep_native_order {
+                            order.expr = call("mdd_sort_key", vec![take(&mut order.expr)]);
+                        }
+                    }
+                }
                 for argument in &mut arguments.args {
                     match argument {
                         FunctionArg::Unnamed(FunctionArgExpr::Expr(value)) => {

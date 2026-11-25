@@ -241,6 +241,15 @@ pub(super) fn validate_iterative(query: &Query, limits: SqlLimits) -> MddResult<
                                 _ => return Err(invalid("INTERNAL_FUNCTION_ARGUMENT")),
                             }
                         }
+                        for clause in &arguments.clauses {
+                            if let FunctionArgumentClause::OrderBy(exprs) = clause {
+                                for order in exprs {
+                                    stack.push((Node::Expr(&order.expr), depth + 1));
+                                }
+                            } else {
+                                return Err(invalid("INTERNAL_FUNCTION_CLAUSE"));
+                            }
+                        }
                     } else {
                         return Err(invalid("INTERNAL_FUNCTION_FORM"));
                     }

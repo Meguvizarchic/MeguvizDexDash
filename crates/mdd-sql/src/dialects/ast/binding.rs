@@ -51,9 +51,16 @@ pub(super) fn current_aggregate(
             if function.name.0.len() == 1
                 && function.over.is_none()
                 && name.is_some_and(|name| {
-                    ["count", "mdd_sum", "mdd_min", "mdd_max"]
-                        .iter()
-                        .any(|aggregate| name.value.eq_ignore_ascii_case(aggregate))
+                    [
+                        "count",
+                        "mdd_sum",
+                        "mdd_min",
+                        "mdd_max",
+                        "mdd_group_concat",
+                        "mdd_group_concat_distinct",
+                    ]
+                    .iter()
+                    .any(|aggregate| name.value.eq_ignore_ascii_case(aggregate))
                 })
             {
                 return Ok(true);
@@ -64,6 +71,15 @@ pub(super) fn current_aggregate(
                         && child(expr)?
                     {
                         return Ok(true);
+                    }
+                }
+                for clause in &arguments.clauses {
+                    if let FunctionArgumentClause::OrderBy(exprs) = clause {
+                        for order in exprs {
+                            if child(&order.expr)? {
+                                return Ok(true);
+                            }
+                        }
                     }
                 }
             }
@@ -174,6 +190,16 @@ pub(super) fn possible_outer_column(
                         _ => return Ok(true),
                     }
                 }
+                for clause in &arguments.clauses {
+                    let FunctionArgumentClause::OrderBy(exprs) = clause else {
+                        return Ok(true);
+                    };
+                    for order in exprs {
+                        if child(&order.expr)? {
+                            return Ok(true);
+                        }
+                    }
+                }
                 if let Some(filter) = &function.filter
                     && child(filter)?
                 {
@@ -215,9 +241,16 @@ pub(super) fn nested_aggregate_needs_binding(
             let aggregate = function.name.0.len() == 1
                 && function.over.is_none()
                 && function.name.0[0].as_ident().is_some_and(|name| {
-                    ["count", "mdd_sum", "mdd_min", "mdd_max"]
-                        .iter()
-                        .any(|a| name.value.eq_ignore_ascii_case(a))
+                    [
+                        "count",
+                        "mdd_sum",
+                        "mdd_min",
+                        "mdd_max",
+                        "mdd_group_concat",
+                        "mdd_group_concat_distinct",
+                    ]
+                    .iter()
+                    .any(|a| name.value.eq_ignore_ascii_case(a))
                 });
             if let FunctionArguments::List(arguments) = &function.args {
                 for arg in &arguments.args {
@@ -230,6 +263,21 @@ pub(super) fn nested_aggregate_needs_binding(
                         }
                         if child(value)? {
                             return Ok(true);
+                        }
+                    }
+                }
+                for clause in &arguments.clauses {
+                    if let FunctionArgumentClause::OrderBy(exprs) = clause {
+                        for order in exprs {
+                            if aggregate
+                                && let Some(local) = local
+                                && possible_outer_column(&order.expr, local, depth + 1, budget)?
+                            {
+                                return Ok(true);
+                            }
+                            if child(&order.expr)? {
+                                return Ok(true);
+                            }
                         }
                     }
                 }
